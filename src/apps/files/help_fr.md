@@ -6,10 +6,10 @@
 
 ## La fenêtre
 
-- **Le panneau de gauche** montre d'abord les **Accès rapides** (Applications, Documents, Musique, Images, Vidéos...), puis les **Volumes**. Chaque volume affiche son nom et son genre : **Carte SD**, **Clé USB**, **RAM** ou **Image**. Une clé USB a un bouton d'éjection à droite de sa ligne. La liste des volumes se met à jour toute seule quand on branche ou retire une clé.
+- **Le panneau de gauche** montre d'abord les **Accès rapides** (Applications, Documents, Musique, Images, Vidéos...), puis les **Volumes**. Chaque volume affiche son nom, sa place libre et sa taille (« 12,3 Go libres sur 29,7 Go ») avec une jauge de la place prise (rouge au-delà de 90 %) ; un volume dont la place n'est pas connue (certains partages) affiche son genre : **Carte SD**, **Clé USB**, **RAM**, **Serveur**… Une clé USB a un bouton d'éjection à droite de sa ligne. La liste des volumes se met à jour toute seule quand on branche ou retire une clé.
 - **L'en-tête**, en haut à droite : les boutons ← (précédent), → (suivant) et ↑ (dossier parent), le **fil d'Ariane** (le chemin du dossier courant, un segment par dossier), et le choix de la vue : icônes ou liste.
 - **Le contenu** du dossier : les dossiers d'abord, puis les fichiers, par ordre alphabétique. Une application (un dossier `.app`) apparaît avec son icône et son nom.
-- **La ligne d'état**, en bas : le nombre d'éléments, ou le nom et la taille de l'élément choisi, ou le résultat de la dernière action (« Supprimé », « Volume démonté »...).
+- **La ligne d'état**, en bas : le nombre d'éléments, ou le nom et la taille de l'élément choisi, ou le résultat de la dernière action (« Supprimé », « Volume démonté »...) ; à droite, la place libre du volume courant et sa jauge.
 
 ## Se déplacer
 

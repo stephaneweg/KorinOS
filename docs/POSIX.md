@@ -484,7 +484,8 @@ plutôt que contourné dans CPython :
   (section plus haut), pas de propriétaires (`chown` sans effet), pas de liens (`link`, `symlink` → `ENOSYS`,
   `readlink` → `EINVAL`), `rename` : sans copie sur un même volume, d'un volume à l'autre un
   fichier est recopié et un répertoire rend `EXDEV` ; `ftruncate` relit et réécrit le fichier, 64 fichiers ouverts au plus par process (AppKit),
-  `statvfs` donne des valeurs fixes, pas de verrous (`flock`, `F_SETLK` : 0).
+  `statvfs` donne la vraie place du volume (FS_INFO de son service ; place inconnue : `f_blocks` = 0 ;
+  `fstatvfs` : des valeurs fixes), pas de verrous (`flock`, `F_SETLK` : 0).
 * **IPC** : pas de socket `AF_UNIX` nommé (`socket (AF_UNIX)`, `bind`, `connect` : seulement
   `socketpair`) ; `SCM_RIGHTS` ne porte que des canaux locaux et de la mémoire partagée (un tube de
   vfs, un fichier, un socket de NetKit : `EOPNOTSUPP`) ; `read` / `write` d'un objet partagé :
@@ -512,7 +513,7 @@ plutôt que contourné dans CPython :
   `dl_iterate_phdr` y voit le programme seul, en-têtes ELF gardés par `posix.ld`, `PT_GNU_EH_FRAME` par
   `--eh-frame-hdr` ; `dladdr` y rend le programme, sans nom de symbole) ; pas de `/proc`, sauf `readlink ("/proc/self/exe")`, déduit d'`argv[0]`
   et de `PATH` (le noyau ne garde pas le chemin), et `access ("/proc")`, qui réussit : SDL et PhysicsFS le regardent d'abord ; `sched_getaffinity` : tous les cœurs,
-  `sched_setaffinity` sans effet ; `statfs` : les valeurs fixes de `statvfs` ; `syscall` : seulement
+  `sched_setaffinity` sans effet ; `statfs` : celles de `statvfs` ; `syscall` : seulement
   `gettid`, `getrandom`, `membarrier` (numéros de Linux arm64, `ENOSYS` sinon) ; `fnmatch` (`fnmatch.c`) ; `timer_create` → `ENOSYS`, fuseau
   UTC seulement, une seule identité (uid 0).
 

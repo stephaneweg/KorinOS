@@ -586,12 +586,98 @@ static void vfs_fill (struct statvfs *s)
 	s->f_namemax = 255;
 }
 
+/* statvfs d'un chemin : la vraie place de son volume (17/11/2026). Le volume : le point de montage au
+ * plus long prefixe (VFS_MOUNTS de vfs, comme df) ; sa place : FS_INFO a son service « fs.<nom> » (ou
+ * a celui du volume qui le porte, VFS_VOLINFO : /boot sur la partition de /). FS_INFO rend a octets,
+ * b octets libres (-1 : inconnu), c octets par cluster (0 : en memoire). Place inconnue (un partage
+ * qui ne la donne pas, un service muet) : f_blocks = 0, comme un pseudo-volume de Linux. */
+#define VFS_VOLINFO_	49
+#define VFS_MOUNTS_	53
+#define FS_INFO_	19
+
+/* chemin absolu -> nom interne de son volume dans name (16 o) -> 0, -1 */
+static int vol_of (const char *abs, char *name)
+{
+	struct __armpi_msg m;
+	memset (&m, 0, sizeof m);
+	m.op = VFS_MOUNTS_;
+	if (__armpi_vfs_call (&m) < 0)
+		return -1;
+	m.data[sizeof m.data - 1] = 0;
+	long best = -1;
+	const char *e = (const char *) m.data, *end = (const char *) m.data + sizeof m.data - 1;
+	for (long n = m.b; n > 0 && e < end; n--)
+	{
+		const char *pt = e + strlen (e) + 1;
+		if (pt >= end)
+			break;
+		size_t l = strlen (pt);
+		int in = l == 1 && pt[0] == '/' ? abs[0] == '/'
+			: l && !strncmp (abs, pt, l) && (abs[l] == 0 || abs[l] == '/');
+		if (in && (long) l > best && strlen (e) < 16)
+		{
+			best = (long) l;
+			strcpy (name, e);
+		}
+		e = pt + l + 1;
+	}
+	return best < 0 ? -1 : 0;
+}
+
+/* nom d'un volume -> FS_INFO dans m -> 0, < 0 */
+static long vol_info (const char *name, struct __armpi_msg *m)
+{
+	char svc[24];
+	snprintf (svc, sizeof svc, "fs.%s", name);
+	long ch = __armpi_sys2 (SYS_SVC_OPEN, svc, 200);
+	if (ch < 0)
+	{					/* le service d'un autre volume (meme partition) */
+		memset (m, 0, sizeof *m);
+		m->op = VFS_VOLINFO_;
+		strcpy ((char *) m->data, name);
+		m->len = (unsigned) strlen (name) + 1;
+		if (__armpi_vfs_call (m) < 0)
+			return ch;
+		m->data[15] = 0;
+		snprintf (svc, sizeof svc, "fs.%s", (char *) m->data);
+		ch = __armpi_sys2 (SYS_SVC_OPEN, svc, 200);
+		if (ch < 0)
+			return ch;
+	}
+	memset (m, 0, sizeof *m);
+	m->op = FS_INFO_;
+	return __armpi_sys2 (SYS_SVC_CALL, ch, m);
+}
+
 int statvfs (const char *path, struct statvfs *s)
 {
 	struct stat st;
 	if (stat (path, &st) != 0)
 		return -1;
 	vfs_fill (s);
+	s->f_blocks = s->f_bfree = s->f_bavail = 0;	/* (inconnue tant que FS_INFO n'a pas repondu) */
+	char abs[POSIX_PATH_MAX], name[16];
+	if (__posix_abspath (path, abs, sizeof abs) != 0)
+		return 0;
+	if (!strncmp (abs, "HOME:", 5))
+	{					/* le dossier personnel : HOME (/home sans compte) */
+		const char *h = getenv ("HOME");
+		char t[POSIX_PATH_MAX];
+		snprintf (t, sizeof t, "%s%s", h && h[0] == '/' ? h : "/home", abs + 5);
+		strcpy (abs, t);
+	}
+	struct __armpi_msg m;
+	if (vol_of (abs, name) != 0 || vol_info (name, &m) < 0)
+		return 0;
+	unsigned long bs = m.c > 0 ? (unsigned long) m.c : 4096;
+	s->f_bsize = s->f_frsize = bs;
+	if (m.a > 0 && m.b >= 0)
+	{
+		s->f_blocks = (fsblkcnt_t) ((unsigned long) m.a / bs);
+		s->f_bfree = s->f_bavail = (fsblkcnt_t) ((unsigned long) m.b / bs);
+		if (s->f_bfree > s->f_blocks)
+			s->f_bfree = s->f_bavail = s->f_blocks;
+	}
 	return 0;
 }
 

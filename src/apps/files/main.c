@@ -26,6 +26,7 @@
 #include <spawn.h>
 #include <pthread.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <uikit.h>
 #include <buskit_abi.h>
 #include <netkit_abi.h>
@@ -55,7 +56,7 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define WIN_H		480
 #define PAN_W		190			/* panneau de gauche */
 #define PAN_Y0		30			/* premiere ligne de volume */
-#define VROW_H		36			/* ligne de volume (nom, genre) */
+#define VROW_H		48			/* ligne de volume (nom, place ou genre, jauge) */
 #define PROW_H		28			/* ligne d'acces rapide */
 #define PL_GAP		30			/* en-tete des acces rapides */
 #define TOP_H		44			/* en-tete */
@@ -1149,6 +1150,147 @@ static long cur_vol (void)
 	return best;
 }
 
+/* ---------------------------------------------------------------------------
+ *  Place des volumes : statvfs de libposix (FS_INFO du service du volume), mesuree dans un thread
+ *  (un partage ou Google Drive peut mettre du temps a repondre). Mesuree quand la liste change,
+ *  apres une copie ou un effacement, a Actualiser ; les volumes locaux aussi toutes les SP_EVERY_MS.
+ * --------------------------------------------------------------------------- */
+
+#define SP_EVERY_MS	10000
+
+struct vspace
+{
+	char disp[64];				/* point de montage */
+	unsigned long long total, avail;	/* octets */
+	int known;				/* 0 : pas encore mesure, ou place inconnue */
+	int net;				/* volume du reseau (pas de mesure periodique) */
+};
+
+static pthread_mutex_t sp_mx = PTHREAD_MUTEX_INITIALIZER;
+static struct vspace sp_req[VMAX], sp_res[VMAX];	/* (sp_mx) la liste a mesurer, les mesures */
+static long sp_req_n, sp_res_n;
+static int sp_want;				/* (sp_mx) 1 : tout mesurer */
+static long sp_gen, sp_seen;			/* (sp_mx) mesures faites, vues par draw */
+static struct vspace sp_ui[VMAX];		/* copie pour le dessin */
+static long sp_ui_n;
+static int sp_started;
+
+static void *sp_thread (void *a)
+{
+	(void) a;
+	struct vspace l[VMAX];
+	long n = 0;
+	for (;;)
+	{
+		int all = 0;
+		for (long w = 0; w < SP_EVERY_MS; w += 200)
+		{
+			pthread_mutex_lock (&sp_mx);
+			all = sp_want;
+			sp_want = 0;
+			if (all)
+			{
+				n = sp_req_n;
+				memcpy (l, sp_req, sizeof l);
+			}
+			pthread_mutex_unlock (&sp_mx);
+			if (all)
+				break;
+			usleep (200000);
+		}
+		for (long i = 0; i < n; i++)
+		{
+			if (!all && l[i].net)
+				continue;	/* (le reseau : seulement sur demande) */
+			struct statvfs s;
+			l[i].known = 0;
+			if (statvfs (l[i].disp, &s) == 0 && s.f_blocks)
+			{
+				l[i].total = (unsigned long long) s.f_blocks * s.f_frsize;
+				l[i].avail = (unsigned long long) s.f_bavail * s.f_frsize;
+				l[i].known = 1;
+			}
+		}
+		pthread_mutex_lock (&sp_mx);
+		for (long i = 0; i < n; i++)	/* (la liste a pu changer pendant la mesure) */
+			for (long j = 0; j < sp_req_n; j++)
+				if (!strcmp (sp_req[j].disp, l[i].disp))
+				{
+					sp_req[j].total = l[i].total;
+					sp_req[j].avail = l[i].avail;
+					sp_req[j].known = l[i].known;
+				}
+		memcpy (sp_res, sp_req, sizeof sp_res);
+		sp_res_n = sp_req_n;
+		memcpy (l, sp_req, sizeof l);
+		n = sp_req_n;
+		sp_gen++;
+		pthread_mutex_unlock (&sp_mx);
+	}
+	return 0;
+}
+
+static int is_net_src (const char *s);
+
+/* demander une mesure de tous les volumes (vols) */
+static void space_ask (void)
+{
+	pthread_mutex_lock (&sp_mx);
+	struct vspace old[VMAX];
+	long on = sp_req_n;
+	memcpy (old, sp_req, sizeof old);
+	sp_req_n = vol_n;
+	for (long i = 0; i < vol_n; i++)
+	{
+		struct vspace *r = &sp_req[i];
+		memset (r, 0, sizeof *r);
+		str_copy_n (r->disp, vols[i].disp, sizeof r->disp);
+		r->net = is_net_src (vols[i].src);
+		for (long j = 0; j < on; j++)	/* (la mesure d'avant, en attendant) */
+			if (!strcmp (old[j].disp, r->disp))
+			{
+				r->total = old[j].total;
+				r->avail = old[j].avail;
+				r->known = old[j].known;
+			}
+	}
+	sp_want = 1;
+	pthread_mutex_unlock (&sp_mx);
+	if (!sp_started)
+	{
+		pthread_t t;
+		pthread_attr_t at;
+		pthread_attr_init (&at);
+		pthread_attr_setdetachstate (&at, PTHREAD_CREATE_DETACHED);
+		sp_started = pthread_create (&t, &at, sp_thread, 0) == 0;
+		pthread_attr_destroy (&at);
+	}
+}
+
+/* -> 1 si de nouvelles mesures sont la (a redessiner) */
+static int space_poll (void)
+{
+	pthread_mutex_lock (&sp_mx);
+	int nw = sp_gen != sp_seen;
+	if (nw)
+	{
+		sp_seen = sp_gen;
+		memcpy (sp_ui, sp_res, sizeof sp_ui);
+		sp_ui_n = sp_res_n;
+	}
+	pthread_mutex_unlock (&sp_mx);
+	return nw;
+}
+
+/* volume -> sa mesure (0 : inconnue) */
+static const struct vspace *space_of (const struct vol *v)
+{
+	for (long i = 0; i < sp_ui_n; i++)
+		if (sp_ui[i].known && !strcmp (sp_ui[i].disp, v->disp))
+			return &sp_ui[i];
+	return 0;
+}
+
 static long vfs_call (void) { return sys3 (SYS_SVC_CALL_, vfs_ch, (long) &vmsg); }
 
 /* relit la liste -> 1 si elle a change (table vols refaite) */
@@ -1189,6 +1331,7 @@ static long vol_poll (void)
 		}
 	}
 	vol_build ();
+	space_ask ();				/* (leur place, dans son thread) */
 	if (vfs_ch >= 0 && cur_vol () < 0)
 	{					/* le volume du dossier courant a disparu */
 		go_sd0 ();
@@ -2779,6 +2922,7 @@ static void cp_poll (void)
 		r = d;
 		d = n;
 	}
+	int fin = r != 0;
 	while (r)
 	{
 		struct batch *n = r->next;
@@ -2786,6 +2930,8 @@ static void cp_poll (void)
 		r = n;
 		full = 1;
 	}
+	if (fin)
+		space_ask ();			/* (la place a change) */
 	if (full)
 		draw ();
 	else if (part)
@@ -3115,6 +3261,32 @@ static long cur_hl (void)
 	return cur_vol ();
 }
 
+static char *fmt_bytes (unsigned long long v, char *d);
+
+/* jauge de la place prise : rail LIGNE, remplie d'ACCENT (DANGER au-dela de 90 %) */
+static void draw_gauge (long x, long y, long w, long h, const struct vspace *sp)
+{
+	ui_rbox (x, y, w, h, h >> 1, TOK (TJ_LINE), TOK (TJ_LINE));
+	unsigned long long t = sp->total, u = t > sp->avail ? t - sp->avail : 0;
+	long f = t ? (long) (u * (unsigned long long) w / t) : 0;
+	if (u && f < h)
+		f = h;				/* (un rien pris se voit) */
+	unsigned c = u * 10 >= t * 9 ? TOK (TJ_DANGER) : TOK (TJ_ACCENT);
+	if (f > 0)
+		ui_rbox (x, y, f, h, h >> 1, c, c);
+}
+
+/* « 12,3 Go libres sur 29,7 Go » (« 12,3 Go libres » si max est depasse) -> buf */
+static const char *space_text (const struct vspace *sp, char *buf, long px, long max)
+{
+	char *e = tr_cat (fmt_bytes (sp->avail, buf), " libres sur ");
+	fmt_bytes (sp->total, e);
+	if (max <= 0 || text_w (buf, px, ui.font) <= max)
+		return buf;
+	tr_cat (fmt_bytes (sp->avail, buf), " libres");
+	return buf;
+}
+
 /* haut de la premiere ligne de volume (sous les acces rapides) */
 static long vol_y0 (void) { return pl_n ? PAN_Y0 + pl_n * PROW_H + PL_GAP : PAN_Y0; }
 
@@ -3148,7 +3320,16 @@ static void draw_panel (void)
 		ui_rbox (14, y + 10, 20, 15, 3, TOK (TJ_TEXT2), TOK (TJ_TEXT2));	/* disque */
 		ui_fill (28, y + 19, 3, 3, TOK (TJ_SUNKEN));
 		text (v->disp, 42, y + 16, TOK (TJ_TEXT1), 13, ui.font_b, PAN_W - 42 - 36);	/* « /media/usb0 » */
-		text (vol_kind (v), 42, y + 30, TOK (TJ_TEXT2), 12, ui.font, PAN_W - 42 - 36);	/* genre */
+		const struct vspace *sp = space_of (v);
+		if (sp)
+		{				/* sa place, et la jauge */
+			char sb[96];
+			long tw = PAN_W - 42 - 14;
+			text (space_text (sp, sb, 11, tw), 42, y + 31, TOK (TJ_TEXT2), 11, ui.font, tw);
+			draw_gauge (42, y + 36, tw, 5, sp);
+		}
+		else
+			text (vol_kind (v), 42, y + 31, TOK (TJ_TEXT2), 12, ui.font, PAN_W - 42 - 36);	/* genre */
 		if (v->rem)
 			draw_eject (PAN_W - 22, y + 13);
 	}
@@ -3539,7 +3720,20 @@ static void draw_status (void)
 		}
 		s = stbuf;
 	}
-	text (s, PAN_W + 12, H_ - 8, TOK (TJ_TEXT2), 12, ui.font, W_ - (PAN_W + 24));
+	long right = W_ - 12;			/* a droite : la place du volume courant */
+	long cv = cur_vol ();
+	const struct vspace *sp = cv >= 0 ? space_of (&vols[cv]) : 0;
+	if (sp && W_ - PAN_W > 420)
+	{
+		char sb[96];
+		const char *t = space_text (sp, sb, 12, 0);
+		long gw = 64, tw = text_w (t, 12, ui.font);
+		draw_gauge (right - gw, H_ - 15, gw, 6, sp);
+		right -= gw + 8 + tw;
+		text (t, right, H_ - 8, TOK (TJ_TEXT2), 12, ui.font, 0);
+		right -= 16;
+	}
+	text (s, PAN_W + 12, H_ - 8, TOK (TJ_TEXT2), 12, ui.font, right - (PAN_W + 12));
 }
 
 static void draw (void)
@@ -3981,6 +4175,8 @@ int main (int argc, char **argv)
 		}
 		gdj_poll ();			/* (la connexion à Google Drive en arrière-plan) */
 		cp_poll ();			/* (la copie en arriere-plan : bande, lots finis) */
+		if (space_poll ())		/* (la place des volumes, mesuree dans son thread) */
+			draw ();
 		if (ls_poll ())			/* (un dossier lu dans son thread) */
 		{
 			keep_visible ();

@@ -6,10 +6,10 @@
 
 ## The window
 
-- **The left panel** first shows the **Quick Access** places (Applications, Documents, Music, Pictures, Videos...), then the **Volumes**. Each volume shows its name and its kind: **SD Card**, **USB Drive**, **RAM** or **Image**. A USB drive has an eject button at the right of its row. The volume list updates by itself when a drive is plugged in or removed.
+- **The left panel** first shows the **Quick Access** places (Applications, Documents, Music, Pictures, Videos...), then the **Volumes**. Each volume shows its name, its free space and its size ("12.3 GB free of 29.7 GB") with a gauge of the space used (red above 90%); a volume whose space is not known (some shares) shows its kind: **SD Card**, **USB Drive**, **RAM**, **Server**... A USB drive has an eject button at the right of its row. The volume list updates by itself when a drive is plugged in or removed.
 - **The header**, at the top right: the ← (back), → (forward) and ↑ (parent folder) buttons, the **breadcrumb** (the path of the current folder, one segment per folder), and the view choice: icons or list.
 - **The content** of the folder: folders first, then files, in alphabetical order. An application (a `.app` folder) shows with its icon and its name.
-- **The status line**, at the bottom: the number of items, or the name and size of the chosen item, or the result of the last action ("Deleted", "Volume unmounted"...).
+- **The status line**, at the bottom: the number of items, or the name and size of the chosen item, or the result of the last action ("Deleted", "Volume unmounted"...); on the right, the free space of the current volume and its gauge.
 
 ## Moving around
 

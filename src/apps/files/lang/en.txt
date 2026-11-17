@@ -132,3 +132,5 @@ Suppression de « %s » (fichier %ld sur %ld) = Deleting “%s” (file %ld of %
 Impossible de supprimer « %s » : %s. = Cannot delete “%s”: %s.
 Suppression annulée = Deletion cancelled
 Suppression interrompue = Deletion stopped
+libres sur = free of
+libres = free
