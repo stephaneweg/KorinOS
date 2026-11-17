@@ -119,3 +119,4 @@
 - [Système de fichiers](armpi-systeme-fichiers.md) — 16/11 : étude docs/etude/SYSTEME-FICHIERS.md, ext4 maison pour /home + indexd sur SQLite (étiquettes, couleurs en xattrs), rien de fait, 10 questions en attente
 - [Fonds d'écran](armpi-fonds-ecran.md) — fonds d'Onyx dans Korin (17/11) : wallpaper.c commun voronoy/Réglages, wallpaper.ini personnel, korin.wallpaper
 - [Démarrage](armpi-demarrage.md) — volet de Réglages façon services.msc (17/11) : .off/.manual, services.deps, INIT_OP_SVC_*, QEMU seulement
+- [Batterie du PC](armpi-batterie.md) — acpid sur ACPICA (17/11) : %, temps restant, alertes, extinction à 5 %, profil d'énergie, icône de la barre ; QEMU seulement
