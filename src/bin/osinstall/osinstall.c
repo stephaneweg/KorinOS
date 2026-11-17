@@ -288,12 +288,22 @@ static long wr_file(const char *path, const void *data, u64 n)
 	return r == (long)n ? 0 : E_IO;
 }
 
+/* lit n octets (moins à la fin du fichier) : un sys_read rend au plus ce que le service passe en une fois */
+static long rd_full(long f, void *buf, u64 n)
+{
+	u64 got = 0;
+	long r = 0;
+	while (got < n && (r = sys_read(f, (char *)buf + got, n - got)) > 0)
+		got += (u64)r;
+	return got ? (long)got : r;
+}
+
 static long rd_file(const char *path, char *buf, u64 cap)
 {
 	long f = sys_open(path, O_READ);
 	if (f < 0)
 		return f;
-	long n = sys_read(f, buf, cap - 1);
+	long n = rd_full(f, buf, cap - 1); /* (l'index de la clé : 44 Ko, en plusieurs lectures) */
 	sys_close(f);
 	if (n < 0)
 		return n;
@@ -622,7 +632,7 @@ static long key_install(const char *name, const char *opk)
 	long size = sys_seek(f, 0, 2);
 	u64 tail = size > 65557 ? 65557 : (u64)size; /* la fin du répertoire central : dans les 64 Kio de la fin */
 	sys_seek(f, size - (long)tail, 0);
-	long got = sys_read(f, cbuf, tail);
+	long got = rd_full(f, cbuf, tail);
 	long eocd = -1;
 	for (long i = got - 22; i >= 0; i--)
 		if (cbuf[i] == 'P' && cbuf[i + 1] == 'K' && cbuf[i + 2] == 5 && cbuf[i + 3] == 6) {
@@ -641,7 +651,10 @@ static long key_install(const char *name, const char *opk)
 		return E_IO;
 	}
 	sys_seek(f, cd_off, 0);
-	sys_read(f, cd, cd_size);
+	if (rd_full(f, cd, cd_size) != (long)cd_size) {
+		sys_close(f);
+		return E_IO;
+	}
 	sys_close(f);
 	for (u32 o = 0; o + 46 <= cd_size;) {
 		if (cd[o] != 'P' || cd[o + 1] != 'K' || cd[o + 2] != 1 || cd[o + 3] != 2)

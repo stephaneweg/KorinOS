@@ -595,6 +595,11 @@ static void paquets_lit ()
 				else snprintf (p, sizeof p, "/packages/pc/%s", file);
 				struct stat st; cur.cle = stat (p, &st) == 0;
 			}
+			if (!cur.cle)	// (déjà dans le système de la clé, que l'installation copie : pc, pkgman)
+			{
+				char p[200]; snprintf (p, sizeof p, "/var/pkg/db/%s.ini", cur.name);
+				struct stat st; cur.cle = stat (p, &st) == 0;
+			}
 			g_pq[g_npq++] = cur;
 		}
 		memset (&cur, 0, sizeof cur); file[0] = 0;
