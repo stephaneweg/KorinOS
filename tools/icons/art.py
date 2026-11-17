@@ -1378,15 +1378,39 @@ def glyph(name):
     return deco
 
 
+# Les quatre boutons de droite du panel (et leurs reprises : dock, accueil, connexion) : un jeu au trait, sur la grille
+# de 24 des glyphes d'outils, du meme trait (strokes : 1,5 px environ a 18 px), coins et bouts ronds (17/11/2026).
+def _w(ic):
+    return 8.6 if ic.small else 7
+
+
 @glyph('power')
 def g_power(ic):
-    w = 15 if ic.small else 12.5
-    ic.fill(add(ic.arc(50, 55, 34, -52, 232, w), ic.line([(50, 11), (50, 47)], w)))
+    u = 100 / 24
+    w = _w(ic)
+    ic.fill(add(ic.arc(12 * u, 13 * u, 8 * u, -55, 235, w), ic.line([(12 * u, 3 * u), (12 * u, 11 * u)], w)))
 
 
 @glyph('gear')
 def g_gear(ic):
-    ic.fill(sub(ic.gear(50, 50, 48, 35, 8, .46, .66), ic.circ(50, 50, 17 if ic.small else 16)))
+    # le contour d une roue a six dents larges et arrondies, et son moyeu : au trait
+    u = 100 / 24
+    w = _w(ic)
+    cx = cy = 12 * u
+    r, rb, teeth = 10 * u, 7.4 * u, 6
+    top, bot = .36, .60
+    p = []
+    st = 360 / teeth
+    for i in range(teeth):
+        a = i * st - 90 + st / 2
+        for da, q in ((-bot / 2, rb), (-top / 2, r), (top / 2, r), (bot / 2, rb)):
+            t = math.radians(a + da * st)
+            p.append((cx + q * math.cos(t), cy + q * math.sin(t)))
+        for k in range(1, 6):
+            t = math.radians(a + bot / 2 * st + (1 - bot) * st * k / 6)
+            p.append((cx + rb * math.cos(t), cy + rb * math.sin(t)))
+    p.append(p[0])
+    ic.fill(add(ic.line(p, w), ic.ring(cx, cy, 3 * u, w)))
 
 
 @glyph('lock')
@@ -1414,13 +1438,17 @@ def g_pill(ic):
 
 @glyph('clipboard')
 def g_clipboard(ic):
-    w = 12 if ic.small else 10
-    board = sub(ic.rr(15, 12, 70, 84, 13), ic.rr(15 + w, 12 + w, 70 - 2 * w, 84 - 2 * w, 5))
-    clip = ic.rr(32, 2, 36, 24, 7)
-    ic.fill(sub(board, ic.rr(26, 0, 48, 30, 9)))
-    ic.fill(clip)
-    if not ic.small:
-        ic.fill(add(ic.rr(36, 46, 28, 7, 3.5), ic.rr(36, 62, 28, 7, 3.5)))
+    # la planche (son bord du haut s'efface sous la pince), la pince, deux lignes de texte
+    u = 100 / 24
+    w = _w(ic)
+
+    def outline(x, y, l, h, r):
+        return sub(ic.rr((x - w / 2 / u) * u, (y - w / 2 / u) * u, l * u + w, h * u + w, r * u + w / 2),
+                   ic.rr((x + w / 2 / u) * u, (y + w / 2 / u) * u, l * u - w, h * u - w, max(0, r * u - w / 2)))
+    board = sub(outline(5, 4.5, 14, 17, 2.5), ic.rr(8 * u - w, 2 * u, 8 * u + 2 * w, 5.5 * u))
+    clip = outline(8.5, 2.5, 7, 4, 1.5)
+    lines = add(ic.line([(9 * u, 12 * u), (15 * u, 12 * u)], w), ic.line([(9 * u, 16 * u), (13 * u, 16 * u)], w))
+    ic.fill(add(board, clip, lines))
 
 # --- les glyphes d'outils : barres d'outils de toutes les apps (table uk_tool_map de uikit_tabs.inc), au trait, sur une
 # grille de 24 comme le reste : l ligne, L ligne fermee, r contour arrondi x y l h rayon, c cercle, C disque, a arc
@@ -1501,7 +1529,9 @@ def _tool(name, spec):
     GLYPHS['tb-' + name] = lambda ic: strokes(ic, spec)
 
 
-glyph('trash')(lambda ic: strokes(ic, TOOLS['trash']))
+glyph('trash')(lambda ic: strokes(ic, [('l', (3.5, 6.5), (20.5, 6.5)), ('l', (9, 6.5), (9, 4.5), (10, 3.5), (14, 3.5), (15, 4.5), (15, 6.5)),
+                                       ('l', (5.5, 6.5), (6.5, 19), (8, 20.5), (16, 20.5), (17.5, 19), (18.5, 6.5)),
+                                       ('l', (10, 10.5), (10, 16.5)), ('l', (14, 10.5), (14, 16.5))]))
 
 for _n, _s in TOOLS.items():
     _tool(_n, _s)

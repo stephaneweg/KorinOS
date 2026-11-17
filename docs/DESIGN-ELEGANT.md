@@ -517,6 +517,33 @@ Emulators (et Réglages, Paramètres, Émulateurs) : une catégorie que le fichi
 à la fin, par nom ; une catégorie sans application n'a pas de tiroir mais garde sa place. Absence
 du fichier : les catégories par nom, terminal et files, 4 espaces.
 
+### 8.9 Le panel (`sys/panel`, en verre depuis le 17/11/2026)
+
+Le panel (`src/sys/panel/panel.c`, commun au Pi et au PC ; `panel.asm` n'est plus copié sur la carte)
+remplace le dock depuis le 31/10. Revue du 17/11 (« fait encore un peu rétro ») : ce qui datait la
+barre, et ce qui a changé.
+
+| Ce qui faisait daté | Maintenant |
+|---|---|
+| Barre opaque du gris du dock, un filet gris en haut : la barre des tâches des années 2000 | **Verre** : la teinte de `TJ_DOCK`, translucide (WF_ALPHA ; transparence `0x52` en Givre, `0x4A` en Onyx Noir, `GLASS_T_*`), un peu plus claire en haut (mêlée à `TJ_SURFACE`), une ombre d'un pixel (`TJ_LINE_STRONG` presque transparent en Givre) puis un reflet clair d'un pixel |
+| Icônes de droite de trois styles : corbeille au trait fine et grise, presse-papiers et roue pleins et noirs (`ui_ink` de la barre), éteindre épais | **Un jeu au trait** (`tools/icons/art.py`, glyphes `trash`, `clipboard`, `gear`, `power`) : grille de 24, le trait des glyphes d'outils (environ 1,5 px), bouts et coins ronds ; 20 px dans un bouton de 34 (22 dans 40) ; tous à `TJ_TEXT2`, `TJ_TEXT1` au survol, `TJ_DANGER` pour éteindre |
+| Survol : une boîte opaque à peine plus sombre | Un verre plus dense et plus clair (`TJ_SURFACE`, ou `TJ_DOCK` éclairci en Onyx Noir), rayon 9, coins anticrénelés par `glass_rbox` |
+| Bouton « apps » : pastille grise pleine (`TJ_SUNKEN`) | Pastille de verre dense, grille à `TJ_TEXT1` ; au survol, teintée de `TJ_ACCENT_LIGHT`, grille à l'accent |
+| Espaces de travail : quatre carrés à contour gris, façon « pager » | Le courant seul a le contour et le fond de l'accent ; les autres sont du verre plus dense, sans contour |
+| Séparateurs pleins sur presque toute la hauteur | Plus courts (hauteur − 28), `TJ_TEXT3` translucide |
+| Trait d'application ouverte de 14 px | 10 px, `TJ_ACCENT_VIVID` |
+
+Recette : `draw_glass` remplit ligne à ligne (`glass_at(y)` : couleur et transparence), puis le
+liseré ; tout ce qui se pose sur le verre et n'est pas opaque passe par `glass_rbox` (ui_rbox ne
+lisse les coins que d'une couleur opaque) : chaque pixel de coin mêle, selon sa couverture (4 × 4),
+le verre de sa ligne et la couleur, transparence comprise. Les icônes et glyphes se composent sur
+le fond transparent dans `ic_blit` (UIKit). Il n'y a pas de flou : Elegant compose par petites
+zones (le curseur en redessine une à chaque mouvement) et un flou par zone laisserait des marques ;
+un flou demanderait un drapeau de fenêtre et une copie du dessous mise en cache dans Elegant.
+
+Les mêmes glyphes servent ailleurs (dock, accueil du mode poche, volet rapide, écran de connexion) :
+ils y prennent le même dessin au trait.
+
 ---
 
 ## 9. Icônes des applications

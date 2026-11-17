@@ -63,6 +63,7 @@ static char tip_text[8 + 8 + DL_DESK];
 static char tip_num[8];
 
 static void draw(void);
+static void glass_rbox(long x, long y, long w, long h, long r, u32 c);
 
 static u32 tok(long off)
 {
@@ -305,22 +306,25 @@ static void draw_square(long d)
 	long sw = cur.sqw, sh = cur.sqh;
 	u8 *tj = (u8 *)ui_tokens();
 	int current = desk_cur == d;
-	u32 c; /* contour */
-	if (current)
-		c = M32(tj, TJ_ACCENT);
-	else
-		c = (u32)ui_tone(M32(tj, TJ_DOCK) & 0xFFFFFF, 70);
-	ui_rbox(bx, by, sw, sh, 5, c, c);
-	u32 wall; /* fond du carré */
+	int dark = M32(tj, TJ_DARK) != 0;
+	u32 wall; /* fond du carré : le courant, l'accent (contour et fond clair) ; les autres, un
+		     verre plus dense, sans contour (17/11/2026) */
 	if (current) {
-		if (M32(tj, TJ_DARK))
-			wall = (u32)ui_mix(M32(tj, TJ_ACCENT_LIGHT), 0x00FFFFFF, 0);
+		u32 c = M32(tj, TJ_ACCENT);
+		ui_rbox(bx, by, sw, sh, 6, c, c);
+		if (dark)
+			wall = M32(tj, TJ_ACCENT_LIGHT);
 		else
-			wall = (u32)ui_mix(M32(tj, TJ_ACCENT), 0x00FFFFFF, 196);
+			wall = (u32)ui_mix(M32(tj, TJ_ACCENT), 0x00FFFFFF, 210);
+		ui_rbox(bx + 1, by + 1, sw - 2, sh - 2, 5, wall, wall);
 	} else {
-		wall = (u32)ui_tone(M32(tj, TJ_DOCK) & 0xFFFFFF, hover - HIT_DESK == d ? 150 : 128);
+		int hov = hover - HIT_DESK == d;
+		u32 g = dark ? (u32)ui_mix(M32(tj, TJ_DOCK) & 0xFFFFFF, 0x00FFFFFF, hov ? 52 : 30)
+			     : M32(tj, TJ_SURFACE);
+		u32 t = dark ? (hov ? 0x28 : 0x40) : (hov ? 0x08 : 0x38);
+		glass_rbox(bx, by, sw, sh, 6, (g & 0xFFFFFF) | (t << 24));
+		wall = g & 0xFFFFFF; /* (l'encre du numéro se choisit sur sa teinte) */
 	}
-	ui_rbox(bx + 1, by + 1, sw - 2, sh - 2, 4, wall, wall);
 	int any = 0; /* ses fenêtres (en a-t-il ?) */
 	for (long i = 0; i < nminis; i++) {
 		struct mini *m = &minis[i];
@@ -364,8 +368,8 @@ static void draw_square(long d)
 	if (any)
 		return;
 	u32 ink = (u32)ui_ink(wall); /* vide : son numéro */
-	if (!current)
-		ink = (u32)ui_mix(wall, ink, 150);
+	if (!current) /* (sur le verre : l'encre secondaire, comme les boutons) */
+		ink = M32(tj, TJ_TEXT2);
 	tip_num[0] = (char)('1' + d);
 	tip_num[1] = 0;
 	long font = current ? (long)ui.font_b : (long)ui.font;
@@ -379,102 +383,167 @@ static void draw_square(long d)
  *  Dessin
  * --------------------------------------------------------------------------- */
 
-/* -> couleur des séparateurs (avec transparence 0x66) */
+/* --- Le verre (17/11/2026, docs/DESIGN-ELEGANT.md) : le fond est une teinte du dock du thème
+ * qui laisse voir le bureau (WF_ALPHA : l'octet haut est la transparence, 0 = opaque), un peu
+ * plus claire en haut ; un trait d'ombre puis un reflet clair en haut. Tout ce qui se pose
+ * dessus (survol, séparateurs) reste translucide : glass_rbox mêle couleur et transparence. */
+#define GLASS_T_LIGHT 0x52 /* transparence du verre : Givre, */
+#define GLASS_T_DARK 0x4A  /* Onyx Noir */
+
+/* a, b (0xTTRRGGBB), k 0..256 : les quatre octets mêlés */
+static u32 mix4(u32 a, u32 b, u32 k)
+{
+	u32 o = 0;
+	for (u32 sh = 0; sh < 32; sh += 8) {
+		u32 x = (a >> sh) & 0xFF, y = (b >> sh) & 0xFF;
+		o |= ((x * (256 - k) + y * k) >> 8) << sh;
+	}
+	return o;
+}
+
+/* le verre, ligne y -> 0xTTRRGGBB (dégradé vertical : un reflet clair en haut) */
+static u32 glass_at(long y)
+{
+	u8 *tj = (u8 *)ui_tokens();
+	u32 dock = M32(tj, TJ_DOCK) & 0xFFFFFF;
+	int dark = M32(tj, TJ_DARK) != 0;
+	u32 t = dark ? GLASS_T_DARK : GLASS_T_LIGHT;
+	u32 top = (u32)ui_mix(dock, M32(tj, TJ_SURFACE), dark ? 96 : 200); /* haut : vers la surface */
+	long h = cur.dh > 1 ? cur.dh - 1 : 1;
+	u32 c = (u32)ui_mix(top, dock, (long)((u64)(y << 8) / (u64)h));
+	return (c & 0xFFFFFF) | (t << 24);
+}
+
+/* le fond de verre et son liseré (ombre légère, reflet) */
+static void draw_glass(void)
+{
+	u8 *tj = (u8 *)ui_tokens();
+	long w = scr[SCR_W];
+	for (long y = 0; y < cur.dh; y++)
+		ui_fill(0, y, w, 1, glass_at(y));
+	int dark = M32(tj, TJ_DARK) != 0;
+	/* ombre : le trait fort du thème, presque transparent (il détache la barre d'un fond clair) */
+	ui_fill(0, 0, w, 1, (M32(tj, dark ? TJ_FACE : TJ_LINE_STRONG) & 0xFFFFFF) | (dark ? 0x30000000 : 0x90000000));
+	/* reflet : la surface (blanc en Givre), translucide */
+	u32 hi = dark ? (u32)ui_mix(M32(tj, TJ_DOCK) & 0xFFFFFF, 0x00FFFFFF, 40) : M32(tj, TJ_SURFACE);
+	ui_fill(0, 1, w, 1, (hi & 0xFFFFFF) | (dark ? 0x60000000 : 0x28000000));
+}
+
+/* boîte arrondie translucide sur le verre : x, y, l, h, rayon, couleur 0xTTRRGGBB ; les
+ * coins anticrénelés à la main (ui_rbox ne le fait que pour une couleur opaque) : chaque
+ * pixel de coin mêle le verre de sa ligne et la couleur selon sa couverture (4 x 4) */
+static void glass_rbox(long x, long y, long w, long h, long r, u32 c)
+{
+	if (w <= 0 || h <= 0)
+		return;
+	if (2 * r > w)
+		r = w / 2;
+	if (2 * r > h)
+		r = h / 2;
+	for (long row = 0; row < h; row++) {
+		long j = row < r ? row : h - 1 - row; /* ligne dans le coin */
+		if (j >= r) {
+			ui_fill(x, y + row, w, 1, c);
+			continue;
+		}
+		u32 bg = glass_at(y + row);
+		long inner = 0; /* pixels du coin à mêler */
+		for (long k = 0; k < r; k++) {
+			long cov = 0; /* couverture du pixel (k, j) du coin haut-gauche, sur 16 */
+			for (long sy = 0; sy < 4; sy++)
+				for (long sx = 0; sx < 4; sx++) {
+					long px = 8 * k + 2 * sx + 1 - 8 * r; /* (x 8, centre du cercle à 0) */
+					long py = 8 * j + 2 * sy + 1 - 8 * r;
+					if (px * px + py * py <= 64 * r * r)
+						cov++;
+				}
+			if (cov == 16)
+				break;
+			u32 m = mix4(bg, c, (u32)(cov * 16));
+			ui_pixel(x + k, y + row, m);
+			ui_pixel(x + w - 1 - k, y + row, m);
+			inner = k + 1;
+		}
+		ui_fill(x + inner, y + row, w - 2 * inner, 1, c);
+	}
+}
+
+/* -> couleur des séparateurs (translucide) */
 static u32 sep_colour(void)
+{
+	u8 *tj = (u8 *)ui_tokens();
+	u32 c = M32(tj, TJ_DARK) ? M32(tj, TJ_LINE_STRONG) : M32(tj, TJ_TEXT3);
+	return (c & 0xFFFFFF) | 0xA0000000;
+}
+
+/* x, largeur : le fond d'un élément survolé, un verre plus dense et plus clair */
+static void hover_box(long x, long w)
 {
 	u8 *tj = (u8 *)ui_tokens();
 	u32 c;
 	if (M32(tj, TJ_DARK))
-		c = M32(tj, TJ_LINE);
+		c = ((u32)ui_mix(M32(tj, TJ_DOCK) & 0xFFFFFF, 0x00FFFFFF, 44) & 0xFFFFFF) | 0x30000000;
 	else
-		c = (u32)ui_tone(M32(tj, TJ_DOCK) & 0xFFFFFF, 100);
-	return c | 0x66000000;
-}
-
-/* x, largeur : le fond d'un élément survolé */
-static void hover_box(long x, long w)
-{
-	u32 dock = tok(TJ_DOCK);
-	u32 c = (u32)ui_tone(dock & 0xFFFFFF, 158) | (dock & 0xFF000000);
-	ui_rbox(x, 4, w, cur.dh - 8, 10, c, c);
+		c = (M32(tj, TJ_SURFACE) & 0xFFFFFF) | 0x20000000;
+	glass_rbox(x, 5, w, cur.dh - 10, 9, c);
 }
 
 /* trait vertical à ce x */
 static void draw_sep(long x)
 {
-	ui_fill(x, 12, 1, cur.dh - 24, sep_colour());
+	ui_fill(x, 14, 1, cur.dh - 28, sep_colour());
 }
 
-/* glyphe, x du bouton, couleur : au centre du bouton, côté moitié du bouton */
+/* glyphe, x du bouton, couleur : au centre du bouton (20 px pour un bouton de 34) */
 static void btn_glyph(const char *name, long x, u32 colour)
 {
-	long side = ((cur.btn >> 1) + 1) & ~1L;
+	long side = ((cur.btn >> 1) + 3) & ~1L;
 	x += (long)((u64)(cur.btn - side) >> 1);
 	long y = (long)((u64)(cur.dh - side) >> 1);
 	ui_glyph((long)name, x, y, side, colour);
 }
 
-/* -> encre lisible sur la barre */
-static u32 bar_ink(void)
-{
-	return (u32)ui_ink(tok(TJ_DOCK) & 0xFFFFFF);
-}
-
-/* le bouton « apps » : pastille neutre (accent clair au survol), grille de 3 x 3 */
+/* le bouton « apps » : une pastille de verre plus dense (teintée de l'accent au survol), la
+ * grille de 3 x 3 à l'encre du texte (de l'accent au survol) */
 static void draw_apps(void)
 {
 	u8 *tj = (u8 *)ui_tokens();
 	long btn = cur.btn;
 	long y = (long)((u64)(cur.dh - btn) >> 1);
-	u32 face = M32(tj, TJ_SUNKEN);
-	if (hover == HIT_APPS)
-		face = M32(tj, TJ_ACCENT_LIGHT);
-	ui_glyph((long)"glyph-pill", 8, y, btn, face);
-	u32 ink = (u32)ui_ink(face);
-	long side = ((btn >> 1) + 2) & ~1L; /* la grille, centrée */
+	int dark = M32(tj, TJ_DARK) != 0;
+	u32 face, ink;
+	if (hover == HIT_APPS) {
+		face = (M32(tj, TJ_ACCENT_LIGHT) & 0xFFFFFF) | (dark ? 0x18000000 : 0x10000000);
+		ink = M32(tj, dark ? TJ_ACCENT_VIVID : TJ_ACCENT);
+	} else {
+		face = dark ? (((u32)ui_mix(M32(tj, TJ_DOCK) & 0xFFFFFF, 0x00FFFFFF, 30) & 0xFFFFFF) | 0x38000000)
+			    : ((M32(tj, TJ_SURFACE) & 0xFFFFFF) | 0x30000000);
+		ink = M32(tj, TJ_TEXT1);
+	}
+	glass_rbox(8, y, btn, btn, 10, face);
+	long side = ((btn >> 1) + 0) & ~1L; /* la grille, centrée */
 	long off = (long)((u64)(btn - side) >> 1);
 	ui_glyph((long)"glyph-apps", off + 8, y + off, side, ink);
 }
 
-/* icône, x, code HIT_* : un bouton à droite */
+/* glyphe, x, code HIT_* : un bouton à droite. Les quatre (corbeille, presse-papiers,
+ * réglages, éteindre) : le même jeu au trait, la même encre secondaire, l'encre du texte au
+ * survol (éteindre : le rouge du thème) */
 static void draw_btn(const char *name, long x, long code)
 {
-	if (hover == code)
+	u32 c = tok(TJ_TEXT2);
+	if (hover == code) {
 		hover_box(x, cur.btn);
-	btn_glyph(name, x, tok(TJ_TEXT2)); /* monochrome, comme ses voisins */
-}
-
-/* le bouton des réglages, à l'encre de la barre */
-static void draw_gear(void)
-{
-	if (hover == HIT_GEAR)
-		hover_box(gear_x, cur.btn);
-	btn_glyph("glyph-gear", gear_x, bar_ink());
-}
-
-/* le bouton d'alimentation, couleur de danger */
-static void draw_power(void)
-{
-	if (hover == HIT_POWER)
-		hover_box(power_x, cur.btn);
-	u32 c = hover == HIT_POWER ? tok(TJ_DANGER) : tok(TJ_TEXT2); /* (rouge au survol) */
-	btn_glyph("glyph-power", power_x, c);
-}
-
-/* le bouton du presse-papiers, à l'encre de la barre */
-static void draw_clip(void)
-{
-	if (hover == HIT_CLIP)
-		hover_box(clip_x, cur.btn);
-	btn_glyph("glyph-clipboard", clip_x, bar_ink());
+		c = tok(code == HIT_POWER ? TJ_DANGER : TJ_TEXT1);
+	}
+	btn_glyph(name, x, c);
 }
 
 static void draw(void)
 {
 	u8 *tj = (u8 *)ui_tokens();
-	long dh = cur.dh, w = scr[SCR_W];
-	ui_fill(0, 0, w, dh, M32(tj, TJ_DOCK)); /* toute la largeur, le dock du thème */
-	ui_fill(0, 0, w, 1, sep_colour());      /* un trait en haut */
+	long dh = cur.dh;
+	draw_glass(); /* toute la largeur, le verre */
 	draw_apps();
 	for (long i = 0; i < nslots; i++) { /* --- emplacements */
 		long x = sl_x[i], sw = slot_w;
@@ -487,7 +556,7 @@ static void draw(void)
 		ui_icon((long)ap_nom[app], x + (long)((u64)(sw - px) >> 1), (long)((u64)(dh - px) >> 1) - 1, px);
 		if (pids[app]) { /* un trait sous une application ouverte */
 			u32 v = M32(tj, TJ_ACCENT_VIVID);
-			ui_rbox(x + (long)((u64)sw >> 1) - 7, dh - 5, 14, 3, 1, v, v);
+			ui_rbox(x + (long)((u64)sw >> 1) - 5, dh - 5, 10, 3, 1, v, v);
 		}
 	}
 	draw_sep(desk_x - 7); /* --- à droite */
@@ -495,9 +564,9 @@ static void draw(void)
 		draw_square(d);
 	if (trash_x >= 0)
 		draw_btn("glyph-trash", trash_x, HIT_TRASH);
-	draw_gear();
-	draw_clip();
-	draw_power();
+	draw_btn("glyph-clipboard", clip_x, HIT_CLIP);
+	draw_btn("glyph-gear", gear_x, HIT_GEAR);
+	draw_btn("glyph-power", power_x, HIT_POWER);
 	ui_update_all();
 }
 
