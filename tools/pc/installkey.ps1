@@ -1,4 +1,4 @@
-# installkey.ps1 : écrire l'image de la clé d'installation de Korin OS sur une clé USB (docs/etude/INSTALLATEUR.md §2.1).
+﻿# installkey.ps1 : écrire l'image de la clé d'installation de Korin OS sur une clé USB (docs/etude/INSTALLATEUR.md §2.1).
 #
 #   .\tools\pc\installkey.ps1 list                         les clés USB vues par Windows
 #   .\tools\pc\installkey.ps1 write -Disk N [-Image FICHIER]
@@ -40,26 +40,36 @@ Write-Host ("Disque {0} : {1}, {2} Go. TOUT ce qu'il contient sera effacé." -f 
 $answer = Read-Host 'Pour confirmer, retapez le numéro du disque'
 if ($answer -ne "$Disk") { Write-Host 'Rien n''a été écrit.'; exit 1 }
 
-# hors ligne et sans table, pour que Windows ne garde aucun volume ouvert pendant l'écriture
-Clear-Disk -Number $Disk -RemoveData -RemoveOEM -Confirm:$false
-Set-Disk -Number $Disk -IsOffline $true
+# sans table, pour que Windows ne garde aucun volume ouvert pendant l'écriture (une clé neuve, jamais initialisée,
+# n'a rien à effacer) ; hors ligne si Windows le permet (pas pour beaucoup de clés « amovibles »)
+try { Clear-Disk -Number $Disk -RemoveData -RemoveOEM -Confirm:$false } catch { Write-Host "(Clear-Disk : $($_.Exception.Message))" }
+$offline = $false
+try { Set-Disk -Number $Disk -IsOffline $true; $offline = $true } catch { }
 
+# les 4 premiers Mo (la table GPT) en dernier : Windows ne voit une partition qu'une fois tout le reste écrit
 $src = [IO.File]::OpenRead($img.FullName)
 $dst = New-Object IO.FileStream("\\.\PhysicalDrive$Disk", [IO.FileMode]::Open, [IO.FileAccess]::Write, [IO.FileShare]::ReadWrite)
 try {
+    $head = New-Object byte[] (4MB)
+    $hn = $src.Read($head, 0, $head.Length)
+    if ($hn % 512) { $hn += 512 - ($hn % 512) }
     $buf = New-Object byte[] (4MB)
-    $done = 0
+    $done = $hn
+    $dst.Seek($head.Length, [IO.SeekOrigin]::Begin) | Out-Null
     while (($n = $src.Read($buf, 0, $buf.Length)) -gt 0) {
-        if ($n % 512) { $n += 512 - ($n % 512) } # (la fin, complétée à un secteur)
+        if ($n % 512) { [Array]::Clear($buf, $n, $buf.Length - $n); $n += 512 - ($n % 512) } # (la fin, complétée à un secteur)
         $dst.Write($buf, 0, $n)
         $done += $n
         Write-Progress -Activity 'Écriture de la clé' -Status ("{0} Mo sur {1} Mo" -f [int]($done / 1MB), [int]($img.Length / 1MB)) -PercentComplete ([math]::Min(100, $done * 100 / $img.Length))
     }
     $dst.Flush()
+    $dst.Seek(0, [IO.SeekOrigin]::Begin) | Out-Null
+    $dst.Write($head, 0, $hn)
+    $dst.Flush()
 } finally {
     $src.Close()
     $dst.Close()
 }
-Set-Disk -Number $Disk -IsOffline $false
+if ($offline) { Set-Disk -Number $Disk -IsOffline $false }
 Update-Disk -Number $Disk
 Write-Host 'Clé écrite. Démarrez le PC dessus (F9 sur le ZBook, Secure Boot désactivé).'
