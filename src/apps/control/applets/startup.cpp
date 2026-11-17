@@ -27,14 +27,17 @@
 
 extern char **environ;
 
+#ifndef INIT_OP_SVC_STOP			/* (src/inc/armpi.inc ; uikit_abi.h les donne aussi) */
+#define INIT_OP_SVC_STOP 4
+#define INIT_OP_SVC_START 5
+#endif
+
 enum
 {
 	SYS_KILL = 0x14,
 	SYS_PROCLIST_FROM = 0x1F,
-	INIT_OP_SVC_STOP = 4,			/* (src/inc/armpi.inc) */
-	INIT_OP_SVC_START = 5,
-	E_NOENT = -2,
-	E_EXIST = -17,
+	ST_E_NOENT = -2,
+	ST_E_EXIST = -17,
 	ST_MAX = 64,				/* entrées */
 	ST_LINE = 128,
 	ST_NAME = 32,
@@ -497,6 +500,10 @@ static void st_draw (void)
 			const char *label = e.info ? TR (e.info->label) : e.name;
 			uint32_t c1 = tok (e.on ? TJ_TEXT1 : TJ_TEXT2);
 			ui_text ((long) label, x0, y + 19, c1, 14, FB (), tw);
+			const char *args = strchr (e.line, ' ');	/* ses arguments (deux lignes du même programme) */
+			long lw = ui_text_width ((long) label, 14, FB ());
+			if (e.info && args && lw + 16 < tw)
+				ui_text ((long) (args + 1), x0 + lw + 10, y + 19, tok (TJ_TEXT3), 12, F (), tw - lw - 10);
 			const char *desc = e.info ? TR (e.info->desc) : e.line;
 			ui_text ((long) desc, x0, y + 37, tok (TJ_TEXT3), 12, F (), tw);
 			long sx = st_state_x ();		/* l'état : un voyant, puis le mot */
@@ -610,12 +617,12 @@ static void st_act (Entry &e)
 			return;
 		}
 		r = st_init2 (stop ? INIT_OP_SVC_STOP : INIT_OP_SVC_START, e.line);
-		if (stop && r == E_NOENT)	/* pas lancé par init2 (ou plus surveillé) : arrêté tout court */
+		if (stop && r == ST_E_NOENT)	/* pas lancé par init2 (ou plus surveillé) : arrêté tout court */
 		{
 			st_kill_all (e);
 			r = 0;
 		}
-		if (!stop && r == E_EXIST)
+		if (!stop && r == ST_E_EXIST)
 			r = 0;
 		ap_unelevate (me);
 	}
