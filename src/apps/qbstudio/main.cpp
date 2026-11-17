@@ -882,9 +882,9 @@ static const char *const T_DOC_CODE =
 "SUB Main_Load\n  line.Focus\nEND SUB\n\n"
 "SUB add_Click\n  IF line.Text <> \"\" THEN items.AddItem line.Text: line.Text = \"\"\n  line.Focus\nEND SUB\n\n"
 "SUB mnuNew_Click\n  r = MSGBOX(\"New\", \"Start a new list?\", 1)\nEND SUB\n\n"
-"SUB mnuOpen_Click\n  f$ = OPENFILE$(\"/home/documents\")\n  IF f$ = \"\" THEN EXIT SUB\n  path$ = f$\n"
+"SUB mnuOpen_Click\n  f$ = OPENFILE$(\"HOME:/documents\")\n  IF f$ = \"\" THEN EXIT SUB\n  path$ = f$\n"
 "  OPEN f$ FOR INPUT AS #1\n  DO WHILE NOT EOF(1)\n    LINE INPUT #1, a$\n    items.AddItem a$\n  LOOP\n  CLOSE #1\n  status.Text = f$\nEND SUB\n\n"
-"SUB mnuSave_Click\n  IF path$ = \"\" THEN path$ = SAVEFILE$(\"/home/documents\", \"list.txt\")\n  IF path$ = \"\" THEN EXIT SUB\n"
+"SUB mnuSave_Click\n  IF path$ = \"\" THEN path$ = SAVEFILE$(\"HOME:/documents\", \"list.txt\")\n  IF path$ = \"\" THEN EXIT SUB\n"
 "  status.Text = \"Saved: \" + path$\nEND SUB\n\n"
 "SUB mnuQuit_Click\n  Main.Close\nEND SUB\n";
 static const char *const T_EMPTY_FORM =

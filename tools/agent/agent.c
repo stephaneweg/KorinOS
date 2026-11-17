@@ -995,11 +995,9 @@ int main (int argc, char **argv)
 	if (prof_claude) o.sign_in = 0;
 	if (!o.log && prof_claude)
 	{
-		const char *ch = getenv ("CLAUDE_ACP_HOME"), *hm = getenv ("HOME");
 		char d[520];
-		if (ch && *ch) snprintf (d, sizeof d, "%s", ch);
-		else snprintf (d, sizeof d, "%s/.claude-acp", hm && *hm ? hm : "/");
-		mkdir (d, 0700);
+		acp_home (1, d, sizeof d);		/* (~/.claude-acp, celui du compte) */
+		setenv ("CLAUDE_ACP_HOME", d, 1);
 		snprintf (slog, sizeof slog, "%s/logs", d);
 		mkdir (slog, 0700);
 		strcat (slog, "/agent.log");
@@ -1007,11 +1005,9 @@ int main (int argc, char **argv)
 	}
 	if (!o.log)
 	{
-		const char *vh = getenv ("VIBE_HOME"), *hm = getenv ("HOME");
 		char d[520];
-		if (vh && *vh) snprintf (d, sizeof d, "%s", vh);
-		else snprintf (d, sizeof d, "%s/.vibe", hm && *hm ? hm : "/");
-		mkdir (d, 0700);
+		acp_home (0, d, sizeof d);		/* (~/.vibe, celui du compte) */
+		setenv ("VIBE_HOME", d, 1);
 		snprintf (slog, sizeof slog, "%s/logs", d);
 		mkdir (slog, 0700);
 		strcat (slog, "/server.log");

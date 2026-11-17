@@ -1302,7 +1302,7 @@ const ToolDef TOOLS[] = {
 	  t_screenshot, true },
 	{ "export",
 	  "Export bodies (default: all visible) to STEP, IGES, STL (binary) or BREP. A relative path goes to HOME:/forge/; Korin paths "
-	  "look like /home/documents/part.step.",
+	  "look like HOME:/documents/part.step (the account's folder, /home/<user>).",
 	  S ({ "type" : "object", "properties" : { "path" : { "type" : "string" }, "format" : { "type" : "string", "enum" : ["step", "iges", "stl", "brep"] },
 		  "bodies" : { "type" : "array", "items" : { "type" : "integer" } } }, "required" : ["path"] }),
 	  t_export, true },

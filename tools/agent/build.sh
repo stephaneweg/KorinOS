@@ -26,11 +26,11 @@ mkdir -p "$OUT/obj" "$OUT/sdroot/bin" "$OUT/host"
 L=$ROOT/src/lib/acp
 CFLAGS="-O2 -g0 -Wall -Wextra -Wno-unused-parameter -I$L"
 
-for f in json acp; do
+for f in json acp home; do
 	${TC}gcc $MCPU -specs="$SPECS" $CFLAGS -ffunction-sections -fdata-sections -c "$L/$f.c" -o "$OUT/obj/$f.o"
 done
 rm -f "$OUT/libacp.a"
-${TC}ar rcs "$OUT/libacp.a" "$OUT/obj/json.o" "$OUT/obj/acp.o"
+${TC}ar rcs "$OUT/libacp.a" "$OUT/obj/json.o" "$OUT/obj/acp.o" "$OUT/obj/home.o"
 ${TC}gcc $MCPU -specs="$SPECS" $CFLAGS -c "$ROOT/tools/agent/agent.c" -o "$OUT/obj/agent.o"
 ${TC}gcc $MCPU -specs="$SPECS" -Wl,--gc-sections "$OUT/obj/agent.o" "$OUT/libacp.a" -o "$OUT/obj/agent.elf"
 ${TC}strip "$OUT/obj/agent.elf" -o "$OUT/sdroot/bin/agent"
@@ -38,5 +38,5 @@ ls -l "$OUT/sdroot/bin/agent"
 
 # le même pour le PC (Linux)
 [ "$ARCH" = aarch64 ] || exit 0
-$HOSTCC $CFLAGS -D_GNU_SOURCE "$L/json.c" "$L/acp.c" "$ROOT/tools/agent/agent.c" -o "$OUT/host/agent"
+$HOSTCC $CFLAGS -D_GNU_SOURCE "$L/json.c" "$L/acp.c" "$L/home.c" "$ROOT/tools/agent/agent.c" -o "$OUT/host/agent"
 ls -l "$OUT/host/agent"
