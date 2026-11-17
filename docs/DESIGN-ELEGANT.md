@@ -228,7 +228,9 @@ Le fond est peint par `/sys/voronoy` (lancé par la session, `/etc/session`), av
   « Choisir... » ouvre `/home/public/wallpapers` s'il existe : le dossier public (à tous les comptes) où le
   paquet **wallpapers** (« Fonds d'écran », installé à part, pas sur la carte) met cinq fonds de 2560 × 1440
   calculés par `tools/wallpapers/gen_backgrounds.py` (givre-dawn, givre-silk, givre-orbs, onyx-waves,
-  onyx-aurora ; le script les écrit dans `build/wallpapers/sdroot`, le `root` du paquet).
+  onyx-aurora ; le script les écrit dans `build/wallpapers/sdroot`, le `root` du paquet), et depuis la 1.1.0 six
+  photos (beach, mountain-lake, forest-river, savanna, jungle-waterfall, jupiter-clouds : générées par Gemini,
+  originaux dans `tools/wallpapers/photos`, recadrées en 16:9 et agrandies en JPEG par `make_photos.py`).
 * **Teinte** : aucune, l'accent du thème (`accent` : elle suit le thème et son accent), ou l'une des
   huit couleurs d'accent de UIKit (`bleu`… `graphite`, prises dans le thème : Givre et Onyx Noir ont les
   leurs). Jamais de couleur en dur dans le réglage.
