@@ -21,3 +21,8 @@ depuis https://github.com/stephaneweg/onyx (accord du 13/11). Motifs et `tools/w
 KORIN OS de mkkorindisk fait 65 Mo, l'OVMF d'Ubuntu n'a pas de shell → `EFI/BOOT/BOOTX64.EFI` ajouté dans l'arbre
 d'essai) ; pas encore sur le Pi ni le ZBook. `voronoy.asm` n'est plus copié (le C le remplace) : il garde l'ancien
 fond seul. Voir [[armpi-design-givre-calme]], [[armpi-ports-theme]], [[armpi-busd]].
+
+**Paquet wallpapers 1.0.0 publié (17/11, main 23d7250f)** : cinq fonds de `tools/wallpapers/gen_backgrounds.py` (agent
+Fable), dans `/home/public/wallpapers`, hors de la carte (`root = build/wallpapers/sdroot`). Publication partielle depuis
+KorinOS-pub (seule la section ajoutée aux index du Pi et du PC, `arch = any` sur le PC, `abi >= 597` = l'abi publiée du
+Pi), signée, checkrepo bon. Les Réglages publiés n'ouvrent pas encore ce dossier (armpi/pc pas republiés).
