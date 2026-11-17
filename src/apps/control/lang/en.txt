@@ -355,7 +355,6 @@ Les droits n'ont pas pu être changés. = The rights could not be changed.
 Réglages veut changer la connexion automatique. = Settings wants to change automatic sign-in.
 Ce compte s'ouvrira au démarrage, sans écran de connexion. = This account will open at startup, without the sign-in screen.
 L'écran de connexion sera montré au démarrage (sauf un seul compte sans mot de passe). = The sign-in screen will be shown at startup (unless there is a single account without a password).
-Fond d'écran = Wallpaper
 Cellules = Cells
 Dégradé = Gradient
 Bulles = Bubbles
