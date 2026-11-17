@@ -1,0 +1,14 @@
+# Dependances des services de services.txt (docs/DEMARRAGE.md) : « service = ce qu'il lui faut ».
+# init2 lance d'abord ce qu'il faut a un service, meme en demarrage manuel (Reglages > Demarrage),
+# jamais un service desactive ; le volet Demarrage montre « Necessite » et « Requis par ».
+# Fichier du systeme : remplace par les mises a jour (le type de demarrage est dans services.off et
+# services.manual).
+/sys/svc/telnetd = /sys/svc/vterm /sys/svc/netd
+/sys/svc/ftpd = /sys/svc/netd
+/sys/svc/vncd = /sys/svc/netd
+/sys/svc/rdpd = /sys/svc/netd
+/sys/webd = /sys/svc/netd
+/sys/smbd = /sys/svc/netd
+/sys/pkgd = /sys/svc/netd
+/sys/svc/pwmaudio = /sys/svc/sound
+/sys/svc/i2smic = /sys/svc/sound

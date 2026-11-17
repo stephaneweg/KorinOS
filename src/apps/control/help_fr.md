@@ -98,17 +98,25 @@ Le volet **Préchargement** garde des programmes en mémoire pour qu'ils démarr
 
 ## Démarrage
 
-Le volet **Démarrage** montre ce que Korin lance au démarrage et laisse choisir ce qui ne démarre plus. Chaque ligne donne le nom du programme, ce qu'il fait, son état (**En cours** ou **Arrêté**, relu chaque seconde), un bouton **Arrêter** ou **Démarrer**, et un interrupteur.
+Le volet **Démarrage** montre ce que Korin lance et comment, à la manière de la console Services de Windows. Chaque ligne donne le nom du programme, ce qu'il fait, son état (**En cours** ou **Arrêté**, relu chaque seconde) et son **type de démarrage**. Choisissez une ligne (au clic, ou avec les flèches **Haut** et **Bas**) : la barre du haut agit sur elle.
 
-- **Système (toujours lancé)** : les fichiers, le bus d'événements, le matériel, les entrées, le bureau Elegant. Ils sont indispensables : ni interrupteur ni bouton.
-- **Services du système** : les services de `/etc/services.txt` (réseau, son, accès à distance, mises à jour…), lancés pour toute la machine. Les changer demande votre mot de passe (élévation).
-- **Programmes de la session** : ceux du bureau (`/etc/session`, ou `/etc/session.poche` en mode poche : fond d'écran, barre de menus, panel, notifications…) et ceux de votre `startup.txt`. Ce choix est **à vous seul** : il ne touche pas les autres comptes.
+- **Démarrer**, **Arrêter**, **Redémarrer** : tout de suite, sans attendre le prochain démarrage.
+- **Automatique** : lancé à chaque démarrage.
+- **Manuel** : pas lancé au démarrage, mais quand un service qui en a besoin démarre, ou par **Démarrer**.
+- **Désactivé** : jamais lancé, ni par un autre service ni par **Démarrer**.
+- Sous la barre, **Nécessite** et **Requis par** donnent les dépendances du service choisi.
 
-Couper l'interrupteur, puis **Appliquer** : le programme ne démarre plus au **prochain démarrage** (ou à la prochaine ouverture de session) ; rien ne s'arrête tout de suite. Pour l'arrêter maintenant, **Arrêter**. **Démarrer** le relance sans attendre, que son interrupteur soit allumé ou non.
+Un type changé apparaît en couleur ; **Appliquer** l'enregistre, avec effet au **prochain démarrage** (ou à la prochaine ouverture de session).
 
-Les programmes marqués **Indispensable** (pseudo-terminaux, clavier du portable, barre de menus, panel…) ne se coupent pas : sans eux, le bureau ou le clavier ne marcheraient plus. D'autres (réseau, son, mises à jour, processeur graphique, notifications, presse-papiers) demandent confirmation avant d'être coupés ou arrêtés.
+Les trois parties :
 
-Ce qui est coupé est noté dans `/etc/services.off` (les services) et `HOME:/etc/session.off` (la session), une ligne par programme : `/etc/services.txt` et `/etc/session` ne changent pas, et les mises à jour du système peuvent toujours les remplacer. Une ligne mise en commentaire par un autre volet (par exemple **Accès distant**) apparaît coupée ; la rallumer retire le `#`.
+- **Système (toujours lancé)** : les fichiers, le bus d'événements, le matériel, les entrées, le bureau Elegant. Ils sont indispensables : aucune action.
+- **Services du système** : les services de `/etc/services.txt` (réseau, son, accès à distance, mises à jour…), lancés pour toute la machine. Les démarrer, les arrêter ou changer leur type demande votre mot de passe (élévation).
+- **Programmes de la session** : ceux du bureau (`/etc/session`, ou `/etc/session.poche` en mode poche : fond d'écran, barre de menus, panel, notifications…) et ceux de votre `startup.txt`. Ce choix est **à vous seul** : il ne touche pas les autres comptes. Pour eux, **Manuel** veut dire « seulement par **Démarrer** ».
+
+Les programmes marqués **Indispensable** (pseudo-terminaux, clavier et souris PS/2, barre de menus, panel…) restent automatiques et ne s'arrêtent pas ; la barre de menus et le panel peuvent être redémarrés. D'autres (réseau, son, mises à jour, processeur graphique, notifications, presse-papiers) demandent confirmation, comme l'arrêt d'un service dont d'autres se servent.
+
+Les types sont notés dans `/etc/services.off` et `/etc/services.manual` (les services), `HOME:/etc/session.off` et `HOME:/etc/session.manual` (la session), une ligne par programme ; les dépendances sont dans `/etc/services.deps`. `/etc/services.txt` et `/etc/session` ne changent pas : les mises à jour du système peuvent toujours les remplacer. Une ligne mise en commentaire par un autre volet (par exemple **Accès distant**) apparaît désactivée ; un autre type retire le `#`.
 
 ## .NET
 

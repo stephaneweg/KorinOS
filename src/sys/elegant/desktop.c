@@ -150,13 +150,16 @@ void session_start(const char *file, const char *defaults)
 	session_run_file(file, defaults);
 }
 
-/* les programmes à ne pas lancer (volet Démarrage de Réglages, docs/DEMARRAGE.md) : session.off, personnel
- * (HOME:/etc/, sinon /etc/), une ligne du fichier de la session par entrée */
-static char sess_off[2048];
+/* les programmes à ne pas lancer (volet Démarrage de Réglages, docs/DEMARRAGE.md) : les désactivés
+ * (session.off) puis les manuels (session.manual), personnels (HOME:/etc/, sinon /etc/), une ligne du
+ * fichier de la session par entrée */
+static char sess_off[4096];
 
 static void session_run_file(const char *file, const char *defaults)
 {
-	list_load(conf_path("session.off", 0), sess_off, sizeof sess_off);
+	long k = list_load(conf_path("session.off", 0), sess_off, sizeof sess_off / 2);
+	sess_off[k] = 10;
+	list_load(conf_path("session.manual", 0), sess_off + k + 1, (long)sizeof sess_off - k - 1);
 	if (voronoy_early && voronoy_pid > 0 && list_has(sess_off, "/sys/voronoy")) { /* (lancé sous la connexion) */
 		ksys(SYS_KILL, voronoy_pid, 0, 0, 0, 0, 0);
 		voronoy_pid = 0;

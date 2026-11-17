@@ -31,8 +31,12 @@
  *    volet Démarrage, docs/DEMARRAGE.md) : données = une ligne de
  *    services.txt ; arrête le service de cette ligne sans le relancer, ou le
  *    lance (surveillé) ;
- *  * une ligne de services.txt écrite aussi dans /etc/services.off, ou de
- *    startup.txt dans session.off (personnel, conf_path), n'est pas lancée ;
+ *  * le type de démarrage (docs/DEMARRAGE.md) : une ligne de services.txt
+ *    écrite aussi dans /etc/services.off (désactivé) ou /etc/services.manual
+ *    (manuel) n'est pas lancée au démarrage ; un service manuel l'est quand
+ *    un service qui en a besoin démarre (/etc/services.deps), jamais un
+ *    désactivé ; startup.txt : session.off et session.manual (personnels,
+ *    conf_path) ;
  *  * après startup.txt : init2 se relance avec l'argument « preload », qui
  *    précharge les exécutables de /etc/preload.txt et s'arrête. */
 #include "init2.h"
@@ -103,11 +107,119 @@ long lancer_ligne(const char *line, int watch)
 	return pid;
 }
 
-/* les lignes à ne pas lancer (/etc/services.off, session.off : list_load de korinrt) */
+/* le type de démarrage (docs/DEMARRAGE.md ; list_load, list_has de korinrt) : les services désactivés
+ * (/etc/services.off), manuels (/etc/services.manual), leurs dépendances (/etc/services.deps : « chemin = ce
+ * qu'il lui faut ») et services.txt tel quel (pour trouver la ligne d'une dépendance) ; pour startup.txt,
+ * session.off et session.manual à la suite */
+#define DEP_PROF 4 /* dépendances de dépendances */
 static char off_list[2048];
+static char man_list[2048];
+static char deps_txt[2048];
+static char svc_txt[LISTE_MAX];
+static char sess_list[4096];
 
-/* fichier (une ligne par programme), watch, off = lignes sautées (0 : aucune) -> 1 si le fichier existe */
-static int lancer_fichier(const char *path, int watch, const char *off)
+static void services_lists(void)
+{
+	list_load("/etc/services.off", off_list, sizeof off_list);
+	list_load("/etc/services.manual", man_list, sizeof man_list);
+	list_load("/etc/services.deps", deps_txt, sizeof deps_txt);
+	list_load("/etc/services.txt", svc_txt, sizeof svc_txt);
+}
+
+/* deux lignes égales, sans les blancs autour -> 1 */
+static int same_line(const char *a, const char *b);
+
+/* la ligne (sans blancs autour) qui tourne, surveillée -> 1 */
+static int line_running(const char *line)
+{
+	for (int i = 0; i < SURV_MAX; i++)
+		if (surv[i].pid && same_line(surv[i].ligne, line))
+			return 1;
+	return 0;
+}
+
+/* [p, fin de mot) == path (jusqu'au blanc, au « = » ou à la fin de ligne) -> 1 */
+static int word_is(const char *p, const char *path)
+{
+	u64 n = str_len(path);
+	if (memcmp(p, path, n))
+		return 0;
+	char c = p[n];
+	return !c || c == ' ' || c == '\t' || c == '=' || c == '\r' || c == '\n';
+}
+
+/* path (« /sys/svc/netd ») -> sa ligne de services.txt dans out (128), 1 si trouvée (pas en commentaire) */
+static int service_line(const char *path, char *out)
+{
+	for (const char *p = svc_txt; *p;) {
+		while (*p == ' ' || *p == '\t')
+			p++;
+		const char *e = p;
+		while (*e && *e != '\n' && *e != '\r')
+			e++;
+		if (*p != '#' && word_is(p, path)) {
+			u64 n = (u64)(e - p) < 127 ? (u64)(e - p) : 127;
+			memcpy(out, p, n);
+			out[n] = 0;
+			return 1;
+		}
+		while (*e == '\n' || *e == '\r')
+			e++;
+		p = e;
+	}
+	return 0;
+}
+
+/* line : ses dépendances de services.deps lancées d'abord (sauf désactivées, ou qui tournent déjà) */
+static void lancer_deps(const char *line, int prof)
+{
+	if (prof >= DEP_PROF)
+		return;
+	char path[128];
+	u64 n = 0;
+	while (line[n] && line[n] != ' ' && n < 127)
+		n++;
+	memcpy(path, line, n);
+	path[n] = 0;
+	for (const char *p = deps_txt; *p;) { /* la ligne « path = a b » */
+		while (*p == ' ' || *p == '\t')
+			p++;
+		const char *e = p;
+		while (*e && *e != '\n')
+			e++;
+		if (*p != '#' && word_is(p, path)) {
+			const char *q = p + n;
+			while (q < e && *q != '=')
+				q++;
+			while (q < e) { /* chaque dépendance */
+				while (q < e && (*q == '=' || *q == ' ' || *q == '\t' || *q == '\r'))
+					q++;
+				char dep[128];
+				u64 k = 0;
+				while (q < e && *q != ' ' && *q != '\t' && *q != '\r' && k < 127)
+					dep[k++] = *q++;
+				dep[k] = 0;
+				char dl[128];
+				if (!k || !service_line(dep, dl) || line_running(dl))
+					continue;
+				if (list_has(off_list, dl)) {
+					say("init2 : dependance desactivee : ");
+					say(dl);
+					say("\n");
+					continue;
+				}
+				lancer_deps(dl, prof + 1);
+				lancer_ligne(dl, 1);
+			}
+			return;
+		}
+		p = *e ? e + 1 : e;
+	}
+}
+
+/* fichier (une ligne par programme), watch, off = lignes sautées (0 : aucune), man = lignes manuelles (0 :
+ * aucune ; avec man, les dépendances de chaque ligne sont lancées avant elle) -> 1 si le fichier existe */
+static int lancer_fichier(const char *path, int watch, const char *off, const char *man)
 {
 	long fd = sys_open(path, O_READ);
 	if (fd < 0)
@@ -129,8 +241,15 @@ static int lancer_fichier(const char *path, int watch, const char *off)
 				say("init2 : desactive : ");
 				say(l);
 				say("\n");
-			} else
+			} else if (man && list_has(man, l)) {
+				say("init2 : manuel : ");
+				say(l);
+				say("\n");
+			} else if (!man || !line_running(l)) { /* (déjà lancé comme dépendance) */
+				if (man)
+					lancer_deps(l, 0);
 				lancer_ligne(l, watch);
+			}
 		}
 		l = e;
 	}
@@ -470,10 +589,15 @@ static long service_request(u64 op)
 			}
 		} else if (found)
 			r = E_EXIST;
-		else if (!sys_path_ok(launch_path))
-			r = E_PERM;
-		else
-			r = lancer_ligne(launch_path, 1);
+		else {
+			services_lists(); /* (relues : le volet a pu les changer) */
+			if (!sys_path_ok(launch_path) || list_has(off_list, launch_path))
+				r = E_PERM; /* (désactivé : jamais lancé) */
+			else {
+				lancer_deps(launch_path, 0); /* ses dépendances d'abord (manuelles comprises) */
+				r = lancer_ligne(launch_path, 1);
+			}
+		}
 	}
 	say(op == INIT_OP_SVC_STOP ? "init2 : svc_stop par " : "init2 : svc_start par ");
 	say_dec((long)who);
@@ -601,8 +725,10 @@ static void startup_si_ouverte(void)
 		return;
 	startup_attendu = 0;
 	session_uid = 1;
-	list_load(conf_path("session.off", 0), off_list, sizeof off_list); /* (avant le conf_path suivant) */
-	lancer_fichier(conf_path("startup.txt", 0), 0, off_list);
+	long n = list_load(conf_path("session.off", 0), sess_list, sizeof sess_list / 2); /* désactivés, puis manuels */
+	sess_list[n] = 10;
+	list_load(conf_path("session.manual", 0), sess_list + n + 1, (long)sizeof sess_list - n - 1);
+	lancer_fichier(conf_path("startup.txt", 0), 0, sess_list, 0);
 	session_uid = 0;
 }
 
@@ -633,8 +759,8 @@ int main(int argc, char **argv)
 	int console = plat_text_console();
 	if (!console)
 		lancer_ligne("/sys/elegant", 1);
-	list_load("/etc/services.off", off_list, sizeof off_list); /* (volet Démarrage de Réglages) */
-	lancer_fichier("/etc/services.txt", 1, off_list); /* les services de services.txt */
+	services_lists(); /* le type de démarrage (volet Démarrage de Réglages) */
+	lancer_fichier("/etc/services.txt", 1, off_list, man_list); /* les services de services.txt */
 	if (console)
 		lancer_ligne("/sys/svc/console", 1); /* (sans Elegant : ni « ws », ni startup.txt) */
 	else {

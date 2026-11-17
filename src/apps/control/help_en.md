@@ -98,17 +98,25 @@ The **Preloading** pane keeps programs in memory so that they start faster.
 
 ## Startup
 
-The **Startup** pane shows what Korin starts at startup and lets you choose what no longer starts. Each line gives the program's name, what it does, its state (**Running** or **Stopped**, read again every second), a **Stop** or **Start** button, and a switch.
+The **Startup** pane shows what Korin starts and how, like the Windows Services console. Each line gives the program's name, what it does, its state (**Running** or **Stopped**, read again every second) and its **startup type**. Choose a line (click it, or use the **Up** and **Down** arrows): the bar at the top acts on it.
 
-- **System (always started)**: files, the event bus, hardware, input, the Elegant desktop. They are essential: no switch, no button.
-- **System services**: the services of `/etc/services.txt` (network, sound, remote access, updates…), started for the whole machine. Changing them asks for your password (elevation).
-- **Session programs**: those of the desktop (`/etc/session`, or `/etc/session.poche` in pocket mode: wallpaper, menu bar, panel, notifications…) and those of your `startup.txt`. This choice is **yours only**: it does not change other accounts.
+- **Start**, **Stop**, **Restart**: right away, without waiting for the next startup.
+- **Automatic**: started at every startup.
+- **Manual**: not started at startup, but when a service that needs it starts, or with **Start**.
+- **Disabled**: never started, neither by another service nor with **Start**.
+- Under the bar, **Needs** and **Needed by** give the dependencies of the chosen service.
 
-Turn the switch off, then **Apply**: the program no longer starts at the **next startup** (or the next session); nothing stops right away. To stop it now, **Stop**. **Start** starts it again at once, whether its switch is on or not.
+A changed type shows in color; **Apply** saves it, taking effect at the **next startup** (or the next session).
 
-Programs marked **Essential** (pseudo-terminals, laptop keyboard, menu bar, panel…) cannot be turned off: without them, the desktop or the keyboard would no longer work. Others (network, sound, updates, graphics processor, notifications, clipboard) ask for confirmation before being turned off or stopped.
+The three parts:
 
-What is turned off is written in `/etc/services.off` (services) and `HOME:/etc/session.off` (the session), one line per program: `/etc/services.txt` and `/etc/session` do not change, and system updates can still replace them. A line commented out by another pane (for example **Remote access**) shows as off; turning it on removes the `#`.
+- **System (always started)**: files, the event bus, hardware, input, the Elegant desktop. They are essential: no action.
+- **System services**: the services of `/etc/services.txt` (network, sound, remote access, updates…), started for the whole machine. Starting, stopping them or changing their type asks for your password (elevation).
+- **Session programs**: those of the desktop (`/etc/session`, or `/etc/session.poche` in pocket mode: wallpaper, menu bar, panel, notifications…) and those of your `startup.txt`. This choice is **yours only**: it does not change other accounts. For them, **Manual** means "only with **Start**".
+
+Programs marked **Essential** (pseudo-terminals, PS/2 keyboard and mouse, menu bar, panel…) stay automatic and cannot be stopped; the menu bar and the panel can be restarted. Others (network, sound, updates, graphics processor, notifications, clipboard) ask for confirmation, as does stopping a service that others use.
+
+Types are written in `/etc/services.off` and `/etc/services.manual` (services), `HOME:/etc/session.off` and `HOME:/etc/session.manual` (the session), one line per program; dependencies are in `/etc/services.deps`. `/etc/services.txt` and `/etc/session` do not change: system updates can still replace them. A line commented out by another pane (for example **Remote access**) shows as disabled; another type removes the `#`.
 
 ## .NET
 
