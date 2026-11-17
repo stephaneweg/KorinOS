@@ -820,7 +820,14 @@ static void compte_maj ()
 	if (!s_pcmain && !((const char *) ui_w_get_text (g_apc))[0]) { ui_w_set_text (g_apc, (long) "korin-pc"); ui_w_draw (g_apc); }
 	const char *user = (const char *) ui_w_get_text (g_auser), *pw = (const char *) ui_w_get_text (g_apw), *pw2 = (const char *) ui_w_get_text (g_apw2);
 	bool admin = ui_w_get_value (g_aadmin) != 0, root = !admin || !pw[0];
+	static int root_vu = -1;
 	ui_w_show (g_arootl, root); ui_w_show (g_arpw, root); ui_w_show (g_arpw2, root);
+	if (root != root_vu)	/* (un widget caché laisse son dessin : la zone est refaite) */
+	{
+		root_vu = root;
+		ui_fill (X0, Y0 + 256, CW, 64, jet (TJ_FACE));
+		ui_w_draw (0); ui_update_all ();
+	}
 	const char *msg = "";
 	static char m[200];
 	if (!user_ok (user)) msg = TR ("Nom d'utilisateur : minuscules et chiffres, une lettre d'abord ; ni system, ni root, ni admin, ni user.");
@@ -870,7 +877,7 @@ static void sview_paint (long, long w, long h)
 	else snprintf (l[1], 200, TR ("Korin à la place de %s (%s)"), nom_de (g_choix, n, sizeof n), t);
 	if (g_home_go) { char z[64]; snprintf (z, sizeof z, TR (" · /home %ld Go"), g_home_go); strncat (l[1], z, 199 - strlen (l[1])); }
 	int nc = 0; for (int i = 0; i < g_ncat; i++) if (cat_etat (i, 0)) nc++;
-	snprintf (l[2], 200, TR ("%d catégories choisies"), nc);
+	snprintf (l[2], 200, nc > 1 ? TR ("%d catégories choisies") : TR ("%d catégorie choisie"), nc);
 	snprintf (l[3], 200, "%s (%s)%s", (const char *) ui_w_get_text (g_anom), (const char *) ui_w_get_text (g_auser), ui_w_get_value (g_aadmin) ? TR (", administrateur") : "");
 	bool win = false; for (int i = 0; i < g_np; i++) if (g_p[i].genre == G_WIN) win = true;
 	if (win) snprintf (l[4], 200, TR ("Menu Korin OS / Windows, %s dans %ld s"), ui_w_get_value (g_sdef) ? "Windows" : "Korin", ui_w_get_value (g_sdelai) * 5);
