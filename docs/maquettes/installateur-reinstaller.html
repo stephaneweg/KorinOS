@@ -1,0 +1,277 @@
+<title>Installateur Korin : réinstaller</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Givre, comme les maquettes validées : l'écran plein de l'installateur, une colonne, le pied Retour / bouton principal.
+   Nouveau : un Korin déjà installé est reconnu (KORIN OS, KORIN HOME) ; « Réinstaller » garde /home ; ext4 au choix pour /home. */
+:root {
+  --face: #eef2f6; --surface: #ffffff; --creux: #e3e9f0; --ligne: #d3dce6; --ligne-forte: #aab8c7;
+  --texte1: #18212b; --texte2: #4d5b6a; --texte3: #8593a3;
+  --accent: #2f6fd6; --accent-clair: #e3edfc; --accent-fonce: #1c4f9e; --sur-accent: #ffffff;
+  --danger: #c23b32; --danger-clair: #fbe9e7; --succes: #2f8a57; --succes-clair: #e5f4eb; --alerte: #a8670c; --alerte-clair: #fdf1de;
+  --sel: #cfe0fa; --garde: #8fb9a0;
+  --f-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --face: #12171d; --surface: #1a2129; --creux: #232c36; --ligne: #2e3a47; --ligne-forte: #4a5a6b;
+  --texte1: #e8eef4; --texte2: #a6b4c2; --texte3: #6f7f90;
+  --accent: #6aa0f0; --accent-clair: #1c2c44; --accent-fonce: #9cc0f6; --sur-accent: #0c1420;
+  --danger: #ef7d73; --danger-clair: #3a1d1b; --succes: #6fc795; --succes-clair: #17301f; --alerte: #e9b45c; --alerte-clair: #36280f;
+  --sel: #24406a; --garde: #3f6b52; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --face: #12171d; --surface: #1a2129; --creux: #232c36; --ligne: #2e3a47; --ligne-forte: #4a5a6b;
+  --texte1: #e8eef4; --texte2: #a6b4c2; --texte3: #6f7f90;
+  --accent: #6aa0f0; --accent-clair: #1c2c44; --accent-fonce: #9cc0f6; --sur-accent: #0c1420;
+  --danger: #ef7d73; --danger-clair: #3a1d1b; --succes: #6fc795; --succes-clair: #17301f; --alerte: #e9b45c; --alerte-clair: #36280f;
+  --sel: #24406a; --garde: #3f6b52; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--face); color: var(--texte1); font: 14px/1.45 var(--f-ui);
+  padding-block: 20px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+.ecran { max-width: 820px; margin: 0 auto; background: var(--face); border: 1px solid var(--ligne); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; min-height: 600px }
+.bande { display: flex; align-items: center; gap: 16px; padding: 0 18px; height: 48px; border-bottom: 1px solid var(--ligne); flex-wrap: wrap }
+.marque { display: flex; align-items: center; gap: 8px; font-weight: 600 }
+.losange { width: 12px; height: 12px; background: var(--accent); transform: rotate(45deg); border-radius: 2px }
+.etapes { display: flex; gap: 18px; font-size: 13px; color: var(--texte3); margin-left: auto }
+.etapes span.fait { color: var(--texte2) }
+.etapes span.cours { color: var(--texte1); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent); padding-bottom: 2px }
+.etapes span.saute { text-decoration: line-through; color: var(--texte3) }
+.col { flex: 1; width: 100%; max-width: 680px; margin: 0 auto; padding: 36px 0 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0 }
+h1 { font-size: 26px; line-height: 1.25; font-weight: 600; margin: 0; text-wrap: balance }
+.chapeau { color: var(--texte2); font-size: 15px; margin: 0; max-width: 62ch }
+.choix { display: flex; flex-direction: column; gap: 10px }
+.carte { display: flex; gap: 12px; align-items: flex-start; background: var(--surface); border: 1px solid var(--ligne); border-radius: 10px; padding: 14px 16px; cursor: pointer }
+.carte.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-clair) }
+.carte input { margin-top: 3px; accent-color: var(--accent) }
+.carte b { font-weight: 600; display: block }
+.carte .sous { color: var(--texte2); font-size: 13px; margin-top: 2px }
+.carte:focus-within { outline: 2px solid var(--accent); outline-offset: 2px }
+.liste { background: var(--surface); border: 1px solid var(--ligne); border-radius: 8px; overflow-x: auto }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 480px }
+th { text-align: left; font-weight: 500; color: var(--texte2); font-size: 12.5px; padding: 8px 12px; border-bottom: 1px solid var(--ligne); background: var(--creux) }
+td { padding: 9px 12px; border-bottom: 1px solid var(--ligne); white-space: nowrap }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums }
+tr:last-child td { border-bottom: 0 }
+tbody tr { cursor: pointer }
+tbody tr:hover td { background: var(--creux) }
+tbody tr.sel td { background: var(--sel) }
+tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px }
+.pastille { display: inline-block; font-size: 11.5px; font-weight: 500; padding: 1px 7px; border-radius: 99px; background: var(--accent-clair); color: var(--accent-fonce); margin-left: 8px; vertical-align: 1px }
+.liens { display: flex; gap: 6px 18px; flex-wrap: wrap; font-size: 13.5px }
+.lien { background: none; border: 0; padding: 4px 0; color: var(--accent); font: inherit; cursor: pointer }
+.lien:disabled { color: var(--texte3); cursor: default }
+.note { border-radius: 8px; padding: 10px 12px; font-size: 13.5px }
+.note b { font-weight: 600 }
+.note.info { background: var(--accent-clair); color: var(--accent-fonce) }
+.note.ok { background: var(--succes-clair); color: var(--succes) }
+.note.danger { background: var(--danger-clair); color: var(--danger) }
+.note.alerte { background: var(--alerte-clair); color: var(--alerte) }
+.pied { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-top: 1px solid var(--ligne); flex-wrap: wrap }
+.etat { color: var(--texte2); font-size: 13px; flex: 1; min-width: 160px }
+.btn { font: 500 14px var(--f-ui); border-radius: 8px; padding: 9px 18px; cursor: pointer; border: 1px solid var(--ligne-forte); background: var(--surface); color: var(--texte1) }
+.btn.prim { background: var(--accent); border-color: var(--accent); color: var(--sur-accent); min-width: 160px }
+.btn.rouge { background: var(--danger); border-color: var(--danger); color: var(--sur-accent); min-width: 160px }
+.btn.fantome { background: none; border-color: transparent; color: var(--texte2) }
+.btn:disabled { opacity: .45; cursor: default }
+.btn:focus-visible, .lien:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.barre { display: flex; height: 64px; border-radius: 8px; overflow: hidden; border: 1px solid var(--ligne) }
+.barre > div { display: flex; flex-direction: column; justify-content: center; padding: 0 10px; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 12.5px }
+.barre .b-boot { background: var(--ligne-forte); color: var(--texte1); flex: 0 0 64px }
+.barre .b-sys { background: var(--accent); color: var(--sur-accent) }
+.barre .b-home { background: var(--accent-fonce); color: var(--surface) }
+.barre .b-garde { background: var(--garde); color: var(--texte1) }
+.barre b { font-size: 15px; font-weight: 600 }
+.taille { display: flex; gap: 12px; align-items: center }
+.taille input[type=range] { flex: 1; accent-color: var(--accent); min-width: 0 }
+.champ { display: flex; align-items: center; gap: 6px }
+.champ input { width: 80px; font: 500 14px var(--f-ui); padding: 7px 8px; border: 1px solid var(--ligne-forte); border-radius: 6px; background: var(--surface); color: var(--texte1); text-align: right; font-variant-numeric: tabular-nums }
+.bornes { display: flex; justify-content: space-between; font-size: 12px; color: var(--texte3); font-variant-numeric: tabular-nums }
+.fs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+@media (max-width: 560px) { .fs { grid-template-columns: 1fr } .etapes { display: none } h1 { font-size: 21px } .col { padding-top: 22px } }
+.resume { background: var(--surface); border: 1px solid var(--ligne); border-radius: 8px }
+.resume div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--ligne); flex-wrap: wrap }
+.resume div:last-child { border-bottom: 0 }
+.resume span:first-child { color: var(--texte2); font-size: 13px }
+.repris { background: var(--surface); border: 1px solid var(--ligne); border-radius: 8px; padding: 12px 14px; display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 13.5px }
+.repris span:nth-child(odd) { color: var(--texte2) }
+.mono { font-family: var(--f-mono); font-size: 12.5px }
+h2 { font-size: 15px; font-weight: 600; margin: 4px 0 0 }
+</style>
+
+<div class="ecran">
+  <div class="bande">
+    <div class="marque"><span class="losange" aria-hidden="true"></span>Korin OS</div>
+    <div class="etapes" id="etapes"><span data-e="1">Disque</span><span data-e="2">Mes fichiers</span><span data-e="3">Compte</span><span data-e="4">Résumé</span></div>
+  </div>
+  <div class="col" id="col"></div>
+  <div class="pied" id="pied"></div>
+</div>
+
+<script>
+/* disque d'exemple : Windows et un Korin déjà installé (KORIN OS + KORIN HOME), comme sur un ZBook */
+const DISQUE = [
+  { nom: "Partition 1 : EFI", taille: 0.5, type: "Système (EFI)", genre: "efi" },
+  { nom: "Partition 2 : Windows (C:)", taille: 300, type: "Principal (NTFS)", genre: "windows" },
+  { nom: "Partition 3 : KORIN OS", taille: 64, type: "Korin OS 2026.11.42 (FAT32)", genre: "korin" },
+  { nom: "Partition 4 : KORIN HOME", taille: 135, type: "Mes fichiers Korin (exFAT)", genre: "khome" },
+  { nom: "Espace non alloué", taille: 12, type: "", genre: "libre" },
+  { nom: "Partition 5 : Récupération", taille: 1, type: "Récupération", genre: "rec" }
+];
+const MIN = 10;
+let mode = "reinst", sel = 2, etape = 1, home = 0, fs = "exfat", fait = false;
+
+const go = v => (v < 1 ? v.toLocaleString("fr-BE", { maximumFractionDigits: 1 }) : v.toLocaleString("fr-BE", { maximumFractionDigits: 0 })) + " Go";
+const el = h => { const t = document.createElement("template"); t.innerHTML = h.trim(); return t.content.firstElementChild; };
+const reinst = () => mode === "reinst" || (mode === "liste" && DISQUE[sel].genre === "korin");
+
+function bande() {
+  document.querySelectorAll("#etapes span").forEach(s => {
+    const e = +s.dataset.e;
+    s.textContent = e === 3 && reinst() ? "Compte (repris)" : ["", "Disque", "Mes fichiers", "Compte", "Résumé"][e];
+    s.className = e === 3 && reinst() ? "saute" : e === etape ? "cours" : e < etape ? "fait" : "";
+  });
+}
+
+function verdict() {
+  if (mode === "reinst") return { ok: true, etat: "Réinstallation : / reformatée, /home gardée" };
+  const p = DISQUE[sel];
+  if (!p) return { ok: false, etat: "Choisissez où installer Korin OS." };
+  if (p.genre === "efi" || p.genre === "rec") return { ok: false, note: ["alerte", "Cette partition sert à démarrer ou à réparer l'ordinateur : elle ne peut pas recevoir Korin."], etat: "Choisissez une autre ligne." };
+  if (p.taille < MIN) return { ok: false, note: ["alerte", `Il faut au moins ${go(MIN)} pour Korin ; cette ligne n'en a que ${go(p.taille)}.`], etat: "Trop petit." };
+  if (p.genre === "korin") return { ok: true, note: ["ok", "Korin sera réinstallé ici : KORIN OS est reformatée, <b>KORIN HOME (vos fichiers) est gardée</b>, vos comptes et réglages sont repris."], etat: "Réinstallation dans KORIN OS" };
+  if (p.genre === "khome") return { ok: true, danger: true, note: ["danger", "<b>C'est la partition de vos fichiers Korin.</b> Elle sera formatée : tous vos documents seront effacés. Pour les garder, choisissez plutôt KORIN OS."], etat: "Korin à la place de KORIN HOME" };
+  if (p.genre === "libre") return { ok: true, note: ["ok", `Installation neuve dans cet espace libre (${go(p.taille)}). L'ancien Korin reste tel quel.`], etat: `Korin dans ${go(p.taille)} d'espace libre` };
+  return { ok: true, danger: true, note: ["danger", "<b>Cette partition sera formatée.</b> Windows et tout ce que contient C: seront effacés."], etat: "Korin à la place de Windows" };
+}
+
+function rendreDisque() {
+  const col = document.getElementById("col");
+  col.innerHTML = "";
+  col.append(el(`<h1>Korin OS est déjà installé sur ce disque</h1>`));
+  col.append(el(`<p class="chapeau">Version 2026.11.42, compte <b>stephane</b>, vos fichiers dans KORIN HOME (135 Go). Rien n'est écrit avant le résumé.</p>`));
+  const ch = el(`<div class="choix" role="radiogroup" aria-label="Que faire ?">
+    <label class="carte ${mode === "reinst" ? "sel" : ""}"><input type="radio" name="m" id="m-reinst" ${mode === "reinst" ? "checked" : ""}>
+      <span><b>Réinstaller Korin OS en gardant mes fichiers</b>
+      <span class="sous">Le système (KORIN OS) est reformaté et remis à neuf. KORIN HOME n'est pas touchée. Vos comptes, mots de passe, réseaux Wi-Fi et logiciels sont repris.</span></span></label>
+    <label class="carte ${mode === "liste" ? "sel" : ""}"><input type="radio" name="m" id="m-liste" ${mode === "liste" ? "checked" : ""}>
+      <span><b>Choisir la place moi-même</b>
+      <span class="sous">La liste des partitions : une installation neuve, ailleurs ou à la place de l'ancienne.</span></span></label>
+  </div>`);
+  col.append(ch);
+  ch.querySelector("#m-reinst").onchange = () => { mode = "reinst"; rendre(); };
+  ch.querySelector("#m-liste").onchange = () => { mode = "liste"; rendre(); };
+  if (mode === "liste") {
+    const liste = el(`<div class="liste"><table aria-label="Partitions du disque"><thead><tr><th>Disque</th><th>Nom</th><th class="num">Taille</th><th>Type</th></tr></thead><tbody></tbody></table></div>`);
+    const tb = liste.querySelector("tbody");
+    DISQUE.forEach((p, i) => {
+      const past = p.genre === "korin" ? `<span class="pastille">installé</span>` : p.genre === "khome" ? `<span class="pastille">vos fichiers</span>` : "";
+      const tr = el(`<tr tabindex="0" class="${i === sel ? "sel" : ""}"><td>Disque 0</td><td>${p.nom}${past}</td><td class="num">${go(p.taille)}</td><td>${p.type}</td></tr>`);
+      tr.onclick = () => { sel = i; rendre(); };
+      tr.onkeydown = e => { if (e.key === "Enter") { sel = i; rendre(); } };
+      tb.append(tr);
+    });
+    col.append(liste);
+    col.append(el(`<div class="liens"><button class="lien">↻ Actualiser</button><button class="lien">✕ Supprimer</button><button class="lien" disabled>＋ Nouveau</button></div>`));
+  }
+  const v = verdict();
+  if (v.note) col.append(el(`<div class="note ${v.note[0]}">${v.note[1]}</div>`));
+  if (mode === "reinst") col.append(el(`<div class="note info">La partition EFI est gardée ; le menu de démarrage proposera toujours Korin et Windows.</div>`));
+  pied(false, v.etat, v.ok ? (v.danger ? "rouge" : "prim") : null, "Suivant", () => { etape = 2; rendre(); });
+}
+
+function rendreFichiers() {
+  const col = document.getElementById("col");
+  col.innerHTML = "";
+  if (reinst()) {
+    col.append(el(`<h1>Vos fichiers restent où ils sont</h1>`));
+    col.append(el(`<p class="chapeau">KORIN HOME n'est ni formatée ni modifiée : elle est remontée sur <span class="mono">/home</span> dans le système réinstallé.</p>`));
+    col.append(el(`<div class="barre" aria-hidden="true"><div class="b-boot">EFI<b>gardée</b></div>
+      <div class="b-sys" style="flex:64">KORIN OS, reformatée<b>64 Go</b></div>
+      <div class="b-garde" style="flex:135">KORIN HOME, gardée (exFAT)<b>135 Go</b></div></div>`));
+    col.append(el(`<h2>Repris de l'ancien système</h2>`));
+    col.append(el(`<div class="repris">
+      <span>Comptes</span><span>stephane (administrateur), avec son mot de passe</span>
+      <span>Nom de l'ordinateur</span><span>korin-pc</span>
+      <span>Langue et clavier</span><span>Français, clavier BE</span>
+      <span>Réseaux Wi-Fi</span><span>NSI@Visiteur, Maison</span>
+      <span>Logiciels</span><span>21 logiciels installés, cochés d'office à l'étape Logiciels</span>
+    </div>`));
+    col.append(el(`<div class="note info">L'étape Compte est sautée : vos comptes sont repris tels quels.</div>`));
+    pied(true, "/home gardée : 135 Go", "prim", "Suivant", () => { etape = 4; rendre(); });
+    return;
+  }
+  const place = DISQUE[sel].taille, max = Math.max(0, Math.floor(place - MIN));
+  home = Math.min(home, max);
+  col.append(el(`<h1>Voulez-vous une partition à part pour vos fichiers ?</h1>`));
+  col.append(el(`<p class="chapeau">Avec une partition <span class="mono">/home</span>, vous pourrez réinstaller Korin plus tard sans perdre vos documents. À 0, vos fichiers restent dans la partition du système.</p>`));
+  const sys = place - home;
+  col.append(el(`<div class="barre" aria-hidden="true"><div class="b-sys" style="flex:${sys}">Korin, système (/)<b>${go(sys)}</b></div>
+    ${home ? `<div class="b-home" style="flex:${home}">Mes fichiers (/home)<b>${go(home)}</b></div>` : ""}</div>`));
+  const ctl = el(`<div class="taille"><input type="range" id="h-r" min="0" max="${max}" step="1" value="${home}" aria-label="Taille de /home">
+    <span class="champ"><input id="h-t" inputmode="numeric" value="${home}" aria-label="Taille de /home en Go"> Go</span></div>`);
+  col.append(ctl);
+  col.append(el(`<div class="bornes"><span>0 (pas de /home)</span><span>${go(max)} (le système garde ${go(MIN)})</span></div>`));
+  ctl.querySelector("#h-r").oninput = e => { home = +e.target.value; rendre(); document.getElementById("h-r").focus(); };
+  ctl.querySelector("#h-t").onchange = e => { const v = parseInt(e.target.value, 10); if (!isNaN(v) && v >= 0 && v <= max) { home = v; rendre(); } };
+  if (home) {
+    col.append(el(`<h2>Système de fichiers de /home</h2>`));
+    const f = el(`<div class="fs" role="radiogroup" aria-label="Système de fichiers de /home">
+      <label class="carte ${fs === "exfat" ? "sel" : ""}"><input type="radio" name="fs" id="fs-exfat" ${fs === "exfat" ? "checked" : ""}>
+        <span><b>exFAT (conseillé)</b><span class="sous">Lisible aussi par Windows et macOS : pratique pour échanger des fichiers.</span></span></label>
+      <label class="carte ${fs === "ext4" ? "sel" : ""}"><input type="radio" name="fs" id="fs-ext4" ${fs === "ext4" ? "checked" : ""}>
+        <span><b>ext4</b><span class="sous">Garde les droits des fichiers (Unix), lisible par Linux.</span></span></label></div>`);
+    col.append(f);
+    f.querySelector("#fs-exfat").onchange = () => { fs = "exfat"; rendre(); };
+    f.querySelector("#fs-ext4").onchange = () => { fs = "ext4"; rendre(); };
+    if (fs === "ext4") col.append(el(`<div class="note alerte">L'ext4 de Korin n'a pas encore de journal : après une coupure de courant pendant une écriture, le disque peut garder des erreurs que Korin ne sait pas encore réparer.</div>`));
+  }
+  pied(true, home ? `/ ${go(sys)} · /home ${go(home)} (${fs === "ext4" ? "ext4" : "exFAT"})` : `/home dans le système (${go(sys)})`, "prim", "Suivant", () => { etape = 4; rendre(); });
+}
+
+function rendreResume() {
+  const col = document.getElementById("col");
+  col.innerHTML = "";
+  const r = reinst(), p = DISQUE[sel], efface = !r && (p.genre === "windows" || p.genre === "khome");
+  col.append(el(`<h1>${fait ? (r ? "Korin OS serait réinstallé" : "Korin OS serait installé") : r ? "Prêt à réinstaller" : "Prêt à installer"}</h1>`));
+  const lignes = r ? [
+    ["Opération", "Réinstallation de Korin OS"],
+    ["Système (/)", "KORIN OS, 64 Go, reformatée (FAT32)"],
+    ["Mes fichiers (/home)", "KORIN HOME, 135 Go, gardée telle quelle"],
+    ["Comptes", "repris : stephane (administrateur)"],
+    ["Wi-Fi, nom, langue", "repris de l'ancien système"],
+    ["Logiciels", "21 repris, depuis la clé ou Internet"],
+    ["Démarrage", "la partition EFI existante ; menu Korin et Windows"]
+  ] : [
+    ["Opération", "Installation neuve"],
+    ["Place", `${p.nom.split(" : ")[1] || "espace libre"} · ${go(p.taille)}`],
+    ["Système (/)", go(p.taille - home)],
+    ["Mes fichiers (/home)", home ? `${go(home)}, ${fs === "ext4" ? "ext4" : "exFAT"}` : "dans le système"],
+    ["Démarrage", "la partition EFI existante ; menu Korin et Windows"]
+  ];
+  col.append(el(`<div class="resume">${lignes.map(l => `<div><span>${l[0]}</span><span>${l[1]}</span></div>`).join("")}</div>`));
+  col.append(el(r ? `<div class="note alerte"><b>Sera effacé :</b> le système Korin (KORIN OS) et ce qui y avait été installé. Vos fichiers dans /home ne sont pas touchés.</div>`
+    : efface ? `<div class="note danger"><b>Sera effacé :</b> ${p.nom.split(" : ")[1]} (${go(p.taille)}).</div>`
+    : `<div class="note ok">Rien d'autre ne sera effacé : les partitions gardées restent telles quelles.</div>`));
+  if (fait) col.append(el(`<div class="note info">Fin de la maquette. « Recommencer » revient au début.</div>`));
+  if (fait) pied(false, "", null, "", null, "Recommencer", () => { mode = "reinst"; sel = 2; etape = 1; home = 0; fs = "exfat"; fait = false; rendre(); });
+  else pied(true, "La seule écriture : ce bouton.", r ? "prim" : efface ? "rouge" : "prim", r ? "Réinstaller" : efface ? "Effacer et installer" : "Installer", () => { fait = true; rendre(); });
+}
+
+function pied(retour, etat, style, label, fn, retLabel, retFn) {
+  const pd = document.getElementById("pied");
+  pd.innerHTML = "";
+  const rb = el(`<button class="btn fantome" ${retour || retFn ? "" : "disabled"}>${retLabel || "Retour"}</button>`);
+  rb.onclick = retFn || (() => { etape = etape === 4 ? 2 : 1; rendre(); });
+  pd.append(rb);
+  pd.append(el(`<span class="etat">${etat}</span>`));
+  if (label) {
+    const b = el(`<button class="btn ${style || "prim"}" ${style ? "" : "disabled"}>${label}</button>`);
+    if (fn) b.onclick = fn;
+    pd.append(b);
+  }
+}
+
+function rendre() { bande(); if (etape === 1) rendreDisque(); else if (etape === 2) rendreFichiers(); else rendreResume(); }
+rendre();
+</script>
