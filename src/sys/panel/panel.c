@@ -9,6 +9,7 @@
  * Un trait sous une application ouverte. Fenêtre sans cadre, au-dessus des autres, sans
  * focus ; elle réserve le bas de l'écran. */
 #include "panel.h"
+#include "buskit_import.h"
 
 #define SL_MAX 24   /* raccourcis et applications ouvertes */
 #define HIT_APPS -2 /* ce qu'il y a sous le pointeur (0.. : emplacement) */
@@ -530,6 +531,8 @@ int main(int argc, char **argv)
 	slots_build();
 	desks_refresh();
 	draw();
+	/* le bouton d'alimentation du PC (acpid, docs/etude/BATTERIE-PC.md) : le même dialogue que le nôtre */
+	long power_sub = bus_subscribe((long)"korin.power.button", 0);
 	say("panel : bureau prêt\n"); /* au journal, avec son heure : le repère du démarrage (docs/BOOT.md) */
 	for (;;) {
 		long t = ui_event(1000);
@@ -551,6 +554,11 @@ int main(int argc, char **argv)
 		}
 		if (t == WEV_THEME) { /* autre thème : redessine */
 			draw();
+			continue;
+		}
+		if (t == WEV_BUS) {
+			if (power_sub > 0 && *(u32 *)(ui.ev + BEV_SUB) == (u32)power_sub)
+				ksys(SYS_SPAWN, (long)"/sys/shutdown", 0, 0, 0, 0, 0);
 			continue;
 		}
 		if (t != WEV_MOUSE)

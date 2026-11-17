@@ -466,19 +466,63 @@ void AcpiOsWaitEventsComplete(void)
 	acpi_run_deferred();
 }
 
+/* le SCI : ACPICA donne l'IRQ ISA de la FADT ; acpid la lie (IRQ_BIND) au canal du service et appelle
+ * osl_sci_fire à chaque SVC_OP_SIGNAL */
+static UINT32 sci_irq = ~0u;
+static ACPI_OSD_HANDLER sci_fn;
+static void *sci_ctx;
+
 ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 line, ACPI_OSD_HANDLER fn, void *ctx)
 {
-	(void)line; /* (pas encore de SCI : la batterie se lit en sondant) */
-	(void)fn;
-	(void)ctx;
+	if (sci_fn)
+		return AE_ALREADY_EXISTS;
+	sci_irq = line;
+	sci_fn = fn;
+	sci_ctx = ctx;
 	return AE_OK;
 }
 
 ACPI_STATUS AcpiOsRemoveInterruptHandler(UINT32 line, ACPI_OSD_HANDLER fn)
 {
 	(void)line;
-	(void)fn;
+	if (fn != sci_fn)
+		return AE_NOT_EXIST;
+	sci_fn = NULL;
 	return AE_OK;
+}
+
+/* IRQ ISA -> GSI par les remplacements de la MADT, puis -> ligne du noyau (GSI moins la base de l'IOAPIC) */
+int osl_sci_line(void)
+{
+	if (!sci_fn || sci_irq > 255)
+		return -1;
+	UINT32 gsi = sci_irq, base = ~0u;
+	ACPI_TABLE_HEADER *t;
+	if (ACPI_SUCCESS(AcpiGetTable(ACPI_SIG_MADT, 1, &t))) {
+		UINT8 *p = (UINT8 *)t + sizeof(ACPI_TABLE_MADT), *end = (UINT8 *)t + t->Length;
+		while (p + 2 <= end && p[1] >= 2 && p + p[1] <= end) {
+			if (p[0] == ACPI_MADT_TYPE_INTERRUPT_OVERRIDE) {
+				ACPI_MADT_INTERRUPT_OVERRIDE *o = (ACPI_MADT_INTERRUPT_OVERRIDE *)p;
+				if (o->SourceIrq == sci_irq)
+					gsi = o->GlobalIrq;
+			} else if (p[0] == ACPI_MADT_TYPE_IO_APIC) {
+				ACPI_MADT_IO_APIC *a = (ACPI_MADT_IO_APIC *)p;
+				if (a->GlobalIrqBase < base)
+					base = a->GlobalIrqBase;
+			}
+			p += p[1];
+		}
+	}
+	if (base == ~0u)
+		base = 0;
+	return gsi >= base ? (int)(gsi - base) : -1;
+}
+
+void osl_sci_fire(void)
+{
+	if (sci_fn)
+		sci_fn(sci_ctx);
+	acpi_run_deferred();
 }
 
 ACPI_STATUS AcpiOsSignal(UINT32 fn, void *info)

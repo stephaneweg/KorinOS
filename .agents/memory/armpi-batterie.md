@@ -19,5 +19,6 @@ Pièges d'essai sur ce PC : pas de QEMU Windows ; QEMU de WSL avec `. ~/korin-cl
 UEFI) ; l'image de mkkorindisk.py se fait par le Python de Windows (le fasm de WSL échoue) ; /tmp de WSL
 vidé au redémarrage de WSL.
 
-Reste : SCI/GPE (_Qxx, couvercle, bouton, thermique), S3, volet Énergie de Réglages, luminosité.
+SCI fait le 17/11 au soir : mode ACPI, GPE, GPE de l'EC (QR_EC, _Qxx), Notify, couvercle (korin.power.lid), bouton d'alimentation (korin.power.button -> panel -> /sys/shutdown) ; QEMU : bouton OK ; repli events = 0 dans power.ini.
+Reste : S3, thermique, volet Énergie de Réglages, luminosité.
 Voir [[armpi-x86-pc]].

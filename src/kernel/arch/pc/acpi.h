@@ -16,6 +16,7 @@ struct acpi_info {
 	uint32_t ioapic_count;
 	uint32_t isa_gsi[16];   /* IRQ ISA -> GSI (remplacements de la MADT) */
 	uint16_t isa_flags[16]; /* polarité (bits 0-1), déclenchement (bits 2-3) */
+	uint16_t sci_int;       /* IRQ ISA du SCI (FADT ; 0xFFFF : aucune) */
 	uint32_t pm_timer_port; /* 0 : absent */
 	int pm_timer_32;
 	int has_reset;

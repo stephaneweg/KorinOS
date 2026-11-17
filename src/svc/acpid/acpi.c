@@ -195,6 +195,184 @@ void acpi_devices(int *batteries, int *adapters)
 	*adapters = nac;
 }
 
+/* ---- événements (SCI) : Notify, boutons fixes, GPE de l'EC */
+static ACPI_HANDLE lids[MAXDEV], pbtns[MAXDEV], sbtns[MAXDEV];
+static int nlid, npbtn, nsbtn;
+static volatile unsigned pending; /* ACPI_EV_* */
+static int events_on;
+
+static ACPI_STATUS add_lid(ACPI_HANDLE obj, UINT32 d, void *c, void **r)
+{
+	(void)d, (void)c, (void)r;
+	if (nlid < MAXDEV)
+		lids[nlid++] = obj;
+	return AE_OK;
+}
+
+static ACPI_STATUS add_pbtn(ACPI_HANDLE obj, UINT32 d, void *c, void **r)
+{
+	(void)d, (void)c, (void)r;
+	if (npbtn < MAXDEV)
+		pbtns[npbtn++] = obj;
+	return AE_OK;
+}
+
+static ACPI_STATUS add_sbtn(ACPI_HANDLE obj, UINT32 d, void *c, void **r)
+{
+	(void)d, (void)c, (void)r;
+	if (nsbtn < MAXDEV)
+		sbtns[nsbtn++] = obj;
+	return AE_OK;
+}
+
+static int in_list(ACPI_HANDLE h, ACPI_HANDLE *l, int n)
+{
+	for (int i = 0; i < n; i++)
+		if (l[i] == h)
+			return 1;
+	return 0;
+}
+
+static void notify_handler(ACPI_HANDLE h, UINT32 value, void *ctx)
+{
+	(void)ctx;
+	static int said;
+	if (in_list(h, bats, nbat) || in_list(h, acs, nac))
+		pending |= ACPI_EV_BATTERY; /* 0x80 état, 0x81 informations : relire tout de suite */
+	else if (in_list(h, lids, nlid))
+		pending |= ACPI_EV_LID;
+	else if (in_list(h, pbtns, npbtn) && value == 0x80)
+		pending |= ACPI_EV_POWER;
+	else if (in_list(h, sbtns, nsbtn) && value == 0x80)
+		pending |= ACPI_EV_SLEEP;
+	else if (said < 24) { /* (les autres : au journal, les premiers seulement) */
+		char path[64] = "?";
+		ACPI_BUFFER pb = {sizeof path, path};
+		AcpiGetName(h, ACPI_FULL_PATHNAME, &pb);
+		elog("Notify (%s, 0x%x) : non servi", path, value);
+		said++;
+	}
+}
+
+static UINT32 fixed_power(void *ctx)
+{
+	(void)ctx;
+	pending |= ACPI_EV_POWER;
+	return ACPI_INTERRUPT_HANDLED;
+}
+
+static UINT32 fixed_sleep(void *ctx)
+{
+	(void)ctx;
+	pending |= ACPI_EV_SLEEP;
+	return ACPI_INTERRUPT_HANDLED;
+}
+
+/* requêtes de l'EC (ACPI 12.3, QR_EC 0x84) tant que SCI_EVT est levé, chacune par sa méthode _Qxx */
+#define EC_SCI_EVT 0x20
+static int ec_queries;
+
+static void ec_query(void *ctx)
+{
+	(void)ctx;
+	for (int n = 0; n < 32; n++) {
+		if (!(inb(ec_cmd) & EC_SCI_EVT))
+			break;
+		if (ec_wait(EC_IBF, 0))
+			break;
+		outb(ec_cmd, 0x84);
+		if (ec_wait(EC_OBF, EC_OBF))
+			break;
+		UINT8 q = inb(ec_data);
+		if (!q)
+			break;
+		char m[8];
+		AcpiKsnprintf(m, sizeof m, "_Q%02X", q);
+		ACPI_HANDLE h;
+		ec_queries++;
+		if (ACPI_FAILURE(AcpiGetHandle(ec_dev, m, &h))) {
+			static int said;
+			if (said++ < 16)
+				elog("EC : requête %02x sans méthode %s", q, m);
+			continue;
+		}
+		ACPI_STATUS s = AcpiEvaluateObject(ec_dev, m, NULL, NULL);
+		if (ACPI_FAILURE(s))
+			elog("EC : %s : %s", m, AcpiFormatException(s));
+	}
+}
+
+static UINT32 ec_gpe(ACPI_HANDLE dev, UINT32 num, void *ctx)
+{
+	(void)dev, (void)num, (void)ctx;
+	AcpiOsExecute(OSL_GPE_HANDLER, ec_query, NULL);
+	return ACPI_INTERRUPT_HANDLED | ACPI_REENABLE_GPE;
+}
+
+static int eval_int(ACPI_HANDLE h, const char *name, UINT64 *v);
+
+static void events_setup(void)
+{
+	AcpiGetDevices("PNP0C0D", add_lid, NULL, NULL);
+	AcpiGetDevices("PNP0C0C", add_pbtn, NULL, NULL);
+	AcpiGetDevices("PNP0C0E", add_sbtn, NULL, NULL);
+	ACPI_STATUS s = AcpiInstallNotifyHandler(ACPI_ROOT_OBJECT, ACPI_ALL_NOTIFY, notify_handler, NULL);
+	if (ACPI_FAILURE(s))
+		elog("Notify : gestionnaire refusé (%s)", AcpiFormatException(s));
+	int fixed_pb = 0, fixed_sb = 0;
+	if (!(AcpiGbl_FADT.Flags & ACPI_FADT_POWER_BUTTON) && /* (bit à 0 : bouton fixe) */
+	    ACPI_SUCCESS(AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, fixed_power, NULL))) {
+		AcpiClearEvent(ACPI_EVENT_POWER_BUTTON);
+		fixed_pb = ACPI_SUCCESS(AcpiEnableEvent(ACPI_EVENT_POWER_BUTTON, 0));
+	}
+	if (!(AcpiGbl_FADT.Flags & ACPI_FADT_SLEEP_BUTTON) &&
+	    ACPI_SUCCESS(AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, fixed_sleep, NULL))) {
+		AcpiClearEvent(ACPI_EVENT_SLEEP_BUTTON);
+		fixed_sb = ACPI_SUCCESS(AcpiEnableEvent(ACPI_EVENT_SLEEP_BUTTON, 0));
+	}
+	UINT64 gpe = ~0ULL;
+	if (ec_dev && !eval_int(ec_dev, "_GPE", &gpe) && gpe < 256) {
+		s = AcpiInstallGpeHandler(NULL, (UINT32)gpe, ACPI_GPE_EDGE_TRIGGERED, ec_gpe, NULL);
+		if (ACPI_SUCCESS(s))
+			s = AcpiEnableGpe(NULL, (UINT32)gpe);
+		if (ACPI_FAILURE(s)) {
+			elog("EC : GPE %x refusée (%s)", (unsigned)gpe, AcpiFormatException(s));
+			gpe = ~0ULL;
+		} else
+			AcpiOsExecute(OSL_GPE_HANDLER, ec_query, NULL); /* (des événements déjà en attente) */
+	}
+	AcpiUpdateAllGpes(); /* les GPE qui ont une méthode _Lxx / _Exx */
+	events_on = 1;
+	elog("événements : bouton d'alimentation %s, mise en veille %s, %d couvercle(s), GPE de l'EC %s",
+	     fixed_pb ? "fixe" : npbtn ? "PNP0C0C" : "absent", fixed_sb ? "fixe" : nsbtn ? "PNP0C0E" : "absent", nlid,
+	     gpe < 256 ? "servie" : "absente");
+}
+
+unsigned acpi_take_events(void)
+{
+	unsigned e = pending;
+	pending = 0;
+	return e;
+}
+
+int acpi_lid(void)
+{
+	UINT64 v;
+	if (!nlid || eval_int(lids[0], "_LID", &v))
+		return -1;
+	return v != 0;
+}
+
+/* trop d'interruptions : les GPE coupées, sauf celle de l'EC (une méthode _Lxx qui ne calme pas sa source) */
+void acpi_quiet_gpes(void)
+{
+	elog("SCI : trop d'interruptions, GPE coupées (sauf l'EC)");
+	AcpiDisableAllGpes();
+	UINT64 gpe;
+	if (ec_dev && !eval_int(ec_dev, "_GPE", &gpe) && gpe < 256)
+		AcpiEnableGpe(NULL, (UINT32)gpe);
+}
+
 static void run_ini(ACPI_HANDLE dev, const char *what)
 {
 	ACPI_HANDLE m;
@@ -205,7 +383,7 @@ static void run_ini(ACPI_HANDLE dev, const char *what)
 		elog("%s._INI : %s", what, AcpiFormatException(s));
 }
 
-int acpi_start(int init_all)
+int acpi_start(int init_all, int events)
 {
 	osl_init();
 	/* mode souple, comme l'interprète de Windows pour lequel les DSDT sont écrits : une variable locale
@@ -223,8 +401,9 @@ int acpi_start(int init_all)
 	ec_find();
 	AcpiGetDevices("PNP0C0A", add_bat, NULL, NULL);
 	AcpiGetDevices("ACPI0003", add_ac, NULL, NULL);
-	/* le mode (SCI_EN) n'est pas changé : ni SCI ni GPE servis */
-	s = AcpiEnableSubsystem(ACPI_NO_ACPI_ENABLE | ACPI_NO_EVENT_INIT | ACPI_NO_HANDLER_INIT);
+	/* events : mode ACPI, SCI, GPE et événements fixes ; sinon (events = 0) le mode n'est pas changé */
+	s = AcpiEnableSubsystem(events ? ACPI_FULL_INITIALIZATION
+				       : ACPI_NO_ACPI_ENABLE | ACPI_NO_EVENT_INIT | ACPI_NO_HANDLER_INIT);
 	if (ACPI_FAILURE(s)) {
 		elog("ACPICA : AcpiEnableSubsystem : %s", AcpiFormatException(s));
 		return -1;
@@ -251,6 +430,8 @@ int acpi_start(int init_all)
 		for (int i = 0; i < nac; i++)
 			run_ini(acs[i], "secteur");
 	}
+	if (events)
+		events_setup();
 	UINT32 sci = 0;
 	AcpiReadBitRegister(ACPI_BITREG_SCI_ENABLE, &sci);
 	char path[64] = "?";

@@ -45,8 +45,8 @@ d'ACPICA renommée `AcpiK*` pour ne pas heurter celle de korinrt) et `acenv.patc
 | `acpi.c` | démarrage d'ACPICA, l'EC (ACPI 12.2 : ports du `_CRS` de PNP0C09, ou de l'ECDT, 0x62 / 0x66 sinon ; lecture 0x80, écriture 0x81), batteries (PNP0C0A : `_STA` bit 4, `_BIX` ou `_BIF`, `_BST`) et secteur (ACPI0003 : `_PSR`) ; mA convertis en mW par la tension |
 | `acpid.c` | la boucle (lecture toutes les `poll` s), le pourcentage, le temps restant, les alertes, le profil, le bus, les requêtes |
 
-**Démarrage d'ACPICA** : tables, espace de noms, objets ; **sans changer de mode** (ni `ACPI_ENABLE`, ni SCI,
-ni GPE : rien par interruption). Méthodes d'initialisation : par défaut seulement `\_SB._INI` et les `_INI`
+**Démarrage d'ACPICA** : tables, espace de noms, objets ; mode ACPI, SCI et GPE (les événements, plus bas ;
+`events = 0` : rien de cela, le mode n'est pas changé, tout est sondé). Méthodes d'initialisation : par défaut seulement `\_SB._INI` et les `_INI`
 de l'EC, des batteries et des adaptateurs (les autres périphériques ont des pilotes Korin déjà lancés) ;
 `init = all` dans `/etc/power.ini` : tous les `_STA`/`_INI`/`_REG`, comme Linux. Puis le gestionnaire de
 l'EC, dont l'installation lance le `_REG` de l'EC (`ECRG = 1` sur le ZBook). **Mode souple**
@@ -77,6 +77,31 @@ ou un profil fixe (`profile = performance|balanced|saver`, gardé dans `/etc/pow
 Lancé par init2 (`skel/pc/etc/services.txt`) ; sans batterie ni adaptateur décrits (ordinateur de bureau),
 il publie « pas de batterie » et reste à répondre.
 
+## Les événements : SCI (17/11, le soir)
+
+* **SCI** : ACPICA installe son gestionnaire sur l'IRQ ISA de la FADT (`SCI_INT`, 9 sur le ZBook et QEMU) ;
+  `acpid` la traduit en GSI par les remplacements de la MADT, la lie au canal de son service (`IRQ_BIND`,
+  partagée) : chaque SCI arrive dans sa boucle comme `SVC_OP_SIGNAL` (bit 2) ; le gestionnaire d'ACPICA, les
+  travaux différés (Notify, requêtes de l'EC), puis `IRQ_ACK`. Le noyau programme la ligne du SCI sur
+  niveau, active basse, quand la MADT la dit « conforme » (ACPI 5.2.9 ; `src/kernel/arch/pc/apic.c`).
+  Garde : plus de 500 SCI par seconde deux secondes de suite, toutes les GPE sont coupées sauf celle de l'EC.
+* **Mode ACPI** (`ACPI_ENABLE` par `SMI_CMD` s'il ne l'est pas), événements fixes, GPE : `AcpiUpdateAllGpes`
+  active celles qui ont une méthode `_Lxx` / `_Exx` (comme Linux).
+* **EC** : sa GPE (`_GPE`, 0x6E sur le ZBook) a un gestionnaire : tant que `SCI_EVT` (bit 5 de l'état) est
+  levé, `QR_EC` (0x84) donne le numéro de la requête et la méthode `_Qxx` de l'EC est lancée (secteur
+  branché, batterie, boutons, touches de fonction de HP…).
+* **Notify** (gestionnaire global) : sur une batterie ou un adaptateur, tout est relu aussitôt (le secteur
+  branché se voit en une fraction de seconde, plus en 10 s) ; sur le couvercle (PNP0C0D), `_LID` relu ; sur
+  le bouton d'alimentation (PNP0C0C) ou de mise en veille (PNP0C0E), 0x80 = appui ; les autres au journal
+  (les 24 premiers).
+* **Bouton d'alimentation** (fixe, `PWRBTN_STS`, ou PNP0C0C) : `power_button = dialog` (défaut) publie
+  `korin.power.button` (« power <n> », non gardé) : le panel (`src/sys/panel`) ouvre `/sys/shutdown`, le
+  même dialogue que son bouton ; sans bureau (pas de notifyd), extinction propre ; `shutdown` : extinction
+  propre ; `nothing`. Appui long de 4 s : le matériel coupe, comme toujours.
+* **Couvercle** : `korin.power.lid` (`open` / `closed`, gardé) ; aussi sondé à chaque lecture. Rien d'autre
+  tant qu'il n'y a pas de veille.
+* **Bouton de mise en veille** : `sleep_button` (`nothing` par défaut : pas encore de veille).
+
 ## Ce que voit l'utilisateur
 
 * **Barre du haut** (`src/sys/menubar`) : à gauche de l'heure, le pourcentage et une batterie dessinée
@@ -103,6 +128,9 @@ il publie « pas de batterie » et reste à répondre.
   `HKLM\HARDWARE\ACPI`, hors du dépôt) : `_STA`, `_BIX`, `_BST`, `_PSR` s'exécutent ; l'EC y est simulé
   (zéros), d'où « absente » et des valeurs inconnues ; en mode souple, plus aucune erreur dans le `_REG` de
   l'EC.
+* **Bouton d'alimentation sous QEMU** (`system_powerdown` du moniteur : événement fixe) : « SCI : ligne 9 »,
+  « bouton : power », le dialogue d'extinction s'ouvre (17/11 le soir). Le GPE de l'EC, les Notify et le
+  couvercle n'ont pas d'équivalent sous QEMU : pas essayés.
 * **Pas encore essayé sur le ZBook.**
 
 ## Marche à suivre sur le ZBook
@@ -118,10 +146,16 @@ il publie « pas de batterie » et reste à répondre.
 4. L'icône de la barre ; le menu (clic) ; choisir « Économie », puis `cpufreq charge` : pas de turbo.
 5. Si la batterie reste inconnue : `battery -r` et le journal (lignes « acpid : … », « EC : pas de réponse »,
    « port … refusé », « DEV_MAP … refusé ») ; essayer `init = all` dans `/etc/power.ini` puis redémarrer.
+6. Événements : le journal doit dire « événements : bouton d'alimentation …, 1 couvercle(s), GPE de l'EC
+   servie » et « SCI : ligne 9 ». Brancher, débrancher le secteur : l'icône change aussitôt (sinon : les
+   lignes « EC : requête … », « Notify (…) : non servi »). Appuyer brièvement sur le bouton d'alimentation :
+   le dialogue d'extinction. Fermer, rouvrir le couvercle : « couvercle : fermé / ouvert ».
+7. Si quelque chose se dérègle après le passage en mode ACPI (ventilateur, touches, interruptions sans fin :
+   « SCI : trop d'interruptions ») : `events = 0` dans `/etc/power.ini`, redémarrer, et le journal.
 
 ## Reste à faire
 
-* SCI et GPE : les événements de l'EC (`_Qxx` : secteur branché à l'instant, batterie changée), le couvercle,
-  le bouton d'alimentation, le thermique ; puis S3 (veille).
+* S3 (veille) : `_PTS`, `_WAK`, état des pilotes ; puis le couvercle et le bouton de veille l'utiliseront.
+* Le thermique (`_TZ` : refroidissement passif) : l'EC du ZBook gère seul ses ventilateurs.
 * Un volet « Énergie » dans Réglages (seuils, profils) ; la luminosité de l'écran en économie.
 * Le mode poche de la barre (l'icône y est dessinée comme en mode normal).

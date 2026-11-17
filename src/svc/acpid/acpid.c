@@ -23,7 +23,9 @@
  *                     critical, shutdown, batteries, adapters)
  *   ACPID_OP_PROFILE 2 (a : -1 automatique, 0..2 profil fixe) -> 0 ; écrit dans /etc/power.ini
  *   ACPID_OP_RELOAD 3 -> 0 : relit /etc/power.ini
- * Pas de SCI encore : pas d'événements du couvercle, du bouton, ni de l'EC (_Qxx). */
+ * Événements (SCI lié au canal du service, events = 1) : Notify de la batterie ou du secteur -> relecture
+ * aussitôt ; couvercle -> « korin.power.lid » ; bouton d'alimentation -> « korin.power.button » (le panel
+ * ouvre le dialogue d'extinction ; power_button = dialog|shutdown|nothing) ; requêtes de l'EC dans acpi.c. */
 #include "sysfront.h"
 
 #include "acpid.h"
@@ -49,7 +51,18 @@ static struct conf {
 	int prof_ac, prof_bat, prof_low; /* -2 : celui du démarrage */
 	int fixed;                       /* -1 automatique, sinon le profil */
 	int init_all;
+	int events;      /* 1 : mode ACPI, SCI, GPE (0 : sondage seul, le mode n'est pas changé) */
+	int power_btn;   /* BTN_* du bouton d'alimentation */
+	int sleep_btn;   /* BTN_* du bouton de mise en veille */
 } cf;
+
+enum { BTN_NOTHING, BTN_DIALOG, BTN_SHUTDOWN };
+
+static int parse_btn(const char *v, int dflt)
+{
+	return !strcmp(v, "nothing") ? BTN_NOTHING : !strcmp(v, "dialog") ? BTN_DIALOG
+	     : !strcmp(v, "shutdown") ? BTN_SHUTDOWN : dflt;
+}
 
 static const char *const prof_name[3] = {"performance", "balanced", "saver"};
 static const char *const prof_fr[3] = {"performance", "équilibré", "économie"};
@@ -81,6 +94,9 @@ static void conf_load(void)
 	cf.prof_low = 2;
 	cf.fixed = -1;
 	cf.init_all = 0;
+	cf.events = 1;
+	cf.power_btn = BTN_DIALOG;
+	cf.sleep_btn = BTN_NOTHING;
 	long fd = sys_open(CONF, O_READ);
 	if (fd < 0)
 		return;
@@ -136,6 +152,12 @@ static void conf_load(void)
 				cf.fixed = parse_prof(v, -1) < 0 ? -1 : parse_prof(v, -1);
 			else if (!strcmp(k, "init"))
 				cf.init_all = !strcmp(v, "all");
+			else if (!strcmp(k, "events"))
+				cf.events = num != 0;
+			else if (!strcmp(k, "power_button"))
+				cf.power_btn = parse_btn(v, cf.power_btn);
+			else if (!strcmp(k, "sleep_button"))
+				cf.sleep_btn = parse_btn(v, cf.sleep_btn);
 		}
 		l = next;
 	}
@@ -305,36 +327,70 @@ static void policy(void)
 		notify_send("Économie d'énergie", "Le processeur passe en économie pour faire durer la batterie.", 0);
 }
 
-static void publish(void)
+/* un sujet du bus (retain : gardé) -> 0, < 0 si busd n'est pas (encore) là */
+static long bus_publish(const char *topic, const char *v, int retain)
 {
 	static long bus_ch;
-	char v[64];
-	snprintf(v, sizeof v, "%d %d %d %c %d %d", s.pct, s.min, s.ac, s.state, s.profile, cf.fixed < 0);
-	if (!strcmp(v, s.bus))
-		return;
 	u8 m[MSG_SIZE] __attribute__((aligned(16)));
 	for (int tries = 0; tries < 2; tries++) {
 		if (!bus_ch) {
 			long c = korin_sys2(SYS_SVC_OPEN, "bus", 0);
 			if (c < 0)
-				return; /* (busd pas encore là : la prochaine fois) */
+				return c;
 			bus_ch = c + 1;
 		}
 		memset(m, 0, MSG_DATA);
-		M64(m, 0) = 1;     /* BUS_OP_PUBLISH */
-		M64(m, MSG_A) = 1; /* BUS_RETAIN */
-		static const char topic[] = "korin.power.battery";
-		memcpy(m + MSG_DATA, topic, sizeof topic);
-		u64 len = strlen(v);
-		memcpy(m + MSG_DATA + sizeof topic, v, len + 1);
+		M64(m, 0) = 1; /* BUS_OP_PUBLISH */
+		M64(m, MSG_A) = retain ? 1 : 0; /* BUS_RETAIN */
+		u64 tl = strlen(topic) + 1, len = strlen(v);
+		memcpy(m + MSG_DATA, topic, tl);
+		memcpy(m + MSG_DATA + tl, v, len + 1);
 		M64(m, MSG_B) = len;
 		long r = korin_sys2(SYS_SVC_CALL, bus_ch - 1, m);
-		if (r >= 0) {
-			memcpy(s.bus, v, sizeof s.bus);
-			return;
-		}
+		if (r >= 0)
+			return 0;
 		bus_ch = 0; /* busd relancé : rouvrir */
 	}
+	return -1;
+}
+
+static void publish(void)
+{
+	char v[64];
+	snprintf(v, sizeof v, "%d %d %d %c %d %d", s.pct, s.min, s.ac, s.state, s.profile, cf.fixed < 0);
+	if (strcmp(v, s.bus) && bus_publish("korin.power.battery", v, 1) == 0)
+		memcpy(s.bus, v, sizeof s.bus);
+}
+
+/* ---- événements : boutons, couvercle, batterie */
+static int lid_state = -2; /* -2 : pas encore lu */
+static unsigned button_seq;
+
+static void button(const char *which, int action)
+{
+	char v[32];
+	snprintf(v, sizeof v, "%s %u", which, ++button_seq);
+	slog("bouton : %s\n", which);
+	if (action == BTN_NOTHING)
+		return;
+	/* (la barre du bas ouvre le dialogue d'extinction, src/sys/panel ; sans bureau ou en « shutdown » :
+	 * extinction propre) */
+	if (action == BTN_DIALOG && bus_publish("korin.power.button", v, 0) == 0 &&
+	    korin_sys2(SYS_SVC_OPEN, "notify", 0) >= 0)
+		return;
+	power_off_now();
+}
+
+static void lid_check(void)
+{
+	int l = acpi_lid();
+	if (l == lid_state)
+		return;
+	if (lid_state != -2 || l >= 0)
+		slog("couvercle : %s\n", l < 0 ? "absent" : l ? "ouvert" : "fermé");
+	lid_state = l;
+	if (l >= 0)
+		bus_publish("korin.power.lid", l ? "open" : "closed", 1);
 }
 
 static void sample(void)
@@ -416,6 +472,27 @@ static void answer_get(u8 *m)
 	M64(m, 0) = 0;
 }
 
+/* les événements arrivés (SCI, ou Notify pendant une lecture) */
+static void events(int polling)
+{
+	for (int guard = 0; guard < 4; guard++) {
+		unsigned e = acpi_take_events();
+		if (!e)
+			return;
+		if ((e & ACPI_EV_BATTERY) && polling)
+			sample(); /* (secteur branché, batterie changée : tout de suite) */
+		if (e & ACPI_EV_LID)
+			lid_check();
+		if (e & ACPI_EV_POWER)
+			button("power", cf.power_btn);
+		if (e & ACPI_EV_SLEEP)
+			button("sleep", cf.sleep_btn);
+	}
+}
+
+#define SCI_BIT 2         /* (SVC_OP_SIGNAL) le SCI */
+#define IRQ_SHARED_ (1UL << 63)
+
 int main(int argc, char **argv)
 {
 	(void)argc;
@@ -431,7 +508,7 @@ int main(int argc, char **argv)
 		slog("service déjà là (%ld)\n", canal);
 		return 0;
 	}
-	if (acpi_start(cf.init_all) < 0) {
+	if (acpi_start(cf.init_all, cf.events) < 0) {
 		slog("pas d'ACPI utilisable : batterie inconnue\n");
 		s.state = 'n';
 		s.pct = s.min = -1;
@@ -444,6 +521,19 @@ int main(int argc, char **argv)
 		s.profile = s.boot_profile;
 	else
 		s.boot_profile = -1;
+	/* le SCI : lié au canal du service (SVC_OP_SIGNAL, bit SCI_BIT), masqué jusqu'à IRQ_ACK */
+	long sci = osl_sci_line();
+	if (sci >= 0) {
+		long r = korin_sys3(SYS_IRQ_BIND, sci, canal, SCI_BIT | IRQ_SHARED_);
+		if (r < 0) {
+			slog("SCI : ligne %ld refusée (%ld) : batterie seulement sondée\n", sci, r);
+			sci = -1;
+		} else {
+			slog("SCI : ligne %ld\n", sci);
+			korin_sys1(SYS_IRQ_ACK, sci);
+		}
+	}
+	lid_check();
 	int polling = s.nbat > 0 || s.nac > 0;
 	if (polling) {
 		sample();
@@ -459,6 +549,7 @@ int main(int argc, char **argv)
 		publish();
 	}
 	long next = now_ms() + cf.poll * 1000L;
+	long sci_t0 = now_ms(), sci_n = 0, storms = 0;
 	u8 m[MSG_SIZE] __attribute__((aligned(16)));
 	for (;;) {
 		long wait = polling ? next - now_ms() : 60000;
@@ -467,8 +558,23 @@ int main(int argc, char **argv)
 		long req = korin_sys3(SYS_SVC_NEXT, canal, m, wait);
 		if (req > 0) {
 			u64 op = M64(m, 0);
-			if (op == SVC_OP_SIGNAL)
+			if (op == SVC_OP_SIGNAL) {
+				if ((M64(m, MSG_A) & SCI_BIT) && sci >= 0) {
+					osl_sci_fire();
+					korin_sys1(SYS_IRQ_ACK, sci);
+					events(polling);
+					/* garde : plus de 500 SCI par seconde, deux fois de suite -> GPE coupées */
+					sci_n++;
+					if (now_ms() - sci_t0 >= 1000) {
+						storms = sci_n > 500 ? storms + 1 : 0;
+						if (storms == 2)
+							acpi_quiet_gpes();
+						sci_t0 = now_ms();
+						sci_n = 0;
+					}
+				}
 				continue;
+			}
 			long rc = 0;
 			*(u32 *)(m + MSG_LEN) = 0;
 			if (op == ACPID_OP_GET) {
@@ -498,7 +604,9 @@ int main(int argc, char **argv)
 			sys_sleep(100);
 		if (polling && now_ms() >= next) {
 			sample();
+			lid_check(); /* (sans SCI : sondé) */
 			next = now_ms() + cf.poll * 1000L;
 		}
+		events(polling);
 	}
 }

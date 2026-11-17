@@ -27,8 +27,18 @@ struct power_raw {
 void acpid_log(const char *line); /* une ligne au journal (sans '\n') */
 
 /* acpi.c : ACPICA chargé, l'EC servi, les méthodes d'initialisation lancées (init : 0 le minimum, 1
- * tout comme Linux) -> 0, < 0 sinon (le journal dit pourquoi) */
-int acpi_start(int init_all);
+ * tout comme Linux), events : mode ACPI, SCI, GPE, boutons -> 0, < 0 sinon (le journal dit pourquoi) */
+int acpi_start(int init_all, int events);
+/* événements arrivés depuis le dernier appel (ACPI_EV_*, remis à 0) */
+#define ACPI_EV_POWER 1   /* bouton d'alimentation */
+#define ACPI_EV_SLEEP 2   /* bouton de mise en veille */
+#define ACPI_EV_LID 4     /* couvercle */
+#define ACPI_EV_BATTERY 8 /* batterie ou secteur (Notify) */
+unsigned acpi_take_events(void);
+/* couvercle : 1 ouvert, 0 fermé, -1 pas de couvercle décrit */
+int acpi_lid(void);
+/* trop d'interruptions : GPE coupées sauf celle de l'EC */
+void acpi_quiet_gpes(void);
 /* une lecture de la batterie et du secteur -> 0 */
 int acpi_read(struct power_raw *p);
 /* nombre de batteries et d'adaptateurs décrits dans le DSDT (même absents) */
@@ -38,5 +48,9 @@ void acpi_run_deferred(void);
 
 /* osl.c */
 void osl_init(void);
+/* la ligne (GSI de l'IOAPIC) du SCI, après acpi_start ; -1 : aucun gestionnaire installé */
+int osl_sci_line(void);
+/* le SCI s'est levé : le gestionnaire d'ACPICA, puis les travaux différés */
+void osl_sci_fire(void);
 
 #endif

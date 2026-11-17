@@ -254,9 +254,14 @@ void arch_irq_line_enable(unsigned line, int on)
 			isa = i;
 	if (isa >= 0) {
 		uint16_t f = acpi.isa_flags[isa];
-		if ((f & 3) == 3)
+		unsigned pol = f & 3, trg = (f >> 2) & 3;
+		if (isa == acpi.sci_int) { /* le SCI (acpid) : « conforme » = niveau, actif bas (ACPI 5.2.9) */
+			pol = pol ? pol : 3;
+			trg = trg ? trg : 3;
+		}
+		if (pol == 3)
 			low |= 1 << 13;
-		if (((f >> 2) & 3) == 3)
+		if (trg == 3)
 			low |= 1 << 15;
 	} else if (line >= 16)
 		low |= (1 << 13) | (1 << 15);

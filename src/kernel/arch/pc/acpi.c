@@ -146,6 +146,7 @@ static void parse_fadt(const struct sdt *t)
 		acpi.boot_arch_valid = t->revision >= 2;
 	}
 	acpi.pm_timer_port = pm;
+	memcpy(&acpi.sci_int, p + 46, 2); /* SCI_INT (acpid) */
 	acpi.pm_timer_32 = (flags >> 8) & 1;
 	if (t->length >= 220 && p[208] == 1) { /* X_PM_TMR_BLK dans l'espace des ports */
 		uint64_t a;
