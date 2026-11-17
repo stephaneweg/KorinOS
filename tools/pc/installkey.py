@@ -161,7 +161,9 @@ def build(a):
             with open(os.path.join(tree, "etc", "services.txt"), "a", encoding="ascii", newline="") as f:
                 f.write("# essai de l'installation (installkey.py --plan)\n/sbin/osinstall /etc/plan-test.ini\n")
         size = tree_size(tree) * 115 // 100 + a.extra_mb * 1024 * 1024
-        part = (size // SECTOR + MB - 1) // MB * MB
+        # au moins 300 Mio : sous 65 525 grappes (de 4 Kio), un FAT32 est lu comme FAT16 par le firmware (OVMF :
+        # « Not Found ») ; une clé faite des seuls paquets publiés (218 Mio) y tombait
+        part = max((size // SECTOR + MB - 1) // MB * MB, 300 * MB)
         start = MB
         total = start + part + 34 + MB
         fat = mkdisk.Fat32(part)
