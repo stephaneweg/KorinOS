@@ -88,6 +88,8 @@ python3 -I tools/secrets.py "$OUT/etc/oauth/providers.ini"
 [ -f skel/sd0/etc/pkg/onyx.pub ] && cp skel/sd0/etc/pkg/onyx.pub "$OUT/etc/pkg/"
 copy_files skel/sd0/res/keyb "$OUT/res/keyb"
 [ -f skel/sd0/res/tz.txt ] && cp skel/sd0/res/tz.txt "$OUT/res/"
+# les motifs du fond d'écran (voronoy, volet Thème : src/sys/common/wallpaper.h)
+mkdir -p "$OUT/res/wallpapers" && copy_files skel/sd0/res/wallpapers "$OUT/res/wallpapers" '*.png'
 # le bureau : polices, icônes sans application (comme build.ps1 : celles d'une app partent avec elle),
 # dictionnaires
 copy_files ref/fonts "$OUT/fonts" '*.ttf'

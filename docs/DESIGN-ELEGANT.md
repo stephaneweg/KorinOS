@@ -192,41 +192,62 @@ Texte trop long : coupé au dernier caractère qui tient, suivi de « … » (U+
 
 ## 5. Fond d'écran (`voronoy`)
 
-### 5.1 Voronoï « facettes douces » (motif par défaut)
+### 5.1 Voronoï « facettes douces » (fond par défaut) et autres fonds
 
-* **Cellules** : N = arrondi(largeur × hauteur / 28 000), au moins 8 (1024x768 → 28,
-  800x600 → 17, 640x480 → 11). Graines tirées avec une distance minimale entre elles de
-  0,62 × √(l × h / N) (rejet ; 200 essais par graine au plus) : des cellules régulières, plus
-  grandes et plus calmes qu'aujourd'hui. Graines dans [−20, l + 20] × [−20, h + 20] pour que
-  les bords ne soient pas coupés net.
-* **Couleurs** : chaque cellule prend une des 5 couleurs de la palette du thème (tirage) :
-  * Givre : `0x7FA6EC 0x5A8BE0 0xA9C2F0 0xC4CEDD 0x4B78CF` ;
-  * Onyx Noir : `0x1C2433 0x22314A 0x18202C 0x2B4266 0x202838` ;
-  * autre thème : `mêler(A, blanc, 80)`, `ton(A, 116)`, `mêler(A, blanc, 140)`,
-    `mêler(W, A, 60)`, `ton(A, 100)` (A accent, W fenêtre ; sombre : les mêmes avec `ton(…, 60)`).
+Le fond est peint par `/sys/voronoy` (lancé par la session, `/etc/session`), avec le peintre commun
+`src/sys/common/wallpaper.c` (aussi l'aperçu du volet Thème de Réglages). Les fonds d'Onyx sont repris
+(17/11/2026), au style Givre calme : la palette du thème, plus clair en haut, une teinte au choix.
+
+* **Cellules** (`voronoi`, par défaut) : N = arrondi(largeur × hauteur / 28 000), au moins 8, 64 au
+  plus. Graines tirées avec une distance minimale entre elles de 0,62 × √(l × h / N) (rejet ; 200
+  essais par graine au plus). Graines dans [−20, l + 20] × [−20, h + 20] pour que les bords ne soient
+  pas coupés net.
+* **Couleurs** : chaque cellule prend une des 5 couleurs calmes du thème (tirage) :
+  * Givre : `0xD6DEE9 0xDCE3ED 0xD1DAE6 0xE1E7EF 0xCDD7E4` ;
+  * Onyx Noir : `0x1A1E26 0x1D222B 0x181C23 0x20252F 0x1B2029` ;
+  * avec une **teinte** T : `mêler(couleur, T, 52)` (sombre : 36) — assez pour la voir, pas assez pour crier.
 * **Relief** : par pixel, `ton(couleur, 136 − 30 × y / h)` (plus clair en haut, plus sombre en
   bas ; en sombre `128 − 24 × y / h`).
 * **Liseré** : un pixel est sur une arête quand `(d2² − d1²) / (2 × |g2 − g1|) < 1` (d1, d2 :
   distances aux deux graines les plus proches g1, g2 — c'est la distance exacte à la
-  médiatrice) ; il prend `ton(couleur, 150)` (clair) au lieu des bords sombres actuels.
-* Coût : ~ l × h × N comparaisons, déjà le cas aujourd'hui ; dessin une fois au démarrage.
+  médiatrice) ; il prend `ton(couleur, 134)`.
+* **Dégradé** (`gradient`) : la première couleur calme (teintée), `ton(c, 150 − 42 × y / h)` en clair
+  (`ton(c, 139 − 33 × y / h)` en sombre).
+* **Bulles** (`bubbles`, d'Onyx) : le dégradé et 26 disques doux de toutes les tailles, plus clairs,
+  plus ou moins transparents, le bord plus clair qui s'efface.
+* **Uni** (`solid`) : la première couleur calme (teintée).
+* **Motif** (`pattern`) : une image grise de `/res/wallpapers` (les huit d'Onyx, 1024 × 768, faites par
+  `tools/wallpapers/gen_wallpapers.py` : Bokeh, Courbes de niveau, Dunes, Facettes, Hexagones, Polygones,
+  Soie, Vagues ; toute image grise PNG ou BMP posée là apparaît dans Réglages), posée en « cover » sur le
+  dégradé : en clair ses gris l'assombrissent (du dégradé à `ton(c, 78)`), en sombre ils l'éclairent (des
+  traits de lumière jusqu'à `ton(c, 164)`).
+* **Image** (`image`) : une image de l'utilisateur (BMP, GIF, PNG, JPEG, PCX, WebP), en « cover » (l'écran
+  rempli, centrée) ou en mosaïque. Réglages en écrit une copie à la taille de l'écran,
+  `HOME:/etc/wallpaper.png` (UIKit ne lit que BMP et PNG) ; teintée, elle devient un duotone de la
+  teinte (de `ton(T, 56)` à `mêler(T, blanc, 170)` ; sombre : 40 et 120).
+* **Teinte** : aucune, l'accent du thème (`accent` : elle suit le thème et son accent), ou l'une des
+  huit couleurs d'accent de UIKit (`bleu`… `graphite`, prises dans le thème : Givre et Onyx Noir ont les
+  leurs). Jamais de couleur en dur dans le réglage.
+* Coût : ~ l × h × N comparaisons pour les cellules ; dessin au démarrage, puis à chaque changement.
 
-### 5.2 Autres motifs et configuration
+### 5.2 Le réglage : `wallpaper.ini`
 
-`/etc/fond.ini` (nouveau) :
+Réglage personnel (lu dans `HOME:/etc/`, puis `HOME:/.config/korin/`, puis `/etc/` ; écrit dans
+`HOME:/etc/` par le volet Thème de Réglages ; sans fichier : les cellules sans teinte) :
 
 ```
-# Le fond d'écran (/sys/voronoy.elf)
-motif    = voronoi        ; voronoi | degrade | uni
-cellules = auto           ; auto | nombre
-couleurs = auto           ; auto | 0xRRGGBB, 0xRRGGBB, ... (2 à 6)
-relief   = 30             ; écart de ton haut / bas (0 = aucun)
-lisere   = oui            ; oui | non
-graine   = hasard         ; hasard | nombre (même fond à chaque démarrage)
+# Le fond d'écran du bureau (src/sys/common/wallpaper.h), écrit par Réglages (volet Thème).
+mode    = voronoi        # voronoi, gradient, bubbles, solid, pattern ou image
+tint    = accent         # vide (aucune), accent, ou bleu, orange, vert, jaune, violet, fuchsia, sarcelle, graphite
+pattern = waves.png      # pattern : un nom de /res/wallpapers (ou un chemin)
+image   = /media/sd1/Photos/lac.jpg   # image : l'image choisie (sa copie : HOME:/etc/wallpaper.png)
+style   = cover          # image : cover ou tile (mosaïque)
 ```
 
-`degrade` : dégradé diagonal entre les deux premières couleurs, tramé (bruit ±2 niveaux par
-pixel, xorshift) pour éviter les bandes. `uni` : la première couleur.
+**À chaud** : Appliquer écrit les fichiers puis publie `korin.theme` (le thème ou l'accent a changé :
+voronoy repeint tout, `WEV_THEME`), sinon `korin.wallpaper` (le fond seul : voronoy s'y abonne, relit le
+réglage et repeint ; docs/BUS.md). Sans busd, Réglages relance voronoy. Relancer voronoy à la main tire
+de nouvelles cellules.
 
 ---
 

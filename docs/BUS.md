@@ -108,6 +108,11 @@ Le fond (voronoy), la barre de menus, le Panel, l'agenda, les notes épinglées 
 traitent `WEV_THEME` : le panneau ne relance plus la session (il le fait encore si busd ne répond
 pas). Une app qui lit `theme.txt` elle-même (les ports C++) ne le prend qu'à sa relance.
 
+**`korin.wallpaper`** (17/11/2026) : le volet Thème publie ce sujet (non gardé, la valeur est l'heure
+en ms) quand seul le fond d'écran a changé (`wallpaper.ini`, docs/DESIGN-ELEGANT.md §5) ; voronoy s'y
+abonne, relit le réglage et repeint. Un thème ou un accent changé passe par `korin.theme` : voronoy relit
+alors aussi le fond.
+
 ## Les périphériques USB et les volumes
 
 Un sujet par chose, gardé tant qu'elle est là, retiré (`BUS_DELETE`) quand elle part : un abonné
