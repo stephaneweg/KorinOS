@@ -1,11 +1,14 @@
 # Session du bureau Elegant du PC (shell=desktop) : programmes lances par le
 # serveur graphique a son demarrage, dans l'ordre (chemin [arguments]). Pas encore
-# agenda, stickies ni printd (pas portes sur le PC).
+# printd (pas porte sur le PC). agenda et stickies (les applets du Calendrier et de
+# Notes) sont dans les paquets app.calendar et app.notes : absents sans eux.
 /sys/voronoy
 /sys/menubar
 /sys/panel
 /sys/notifyd
 /sys/clipd
+/sys/agenda
 /sys/clockd
+/sys/stickies
 # (pkgd, les mises a jour des paquets : dans services.txt depuis le 16/11, en uid 0, seul ecrivain de
 # /bin, /apps, /sys : docs/etude/MULTI-UTILISATEUR.md 2.7)

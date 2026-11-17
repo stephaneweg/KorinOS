@@ -6,7 +6,7 @@
 #                       (build/pc/bash/bash : ARCH=x86_64 sh tools/bash/build.sh), s'il est construit
 #     sys/svc/          les services en C (build/svc/x86_64, tools/svc/build_c.sh)
 #     sys/              Elegant et la session du bureau en C (build/sys/x86_64, tools/sys/build_c.sh :
-#                       elegant, menubar, panel, voronoy, notifyd, clipd, clockd)
+#                       elegant, menubar, panel, voronoy, notifyd, clipd, clockd, agenda, stickies)
 #     lib/              les kits en C (build/kits/x86_64, tools/kits/build_c.sh), comme /lib du Pi
 #     etc/              de skel/sd0/etc ce qui vaut pour le PC, puis skel/pc/etc (init.txt,
 #                       mounts.txt, services.txt, system.ini « shell=console », options.txt)
