@@ -27,6 +27,12 @@
  *  * INIT_OP_KIT_LOAD : inscrit un kit pour un process sans droits ; données :
  *    le nom (« netkit ») -> 0 ou erreur (f_kit_load d'AppKit) ;
  *  * INIT_OP_REBOOT : a bit 0 = tryboot, bit 1 = arrêt ;
+ *  * INIT_OP_SVC_STOP, INIT_OP_SVC_START (appelant en uid 0 : Réglages élevé,
+ *    volet Démarrage, docs/DEMARRAGE.md) : données = une ligne de
+ *    services.txt ; arrête le service de cette ligne sans le relancer, ou le
+ *    lance (surveillé) ;
+ *  * une ligne de services.txt écrite aussi dans /etc/services.off, ou de
+ *    startup.txt dans session.off (personnel, conf_path), n'est pas lancée ;
  *  * après startup.txt : init2 se relance avec l'argument « preload », qui
  *    précharge les exécutables de /etc/preload.txt et s'arrête. */
 #include "init2.h"
@@ -97,8 +103,11 @@ long lancer_ligne(const char *line, int watch)
 	return pid;
 }
 
-/* fichier (une ligne par programme), watch -> 1 si le fichier existe */
-static int lancer_fichier(const char *path, int watch)
+/* les lignes à ne pas lancer (/etc/services.off, session.off : list_load de korinrt) */
+static char off_list[2048];
+
+/* fichier (une ligne par programme), watch, off = lignes sautées (0 : aucune) -> 1 si le fichier existe */
+static int lancer_fichier(const char *path, int watch, const char *off)
 {
 	long fd = sys_open(path, O_READ);
 	if (fd < 0)
@@ -115,8 +124,14 @@ static int lancer_fichier(const char *path, int watch)
 			e++;
 		if (*e)
 			*e++ = 0;
-		if (*l && *l != '#') /* vide, ou commentaire */
-			lancer_ligne(l, watch);
+		if (*l && *l != '#') { /* vide, ou commentaire */
+			if (off && list_has(off, l)) {
+				say("init2 : desactive : ");
+				say(l);
+				say("\n");
+			} else
+				lancer_ligne(l, watch);
+		}
 		l = e;
 	}
 	return 1;
@@ -413,6 +428,65 @@ static void reboot_request(long req)
 	say("init2 : le redémarrage n'a pas eu lieu\n");
 }
 
+/* deux lignes égales, sans les blancs autour -> 1 */
+static int same_line(const char *a, const char *b)
+{
+	while (*a == ' ' || *a == '\t')
+		a++;
+	while (*b == ' ' || *b == '\t')
+		b++;
+	u64 na = str_len(a), nb = str_len(b);
+	while (na && (a[na - 1] == ' ' || a[na - 1] == '\t' || a[na - 1] == '\r' || a[na - 1] == '\n'))
+		na--;
+	while (nb && (b[nb - 1] == ' ' || b[nb - 1] == '\t' || b[nb - 1] == '\r' || b[nb - 1] == '\n'))
+		nb--;
+	return na == nb && !memcmp(a, b, na);
+}
+
+/* INIT_OP_SVC_STOP, INIT_OP_SVC_START (le volet Démarrage de Réglages) : données = la ligne de services.txt ;
+ * l'appelant doit être en uid 0 (Réglages élevé ; le Pi, sans comptes : E_NOSYS, permis) ;
+ * « init2 : svc_stop par 12 control : /sys/svc/telnetd -> 0 » */
+static long service_request(u64 op)
+{
+	msg[511] = 0;
+	str_copy_n(launch_path, (const char *)msg + 48, 128); /* (msg sert à la réponse) */
+	u64 who = M32(msg, 44);
+	long uid = korin_sys1(SYS_PROC_UID, (long)who);
+	long r = E_PERM;
+	if (uid <= 0) {
+		struct surv *found = 0; /* la place de cette ligne qui tourne */
+		for (int i = 0; i < SURV_MAX; i++)
+			if (surv[i].pid && same_line(surv[i].ligne, launch_path)) {
+				found = &surv[i];
+				break;
+			}
+		if (op == INIT_OP_SVC_STOP) {
+			r = E_NOENT;
+			if (found) {
+				u64 pid = found->pid;
+				found->pid = 0; /* plus surveillé : sa fin n'est pas une panne */
+				korin_sys1(SYS_KILL, (long)pid);
+				r = 0;
+			}
+		} else if (found)
+			r = E_EXIST;
+		else if (!sys_path_ok(launch_path))
+			r = E_PERM;
+		else
+			r = lancer_ligne(launch_path, 1);
+	}
+	say(op == INIT_OP_SVC_STOP ? "init2 : svc_stop par " : "init2 : svc_start par ");
+	say_dec((long)who);
+	say(" ");
+	say(name_of_pid(who));
+	say(" : ");
+	say(launch_path);
+	say(" -> ");
+	say_dec(r);
+	say("\n");
+	return r;
+}
+
 static void requete(long req)
 {
 	u64 op = M64(msg, 0);
@@ -429,6 +503,8 @@ static void requete(long req)
 		return;
 	} else if (op == INIT_OP_LAUNCH)
 		r = launch_request();
+	else if (op == INIT_OP_SVC_STOP || op == INIT_OP_SVC_START)
+		r = service_request(op);
 	else
 		r = E_INVAL;
 	M64(msg, 0) = (u64)r;
@@ -525,7 +601,8 @@ static void startup_si_ouverte(void)
 		return;
 	startup_attendu = 0;
 	session_uid = 1;
-	lancer_fichier(conf_path("startup.txt", 0), 0);
+	list_load(conf_path("session.off", 0), off_list, sizeof off_list); /* (avant le conf_path suivant) */
+	lancer_fichier(conf_path("startup.txt", 0), 0, off_list);
 	session_uid = 0;
 }
 
@@ -556,7 +633,8 @@ int main(int argc, char **argv)
 	int console = plat_text_console();
 	if (!console)
 		lancer_ligne("/sys/elegant", 1);
-	lancer_fichier("/etc/services.txt", 1); /* les services de services.txt */
+	list_load("/etc/services.off", off_list, sizeof off_list); /* (volet Démarrage de Réglages) */
+	lancer_fichier("/etc/services.txt", 1, off_list); /* les services de services.txt */
 	if (console)
 		lancer_ligne("/sys/svc/console", 1); /* (sans Elegant : ni « ws », ni startup.txt) */
 	else {

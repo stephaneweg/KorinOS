@@ -96,6 +96,20 @@ Le volet **Préchargement** garde des programmes en mémoire pour qu'ils démarr
 - À droite, **Préchargés** : ceux de la liste, avec leur état (**préchargé** ou **pas encore**).
 - La flèche **→** ajoute le programme choisi à gauche et le charge tout de suite ; la flèche **←** retire celui choisi à droite. **Actualiser** relit les deux listes.
 
+## Démarrage
+
+Le volet **Démarrage** montre ce que Korin lance au démarrage et laisse choisir ce qui ne démarre plus. Chaque ligne donne le nom du programme, ce qu'il fait, son état (**En cours** ou **Arrêté**, relu chaque seconde), un bouton **Arrêter** ou **Démarrer**, et un interrupteur.
+
+- **Système (toujours lancé)** : les fichiers, le bus d'événements, le matériel, les entrées, le bureau Elegant. Ils sont indispensables : ni interrupteur ni bouton.
+- **Services du système** : les services de `/etc/services.txt` (réseau, son, accès à distance, mises à jour…), lancés pour toute la machine. Les changer demande votre mot de passe (élévation).
+- **Programmes de la session** : ceux du bureau (`/etc/session`, ou `/etc/session.poche` en mode poche : fond d'écran, barre de menus, panel, notifications…) et ceux de votre `startup.txt`. Ce choix est **à vous seul** : il ne touche pas les autres comptes.
+
+Couper l'interrupteur, puis **Appliquer** : le programme ne démarre plus au **prochain démarrage** (ou à la prochaine ouverture de session) ; rien ne s'arrête tout de suite. Pour l'arrêter maintenant, **Arrêter**. **Démarrer** le relance sans attendre, que son interrupteur soit allumé ou non.
+
+Les programmes marqués **Indispensable** (pseudo-terminaux, clavier du portable, barre de menus, panel…) ne se coupent pas : sans eux, le bureau ou le clavier ne marcheraient plus. D'autres (réseau, son, mises à jour, processeur graphique, notifications, presse-papiers) demandent confirmation avant d'être coupés ou arrêtés.
+
+Ce qui est coupé est noté dans `/etc/services.off` (les services) et `HOME:/etc/session.off` (la session), une ligne par programme : `/etc/services.txt` et `/etc/session` ne changent pas, et les mises à jour du système peuvent toujours les remplacer. Une ligne mise en commentaire par un autre volet (par exemple **Accès distant**) apparaît coupée ; la rallumer retire le `#`.
+
 ## .NET
 
 Le volet **Assemblys .NET** : une case par bibliothèque `.dll` de `/devtools/dotnet`, avec sa taille. Cochées, elles sont gardées en mémoire et partagées par les programmes .NET, qui démarrent plus vite. **Appliquer** les charge, et le refera à chaque démarrage. Si .NET n'est pas sur la carte, le volet le dit.
@@ -133,6 +147,7 @@ control wifi
 | Son | `sound` |
 | Manette | `padconf` |
 | Préchargés | `preload` |
+| Démarrage | `startup` |
 | .NET | `dotnet` |
 | Logiciels | `pkgman` |
 | Imprimantes | `printconf` |

@@ -40,3 +40,59 @@ const char *conf_path(const char *name, int write)
 	}
 	return conf_buf;
 }
+
+/* ---- les listes de ce qu'on ne lance pas au démarrage (volet Démarrage de Réglages, docs/DEMARRAGE.md) :
+ * /etc/services.off (la machine : lignes de /etc/services.txt qu'init2 saute) et session.off (personnel,
+ * conf_path : lignes de /etc/session, session.poche ou startup.txt qu'Elegant et init2 sautent). Une ligne par
+ * entrée, telle qu'elle est écrite dans le fichier de démarrage ; « # » : commentaire. */
+
+/* path, buf de size octets -> la liste dans buf (terminée par 0), 0 si le fichier manque (buf vide) */
+long list_load(const char *path, char *buf, long size)
+{
+	buf[0] = 0;
+	long fd = sys_open(path, O_READ);
+	if (fd < 0)
+		return 0;
+	long n = sys_read(fd, buf, (u64)(size - 1));
+	sys_close(fd);
+	if (n < 0)
+		n = 0;
+	buf[n] = 0;
+	return n;
+}
+
+static int list_blank(char c)
+{
+	return c == ' ' || c == '\t' || c == '\r';
+}
+
+/* list (list_load), line (« chemin [arguments] ») -> 1 si la ligne, sans les blancs autour, y est */
+int list_has(const char *list, const char *line)
+{
+	if (!list || !line)
+		return 0;
+	while (list_blank(*line))
+		line++;
+	u64 n = 0;
+	while (line[n] && line[n] != '\n')
+		n++;
+	while (n && list_blank(line[n - 1]))
+		n--;
+	if (!n)
+		return 0;
+	const char *p = list;
+	while (*p) {
+		while (list_blank(*p))
+			p++;
+		const char *e = p;
+		while (*e && *e != '\n')
+			e++;
+		const char *f = e;
+		while (f > p && list_blank(f[-1]))
+			f--;
+		if (*p != '#' && (u64)(f - p) == n && !memcmp(p, line, n))
+			return 1;
+		p = *e ? e + 1 : e;
+	}
+	return 0;
+}

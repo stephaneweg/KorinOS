@@ -96,6 +96,20 @@ The **Preloading** pane keeps programs in memory so that they start faster.
 - On the right, **Preloaded**: those in the list, with their state (**preloaded** or **not yet**).
 - The **→** arrow adds the program chosen on the left and loads it at once; the **←** arrow removes the one chosen on the right. **Refresh** reads both lists again.
 
+## Startup
+
+The **Startup** pane shows what Korin starts at startup and lets you choose what no longer starts. Each line gives the program's name, what it does, its state (**Running** or **Stopped**, read again every second), a **Stop** or **Start** button, and a switch.
+
+- **System (always started)**: files, the event bus, hardware, input, the Elegant desktop. They are essential: no switch, no button.
+- **System services**: the services of `/etc/services.txt` (network, sound, remote access, updates…), started for the whole machine. Changing them asks for your password (elevation).
+- **Session programs**: those of the desktop (`/etc/session`, or `/etc/session.poche` in pocket mode: wallpaper, menu bar, panel, notifications…) and those of your `startup.txt`. This choice is **yours only**: it does not change other accounts.
+
+Turn the switch off, then **Apply**: the program no longer starts at the **next startup** (or the next session); nothing stops right away. To stop it now, **Stop**. **Start** starts it again at once, whether its switch is on or not.
+
+Programs marked **Essential** (pseudo-terminals, laptop keyboard, menu bar, panel…) cannot be turned off: without them, the desktop or the keyboard would no longer work. Others (network, sound, updates, graphics processor, notifications, clipboard) ask for confirmation before being turned off or stopped.
+
+What is turned off is written in `/etc/services.off` (services) and `HOME:/etc/session.off` (the session), one line per program: `/etc/services.txt` and `/etc/session` do not change, and system updates can still replace them. A line commented out by another pane (for example **Remote access**) shows as off; turning it on removes the `#`.
+
 ## .NET
 
 The **.NET Assemblies** pane: one box per `.dll` library of `/devtools/dotnet`, with its size. Checked, they are kept in memory and shared by .NET programs, which start faster. **Apply** loads them, and will do it again at each startup. If .NET is not on the card, the pane says so.
@@ -133,6 +147,7 @@ control wifi
 | Sound | `sound` |
 | Gamepad | `padconf` |
 | Preloaded | `preload` |
+| Startup | `startup` |
 | .NET | `dotnet` |
 | Software | `pkgman` |
 | Printers | `printconf` |

@@ -160,6 +160,15 @@ static void ra_svc_read (void)
 		while (*p && *p++ != '\n')	/* ligne suivante */
 			;
 	}
+	static char off[1024];			/* coupé dans le volet Démarrage : /etc/services.off */
+	int fd = open ("/etc/services.off", O_RDONLY);
+	long n = fd >= 0 ? read (fd, off, sizeof off - 1) : 0;
+	if (fd >= 0)
+		close (fd);
+	off[n > 0 ? n : 0] = 0;
+	for (long s = 0; s < RA_N; s++)
+		if (off_has (off, ra_paths[s]))
+			ra_en[s] = 0;
 }
 
 /* les cases -> /etc/services.txt (règle de Setup : « # » devant une ligne de service coupe, sans le « # »
@@ -235,6 +244,9 @@ static void ra_apply (void)
 		return;
 	}
 	long werr = ra_svc_write ();
+	for (long s = 0; !werr && s < RA_N; s++)	/* coché : plus coupé dans le volet Démarrage */
+		if (ra_checked (s) && off_set ("/etc/services.off", ra_paths[s], 0) < 0)
+			werr = -1;
 	if (!werr && pw)
 	{
 		char buf[128];				/* « password = ... » */

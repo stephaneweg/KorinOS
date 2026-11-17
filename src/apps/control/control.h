@@ -218,6 +218,11 @@ static inline void ap_unelevate (unsigned saved)
 /* ---- les volets (applets/<nom>.cpp) ---- */
 extern const Applet theme_applet, keyboard_applet, display_applet, dock_applet, panel_applet, wifi_applet,
 	remote_applet, sound_applet, mouse_applet, padconf_applet, preload_applet, dotnet_applet, pkgman_applet, printers_applet,
-	users_applet;
+	users_applet, startup_applet;
+
+/* applets/startup.cpp : les listes de ce qui ne démarre plus (/etc/services.off, HOME:/etc/session.off ;
+ * docs/DEMARRAGE.md) ; off_set ajoute (off = 1) ou retire une ligne -> 0, 1 (rien à faire), erreur */
+int off_has (const char *list, const char *line);
+long off_set (const char *path, const char *line, int off);
 
 #endif

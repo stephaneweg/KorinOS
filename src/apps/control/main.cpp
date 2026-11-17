@@ -28,7 +28,7 @@ struct ui_vars ui;
 static const Applet *const all_applets[] = {
 	&theme_applet, &keyboard_applet, &display_applet,
 	/* (le volet de l'ancien dock, masqué : le panel l'a remplacé) &dock_applet, */
-	&panel_applet, &wifi_applet, &remote_applet, &sound_applet, &mouse_applet, &padconf_applet, &preload_applet, &dotnet_applet,
+	&panel_applet, &wifi_applet, &remote_applet, &sound_applet, &mouse_applet, &padconf_applet, &preload_applet, &startup_applet, &dotnet_applet,
 	&pkgman_applet, &printers_applet, &users_applet,
 };
 enum { ALL_N = sizeof all_applets / sizeof all_applets[0], PLUGIN_MAX = 32 };
