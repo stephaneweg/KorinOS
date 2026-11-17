@@ -4,7 +4,25 @@
 
 #define INI_MAX 16384
 
-static char ini_buf[INI_MAX];
+static char ini_small[INI_MAX];
+static char *ini_buf = ini_small;
+static u64 ini_cap = INI_MAX;
+
+/* un tampon d'au moins n octets (agrandi par sys_vm_map, jamais rendu : rare) -> 0 si refusé */
+static char *ini_room(u64 n)
+{
+	if (n <= ini_cap)
+		return ini_buf;
+	u64 c = ini_cap;
+	while (c < n)
+		c *= 2;
+	char *b = sys_vm_map(c);
+	if (!b)
+		return 0;
+	ini_buf = b;
+	ini_cap = c;
+	return b;
+}
 
 /* sans espaces ni tabulations devant ; derrière, sans rien qui soit <= ' '
  * (CR compris) : ini_trim */
@@ -25,10 +43,23 @@ int ini_read(const char *path, ini_fn fn)
 	long fd = sys_open(path, O_READ);
 	if (fd < 0)
 		return 0;
-	long n = sys_read(fd, ini_buf, INI_MAX - 1);
+	/* tout le fichier, quelle que soit sa taille (à 4 Kio puis 16 Kio, la fin de drivers.txt se perdait) */
+	long st[2] = {0, 0};
+	sys_stat(path, st);
+	u64 n = 0;
+	if (!ini_room((u64)st[0] + 1)) {
+		sys_close(fd);
+		return 0;
+	}
+	for (;;) {
+		if (n + 1 >= ini_cap && !ini_room(ini_cap * 2)) /* (le fichier a grandi depuis le stat) */
+			break;
+		long r = sys_read(fd, ini_buf + n, ini_cap - 1 - n);
+		if (r <= 0)
+			break;
+		n += (u64)r;
+	}
 	sys_close(fd);
-	if (n < 0)
-		n = 0;
 	ini_buf[n] = 0;
 	ini_parse(ini_buf, fn);
 	return 1;

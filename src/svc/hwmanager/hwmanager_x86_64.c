@@ -9,7 +9,6 @@
  *    MOD_LAUNCH. Avec un disque, rien ne change. */
 #include "hwmanager.h"
 
-static char drivers[4096];
 
 long plat_spawn(const char *path, const char *args)
 {
@@ -26,9 +25,25 @@ long plat_spawn(const char *path, const char *args)
 
 int plat_drivers_missing(ini_fn fn)
 {
-	long n = korin_sys3(SYS_MOD_READ, "drivers.txt", drivers, sizeof drivers - 1);
-	if (n < 0)
-		return 0;
+	/* toute la table, quelle que soit sa taille : SYS_MOD_READ tronque au tampon sans dire la taille, le tampon double
+	 * donc tant qu'il est plein (à 4 Kio, la table de 4,2 Ko perdait sa fin, le touchpad et le Wi-Fi du ZBook, sur la clé
+	 * d'installation où / n'est pas encore servi quand hwmanager lit la table) */
+	static char first[8192];
+	char *drivers = first;
+	u64 cap = sizeof first;
+	long n;
+	for (;;) {
+		n = korin_sys3(SYS_MOD_READ, "drivers.txt", drivers, cap - 1);
+		if (n < 0)
+			return 0;
+		if ((u64)n < cap - 1)
+			break;
+		char *b = sys_vm_map(cap * 2);
+		if (!b)
+			break;
+		drivers = b;
+		cap *= 2;
+	}
 	drivers[n] = 0;
 	ini_parse(drivers, fn);
 	say("hwmanager : drivers.txt de l'initrd\n");

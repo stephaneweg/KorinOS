@@ -27,7 +27,7 @@
 #define M32(m, off) (*(u32 *)((u8 *)(m) + (off)))
 
 /* « cle = valeur » : fn(clé en minuscules, valeur), les deux sans blancs autour,
- * pour chaque ligne ; « # » commente la fin d'une ligne ; 4095 octets lus au plus
+ * pour chaque ligne ; « # » commente la fin d'une ligne ; tout le fichier est lu, quelle que soit sa taille
  * (ini_read d'applist.inc) -> 0 si le fichier manque */
 typedef void (*ini_fn)(char *key, char *val);
 int ini_read(const char *path, ini_fn fn);
