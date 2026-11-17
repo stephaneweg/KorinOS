@@ -11,14 +11,39 @@
 #include "core/profiling/profiling.h"
 #include "main/main.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 static String s_exe_path;
 
+/* Avant les comptes (16/11/2026), HOME valait /home pour tous : les réglages, données et caches de Godot sont dans
+ * /home/.config/godot, /home/.local/share/godot, /home/.cache/godot. Sous un compte (HOME = /home/<nom>, libposix
+ * le prend de users.ini), ils vont dans son dossier au premier lancement, comme Jet le fait pour /home/jet. */
+static void move_old_home(const String &p_home) {
+	if (p_home == "/home" || !p_home.begins_with("/")) {
+		return;
+	}
+	static const char *const dirs[] = { ".config", ".local", ".local/share", ".cache", nullptr };
+	static const char *const moved[] = { ".config/godot", ".local/share/godot", ".cache/godot", nullptr };
+	for (int i = 0; moved[i]; i++) {
+		String from = String("/home/") + moved[i], to = p_home.path_join(moved[i]);
+		struct stat st;
+		if (stat(to.utf8().get_data(), &st) == 0 || stat(from.utf8().get_data(), &st) != 0) {
+			continue;
+		}
+		mkdir(p_home.utf8().get_data(), 0755);
+		for (int j = 0; dirs[j]; j++) {
+			mkdir(p_home.path_join(dirs[j]).utf8().get_data(), 0755);
+		}
+		rename(from.utf8().get_data(), to.utf8().get_data());
+	}
+}
+
 void OS_Korin::initialize() {
 	OS_Unix::initialize_core();
+	move_old_home(home());
 }
 
 void OS_Korin::finalize() {
@@ -56,7 +81,7 @@ String OS_Korin::get_version() const {
 	return "";
 }
 
-/* HOME vaut / sur la carte (/) ; sans lui, le dossier des utilisateurs */
+/* HOME : le dossier du compte (/home/<nom>, de users.ini par libposix) ; sans lui, /home */
 String OS_Korin::home() const {
 	if (has_environment("HOME") && get_environment("HOME").is_absolute_path()) {
 		return get_environment("HOME");
