@@ -163,7 +163,9 @@ nvram_register:
 .out:   pleave
 
 ; ---------------------------------------------------------------------------
-; target_find : un autre volume dont \korin\boot.cfg contient « firmware = install » -> tgt_device (0 : aucun)
+; target_find : un autre volume dont \korin\boot.cfg a une ligne « firmware = install » -> tgt_device (0 : aucun)
+; (en début de ligne : osinstall écrivait aussi ces mots dans le commentaire de tête, que l'ancien test trouvait :
+; la clé relançait alors toujours le Korin installé, même après son premier démarrage)
 target_find:
         penter
         mov     qword [tgt_device], 0
@@ -229,7 +231,11 @@ target_find:
         xor     ecx, ecx
 .scan:  cmp     rcx, r9
         ja      .next
-        xor     edx, edx
+        test    rcx, rcx                ; (en début de ligne seulement : un commentaire qui cite la clé ne compte pas)
+        jz      .beg
+        cmp     byte [tf_buf + rcx - 1], 10
+        jne     .adv
+.beg:   xor     edx, edx
 .cmp:   cmp     edx, NV_KEY_BYTES
         jae     .found
         movzx   eax, byte [tf_buf + rcx + rdx]

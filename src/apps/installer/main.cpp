@@ -5,11 +5,13 @@
 // « osinstall --list » et tout ce qui s'écrit passe par « sudo osinstall /tmp/install/plan.ini » (src/bin/osinstall),
 // au bouton du Résumé, en une fois.
 //
-//   Bienvenue   langue, pays, clavier (pris tout de suite), fuseau
+//   Bienvenue   langue, pays, clavier (pris tout de suite), fuseau ; un Korin déjà installé (osinstall --list, la ligne
+//               K) : Réinstaller (en gardant /home : ni Disque ni Compte, maquette installateur-reinstaller.html) ou
+//               Nouvelle installation
 //   Disque      la liste des partitions à la Windows 7 : Actualiser, Supprimer, Nouveau (gardés en mémoire, écrits
 //               à la fin) ; la ligne choisie est formatée (partition) ou reçoit Korin (espace libre) ; l'EFI est
 //               réutilisée, sinon une neuve est créée
-//   Fichiers    la taille de /home (0 : dans le système)
+//   Fichiers    la taille de /home (0 : dans le système), son système de fichiers (exFAT ou ext4)
 //   Internet    les réseaux Wi-Fi ; câble : passé
 //   Logiciels   les catégories de l'index de la clé (/packages/pc/index.txt), à cocher, le détail à déplier
 //   Compte      nom, ordinateur, utilisateur, mot de passe (haché ici : seule l'empreinte va dans le plan), session,
@@ -103,13 +105,14 @@ static void ini_lit (const char *chemin, const char *k, char *out, size_t cap)
 	}
 	free (b);
 }
-static void go_txt (char *o, size_t cap, u64 sectors)	// « 400 Go », « 260 Mo »
+static char s_dec = ',';		// le séparateur décimal : « , » en français, « . » en anglais (main)
+static void go_txt (char *o, size_t cap, u64 sectors)	// « 400 Go », « 260 Mo » (« GB », « MB » en anglais)
 {
 	double g = (double) sectors * 512.0 / (1024.0 * 1024.0 * 1024.0);
-	if (g < 1) snprintf (o, cap, "%d Mo", (int) (g * 1024 + 0.5));
-	else if (g < 10) snprintf (o, cap, "%.1f Go", g);
-	else snprintf (o, cap, "%d Go", (int) (g + 0.5));
-	for (char *c = o; *c; c++) if (*c == '.') *c = ',';
+	if (g < 1) snprintf (o, cap, "%d %s", (int) (g * 1024 + 0.5), TR ("Mo"));
+	else if (g < 10) snprintf (o, cap, "%.1f %s", g, TR ("Go"));
+	else snprintf (o, cap, "%d %s", (int) (g + 0.5), TR ("Go"));
+	for (char *c = o; *c; c++) if (*c == '.') *c = s_dec;
 }
 static const u64 GIB = 2097152, MIB = 2048;
 
@@ -231,13 +234,16 @@ enum { G_EFI, G_MSR, G_REC, G_WIN, G_DATA, G_FREE, G_NEW };
 struct Part { int num; u64 first, last; int genre; char content[12], name[80]; };
 enum { NPART = 64 };
 static Part g_p[NPART]; static int g_np;
+// un Korin déjà installé (la ligne K de osinstall --list) : KORIN OS, KORIN HOME (0 sans), la version, les comptes
+static int g_kroot, g_khome; static char g_kver[40], g_kusers[200]; static bool g_reinst, g_sel_init;
+static long g_wreinst, g_wneuve, g_wreinstl, g_wneuvel;
 static char g_dev[16]; static u64 g_sectors; static bool g_gpt, g_lu;
 static int g_del[32], g_ndel, g_newnum = 100;
 static long g_dlist, g_dact, g_dsup, g_dnouv, g_dnote, g_defi;
 
 static void disque_lit ()
 {
-	g_np = 0; g_ndel = 0; g_dev[0] = 0; g_lu = true;
+	g_np = 0; g_ndel = 0; g_dev[0] = 0; g_lu = true; g_kroot = g_khome = 0; g_kver[0] = g_kusers[0] = 0;
 	FILE *f = popen ("/bin/sudo /sbin/osinstall --list", "r");
 	if (!f) return;
 	char l[256]; bool premier = true;
@@ -245,6 +251,7 @@ static void disque_lit ()
 	{
 		l[strcspn (l, "\r\n")] = 0;
 		if (l[0] == 'D') { if (!premier) break; premier = false; char g[8] = ""; sscanf (l + 2, "%15s %llu %7s", g_dev, &g_sectors, g); g_gpt = eq (g, "gpt"); }
+		else if (l[0] == 'K') sscanf (l + 2, "%d %d %39s %199s", &g_kroot, &g_khome, g_kver, g_kusers);
 		else if ((l[0] == 'P' || l[0] == 'F') && g_np < NPART)
 		{
 			Part &p = g_p[g_np];
@@ -330,6 +337,12 @@ static Verdict verdict ()
 	else
 	{
 		v.danger = true;
+		if (g_kroot && p.num == g_kroot)
+		{
+			cpy (v.note, TR ("KORIN OS sera formatée, avec tout ce qu'elle contient. Pour garder vos fichiers, revenez à l'accueil et choisissez « Réinstaller »."), sizeof v.note);
+			snprintf (v.etat, sizeof v.etat, TR ("Korin à la place de l'ancien Korin (%s)"), t);
+			return v;
+		}
 		snprintf (v.note, sizeof v.note, p.genre == G_WIN ? TR ("Cette partition sera formatée : Windows et tout ce que contient %s seront effacés.")
 			: TR ("Cette partition sera formatée : tout ce que contient %s sera effacé."), nom_de (p, n, sizeof n));
 		snprintf (v.etat, sizeof v.etat, TR ("Korin à la place de %s (%s)"), p.name[0] ? p.name : nom_de (p, n, sizeof n), t);
@@ -430,7 +443,7 @@ static void disque_nouveau ()
 	g_nslider = ui_slider (g_bx + 16, g_by + 78, 300, 28, 1, (long) g_nmax, (long) g_nmax);
 	g_ntext = ui_textbox (g_bx + 330, g_by + 76, 80, 32, UTF_RIGHT);
 	snprintf (t, sizeof t, "%llu", g_nmax); ui_w_set_text (g_ntext, (long) t);
-	ui_label (g_bx + 416, g_by + 82, 30, 22, (long) "Go", 0);
+	ui_label (g_bx + 416, g_by + 82, 30, 22, (long) TR ("Go"), 0);
 	g_nerr = ui_label (g_bx + 16, g_by + 116, 428, 22, (long) "", ULB_DIM);
 	long r = ui_dialog_run (d, (long) nouveau_fn, 0);
 	long v = atol ((const char *) ui_w_get_text (g_ntext));
@@ -454,7 +467,8 @@ static void disque_nouveau ()
 static Part g_choix; static bool g_efi_neuve; static u64 g_place;	// place utile (secteurs)
 
 // ---- 3 Mes fichiers ----------------------------------------------------------------------------------------------
-static long g_hview, g_hslider, g_htext, g_hbornes, g_hnote;
+static long g_hview, g_hslider, g_htext, g_hbornes, g_hnote, g_hfsl, g_hexfat, g_hext4, g_hext4n;
+static bool g_ext4;
 static long g_home_go;
 static const long SYS_GO = 10;
 static long home_max () { long m = (long) (g_place / GIB) - SYS_GO; return m < 0 ? 0 : m; }
@@ -463,16 +477,16 @@ static void hview_paint (long, long w, long h)
 	ui_fill (0, 0, w, h, jet (TJ_FACE));
 	long sys = (long) (g_place / GIB) - g_home_go;
 	int x = 0, bw = (int) w;
-	if (g_efi_neuve) { rbox (0, 0, 64, (int) h, 8, jet (TJ_LINE_STRONG)); text (10, 14, "EFI", jet (TJ_TEXT1), 13); text (10, 34, "0,5 Go", jet (TJ_TEXT1), 15, 1); x = 68; bw -= 68; }
+	if (g_efi_neuve) { rbox (0, 0, 64, (int) h, 8, jet (TJ_LINE_STRONG)); text (10, 14, "EFI", jet (TJ_TEXT1), 13); text (10, 34, s_dec == ',' ? "0,5 Go" : "0.5 GB", jet (TJ_TEXT1), 15, 1); x = 68; bw -= 68; }
 	long tot = sys + g_home_go; if (tot <= 0) tot = 1;
 	int ws = (int) (bw * sys / tot); if (g_home_go && ws > bw - 80) ws = bw - 80;
 	rbox (x, 0, g_home_go ? ws - 2 : bw, (int) h, 8, jet (TJ_ACCENT));
-	char t[48]; snprintf (t, sizeof t, "%ld Go", sys);
+	char t[48]; snprintf (t, sizeof t, "%ld %s", sys, TR ("Go"));
 	text (x + 12, 14, TR ("Korin, système (/)"), 0xFFFFFF, 13); text (x + 12, 34, t, 0xFFFFFF, 15, 1);
 	if (g_home_go)
 	{
 		rbox (x + ws, 0, bw - ws, (int) h, 8, jet (TJ_ACCENT_DARK));
-		snprintf (t, sizeof t, "%ld Go", g_home_go);
+		snprintf (t, sizeof t, "%ld %s", g_home_go, TR ("Go"));
 		text (x + ws + 12, 14, TR ("Mes fichiers (/home)"), 0xFFFFFF, 13, 0, bw - ws - 20); text (x + ws + 12, 34, t, 0xFFFFFF, 15, 1);
 	}
 }
@@ -487,8 +501,12 @@ static void home_montre ()
 	ui_w_set_text (g_hbornes, (long) t); ui_w_draw (g_hbornes);
 	ui_view_dirty (g_hview);
 	long sys = (long) (g_place / GIB) - g_home_go;
-	if (g_home_go) snprintf (t, sizeof t, TR ("/ %ld Go · /home %ld Go"), sys, g_home_go); else snprintf (t, sizeof t, TR ("/home dans le système (%ld Go)"), sys);
+	if (g_home_go) snprintf (t, sizeof t, TR ("/ %ld Go · /home %ld Go (%s)"), sys, g_home_go, g_ext4 ? "ext4" : "exFAT"); else snprintf (t, sizeof t, TR ("/home dans le système (%ld Go)"), sys);
 	ui_w_set_text (g_status, (long) t); ui_w_draw (g_status);
+	bool fs = g_home_go > 0;	// (le choix du système de fichiers : avec une partition /home seulement)
+	ui_w_show (g_hfsl, fs); ui_w_show (g_hexfat, fs); ui_w_show (g_hext4, fs); ui_w_show (g_hext4n, fs && g_ext4);
+	ui_w_set_value (g_hexfat, !g_ext4); ui_w_set_value (g_hext4, g_ext4);
+	ui_w_draw (0);
 }
 
 // ---- 4 Internet ----------------------------------------------------------------------------------------------------
@@ -672,7 +690,7 @@ static void paquets_lit ()
 		for (int i = g_cat[c].first; i < g_cat[c].first + g_cat[c].n; i++)
 			g_pq[i].coche = g_pq[i].req || dans (DEFAUT, g_cat[c].nom);
 }
-static void mo_txt (char *o, size_t cap, u64 b) { if (b >= (1ull << 30)) snprintf (o, cap, "%.1f Go", (double) b / (1 << 30)); else snprintf (o, cap, "%llu Mo", (b >> 20) ? (b >> 20) : 1); for (char *c = o; *c; c++) if (*c == '.') *c = ','; }
+static void mo_txt (char *o, size_t cap, u64 b) { if (b >= (1ull << 30)) snprintf (o, cap, "%.1f %s", (double) b / (1 << 30), TR ("Go")); else snprintf (o, cap, "%llu %s", (b >> 20) ? (b >> 20) : 1, TR ("Mo")); for (char *c = o; *c; c++) if (*c == '.') *c = s_dec; }
 enum { CARTE_H = 72, PQ_H = 34 };
 static int pview_hauteur ()
 {
@@ -716,11 +734,11 @@ static void pview_paint (long, long w, long h)
 			case_dessine (14, y + 14, fixe ? 2 : e, !fixe && dispo);
 			text (44, y + 12, TR (k.nom), dispo ? jet (TJ_TEXT1) : jet (TJ_TEXT3), 15, 1, (int) w - 200);
 			char tt[48] = "", tl[64]; if (e) mo_txt (tt, sizeof tt, t);
-			snprintf (tl, sizeof tl, "%s%s", fixe ? TR ("Toujours installé · ") : "", tt);
+			snprintf (tl, sizeof tl, "%s%s%s", fixe ? TR ("Toujours installé") : "", fixe ? " · " : "", tt);
 			int tw = (int) ui_text_width ((long) tl, 13, (long) ui.font); text ((int) w - 14 - tw, y + 14, tl, jet (TJ_TEXT2), 13);
 			char apps[200] = ""; int na = 0;
 			for (int i = k.first; i < k.first + k.n && na < 5; i++, na++) { if (na) strncat (apps, ", ", sizeof apps - strlen (apps) - 1); strncat (apps, g_pq[i].title, sizeof apps - strlen (apps) - 1); }
-			if (k.n > 5) { char z[32]; snprintf (z, sizeof z, TR (" et %d autres"), k.n - 5); strncat (apps, z, sizeof apps - strlen (apps) - 1); }
+			if (k.n > 5) { char z[32]; snprintf (z, sizeof z, " %s", TR ("et %d autres")); { char zz[32]; snprintf (zz, sizeof zz, z, k.n - 5); cpy (z, zz, sizeof z); } strncat (apps, z, sizeof apps - strlen (apps) - 1); }
 			text (44, y + 34, apps, jet (TJ_TEXT2), 13, 0, (int) w - 60);
 			char orig[96];
 			if (!dispo) cpy (orig, TR ("Avec Internet seulement, plus tard dans Logiciels"), sizeof orig);
@@ -890,9 +908,61 @@ static void empreinte (const char *pw, char *o, size_t cap)
 // ---- 7 Résumé --------------------------------------------------------------------------------------------------------
 static long g_sview, g_sconf, g_sconfl, g_sdef, g_sdelai;
 static bool s_danger; static char s_disque_nom[16] = "DISQUE0";
+static const Part *part_num (int n) { for (int i = 0; i < g_np; i++) if (g_p[i].genre != G_FREE && g_p[i].num == n) return &g_p[i]; return 0; }
+static void sview_reinst (long w, long h)
+{
+	(void) h;
+	char t[32], t2[32], z[220];
+	const Part *r = part_num (g_kroot), *hm = part_num (g_khome);
+	go_txt (t, sizeof t, r ? r->last - r->first + 1 : 0);
+	// la barre : EFI gardée, puis KORIN OS (et KORIN HOME gardée, à part) ; sans KORIN HOME, une seule bande
+	rbox (0, 0, 64, 64, 8, jet (TJ_LINE_STRONG)); text (10, 14, "EFI", jet (TJ_TEXT1), 13); text (10, 34, TR ("gardée"), jet (TJ_TEXT1), 14, 1);
+	int x = 68, bw = (int) w - 68;
+	if (hm)
+	{
+		go_txt (t2, sizeof t2, hm->last - hm->first + 1);
+		u64 a = r ? r->last - r->first + 1 : 1, b = hm->last - hm->first + 1;
+		int ws = (int) (bw * a / (a + b)); if (ws < 180) ws = 180; if (ws > bw - 180) ws = bw - 180;
+		rbox (x, 0, ws - 2, 64, 8, jet (TJ_ACCENT));
+		text (x + 12, 14, TR ("KORIN OS, reformatée"), 0xFFFFFF, 13, 0, ws - 24); text (x + 12, 34, t, 0xFFFFFF, 15, 1);
+		rbox (x + ws, 0, bw - ws, 64, 8, jet (TJ_SUCCESS));
+		text (x + ws + 12, 14, TR ("KORIN HOME, gardée"), 0xFFFFFF, 13, 0, bw - ws - 24); text (x + ws + 12, 34, t2, 0xFFFFFF, 15, 1);
+	}
+	else
+	{
+		rbox (x, 0, bw, 64, 8, jet (TJ_ACCENT));
+		text (x + 12, 14, TR ("Korin OS : le système, remis à neuf, vos fichiers préservés"), 0xFFFFFF, 13, 0, bw - 24); text (x + 12, 34, t, 0xFFFFFF, 15, 1);
+	}
+	// ce qui est repris, les logiciels, le démarrage
+	int y0 = 80;
+	rbox (0, y0, (int) w, 4 * 46 + 2, 8, jet (TJ_LINE)); rbox (1, y0 + 1, (int) w - 2, 4 * 46, 8, jet (TJ_SURFACE));
+	char l[4][220]; const char *lb[4] = { "Comptes", "Réglages repris", "Logiciels", "Démarrage" };
+	char us[200]; cpy (us, g_kusers, sizeof us); for (char *c = us; *c; c++) if (*c == ',') *c = ' ';
+	snprintf (l[0], 220, TR ("repris, avec leurs mots de passe : %s"), us[0] && !eq (us, "?") ? us : TR ("ceux de l'ancien système"));
+	cpy (l[1], TR ("nom de l'ordinateur, langue, clavier, réseaux Wi-Fi"), 220);
+	int nc = 0; for (int i = 0; i < g_ncat; i++) if (cat_etat (i, 0)) nc++;
+	snprintf (l[2], 220, nc > 1 ? TR ("%d catégories choisies") : TR ("%d catégorie choisie"), nc);
+	bool win = false; for (int i = 0; i < g_np; i++) if (g_p[i].genre == G_WIN) win = true;
+	if (win) snprintf (l[3], 220, TR ("Menu Korin OS / Windows, %s dans %ld s"), ui_w_get_value (g_sdef) ? "Windows" : "Korin", ui_w_get_value (g_sdelai) * 5);
+	else cpy (l[3], TR ("Korin OS démarre directement"), 220);
+	for (int i = 0; i < 4; i++)
+	{
+		int y = y0 + 1 + i * 46;
+		if (i) ui_fill (1, y, (int) w - 2, 1, jet (TJ_LINE));
+		text (14, y + 13, TR (lb[i]), jet (TJ_TEXT2), 13, 0, 170);
+		text (190, y + 13, l[i], jet (TJ_TEXT1), 14, 0, (int) w - 200);
+	}
+	int y = y0 + 4 * 46 + 16;
+	rbox (0, y, (int) w, 54, 8, jet (TJ_WARNING));
+	rbox (1, y + 1, (int) w - 2, 52, 8, jet (TJ_SURFACE));
+	snprintf (z, sizeof z, "%s", hm ? TR ("Sera effacé : le système Korin (KORIN OS), avec ses logiciels. Vos fichiers de KORIN HOME ne sont pas touchés.")
+					: TR ("Sera effacé : tout le contenu de KORIN OS sauf /home, avec ses logiciels. Vos fichiers ne sont pas touchés."));
+	ui_text_wrap ((long) z, 14, y + 8, w - 28, jet (TJ_WARNING), (long) ui.font_b, 14, 0);
+}
 static void sview_paint (long, long w, long h)
 {
 	ui_fill (0, 0, w, h, jet (TJ_FACE));
+	if (g_reinst) { sview_reinst (w, h); return; }
 	rbox (0, 0, (int) w, 6 * 46 + 2, 8, jet (TJ_LINE)); rbox (1, 1, (int) w - 2, 6 * 46, 8, jet (TJ_SURFACE));
 	char l[6][200]; const char *lb[6] = { "Langue et clavier", "Disque", "Logiciels", "Compte", "Démarrage", "Nom de l'ordinateur" };
 	snprintf (l[0], 200, "%s · %s · %s %s", g_langc[0] == 'e' ? "English" : "Français", g_paysc, TR ("clavier"), g_kb);
@@ -900,7 +970,7 @@ static void sview_paint (long, long w, long h)
 	if (g_choix.genre == G_FREE) snprintf (l[1], 200, TR ("Korin dans %s d'espace libre"), t);
 	else if (g_choix.genre == G_NEW) snprintf (l[1], 200, TR ("Korin dans la nouvelle partition (%s)"), t);
 	else snprintf (l[1], 200, TR ("Korin à la place de %s (%s)"), nom_de (g_choix, n, sizeof n), t);
-	if (g_home_go) { char z[64]; snprintf (z, sizeof z, TR (" · /home %ld Go"), g_home_go); strncat (l[1], z, 199 - strlen (l[1])); }
+	if (g_home_go) { char z[64]; snprintf (z, sizeof z, " · %s", TR ("/home %ld Go (%s)")); { char zz[64]; snprintf (zz, sizeof zz, z, g_home_go, g_ext4 ? "ext4" : "exFAT"); cpy (z, zz, sizeof z); } strncat (l[1], z, 199 - strlen (l[1])); }
 	int nc = 0; for (int i = 0; i < g_ncat; i++) if (cat_etat (i, 0)) nc++;
 	snprintf (l[2], 200, nc > 1 ? TR ("%d catégories choisies") : TR ("%d catégorie choisie"), nc);
 	snprintf (l[3], 200, "%s (%s)%s", (const char *) ui_w_get_text (g_anom), (const char *) ui_w_get_text (g_auser), ui_w_get_value (g_aadmin) ? TR (", administrateur") : "");
@@ -924,7 +994,7 @@ static void sview_paint (long, long w, long h)
 }
 static long sview_mouse (long, long kind, long mx, long my, long)
 {
-	if (kind != 2 || mx < CW - 100) return 0;
+	if (kind != 2 || mx < CW - 100 || g_reinst) return 0;
 	int i = (int) my / 46;
 	static const int pages[6] = { P_WELCOME, P_DISK, P_PKG, P_ACCOUNT, -1, P_ACCOUNT };
 	if (i >= 0 && i < 6 && pages[i] >= 0) { g_back_to_summary = 1; extern void montre (int); montre (pages[i]); }
@@ -934,7 +1004,7 @@ static void resume_etat ()
 {
 	bool ok = !s_danger || !strcasecmp ((const char *) ui_w_get_text (g_sconf), s_disque_nom);
 	ui_w_enable (g_next, ok);
-	ui_w_set_text (g_next, (long) (s_danger ? TR ("Effacer et installer") : TR ("Installer"))); ui_w_draw (g_next);
+	ui_w_set_text (g_next, (long) (g_reinst ? TR ("Réinstaller") : s_danger ? TR ("Effacer et installer") : TR ("Installer"))); ui_w_draw (g_next);
 	ui_w_set_text (g_status, (long) (ok ? TR ("La seule écriture sur le disque : ce bouton.") : TR ("Tapez le nom du disque pour confirmer.")));
 	ui_w_draw (g_status);
 }
@@ -1018,12 +1088,23 @@ static void plan_ecrit ()
 	FILE *f = fopen ("/tmp/install/plan.ini", "w");
 	if (!f) return;
 	chmod ("/tmp/install/plan.ini", 0600);
+	if (g_reinst)	// (la réinstallation : KORIN OS, KORIN HOME ; les comptes et réglages viennent de l'ancien système)
+	{
+		bool win = false; for (int i = 0; i < g_np; i++) if (g_p[i].genre == G_WIN) win = true;
+		fprintf (f, "# plan de l'installateur (apps/installer.app) pour osinstall : réinstallation\n[disk]\ndevice = %s\nmode = reinstall\nroot = %d\nhome_part = %d\n", g_dev, g_kroot, g_khome);
+		fprintf (f, "\n[system]\nlang = %s\nkeyb = %s\ntimeout = %ld\n\n[user]\npasswords = none\n", g_langc, g_kb, win ? ui_w_get_value (g_sdelai) * 5 : 0);
+		fprintf (f, "\n[packages]\nlist =");
+		for (int i = 0; i < g_npq; i++) if (g_pq[i].coche && pq_dispo (g_pq[i])) fprintf (f, " %s", g_pq[i].name);
+		fprintf (f, "\n");
+		fclose (f);
+		return;
+	}
 	fprintf (f, "# plan de l'installateur (apps/installer.app) pour osinstall\n[disk]\ndevice = %s\nmode = %s\n", g_dev, g_gpt ? "beside" : "wipe");
 	fprintf (f, "delete = ");
 	for (int i = 0; i < g_ndel; i++) fprintf (f, "%s%d", i ? ", " : "", g_del[i]);
 	if (g_choix.genre != G_FREE && g_choix.genre != G_NEW) fprintf (f, "%s%d", g_ndel ? ", " : "", g_choix.num);
-	fprintf (f, "\nplace = %llu-%llu\nroot_fs = fat32\nhome = %s\nroot_gb = %ld\nhome_fs = exfat\nboot_mb = 512\nmin_gb = %ld\n",
-		g_choix.first, g_choix.last, g_home_go ? "yes" : "no", (long) (g_place / GIB) - g_home_go, (long) (MIN_KORIN / GIB));
+	fprintf (f, "\nplace = %llu-%llu\nroot_fs = fat32\nhome = %s\nroot_gb = %ld\nhome_fs = %s\nboot_mb = 512\nmin_gb = %ld\n",
+		g_choix.first, g_choix.last, g_home_go ? "yes" : "no", (long) (g_place / GIB) - g_home_go, g_ext4 ? "ext4" : "exfat", (long) (MIN_KORIN / GIB));
 	bool win = false; for (int i = 0; i < g_np; i++) if (g_p[i].genre == G_WIN) win = true;
 	fprintf (f, "\n[system]\nhostname = %s\nlang = %s\nkeyb = %s\ntimeout = %ld\n", (const char *) ui_w_get_text (g_apc), g_langc, g_kb,
 		win ? ui_w_get_value (g_sdelai) * 5 : 0);
@@ -1043,7 +1124,16 @@ static void plan_ecrit ()
 
 // ---- le cadre --------------------------------------------------------------------------------------------------------
 static const char *const NOMS_ETAPES[] = { "Disque", "Internet", "Logiciels", "Compte", "Résumé" };
-static int etape_de (int p) { return p == P_DISK || p == P_HOME ? 0 : p == P_NET ? 1 : p == P_PKG ? 2 : p == P_ACCOUNT ? 3 : p == P_SUMMARY ? 4 : -1; }
+static const int ETAPES_NEUVE[] = { 0, 1, 2, 3, 4 }, ETAPES_REINST[] = { 1, 2, 4 };	// (réinstallation : ni Disque ni Compte)
+static int n_etapes () { return g_reinst ? 3 : 5; }
+static const char *nom_etape (int i) { return NOMS_ETAPES[(g_reinst ? ETAPES_REINST : ETAPES_NEUVE)[i]]; }
+static int etape_de (int p)
+{
+	int e = p == P_DISK || p == P_HOME ? 0 : p == P_NET ? 1 : p == P_PKG ? 2 : p == P_ACCOUNT ? 3 : p == P_SUMMARY ? 4 : -1;
+	if (e < 0 || !g_reinst) return e;
+	for (int i = 0; i < 3; i++) if (ETAPES_REINST[i] == e) return i;
+	return -1;
+}
 static void band_paint (long, long w, long h)
 {
 	ui_fill (0, 0, w, h, jet (TJ_FACE));
@@ -1054,10 +1144,10 @@ static void band_paint (long, long w, long h)
 	int e = etape_de (g_page);
 	if (e >= 0 && w >= 900)
 	{
-		int x = (int) w / 2 - 230;
-		for (int i = 0; i < 5; i++)
+		int x = (int) w / 2 - (g_reinst ? 130 : 230);
+		for (int i = 0; i < n_etapes (); i++)
 		{
-			char t[48]; snprintf (t, sizeof t, "%s%s", i < e ? "✓ " : "", TR (NOMS_ETAPES[i]));
+			char t[48]; snprintf (t, sizeof t, "%s%s", i < e ? "✓ " : "", TR (nom_etape (i)));
 			unsigned c = i == e ? jet (TJ_TEXT1) : i < e ? jet (TJ_TEXT2) : jet (TJ_TEXT3);
 			int tw = (int) ui_text_width ((long) t, 13, i == e ? (long) ui.font_b : (long) ui.font);
 			text (x, 15, t, c, 13, i == e);
@@ -1065,15 +1155,32 @@ static void band_paint (long, long w, long h)
 			x += tw + 24;
 		}
 	}
-	else if (e >= 0) { char t[64]; snprintf (t, sizeof t, TR ("Étape %d sur 5 · %s"), e + 1, TR (NOMS_ETAPES[e])); text ((int) w / 2 - 90, 15, t, jet (TJ_TEXT2), 13); }
+	else if (e >= 0) { char t[64]; snprintf (t, sizeof t, TR ("Étape %d sur %d · %s"), e + 1, n_etapes (), TR (nom_etape (e))); text ((int) w / 2 - 90, 15, t, jet (TJ_TEXT2), 13); }
 	rbox ((int) w - 64, 10, 48, 28, 14, jet (TJ_LINE)); rbox ((int) w - 63, 11, 46, 26, 13, jet (TJ_SURFACE));
 	int kw = (int) ui_text_width ((long) g_kb, 12, (long) ui.font_b); text ((int) w - 40 - kw / 2, 15, g_kb, jet (TJ_TEXT2), 12, 1);
 }
 static void head_paint (long, long w, long h)
 {
 	ui_fill (0, 0, w, h, jet (TJ_FACE));
-	text (0, 0, g_page == P_DONE && s_irc ? TR ("Korin OS n'est pas installé") : TR (TITRES[g_page]), jet (TJ_TEXT1), 26, 1, (int) w);
-	if (*CHAPEAUX[g_page]) ui_text_wrap ((long) TR (CHAPEAUX[g_page]), 0, 44, w, jet (TJ_TEXT2), (long) ui.font, 15, 0);
+	const char *titre = TR (TITRES[g_page]), *chapeau = TR (CHAPEAUX[g_page]);
+	static char ch[320];
+	if (g_page == P_DONE && s_irc) titre = TR ("Korin OS n'est pas installé");
+	else if (g_page == P_DONE && g_reinst) titre = TR ("Korin OS est réinstallé");
+	else if (g_page == P_SUMMARY && g_reinst) titre = TR ("Prêt à réinstaller");
+	else if (g_page == P_INSTALL && g_reinst) titre = TR ("Réinstallation de Korin OS");
+	else if (g_page == P_WELCOME && g_kroot)
+	{
+		titre = TR ("Korin OS est déjà installé sur cet ordinateur");
+		const Part *hm = part_num (g_khome);
+		char t[32] = ""; if (hm) go_txt (t, sizeof t, hm->last - hm->first + 1);
+		char us[200]; cpy (us, g_kusers, sizeof us); for (char *c = us; *c; c++) if (*c == ',') *c = ' ';
+		char a[240];
+		if (hm) snprintf (a, sizeof a, TR ("vos fichiers dans la partition KORIN HOME (%s)"), t); else cpy (a, TR ("vos fichiers dans le dossier /home de KORIN OS"), sizeof a);
+		snprintf (ch, sizeof ch, TR ("Version %s, compte %s, %s."), eq (g_kver, "?") ? "-" : g_kver, eq (us, "?") ? "-" : us, a);
+		chapeau = ch;
+	}
+	text (0, 0, titre, jet (TJ_TEXT1), 26, 1, (int) w);
+	if (*chapeau) ui_text_wrap ((long) chapeau, 0, 44, w, jet (TJ_TEXT2), (long) ui.font, 15, 0);
 }
 static void foot_paint (long, long w, long h) { ui_fill (0, 0, w, h, jet (TJ_FACE)); ui_fill (0, 0, w, 1, jet (TJ_LINE)); }
 
@@ -1088,18 +1195,25 @@ void montre (int p)
 	ui_w_set_text (g_alt, (long) TR ("Essayer Korin sans l'installer"));
 	ui_w_show (g_next, p != P_INSTALL);
 	ui_w_enable (g_next, 1);
-	ui_w_set_text (g_next, (long) (p == P_WELCOME ? TR ("Installer") : p == P_DONE ? TR ("Redémarrer") : g_back_to_summary && p < P_SUMMARY ? TR ("Revenir au résumé") : TR ("Continuer")));
+	ui_w_set_text (g_next, (long) (p == P_WELCOME ? (g_kroot && g_reinst ? TR ("Réinstaller…") : TR ("Installer")) : p == P_DONE ? TR ("Redémarrer") : g_back_to_summary && p < P_SUMMARY ? TR ("Revenir au résumé") : TR ("Continuer")));
 	ui_w_set_text (g_status, (long) ""); ui_w_show (g_status, p != P_DONE);
 	ui_fill (0, 0, ui.w, ui.h, jet (TJ_FACE));
 	ui_view_dirty (g_band); ui_view_dirty (g_head); ui_view_dirty (g_foot);
-	if (p == P_WELCOME) { ui_w_show (g_tzreg, s_tzopen); ui_w_show (g_tzville, s_tzopen); }
+	if (p == P_WELCOME)
+	{
+		ui_w_show (g_tzreg, s_tzopen); ui_w_show (g_tzville, s_tzopen);
+		bool k = g_kroot > 0;	// (le choix : seulement si un Korin est installé)
+		ui_w_show (g_wreinst, k); ui_w_show (g_wneuve, k); ui_w_show (g_wreinstl, k); ui_w_show (g_wneuvel, k);
+		ui_w_set_value (g_wreinst, g_reinst); ui_w_set_value (g_wneuve, !g_reinst);
+	}
 	if (p == P_INSTALL) ui_w_show (g_ijournal, s_detail);
 	if (p == P_DISK)
 	{
 		int sel = disque_sel ();
-		if (!g_lu)	/* la première fois : le plus grand espace libre (comme la maquette) */
+		if (!g_sel_init)	/* la première fois : le plus grand espace libre (comme la maquette) */
 		{
-			disque_lit ();
+			if (!g_lu) disque_lit ();
+			g_sel_init = true;
 			u64 best = 0; sel = 0;
 			for (int i = 0; i < g_np; i++) if (g_p[i].genre == G_FREE && g_p[i].last - g_p[i].first + 1 > best) { best = g_p[i].last - g_p[i].first + 1; sel = i; }
 		}
@@ -1116,8 +1230,8 @@ void montre (int p)
 	else if (p == P_ACCOUNT) compte_maj ();
 	else if (p == P_SUMMARY)
 	{
-		s_danger = g_choix.genre != G_FREE && g_choix.genre != G_NEW;
-		for (int i = 0; i < g_ndel; i++) s_danger = true;
+		s_danger = !g_reinst && g_choix.genre != G_FREE && g_choix.genre != G_NEW;	// (réinstallation : vos fichiers restent, pas de nom à taper)
+		for (int i = 0; i < g_ndel && !g_reinst; i++) s_danger = true;
 		bool win = false; for (int i = 0; i < g_np; i++) if (g_p[i].genre == G_WIN) win = true;
 		ui_w_show (g_sconf, s_danger); ui_w_show (g_sconfl, s_danger);
 		ui_w_show (g_sdef, win); ui_w_show (g_sdelai, win);
@@ -1141,7 +1255,15 @@ static void suivant ()
 {
 	switch (g_page)
 	{
-	case P_WELCOME: montre (P_DISK); break;
+	case P_WELCOME:
+		if (g_kroot && g_reinst)	// (réinstallation : la place de Korin est KORIN OS, pour la taille des logiciels)
+		{
+			const Part *r = part_num (g_kroot);
+			g_place = r ? r->last - r->first + 1 : 0; g_home_go = 0; g_efi_neuve = false;
+			montre (P_NET);
+		}
+		else montre (P_DISK);
+		break;
 	case P_DISK:
 	{
 		int s = disque_sel ();
@@ -1155,7 +1277,7 @@ static void suivant ()
 	}
 	case P_HOME: montre (g_back_to_summary ? P_SUMMARY : P_NET); break;
 	case P_NET: montre (g_back_to_summary ? P_SUMMARY : P_PKG); break;
-	case P_PKG: montre (g_back_to_summary ? P_SUMMARY : P_ACCOUNT); break;
+	case P_PKG: montre (g_back_to_summary || g_reinst ? P_SUMMARY : P_ACCOUNT); break;
 	case P_ACCOUNT: montre (P_SUMMARY); break;
 	case P_SUMMARY:
 		plan_ecrit ();
@@ -1172,6 +1294,8 @@ static void precedent ()
 {
 	if (g_back_to_summary && g_page < P_SUMMARY) { montre (P_SUMMARY); return; }
 	static const int avant[P_N] = { P_WELCOME, P_WELCOME, P_DISK, P_HOME, P_NET, P_PKG, P_ACCOUNT, P_SUMMARY, P_SUMMARY };
+	if (g_reinst && g_page == P_NET) { montre (P_WELCOME); return; }		// (réinstallation : ni Disque ni Compte)
+	if (g_reinst && g_page == P_SUMMARY) { montre (P_PKG); return; }
 	montre (avant[g_page]);
 }
 static void control (long w, long code)
@@ -1203,6 +1327,13 @@ static void control (long w, long code)
 	else if (w == g_tzville) { long v = ui_w_get_value (g_tzville); if (v >= 0 && v < s_nville) { cpy (g_tz, s_tz[s_ville[v]], sizeof g_tz); ui_w_set_text (g_tzlab, (long) g_tz); ui_w_draw (g_tzlab); } }
 	else if (w == g_dlist) disque_note ();
 	else if (w == g_hslider) { g_home_go = ui_w_get_value (g_hslider); home_montre (); }
+	else if (w == g_hexfat || w == g_hext4) { g_ext4 = w == g_hext4 ? ui_w_get_value (w) != 0 : ui_w_get_value (w) == 0; home_montre (); }
+	else if (w == g_wreinst || w == g_wneuve)
+	{
+		g_reinst = w == g_wreinst ? ui_w_get_value (w) != 0 : ui_w_get_value (w) == 0;
+		ui_w_set_text (g_next, (long) (g_reinst ? TR ("Réinstaller…") : TR ("Installer"))); ui_w_draw (g_next);
+		ui_view_dirty (g_band);
+	}
 	else if (w == g_wvoir) { ui_w_style (g_wpass, ui_w_get_value (w) ? 0 : UTF_PASSWORD); ui_w_draw (g_wpass); }
 	else if (w == g_avoir) { long s = ui_w_get_value (w) ? 0 : UTF_PASSWORD; ui_w_style (g_apw, s); ui_w_style (g_apw2, s); ui_w_style (g_arpw, s); ui_w_style (g_arpw2, s); ui_w_draw (0); }
 	else if (w == g_auser) { s_usermain = true; compte_maj (); }
@@ -1235,8 +1366,10 @@ int main (int, char **)
 {
 	if (!uikit_open (&ui)) return 1;
 	netkit_kit_open ();
-	if (char *l = lire ("/tmp/install/lang")) { if (!strncmp (l, "en", 2)) { cpy (g_langc, "en", sizeof g_langc); ui_tr_load ((long) "/apps/installer.app/lang/en.txt"); } free (l); }
+	if (char *l = lire ("/tmp/install/lang")) { if (!strncmp (l, "en", 2)) cpy (g_langc, "en", sizeof g_langc); free (l); }
 	else if (eq ((const char *) ui_lang (), "en")) cpy (g_langc, "en", sizeof g_langc);
+	(void) TR ("");		// (le dictionnaire du système d'abord : celui de l'installateur, chargé après, l'emporte)
+	if (g_langc[0] == 'e') { s_dec = '.'; ui_tr_load ((long) "/apps/installer.app/lang/en.txt"); }	// (aussi quand le système est en anglais)
 	s_jet = (const unsigned *) ui_tokens ();
 	long scr[4] = { 1280, 800, 0, 0 };
 	ui_screen ((long) scr);
@@ -1279,6 +1412,11 @@ int main (int, char **)
 	g_tzreg = item (P_WELCOME, ui_dropdown (X, Y0 + 278, half, 34, (long) l));
 	g_tzville = item (P_WELCOME, ui_dropdown (X + half + 20, Y0 + 278, half, 34, (long) "-"));
 	fuseaux_lit ();
+	// un Korin déjà installé : Réinstaller (par défaut) ou Nouvelle installation
+	g_wreinst = item (P_WELCOME, ui_radio (X, Y0 + 332, W, 24, (long) TR ("Réinstaller Korin OS en gardant mes fichiers"), 2));
+	g_wreinstl = item (P_WELCOME, ui_label (X + 28, Y0 + 358, W - 28, 40, (long) TR ("Le système est remis à neuf ; vos fichiers de /home ne sont pas touchés. Vos comptes, mots de passe et réseaux Wi-Fi sont repris. Rien à choisir sur le disque."), ULB_WRAP | ULB_DIM));
+	g_wneuve = item (P_WELCOME, ui_radio (X, Y0 + 404, W, 24, (long) TR ("Nouvelle installation"), 2));
+	g_wneuvel = item (P_WELCOME, ui_label (X + 28, Y0 + 430, W - 28, 22, (long) TR ("Choisir la place sur le disque, comme pour une première installation."), ULB_WRAP | ULB_DIM));
 
 	// 2 Disque
 	int lh = H - 150 < 160 ? 160 : H - 150;
@@ -1297,9 +1435,13 @@ int main (int, char **)
 	g_hview = item (P_HOME, ui_view (X, Y0, W, 64, 0)); ui_view_on (g_hview, (long) hview_paint, 0, 0, 0);
 	g_hslider = item (P_HOME, ui_slider (X, Y0 + 84, W - 130, 28, 0, 100, 0));
 	g_htext = item (P_HOME, ui_textbox (X + W - 120, Y0 + 82, 80, 32, UTF_RIGHT));
-	item (P_HOME, ui_label (X + W - 34, Y0 + 88, 34, 22, (long) "Go", 0));
+	item (P_HOME, ui_label (X + W - 34, Y0 + 88, 34, 22, (long) TR ("Go"), 0));
 	g_hbornes = item (P_HOME, ui_label (X, Y0 + 124, W, 20, (long) "", ULB_DIM));
 	g_hnote = item (P_HOME, ui_label (X, Y0 + 156, W, 40, (long) TR ("Le système de Korin garde au moins 10 Go. Entrée dans le champ : la taille tapée."), ULB_WRAP | ULB_DIM));
+	g_hfsl = item (P_HOME, ui_label (X, Y0 + 204, W, 20, (long) TR ("Système de fichiers de /home"), ULB_BOLD));
+	g_hexfat = item (P_HOME, ui_radio (X, Y0 + 232, W, 24, (long) TR ("exFAT (conseillé) : lisible aussi par Windows et macOS"), 3));
+	g_hext4 = item (P_HOME, ui_radio (X, Y0 + 260, W, 24, (long) TR ("ext4 : garde les droits des fichiers (Unix), lisible par Linux"), 3));
+	g_hext4n = item (P_HOME, ui_label (X, Y0 + 292, W, 44, (long) TR ("L'ext4 de Korin n'a pas encore de journal : après une coupure de courant pendant une écriture, le disque peut garder des erreurs que Korin ne sait pas encore réparer."), ULB_WRAP));
 
 	// 4 Internet
 	g_wlist = item (P_NET, ui_list (X, Y0, W, lh - 60, UL_HEADER | UL_NOSORT));
@@ -1365,6 +1507,8 @@ int main (int, char **)
 	fuseau_montre ();
 	ui_w_show (g_ijournal, 0);
 	clavier_applique ("BE");
+	disque_lit ();				// (dès l'accueil : un Korin déjà installé y est proposé à la réinstallation)
+	g_reinst = g_kroot > 0;
 	montre (P_WELCOME);
 	for (;;)
 	{

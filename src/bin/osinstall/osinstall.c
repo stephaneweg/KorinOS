@@ -8,6 +8,10 @@
  *                                                                          other ; contenu : ntfs, bitlocker, fat32,
  *                                                                          exfat, ext, empty, unknown ; nom : le reste)
  *                           F premier dernier                              (un espace libre d'1 Mio au moins)
+ *                           K système home version comptes                 (un Korin déjà installé : les numéros de
+ *                                                                          KORIN OS et de KORIN HOME, 0 sans ; la
+ *                                                                          version de pc et les comptes, « ? » s'ils
+ *                                                                          ne se lisent pas)
  *
  * PLAN (Setup l'écrit dans /tmp/install/plan.ini) :
  *   [disk]   device = blk.nvme0 ; mode = beside (à côté de l'existant) | wipe (le disque entier) ;
@@ -15,6 +19,11 @@
  *            place = PREMIER-DERNIER (secteurs : la place de Korin, libre après les suppressions ; défaut : le plus
  *            grand espace libre) ; root_fs = fat32 | exfat ; home = no | yes ; root_gb = 64 (avec home) ;
  *            home_fs = exfat | ext4 ; boot_mb = 512 (une EFI neuve) ; min_gb = 10 (place exigée)
+ *            mode = reinstall ; root = 3 ; home_part = 4 (0 : pas de KORIN HOME) : la réinstallation (décision du
+ *            17/11/2026) : avec KORIN HOME, KORIN OS est reformatée (même système de fichiers) et KORIN HOME n'est pas
+ *            touchée ; sans, KORIN OS n'est pas formatée : tout y est effacé sauf /home (et les points de montage).
+ *            Repris de l'ancien système : etc/users.ini, shadow.ini, elevate.ini, wifi.txt, options.txt, et de
+ *            system.ini le nom, la langue, l'ouverture automatique ; [user] est ignoré, les logiciels ne sont pas repris
  *   [system] hostname, lang (fr, en), keyb (BE, FR, US...), timeout (secondes du menu ; défaut 5 si Windows, 0)
  *   [user]   name (uid 1000), fullname, autologin = yes|no, admin = yes|no, passwords = stdin|none ;
  *            hash, root_hash : les empreintes déjà faites (Setup : « pbkdf2-sha256$... », jamais le mot de passe)
@@ -738,6 +747,8 @@ static void out_num(u64 v)
 	out(b);
 }
 
+static void list_korin(const char *dev);
+
 static int list_disks(void)
 {
 	for (int d = 0; d < 4; d++) {
@@ -826,7 +837,296 @@ static int list_disks(void)
 			out("\n");
 			at = (e->last + 1 + MIB - 1) / MIB * MIB;
 		}
+		list_korin(dev);
 	}
+	return 0;
+}
+
+/* ---- un Korin déjà installé (--list : la ligne K ; la réinstallation) */
+
+static int name_is(const struct gpt_entry *e, const char *n)
+{
+	int k = 0;
+	for (; n[k]; k++)
+		if (e->name[k] != (u16)(u8)n[k])
+			return 0;
+	return k < 36 ? e->name[k] == 0 : 1;
+}
+
+/* les lignes « clé=... » d'un fichier de réglages qui commencent par l'un des mots, mises bout à bout dans o */
+static void pick_lines(const char *text, const char *const *keys, char *o, u64 cap)
+{
+	u64 n = (u64)str_len(o);
+	for (const char *l = text; *l;) {
+		const char *e = l;
+		while (*e && *e != '\n')
+			e++;
+		for (int i = 0; keys[i]; i++) {
+			u64 kl = (u64)str_len(keys[i]);
+			if (!memcmp(l, keys[i], kl) && n + (u64)(e - l) + 2 < cap) {
+				memcpy(o + n, l, (u64)(e - l));
+				n += (u64)(e - l);
+				o[n++] = '\n';
+				o[n] = 0;
+				break;
+			}
+		}
+		l = *e ? e + 1 : e;
+	}
+}
+
+/* les comptes de users.ini (uid 1000 et plus), séparés par des virgules */
+static void users_of(const char *ini_text, char *o, u64 cap)
+{
+	char cur[40] = "";
+	o[0] = 0;
+	for (const char *l = ini_text; *l;) {
+		const char *e = l;
+		while (*e && *e != '\n')
+			e++;
+		while (*l == ' ')
+			l++;
+		if (*l == '[') {
+			u64 k = 0;
+			for (const char *c = l + 1; c < e && *c != ']' && k < sizeof cur - 1; c++)
+				cur[k++] = *c;
+			cur[k] = 0;
+		} else if (!memcmp(l, "uid", 3) && cur[0]) {
+			const char *v = l + 3;
+			while (*v == ' ' || *v == '=')
+				v++;
+			if (parse_dec(v) >= 1000 && (u64)str_len(o) + (u64)str_len(cur) + 2 < cap) {
+				if (o[0])
+					str_cat(o + str_len(o), ",");
+				str_cat(o + str_len(o), cur);
+			}
+		}
+		l = *e ? e + 1 : e;
+	}
+}
+
+/* --list : « K système home version comptes » pour un disque qui porte KORIN OS (monté en lecture le temps de lire) */
+static void list_korin(const char *dev)
+{
+	int nr = 0, nh = 0;
+	for (int i = 0; i < GPT_ENTRIES; i++)
+		if (gpt_used(&g.e[i])) {
+			if (!nr && name_is(&g.e[i], "KORIN OS"))
+				nr = i + 1;
+			else if (!nh && name_is(&g.e[i], "KORIN HOME"))
+				nh = i + 1;
+		}
+	if (!nr)
+		return;
+	char ver[40] = "?", us[200] = "?", pr[40];
+	part_name(pr, dev, nr);
+	if (vu_mount("oldkorin", pr, "fatfs") >= 0) {
+		if (rd_file("/media/oldkorin/var/pkg/db/pc.ini", tmp, sizeof tmp) >= 0) {
+			static const char *const k[] = {"version", 0};
+			char l[128] = "";
+			pick_lines(tmp, k, l, sizeof l);
+			const char *v = l + 7;
+			while (*v == ' ' || *v == '=')
+				v++;
+			u64 j = 0;
+			while (v[j] && v[j] != '\n' && v[j] != '\r' && j < sizeof ver - 1)
+				j++;
+			if (j) {
+				memcpy(ver, v, j);
+				ver[j] = 0;
+			}
+		}
+		if (rd_file("/media/oldkorin/etc/users.ini", tmp, sizeof tmp) >= 0) {
+			users_of(tmp, us, sizeof us);
+			if (!us[0])
+				str_cat(us, "?");
+		}
+		vu_unmount("oldkorin");
+	}
+	out("K ");
+	out_num((u64)nr);
+	out(" ");
+	out_num((u64)nh);
+	out(" ");
+	out(ver);
+	out(" ");
+	out(us);
+	out("\n");
+}
+
+/* la raison d'un refus du plan : la dernière ligne « plan refusé : ... » du pilote, dans le journal du noyau */
+static int plan_refused(long r)
+{
+	static char why[200];
+	why[0] = 0;
+	str_cat(why, "le pilote du disque refuse le plan");
+	long n = korin_sys2(SYS_KLOG, cbuf, sizeof cbuf - 1);
+	if (n > 0) {
+		cbuf[n] = 0;
+		const char *last = 0;
+		for (const char *c = (const char *)cbuf; *c; c++)
+			if (!memcmp(c, "plan refus", 10))
+				last = c;
+		if (last) {
+			u64 k = 0;
+			while (last[k] && last[k] != '\n' && k < 150)
+				k++;
+			char *w = why + str_len(why);
+			*w++ = ' ';
+			*w++ = '(';
+			memcpy(w, last, k);
+			w[k] = ')';
+			w[k + 1] = 0;
+		}
+	}
+	return fail(r, why);
+}
+
+/* ce que la réinstallation reprend de l'ancien système */
+static char old_users[8192], old_shadow[8192], old_elevate[2048], old_wifi[8192], old_options[1024], old_sys[512];
+
+static void rd_or_empty(const char *path, char *buf, u64 cap)
+{
+	if (rd_file(path, buf, cap) < 0)
+		buf[0] = 0;
+}
+
+/* tout ce que contient path, puis path (s'il n'est pas la racine du volume) ; plusieurs passes : effacer en lisant
+ * le dossier peut sauter des entrées */
+static void rm_tree(const char *path, int self)
+{
+	for (int pass = 0; pass < 8; pass++) {
+		long fd = sys_open(path, O_READ);
+		if (fd < 0)
+			break;
+		struct dirent e;
+		int gone = 0;
+		while (sys_readdir(fd, &e) > 0) {
+			if (str_eq(e.name, ".") || str_eq(e.name, ".."))
+				continue;
+			char c[512];
+			join(c, path, e.name);
+			if (e.attr & ATTR_DIR)
+				rm_tree(c, 1);
+			else if (sys_unlink(c) >= 0)
+				gone++;
+			else
+				err_files++;
+		}
+		sys_close(fd);
+		if (!gone)
+			break;
+	}
+	if (self && sys_unlink(path) < 0)
+		err_files++;
+}
+
+/* sans KORIN HOME : la racine de l'ancien système vidée, sauf /home et les points de montage */
+static void wipe_root(const char *root)
+{
+	static const char *const keep[] = {"home", "media", "net", "tmp", "boot", "System Volume Information", 0};
+	for (int pass = 0; pass < 4; pass++) {
+		long fd = sys_open(root, O_READ);
+		if (fd < 0)
+			return;
+		struct dirent e;
+		int gone = 0;
+		while (sys_readdir(fd, &e) > 0) {
+			int k = str_eq(e.name, ".") || str_eq(e.name, "..");
+			for (int i = 0; keep[i] && !k; i++)
+				k = str_eq(e.name, keep[i]);
+			if (k)
+				continue;
+			char c[512];
+			join(c, root, e.name);
+			if (e.attr & ATTR_DIR)
+				rm_tree(c, 1);
+			else if (sys_unlink(c) < 0)
+				err_files++;
+			gone++;
+		}
+		sys_close(fd);
+		if (!gone)
+			return;
+	}
+}
+
+/* 1. le disque, pour une réinstallation : le plan (KORIN OS et l'EFI), l'ancien système lu, puis KORIN OS reformatée
+ * (avec KORIN HOME) ou vidée sauf /home ; KORIN OS sur /media/tgt, l'EFI sur /media/tgtboot -> 0, ou fail() */
+static int reinstall_disk(const char *dev, u32 crc, int *nboot, int *nroot, int *nhome, int *esp, u8 *gboot, u8 *groot,
+			  u8 *ghome, const char **fsvc_home)
+{
+	char v[64];
+	int nr = (int)parse_dec(ini("disk", "root", "0", v, sizeof v));
+	int nh = (int)parse_dec(ini("disk", "home_part", "0", v, sizeof v));
+	if (nr < 1 || nr > GPT_ENTRIES || !gpt_used(&g.e[nr - 1]))
+		return fail(E_INVAL, "réinstallation : la partition KORIN OS n'existe pas");
+	if (nh && (nh > GPT_ENTRIES || nh == nr || !gpt_used(&g.e[nh - 1])))
+		return fail(E_INVAL, "réinstallation : la partition KORIN HOME n'existe pas");
+	for (int i = 0; i < GPT_ENTRIES && *esp < 0; i++)
+		if (gpt_used(&g.e[i]) && !memcmp(g.e[i].type, GPT_T_EFI, 16))
+			*esp = i;
+	if (*esp < 0)
+		return fail(E_INVAL, "réinstallation : pas de partition EFI");
+	const struct gpt_entry *er = &g.e[nr - 1];
+	char rootfs[16] = "";
+	str_cat(rootfs, content_word(er->first));
+	if (!str_eq(rootfs, "fat32") && !str_eq(rootfs, "exfat"))
+		return fail(E_INVAL, "réinstallation : KORIN OS n'est ni en FAT32 ni en exFAT");
+	if (nh)
+		*fsvc_home = str_eq(content_word(g.e[nh - 1].first), "ext") ? "ext4fs" : "fatfs";
+	logl(nh ? "réinstallation : KORIN OS reformatée, KORIN HOME gardée"
+		: "réinstallation sans formater : tout est remplacé sauf /home");
+	u64 ranges[4] = {er->first, er->last, g.e[*esp].first, g.e[*esp].last};
+	long r = plan_send(PLAN_ESP, crc, ranges, 2);
+	if (r < 0)
+		return plan_refused(r);
+	if ((r = blk(dchan, BLK_RESCAN, 0, 0, 0)) < 0)
+		return fail(r, "relecture de la table");
+	*nboot = *esp + 1;
+	*nroot = nr;
+	*nhome = nh;
+	memcpy(gboot, g.e[*esp].guid, 16);
+	memcpy(groot, er->guid, 16);
+	if (nh)
+		memcpy(ghome, g.e[nh - 1].guid, 16);
+	char pboot[40], proot[40], args[128];
+	part_name(pboot, dev, *nboot);
+	part_name(proot, dev, nr);
+	if ((r = vu_mount("tgt", proot, "fatfs")) < 0)
+		return fail(r, "montage de l'ancien KORIN OS");
+	rd_or_empty("/media/tgt/etc/users.ini", old_users, sizeof old_users);
+	rd_or_empty("/media/tgt/etc/shadow.ini", old_shadow, sizeof old_shadow);
+	rd_or_empty("/media/tgt/etc/elevate.ini", old_elevate, sizeof old_elevate);
+	rd_or_empty("/media/tgt/etc/wifi.txt", old_wifi, sizeof old_wifi);
+	rd_or_empty("/media/tgt/etc/options.txt", old_options, sizeof old_options);
+	old_sys[0] = 0;
+	if (rd_file("/media/tgt/etc/system.ini", tmp, sizeof tmp) >= 0) {
+		static const char *const k[] = {"hostname=", "lang=", "autologin=", 0};
+		pick_lines(tmp, k, old_sys, sizeof old_sys);
+	}
+	if (!old_users[0])
+		return fail(E_NOENT, "réinstallation : pas de comptes dans l'ancien système (etc/users.ini)");
+	prog(3, "Réglages de l'ancien système lus");
+	if (nh) {
+		vu_sync("tgt");
+		vu_unmount("tgt");
+		args[0] = 0;
+		str_cat(str_cat(str_cat(str_cat(args, "-t "), rootfs), " -y -L KORINOS "), proot);
+		if ((r = run("/sbin/mkfs", args)) != 0)
+			return fail(r, "formatage de KORIN OS");
+		if ((r = vu_mount("tgt", proot, "fatfs")) < 0)
+			return fail(r, "montage de KORIN OS");
+		prog(8, "KORIN OS formatée");
+	} else {
+		wipe_root("/media/tgt");
+		vu_sync("tgt");
+		prog(8, "Ancien système effacé, /home gardé");
+	}
+	if ((r = vu_mount("tgtboot", pboot, "fatfs")) < 0)
+		return fail(r, "montage de la partition EFI");
+	if (vu_info("tgtboot") >= 0 && ((u64 *)vu_rep)[MSG_B / 8] < (16ull << 20))
+		return fail(E_NOSPC, "la partition EFI a moins de 16 Mo libres (le noyau et l'initrd)");
 	return 0;
 }
 
@@ -845,7 +1145,7 @@ int main(int argc, char **argv)
 	ini("disk", "mode", "beside", mode, sizeof mode);
 	ini("disk", "root_fs", "fat32", rootfs, sizeof rootfs);
 	ini("disk", "home_fs", "exfat", homefs, sizeof homefs);
-	int wipe = str_eq(mode, "wipe");
+	int wipe = str_eq(mode, "wipe"), reinst = str_eq(mode, "reinstall");
 	int home = yes(ini("disk", "home", "no", v, sizeof v));
 	u64 root_gb = parse_dec(ini("disk", "root_gb", "64", v, sizeof v));
 	u64 boot_mb = parse_dec(ini("disk", "boot_mb", "512", v, sizeof v));
@@ -878,8 +1178,19 @@ int main(int argc, char **argv)
 		return fail(r, "le disque ne répond pas");
 	int had_table = gpt_read(&g, disk_rd, 0, sectors) == 0 && !g.from_backup;
 	u32 crc = had_table ? g.header_crc : 0;
-	u64 a, b;
 	int esp = -1; /* l'entrée EFI gardée (rang), -1 : une neuve */
+	int nboot = 0, nroot = 0, nhome = 0;
+	u8 gboot[16], groot[16], ghome[16];
+	const char *fsvc_home = str_eq(homefs, "ext4") ? "ext4fs" : "fatfs";
+	if (reinst) {
+		if (!had_table)
+			return fail(E_INVAL, "réinstallation : pas de table GPT lisible");
+		int rr = reinstall_disk(dev, crc, &nboot, &nroot, &nhome, &esp, gboot, groot, ghome, &fsvc_home);
+		if (rr)
+			return rr;
+		home = nhome > 0;
+	} else {
+	u64 a, b;
 	if (!wipe) {
 		if (!had_table)
 			return fail(E_INVAL, "pas de table GPT lisible : seul « disque entier » est possible");
@@ -957,43 +1268,19 @@ int main(int argc, char **argv)
 		nr = 2;
 	}
 	r = plan_send((wipe ? PLAN_WIPE : 0) | (esp >= 0 ? PLAN_ESP : 0), crc, ranges, nr);
-	if (r < 0) { /* la raison : la dernière ligne « plan refusé : ... » du pilote, dans le journal du noyau */
-		static char why[200];
-		str_cat(why, "le pilote du disque refuse le plan");
-		long n = korin_sys2(SYS_KLOG, cbuf, sizeof cbuf - 1);
-		if (n > 0) {
-			cbuf[n] = 0;
-			const char *last = 0;
-			for (const char *c = (const char *)cbuf; *c; c++)
-				if (!memcmp(c, "plan refus", 10))
-					last = c;
-			if (last) {
-				u64 k = 0;
-				while (last[k] && last[k] != '\n' && k < 150)
-					k++;
-				char *w = why + str_len(why);
-				*w++ = ' ';
-				*w++ = '(';
-				memcpy(w, last, k);
-				w[k] = ')';
-				w[k + 1] = 0;
-			}
-		}
-		return fail(r, why);
-	}
-	u8 gboot[16], groot[16], ghome[16];
+	if (r < 0)
+		return plan_refused(r);
 	guid_rnd(gboot);
 	guid_rnd(groot);
 	guid_rnd(ghome);
-	int nboot;
 	if (esp >= 0) {
 		nboot = esp + 1;
 		memcpy(gboot, g.e[esp].guid, 16);
 	} else {
 		nboot = gpt_add(&g, GPT_T_EFI, a, a + bsz - 1, "EFI system partition", gboot);
 	}
-	int nroot = gpt_add(&g, GPT_T_BASIC, rfirst, rlast, "KORIN OS", groot);
-	int nhome = home ? gpt_add(&g, str_eq(homefs, "ext4") ? GPT_T_LINUX : GPT_T_BASIC, hfirst, b, "KORIN HOME", ghome)
+	nroot = gpt_add(&g, GPT_T_BASIC, rfirst, rlast, "KORIN OS", groot);
+	nhome = home ? gpt_add(&g, str_eq(homefs, "ext4") ? GPT_T_LINUX : GPT_T_BASIC, hfirst, b, "KORIN HOME", ghome)
 			 : 0;
 	if (nboot <= 0 || nroot <= 0 || (home && nhome <= 0))
 		return fail(E_NOSPC, "la table est pleine");
@@ -1024,7 +1311,7 @@ int main(int argc, char **argv)
 		if ((r = run("/sbin/mkfs", args)) != 0)
 			return fail(r, "formatage de KORIN HOME");
 	}
-	const char *fsvc_root = "fatfs", *fsvc_home = str_eq(homefs, "ext4") ? "ext4fs" : "fatfs";
+	const char *fsvc_root = "fatfs";
 	if ((r = vu_mount("tgt", proot, fsvc_root)) < 0)
 		return fail(r, "montage de KORIN OS");
 	if ((r = vu_mount("tgtboot", pboot, "fatfs")) < 0)
@@ -1033,6 +1320,7 @@ int main(int argc, char **argv)
 		return fail(E_NOSPC, "la partition EFI a moins de 16 Mo libres (le noyau et l'initrd)");
 	if (home && (r = vu_mount("tgthome", phome, fsvc_home)) < 0)
 		return fail(r, "montage de KORIN HOME");
+	} /* (fin de l'installation neuve) */
 
 	/* 2. le système */
 	step(2, "Copier le système");
@@ -1115,6 +1403,26 @@ int main(int argc, char **argv)
 	guid_text(groot, gr);
 	guid_text(gboot, gb);
 	guid_text(ghome, gh);
+	if (reinst) { /* les comptes, les mots de passe, l'élévation, le Wi-Fi et le clavier de l'ancien système */
+		if ((r = wr_file("/media/tgt/etc/users.ini", old_users, (u64)str_len(old_users))) < 0)
+			return fail(r, "users.ini");
+		if (old_shadow[0])
+			wr_file("/media/tgt/etc/shadow.ini", old_shadow, (u64)str_len(old_shadow));
+		if (old_elevate[0])
+			wr_file("/media/tgt/etc/elevate.ini", old_elevate, (u64)str_len(old_elevate));
+		if (old_wifi[0])
+			wr_file("/media/tgt/etc/wifi.txt", old_wifi, (u64)str_len(old_wifi));
+		if (old_options[0])
+			wr_file("/media/tgt/etc/options.txt", old_options, (u64)str_len(old_options));
+		if (rd_file("/etc/system.ini", tmp, sizeof tmp) < 0)
+			tmp[0] = 0;
+		txt[0] = 0;
+		str_cat(str_cat(str_cat(txt, tmp), "\n# osinstall (réinstallation : repris de l'ancien système)\n"), old_sys);
+		wr_file("/media/tgt/etc/system.ini", txt, (u64)str_len(txt));
+		memset(upw, 0, sizeof upw);
+		memset(rpw, 0, sizeof rpw);
+		logl("comptes, mots de passe, Wi-Fi et clavier repris");
+	} else {
 	txt[0] = 0;
 	str_cat(txt, "# comptes (osinstall)\n[system]\nuid = 0\nname = Systeme\nhome = /\ngroups = admin\n[");
 	str_cat(str_cat(str_cat(str_cat(txt + str_len(txt), user), "]\nuid = 1000\nname = "), full), "\nhome = /home/");
@@ -1159,6 +1467,7 @@ int main(int argc, char **argv)
 		str_cat(str_cat(str_cat(txt, "keyb="), keyb), "\n");
 		wr_file("/media/tgt/etc/options.txt", txt, (u64)str_len(txt));
 	}
+	} /* (fin des réglages d'une installation neuve) */
 	if (rd_file("/etc/mounts.txt", tmp, sizeof tmp) < 0)
 		tmp[0] = 0;
 	txt[0] = 0;
@@ -1166,14 +1475,16 @@ int main(int argc, char **argv)
 	if (home)
 		str_cat(str_cat(str_cat(txt + str_len(txt), "/home = blk.home, "), fsvc_home), "\n");
 	wr_file("/media/tgt/etc/mounts.txt", txt, (u64)str_len(txt));
-	/* le dossier de l'utilisateur */
-	char hd[96];
-	join(hd, home ? "/media/tgthome" : "/media/tgt/home", user);
-	sys_mkdir(hd);
-	static const char *const sub[] = {"Documents", "Images", "Musique", "Vidéos", "Téléchargements", 0};
-	for (int i = 0; sub[i]; i++) {
-		char s[160];
-		sys_mkdir(join(s, hd, sub[i]));
+	/* le dossier de l'utilisateur (une réinstallation garde ceux qui existent) */
+	if (!reinst) {
+		char hd[96];
+		join(hd, home ? "/media/tgthome" : "/media/tgt/home", user);
+		sys_mkdir(hd);
+		static const char *const sub[] = {"Documents", "Images", "Musique", "Vidéos", "Téléchargements", 0};
+		for (int i = 0; sub[i]; i++) {
+			char s[160];
+			sys_mkdir(join(s, hd, sub[i]));
+		}
 	}
 	prog(88, "Comptes et réglages écrits");
 
@@ -1205,7 +1516,7 @@ int main(int argc, char **argv)
 	char to[16];
 	ini("system", "timeout", windows ? "5" : "0", to, sizeof to);
 	txt[0] = 0;
-	str_cat(txt, "# menu de démarrage (osinstall) ; firmware = install : ce chargeur crée son entrée du firmware\n"
+	str_cat(txt, "# menu de démarrage (osinstall) ; la clé firmware (install) : ce chargeur crée son entrée du firmware, puis la passe à done\n"
 		     "default = korin\ntimeout = ");
 	str_cat(str_cat(txt + str_len(txt), to), "\nfirmware = install\n");
 	if ((r = wr_file("/media/tgtboot/korin/boot.cfg", txt, (u64)str_len(txt))) < 0)
@@ -1216,7 +1527,7 @@ int main(int argc, char **argv)
 	vu_sync("tgtboot");
 	vu_unmount("tgtboot");
 	vu_unmount("tgt");
-	if (home) {
+	if (home && !reinst) {
 		vu_sync("tgthome");
 		vu_unmount("tgthome");
 	}

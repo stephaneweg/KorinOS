@@ -498,6 +498,21 @@ une EFI gardée (ni `\EFI\Microsoft`, ni `\EFI\BOOT`), elle n'est jamais format�
   Supprimer, Nouveau (taille au curseur ou au clavier) ; la ligne choisie est formatée (partition) ou reçoit Korin
   (espace libre) ; puis la taille de `/home` (0 à la place moins 10 Go pour le système).
 
+**Décision du 17/11/2026 : réinstaller** (maquette `docs/maquettes/installateur-reinstaller.html`). Quand la clé
+trouve un Korin (partitions nommées « KORIN OS » et « KORIN HOME » : la ligne `K` de `osinstall --list`), l'accueil
+propose **Réinstaller en gardant mes fichiers** (par défaut) ou **Nouvelle installation**. La réinstallation n'a ni
+étape Disque ni étape Compte : Internet, Logiciels, Résumé.
+* **Avec KORIN HOME** : KORIN OS est reformatée (même système de fichiers), KORIN HOME n'est ni formatée ni montée.
+* **Sans KORIN HOME** (`/home` dans KORIN OS) : **pas de formatage**. Tout ce que contient KORIN OS est effacé sauf
+  `/home` (et les points de montage), puis le système est recopié.
+* **Repris** de l'ancien système : `etc/users.ini`, `shadow.ini`, `elevate.ini`, `wifi.txt`, `options.txt`, et de
+  `system.ini` le nom, la langue, l'ouverture automatique. Les **logiciels ne sont pas repris** : l'étape Logiciels
+  est celle d'une première installation.
+* Le plan : `mode = reinstall`, `root = <n° de KORIN OS>`, `home_part = <n° de KORIN HOME, 0 sans>` ; le pilote
+  n'ouvre que KORIN OS et l'EFI (`PLAN_ESP`), la table ne change pas.
+* Le même jour : l'installateur choisit aussi le système de fichiers de `/home` (exFAT conseillé, ou ext4 : pas encore
+  de journal) et parle anglais (`data/lang/en.txt`, la langue changée tout de suite).
+
 ## Annexe : à quoi sert `/etc/nvme.txt`
 
 C'est la liste des **règles d'écriture du pilote NVMe** (`src/svc/nvme/policy.c`). Le disque NVMe du ZBook porte
