@@ -505,7 +505,7 @@ static void st_draw (void)
 			ui_text ((long) TR (e.pid > 0 ? st_s_running : st_s_stopped), sx + 14, y + 26, tok (TJ_TEXT2), 12, F (),
 				 ST_STATE_W - 14);
 			if (st_can_act (e))
-				ap_button (st_btn_x (), y + (ST_ROW_H - BTN_H) / 2, e.pid > 0 ? st_s_stop : st_s_start, 0);
+				ap_button (st_btn_x (), y + ((long) ST_ROW_H - (long) BTN_H) / 2, e.pid > 0 ? st_s_stop : st_s_start, 0);
 			if (e.sect == S_SYSTEM || (e.info && e.info->prot == P_LOCK))
 				ui_text ((long) TR (st_s_locked), st_sw_x () - 36, y + 27, tok (TJ_TEXT3), 11, F (), 0);
 			else
@@ -666,7 +666,7 @@ static int st_click (long x, long y)
 				st_toggle (e);
 				return 1;
 			}
-			long by = yy + (ST_ROW_H - BTN_H) / 2;
+			long by = yy + ((long) ST_ROW_H - (long) BTN_H) / 2;
 			if (x >= st_btn_x () && x < st_btn_x () + BTN_W && y >= by && y < by + BTN_H && st_can_act (e))
 			{
 				st_act (e);

@@ -128,8 +128,7 @@ static int lancer_fichier(const char *path, int watch, const char *off)
 			if (off && list_has(off, l)) {
 				say("init2 : desactive : ");
 				say(l);
-				say("
-");
+				say("\n");
 			} else
 				lancer_ligne(l, watch);
 		}
@@ -432,16 +431,14 @@ static void reboot_request(long req)
 /* deux lignes égales, sans les blancs autour -> 1 */
 static int same_line(const char *a, const char *b)
 {
-	while (*a == ' ' || *a == '	')
+	while (*a == ' ' || *a == '\t')
 		a++;
-	while (*b == ' ' || *b == '	')
+	while (*b == ' ' || *b == '\t')
 		b++;
 	u64 na = str_len(a), nb = str_len(b);
-	while (na && (a[na - 1] == ' ' || a[na - 1] == '	' || a[na - 1] == '' || a[na - 1] == '
-'))
+	while (na && (a[na - 1] == ' ' || a[na - 1] == '\t' || a[na - 1] == '\r' || a[na - 1] == '\n'))
 		na--;
-	while (nb && (b[nb - 1] == ' ' || b[nb - 1] == '	' || b[nb - 1] == '' || b[nb - 1] == '
-'))
+	while (nb && (b[nb - 1] == ' ' || b[nb - 1] == '\t' || b[nb - 1] == '\r' || b[nb - 1] == '\n'))
 		nb--;
 	return na == nb && !memcmp(a, b, na);
 }
@@ -486,8 +483,7 @@ static long service_request(u64 op)
 	say(launch_path);
 	say(" -> ");
 	say_dec(r);
-	say("
-");
+	say("\n");
 	return r;
 }
 
