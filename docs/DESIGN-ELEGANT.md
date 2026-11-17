@@ -225,6 +225,10 @@ Le fond est peint par `/sys/voronoy` (lancé par la session, `/etc/session`), av
   rempli, centrée) ou en mosaïque. Réglages en écrit une copie à la taille de l'écran,
   `HOME:/etc/wallpaper.png` (UIKit ne lit que BMP et PNG) ; teintée, elle devient un duotone de la
   teinte (de `ton(T, 56)` à `mêler(T, blanc, 170)` ; sombre : 40 et 120).
+  « Choisir... » ouvre `/home/public/wallpapers` s'il existe : le dossier public (à tous les comptes) où le
+  paquet **wallpapers** (« Fonds d'écran », installé à part, pas sur la carte) met cinq fonds de 2560 × 1440
+  calculés par `tools/wallpapers/gen_backgrounds.py` (givre-dawn, givre-silk, givre-orbs, onyx-waves,
+  onyx-aurora ; le script les écrit dans `build/wallpapers/sdroot`, le `root` du paquet).
 * **Teinte** : aucune, l'accent du thème (`accent` : elle suit le thème et son accent), ou l'une des
   huit couleurs d'accent de UIKit (`bleu`… `graphite`, prises dans le thème : Givre et Onyx Noir ont les
   leurs). Jamais de couleur en dur dans le réglage.
@@ -254,6 +258,11 @@ de nouvelles cellules.
 ## 6. Barre de menus (`menubar`)
 
 Fenêtre `WF_FRAMELESS | WF_TOP | WF_NOFOCUS | WF_RESERVE`, **plus `WF_ALPHA`**, hauteur 30/28/26.
+
+> **Depuis le 17/11/2026** : la barre est en **verre dépoli**, comme le panel (§8.9) : `WF_BLUR`, la teinte de
+> `TJ_BAR` par `glass.c` (reflet en haut, bord `TJ_LINE_STRONG` translucide en bas), ombre portée sous elle ;
+> les survols des titres sont des boîtes de verre (`glass_rbox`, `glass_hover`). Le fond et le trait décrits
+> plus bas sont ceux d'avant.
 
 * **Fond** : `plein` de `TJ_BAR` (transparence 0x1A : le fond d'écran transparaît à peine),
   ligne de 1 px `TJ_LINE` (opaque) en bas.
@@ -562,14 +571,18 @@ le fond transparent dans `ic_blit` (UIKit).
 
 **Flou et ombre (Elegant, `WF_BLUR` = 0x8000, depuis le 17/11/2026)** : une fenêtre sans cadre
 WF_ALPHA qui a ce rôle reçoit, juste avant d'être posée (`draw_window`, `glass_under` de
-`elegant/core.c`), une ombre de `GLASS_SHADOW` (10) pixels au-dessus d'elle (noir, environ 18 % au
-bord, en carré vers 0), puis le flou de ce qui est déjà composé sous elle : deux passes de boîte
+`elegant/core.c`), une ombre de `GLASS_SHADOW` (10) pixels au-dessus d'elle, ou sous elle si elle
+touche le haut de l'écran (la barre de menus) (noir, environ 18 % au bord, en carré vers 0), puis le flou de ce qui est déjà composé sous elle : deux passes de boîte
 de rayon `GLASS_R` (5), horizontales puis verticales, bords répétés (proche d'un gaussien). Le flou
 a besoin de toute la zone : `compose` agrandit toute zone sale qui touche la fenêtre ou son ombre
 à toute la fenêtre et son ombre (`glass_extend`), sinon un petit morceau flouté seul (le curseur
 qui passe) ferait des marques. Coût : la barre entière recomposée quand le curseur la survole
 (1280 × 58 pixels, quatre passes) ; une lecture partielle (rdpd, WIN_READ) la pose sans flou.
 Fenêtre de plus de 256 pixels de haut ou 4096 de large : pas de flou.
+
+Le dessin du verre est commun au panel et à la barre de menus : `src/sys/common/glass.c`
+(`glass_set` : hauteur, jeton de la teinte, bord côté bureau ; `glass_draw`, `glass_at`,
+`glass_rbox`, `glass_hover`).
 
 Les mêmes glyphes servent ailleurs (dock, accueil du mode poche, volet rapide, écran de connexion) :
 ils y prennent le même dessin au trait.

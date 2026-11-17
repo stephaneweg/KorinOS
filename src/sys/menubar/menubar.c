@@ -31,6 +31,7 @@
 #include "applist.h"
 #include "sounddraw.h"
 #include "wifidraw.h"
+#include "glass.h"
 #include "uikit_import.h"
 #include "netkit_import.h"
 #include "audiokit_import.h"
@@ -707,11 +708,11 @@ static void draw_titles(long x, long base)
 			c = tj(k, TJ_ACCENT_LIGHT);
 			box = 1;
 		} else if (hov == t + 1) {
-			c = tj(k, TJ_SUNKEN);
+			c = glass_hover(); /* (sur le verre : translucide) */
 			box = 1;
 		}
 		if (box)
-			ui_rbox(x - 8, 4, (long)w + 16, bar_h - 8, 5, c, c);
+			glass_rbox(x - 8, 4, (long)w + 16, bar_h - 8, 5, c);
 		ui_text((long)s, x, base, tj(k, TJ_TEXT1), MB_PX, (long)font, (long)w + 4);
 		x += (long)w + 18;
 	}
@@ -868,8 +869,8 @@ static void pq_icon(long x)
 	ui_rbox(x, top, 16, 11, 4, ink, ink); /* la bulle */
 	ui_fill(x + 3, top + 10, 4, 2, ink);  /* la pointe */
 	ui_fill(x + 3, top + 12, 2, 2, ink);
-	ui_fill(x + 4, top + 3, 3, 5, bar); /* les yeux */
-	ui_fill(x + 9, top + 3, 3, 5, bar);
+	ui_fill(x + 4, top + 3, 3, 5, bar & 0xFFFFFF); /* les yeux (opaques sur la bulle) */
+	ui_fill(x + 9, top + 3, 3, 5, bar & 0xFFFFFF);
 }
 
 /* un clic sur l'icône de PocketQI : sa bulle sous l'icône (« --popup x » ; un second clic : une
@@ -1025,8 +1026,8 @@ static void draw(void)
 {
 	const u8 *k = tokens();
 	long bh = bar_h;
-	ui_fill(0, 0, ui.w, bh - 1, tj(k, TJ_BAR)); /* fond translucide, trait en bas */
-	ui_fill(0, bh - 1, ui.w, 1, tj(k, TJ_LINE));
+	glass_set(bh, TJ_BAR, GLASS_EDGE_BOTTOM); /* le verre (glass.c), comme le panel ; bord en bas */
+	glass_draw(ui.w);
 	u32 text1 = tj(k, TJ_TEXT1);
 	long end = tw(str_armpi, ui.font_b) + 31 + 8; /* menu Korin : fin de la zone */
 	if (poche) /* (poche : le losange seul) */
@@ -1040,11 +1041,11 @@ static void draw(void)
 		c = tj(k, TJ_ACCENT_LIGHT);
 		box = 1;
 	} else if (hov == 1) {
-		c = tj(k, TJ_SUNKEN);
+		c = glass_hover();
 		box = 1;
 	}
 	if (box)
-		ui_rbox(6, 4, end - 6, bh - 8, 5, c, c);
+		glass_rbox(6, 4, end - 6, bh - 8, 5, c);
 	long base = (long)((u64)bh >> 1) + 5; /* ligne de base : milieu + 5 */
 	ui_text((long)s_losange, 12, base, tj(k, TJ_ACCENT), MB_PX + 2, (long)ui.font, 0);
 	if (!poche)
@@ -1155,7 +1156,7 @@ int main(int argc, char **argv)
 		return 0;
 	bar_height();
 	if (ui_window_ex(0, 0, scr[0], bar_h, (long)tr(title),
-			 WF_FRAMELESS | WF_TOP | WF_NOFOCUS | WF_NOLIST | WF_LISTEN | WF_RESERVE | WF_ALPHA) < 0)
+			 WF_FRAMELESS | WF_TOP | WF_NOFOCUS | WF_NOLIST | WF_LISTEN | WF_RESERVE | WF_ALPHA | WF_BLUR) < 0)
 		return 0;
 	applis_load();
 	pq_probe();

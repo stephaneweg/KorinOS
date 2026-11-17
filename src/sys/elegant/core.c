@@ -303,13 +303,25 @@ static void glass_box(u32 *p, long n, long step)
 	}
 }
 
+/* l'ombre d'une fenêtre de verre : sous elle si elle touche le haut de l'écran (la barre de
+ * menus), au-dessus sinon (le panel) */
+static int glass_shadow_below(const struct win *w)
+{
+	return w->y <= 0;
+}
+
 /* la zone d'une fenêtre de verre : elle et son ombre, dans l'écran */
 static void glass_zone(const struct win *w, struct rect *z)
 {
+	long y0 = w->y, y1 = w->y + w->h;
+	if (glass_shadow_below(w))
+		y1 += GLASS_SHADOW;
+	else
+		y0 -= GLASS_SHADOW;
 	z->x0 = w->x < 0 ? 0 : w->x;
-	z->y0 = w->y - GLASS_SHADOW < 0 ? 0 : w->y - GLASS_SHADOW;
+	z->y0 = y0 < 0 ? 0 : y0;
 	z->x1 = w->x + w->w > scr_w ? scr_w : w->x + w->w;
-	z->y1 = w->y + w->h > scr_h ? scr_h : w->y + w->h;
+	z->y1 = y1 > scr_h ? scr_h : y1;
 }
 
 /* zone sale -> agrandie à la zone de chaque fenêtre de verre qu'elle touche */
@@ -342,8 +354,10 @@ static void glass_under(const struct win *w)
 	glass_zone(w, &z);
 	if (clip_r.x0 > z.x0 || clip_r.y0 > z.y0 || clip_r.x1 < z.x1 || clip_r.y1 < z.y1)
 		return;
-	for (long y = z.y0; y < w->y; y++) { /* l'ombre : du noir, plus dense près de la fenêtre */
-		long d = w->y - y; /* 1 .. GLASS_SHADOW */
+	int below = glass_shadow_below(w);
+	long sy0 = below ? w->y + w->h : z.y0, sy1 = below ? z.y1 : w->y;
+	for (long y = sy0; y < sy1; y++) { /* l'ombre : du noir, plus dense près de la fenêtre */
+		long d = below ? y - (w->y + w->h) + 1 : w->y - y; /* 1 .. GLASS_SHADOW */
 		long e = GLASS_SHADOW + 1 - d;
 		u32 t = 255 - (u32)(e * e * 46 / ((GLASS_SHADOW) * (GLASS_SHADOW))); /* ~18 % au bord */
 		u32 *row = (u32 *)((u8 *)bb + y * bb_pitch);
@@ -351,7 +365,8 @@ static void glass_under(const struct win *w)
 			row[x] = blend(0, row[x], t);
 	}
 	long y0 = w->y < 0 ? 0 : w->y;
-	long h = z.y1 - y0, wd = z.x1 - z.x0;
+	long ye = w->y + w->h > scr_h ? scr_h : w->y + w->h;
+	long h = ye - y0, wd = z.x1 - z.x0;
 	if (h < 2 || wd < 2 || wd > GLASS_MAXW || h > GLASS_MAXH)
 		return;
 	u32 *base = (u32 *)((u8 *)bb + y0 * bb_pitch) + z.x0;

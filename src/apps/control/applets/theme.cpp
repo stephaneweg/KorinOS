@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <buskit_abi.h>
 #include "../control.h"
 #include "../../../sys/common/wallpaper.h"
@@ -447,6 +448,9 @@ static int th_choose (void)
 	char path[192];
 	copy_n (path, th_wp.image, sizeof path);
 	char dir[192] = "HOME:/";
+	struct stat st;
+	if (stat (WP_PUBLIC, &st) == 0 && S_ISDIR (st.st_mode))	/* les fonds du paquet wallpapers (dossier public) */
+		copy_n (dir, WP_PUBLIC, sizeof dir);
 	char *s = strrchr (path, '/');
 	if (s && s > path)
 	{

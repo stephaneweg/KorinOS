@@ -12,6 +12,7 @@
 #include "panelconf.h"
 #include "recent.h"
 #include "apprun.h"
+#include "glass.h"
 
 /* le lanceur : un rideau sur les fenêtres */
 #define LA_WFLAGS (WF_FRAMELESS | WF_TOP | WF_NOFOCUS | WF_NOLIST | WF_GRAB | WF_ALPHA | WF_CURTAIN)

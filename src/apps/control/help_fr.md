@@ -17,7 +17,7 @@ Le look du bureau.
 
 - **Thème du bureau** : **Givre** (clair) ou **Onyx Noir** (sombre).
 - **Couleur d'accent** : Bleu, Rouge orangé, Vert vif, Jaune, Violet, Fuchsia, Sarcelle ou Graphite.
-- **Fond d'écran** : **Cellules** (le fond d'origine), **Dégradé**, **Bulles**, **Uni**, **Motif** (‹ et › sous l'aperçu passent d'un motif à l'autre : Bokeh, Courbes de niveau, Dunes, Facettes, Hexagones, Polygones, Soie, Vagues ; toute image grise posée dans `/res/wallpapers` s'y ajoute) ou **Image** (**Choisir...** une image BMP, GIF, PNG, JPEG, PCX ou WebP ; **Image en mosaïque** la répète au lieu de remplir l'écran).
+- **Fond d'écran** : **Cellules** (le fond d'origine), **Dégradé**, **Bulles**, **Uni**, **Motif** (‹ et › sous l'aperçu passent d'un motif à l'autre : Bokeh, Courbes de niveau, Dunes, Facettes, Hexagones, Polygones, Soie, Vagues ; toute image grise posée dans `/res/wallpapers` s'y ajoute) ou **Image** (**Choisir...** une image BMP, GIF, PNG, JPEG, PCX ou WebP ; il ouvre `/home/public/wallpapers`, où le paquet **Fonds d'écran** de Logiciels met cinq fonds ; **Image en mosaïque** la répète au lieu de remplir l'écran).
 - **Teinte du fond** : aucune (les gris calmes du thème), l'accent du thème (il suit l'accent), ou l'une des huit couleurs d'accent. Une image teintée passe en deux tons de la teinte.
 - L'**Aperçu**, à droite, montre un petit bureau dans les couleurs choisies, sur le fond choisi.
 

@@ -63,7 +63,6 @@ static char tip_text[8 + 8 + DL_DESK];
 static char tip_num[8];
 
 static void draw(void);
-static void glass_rbox(long x, long y, long w, long h, long r, u32 c);
 
 static u32 tok(long off)
 {
@@ -383,93 +382,7 @@ static void draw_square(long d)
  *  Dessin
  * --------------------------------------------------------------------------- */
 
-/* --- Le verre (17/11/2026, docs/DESIGN-ELEGANT.md) : le fond est une teinte du dock du thème
- * qui laisse voir le bureau (WF_ALPHA : l'octet haut est la transparence, 0 = opaque), un peu
- * plus claire en haut ; un trait d'ombre puis un reflet clair en haut. Tout ce qui se pose
- * dessus (survol, séparateurs) reste translucide : glass_rbox mêle couleur et transparence. */
-#define GLASS_T_LIGHT 0x6C /* transparence du verre : Givre, */
-#define GLASS_T_DARK 0x5C  /* Onyx Noir (Elegant floute le dessous : WF_BLUR) */
-
-/* a, b (0xTTRRGGBB), k 0..256 : les quatre octets mêlés */
-static u32 mix4(u32 a, u32 b, u32 k)
-{
-	u32 o = 0;
-	for (u32 sh = 0; sh < 32; sh += 8) {
-		u32 x = (a >> sh) & 0xFF, y = (b >> sh) & 0xFF;
-		o |= ((x * (256 - k) + y * k) >> 8) << sh;
-	}
-	return o;
-}
-
-/* le verre, ligne y -> 0xTTRRGGBB (dégradé vertical : un reflet clair en haut) */
-static u32 glass_at(long y)
-{
-	u8 *tj = (u8 *)ui_tokens();
-	u32 dock = M32(tj, TJ_DOCK) & 0xFFFFFF;
-	int dark = M32(tj, TJ_DARK) != 0;
-	u32 t = dark ? GLASS_T_DARK : GLASS_T_LIGHT;
-	/* le volume : haut vers la surface (la lumière), bas un peu plus sombre que le dock */
-	u32 top = (u32)ui_mix(dock, M32(tj, TJ_SURFACE), dark ? 110 : 220);
-	u32 bot = (u32)ui_tone(dock, dark ? 112 : 118);
-	long h = cur.dh > 1 ? cur.dh - 1 : 1;
-	u32 c = (u32)ui_mix(top, bot, (long)((u64)(y << 8) / (u64)h));
-	return (c & 0xFFFFFF) | (t << 24);
-}
-
-/* le fond de verre et son liseré (ombre légère, reflet) */
-static void draw_glass(void)
-{
-	u8 *tj = (u8 *)ui_tokens();
-	long w = scr[SCR_W];
-	for (long y = 0; y < cur.dh; y++)
-		ui_fill(0, y, w, 1, glass_at(y));
-	int dark = M32(tj, TJ_DARK) != 0;
-	/* bord : le trait fort du thème, translucide (l'ombre portée est d'Elegant, WF_BLUR) */
-	ui_fill(0, 0, w, 1, (M32(tj, dark ? TJ_FACE : TJ_LINE_STRONG) & 0xFFFFFF) | (dark ? 0x40000000 : 0xA8000000));
-	/* reflet sur deux lignes : la surface (blanc en Givre), net puis adouci */
-	u32 hi = dark ? (u32)ui_mix(M32(tj, TJ_DOCK) & 0xFFFFFF, 0x00FFFFFF, 56) : M32(tj, TJ_SURFACE);
-	ui_fill(0, 1, w, 1, (hi & 0xFFFFFF) | (dark ? 0x50000000 : 0x10000000));
-	ui_fill(0, 2, w, 1, (hi & 0xFFFFFF) | (dark ? 0xC0000000 : 0x90000000));
-}
-
-/* boîte arrondie translucide sur le verre : x, y, l, h, rayon, couleur 0xTTRRGGBB ; les
- * coins anticrénelés à la main (ui_rbox ne le fait que pour une couleur opaque) : chaque
- * pixel de coin mêle le verre de sa ligne et la couleur selon sa couverture (4 x 4) */
-static void glass_rbox(long x, long y, long w, long h, long r, u32 c)
-{
-	if (w <= 0 || h <= 0)
-		return;
-	if (2 * r > w)
-		r = w / 2;
-	if (2 * r > h)
-		r = h / 2;
-	for (long row = 0; row < h; row++) {
-		long j = row < r ? row : h - 1 - row; /* ligne dans le coin */
-		if (j >= r) {
-			ui_fill(x, y + row, w, 1, c);
-			continue;
-		}
-		u32 bg = glass_at(y + row);
-		long inner = 0; /* pixels du coin à mêler */
-		for (long k = 0; k < r; k++) {
-			long cov = 0; /* couverture du pixel (k, j) du coin haut-gauche, sur 16 */
-			for (long sy = 0; sy < 4; sy++)
-				for (long sx = 0; sx < 4; sx++) {
-					long px = 8 * k + 2 * sx + 1 - 8 * r; /* (x 8, centre du cercle à 0) */
-					long py = 8 * j + 2 * sy + 1 - 8 * r;
-					if (px * px + py * py <= 64 * r * r)
-						cov++;
-				}
-			if (cov == 16)
-				break;
-			u32 m = mix4(bg, c, (u32)(cov * 16));
-			ui_pixel(x + k, y + row, m);
-			ui_pixel(x + w - 1 - k, y + row, m);
-			inner = k + 1;
-		}
-		ui_fill(x + inner, y + row, w - 2 * inner, 1, c);
-	}
-}
+/* --- Le verre (glass.c, commun avec la barre de menus ; docs/DESIGN-ELEGANT.md 8.9) */
 
 /* -> couleur des séparateurs (translucide) */
 static u32 sep_colour(void)
@@ -482,13 +395,7 @@ static u32 sep_colour(void)
 /* x, largeur : le fond d'un élément survolé, un verre plus dense et plus clair */
 static void hover_box(long x, long w)
 {
-	u8 *tj = (u8 *)ui_tokens();
-	u32 c;
-	if (M32(tj, TJ_DARK))
-		c = ((u32)ui_mix(M32(tj, TJ_DOCK) & 0xFFFFFF, 0x00FFFFFF, 44) & 0xFFFFFF) | 0x30000000;
-	else
-		c = (M32(tj, TJ_SURFACE) & 0xFFFFFF) | 0x20000000;
-	glass_rbox(x, 5, w, cur.dh - 10, 9, c);
+	glass_rbox(x, 5, w, cur.dh - 10, 9, glass_hover());
 }
 
 /* trait vertical à ce x */
@@ -546,7 +453,8 @@ static void draw(void)
 {
 	u8 *tj = (u8 *)ui_tokens();
 	long dh = cur.dh;
-	draw_glass(); /* toute la largeur, le verre */
+	glass_set(cur.dh, TJ_DOCK, GLASS_EDGE_TOP);
+	glass_draw(scr[SCR_W]); /* toute la largeur, le verre */
 	draw_apps();
 	for (long i = 0; i < nslots; i++) { /* --- emplacements */
 		long x = sl_x[i], sw = slot_w;

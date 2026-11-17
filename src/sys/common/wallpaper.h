@@ -36,6 +36,7 @@ enum { WP_VORONOI, WP_GRADIENT, WP_BUBBLES, WP_SOLID, WP_PATTERN, WP_IMAGE, WP_N
 #define WP_INI "wallpaper.ini"		/* le réglage (conf_path) */
 #define WP_CACHE "wallpaper.png"	/* la copie de l'image (conf_path) */
 #define WP_DIR "/res/wallpapers"	/* les motifs */
+#define WP_PUBLIC "/home/public/wallpapers" /* les fonds du paquet wallpapers (Choisir... y ouvre) */
 #define WP_TOPIC "korin.wallpaper"	/* publié par Réglages : le fond a changé */
 #define WP_PATTERN_DEF "waves.png"
 

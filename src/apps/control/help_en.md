@@ -17,7 +17,7 @@ The look of the desktop.
 
 - **Desktop Theme**: **Givre** (light) or **Onyx Noir** (dark).
 - **Accent Color**: Blue, Red Orange, Bright Green, Yellow, Purple, Fuchsia, Teal or Graphite.
-- **Wallpaper**: **Cells** (the original wallpaper), **Gradient**, **Bubbles**, **Solid**, **Pattern** (‹ and › under the preview go from one pattern to the next: Bokeh, Contours, Dunes, Facets, Hexagons, Low poly, Silk, Waves; any grey picture put in `/res/wallpapers` is added) or **Image** (**Choose...** a BMP, GIF, PNG, JPEG, PCX or WebP picture; **Tile the picture** repeats it instead of filling the screen).
+- **Wallpaper**: **Cells** (the original wallpaper), **Gradient**, **Bubbles**, **Solid**, **Pattern** (‹ and › under the preview go from one pattern to the next: Bokeh, Contours, Dunes, Facets, Hexagons, Low poly, Silk, Waves; any grey picture put in `/res/wallpapers` is added) or **Image** (**Choose...** a BMP, GIF, PNG, JPEG, PCX or WebP picture; it opens `/home/public/wallpapers`, where the **Fonds d'écran** (Wallpapers) package from Software puts five wallpapers; **Tile the picture** repeats it instead of filling the screen).
 - **Wallpaper tint**: none (the theme's calm greys), the theme's accent (it follows the accent), or one of the eight accent colors. A tinted picture turns into two tones of the tint.
 - The **Preview**, on the right, shows a small desktop in the chosen colors, on the chosen wallpaper.
 
