@@ -796,15 +796,15 @@ static WKWebsiteDataStoreRef make_data_store ()
 	s_cache = j + "/cache";
 	mkdir (h.c_str (), 0755);
 	mkdir (j.c_str (), 0755);
-	if (h != "/home" && access (s_data.c_str (), F_OK) != 0 && access ("/home/jet/webkit", F_OK) == 0) {
-		bool moved = rename ("/home/jet/webkit", s_data.c_str ()) == 0;
-		rename ("/home/jet/cache", s_cache.c_str ());
-		say ("the sites' data of /home/jet %s %s", moved ? "moved to" : "NOT moved to", j.c_str ());
-	}
 	mkdir (s_data.c_str (), 0755);
 	mkdir (s_cache.c_str (), 0755);
 	const std::string &D = s_data, &C = s_cache;
-	WKWebsiteDataStoreConfigurationRef c = WKWebsiteDataStoreConfigurationCreate ();
+	// (the two bases: what has no setter -- HSTS, alternative services, salts, media cache -- goes there too, not in
+	// WebKit's default /var/webkit)
+	WKStringRef bc = WKStringCreateWithUTF8CString (C.c_str ()), bd = WKStringCreateWithUTF8CString (D.c_str ());
+	WKWebsiteDataStoreConfigurationRef c = WKWebsiteDataStoreConfigurationCreateWithBaseDirectories (bc, bd);
+	WKRelease (bc);
+	WKRelease (bd);
 	set_dir (WKWebsiteDataStoreConfigurationSetCookieStorageFile, c, (D + "/cookies.db").c_str ());
 	set_dir (WKWebsiteDataStoreConfigurationSetLocalStorageDirectory, c, (D + "/localstorage").c_str ());
 	set_dir (WKWebsiteDataStoreConfigurationSetIndexedDBDatabaseDirectory, c, (D + "/indexeddb").c_str ());

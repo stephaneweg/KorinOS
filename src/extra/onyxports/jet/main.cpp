@@ -23,6 +23,7 @@
 #include "engine.h"
 #include "present.h"
 #include <uikit.h>
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -115,6 +116,47 @@ static void search_apply ()
 }
 
 // HOME:/jet/settings.ini : « search=<cle> » (les autres lignes gardees)
+// Avant les comptes (16/11/2026), HOME valait /home : Jet gardait tout dans /home/jet (reglages, donnees des sites,
+// cache) et les telechargements dans /home/downloads. Sous un compte (HOME = /home/<nom>, de users.ini), ce qui y est
+// va dans son dossier au premier lancement, sans rien ecraser ; les dossiers vides sont retires.
+static void move_entries (const std::string &from, const std::string &to)
+{
+	DIR *d = opendir (from.c_str ());
+	if (!d)
+		return;
+	mkdir (to.c_str (), 0755);
+	int moved = 0, left = 0;
+	while (struct dirent *e = readdir (d))
+	{
+		if (!strcmp (e->d_name, ".") || !strcmp (e->d_name, ".."))
+			continue;
+		std::string a = from + "/" + e->d_name, b = to + "/" + e->d_name;
+		struct stat st;
+		if (stat (b.c_str (), &st) != 0 && rename (a.c_str (), b.c_str ()) == 0)
+			moved++;
+		else
+			left++;
+	}
+	closedir (d);
+	if (!left)
+		rmdir (from.c_str ());
+	if (moved || left)
+		fprintf (stderr, "jet: %s : %d moved to %s, %d left\n", from.c_str (), moved, to.c_str (), left);
+}
+
+static void move_old_home ()
+{
+	const char *h = getenv ("HOME");
+	if (!h || h[0] != '/' || !strcmp (h, "/home") || !strcmp (h, "/home/") || !strncmp (h, "/home/jet", 9) || !strcmp (h, "/home/downloads"))
+		return;
+	std::string home = h;
+	while (home.size () > 1 && home.back () == '/')
+		home.pop_back ();
+	mkdir (home.c_str (), 0755);
+	move_entries ("/home/jet", home + "/jet");
+	move_entries ("/home/downloads", home + "/downloads");
+}
+
 static void settings_load ()
 {
 	g_engine = 0;
@@ -1114,6 +1156,7 @@ int main (int argc, char **argv)
 	engine_set_compositing (gpu);
 	if (gpu)
 		engine_set_frame_client (cb_frame);
+	move_old_home ();
 	settings_load ();
 
 	if (!jet_window_open (0, 0, "Jet", &g_w, &g_h))

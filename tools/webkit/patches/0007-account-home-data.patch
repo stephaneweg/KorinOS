@@ -1,0 +1,75 @@
+--- a/Source/WebKit/UIProcess/API/C/WKWebsiteDataStoreConfigurationRef.h
++++ b/Source/WebKit/UIProcess/API/C/WKWebsiteDataStoreConfigurationRef.h
+@@ -35,6 +35,9 @@
+ WK_EXPORT WKTypeID WKWebsiteDataStoreConfigurationGetTypeID();
+ 
+ WK_EXPORT WKWebsiteDataStoreConfigurationRef WKWebsiteDataStoreConfigurationCreate();
++// Korin : every directory of the store under these two bases (HSTS, alternative services, salts... included,
++// which have no setter of their own); the setters below still override one.
++WK_EXPORT WKWebsiteDataStoreConfigurationRef WKWebsiteDataStoreConfigurationCreateWithBaseDirectories(WKStringRef baseCacheDirectory, WKStringRef baseDataDirectory);
+ 
+ WK_EXPORT WKStringRef WKWebsiteDataStoreConfigurationCopyNetworkCacheDirectory(WKWebsiteDataStoreConfigurationRef configuration);
+ WK_EXPORT void WKWebsiteDataStoreConfigurationSetNetworkCacheDirectory(WKWebsiteDataStoreConfigurationRef configuration, WKStringRef directory);
+--- a/Source/WebKit/UIProcess/API/C/WKWebsiteDataStoreConfigurationRef.cpp
++++ b/Source/WebKit/UIProcess/API/C/WKWebsiteDataStoreConfigurationRef.cpp
+@@ -44,6 +44,14 @@
+     return toAPILeakingRef(WTF::move(configuration));
+ }
+ 
++WKWebsiteDataStoreConfigurationRef WKWebsiteDataStoreConfigurationCreateWithBaseDirectories(WKStringRef baseCacheDirectory, WKStringRef baseDataDirectory)
++{
++    auto configuration = WebKit::WebsiteDataStoreConfiguration::createWithBaseDirectories(
++        baseCacheDirectory ? WebKit::toImpl(baseCacheDirectory)->string() : nullString(),
++        baseDataDirectory ? WebKit::toImpl(baseDataDirectory)->string() : nullString());
++    return toAPILeakingRef(WTF::move(configuration));
++}
++
+ WKStringRef WKWebsiteDataStoreConfigurationCopyNetworkCacheDirectory(WKWebsiteDataStoreConfigurationRef configuration)
+ {
+     return WebKit::toCopiedAPI(WebKit::toImpl(configuration)->networkCacheDirectory());
+--- a/Source/WebKit/UIProcess/WebsiteData/onyx/WebsiteDataStoreOnyx.cpp
++++ b/Source/WebKit/UIProcess/WebsiteData/onyx/WebsiteDataStoreOnyx.cpp
+@@ -27,6 +27,7 @@
+ #include "WebsiteDataStore.h"
+ 
+ #include <WebCore/NotImplemented.h>
++#include <stdlib.h>
+ #include <wtf/FileSystem.h>
+ 
+ namespace WebKit {
+@@ -36,8 +37,16 @@
+ // bases; these are the last resort. They are rooted paths without a volume name ("SD:"): Onyx's kernel
+ // resolves them on the volume of the working directory, and WebKit's path code (std::filesystem) takes
+ // them for absolute, which it does not do of a path that starts with a volume name.
+-static constexpr auto defaultDataBaseDirectory = "/var/webkit"_s;
+-static constexpr auto defaultCacheBaseDirectory = "/var/webkit/cache"_s;
++// Korin (17/11/2026) : under HOME, the account's folder (/home/<name>), not /var/webkit, a system folder that
++// an account may not write.
++static String homeDirectory(ASCIILiteral below)
++{
++    const char* home = getenv("HOME");
++    String base = home && home[0] == '/' && home[1] ? String::fromUTF8(home) : "/var"_s;
++    return FileSystem::pathByAppendingComponent(base, below);
++}
++static String defaultDataBaseDirectory() { return homeDirectory(".local/share/webkit"_s); }
++static String defaultCacheBaseDirectory() { return homeDirectory(".cache/webkit"_s); }
+ 
+ void WebsiteDataStore::platformInitialize()
+ {
+@@ -53,14 +62,14 @@
+ {
+     if (!baseCacheDirectory.isNull())
+         return FileSystem::pathByAppendingComponent(baseCacheDirectory, directoryName);
+-    return FileSystem::pathByAppendingComponent(defaultCacheBaseDirectory, directoryName);
++    return FileSystem::pathByAppendingComponent(defaultCacheBaseDirectory(), directoryName);
+ }
+ 
+ String WebsiteDataStore::websiteDataDirectoryFileSystemRepresentation(const String& directoryName, const String& baseDataDirectory, ShouldCreateDirectory)
+ {
+     if (!baseDataDirectory.isNull())
+         return FileSystem::pathByAppendingComponent(baseDataDirectory, directoryName);
+-    return FileSystem::pathByAppendingComponent(defaultDataBaseDirectory, directoryName);
++    return FileSystem::pathByAppendingComponent(defaultDataBaseDirectory(), directoryName);
+ }
+ 
+ UnifiedOriginStorageLevel WebsiteDataStore::defaultUnifiedOriginStorageLevel()
