@@ -12,4 +12,8 @@ IASL=$SRC/generate/unix/bin/iasl
 [ -x "$IASL" ] || make -C "$SRC" -j"$(nproc)" iasl >/dev/null
 mkdir -p "$ROOT/build/pc"
 "$IASL" -p "$ROOT/build/pc/fakebat" "$ROOT/tools/acpica/fakebat.asl"
-echo "-> build/pc/fakebat.aml"
+# la même en charge (FAKE = 1 : _BST dit « en charge », _PSR branché)
+sed 's/Name (FAKE, 0)/Name (FAKE, 1)/' "$ROOT/tools/acpica/fakebat.asl" >"$ROOT/build/pc/fakebat_ac.asl"
+"$IASL" -p "$ROOT/build/pc/fakebat_ac" "$ROOT/build/pc/fakebat_ac.asl"
+rm -f "$ROOT/build/pc/fakebat_ac.asl"
+echo "-> build/pc/fakebat.aml, build/pc/fakebat_ac.aml"

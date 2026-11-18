@@ -141,16 +141,28 @@ SMBus de l'EC : d'anciens portables) et les interfaces WMI (seuils de charge…)
 
 ## Essais
 
+Tout ce qu'il faut pour les refaire ailleurs est dans le dépôt (`tools/acpica/`, dans WSL ou le cloud après
+`tools/cloud/setup.sh`) :
+
+| Outil | Rôle |
+|---|---|
+| `build.sh` | télécharge ACPICA 20260930 (somme SHA-256 vérifiée) dans `~/.cache/korin-acpica`, construit `libacpica.a` (lancé par la construction d'acpid : `prebuild` de `src/svc/acpid/svc.conf`) |
+| `fakebat.sh` | compile `fakebat.asl` : `build/pc/fakebat.aml` (en décharge) et `fakebat_ac.aml` (en charge) |
+| `qemu_test.sh [bat\|ac\|none]` | refait l'image `build/pc/acpitest.img` depuis `build/pc/sysroot` et lance QEMU avec ou sans fausse batterie ; étapes de `qemu_nvme.py` (`--step shot:nom`, `hmp:system_powerdown`, clics) ; `APP=…` ajoute un programme à la session de l'image |
+| `acpiexec.sh` | exécute des méthodes de l'AML dans acpiexec, sur les tables de `zbook/` (défaut) ou d'un autre dossier (`-d`) ; `-es` : le mode souple ; `DSL=1` : le DSDT désassemblé |
+| `zbook/` | les tables du ZBook Fury 17 G8 (DSDT, 25 SSDT, FADT, RSDT ; copiées le 17/11) |
+| `dump_tables.ps1` | copie celles d'une autre machine sous Windows (registre, `HKLM\HARDWARE\ACPI`) |
+
 * **QEMU q35** (sans batterie) : ACPICA charge les tables (mode ACPI déjà actif), « ni batterie ni adaptateur
   décrits ».
 * **QEMU avec une fausse batterie** : `tools/acpica/fakebat.asl` (SSDT : PNP0C0A, ACPI0003 ; 21 %, 15 W,
   chaque `_BST` retire 1,5 Wh ; `FAKE = 1` : branché, en charge), compilé par `sh tools/acpica/fakebat.sh`
   (iasl construit dans le cache), donné à QEMU par `--qemu=-acpitable --qemu=file=build/pc/fakebat.aml`
-  (`qemu_nvme.py`). Vérifié le 17/11 : lecture (19 %, 1 h 02), icône et menu de la barre, commande
+  (`qemu_test.sh bat`). Vérifié le 17/11 : lecture (19 %, 1 h 02), icône et menu de la barre, commande
   `battery` (en charge : « pleine dans 3 h 48 », 15 W, usure 11 %), alerte à 4 %, puis **extinction propre**
   par init2 60 s plus tard. Le profil n'est pas essayé (QEMU n'a ni HWP ni EIST : `E_NOSYS`).
 * **Tables du ZBook dans acpiexec** (DSDT et 25 SSDT copiés du registre de Windows,
-  `HKLM\HARDWARE\ACPI`, hors du dépôt) : `_STA`, `_BIX`, `_BST`, `_PSR` s'exécutent ; l'EC y est simulé
+  `tools/acpica/zbook`, `sh tools/acpica/acpiexec.sh -es`) : `_STA`, `_BIX`, `_BST`, `_PSR` s'exécutent ; l'EC y est simulé
   (zéros), d'où « absente » et des valeurs inconnues ; en mode souple, plus aucune erreur dans le `_REG` de
   l'EC.
 * **Bouton d'alimentation sous QEMU** (`system_powerdown` du moniteur : événement fixe) : « SCI : ligne 9 »,
