@@ -120,3 +120,4 @@
 - [Fonds d'écran](armpi-fonds-ecran.md) — fonds d'Onyx dans Korin (17/11) : wallpaper.c commun voronoy/Réglages, wallpaper.ini personnel, korin.wallpaper
 - [Démarrage](armpi-demarrage.md) — volet de Réglages façon services.msc (17/11) : .off/.manual, services.deps, INIT_OP_SVC_*, QEMU seulement
 - [Batterie du PC](armpi-batterie.md) — acpid sur ACPICA (17/11) : %, temps restant, alertes, extinction à 5 %, profil d'énergie, icône de la barre ; QEMU seulement
+- [Coffre à secrets](armpi-coffre.md) — 18/11 : étude docs/etude/COFFRE.md, recensement des secrets en clair, keyvault, clé TPM/OTP + mot de passe ; rien de fait, questions §7
