@@ -46,4 +46,9 @@ for f in GAME_INC:
 for a in GAME_EXAMPLES:
     shutil.copytree(os.path.join(root, "src", "apps", a), os.path.join(game, "examples", a),
                     ignore=shutil.ignore_patterns("*.asm", "*.inc", "*.rgba", "*.png", "*.bin"))
+# korin-widget : les deux widgets du bureau du système, à lire comme exemples
+wex = os.path.join(skills, "korin-widget", "examples")
+os.makedirs(wex, exist_ok=True)
+for w in ("agenda", "stickies"):
+    shutil.copyfile(os.path.join(root, "src", "sys", w, w + ".c"), os.path.join(wex, w + ".c"))
 print(f"{home} : AGENTS.md, competences {', '.join(sorted(os.listdir(os.path.join(src, 'skills'))))}, {len(pages)} pages du guide")

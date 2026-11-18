@@ -6,7 +6,7 @@ Pose dans <racine>/.claude-acp :
   AGENTS.md          les consignes sur Korin, dans le prompt système de chaque séance (tools/claude/home/AGENTS.md)
   skills/<nom>/      les compétences : celles du dépôt (.agents/skills : système, langages, kits, POSIX, port,
                      paquets) et celles de Vibe (tools/vibe/home/skills : korin et le guide du développeur, korin-app
-                     et son squelette, korin-graphics, korin-diag, korin-csharp, korin-freebasic, korin-forge, korin-godot, korin-game)
+                     et son squelette, korin-graphics, korin-diag, korin-csharp, korin-freebasic, korin-forge, korin-godot, korin-game, korin-widget)
 Le reste (.env et la clé, config.toml, sessions, logs) est à l'utilisateur et n'est pas touché ; les compétences
 sont remplacées en entier.
 """
@@ -53,5 +53,10 @@ for f in GAME_INC:
 for a in GAME_EXAMPLES:
     shutil.copytree(os.path.join(root, "src", "apps", a), os.path.join(game, "examples", a),
                     ignore=shutil.ignore_patterns("*.asm", "*.inc", "*.rgba", "*.png", "*.bin"))
+# korin-widget : les deux widgets du bureau du système, à lire comme exemples
+wex = os.path.join(skills, "korin-widget", "examples")
+os.makedirs(wex, exist_ok=True)
+for w in ("agenda", "stickies"):
+    shutil.copyfile(os.path.join(root, "src", "sys", w, w + ".c"), os.path.join(wex, w + ".c"))
 print("%s : AGENTS.md, %d compétences, %d pages du guide, exemples %s" % (home, len(names), len(pages),
                                                                        ", ".join(EXAMPLES)))
