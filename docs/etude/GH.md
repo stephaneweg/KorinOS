@@ -1,6 +1,10 @@
 # Étude : `gh` (GitHub CLI) sur Korin
 
-Demandée le 18/11/2026. Rien n'est fait. But : s'identifier auprès de GitHub depuis Korin pour **pousser avec git**
+Demandée le 18/11/2026. Rien n'est fait.
+
+**Décision de l'utilisateur (18/11/2026) : pas de `gh`.** Il ne fait que `push`, `pull`, `fetch`, `checkout` (pas de
+PR) : au plan, **l'identification GitHub dans `git-credential-korin`** par le code d'appareil d'`oauthd` (§5). Les
+§1 à §4 restent pour mémoire. But : s'identifier auprès de GitHub depuis Korin pour **pousser avec git**
 sans recopier un jeton à la main, puis, si possible, les commandes courantes de `gh` (dépôts, PR, issues, `gh api`).
 
 ## 1. Ce qu'est `gh`
@@ -46,3 +50,32 @@ pourra alors rester (sans couche Linux, sur le Pi aussi) ou céder la place.
 1. `client_id` : une OAuth App de l'utilisateur (comme Google), ou une livrée avec Korin ?
 2. L'étape 2 vaut-elle la peine, ou attendre la couche Linux pour le `gh` complet ?
 3. Le Pi aussi (C commun : oui, mais pas de coffre sur le Pi : le jeton n'y serait pas gardé) ?
+
+## 5. Au plan : l'identification GitHub dans `git-credential-korin`
+
+Au premier `git push` (ou `pull`, `fetch` d'un dépôt privé) vers `github.com`, sans jeton dans le coffre, l'assistant
+lance lui-même le flux par code d'appareil, à la façon du Git Credential Manager :
+
+```
+$ git push
+Ouvrez https://github.com/login/device et tapez ABCD-1234
+Connecté à GitHub.
+```
+
+1. **Fournisseur `[github]`** dans `/etc/oauth/providers.ini` (`skel/pc/etc/oauth`) : `device_url =
+   https://github.com/login/device/code`, `token_url = https://github.com/login/oauth/access_token`, portée `repo`
+   (et `workflow` pour pousser des fichiers `.github/workflows`). `client_id` : une OAuth App de l'utilisateur avec
+   « Enable Device Flow » coché (il n'est pas secret dans ce flux). Vérifier qu'oauthd lit la réponse de GitHub
+   (`application/x-www-form-urlencoded` par défaut : demander `Accept: application/json`).
+2. **`oauth token NOM`** dans `src/svc/oauthd/oauth.c` : écrit le jeton (`oauth_token`) sur la sortie, pour les
+   scripts.
+3. **`tools/git/git-credential-korin`**, `get` pour `host=github.com` sans secret au coffre : `oauth setup github
+   provider=github` si le compte manque, `oauth login github` (messages sur la sortie d'erreur ou `/dev/tty` : la
+   sortie est lue par git), puis rend `username=x-access-token` (ou le nom donné par `GET /user`) et
+   `password=<jeton>`. `store` le garde ensuite au coffre comme aujourd'hui. `erase` (jeton refusé) fait aussi
+   `oauth forget github`.
+4. Les jetons d'une OAuth App de GitHub n'expirent pas : rien à rafraîchir.
+5. Doc : `docs/GIT.md` (et l'aide de git dans Korin), puis le paquet git (version montée).
+
+Le Pi n'a pas de coffre : le jeton y serait redemandé (sauf à le garder par `oauthd`, qui le chiffre déjà dans
+`HOME:/oauth` : l'assistant peut lire `oauth token github` d'abord, ce qui marche aussi sans coffre).

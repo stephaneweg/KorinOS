@@ -1,6 +1,6 @@
 ---
 name: armpi-gh
-description: "Au plan le 18/11 : gh (GitHub CLI) pour s'identifier et pousser depuis Korin ; gh est en Go, voie choisie : gh auth en C sur oauthd + coffre, puis commandes courantes en C, le vrai gh par la couche Linux plus tard"
+description: "18/11 : pas de gh (pas de PR) ; au plan : identification GitHub par code d'appareil dans git-credential-korin (oauthd), étude docs/etude/GH.md §5"
 metadata:
   type: project
 ---
@@ -16,3 +16,5 @@ par [[armpi-linux-compat]] quand elle existera. Trois questions en attente (clie
 **How to apply:** relire l'étude et les réponses avant de commencer. Voir [[armpi-oauth]], [[armpi-coffre]].
 
 **18/11, piste plus simple notée (pas maintenant, dit l'utilisateur)** : sans gh, git-credential-korin lancerait lui-même le code d'appareil pour github.com (fournisseur [github] dans providers.ini, `oauth token NOM` à ajouter) ; gh ne servirait plus qu'aux PR, issues, api.
+
+**18/11, DÉCISION** : c'est cette piste que l'utilisateur veut, **au plan** ; pas de `gh`, pas besoin de PR (il ne fait que push, pull, fetch, checkout). Détail : docs/etude/GH.md §5. Il lui faudra créer une OAuth App GitHub (Device Flow) pour le client_id.
