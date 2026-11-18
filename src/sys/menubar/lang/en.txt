@@ -21,3 +21,4 @@ Automatique = Automatic
 Performance = Performance
 Équilibré = Balanced
 Économie = Power saver
+Réglages d'énergie… = Power settings…

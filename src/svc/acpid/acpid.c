@@ -20,7 +20,8 @@
  * Requêtes (service « acpid ») :
  *   ACPID_OP_GET 1 -> données : lignes « clé=valeur » (pct, min, ac, state, rate_mw, remain_mwh,
  *                     full_mwh, design_mwh, cycles, voltage_mv, model, oem, tech, profile, auto, warn,
- *                     critical, shutdown, batteries, adapters)
+ *                     critical, shutdown, batteries, adapters ; ce qui est découvert : profiles,
+ *                     lids, power_button, sleep_button, ec, events)
  *   ACPID_OP_PROFILE 2 (a : -1 automatique, 0..2 profil fixe) -> 0 ; écrit dans /etc/power.ini
  *   ACPID_OP_RELOAD 3 -> 0 : relit /etc/power.ini
  * Événements (SCI lié au canal du service, events = 1) : Notify de la batterie ou du secteur -> relecture
@@ -455,6 +456,8 @@ static int put(char *b, int at, int max, const char *fmt, ...)
 	return at < max ? at : max - 1;
 }
 
+static int acpi_ok; /* acpi_start a réussi */
+
 static void answer_get(u8 *m)
 {
 	char *b = (char *)m + MSG_DATA;
@@ -467,6 +470,12 @@ static void answer_get(u8 *m)
 		r->oem, r->tech);
 	n = put(b, n, max, "profile=%d\nauto=%d\nwarn=%d\ncritical=%d\nshutdown=%d\nbatteries=%d\nadapters=%d\n",
 		s.profile, cf.fixed < 0, cf.warn, cf.critical, cf.shutdown, s.nbat, s.nac);
+	struct acpi_features f;
+	memset(&f, 0, sizeof f);
+	if (acpi_ok)
+		acpi_features(&f);
+	n = put(b, n, max, "profiles=%d\nlids=%d\npower_button=%d\nsleep_button=%d\nec=%d\nevents=%d\n",
+		s.boot_profile >= 0, f.lids, f.power_button, f.sleep_button, f.ec, f.events);
 	b[n] = 0;
 	*(u32 *)(m + MSG_LEN) = (u32)n + 1;
 	M64(m, 0) = 0;
@@ -508,7 +517,8 @@ int main(int argc, char **argv)
 		slog("service déjà là (%ld)\n", canal);
 		return 0;
 	}
-	if (acpi_start(cf.init_all, cf.events) < 0) {
+	acpi_ok = acpi_start(cf.init_all, cf.events) >= 0;
+	if (!acpi_ok) {
 		slog("pas d'ACPI utilisable : batterie inconnue\n");
 		s.state = 'n';
 		s.pct = s.min = -1;

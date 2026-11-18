@@ -35,6 +35,16 @@ int acpi_start(int init_all, int events);
 #define ACPI_EV_LID 4     /* couvercle */
 #define ACPI_EV_BATTERY 8 /* batterie ou secteur (Notify) */
 unsigned acpi_take_events(void);
+/* ce que les tables décrivent (après acpi_start) : découvert, rien de propre à une machine */
+struct acpi_features {
+	int events;        /* SCI et GPE en service */
+	int lids;          /* couvercles (PNP0C0D) */
+	int power_button;  /* bouton d'alimentation (fixe ou PNP0C0C) */
+	int sleep_button;  /* bouton de mise en veille (fixe ou PNP0C0E) */
+	int ec;            /* contrôleur embarqué (PNP0C09) */
+	int ec_gpe;        /* sa GPE servie */
+};
+void acpi_features(struct acpi_features *f);
 /* couvercle : 1 ouvert, 0 fermé, -1 pas de couvercle décrit */
 int acpi_lid(void);
 /* trop d'interruptions : GPE coupées sauf celle de l'EC */

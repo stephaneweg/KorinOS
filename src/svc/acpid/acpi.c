@@ -197,7 +197,7 @@ void acpi_devices(int *batteries, int *adapters)
 
 /* ---- événements (SCI) : Notify, boutons fixes, GPE de l'EC */
 static ACPI_HANDLE lids[MAXDEV], pbtns[MAXDEV], sbtns[MAXDEV];
-static int nlid, npbtn, nsbtn;
+static int nlid, npbtn, nsbtn, fixed_pb, fixed_sb, ec_gpe_on;
 static volatile unsigned pending; /* ACPI_EV_* */
 static int events_on;
 
@@ -319,7 +319,6 @@ static void events_setup(void)
 	ACPI_STATUS s = AcpiInstallNotifyHandler(ACPI_ROOT_OBJECT, ACPI_ALL_NOTIFY, notify_handler, NULL);
 	if (ACPI_FAILURE(s))
 		elog("Notify : gestionnaire refusé (%s)", AcpiFormatException(s));
-	int fixed_pb = 0, fixed_sb = 0;
 	if (!(AcpiGbl_FADT.Flags & ACPI_FADT_POWER_BUTTON) && /* (bit à 0 : bouton fixe) */
 	    ACPI_SUCCESS(AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, fixed_power, NULL))) {
 		AcpiClearEvent(ACPI_EVENT_POWER_BUTTON);
@@ -338,14 +337,26 @@ static void events_setup(void)
 		if (ACPI_FAILURE(s)) {
 			elog("EC : GPE %x refusée (%s)", (unsigned)gpe, AcpiFormatException(s));
 			gpe = ~0ULL;
-		} else
+		} else {
+			ec_gpe_on = 1;
 			AcpiOsExecute(OSL_GPE_HANDLER, ec_query, NULL); /* (des événements déjà en attente) */
+		}
 	}
 	AcpiUpdateAllGpes(); /* les GPE qui ont une méthode _Lxx / _Exx */
 	events_on = 1;
 	elog("événements : bouton d'alimentation %s, mise en veille %s, %d couvercle(s), GPE de l'EC %s",
 	     fixed_pb ? "fixe" : npbtn ? "PNP0C0C" : "absent", fixed_sb ? "fixe" : nsbtn ? "PNP0C0E" : "absent", nlid,
 	     gpe < 256 ? "servie" : "absente");
+}
+
+void acpi_features(struct acpi_features *f)
+{
+	f->events = events_on;
+	f->lids = nlid;
+	f->power_button = fixed_pb || npbtn;
+	f->sleep_button = fixed_sb || nsbtn;
+	f->ec = ec_dev != NULL;
+	f->ec_gpe = ec_gpe_on;
 }
 
 unsigned acpi_take_events(void)
@@ -513,6 +524,16 @@ static struct binfo {
 	UINT64 sta;
 } binfo[MAXDEV];
 
+/* les capacités en mAh se convertissent par la tension de conception (_BIX, _BIF), la même pour la
+ * capacité pleine et la restante (le rapport, donc le %, reste juste) ; inconnue : une tension nominale
+ * (3 éléments Li-ion), signalée au journal : le % et le temps restent justes, les Wh sont estimés */
+#define MV_NOMINAL 11100
+
+static long conv_mv(long design_mv, int ma)
+{
+	return !ma ? 0 : design_mv > 0 ? design_mv : MV_NOMINAL;
+}
+
 static long to_mw(long v, int ma, long mv)
 {
 	if (v < 0)
@@ -530,8 +551,8 @@ static void read_info(int i)
 	b->valid = 0;
 	if (p && p->Package.Count >= 16) {
 		b->ma = pkg_int(p, 1) == 1;
-		long mv = pkg_int(p, 5);
-		b->voltage = mv;
+		b->voltage = pkg_int(p, 5);
+		long mv = conv_mv(b->voltage, b->ma);
 		b->design = to_mw(pkg_int(p, 2), b->ma, mv);
 		b->full = to_mw(pkg_int(p, 3), b->ma, mv);
 		b->warn = to_mw(pkg_int(p, 6), b->ma, mv);
@@ -547,8 +568,8 @@ static void read_info(int i)
 		p = eval_pkg(bats[i], "_BIF", &buf);
 		if (p && p->Package.Count >= 13) {
 			b->ma = pkg_int(p, 0) == 1;
-			long mv = pkg_int(p, 4);
-			b->voltage = mv;
+			b->voltage = pkg_int(p, 4);
+			long mv = conv_mv(b->voltage, b->ma);
 			b->design = to_mw(pkg_int(p, 1), b->ma, mv);
 			b->full = to_mw(pkg_int(p, 2), b->ma, mv);
 			b->warn = to_mw(pkg_int(p, 5), b->ma, mv);
@@ -568,7 +589,8 @@ static void read_info(int i)
 		said_full[i] = b->full;
 		said_cycles[i] = b->cycles;
 		elog("batterie %d : %s %s (%s), %ld mWh neuve, %ld à la dernière charge, %ld mV, %ld cycles%s", i,
-		     b->oem, b->model, b->tech, b->design, b->full, b->voltage, b->cycles, b->ma ? " (en mA)" : "");
+		     b->oem, b->model, b->tech, b->design, b->full, b->voltage, b->cycles,
+		     !b->ma ? "" : b->voltage > 0 ? " (en mA)" : " (en mA, tension inconnue : Wh estimés)");
 	}
 }
 
@@ -605,10 +627,10 @@ int acpi_read(struct power_raw *r)
 			continue;
 		if (p->Package.Count >= 4) {
 			long st = pkg_int(p, 0), pr = pkg_int(p, 1), rc = pkg_int(p, 2), pv = pkg_int(p, 3);
-			long mv = pv > 0 ? pv : b->voltage;
+			long mv = pv > 0 ? pv : b->voltage, cv = conv_mv(b->voltage, b->ma);
 			if (pr >= 0x80000000L) /* (des micrologiciels la donnent négative en décharge) */
 				pr = 0x100000000L - pr;
-			long prw = to_mw(pr, b->ma, mv), rcw = to_mw(rc, b->ma, mv);
+			long prw = to_mw(pr, b->ma, cv), rcw = to_mw(rc, b->ma, cv);
 			r->batteries++;
 			if (st > 0)
 				r->state |= (unsigned)st & 7;

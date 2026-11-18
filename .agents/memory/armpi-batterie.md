@@ -20,5 +20,10 @@ UEFI) ; l'image de mkkorindisk.py se fait par le Python de Windows (le fasm de W
 vidé au redémarrage de WSL.
 
 SCI fait le 17/11 au soir : mode ACPI, GPE, GPE de l'EC (QR_EC, _Qxx), Notify, couvercle (korin.power.lid), bouton d'alimentation (korin.power.button -> panel -> /sys/shutdown) ; QEMU : bouton OK ; repli events = 0 dans power.ini.
-Reste : S3, thermique, volet Énergie de Réglages, luminosité.
+Générique (18/11, demande de l'utilisateur : rien de propre au ZBook, chaque fonction allumée parce que le
+matériel est découvert) : GET d'acpid dit profiles, lids, power_button, ec, events ; mAh sans tension -> 11,1 V
+nominale ; volet Énergie de Réglages (applets/power.cpp) et « Réglages d'énergie… » dans la barre (profils
+cachés sans HWP/EIST) ; essayés sous QEMU avec et sans batterie.
+Reste : S3 (l'écran GOP ne revient pas au réveil sans pilote d'affichage ; tous les pilotes à relancer ; le
+DSDT du ZBook a _S3), thermique, luminosité.
 Voir [[armpi-x86-pc]].

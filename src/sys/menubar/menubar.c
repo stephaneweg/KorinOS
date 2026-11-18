@@ -866,6 +866,8 @@ static const char s_bat_perf[] = "Performance";
 static const char s_bat_eq[] = "Équilibré";
 static const char s_bat_eco[] = "Économie";
 static const char s_bat_titre[] = "Batterie";
+static const char s_bat_reglages[] = "Réglages d'énergie…";
+static const char p_control[] = "/apps/control.app/main";
 
 static long parse_int(const char **p)
 {
@@ -976,19 +978,28 @@ static void bat_click(void)
 	*wp++ = 1;
 	add_text(tr(bat_state == 'c' ? s_bat_charge : bat_state == 'f' ? s_bat_full
 						: bat_ac ? s_bat_idle : s_bat_sur));
-	add_text(s_sep);
-	*wp++ = 1;
-	add_text(tr(s_bat_profil));
-	static const char *const names[4] = {s_bat_auto, s_bat_perf, s_bat_eq, s_bat_eco};
-	for (long i = 0; i < 4; i++) {
-		long on = i == 0 ? bat_auto : !bat_auto && bat_prof == i - 1;
-		if (on)
-			*wp++ = 2; /* coché */
-		add_text(tr(names[i]));
+	long profiles = bat_prof >= 0; /* (le processeur a des profils : HWP ou EIST ; sinon -1) */
+	if (profiles) {
+		add_text(s_sep);
+		*wp++ = 1;
+		add_text(tr(s_bat_profil));
+		static const char *const names[4] = {s_bat_auto, s_bat_perf, s_bat_eq, s_bat_eco};
+		for (long i = 0; i < 4; i++) {
+			long on = i == 0 ? bat_auto : !bat_auto && bat_prof == i - 1;
+			if (on)
+				*wp++ = 2; /* coché */
+			add_text(tr(names[i]));
+		}
 	}
+	add_text(s_sep);
+	add_text(tr(s_bat_reglages));
 	*wp = 0;
 	long r = popup(bat_x - 150, bar_h - 2, items, 260);
-	if (r < 4 || r > 7)
+	if (r == (profiles ? 9 : 3)) { /* Réglages, volet Énergie */
+		spawn(p_control, "power");
+		return;
+	}
+	if (!profiles || r < 4 || r > 7)
 		return;
 	long ch = korin_sys2(SYS_SVC_OPEN, "acpid", 200);
 	if (ch < 0)

@@ -102,13 +102,38 @@ il publie « pas de batterie » et reste à répondre.
   tant qu'il n'y a pas de veille.
 * **Bouton de mise en veille** : `sleep_button` (`nothing` par défaut : pas encore de veille).
 
+## Découvert, rien de propre à une machine (18/11)
+
+Demande de l'utilisateur : la gestion de la batterie la plus générique possible, sans rien supposer du
+ZBook ; chaque fonction s'allume parce que le matériel est découvert :
+
+| Fonction | Découverte | Sans elle |
+|---|---|---|
+| Batteries | `PNP0C0A` (ACPICA), présente si `_STA` bit 4 ; `_BIX`, sinon `_BIF` ; plusieurs : additionnées | pas d'icône, « Pas de batterie (secteur) » |
+| Secteur | `ACPI0003`, `_PSR` | déduit de l'état de la batterie |
+| Unités | `_BIX` / `_BIF` : mWh ou mAh ; mAh convertis par la tension de conception (la même pour la capacité pleine et restante), une tension nominale de 11,1 V si elle est inconnue (le % et le temps restent justes, les Wh sont estimés, dit au journal) | — |
+| EC | ECDT, sinon `PNP0C09` et ses ports du `_CRS` ; sa GPE par `_GPE` | l'AML qui lit l'EC échoue (journal) |
+| Événements | `SCI_INT` de la FADT, MADT ; boutons fixes (drapeaux de la FADT) ou `PNP0C0C` / `PNP0C0E` ; couvercles `PNP0C0D` ; GPE avec `_Lxx` / `_Exx` | tout est sondé (`poll`) |
+| Profils | CPUID : HWP, sinon EIST (noyau, `POWER_PROFILE`) | pas de ligne Profil (menu de la barre, Réglages) |
+
+`acpid` dit ce qu'il a trouvé dans la réponse à `ACPID_OP_GET` (`profiles`, `lids`, `power_button`,
+`sleep_button`, `ec`, `events`, avec `batteries` et `adapters`) ; la barre et Réglages s'en servent.
+Restent propres à un constructeur et non gérés : les batteries « Smart Battery » (`ACPI0002`, SBS par le
+SMBus de l'EC : d'anciens portables) et les interfaces WMI (seuils de charge…).
+
 ## Ce que voit l'utilisateur
 
 * **Barre du haut** (`src/sys/menubar`) : à gauche de l'heure, le pourcentage et une batterie dessinée
   (niveau aux couleurs du thème : alerte sous 20 %, danger sous 10 % sans secteur ; un éclair en charge) ;
   pas d'icône sans batterie (le Pi, un PC de bureau). Un clic : l'état (« Batterie : 28 %, 1 h 02
-  restantes », « Sur batterie ») et le profil d'énergie (Automatique, Performance, Équilibré, Économie,
-  coché), choisi chez acpid.
+  restantes », « Sur batterie »), le profil d'énergie (Automatique, Performance, Équilibré, Économie,
+  coché, choisi chez acpid ; seulement si le processeur a des profils) et « Réglages d'énergie… ».
+* **Réglages, volet Énergie** (`src/apps/control/applets/power.cpp`, montré si `/sys/svc/acpid` existe) :
+  une carte avec ce qui est découvert : le profil (avec HWP ou EIST), « Économie automatique sous »
+  (`saver`, avec batterie et profils), « Extinction automatique à » (`shutdown`, avec batterie), « Bouton
+  d'alimentation » (`power_button` : Demander, Éteindre, Ne rien faire ; s'il y en a un) ; dessous l'état,
+  relu toutes les 5 s (jauge, temps, secteur, usure, cycles, modèle). Le profil passe par acpid ; le reste
+  est écrit dans `/etc/power.ini` après l'élévation, puis `ACPID_OP_RELOAD`.
 * **Commande `battery`** : niveau, temps restant, secteur, puissance, capacité et usure, modèle, cycles,
   seuils, profil ; `battery -r` (valeurs brutes), `battery profile auto|performance|balanced|saver`,
   `battery reload`.
@@ -131,6 +156,11 @@ il publie « pas de batterie » et reste à répondre.
 * **Bouton d'alimentation sous QEMU** (`system_powerdown` du moniteur : événement fixe) : « SCI : ligne 9 »,
   « bouton : power », le dialogue d'extinction s'ouvre (17/11 le soir). Le GPE de l'EC, les Notify et le
   couvercle n'ont pas d'équivalent sous QEMU : pas essayés.
+* **Volet Énergie sous QEMU** (18/11) : avec la fausse batterie, la carte montre l'extinction et le bouton
+  (pas de profil : QEMU n'a ni HWP ni EIST), l'état se met à jour ; sans batterie, le bouton seul et « Pas
+  de batterie (secteur) », pas d'icône dans la barre ; menu de la barre : « Réglages d'énergie… » sans les
+  profils ; extinction à 10 % appliquée (carte d'élévation, « Enregistré. ») : acpid relit le fichier et
+  annonce l'extinction à 8 %.
 * **Pas encore essayé sur le ZBook.**
 
 ## Marche à suivre sur le ZBook
@@ -157,5 +187,7 @@ il publie « pas de batterie » et reste à répondre.
 
 * S3 (veille) : `_PTS`, `_WAK`, état des pilotes ; puis le couvercle et le bouton de veille l'utiliseront.
 * Le thermique (`_TZ` : refroidissement passif) : l'EC du ZBook gère seul ses ventilateurs.
-* Un volet « Énergie » dans Réglages (seuils, profils) ; la luminosité de l'écran en économie.
+* La luminosité de l'écran en économie (`_BCM` de l'ACPI ou le rétroéclairage du GPU).
+* Les seuils des alertes (`warn`, `critical`) et les profils sur secteur ou batterie dans le volet Énergie
+  (aujourd'hui dans `/etc/power.ini`).
 * Le mode poche de la barre (l'icône y est dessinée comme en mode normal).
