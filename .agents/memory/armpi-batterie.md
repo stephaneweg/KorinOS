@@ -24,8 +24,10 @@ Générique (18/11, demande de l'utilisateur : rien de propre au ZBook, chaque f
 matériel est découvert) : GET d'acpid dit profiles, lids, power_button, ec, events ; mAh sans tension -> 11,1 V
 nominale ; volet Énergie de Réglages (applets/power.cpp) et « Réglages d'énergie… » dans la barre (profils
 cachés sans HWP/EIST) ; essayés sous QEMU avec et sans batterie.
-Reste : S3 (l'écran GOP ne revient pas au réveil sans pilote d'affichage ; tous les pilotes à relancer ; le
-DSDT du ZBook a _S3), thermique, luminosité.
+Reste : thermique, luminosité. **18/11, décision : pas de S3** (démarrage en 0,46 s) ; au plan à la place
+(docs/etude/BATTERIE-PC.md, fin) : couvercle fermé = économie d'énergie (écran éteint, HWP, Wi-Fi en économie),
+arrêt automatique après 30 min couvercle fermé, session enregistrée à l'arrêt et rouverte au démarrage (API
+UIKit/AppKit, HOME:/etc/session.ini).
 Voir [[armpi-x86-pc]].
 
 **18/11, publié en pc 2026.11.50** (KorinOS-pub 5e345a03 ; 11.51 de l'autre session = 11.50 + mediakit.so).

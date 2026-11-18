@@ -197,9 +197,41 @@ Tout ce qu'il faut pour les refaire ailleurs est dans le dépôt (`tools/acpica/
 
 ## Reste à faire
 
-* S3 (veille) : `_PTS`, `_WAK`, état des pilotes ; puis le couvercle et le bouton de veille l'utiliseront.
+* ~~S3 (veille)~~ : **remplacé le 18/11/2026** par le plan ci-dessous (décision de l'utilisateur : le système
+  démarre en 0,46 s ; S3 demanderait de rendormir et réveiller chaque pilote, et l'écran GOP ne revient pas).
+  S3 reste une idée pour plus tard si ce plan ne suffit pas.
 * Le thermique (`_TZ` : refroidissement passif) : l'EC du ZBook gère seul ses ventilateurs.
 * La luminosité de l'écran en économie (`_BCM` de l'ACPI ou le rétroéclairage du GPU).
 * Les seuils des alertes (`warn`, `critical`) et les profils sur secteur ou batterie dans le volet Énergie
   (aujourd'hui dans `/etc/power.ini`).
 * Le mode poche de la barre (l'icône y est dessinée comme en mode normal).
+
+## Plan : couvercle, arrêt automatique, session (décidé le 18/11/2026)
+
+Pas de vraie veille. Trois choses, dans cet ordre :
+
+1. **Couvercle fermé = économie d'énergie** (pas de veille) : `korin.power.lid = closed` fait éteindre l'écran
+   (rétroéclairage : `_BCM` de l'ACPI ou registre du GPU Intel ; à défaut l'écran noir et la peinture arrêtée par
+   Elegant), passer le profil d'énergie en économie (HWP), ralentir les sondes et les minuteries des services, et
+   mettre le Wi-Fi en économie (power save d'iwl). Le son est coupé. À l'ouverture, tout revient tel quel
+   (écran de verrouillage si un mot de passe est réglé, avec le multi-utilisateur). Réglage `lid = save | nothing |
+   shutdown` dans `/etc/power.ini` et le volet Énergie ; `save` par défaut.
+2. **Arrêt automatique après 30 minutes** couvercle fermé (`lid_shutdown = 30`, en minutes, 0 = jamais ; réglable
+   dans le volet Énergie) ; aussi à la batterie critique (déjà : extinction à 5 %). L'arrêt enregistre la session
+   d'abord (point 3). Une construction ou une copie en cours retarde l'arrêt ? À décider (au moins : prévenir au
+   journal et ne pas couper `pkgd` au milieu d'une installation).
+3. **Session enregistrée à l'arrêt, rouverte au démarrage** (comme la reprise de macOS) :
+   * à l'arrêt (`/sys/shutdown`), Elegant envoie à chaque app un événement « enregistrer l'état » ; l'app répond
+     par quelques lignes (documents ouverts, onglets de Jet, dossier de Fichiers, dossier du terminal), gardées
+     avec la place et la taille de ses fenêtres dans `HOME:/etc/session.ini` ;
+   * au démarrage (après la connexion), la session relance les apps de ce fichier avec leur état
+     (`--restore <état>`) ; une app qui ne sait pas le faire est rouverte vide, à sa place ;
+   * API dans UIKit/AppKit (un événement et deux fonctions : écrire l'état, le relire), ajoutée à la fin des
+     tables `.abi` ; les apps C++/C#/BASIC l'ont par leurs liaisons ;
+   * documents non enregistrés : enregistrés à part (copie de travail dans `HOME:/etc/session/`), jamais perdus,
+     rouverts « modifiés » ;
+   * réglage « Rouvrir les apps au démarrage » (oui par défaut) dans le volet Démarrage ou Énergie.
+
+Ordre : 1 et 2 dans acpid, Elegant et le volet Énergie (petit) ; 3 dans UIKit, Elegant et la session, puis app par
+app (Jet, Fichiers, Terminal, les éditeurs d'abord).
+
