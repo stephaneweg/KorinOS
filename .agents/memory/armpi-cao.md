@@ -88,3 +88,5 @@ calcule un **état intermédiaire** indépendant de la machine (trajets d'outil,
 un **module d'export par machine** (.so, dlopen) écrit le fichier : Two Trees **6040** en GRBL, Photon Mono 2 en
 .pm3n, Kobra X en G-code (fichier d'exemple attendu). Comme 3DForge d'Onyx (fcam.h, fprint.h, ffdm.h). La fraiseuse est la
 Two Trees TTC 6040 : zone de travail 600 × 400 × 100 mm (confirmé le 18/11 ; la maquette g1 disait TTC 450).
+
+**18/11, CNC deux faces** : plusieurs mises en position ; chacune : origine parmi 27 points, X machine parmi ±X/±Y du projet, Z machine +Z ou −Z, Y déduit (Y = Z × X, jamais de miroir) ; exemple du violon (setup 1 X=+Y Z=+Z → Y=−X ; setup 2 X=+Y Z=−Z → Y=+X) ; pas de pions. DESIGN-CAO.md §14 bis.

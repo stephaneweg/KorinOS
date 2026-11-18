@@ -449,6 +449,16 @@ greffons »). Trois procédés :
   d'impression…), comme dans 3DForge.
 * Ordre : **CNC d'abord** (reprise de `fcam.h` sur la section exacte d'OCCT), puis **SLA** (`fprint.h`), puis
   **FDM** (`ffdm.h`, son écrivain quand un fichier de la Kobra X sera fourni).
+* **CNC : plusieurs mises en position et les axes** (décision de l'utilisateur, 18/11). Chaque mise en position
+  (*setup*) a son brut, son **origine parmi les 27 points** (du brut tel qu'il est posé dans cette mise en position,
+  l'utilisateur refait son zéro dessus), et ses **axes** : la direction du **X** de la machine parmi ±X, ±Y du projet,
+  et celle du **Z** de la machine, **+Z ou −Z** du projet ; **Y est déduit** pour garder un repère droit
+  (Y = Z × X), donc jamais de miroir. −Z sert à **usiner la deuxième face** : la pièce retournée autour du X de la
+  machine. Exemple de l'utilisateur, un violon modélisé en longueur selon Y, usiné en longueur selon le X de la
+  machine : mise en position 1, X = +Y, Z = +Z, donc Y = −X ; on retourne ; mise en position 2, X = +Y, Z = −Z,
+  donc Y = +X. Pas de pions de centrage (l'utilisateur recale lui-même). Un G-code par mise en position ; la vue
+  montre la pièce telle qu'elle est posée ; les vérifications (course 600 × 400 × 100, profondeur) se font pour
+  chacune.
 * La fraiseuse de l'utilisateur est la **Two Trees TTC 6040** (confirmé le 18/11) : **zone de travail 600 × 400 ×
   100 mm** (X × Y × Z). La maquette g1 disait « TTC 450 » : c'est la 6040 qui fait foi.
 
