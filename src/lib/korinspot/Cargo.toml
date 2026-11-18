@@ -1,0 +1,32 @@
+# korinspot : librespot pour Korin, en bibliothèque C (tools/spotify/build.sh ; docs/etude/MUSIQUE.md §1).
+# Les caisses de vendor/ sont celles du registre avec tools/spotify/patches/*.patch (la cible « korin »).
+[package]
+name = "korinspot"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[lib]
+crate-type = ["staticlib"]
+path = "src/lib.rs"
+
+[dependencies]
+librespot-core = { version = "=0.7.1", default-features = false, features = ["native-tls"] }
+librespot-playback = { version = "=0.7.1", default-features = false, features = ["native-tls"] }
+librespot-metadata = { version = "=0.7.1", default-features = false }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "unwind"
+
+[patch.crates-io]
+socket2 = { path = "../vendor/socket2-0.6.5" }
+mio = { path = "../vendor/mio-1.2.4" }
+tokio = { path = "../vendor/tokio-1.54.1" }
+getrandom02 = { path = "../vendor/getrandom-0.2.17", package = "getrandom" }
+getrandom04 = { path = "../vendor/getrandom-0.4.3", package = "getrandom" }
+open = { path = "../vendor/open-5.4.5" }
+tempfile = { path = "../vendor/tempfile-3.27.0" }

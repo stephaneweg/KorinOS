@@ -1,0 +1,23 @@
+
+--- a/src/net/unix/ucred.rs	2006-07-24 03:21:28.000000000 +0200
++++ b/src/net/unix/ucred.rs	2026-11-18 18:32:26.393107460 +0100
+@@ -72,7 +72,8 @@
+     target_os = "fuchsia",
+     target_os = "hurd",
+     target_os = "nuttx",
+-    target_os = "vita"
++    target_os = "vita",
++    target_os = "korin"
+ ))]
+ pub(crate) use self::impl_noproc::get_peer_cred;
+ 
+@@ -408,7 +409,8 @@
+     target_os = "fuchsia",
+     target_os = "hurd",
+     target_os = "nuttx",
+-    target_os = "vita"
++    target_os = "vita",
++    target_os = "korin"
+ ))]
+ pub(crate) mod impl_noproc {
+     use crate::net::unix::UnixStream;

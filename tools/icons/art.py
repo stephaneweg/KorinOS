@@ -476,6 +476,16 @@ def jamendo(ic):
     ic.fill(heads, Grad(0xFFFFFF, 0xE4F6F2, 100))
 
 
+@icon('spotify', 0x2B3236, 0x121618)
+def spotify(ic):
+    # des barres d'égaliseur vertes : la musique en flux (pas le logo de la marque)
+    for i, h in enumerate((26, 44, 58, 38, 50, 30)):
+        x = 22 + i * 10
+        bar = ic.rr(x, 74 - h, 7, h, 3.5)
+        ic.shadow(bar, 1, 1.4, .3)
+        ic.fill(bar, Grad(0x5BEA92, 0x1DA557, 100))
+
+
 @icon('weather', 0x63C0F7, 0x2A7BD8)
 def weather(ic):
     # le soleil derriere un nuage

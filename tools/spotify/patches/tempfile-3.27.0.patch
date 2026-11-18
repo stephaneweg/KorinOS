@@ -1,0 +1,46 @@
+
+--- a/Cargo.toml	2006-07-24 03:21:28.000000000 +0200
++++ b/Cargo.toml	2026-11-18 18:35:11.034122690 +0100
+@@ -88,7 +88,7 @@
+ [dev-dependencies.doc-comment]
+ version = "0.3"
+ 
+-[target.'cfg(any(unix, target_os = "wasi"))'.dependencies.rustix]
++[target.'cfg(all(any(unix, target_os = "wasi"), not(target_os = "korin")))'.dependencies.rustix]
+ version = "1.1.4"
+ features = ["fs"]
+ 
+
+--- a/src/file/imp/unix.rs	2006-07-24 03:21:28.000000000 +0200
++++ b/src/file/imp/unix.rs	2026-11-18 18:35:11.034122690 +0100
+@@ -5,10 +5,12 @@
+ use crate::util;
+ use std::path::Path;
+ 
+-use {
+-    rustix::fs::{rename, unlink},
+-    std::fs::hard_link,
+-};
++#[cfg(not(target_os = "korin"))]
++use rustix::fs::{rename, unlink};
++// (korin : sans rustix, la std suffit)
++#[cfg(target_os = "korin")]
++use std::fs::{remove_file as unlink, rename};
++use std::fs::hard_link;
+ 
+ pub fn create_named(
+     path: &Path,
+@@ -80,9 +82,10 @@
+ 
+ pub fn reopen(file: &File, path: &Path) -> io::Result<File> {
+     let new_file = OpenOptions::new().read(true).write(true).open(path)?;
+-    let old_meta = rustix::fs::fstat(file)?;
+-    let new_meta = rustix::fs::fstat(&new_file)?;
+-    if old_meta.st_dev != new_meta.st_dev || old_meta.st_ino != new_meta.st_ino {
++    use std::os::unix::fs::MetadataExt;
++    let old_meta = file.metadata()?;
++    let new_meta = new_file.metadata()?;
++    if old_meta.dev() != new_meta.dev() || old_meta.ino() != new_meta.ino() {
+         return Err(io::Error::new(
+             io::ErrorKind::NotFound,
+             "original tempfile has been replaced",

@@ -1,6 +1,16 @@
 # Étude : Spotify et Jamendo dans Korin
 
-Demandée le 18/11/2026. Rien n'est fait. L'utilisateur a un compte **Spotify Famille** (Premium) et veut une app
+Demandée le 18/11/2026. **Fait le 18/11** (construit, pas encore essayé : il faut un client_id de chaque service) :
+1. UIKit et Elegant : `ui_window_place`, `ui_window_top`, `ui_window_pos` (WS_OP_WIN_TOP) ;
+2. le mini-lecteur du Media Player, en carte en bas à droite, au-dessus ; fermer pendant la lecture réduit ;
+3. **Jamendo** (`src/apps/jamendo`) : populaires, nouveautés, recherche, radios par genre, téléchargement ;
+4. **Spotify** : librespot 0.7.1 construit pour `x86_64-unknown-korin` en bibliothèque C (`src/lib/korinspot`,
+   `tools/spotify/build.sh` : sept caisses patchées, `tools/spotify/patches`, mio par poll(2)) ; l'app
+   (`src/apps/spotify`) : OAuth par oauthd (client_id de l'utilisateur, retour `http://127.0.0.1:8898/`), API web
+   (titres aimés, playlists, recherche), son par un flux AudioKit. **Reste** : Spotify Connect ; les pochettes, les
+   touches multimédia et les pièces communes dans les kits (§3) ; korinspot pour le Pi.
+
+Le reste de l'étude : L'utilisateur a un compte **Spotify Famille** (Premium) et veut une app
 Korin pour Spotify, et un client Jamendo. Ce qui suit n'a pas été revérifié en ligne : à confirmer au début du
 chantier (protocoles et conditions des deux services changent).
 

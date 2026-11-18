@@ -1,0 +1,9 @@
+# Manifeste de Spotify (librespot pour Korin : src/lib/korinspot ; docs/etude/MUSIQUE.md)
+name     = Spotify
+category = Multimédia
+description = Écouter Spotify (compte Premium) : vos titres aimés, vos playlists et la recherche, joués par librespot.
+keywords = musique spotify écouter playlist titres aimés premium artiste album
+help = Il faut un compte Premium (Famille l'est) et une app Spotify à vous : sur developer.spotify.com, créez-en une avec l'adresse de retour http://127.0.0.1:8898/, puis Fichier, Se connecter à Spotify, et son Client ID.
+help = L'accord se donne dans Jet ; Korin garde la connexion (oauthd, le coffre). Fichier, Se déconnecter l'oublie.
+help = À gauche : vos titres aimés et vos playlists ; en haut, la recherche. Double-clic ou Entrée sur un titre : il joue ; Espace : lecture ou pause ; Ctrl+→, Ctrl+← : suivant, précédent.
+help = Fermer la fenêtre pendant la lecture la réduit en carte en bas à droite, au-dessus des autres ; la musique continue. Fermer la carte l'arrête.

@@ -1,0 +1,21 @@
+# apps/spotify : anglais (clés : les textes du source)
+Ma musique = My music
+Titres aimés = Liked songs
+Playlists = Playlists
+Se connecter à Spotify = Connect to Spotify
+Se connecter à Spotify… = Connect to Spotify…
+Se déconnecter = Disconnect
+Déconnecté. = Disconnected.
+Connecté. = Connected.
+La connexion a échoué. = The connection failed.
+Le Client ID de votre app Spotify (developer.spotify.com ; adresse de retour : http://127.0.0.1:8898/) : = The Client ID of your Spotify app (developer.spotify.com; redirect URI: http://127.0.0.1:8898/):
+oauthd refuse le compte. = oauthd refuses the account.
+oauthd ne peut pas ouvrir la connexion (port 8898 pris ?). = oauthd cannot start the connection (port 8898 taken?).
+Acceptez dans Jet ; la connexion se termine ici d'elle-même. = Accept in Jet; the connection finishes here by itself.
+Connectez-vous d'abord : Fichier, Se connecter à Spotify… = Connect first: File, Connect to Spotify…
+Connexion au lecteur de Spotify… = Connecting to Spotify's player…
+Le lecteur de Spotify refuse la connexion (Premium ?) :  = Spotify's player refuses the connection (Premium?):\
+La connexion au lecteur n'est pas encore faite. = The player is not connected yet.
+Spotify ne répond pas :  = Spotify does not answer:\
+Ce titre n'est pas disponible : le suivant. = This track is not available: the next one.
+Fichier, Se connecter à Spotify… (il faut un compte Premium) = File, Connect to Spotify… (a Premium account is needed)

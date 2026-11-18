@@ -31,7 +31,7 @@ ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab 
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
 screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu gcemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
 recorder targets bubbles arkanoid pkgman pkg pkgd webd smbd smbfs oauthd keyvault gdrivefs webstudio koton llm vibe claude forge
-2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris installer weather asteroids parkingjam jamendo"
+2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris installer weather asteroids parkingjam jamendo spotify"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
 : > "$OUT/status.new"
@@ -269,6 +269,11 @@ build_one () { # nom
 	gdrivefs)	build_gdrive; return ;;
 	control)	# (hôte de dlopen : les volets installés par des paquets, sys/applets/*.so, prennent son cadre et ses relais)
 		LINKX=-rdynamic ;;
+	spotify)	# (librespot pour Korin : tools/spotify/build.sh -> build/pc/spotify ; OpenSSL comme Jamendo)
+		[ -f "$ROOT/build/pc/spotify/libkorinspot.a" ] || { note "spotify : pas construite (bash tools/spotify/build.sh)"; return 0; }
+		[ -f "$TP/openssl/lib/libssl.a" ] || { note "spotify : pas construite (OpenSSL x86-64 absent)"; return 0; }
+		FLAGS="$FLAGS -I$TP/openssl/include -I$ROOT/build/pc/spotify"
+		EXTRA="$ROOT/build/pc/spotify/libkorinspot.a -L$TP/openssl/lib -lssl -lcrypto" ;;
 	mail|telegram|courier|pocketqi|budget|pkg|pkgd|llm|jamendo)	# (OpenSSL : tools/pc/thirdparty.sh openssl ; pkgman passe par pkg)
 		[ -f "$TP/openssl/lib/libssl.a" ] || { note "$app : pas construite (OpenSSL x86-64 absent : tools/pc/thirdparty.sh openssl)"; return 0; }
 		FLAGS="$FLAGS -I$TP/openssl/include"

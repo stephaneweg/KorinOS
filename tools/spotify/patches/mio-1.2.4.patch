@@ -1,0 +1,30 @@
+
+--- a/src/sys/unix/pipe.rs	2006-07-24 03:21:28.000000000 +0200
++++ b/src/sys/unix/pipe.rs	2026-11-18 18:30:27.919910094 +0100
+@@ -22,6 +22,7 @@
+         target_os = "redox",
+         target_os = "solaris",
+         target_os = "vita",
++        target_os = "korin",
+         target_os = "cygwin",
+         target_os = "nuttx",
+     ))]
+
+--- a/src/sys/unix/tcp.rs	2006-07-24 03:21:28.000000000 +0200
++++ b/src/sys/unix/tcp.rs	2026-11-18 18:28:52.663053971 +0100
+@@ -100,6 +100,7 @@
+         target_os = "watchos",
+         target_os = "espidf",
+         target_os = "vita",
++        target_os = "korin",
+         target_os = "hermit",
+         target_os = "nto",
+         target_os = "wasi",
+@@ -123,6 +124,7 @@
+                 target_os = "aix",
+                 target_os = "espidf",
+                 target_os = "vita",
++                target_os = "korin",
+                 target_os = "hermit",
+                 target_os = "nto",
+                 target_os = "wasi",
