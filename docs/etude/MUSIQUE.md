@@ -64,5 +64,11 @@ aussi.
 
 1. ~~Un seul lecteur ou deux apps ?~~ **Deux apps** (décision du 18/11) : une pour Spotify, une pour Jamendo ;
    les pièces communes (§3) restent dans les kits.
-2. La musique continue-t-elle app fermée (service, voie C) dès le début ?
+2. ~~La musique continue-t-elle app fermée ?~~ **Oui** (décision du 18/11) : fermer la fenêtre pendant la lecture
+   ne coupe pas la musique ; la fenêtre disparaît et **un petit lecteur s'affiche sur le bureau** (pochette, titre,
+   précédent, lecture/pause, suivant ; un clic rouvre l'app ; une croix arrête et quitte). L'utilisateur le décrit
+   comme le Media Player venu d'Onyx ; dans Korin, `media.app` a un mini-lecteur (`enter_mini`, sa fenêtre réduite
+   en carte), mais **fermer la fenêtre arrête la musique** (`src/apps/media/main.cpp`, en tête) : la même chose est à
+   faire pour lui. Pièce commune dans UIKit/MediaKit (le mini-lecteur du bureau), servie aux trois apps ; le process
+   de l'app reste en vie sans fenêtre principale (pas besoin du service de la voie C pour cela).
 3. Noms des apps.

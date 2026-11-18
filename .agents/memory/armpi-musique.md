@@ -11,7 +11,7 @@ Proposé (docs/etude/MUSIQUE.md) : ne pas réécrire librespot en C (gros, et pe
 construire par la cible Rust croisée avec une façade `extern "C"`, l'app en C/C++ sur UIKit ; connexion OAuth par
 oauthd (client_id de l'utilisateur), API web pour parcourir, Spotify Connect ensuite. Jamendo d'abord (API
 publique, MP3 directs), pièces communes (flux, file, touches multimédia, applet) dans MediaKit/AudioKit/UIKit.
-Décision du 18/11 : **deux apps** (Spotify, Jamendo). Questions en attente : service en arrière-plan, noms.
+Décision du 18/11 : **deux apps** (Spotify, Jamendo). Décision du 18/11 : fermer la fenêtre ne coupe pas la musique, un petit lecteur s'affiche sur le bureau (comme le décrit l'utilisateur pour le Media Player d'Onyx ; media.app de Korin arrête la musique à la fermeture : à aligner aussi). Question en attente : noms.
 
 **How to apply:** vérifier en ligne l'état de librespot et des conditions de l'API de Spotify avant de commencer.
 Voir [[armpi-rust]], [[armpi-oauth]], [[armpi-media-player]].
