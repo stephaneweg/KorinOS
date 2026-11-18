@@ -244,3 +244,22 @@ Le touchpad **fonctionne** sur le ZBook (`i2chid run`). Ce qui suit :
 * l'interruption par l'IRQ partagée du GPIO du PCH (contrôleur `INT34C6`), et le pilote GPIO ;
 * au panneau : toucher pour cliquer, sens du défilement (dans `i2chid.txt` pour l'instant) ;
 * défilement horizontal (deux doigts de côté) : hidmanager n'a qu'une molette verticale.
+
+## Les boutons du ZBook (18/11)
+
+Relevé sur le ZBook (`i2chid run -vv`, un bouton après l'autre, sans toucher le pavé), d'après le descripteur
+(rapport 4 : dans la collection du doigt, Confidence, Tip, puis « Button 2 » et « Button 3 » d'un bit chacun ; pas
+de Button 1) :
+
+| Bouton | Rapport |
+|---|---|
+| gauche, sous le pavé | 4 : un doigt sans Tip (`05` : Confidence + « bouton 2 »), X 0, Y au bas, Contact Count 0 |
+| milieu, sous le pavé | 42 (`0x2a`, le pointeur du clavier) : bouton 3 |
+| droit, sous le pavé | 4 : `09` (Confidence + « bouton 3 ») |
+| gauche, milieu, droit au-dessus | 42 : boutons 1, 3, 2 |
+| le PointStick | 42 : `2a 00 dx dy` |
+
+`hidrd.c` ignorait ces bits du doigt (« le toucher seul clique ») : ils sont maintenant les boutons gauche et droit
+du pavé (`t_btn[0]`, `t_btn[1]`), essayés hors matériel avec ces rapports (`test/hidrd_test.c`). Le rapport 42 était
+déjà compris (souris 1) : les boutons du dessus et le PointStick sont à revérifier sur le ZBook avec ce pilote.
+

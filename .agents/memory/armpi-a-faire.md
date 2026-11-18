@@ -13,7 +13,7 @@ Désormais ils bougent du même décalage (`uk_tbar_shift`, uk_tabs.c) et `uk_ad
 apps qui placent leurs boutons (mail, irc, letters) le font après la barre : inchangées. Pas encore vérifié à
 l'écran (Jet sur le ZBook, cardfile, help).
 
-**PRIORITÉ, signalé le 18/11 — boutons du touchpad du ZBook** : le touchpad marche, pas les boutons autour (3 sous
+**EN COURS, 18/11 — boutons du touchpad du ZBook** : boutons sous le pavé corrigés dans hidrd.c (bits du doigt, docs/etude/TOUCHPAD-PC.md « Les boutons du ZBook ») ; le rapport 42 (dessus, milieu, PointStick) arrive bien au pilote : à revérifier sur le ZBook avec le nouveau pc. Signalé : le touchpad marche, pas les boutons autour (3 sous
 le touchpad : COL03 ; 3 au-dessus : COL05, PointStick ELAN). À faire dans i2chid, détail : docs/etude/PC-PILOTES.md
 §5 point 0.
 

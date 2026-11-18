@@ -430,6 +430,47 @@ int main(void)
 	CHECK(!D.overflow && M.nfing >= 1 && M.mode_item >= 0, "zbook : %d perdus, %d doigts, Input Mode %d", D.overflow,
 	      M.nfing, M.mode_item);
 	gestures("zbook");
+	{
+		/* les boutons du ZBook, relevés le 18/11 (i2chid run -vv, un bouton après l'autre, sans toucher le
+		   pavé) : sous le pavé, un doigt sans Tip avec le bit « bouton 2 » (gauche) ou « bouton 3 » (droit) ;
+		   le bouton du milieu et les 3 du dessus passent par le pointeur du clavier (rapport 0x2a) */
+		static const uint8_t left[] = {0x04, 0x05, 0x00, 0x00, 0xeb, 0x06, 0x36, 0x2f, 0x00, 0x80, 0x00, 0x00};
+		static const uint8_t right[] = {0x04, 0x09, 0x00, 0x00, 0xeb, 0x06, 0x36, 0x2f, 0x00, 0x80, 0x00, 0x00};
+		static const uint8_t none[] = {0x04, 0x01, 0x00, 0x00, 0xeb, 0x06, 0x36, 0x2f, 0x00, 0x80, 0x00, 0x00};
+		static const uint8_t stick_l[] = {0x2a, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+		static const uint8_t stick_mv[] = {0x2a, 0x00, 0x04, 0x0c, 0x00, 0x00, 0x00, 0x00};
+		struct hid_frame fr;
+		CHECK(hid_decode(&D, &M, left, sizeof left, &fr) && fr.kind == 2 && fr.button == 1 && fr.n == 0,
+		      "zbook : bouton gauche du pavé -> %d (n %d)", fr.button, fr.n);
+		CHECK(hid_decode(&D, &M, right, sizeof right, &fr) && fr.kind == 2 && fr.button == 2,
+		      "zbook : bouton droit du pavé -> %d", fr.button);
+		CHECK(hid_decode(&D, &M, stick_l, sizeof stick_l, &fr) && fr.kind == 1 && fr.src == 1 && fr.buttons == 1,
+		      "zbook : bouton gauche du dessus -> genre %d, souris %d, boutons %d", fr.kind, fr.src, fr.buttons);
+		CHECK(hid_decode(&D, &M, stick_mv, sizeof stick_mv, &fr) && fr.kind == 1 && fr.dx == 4 && fr.dy == 12,
+		      "zbook : pointeur du clavier -> %d %d", fr.dx, fr.dy);
+		struct gest_cfg cfg = {100, 1, 1, 300};
+		gest_init(&G, &M, &cfg);
+		nev = 0;
+		long t = 100000;
+		const uint8_t *seq[] = {none, left, left, none, right, none};
+		for (int i = 0; i < 6; i++) {
+			hid_decode(&D, &M, seq[i], sizeof none, &fr);
+			gest_report(&G, &fr, M.nfing, t += 9, emit, 0);
+		}
+		int downs[3] = {0, 0, 0}, prev = 0;
+		for (int i = 0; i < nev; i++)
+			if (evs[i].type == GEV_MOUSE_REL) {
+				int b = (int)evs[i].c & 7;
+				for (int k = 0; k < 3; k++)
+					if ((b >> k & 1) && !(prev >> k & 1))
+						downs[k]++;
+				prev = b;
+			}
+		printf("  zbook : boutons du pavé -> gauche %d, droit %d (relâchés : %s)\n", downs[0], downs[1],
+		       prev ? "non" : "oui");
+		CHECK(downs[0] == 1 && downs[1] == 1 && !prev, "zbook : boutons du pavé %d %d, fin %d", downs[0], downs[1],
+		      prev);
+	}
 
 	printf(fails ? "%d ÉCHEC(S)\n" : "tout est juste\n", fails);
 	return fails != 0;

@@ -630,7 +630,7 @@ static int describe(void)
 		     "Input Mode %s\n",
 		     HM.t_id, HM.nfing, HM.xmin, HM.xmax, HM.ymin, HM.ymax, HM.xmm100 / 100, HM.xmm100 % 100,
 		     HM.ymm100 / 100, HM.ymm100 % 100,
-		     HM.t_btn[0] < 0 ? "aucun" : HM.t_btn[1] < 0 ? "1 (le pavé entier)" : "1 à 3",
+		     HM.t_btn[0] < 0 ? "aucun" : HM.t_btn[1] < 0 ? "1 (le pavé entier)" : HM.t_btn[2] < 0 ? "gauche et droit" : "1 à 3",
 		     HM.mode_item >= 0 ? "oui" : "non");
 	return k;
 }

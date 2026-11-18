@@ -290,10 +290,16 @@ int hid_model_build(const struct hid_desc *d, struct hid_model *m)
 			else if (o->usage == U_DIG_SCAN_TIME && m->t_scan < 0)
 				m->t_scan = i;
 		}
-		/* pas de bouton 1 : les « boutons » 2 et 3 sont alors des bits de chaque doigt (ELAN 04f3:313a du ZBook,
-		   dans la collection du doigt), pas un bouton du pavé : ignorés, le toucher seul clique */
-		if (m->t_btn[0] < 0)
-			m->t_btn[1] = m->t_btn[2] = -1;
+		/* pas de bouton 1 : les « boutons » 2 et 3 sont des bits de la collection du doigt (ELAN 04f3:313a du
+		   ZBook). Ce sont les boutons sous le pavé : un appui arrive comme un doigt sans Tip (Confidence 1,
+		   X 0, Y au bas, Contact Count 0) avec le bit levé ; relevé le 18/11 sur le ZBook : « bouton 2 » = le
+		   bouton gauche, « bouton 3 » = le droit (celui du milieu passe par le rapport du pointeur du clavier).
+		   Ils deviennent les boutons gauche et droit du pavé. */
+		if (m->t_btn[0] < 0) {
+			m->t_btn[0] = m->t_btn[1];
+			m->t_btn[1] = m->t_btn[2];
+			m->t_btn[2] = -1;
+		}
 		r |= 2;
 	}
 
