@@ -35,6 +35,23 @@ en (0, 0). Les **vrais calques**, quand il y en a, suivent à partir du calque 1
 * À l'écriture vers un format sans calques, seul le calque 0 part ; vers un format à calques, le traducteur écrit
   les calques 1 à n (et l'aplatie si le format en garde une, recalculée si les calques ont changé).
 
+### 2.1 Les images animées : une liste d'images (décision de l'utilisateur, 18/11)
+
+Le document a **deux listes** : les **calques** (ci-dessus) et les **images successives** (*frames*). Chaque image
+successive est une **image plate** de la taille du document, avec sa **durée** d'affichage (ms) ; le document dit
+aussi combien de fois l'animation se répète (0 : sans fin).
+
+* Une image fixe (BMP, JPEG, PNG) : le calque 0, **aucune image successive**.
+* Une image à calques (PSD, Paint) : le calque 0 aplati, les calques 1 à n, aucune image successive.
+* Une image animée (GIF, WebP animé, APNG, AVIF animé) : les images successives, chacune **déjà composée** par le
+  traducteur (les règles d'effacement du GIF ou de l'APNG, les rectangles partiels, sont appliquées : l'app reçoit
+  des images complètes) ; le **calque 0 est la première image**, pour qu'une app qui ignore l'animation (une
+  miniature, Mail, `ui_image_load`) ait quand même l'image.
+* Ainsi le même format canonique couvre les images normales, les calques et les animées ; une app prend ce dont
+  elle a besoin : le calque 0, les calques, ou les images successives (ImageView et Photos les jouent ; UIKit
+  pourra avoir un widget d'image animée).
+* À l'écriture : vers un format animé, les images successives ; vers un format fixe, le calque 0.
+
 ## 3. Le kit
 
 * **Un nouveau kit, `ImageKit`** (`/lib/imagekit.so`, table `imagekit.abi`, API C comme les autres kits) : le
@@ -66,8 +83,7 @@ en (0, 0). Les **vrais calques**, quand il y en a, suivent à partir du calque 1
 
 ## 5. Questions
 
-1. Les images animées (GIF, WebP animé, APNG) : des **images successives** (un autre axe que les calques), ou
-   seulement la première image pour l'instant ?
+1. ~~Les images animées ?~~ **Réglée le 18/11** : une liste d'images successives à côté des calques (§2.1).
 2. Les modes de fusion des calques à prendre en charge d'abord (normal seul, ou aussi multiplier, superposition… du
    PSD) ?
 3. Les groupes de calques (dossiers du PSD) : aplatis à la lecture, ou gardés ?
