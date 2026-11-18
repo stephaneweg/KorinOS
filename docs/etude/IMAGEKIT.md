@@ -23,9 +23,17 @@ Un traducteur rend toujours **un document image**, pas un simple bitmap :
 | pour chaque calque | son **bitmap** (largeur, hauteur, pixels 0xAARRGGBB), sa **position** (x, y) par rapport à l'image, et ce que le format sait en dire : nom, visible, opacité, mode de fusion (normal par défaut) |
 | métadonnées (facultatif) | résolution (ppp), profil de couleur, orientation EXIF déjà appliquée |
 
-Un BMP, un JPEG, un PNG… est **un document à un seul calque**, de la taille de l'image, placé en **(0, 0)**. Un PSD
-(ou le format de Paint, ou un ORA/OpenRaster) en a plusieurs, chacun à sa place. Une app qui ne veut qu'une image
-plate demande la **fusion** des calques (faite par le kit, en respectant visibilité, opacité et fusion).
+**Le calque 0 est toujours l'image aplatie** (précision de l'utilisateur, 18/11) : de la taille de l'image, placé
+en (0, 0). Les **vrais calques**, quand il y en a, suivent à partir du calque 1, du fond vers le dessus.
+
+* Un BMP, un JPEG, un PNG… n'a que le **calque 0** (l'image elle-même, en (0, 0)).
+* Un PSD (ou le format de Paint, un ORA/OpenRaster) a le calque 0 (l'image aplatie) puis ses calques 1 à n, chacun
+  à sa place. Le traducteur prend l'aplatie que le fichier contient quand il en a une (le PSD en garde une), sinon
+  le kit la calcule par fusion (visibilité, opacité, mode de fusion).
+* Une app qui ne veut qu'une image plate (afficher, une miniature, Mail) prend **le calque 0**, sans fusion ; une
+  app d'édition (Paint) prend les calques 1 à n.
+* À l'écriture vers un format sans calques, seul le calque 0 part ; vers un format à calques, le traducteur écrit
+  les calques 1 à n (et l'aplatie si le format en garde une, recalculée si les calques ont changé).
 
 ## 3. Le kit
 
@@ -39,7 +47,7 @@ plate demande la **fusion** des calques (faite par le kit, en respectant visibil
 * **Fonctions principales** : charger un fichier ou des données → document ; fusionner → image plate ; écrire un
   document dans un format choisi ; lister les formats lisibles et ceux qu'on sait écrire (pour « Ouvrir » et
   « Enregistrer sous ») avec leurs extensions et types.
-* **UIKit s'appuie dessus** : `ui_image_load` et `ui_image_decode` passent par ImageKit (charger puis fusionner) au
+* **UIKit s'appuie dessus** : `ui_image_load` et `ui_image_decode` passent par ImageKit (charger, prendre le calque 0) au
   lieu de décoder BMP et PNG eux-mêmes ; le décodeur BMP/PNG d'UIKit devient le premier traducteur (et le repli si
   ImageKit manque). Toutes les méthodes de chargement d'images du système sont ainsi au même endroit.
 * **Les apps** retirent leurs copies de `stb_image`, `simplewebp` et du lecteur PCX, et appellent ImageKit (ou

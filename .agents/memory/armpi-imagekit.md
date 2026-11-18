@@ -6,9 +6,9 @@ metadata:
 ---
 Demande de l'utilisateur (18/11/2026), après une explication du Translation Kit de Haiku. Décision : un traducteur
 rend une **image canonique à calques** (taille de l'image ; liste de calques, chacun avec son bitmap 0xAARRGGBB et
-sa position dans l'image) ; BMP, JPEG, PNG… = un seul calque en (0, 0) ; PSD et le format de Paint en ont plusieurs.
+sa position dans l'image) ; **le calque 0 est toujours l'image aplatie** (taille de l'image, en 0,0), les vrais calques suivent à partir de 1 ; BMP, JPEG, PNG… n'ont que le calque 0 ; une app qui veut une image plate prend le calque 0.
 Dans un kit adéquat (proposé : nouveau kit ImageKit, traducteurs .so dans /lib/translators/image/), et **UIKit
-s'appuie dessus** pour centraliser le chargement d'images (`ui_image_load` = charger puis fusionner ; le décodeur
+s'appuie dessus** pour centraliser le chargement d'images (`ui_image_load` = charger, prendre le calque 0 ; le décodeur
 BMP/PNG d'UIKit devient le premier traducteur). Les apps retirent leurs copies de stb_image/simplewebp/PCX.
 Trois questions en attente (images animées, modes de fusion, groupes de calques).
 
