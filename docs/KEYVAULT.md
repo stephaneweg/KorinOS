@@ -232,3 +232,29 @@ Pas encore essayé :
 - bash, CPython et dotnet reconstruits avec la déclaration du script, sauf bash ;
 - les migrations des apps et des services en marche (sous QEMU, telnetd ne lit `remote.txt` qu'à une connexion :
   la reprise du mot de passe n'a pas pu se voir).
+
+## 9. Au plan : un secret par clé, liste filtrée (demande du 18/11/2026)
+
+Aujourd'hui Koton range **toutes** ses clés d'IA dans un seul secret, `ai-keys` (un tableau JSON : fournisseur,
+nom, clé, dernière choisie) ; la liste des clés est donc dans ce secret (et dans `settings.json` sans coffre).
+Ce qui est voulu :
+
+1. **Une clé = un secret, nommé `<Fournisseur>.<Nom>`** : la clé « Clé1 » de Gemini devient `Gemini.Cle1`, la
+   « Clé2 » `Gemini.Cle2`, la « Clé1 » de Claude `Claude.Cle1`. Le nom affiché est celui que l'utilisateur a tapé.
+2. **Lister avec un filtre** : `kv_list_match (motif, tampon, taille)` rend les noms de ce programme qui suivent
+   le motif (`Gemini.*`, `*` et `?` comme dans un shell), un par ligne ; AppKit `vault_list_match` (à la fin de la
+   table) ; `secret ls MOTIF`. Le filtre se fait dans le coffre (les autres noms ne sortent pas). `kv_list` reste.
+3. **La liste n'est plus gardée** dans les réglages de l'app : à l'ouverture de la liste déroulante des clés,
+   l'app demande `Gemini.*` (ou `Claude.*`, `Mistral.*`…) et affiche ce qui revient. Les réglages ne gardent que
+   le nom de la clé choisie par fournisseur (pas la clé).
+4. **Les noms** : le coffre n'admet aujourd'hui que lettres et chiffres ASCII et `. _ - / @ :`. Pour garder
+   « Clé 1 » tel quel : soit le coffre admet l'UTF-8 et l'espace dans un nom (sauf les caractères de contrôle et
+   `*`, `?` réservés au motif ; le `.` reste le séparateur), soit l'app code le nom (`Cl%C3%A9%201`) et le décode à
+   l'affichage. **Recommandé : l'UTF-8 dans le coffre**, plus simple pour toutes les apps et lisible par `secret ls`.
+5. **Koton** : migration de `ai-keys` vers un secret par clé au premier lancement (puis `ai-keys` effacé) ;
+   ajouter, renommer (= nouveau secret puis effacer l'ancien), supprimer une clé.
+6. **Les autres apps** qui ont plusieurs clés ou comptes suivent la même règle (PocketQI d'abord ; Mail, IRC,
+   Telegram si elles en ont plusieurs). Le petit code commun (lister un fournisseur, nommer, renommer) va dans
+   AppKit ou UIKit (une liste déroulante « clés du coffre »), pas dans chaque app.
+7. **Sans coffre** (le Pi) : comme aujourd'hui, la liste dans les réglages de l'app.
+

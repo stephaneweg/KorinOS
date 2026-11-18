@@ -27,3 +27,8 @@ déclaration du script (bash oui) ; `access = enforce` reste à décider (étape
 Pièges : patchs Python écrits par Write : « \r\n » dans une chaîne non brute devient un vrai retour ;
 QEMU n'est que dans WSL (OVMF sans shell) : image d'essai avec EFI/BOOT/BOOTX64.EFI sur KORIN OS, qemu_nvme.py
 --boot-disk, sortie relue par mtype -i disk.img@@74448896. Voir [[armpi-oauth]].
+
+**18/11, au plan (demande de l'utilisateur)** : un secret par clé nommé `<Fournisseur>.<Nom>` (Gemini.Cle1,
+Claude.Cle1…), `kv_list_match` avec un motif (`Gemini.*`), la liste des clés plus gardée dans les réglages mais
+demandée au coffre à l'ouverture de la liste déroulante ; Koton d'abord (aujourd'hui un seul secret `ai-keys`
+en JSON), puis PocketQI et les autres. Noms en UTF-8 dans le coffre recommandé. Détail : docs/KEYVAULT.md §9.
