@@ -75,7 +75,14 @@ Connecté à GitHub.
    `password=<jeton>`. `store` le garde ensuite au coffre comme aujourd'hui. `erase` (jeton refusé) fait aussi
    `oauth forget github`.
 4. Les jetons d'une OAuth App de GitHub n'expirent pas : rien à rafraîchir.
-5. Doc : `docs/GIT.md` (et l'aide de git dans Korin), puis le paquet git (version montée).
+5. **Sans `client_id`** (demande de l'utilisateur, 18/11) : quand l'identification est nécessaire et que
+   `[github]` n'a pas encore de `client_id`, l'assistant ouvre **Jet** sur
+   `https://github.com/settings/applications/new` (nom « Korin », page d'accueil et adresse de retour
+   `http://127.0.0.1`, « Enable Device Flow » à cocher : les valeurs à mettre sont affichées à côté), demande le
+   `client_id` affiché par GitHub (une fenêtre de saisie si l'écran est là, sinon la question sur `/dev/tty`),
+   l'enregistre (`oauth setup github client_id=…`, par l'élévation si `providers.ini` est en jeu, sinon dans le compte
+   de l'utilisateur), puis enchaîne sur le login par code d'appareil. Une seule fois par machine (ou par compte).
+6. Doc : `docs/GIT.md` (et l'aide de git dans Korin), puis le paquet git (version montée).
 
 Le Pi n'a pas de coffre : le jeton y serait redemandé (sauf à le garder par `oauthd`, qui le chiffre déjà dans
 `HOME:/oauth` : l'assistant peut lire `oauth token github` d'abord, ce qui marche aussi sans coffre).

@@ -18,3 +18,5 @@ par [[armpi-linux-compat]] quand elle existera. Trois questions en attente (clie
 **18/11, piste plus simple notée (pas maintenant, dit l'utilisateur)** : sans gh, git-credential-korin lancerait lui-même le code d'appareil pour github.com (fournisseur [github] dans providers.ini, `oauth token NOM` à ajouter) ; gh ne servirait plus qu'aux PR, issues, api.
 
 **18/11, DÉCISION** : c'est cette piste que l'utilisateur veut, **au plan** ; pas de `gh`, pas besoin de PR (il ne fait que push, pull, fetch, checkout). Détail : docs/etude/GH.md §5. Il lui faudra créer une OAuth App GitHub (Device Flow) pour le client_id.
+
+**18/11, précision** : sans client_id, l'assistant ouvre Jet sur la création de l'OAuth App GitHub, enregistre le client_id donné, puis fait le login (GH.md §5, point 5).
