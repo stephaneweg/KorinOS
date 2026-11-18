@@ -7,7 +7,7 @@
 ## The window
 
 - **At the top**, three tabs, each with its number of packages: **Updates**, **Installed**, **Available**; next to them, the **All** button and the **Find** field.
-- **In the middle**, the list of packages. Each row shows a check box, the icon, the name, the version (`1.2 → 1.3` when an update exists), the category and a one-sentence description, and on the right the size or the row's buttons.
+- **In the middle**, the list of packages. In **Installed** and **Available**, it is arranged in cards, one per category (System, Accessories, Internet, Office...): each card gives the number of apps, their size and its first apps; **Show** opens it, and its box checks all its apps at once. A search opens the cards that have a result. Each row shows a check box, the icon, the name, the version (`1.2 → 1.3` when an update exists), the category and a one-sentence description, and on the right the size or the row's buttons.
 - **At the bottom**, the status line (the number of installed packages, the date of the repository index and its signature, or the progress of the running job), the **Check** button and the main button (**Install**, **Remove**...), whose text follows the tab and the number of checked boxes.
 
 When it opens, Software shows the last known index at once, then reads the repository again by itself. It opens on the **Updates** tab, or on **Available** if there is nothing to update.
@@ -16,7 +16,7 @@ When it opens, Software shows the last known index at once, then reads the repos
 
 1. **Available** tab.
 2. Type part of the name in **Find** if the list is long.
-3. Click **Install**, at the end of the row.
+3. **Show** on the card of its category, then click **Install**, at the end of the row.
 
 To install several at once: check their boxes, then the bottom button, **Install 3 packages**.
 

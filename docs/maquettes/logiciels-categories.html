@@ -1,0 +1,200 @@
+<title>Logiciels par catégories</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Givre (jetons de ui_tokens) : la fenêtre Logiciels ; Installés et Disponibles en cartes par catégorie, comme l'installateur */
+:root {
+  --face: #eef2f6; --surface: #ffffff; --creux: #e3e9f0; --ligne: #d3dce6; --ligne-forte: #aab8c7;
+  --texte1: #18212b; --texte2: #4d5b6a; --texte3: #8593a3;
+  --accent: #2f6fd6; --accent-clair: #e3edfc; --accent-vif: #3b7ff0; --sur-accent: #ffffff;
+  --succes: #2f8a57; --alerte: #a8670c; --alerte-clair: #fdf1de; --danger: #c23b32;
+  --f-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --face: #12171d; --surface: #1a2129; --creux: #232c36; --ligne: #2e3a47; --ligne-forte: #4a5a6b;
+  --texte1: #e8eef4; --texte2: #a6b4c2; --texte3: #6f7f90;
+  --accent: #6aa0f0; --accent-clair: #1c2c44; --accent-vif: #8ab6f5; --sur-accent: #0c1420;
+  --succes: #6fc795; --alerte: #e9b45c; --alerte-clair: #36280f; --danger: #ef7d73; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --face: #12171d; --surface: #1a2129; --creux: #232c36; --ligne: #2e3a47; --ligne-forte: #4a5a6b;
+  --texte1: #e8eef4; --texte2: #a6b4c2; --texte3: #6f7f90;
+  --accent: #6aa0f0; --accent-clair: #1c2c44; --accent-vif: #8ab6f5; --sur-accent: #0c1420;
+  --succes: #6fc795; --alerte: #e9b45c; --alerte-clair: #36280f; --danger: #ef7d73; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--face); color: var(--texte1); font: 13px/1.4 var(--f-ui);
+  padding-block: 20px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+.note { max-width: 780px; margin: 0 auto 12px; color: var(--texte2); font-size: 13px }
+.note b { color: var(--texte1) }
+.fen { max-width: 780px; margin: 0 auto; border: 1px solid var(--ligne-forte); border-radius: 10px; overflow: hidden; background: var(--face); display: flex; flex-direction: column; height: min(600px, calc(100vh - 110px)); min-height: 420px }
+.titre { height: 30px; display: flex; align-items: center; padding: 0 12px; font-weight: 600; font-size: 12.5px; color: var(--texte2); border-bottom: 1px solid var(--ligne) }
+.haut { display: flex; gap: 8px; padding: 8px 12px; align-items: center; flex-wrap: wrap }
+.seg { display: inline-flex; background: var(--creux); border-radius: 8px; padding: 2px }
+.seg button { font: 600 12.5px var(--f-ui); border: 0; background: none; color: var(--texte2); padding: 6px 12px; border-radius: 6px; cursor: pointer }
+.seg button.on { background: var(--surface); color: var(--texte1); box-shadow: 0 1px 2px rgb(0 0 0 / .12) }
+.btn { font: 500 12.5px var(--f-ui); border-radius: 7px; padding: 6px 12px; cursor: pointer; border: 1px solid var(--ligne-forte); background: var(--surface); color: var(--texte1) }
+.btn.prim { background: var(--accent); border-color: var(--accent); color: var(--sur-accent) }
+.btn:disabled { opacity: .45; cursor: default }
+.btn:focus-visible, .seg button:focus-visible, .lien:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.cherche { margin-left: auto; width: 220px; max-width: 100%; font: 12.5px var(--f-ui); padding: 6px 10px; border: 1px solid var(--ligne-forte); border-radius: 7px; background: var(--surface); color: var(--texte1) }
+.liste { flex: 1; min-height: 0; overflow-y: auto; margin: 0 12px; padding: 6px; background: var(--surface); border: 1px solid var(--ligne); border-radius: 8px; display: flex; flex-direction: column; gap: 8px }
+.carte { border: 1px solid var(--ligne); border-radius: 10px; background: var(--face); padding: 10px 12px; display: flex; flex-direction: column; gap: 4px }
+.carte.on { border: 2px solid var(--accent); background: var(--accent-clair); padding: 9px 11px }
+.tete { display: flex; align-items: center; gap: 10px }
+.case { width: 18px; height: 18px; border-radius: 4px; border: 1.5px solid var(--ligne-forte); background: var(--surface); display: grid; place-items: center; flex: 0 0 auto; cursor: pointer; color: var(--sur-accent); font-size: 12px; font-weight: 700; line-height: 1 }
+.case.v, .case.m { background: var(--accent); border-color: var(--accent) }
+.case.off { opacity: .35; cursor: default }
+.nom { font-weight: 600; font-size: 14.5px; flex: 1; min-width: 0 }
+.taille { color: var(--texte2); font-variant-numeric: tabular-nums; white-space: nowrap }
+.apps { color: var(--texte2); margin-left: 28px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.bas { margin-left: 28px; display: flex; gap: 10px; align-items: center; font-size: 12px }
+.bas .etat { color: var(--texte3) } .bas .etat.maj { color: var(--alerte); font-weight: 600 }
+.lien { margin-left: auto; background: none; border: 0; color: var(--accent); font: 12px var(--f-ui); cursor: pointer; padding: 0 }
+.lignes { margin: 6px 0 0 28px; border-top: 1px solid var(--ligne) }
+.ligne { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--ligne); min-height: 50px }
+.ligne:last-child { border-bottom: 0 }
+.icone { width: 32px; height: 32px; border-radius: 8px; background: var(--creux); display: grid; place-items: center; color: var(--texte2); font-weight: 600; flex: 0 0 auto }
+.txt { flex: 1; min-width: 0 }
+.txt b { font-weight: 600 } .txt .v { color: var(--texte2); font-size: 11px; margin-left: 6px }
+.txt small { display: block; color: var(--texte2); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.pills { display: inline-flex; background: var(--creux); border-radius: 14px; padding: 2px; flex: 0 0 auto }
+.pills span { font-size: 11px; padding: 4px 9px; border-radius: 12px; color: var(--texte1) }
+.pills span.on { background: var(--accent); color: var(--sur-accent); font-weight: 600 }
+.badge { font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 8px; background: var(--alerte); color: var(--sur-accent); margin-left: 6px }
+.sys { color: var(--texte3); font-size: 11px }
+.flat .ligne { padding: 7px 6px }
+.pied { display: flex; gap: 8px; align-items: center; padding: 8px 12px; flex-wrap: wrap }
+.pied .statut { flex: 1; min-width: 160px; color: var(--texte2); font-size: 12px }
+.vide { text-align: center; color: var(--texte3); padding: 30px 0 }
+@media (max-width: 560px) { .apps, .bas, .lignes { margin-left: 0 } .pills { display: none } .cherche { margin-left: 0; width: 100% } }
+</style>
+
+<p class="note"><b>Maquette, à valider.</b> Installés et Disponibles : une carte par catégorie, dans l'ordre de l'installateur. La case de la carte coche toutes ses apps ; « Afficher » déplie les lignes d'aujourd'hui (icône, version, modes, Retirer ou Installer). Une recherche ouvre les cartes qui ont un résultat et cache les autres. Mises à jour reste une liste simple. Les exemples sont tirés de l'index du dépôt PC.</p>
+<div class="fen">
+  <div class="titre">Logiciels</div>
+  <div class="haut">
+    <div class="seg" role="tablist" id="onglets"></div>
+    <button class="btn" id="tous">Tous</button>
+    <input class="cherche" id="cherche" placeholder="Rechercher" aria-label="Rechercher">
+  </div>
+  <div class="liste" id="liste" tabindex="0"></div>
+  <div class="pied">
+    <span class="statut" id="statut">38 installés  -  index du 2026-11-16, signature bonne</span>
+    <button class="btn">Vérifier</button>
+    <button class="btn prim" id="principal" disabled>Installer</button>
+  </div>
+</div>
+
+<script>
+const ORDRE = ["Système","Accessoires","Internet","Bureautique","Multimédia","Création","Développement","Jeux","Émulateurs"];
+// [nom, titre, catégorie, résumé, Mo, installé (version) ou "", version du dépôt, mode, fait partie du système]
+const P = [
+ ["pc","Système Korin OS pour PC","Système","Le noyau, les services et les commandes",26,"2026.11.30","2026.11.31","auto",1],
+ ["pkgman","Logiciels","Système","Installer, retirer et mettre à jour",4,"1.4.2","1.4.2","auto",1],
+ ["help","Aide","Système","Les aides des apps et le guide de l'API",1,"1.0.3","1.0.3","auto",1],
+ ["disks","Disques","Système","Partitions, formatage, montage",1,"1.1.0","1.1.0","auto",1],
+ ["archiver","Archiveur","Accessoires","Zip, tar, 7z",1,"1.0.1","1.0.1","manual",0],
+ ["calculator","Calculatrice","Accessoires","Standard et scientifique",1,"1.0.0","1.0.0","manual",0],
+ ["screenshot","Capture d'écran","Accessoires","L'écran, une fenêtre ou une zone",1,"1.0.2","1.0.2","manual",0],
+ ["clock","Horloge","Accessoires","Réveils, minuteur, chronomètre",1,"1.0.0","1.0.0","manual",0],
+ ["pocketqi","PocketQI","Accessoires","L'assistante écrite",2,"","1.3.0","manual",0],
+ ["jet","Jet","Internet","Le navigateur web (WebKit)",49,"1.3.2","1.3.3","manual",0],
+ ["mail","Mail","Internet","Le courrier, IMAP et SMTP",2,"1.0.4","1.0.4","manual",0],
+ ["irc","IRC","Internet","Discuter sur IRC",1,"","1.0.0","manual",0],
+ ["smbd","Partage de fichiers (SMB)","Internet","Partager des dossiers sur le réseau",1,"","1.0.2","manual",0],
+ ["webd","Serveur web","Internet","Servir un site depuis Korin",4,"","1.0.1","manual",0],
+ ["telegram","Telegram","Internet","Le client Telegram",1,"","1.0.0","manual",0],
+ ["notes","Notes","Bureautique","Des notes rapides",1,"1.0.1","1.0.1","manual",0],
+ ["letters","Letters","Bureautique","Le traitement de texte",1,"1.2.0","1.2.0","manual",0],
+ ["budget","Budget mensuel","Bureautique","Dépenses, soldes et résumé",2,"","1.0.2","manual",0],
+ ["calendar","Calendrier","Bureautique","Rendez-vous et rappels",1,"","1.0.0","manual",0],
+ ["pdf","PDF Viewer","Bureautique","Lire les PDF",2,"","1.1.0","manual",0],
+ ["sheet","Spreadsheet","Bureautique","Le tableur",1,"","1.0.3","manual",0],
+ ["media","Media Player","Multimédia","Vidéos et musique",1,"1.0.2","1.0.2","manual",0],
+ ["photos","Photos","Multimédia","Vos images, en albums",1,"","1.0.0","manual",0],
+ ["arabesque","Arabesque","Multimédia","Musique générative",1,"","1.1.0","manual",0],
+ ["piano","Piano","Multimédia","Un clavier et des sons General MIDI",1,"","1.0.0","manual",0],
+ ["soundfonts","Banque de sons General MIDI","Multimédia","Les instruments de Koton et du Piano",27,"","1.0.0","manual",0],
+ ["paint","Dessin","Création","Peindre et retoucher",1,"","1.0.1","manual",0],
+ ["forge","Forge","Création","La CAO en 3D",12,"","1.2.0","manual",0],
+ ["gcc","GCC et G++","Développement","Les compilateurs C et C++",43,"14.2.4","14.2.4","manual",0],
+ ["git","Git","Développement","Le gestionnaire de versions",7,"2.47.1","2.47.1","manual",0],
+ ["python","Python","Développement","CPython 3.14",22,"","3.14.10","manual",0],
+ ["dotnet",".NET","Développement","Le runtime et le compilateur C#",47,"","9.0.3","manual",0],
+ ["godot","Godot","Développement","Le moteur de jeux",70,"","4.4.1","manual",0],
+ ["tetris","Tetris","Jeux","Les blocs qui tombent",1,"1.0.0","1.0.0","manual",0],
+ ["solitaire","Solitaire","Jeux","Klondike",1,"","1.0.0","manual",0],
+ ["2048","2048","Jeux","Glisser les tuiles",1,"","1.0.0","manual",0],
+ ["nesemu","NES","Émulateurs","L'émulateur NES",1,"","1.0.2","manual",0],
+ ["gbaemu","Game Boy Advance","Émulateurs","L'émulateur GBA",1,"","1.0.1","manual",0],
+];
+let onglet = 2, recherche = "", ouvert = { "Internet": true }, coche = {};
+const $ = id => document.getElementById(id);
+const inst = p => !!p[5], maj = p => inst(p) && p[5] !== p[6];
+const vu = (p, t) => t === 0 ? maj(p) : t === 1 ? inst(p) : (!inst(p) || maj(p));
+const trouve = p => !recherche || (p[0] + " " + p[1] + " " + p[2] + " " + p[3]).toLowerCase().includes(recherche);
+const marquable = p => onglet !== 1 || !p[8];
+function mo(v) { return v.toLocaleString("fr-BE") + " Mo"; }
+function nb(t) { return P.filter(p => vu(p, t)).length; }
+function rendre() {
+  const o = $("onglets"); o.innerHTML = "";
+  ["Mises à jour", "Installés", "Disponibles"].forEach((n, i) => {
+    const b = document.createElement("button"); b.className = i === onglet ? "on" : ""; b.textContent = `${n} (${nb(i)})`;
+    b.onclick = () => { onglet = i; coche = {}; rendre(); }; o.append(b);
+  });
+  const z = $("liste"); z.innerHTML = ""; z.className = "liste" + (onglet === 0 ? " flat" : "");
+  const pq = P.filter(p => vu(p, onglet) && trouve(p));
+  if (onglet === 0) {
+    pq.sort((a, b) => b[8] - a[8]).forEach(p => z.append(ligne(p, true)));
+    if (!pq.length) z.innerHTML = `<div class="vide">Tout est à jour.</div>`;
+  } else {
+    const cats = [...ORDRE, ...new Set(pq.map(p => p[2]).filter(c => !ORDRE.includes(c)))];
+    cats.forEach(c => {
+      const l = pq.filter(p => p[2] === c); if (!l.length) return;
+      const m = l.filter(marquable), sel = m.filter(p => coche[p[0]]);
+      const etat = !m.length ? "off" : sel.length === m.length ? "v" : sel.length ? "m" : "";
+      const ouv = ouvert[c] || !!recherche;
+      const k = document.createElement("div"); k.className = "carte" + (etat === "v" || etat === "m" ? " on" : "");
+      const t = (sel.length ? sel : l).reduce((s, p) => s + p[4], 0);
+      const majs = l.filter(maj).length;
+      const appsTxt = l.slice(0, 5).map(p => p[1]).join(", ") + (l.length > 5 ? ` et ${l.length - 5} autres` : "");
+      const etatTxt = onglet === 1 ? (majs ? `<span class="etat maj">${majs} mise${majs > 1 ? "s" : ""} à jour</span>` : `<span class="etat">À jour</span>`)
+        : `<span class="etat">${l.filter(maj).length ? l.filter(maj).length + " à mettre à jour, " : ""}${l.filter(p => !inst(p)).length} à installer</span>`;
+      k.innerHTML = `<div class="tete"><span class="case ${etat}" role="checkbox" tabindex="0" aria-checked="${etat === "v" ? "true" : etat === "m" ? "mixed" : "false"}">${etat === "v" ? "✓" : etat === "m" ? "–" : ""}</span>
+        <span class="nom">${c}</span><span class="taille">${l.length} app${l.length > 1 ? "s" : ""} · ${mo(t)}${c === "Système" && onglet === 1 ? " · fait partie du système" : ""}</span></div>
+        ${ouv ? "" : `<div class="apps">${appsTxt}</div>`}
+        <div class="bas">${etatTxt}${recherche ? "" : `<button class="lien" aria-expanded="${ouv}">${ouv ? "Replier" : "Afficher"}</button>`}</div>`;
+      if (ouv) { const d = document.createElement("div"); d.className = "lignes"; l.forEach(p => d.append(ligne(p))); k.append(d); }
+      const box = k.querySelector(".case");
+      if (etat !== "off") box.onclick = () => { const v = etat !== "v"; m.forEach(p => coche[p[0]] = v); rendre(); };
+      const lien = k.querySelector(".lien"); if (lien) lien.onclick = () => { ouvert[c] = !ouvert[c]; rendre(); };
+      z.append(k);
+    });
+    if (!pq.length) z.innerHTML = `<div class="vide">${onglet === 1 ? "Aucun paquet installé ne correspond." : "Rien de plus à installer."}</div>`;
+  }
+  const n = P.filter(p => coche[p[0]] && vu(p, onglet)).length;
+  const pr = $("principal");
+  pr.textContent = onglet === 1 ? (n ? `Retirer ${n} paquet${n > 1 ? "s" : ""}` : "Retirer")
+    : onglet === 0 ? (n ? `Installer ${n} mise${n > 1 ? "s" : ""} à jour` : "Installer les mises à jour")
+    : (n ? `Installer ${n} paquet${n > 1 ? "s" : ""}` : "Installer");
+  pr.disabled = !n;
+}
+function ligne(p, flat) {
+  const d = document.createElement("div"); d.className = "ligne";
+  const on = !!coche[p[0]], peut = marquable(p);
+  const v = maj(p) ? `${p[5]}  →  ${p[6]}` : (p[5] || p[6]);
+  const sous = flat ? p[3] : (onglet === 1 && p[8] ? "Fait partie du système" : p[3]);
+  let droite = "";
+  if (onglet === 1) droite = `<span class="pills">${["Manuel","Auto","Jamais"].map((m, i) => `<span class="${["manual","auto","never"][i] === p[7] ? "on" : ""}">${m}</span>`).join("")}</span>` + (p[8] ? "" : `<button class="btn">Retirer</button>`);
+  else if (onglet === 2) droite = `<span class="sys">${mo(p[4])}</span><button class="btn ${maj(p) ? "" : "prim"}">${maj(p) ? "Mettre à jour" : "Installer"}</button>`;
+  else droite = `<span class="sys">${mo(p[4])}</span>`;
+  d.innerHTML = `${peut ? `<span class="case ${on ? "v" : ""}" role="checkbox" tabindex="0" aria-checked="${on}">${on ? "✓" : ""}</span>` : `<span style="width:18px"></span>`}
+    <span class="icone">${p[1][0]}</span>
+    <span class="txt"><b>${p[1]}</b><span class="v">${v}</span>${p[0] === "pc" && maj(p) ? `<span class="badge">redémarrage</span>` : ""}<small>${flat ? p[2] + "  -  " + sous : sous}</small></span>${droite}`;
+  const c = d.querySelector(".case"); if (c) c.onclick = () => { coche[p[0]] = !on; rendre(); };
+  return d;
+}
+$("cherche").oninput = e => { recherche = e.target.value.trim().toLowerCase(); rendre(); };
+$("tous").onclick = () => { const l = P.filter(p => vu(p, onglet) && trouve(p) && marquable(p)); const v = !l.every(p => coche[p[0]]); l.forEach(p => coche[p[0]] = v); rendre(); };
+rendre();
+</script>

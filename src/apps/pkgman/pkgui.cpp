@@ -8,7 +8,9 @@
 //                  (pas le systeme).
 //   Disponibles    les paquets du depot pas encore installes, ou avec une mise a jour : Installer.
 //
-// Le champ de recherche filtre les trois. Un travail (l'index relu, des installations, un retrait) est un process
+// Installes et Disponibles sont groupes en cartes, une par categorie (le champ category de l'index), dans l'ordre de
+// l'etape Logiciels de l'installateur : la case de la carte coche ses apps, Afficher deplie ses lignes.
+// Le champ de recherche filtre les trois (et deplie les cartes qui ont un resultat). Un travail (l'index relu, des installations, un retrait) est un process
 // « pkg ui-job » : sa progression au pied et sur la ligne du paquet ; un travail a la fois. Une mise a jour du
 // systeme s'etage : un bandeau propose de redemarrer (`pkg commit` la met en place au demarrage). A l'ouverture le
 // dernier index (/var/pkg/index.txt) s'affiche aussitot (pkg ui-list), puis il est relu au depot.
@@ -259,12 +261,14 @@ static bool shown (const Row &r, int tab)
 	if (tab == T_AVAILABLE && ((r.isInst && !r.hasUpdate) || !r.avail[0])) return false;
 	return contains_ci (r.name, g_search) || contains_ci (r.title, g_search) || contains_ci (r.category, g_search) || contains_ci (r.summary, g_search);
 }
+static void cats_build (void);
 static void refilter (void)
 {
 	g_nvis = 0;
 	for (int i = 0; i < g_nrows && g_nvis < 512; i++) if (shown (g_rows[i], g_tab)) g_vis[g_nvis++] = i;
 	if (g_tab == T_UPDATES)						// le systeme d'abord
 		for (int i = 1; i < g_nvis; i++) for (int j = i; j > 0 && g_rows[g_vis[j]].required && !g_rows[g_vis[j - 1]].required; j--) { int t = g_vis[j]; g_vis[j] = g_vis[j - 1]; g_vis[j - 1] = t; }
+	cats_build ();
 }
 static int count (int tab) { int n = 0; for (int i = 0; i < g_nrows; i++) if (shown (g_rows[i], tab)) n++; return n; }
 static bool can_mark (const Row &r) { return g_tab == T_INSTALLED ? !r.required : r.state == ST_NONE; }
@@ -304,7 +308,83 @@ static const char *MODE_L[3];
 static const char *const MODE_K[] = { "manual", "auto", "never" };
 
 static int banner () { return any_staged () && g_tab == T_UPDATES ? BANNER : 0; }
-static int rows_h () { return banner () + g_nvis * ROWH + 8; }
+
+// ---- les cartes des catégories (Installés, Disponibles), comme l'étape Logiciels de l'installateur -------------------------
+// l'ordre des cartes : celui de tools/pc/installkey.ini [categories], puis les autres par leur nom
+static const char *const CAT_ORDER[] = { "Système", "Accessoires", "Internet", "Bureautique", "Multimédia", "Création",
+					 "Développement", "Jeux", "Émulateurs" };
+enum { NCAT = 40, CARD_HEAD = 70, CARD_HEAD_OPEN = 48, CARD_GAP = 8, CARD_IN = 20 };
+struct Cat { char name[24]; int first, n; };	// (g_vis[first .. first + n - 1])
+static Cat g_cats[NCAT]; static int g_ncat;
+static char s_opened[NCAT][24]; static int s_nopened;	// les cartes dépliées (par leur nom : elles survivent au filtre)
+static bool grouped () { return g_tab != T_UPDATES; }
+static int cat_rank (const char *c)
+{
+	for (int i = 0; i < (int) (sizeof CAT_ORDER / sizeof *CAT_ORDER); i++) if (eq (CAT_ORDER[i], c)) return i;
+	return 100;
+}
+static bool cat_open (const Cat &c)
+{
+	if (g_search[0]) return true;			// (une recherche montre ses résultats)
+	for (int i = 0; i < s_nopened; i++) if (eq (s_opened[i], c.name)) return true;
+	return false;
+}
+static void cat_toggle (const Cat &c)
+{
+	for (int i = 0; i < s_nopened; i++)
+		if (eq (s_opened[i], c.name)) { memmove (s_opened[i], s_opened[i + 1], (size_t) (s_nopened - i - 1) * sizeof *s_opened); s_nopened--; return; }
+	if (s_nopened < NCAT) cpy (s_opened[s_nopened++], c.name, sizeof *s_opened);
+}
+// g_vis trié par catégorie (puis par titre), les cartes refaites
+static bool vis_before (const Row &a, const Row &b)
+{
+	int ra = cat_rank (a.category), rb = cat_rank (b.category);
+	if (ra != rb) return ra < rb;
+	int k = strcmp (a.category, b.category);
+	if (k) return k < 0;
+	return strcasecmp (a.title, b.title) < 0;
+}
+static void cats_build (void)
+{
+	g_ncat = 0;
+	if (!grouped ()) return;
+	for (int i = 1; i < g_nvis; i++)
+		for (int j = i; j > 0 && vis_before (g_rows[g_vis[j]], g_rows[g_vis[j - 1]]); j--) { int t = g_vis[j]; g_vis[j] = g_vis[j - 1]; g_vis[j - 1] = t; }
+	for (int i = 0; i < g_nvis; i++)
+	{
+		const char *c = g_rows[g_vis[i]].category;
+		if (g_ncat && eq (g_cats[g_ncat - 1].name, c)) { g_cats[g_ncat - 1].n++; continue; }
+		if (g_ncat == NCAT) { g_cats[g_ncat - 1].n++; continue; }	// (trop de catégories : la dernière carte prend le reste)
+		Cat &k = g_cats[g_ncat++]; cpy (k.name, c, sizeof k.name); k.first = i; k.n = 1;
+	}
+}
+// ce que montre la liste, de haut en bas (y dans le contenu, avant le défilement)
+enum { IT_BANNER, IT_CARD, IT_ROW };
+struct Item { int kind, y, h, vi, cat; };
+static Item g_items[512 + NCAT + 1]; static int g_nitems, g_total;
+static void items_build (void)
+{
+	g_nitems = 0;
+	int y = 4;
+	auto add = [&] (int kind, int yy, int h, int vi, int cat) { Item &it = g_items[g_nitems++]; it.kind = kind; it.y = yy; it.h = h; it.vi = vi; it.cat = cat; };
+	if (!grouped ())
+	{
+		if (banner ()) { add (IT_BANNER, y, BANNER, -1, -1); y += BANNER; }
+		for (int vi = 0; vi < g_nvis; vi++, y += ROWH) add (IT_ROW, y, ROWH, vi, -1);
+	}
+	else
+		for (int c = 0; c < g_ncat; c++)
+		{
+			const Cat &k = g_cats[c];
+			bool open = cat_open (k);
+			int head = open ? CARD_HEAD_OPEN : CARD_HEAD, h = head + (open ? k.n * ROWH + 6 : 0);
+			add (IT_CARD, y, h, -1, c);
+			if (open) for (int i = 0; i < k.n; i++) add (IT_ROW, y + head + i * ROWH, ROWH, k.first + i, c);
+			y += h + CARD_GAP;
+		}
+	g_total = y + 4;
+}
+static int rows_h () { items_build (); return g_total; }
 static void clamp ()
 {
 	int mx = rows_h () - g_lh; if (mx < 0) mx = 0;
@@ -415,13 +495,14 @@ static void badge (int x, int y, const char *s, unsigned bg)
 	text (x + 6, y + 1, s, ink_on (bg), 11, 1);
 }
 
-static void draw_row (Row &r, int vi, int y, int rw)
+// une ligne entre x0 et rw (le bord droit) : la liste entière (Mises à jour) ou le dedans d'une carte
+static void draw_row (Row &r, int vi, int y, int x0, int rw, bool last)
 {
 	bool hot = vi == s_hot;
-	if (hot) rbox (4, y + 1, rw - 8, ROWH - 2, 6, mix (C_FIELD, C_ACCENT, 26));
-	if (vi + 1 < g_nvis) ui_fill (12, y + ROWH - 1, rw - 24, 1, C_LINE);
+	if (hot) rbox (x0 + 4, y + 1, rw - x0 - 8, ROWH - 2, 6, mix (C_FIELD, C_ACCENT, 26));
+	if (!last) ui_fill (x0 + 12, y + ROWH - 1, rw - x0 - 24, 1, C_LINE);
 	unsigned dim = C_DIM;
-	int x = 10;
+	int x = x0 + 10;
 	if (can_mark (r)) check_box (x, y + (ROWH - 18) / 2, mark_of (r), hot && s_hotPart == 1);
 	x += 28;
 	ui_icon ((long) r.name, x, y + (ROWH - ICON) / 2, ICON);
@@ -435,8 +516,8 @@ static void draw_row (Row &r, int vi, int y, int rw)
 	if (vx < maxr) { text (vx, y + 11, v, dim, 11, 0, maxr - vx); vx += tw (v, 11) + 8; }
 	if (r.restart && (g_tab == T_UPDATES || r.staged) && vx + 70 < maxr) badge (vx, y + 10, TR (r.staged ? "étagé" : "redémarrage"), C_WARN);
 	char line[180];
-	if (g_tab == T_INSTALLED && r.required) snprintf (line, sizeof line, TR ("%s  -  fait partie du système"), r.category);
-	else if (g_tab == T_INSTALLED && r.summary[0]) snprintf (line, sizeof line, "%s  -  %s", r.category, r.summary);
+	if (grouped ())		// (dans une carte : sa catégorie est le titre de la carte)
+		cpy (line, g_tab == T_INSTALLED && r.required ? TR ("Fait partie du système") : r.summary, sizeof line);
 	else snprintf (line, sizeof line, "%s", r.summary[0] ? r.summary : r.category);
 	text (x, y + 32, line, dim, 11, 0, maxr - x);
 	auto right = [&] (const char *t0, unsigned c, int bold) { const char *t = TR (t0); text (rw - 12 - tw (t, 11, bold), y + 21, t, c, 11, bold); };
@@ -473,35 +554,118 @@ static void draw_row (Row &r, int vi, int y, int rw)
 		text (rw - 122 - tw (sz, 11), y + 21, sz, dim, 11);
 	}
 }
+// la case d'une carte : 0 rien, 1 en partie, 2 tout
+static void check3 (int x, int y, int st, bool hot)
+{
+	if (st != 1) { check_box (x, y, st == 2, hot); return; }
+	rbox (x, y, 18, 18, 4, C_ACCENT);
+	ui_fill (x + 4, y + 8, 10, 2, ink_on (C_ACCENT));
+}
+// les paquets d'une carte : cochables, cochés, la taille (des cochés, sinon de tous), les mises à jour, à installer
+struct CatSum { int can, on, upd, toInst; u64 size; };
+static CatSum cat_sum (const Cat &k)
+{
+	CatSum s = {}; u64 all = 0, sel = 0;
+	for (int i = k.first; i < k.first + k.n; i++)
+	{
+		Row &r = g_rows[g_vis[i]];
+		all += r.size;
+		if (r.hasUpdate) s.upd++;
+		if (!r.isInst) s.toInst++;
+		if (!can_mark (r)) continue;
+		s.can++;
+		if (mark_of (r)) { s.on++; sel += r.size; }
+	}
+	s.size = s.on ? sel : all;
+	return s;
+}
+static void draw_card (int c, int y, int h, int rw)
+{
+	const Cat &k = g_cats[c];
+	CatSum s = cat_sum (k);
+	bool open = cat_open (k), on = s.on > 0, hot = s_hot == -100 - c;
+	int x0 = 6, x1 = rw - 6;
+	if (on) { rbox (x0, y, x1 - x0, h, 10, C_ACCENT); rbox (x0 + 2, y + 2, x1 - x0 - 4, h - 4, 9, jet (J_ACCENT_CLAIR)); }
+	else { rbox (x0, y, x1 - x0, h, 10, C_LINE); rbox (x0 + 1, y + 1, x1 - x0 - 2, h - 2, 9, C_FACE); }
+	if (s.can) check3 (x0 + 12, y + 12, !s.on ? 0 : s.on == s.can ? 2 : 1, hot && s_hotPart == 1);
+	char t[160], sz[24];
+	size_text (s.size, sz, sizeof sz);
+	snprintf (t, sizeof t, TR (k.n > 1 ? "%d apps  ·  %s" : "%d app  ·  %s"), k.n, sz);
+	int tx = x1 - 14 - tw (t, 12);
+	text (tx, y + 12, t, C_DIM, 12);
+	text (x0 + 40, y + 10, TR (k.name[0] ? k.name : "Autres"), C_TEXT, 15, 1, tx - x0 - 52);
+	int yb = y + (open ? 28 : 50);
+	if (!open)				// les premières apps de la carte
+	{
+		char apps[200] = "";
+		for (int i = k.first; i < k.first + k.n && i < k.first + 5; i++)
+		{
+			if (i > k.first) strncat (apps, ", ", sizeof apps - strlen (apps) - 1);
+			strncat (apps, g_rows[g_vis[i]].title, sizeof apps - strlen (apps) - 1);
+		}
+		if (k.n > 5) { char z[48]; snprintf (z, sizeof z, TR (" et %d autres"), k.n - 5); strncat (apps, z, sizeof apps - strlen (apps) - 1); }
+		text (x0 + 40, y + 31, apps, C_DIM, 12, 0, x1 - x0 - 54);
+	}
+	const char *link = g_search[0] ? 0 : TR (open ? "Replier" : "Afficher");
+	int lw = link ? tw (link, 12) : 0;
+	if (link) text (x1 - 14 - lw, yb, link, hot && s_hotPart == 2 ? jet (J_ACCENT_VIF) : C_ACCENT, 12, hot && s_hotPart == 2);
+	if (g_tab == T_INSTALLED)
+	{
+		if (s.upd) { snprintf (t, sizeof t, TR (s.upd > 1 ? "%d mises à jour" : "%d mise à jour"), s.upd); text (x0 + 40, yb, t, C_WARN, 12, 1, x1 - x0 - 70 - lw); }
+		else text (x0 + 40, yb, TR ("À jour"), C_FAINT, 12, 0, x1 - x0 - 70 - lw);
+	}
+	else
+	{
+		char a[64] = "", b[64] = "";
+		if (s.upd) snprintf (a, sizeof a, TR ("%d à mettre à jour"), s.upd);
+		if (s.toInst) snprintf (b, sizeof b, TR ("%d à installer"), s.toInst);
+		snprintf (t, sizeof t, "%s%s%s", a, a[0] && b[0] ? ", " : "", b);
+		text (x0 + 40, yb, t, C_FAINT, 12, 0, x1 - x0 - 70 - lw);
+	}
+}
+// les bords d'une ligne : la liste entière, ou le dedans d'une carte
+static void row_x (const Item &it, int rw, int *x0, int *x1)
+{
+	if (it.cat < 0) { *x0 = 0; *x1 = rw; }
+	else { *x0 = 6 + CARD_IN; *x1 = rw - 10; }
+}
 static void list_paint (long, long w, long h)
 {
 	ui_fill (0, 0, w, h, C_FIELD);
 	int rw = (int) w - (rows_h () > g_lh ? 14 : 0);
-	int y = 4 - s_top;
-	if (banner ())
+	for (int i = 0; i < g_nitems; i++)
 	{
-		unsigned bg = mix (C_FIELD, C_WARN, 40);
-		rbox (6, y, rw - 12, 56, 8, bg);
-		text (18, y + 8, TR ("Redémarrer pour finir la mise à jour du système"), C_TEXT, 13, 1, rw - 150);
-		text (18, y + 30, TR ("Elle se met en place au prochain démarrage (l'ancien noyau reste en .old)."), C_DIM, 11, 0, rw - 150);
-		pill (rw - 122, y + 14, 110, 28, "Redémarrer", true, s_hot == -2, false);
-		y += BANNER;
+		const Item &it = g_items[i];
+		int y = it.y - s_top;
+		if (y + it.h < 0 || y > h) continue;
+		if (it.kind == IT_BANNER)
+		{
+			unsigned bg = mix (C_FIELD, C_WARN, 40);
+			rbox (6, y, rw - 12, 56, 8, bg);
+			text (18, y + 8, TR ("Redémarrer pour finir la mise à jour du système"), C_TEXT, 13, 1, rw - 150);
+			text (18, y + 30, TR ("Elle se met en place au prochain démarrage (l'ancien noyau reste en .old)."), C_DIM, 11, 0, rw - 150);
+			pill (rw - 122, y + 14, 110, 28, "Redémarrer", true, s_hot == -2, false);
+		}
+		else if (it.kind == IT_CARD) draw_card (it.cat, y, it.h, rw);
+		else
+		{
+			int x0, x1; row_x (it, rw, &x0, &x1);
+			bool last = it.cat < 0 ? it.vi + 1 == g_nvis : it.vi + 1 == g_cats[it.cat].first + g_cats[it.cat].n;
+			draw_row (g_rows[g_vis[it.vi]], it.vi, y, x0, x1, last);
+		}
 	}
 	if (!g_nvis)
 	{
 		const char *t = TR (g_tab == T_UPDATES ? (g_haveIndex ? "Tout est à jour." : "Le dépôt n'a pas encore été lu : Vérifier.")
 			      : g_tab == T_INSTALLED ? "Aucun paquet installé ne correspond." : (g_haveIndex ? "Rien de plus à installer." : "Le dépôt n'a pas encore été lu : Vérifier."));
-		text (((int) w - tw (t)) / 2, y + 30, t, C_FAINT);
+		text (((int) w - tw (t)) / 2, 4 + banner () - s_top + 30, t, C_FAINT);
 	}
-	for (int vi = 0; vi < g_nvis; vi++, y += ROWH)
-		if (y + ROWH >= 0 && y <= h) draw_row (g_rows[g_vis[vi]], vi, y, rw);
 }
-// les parties d'une ligne : 1 sa case, 2 son bouton, 10..12 les modes, 3 le reste
-static int part_at (int vi, int x, int y)
+// les parties d'une ligne (x, y dans la ligne ; x0..rw ses bords) : 1 sa case, 2 son bouton, 10..12 les modes, 3 le reste
+static int part_at (int vi, int x, int y, int x0, int rw)
 {
 	const Row &r = g_rows[g_vis[vi]];
-	int rw = g_lw - (rows_h () > g_lh ? 14 : 0);
-	if (x >= 6 && x < 36) return 1;
+	if (x >= x0 + 6 && x < x0 + 36) return 1;
 	if (g_tab == T_INSTALLED)
 	{
 		if (!r.required && x >= rw - 92 && x < rw - 8 && y >= 10 && y < 48) return 2;
@@ -511,15 +675,32 @@ static int part_at (int vi, int x, int y)
 	if (g_tab == T_AVAILABLE && x >= rw - 112 && x < rw - 8 && y >= 10 && y < 48) return 2;
 	return 3;
 }
+// -> *row : la ligne (rang dans g_vis), -2 le bandeau, -100 - c la tête de la carte c (part 1 sa case, 2 le reste), -1 rien
 static void hit (int mx, int my, int *row, int *part)
 {
-	int y = my + s_top - 4, b = banner ();
 	int rw = g_lw - (rows_h () > g_lh ? 14 : 0);
+	int y = my + s_top;
 	*row = -1; *part = 0;
-	if (b && y >= 0 && y < 56) { if (mx >= rw - 122 && mx < rw - 12 && y >= 10 && y < 46) *row = -2; return; }
-	if (y < b) return;
-	int k = (y - b) / ROWH;
-	if (k < g_nvis) { *row = k; *part = part_at (k, mx, (y - b) % ROWH); }
+	for (int i = 0; i < g_nitems; i++)
+	{
+		const Item &it = g_items[i];
+		if (y < it.y || y >= it.y + it.h) continue;
+		if (it.kind == IT_ROW)
+		{
+			int x0, x1; row_x (it, rw, &x0, &x1);
+			if (mx < x0 || mx >= x1) continue;
+			*row = it.vi; *part = part_at (it.vi, mx, y - it.y, x0, x1); return;
+		}
+		if (it.kind == IT_BANNER) { if (y - it.y >= 10 && y - it.y < 46 && mx >= rw - 122 && mx < rw - 12) *row = -2; return; }
+		if (it.kind == IT_CARD)
+		{
+			bool open = cat_open (g_cats[it.cat]);
+			if (y - it.y >= (open ? CARD_HEAD_OPEN : CARD_HEAD)) continue;	// (le dedans : ses lignes)
+			*row = -100 - it.cat;
+			*part = mx >= 6 && mx < 6 + 40 ? 1 : 2;
+			return;
+		}
+	}
 }
 
 static void install_names (const char *const *names, int n)
@@ -538,6 +719,18 @@ static void do_click (int row, int part)
 			if (ch >= 0) { char m[512]; memset (m, 0, sizeof m); *(long *) m = 3; armpi_syscall (0x32, ch, (long) m, 0, 0, 0, 0); }
 		}
 		return;
+	}
+	if (row <= -100 && -100 - row < g_ncat)		// la tête d'une carte : sa case coche toutes ses apps, le reste la déplie
+	{
+		const Cat &k = g_cats[-100 - row];
+		if (part == 1 && !g_job.running)
+		{
+			CatSum cs = cat_sum (k);
+			for (int i = k.first; i < k.first + k.n; i++) { Row &r = g_rows[g_vis[i]]; if (can_mark (r)) mark_of (r) = cs.on != cs.can; }
+			update_buttons ();
+		}
+		else if (part == 2 && !g_search[0]) { cat_toggle (k); bar_sync (); }
+		ui_view_dirty (g_list); return;
 	}
 	if (row < 0 || row >= g_nvis || g_job.running) return;
 	Row &r = g_rows[g_vis[row]];

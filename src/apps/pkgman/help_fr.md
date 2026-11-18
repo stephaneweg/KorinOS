@@ -7,7 +7,7 @@
 ## La fenêtre
 
 - **En haut**, trois onglets, chacun avec son nombre de paquets : **Mises à jour**, **Installés**, **Disponibles** ; à côté, le bouton **Tous** et le champ **Rechercher**.
-- **Au milieu**, la liste des paquets. Chaque ligne montre une case à cocher, l'icône, le nom, la version (`1.2 → 1.3` quand une mise à jour existe), la catégorie et une phrase de description, et à droite la taille ou les boutons de la ligne.
+- **Au milieu**, la liste des paquets. Dans **Installés** et **Disponibles**, elle est rangée en cartes, une par catégorie (Système, Accessoires, Internet, Bureautique...) : chaque carte donne le nombre d'apps, leur taille et ses premières apps ; **Afficher** la déplie, et sa case coche toutes ses apps d'un coup. Une recherche ouvre les cartes qui ont un résultat. Chaque ligne montre une case à cocher, l'icône, le nom, la version (`1.2 → 1.3` quand une mise à jour existe), la catégorie et une phrase de description, et à droite la taille ou les boutons de la ligne.
 - **En bas**, la ligne d'état (le nombre de paquets installés, la date de l'index du dépôt et sa signature, ou la progression du travail en cours), le bouton **Vérifier** et le bouton principal (**Installer**, **Retirer**...), dont le texte suit l'onglet et le nombre de cases cochées.
 
 À l'ouverture, Logiciels montre aussitôt le dernier index connu, puis relit le dépôt de lui-même. Il s'ouvre sur l'onglet **Mises à jour**, ou sur **Disponibles** s'il n'y a rien à mettre à jour.
@@ -16,7 +16,7 @@
 
 1. Onglet **Disponibles**.
 2. Tapez une partie du nom dans **Rechercher** si la liste est longue.
-3. Un clic sur **Installer**, au bout de la ligne.
+3. **Afficher** sur la carte de sa catégorie, puis un clic sur **Installer**, au bout de la ligne.
 
 Pour en installer plusieurs d'un coup : cochez leurs cases, puis le bouton du bas, **Installer 3 paquets**.
 
