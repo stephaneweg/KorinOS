@@ -83,6 +83,9 @@ aussi combien de fois l'animation se répète (0 : sans fin).
 
 ## 5. Questions
 
+**18/11 : les questions 2 et 3 (PSD) sont laissées à l'analyse de Claude au moment du chantier** (l'utilisateur ne
+connaît pas assez le format ; projet lointain) : décider d'après la spécification d'Adobe et des fichiers réels.
+
 1. ~~Les images animées ?~~ **Réglée le 18/11** : une liste d'images successives à côté des calques (§2.1).
 2. Les modes de fusion des calques à prendre en charge d'abord (normal seul, ou aussi multiplier, superposition… du
    PSD) ?

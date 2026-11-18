@@ -10,6 +10,6 @@ sa position dans l'image) ; **le calque 0 est toujours l'image aplatie** (taille
 Dans un kit adéquat (proposé : nouveau kit ImageKit, traducteurs .so dans /lib/translators/image/), et **UIKit
 s'appuie dessus** pour centraliser le chargement d'images (`ui_image_load` = charger, prendre le calque 0 ; le décodeur
 BMP/PNG d'UIKit devient le premier traducteur). Les apps retirent leurs copies de stb_image/simplewebp/PCX.
-Le document a aussi une **liste d'images successives** (images plates de la taille du document, avec leur durée, déjà composées) pour les animées ; calque 0 = première image. Questions en attente : modes de fusion, groupes de calques.
+Le document a aussi une **liste d'images successives** (images plates de la taille du document, avec leur durée, déjà composées) pour les animées ; calque 0 = première image. Modes de fusion et groupes de calques du PSD : laissés à l'analyse de Claude au moment du chantier (projet lointain, 18/11).
 
 **How to apply:** relire docs/etude/IMAGEKIT.md avant de commencer. Voir [[armpi-dlopen]], [[armpi-ports-uikit-os]].
