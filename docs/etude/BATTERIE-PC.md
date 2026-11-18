@@ -221,6 +221,14 @@ Pas de vraie veille. Trois choses, dans cet ordre :
    l'extinction à 5 % d'aujourd'hui, qui coupe sans enregistrer). Les deux réglables dans le volet Énergie ; un
    avis prévient une minute avant (annulable si l'utilisateur est là).
 
+   **Avertissement avant l'arrêt sur batterie (décision du 18/11)** : quelques % au-dessus du seuil d'arrêt
+   (`battery_warn_margin = 5` : à 10 % pour un seuil de 5 %, réglable), une notification qui reste affichée :
+   « Il est temps de recharger votre batterie. Branchez l'ordinateur : le système va se fermer automatiquement
+   bientôt (vos applications seront rouvertes au prochain démarrage). » Elle remplace l'alerte `critical`
+   d'aujourd'hui (« Batterie très faible », 10 %) ; elle disparaît quand le secteur est branché. Au seuil, l'avis
+   d'une minute puis l'arrêt par le chemin unique (aujourd'hui : « Extinction imminente » et `INIT_OP_REBOOT`
+   sans enregistrer la session).
+
    **Un seul chemin d'arrêt** (décision du 18/11) : l'arrêt manuel (menu, bouton d'alimentation), l'arrêt après
    30 minutes couvercle fermé et l'arrêt sur batterie faible passent tous par `/sys/shutdown` avec une raison
    (`manual`, `lid`, `battery`, notée au journal) ; ce chemin enregistre toujours la session (point 3) avant
