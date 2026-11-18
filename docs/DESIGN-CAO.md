@@ -463,7 +463,11 @@ greffons »). Trois procédés :
   **Origine par défaut : le milieu de la face du dessus du brut** (habitude de l'utilisateur, 18/11 ; dans
   `fcam.h` d'Onyx, le point 22 = milieu en X, milieu en Y, dessus ; Onyx partait du 18, avant gauche). Elle a
   l'avantage de rester au milieu après le retournement : seule la face change (le nouveau dessus).
-  Pas de pions de centrage (l'utilisateur recale lui-même). Un G-code par mise en position ; la vue
+  **Le recalage physique** : l'utilisateur met deux pions sur l'**axe médian en X** (au milieu en Y), un à chaque
+  bout du brut, hors de la pièce ; le retournement se fait autour de cet axe, donc les pions restent en place et
+  l'origine au milieu du dessus aussi. Forge pourra proposer (option) de percer ces deux trous de pion dans le
+  setup 1 (sur l'axe, hors de la pièce, diamètre au choix) et de les montrer dans la vue ; sinon l'utilisateur
+  les fait lui-même. Un G-code par mise en position ; la vue
   montre la pièce telle qu'elle est posée ; les vérifications (course 600 × 400 × 100, profondeur) se font pour
   chacune.
 * La fraiseuse de l'utilisateur est la **Two Trees TTC 6040** (confirmé le 18/11) : **zone de travail 600 × 400 ×
