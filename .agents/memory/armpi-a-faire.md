@@ -26,3 +26,14 @@ copier ou déplacer d'un dossier à l'autre (glisser de l'une à l'autre avec le
 vers l'autre vue ; F5/F6 à la Total Commander à voir). La vue active est marquée (couleur du thème) ; le panneau de
 gauche et la barre de chemin suivent la vue active ; le bouton revient à une seule vue. Le choix est retenu
 (réglages de Fichiers) et rouvert avec la session. Aide de Fichiers (help_fr.md, help_en.md) à compléter.
+
+**18/11, décisions de l'utilisateur sur Fichiers en deux vues** (maquette docs/maquettes/fichiers-deux-vues.html) :
+- **variante B** : un seul en-tête (flèches, fil d'Ariane, boutons) qui suit la vue active, un bandeau par vue (nom,
+  chemin, place libre) ; **un seul panneau de gauche**, qui suit la vue active ;
+- **séparation déplaçable** à la souris (retenue) ; **icônes/liste choisi pour chaque vue**, indépendamment ;
+- **« Copier vers l'autre vue » directement**, sans confirmation, sauf si un fichier existant serait écrasé ;
+- **glisser-déposer = copie** ; **Maj** pendant le glisser = déplacement (remplace la règle « même volume : déplacer ») ;
+- **pas de F5/F6** pour copier/déplacer (F5 reste Actualiser) ;
+- **sélection multiple** (fichiers et dossiers), en surbrillance : **Ctrl+clic** ajoute ou retire de la sélection,
+  comme Windows (Maj+clic pour une plage, comme Windows : proposé, à confirmer) ; copier, déplacer, glisser,
+  supprimer agissent sur toute la sélection.
