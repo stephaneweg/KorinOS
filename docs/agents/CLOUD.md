@@ -7,7 +7,7 @@ Lire d'abord [AGENTS.md](../../AGENTS.md), puis `.agents/memory/MEMORY.md` et `.
 ## 1. Mise en place
 
 ```sh
-git clone --depth 1 --branch claude/x86-64-pc https://github.com/stephaneweg/KorinOS korin && cd korin
+git clone --depth 1 --branch main https://github.com/stephaneweg/KorinOS korin && cd korin
 sudo sh tools/cloud/setup.sh root      # paquets apt, /opt/toolchains : la seule étape root
 sh tools/cloud/setup.sh all            # ou une liste d'étapes : base toolchains qemu verify
 . ~/korin-cloud/env.sh                 # dans chaque shell, avant les scripts du dépôt
@@ -216,7 +216,7 @@ une carte ou un dossier de Windows : pas dans le cloud. Le telnet du Pi sous QEM
 
 ## 7. État et plan (14/11)
 
-* Branche `claude/x86-64-pc` : Korin PC démarre sur le ZBook (bureau Elegant, Wi-Fi, son, touchpad, GPU Intel par Mesa
+* Branche `main` (l'ancienne `claude/x86-64-pc`, qui a remplacé `main` le 18/11) : Korin PC démarre sur le ZBook (bureau Elegant, Wi-Fi, son, touchpad, GPU Intel par Mesa
   iris, Jet, git, rg, Python et Vibe validés par l'utilisateur) ; .NET (runtime, WinForms, Avalonia sur le processeur,
   Studio) vérifié sous QEMU seulement. Le détail : `.agents/memory/armpi-x86-pc.md`.
 * **Prochain chantier** : le **serveur web maison et WebStudio** (PC-PILOTES.md, « Ordre du plan ») : serveur écrit
@@ -226,9 +226,8 @@ une carte ou un dossier de Windows : pas dans le cloud. Le telnet du Pi sous QEM
   *staging* : jamais en production sans l'utilisateur) ; WebStudio en **C++ natif sur UIKit** (décision du 14/11), étude
   de design faite le 14/11 et à valider : `docs/DESIGN-WEBSTUDIO.md` (maquettes en lien, contrat avec le serveur au §5.4). Ensuite SDL 3,
   le GPU NVIDIA, Godot, le noyau du Pi en C (« Ordre du plan » et « Reste » de PC-PILOTES.md).
-* **`main` n'est pas fusionné** dans la branche depuis le 12/11 (cf745f03) : Python et Vibe ont été recopiés de `main`
-  fichier par fichier ; `main` a encore des commits propres (`git log claude/x86-64-pc..main`). Ne pas fusionner sans
-  l'accord de l'utilisateur.
+* Le 18/11, `claude/x86-64-pc` a **remplacé** `main` (sans fusion, à la demande de l'utilisateur) ; le dossier
+  `packages/` de l'ancienne `main` (dépôt servi par GitHub Pages) a été repris tel quel. On travaille sur `main`.
 
 ## 8. Ce qui rendrait la mise en place plus rapide
 
