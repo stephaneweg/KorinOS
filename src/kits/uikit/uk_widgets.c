@@ -704,6 +704,8 @@ long ui_w_move(long w, long x, long y, long ww, long h)
 {
 	if (!w)
 		return 0;
+	if (LDW(w, UW_TYPE) == UT_TOOLBAR) /* ses boutons la suivent */
+		uk_tbar_shift(w, x - LDW(w, UW_X), y - LDW(w, UW_Y));
 	STW(w, UW_X, x);
 	STW(w, UW_Y, y);
 	STW(w, UW_W, ww);

@@ -798,7 +798,7 @@ static void layout (int w, int h)
 	dv_move (0, vy, w, vh);
 	int ny = h - NAV_H, cy = ny + (NAV_H - ctl_h ()) / 2;
 	ui_w_move (g_nav, 0, ny, w, NAV_H);
-	// (the navigator: toolbars keep their buttons where ui_toolbar_add put them)
+	// (the navigator: its ui_toolbar_add buttons follow the bar)
 	ui_w_move (g_lFile, w - 190, cy, 180, ctl_h ());
 	ui_w_move (g_lInfo, 340, cy, imax (20, w - 340 - 200), ctl_h ());
 }

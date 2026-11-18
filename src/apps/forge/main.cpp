@@ -2369,7 +2369,7 @@ void buildWindow ()
 	w_mode = ui_segmented (0, 0, 220, h, (long) TR ("Conception|Fabrication"));
 	ui_w_tip (w_mode, (long) TR ("Fabrication (G-code GRBL) : à une étape suivante"));
 	TB_H = h + 24;
-	w_bar = ui_toolbar (408, (TB_H - h) / 2, imax (100, (int) ui.w - 408 - 96 - 128), 0);	// (à sa place : ses boutons ne suivent pas ui_w_move)
+	w_bar = ui_toolbar (408, (TB_H - h) / 2, imax (100, (int) ui.w - 408 - 96 - 128), 0);	// (à sa place ; ui_w_move de la barre emmène ses boutons)
 	static const char *const TOOLS[TB_N] = { "Esquisse", "Boîte", "Cylindre", "Pousser", "|Congé", "Chanfrein", "|Union", "Soustraire", "|Mesurer" };
 	static const char *const TIPS[TB_N] = { "Esquisse (S) sur la face choisie ou le plan XY : lignes, rectangles, cercles, arcs, contraintes (PlaneGCS) ; E l'extrude", "Boîte (B) : clic au centre, on s'éloigne, clic, on monte, clic",
 		"Cylindre : clic au centre, on s'éloigne pour le rayon, clic, on monte, clic", "Pousser/tirer (Q) une face plane", "Congé (F) sur les arêtes choisies",

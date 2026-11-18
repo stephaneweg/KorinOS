@@ -518,6 +518,26 @@ long ui_toolbar_add(long a0, long a1, long a2, long a3)
 	return b;
 }
 
+/* uk_tbar_shift : la barre bouge de (dx, dy) (ui_w_move) -> ses boutons
+ * (UT_TOOL) bougent d'autant ; sans cela, ils restaient à leur place d'avant
+ * (la loupe de Jet au redimensionnement). Un programme qui place lui-même ses
+ * boutons le fait après la barre : ses places restent les siennes. Les autres
+ * enfants (champs, boutons ordinaires, barres) sont au programme. */
+long uk_tbar_shift(long bar, long dx, long dy)
+{
+	long k;
+	if (!dx && !dy)
+		return 0;
+	for (k = uk.wfirst; k; k = LDX(k, UW_NEXT)) {
+		if (LDX(k, UW_PARENT) != bar || LDW(k, UW_TYPE) != UT_TOOL)
+			continue;
+		STW(k, UW_X, LDW(k, UW_X) + dx);
+		STW(k, UW_Y, LDW(k, UW_Y) + dy);
+		uk_des_note(k, 0);
+	}
+	return 0;
+}
+
 /* uk_tool_map : les caractères des barres d'outils des programmes -> glyphes
  * de tools/icons (art.py) : point de code, nom (24 octets par entrée) */
 struct tool_ent {

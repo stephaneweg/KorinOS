@@ -462,6 +462,7 @@ UK_VT_DRAW(uk_kn_draw) UK_VT_MOUSE(uk_kn_mouse) UK_VT_DRAW(uk_vu_draw) UK_VT_DRA
 KIT_HIDDEN long uk_seg_choose(long w, long seg);
 UK_VT_DRAW(uk_pn_draw) UK_VT_DRAW(uk_sg_draw) UK_VT_MOUSE(uk_sg_mouse) UK_VT_KEY(uk_sg_key)
 UK_VT_DRAW(uk_tabs_draw) UK_VT_DRAW(uk_ts_draw) UK_VT_MOUSE(uk_ts_mouse) UK_VT_WHEEL(uk_ts_wheel)
+KIT_HIDDEN long uk_tbar_shift(long bar, long dx, long dy);
 UK_VT_DRAW(uk_tbar_draw) UK_VT_DRAW(uk_tool_draw) UK_VT_MOUSE(uk_tool_mouse)
 
 /* uikit_more.inc (uk_more.c) */

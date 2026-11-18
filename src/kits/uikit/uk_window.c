@@ -397,6 +397,8 @@ long uk_adapt(long ww, long wh)
 		p = LDX(w, UW_PARENT); /* un parent qui place ses enfants */
 		if (p && uk_vt_has(p, VT_LAYOUT))
 			continue;
+		if (p && LDW(w, UW_TYPE) == UT_TOOL && LDW(p, UW_TYPE) == UT_TOOLBAR)
+			continue; /* (suit sa barre : uk_tbar_shift) */
 		if (lay & 15) { /* ancres */
 			mode = uk_amode(lay & 1, (lay >> 2) & 1);
 			rx = uk_axis(LDSH(w, UW_DES), LDSH(w, UW_DES + 4), dw, ww, mode, 0);

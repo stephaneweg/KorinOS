@@ -4,10 +4,11 @@ description: "Notes de l'utilisateur à reprendre à une date donnée (tâches c
 metadata:
   node_type: memory
   type: project
-  modified: 2026-11-14
+  modified: 2026-11-18
 ---
 
-**Mardi 17/11/2026 — Jet, barre d'adresse** (signalé le 14/11) : le bouton « loupe » de la barre d'adresse ne suit pas
-le redimensionnement de la fenêtre. En agrandissant, la barre d'adresse s'élargit bien, mais la loupe reste à sa
-position d'avant et se retrouve par-dessus la barre. Sa position doit être recalculée au redimensionnement, depuis le
-bord droit de la barre. Le source de Jet est dans `src/extra` (hors git, `tools/extra/fetch.sh`), pas dans `src/apps`.
+**FAIT le 18/11 — Jet, loupe de la barre d'adresse** (signalé le 14/11, oubliée le 17/11) : la cause était dans UIKit,
+pas dans Jet : `ui_w_move` d'une barre d'outils laissait ses boutons (`ui_toolbar_add`, UT_TOOL) à leur place.
+Désormais ils bougent du même décalage (`uk_tbar_shift`, uk_tabs.c) et `uk_adapt` ne les place plus lui-même. Les
+apps qui placent leurs boutons (mail, irc, letters) le font après la barre : inchangées. Pas encore vérifié à
+l'écran (Jet sur le ZBook, cardfile, help).
