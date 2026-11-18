@@ -18,3 +18,11 @@ le touchpad : COL03 ; 3 au-dessus : COL05, PointStick ELAN). À faire dans i2chi
 §5 point 0.
 
 **Signalé le 18/11 — icône de batterie** : il faut un symbole quand le chargeur est branché (pas seulement l'éclair en charge). Détail : docs/etude/BATTERIE-PC.md « Reste à faire ».
+
+**PRIORITÉ, demandé le 18/11 (avec les boutons du touchpad, juste après les essais du build world) — Fichiers en
+deux vues** : un bouton de la barre d'outils de Fichiers (src/apps/files/main.c, port C de files.asm) partage la
+fenêtre en **deux vues indépendantes** côte à côte, chacune avec son dossier, son chemin et sa sélection, pour
+copier ou déplacer d'un dossier à l'autre (glisser de l'une à l'autre avec le fantôme du glisser ; Copier/Déplacer
+vers l'autre vue ; F5/F6 à la Total Commander à voir). La vue active est marquée (couleur du thème) ; le panneau de
+gauche et la barre de chemin suivent la vue active ; le bouton revient à une seule vue. Le choix est retenu
+(réglages de Fichiers) et rouvert avec la session. Aide de Fichiers (help_fr.md, help_en.md) à compléter.
