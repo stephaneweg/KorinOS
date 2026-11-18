@@ -124,3 +124,4 @@
 - [Batterie du PC](armpi-batterie.md) — acpid sur ACPICA (17/11) : %, temps restant, alertes, extinction à 5 %, profil d'énergie, icône de la barre ; QEMU seulement
 - [Coffre à secrets](armpi-coffre.md) — 18/11 : fait sur le PC (keyvault, TPM, migrations), vérifié sous QEMU ; ZBook, vrai TPM et enforce restent
 - [build world du PC](armpi-build-world-pc.md) — après Jet : nettoyer build, tout reconstruire (libposix relinkée partout, GCC STAGES=posix), tout publier, nouvelle clé
+- [gh (GitHub CLI)](armpi-gh.md) — au plan le 18/11 : gh auth en C sur oauthd + coffre, puis commandes en C ; le vrai gh (Go) par la couche Linux plus tard ; étude docs/etude/GH.md
