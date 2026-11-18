@@ -196,6 +196,7 @@ long req_screen_set(void);
 long req_screen_keep(void);
 long req_screen_modes(void);
 long req_win_place(void);
+long req_win_top(void);
 void screen_tick(void);
 long win_is_max(struct win *w);
 void restore_clear(struct win *w);

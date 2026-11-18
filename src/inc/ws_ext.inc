@@ -151,5 +151,9 @@ WS_OVER_MAX		= 32
 ; le point (hx, hy) de ce rectangle suit le curseur. Sans elle : le curseur seul, comme avant.
 WS_OP_DRAG_IMAGE	= 39		; a id, b x | y << 16 | largeur << 32 | hauteur << 48 (contenu),
 					; c hx | hy << 32 -> 0 ; E_INVAL : pas de glisser en cours
+; Toujours au-dessus (18/11/2026, docs/etude/MUSIQUE.md : le mini-lecteur) : une fenetre du programme passe dans
+; la couche « dessus » (WF_TOP, sur tous les espaces) ou en revient. Avec WS_OP_WIN_PLACE (sa place) et
+; WS_OP_RESIZE (sa taille), une app fait d'elle-meme une carte en bas a droite de l'ecran, au-dessus des autres.
+WS_OP_WIN_TOP		= 40		; a id, b 1 dessus / 0 comme les autres -> 0 ; E_INVAL : fenetre du fond
 WS_DRAG_IMG_W		= 256		; (Elegant coupe le rectangle a cette taille)
 WS_DRAG_IMG_H		= 160

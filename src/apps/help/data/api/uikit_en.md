@@ -65,6 +65,8 @@ Windows have no title bar: Elegant draws the frame and three buttons (minimise, 
 | `ui_on_resize` | function `(width, height)`, 0 | called by `uikit_w_event` after a `WEV_RESIZE` |
 | `ui_maximize` | | like the maximise button (maximised, or back to its previous size) |
 | `ui_minimize` | | the current window minimised, like the button of its frame (`ui_raise` brings it back) |
+| `ui_window_place` | x, y | the current window's content goes to this place on the screen (its frame around it), whatever its layer; with `ui_resize` and `ui_screen`, a mini player makes itself a card at the bottom right |
+| `ui_window_top` | 1 / 0 | 1: the current window stays above the others, on every workspace; 0: like the others again |
 | `ui_window_drag` | | during a press in the content: the window follows the mouse |
 | `ui_frame_request` | | 1: a `WEV_FRAME` will come when Elegant has taken the image (animations) |
 | `ui_hit` | x, y, width, height | 1 if the mouse (last event) is inside the rectangle |

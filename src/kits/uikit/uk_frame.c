@@ -760,6 +760,25 @@ long ui_minimize(void)
 	return uk_call(WS_OP_MINIMIZE);
 }
 
+/* ui_window_place : x, y du contenu de la fenêtre courante sur l'écran (son cadre autour) -> la réponse
+ * d'Elegant (WS_OP_WIN_PLACE ; en mode poche, la place reste la sienne) */
+long ui_window_place(long x, long y)
+{
+	STX(uk.msg, WM_A, uk_win());
+	STX(uk.msg, WM_B, x);
+	STX(uk.msg, WM_C, y);
+	return uk_call(WS_OP_WIN_PLACE);
+}
+
+/* ui_window_top : 1 : la fenêtre courante reste au-dessus des autres (sur tous les espaces) ; 0 : comme les
+ * autres -> la réponse d'Elegant (WS_OP_WIN_TOP) */
+long ui_window_top(long on)
+{
+	STX(uk.msg, WM_A, uk_win());
+	STX(uk.msg, WM_B, on != 0);
+	return uk_call(WS_OP_WIN_TOP);
+}
+
 /* ui_screen_grab : pixels 0x00RRGGBB, largeur, hauteur : l'écran composé, tel
  * qu'il est montré (WS_OP_SNAPSHOT), recopié depuis son coin en haut à gauche,
  * une ligne tous les « largeur » pixels -> 1 (0 : Elegant ne répond pas) */

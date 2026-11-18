@@ -1136,6 +1136,37 @@ ui_minimize:
 	bl	uk_call
 	epilogue
 
+; ui_window_place : x0, x1 = x, y du contenu de la fenetre courante sur l'ecran (son cadre autour)
+; -> x0 = la reponse d'Elegant (WS_OP_WIN_PLACE)
+ui_window_place:
+	prologue
+	stp	x0,x1,[sp,-16]!
+	bl	uk_win
+	ldp	x1,x2,[sp],16
+	adr	x9,uk_msg
+	str	x0,[x9,WM_A]
+	str	x1,[x9,WM_B]
+	str	x2,[x9,WM_C]
+	mov	x0,WS_OP_WIN_PLACE
+	bl	uk_call
+	epilogue
+
+; ui_window_top : x0 = 1 : la fenetre courante reste au-dessus des autres (sur tous les espaces) ;
+; 0 : comme les autres -> x0 = la reponse d'Elegant (WS_OP_WIN_TOP)
+ui_window_top:
+	prologue
+	cmp	x0,0
+	cset	x0,ne
+	str	x0,[sp,-16]!
+	bl	uk_win
+	ldr	x1,[sp],16
+	adr	x9,uk_msg
+	str	x0,[x9,WM_A]
+	str	x1,[x9,WM_B]
+	mov	x0,WS_OP_WIN_TOP
+	bl	uk_call
+	epilogue
+
 ; x0 = pixels 0x00RRGGBB, x1 = largeur, x2 = hauteur (ui_screen : celles de
 ; l'ecran) : l'ecran compose, tel qu'il est montre (op WS_OP_SNAPSHOT
 ; d'Elegant, celle de bin/screenshot), recopie depuis son coin en haut a

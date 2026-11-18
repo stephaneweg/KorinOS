@@ -232,6 +232,33 @@ long req_win_place(void)
 	return 0;
 }
 
+/* WS_OP_WIN_TOP : a id, b 1 / 0 -> 0 : une fenêtre du programme toujours au-dessus des autres (WF_TOP : la
+ * couche « dessus », sur tous les espaces de travail), ou de nouveau comme les autres (l'espace courant). Pour
+ * un mini-lecteur (docs/etude/MUSIQUE.md) ; E_INVAL pour une fenêtre du fond (WF_BACK). */
+long req_win_top(void)
+{
+	struct win *w = req_win();
+	if (!w)
+		return E_BADF;
+	if (w->flags & WF_BACK)
+		return E_INVAL;
+	int on = MS64(msg, WM_B) != 0;
+	if (on == !!(w->flags & WF_TOP))
+		return 0;
+	dirty_window(w);
+	if (on) {
+		w->flags |= WF_TOP;
+		w->desk = 0;
+	} else {
+		w->flags &= ~(u64)WF_TOP;
+		w->desk = (u64)desk_cur + 1;
+	}
+	win_raise(w);
+	wins_changed();
+	dirty_window(w);
+	return 0;
+}
+
 /* fenêtre libérée : sa place dans win_restore est rendue */
 void restore_clear(struct win *w)
 {
