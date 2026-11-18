@@ -16,3 +16,5 @@ l'écran (Jet sur le ZBook, cardfile, help).
 **PRIORITÉ, signalé le 18/11 — boutons du touchpad du ZBook** : le touchpad marche, pas les boutons autour (3 sous
 le touchpad : COL03 ; 3 au-dessus : COL05, PointStick ELAN). À faire dans i2chid, détail : docs/etude/PC-PILOTES.md
 §5 point 0.
+
+**Signalé le 18/11 — icône de batterie** : il faut un symbole quand le chargeur est branché (pas seulement l'éclair en charge). Détail : docs/etude/BATTERIE-PC.md « Reste à faire ».

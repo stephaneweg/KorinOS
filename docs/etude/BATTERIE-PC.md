@@ -205,6 +205,11 @@ Tout ce qu'il faut pour les refaire ailleurs est dans le dépôt (`tools/acpica/
 * Les seuils des alertes (`warn`, `critical`) et les profils sur secteur ou batterie dans le volet Énergie
   (aujourd'hui dans `/etc/power.ini`).
 * Le mode poche de la barre (l'icône y est dessinée comme en mode normal).
+* **Icône : le secteur branché (demande du 18/11/2026)** : un symbole dès que le chargeur est branché, pas
+  seulement « en charge » (l'éclair d'aujourd'hui n'apparaît que si la batterie charge : branchée et pleine, ou
+  au seuil de charge, on ne voit rien). Une prise quand le secteur est là, l'éclair quand elle charge (ou
+  l'éclair dans les deux cas, plus simple) ; vérifier sur le ZBook ce que `_PSR` (secteur) et `_BST` (état de
+  charge) rendent, branché et pleine ; aussi dans le menu (« Sur secteur », « Sur secteur, en charge »).
 
 ## Plan : couvercle, arrêt automatique, session (décidé le 18/11/2026)
 
