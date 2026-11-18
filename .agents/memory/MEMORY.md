@@ -127,3 +127,4 @@
 - [Identification GitHub](armpi-gh.md) — au plan le 18/11 : code d'appareil dans git-credential-korin (oauthd) ; pas de gh, pas de PR ; docs/etude/GH.md §5
 - [Sécurité contre le web](armpi-securite.md) — plan du 18/11 : enforce, SMEP/SMAP, unveil pour Jet, ASLR, pledge ; docs/etude/SECURITE.md, rien de fait
 - [Ports construits dans Korin](armpi-ports-dans-korin.md) — plan du 18/11 : libs tierces en .so/.a, outils de construction, puis tous les ports (SDL, STK, Python, Godot, WebKit…) dans Korin sur le ZBook ; rien de fait
+- [Spotify et Jamendo](armpi-musique.md) — au plan le 18/11 : librespot (Rust) en bibliothèque C + app UIKit, client Jamendo d'abord ; docs/etude/MUSIQUE.md, rien de fait
