@@ -1,0 +1,205 @@
+<title>Retenir l'élévation</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Mise en page : une colonne de lecture, les écrans (cartes) en galerie qui passe à la ligne.
+ * Couleurs : jetons de UIKit (uk_jet_givre, uk_jet_noir), comme docs/maquettes/connexion/style.css. */
+:root {
+	--face: #F5F6F8; --surface: #FFFFFF; --creux: #ECEEF2; --ligne: #E2E5EA; --ligne-forte: #B8BFC9;
+	--t1: #14171C; --t2: #4C5563; --t3: #5F6877; --accent: #2563D8; --accent-clair: #E4ECFB;
+	--lien: #2563D8; --danger: #D93A3F; --succes: #1E8A5A; --encre: #FFFFFF; --page: #ECEEF2;
+	--voile: rgba(20,23,28,.30); --ombre4: 0 6px 18px rgba(20,23,28,.19);
+	--term-bg: #14171C; --term-t: #DDE2EA; --term-dim: #8B929D; --term-ok: #7DD3A0;
+	--f-text: Inter, "Segoe UI", system-ui, sans-serif; --f-mono: "JetBrains Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+	--face: #15171B; --surface: #1B1E23; --creux: #101216; --ligne: #2A2E36; --ligne-forte: #525966;
+	--t1: #ECEEF2; --t2: #B0B6C0; --t3: #8B929D; --accent: #2F72DC; --accent-clair: #1C2F4D;
+	--lien: #7DB4F2; --danger: #E5484D; --succes: #46A758; --page: #101216;
+	--voile: rgba(0,0,0,.45); --ombre4: 0 6px 18px rgba(0,0,0,.50);
+	--term-bg: #0B0C0F; color-scheme: dark; } }
+:root[data-theme="dark"] {
+	--face: #15171B; --surface: #1B1E23; --creux: #101216; --ligne: #2A2E36; --ligne-forte: #525966;
+	--t1: #ECEEF2; --t2: #B0B6C0; --t3: #8B929D; --accent: #2F72DC; --accent-clair: #1C2F4D;
+	--lien: #7DB4F2; --danger: #E5484D; --succes: #46A758; --page: #101216;
+	--voile: rgba(0,0,0,.45); --ombre4: 0 6px 18px rgba(0,0,0,.50);
+	--term-bg: #0B0C0F; color-scheme: dark; }
+body { background: var(--page); color: var(--t1); font: 14px/1.55 var(--f-text);
+	padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+	padding-block: 24px 64px; }
+main { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+h1 { font-size: 22px; margin: 0; font-weight: 650; text-wrap: balance; }
+h2 { font-size: 16px; margin: 0 0 6px; font-weight: 650; }
+p { margin: 0; max-width: 70ch; color: var(--t2); }
+.galerie { display: flex; flex-wrap: wrap; gap: 24px; }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; max-width: 100%; }
+figcaption { font-size: 13px; color: var(--t2); max-width: 440px; }
+figcaption b { color: var(--t1); }
+.scene { background: var(--voile); padding: 28px; border-radius: 8px; max-width: 100%; overflow-x: auto; }
+/* la carte d'authcard : ui_dialog 420 de large */
+.carte { width: 420px; max-width: 100%; background: var(--surface); border-radius: 10px; box-shadow: var(--ombre4);
+	font: 13px/18px var(--f-text); color: var(--t1); overflow: hidden; }
+.carte .titre { padding: 10px 20px; font-weight: 600; border-bottom: 1px solid var(--ligne); background: var(--face); }
+.carte .corps { padding: 20px 20px 8px; display: flex; flex-direction: column; gap: 10px; }
+.raison { font-size: 14px; line-height: 20px; }
+.dim { color: var(--t3); }
+.champ { height: 30px; border: 1px solid var(--ligne-forte); border-radius: 6px; background: var(--surface);
+	display: flex; align-items: center; padding: 0 10px; letter-spacing: 3px; }
+.champ.focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-clair); }
+.case { display: flex; align-items: center; gap: 8px; height: 22px; cursor: pointer; user-select: none; }
+.case i { width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--ligne-forte); background: var(--surface);
+	display: grid; place-items: center; flex: none; }
+.case.on i { background: var(--accent); border-color: var(--accent); }
+.case.on i::after { content: ""; width: 8px; height: 4px; border: 2px solid var(--encre); border-top: 0; border-right: 0;
+	transform: translate(0, -1px) rotate(-45deg); }
+.case:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.boutons { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 12px 12px; }
+.bt { height: 30px; padding: 0 16px; border-radius: 6px; border: 1px solid var(--ligne-forte); background: var(--surface);
+	display: grid; place-items: center; }
+.bt.def { background: var(--accent); border-color: var(--accent); color: var(--encre); font-weight: 600; }
+.note { font-size: 12px; color: var(--t3); }
+.term { background: var(--term-bg); color: var(--term-t); font: 13px/20px var(--f-mono); border-radius: 8px; padding: 14px 16px;
+	width: 520px; max-width: 100%; overflow-x: auto; white-space: pre; }
+.term .d { color: var(--term-dim); }
+.term .ok { color: var(--term-ok); }
+.regles { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.regles > div { background: var(--surface); border: 1px solid var(--ligne); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+.regles ul { margin: 0; padding-left: 18px; color: var(--t2); display: flex; flex-direction: column; gap: 4px; }
+.question { background: var(--accent-clair); border-radius: 8px; padding: 14px 16px; }
+.question p { color: var(--t1); }
+code { font-family: var(--f-mono); font-size: 12.5px; }
+.toggle { align-self: flex-start; display: inline-flex; gap: 4px; background: var(--creux); border-radius: 8px; padding: 2px; }
+.toggle button { font: inherit; font-size: 13px; border: 0; background: none; color: var(--t2); padding: 3px 12px; border-radius: 6px; cursor: pointer; }
+.toggle button[aria-pressed="true"] { background: var(--surface); color: var(--t1); font-weight: 600; }
+@media (max-width: 480px) { .scene { padding: 12px; } }
+</style>
+
+<main>
+	<header style="display:flex;flex-direction:column;gap:8px">
+		<h1>Retenir l'élévation pendant 5 minutes</h1>
+		<p>La carte d'autorisation de <code>/sys/authcard</code>, lancée par authd quand une app demande l'élévation
+			(Logiciels, volets « machine » de Réglages…). Une case s'ajoute sous le mot de passe. Le délai est gardé
+			par authd, jamais par l'app.</p>
+		<div class="toggle" role="group" aria-label="Thème">
+			<button type="button" id="th-auto" aria-pressed="true">Système</button>
+			<button type="button" id="th-light" aria-pressed="false">Givre</button>
+			<button type="button" id="th-dark" aria-pressed="false">Onyx Noir</button>
+		</div>
+	</header>
+
+	<section>
+		<h2>La carte</h2>
+		<div class="galerie">
+			<figure>
+				<div class="scene">
+					<div class="carte">
+						<div class="titre">Autorisation</div>
+						<div class="corps">
+							<div class="raison">Logiciels veut installer Tetris.</div>
+							<div class="dim">Compte : stephane</div>
+							<div class="champ focus">••••••••</div>
+							<div class="case" tabindex="0" role="checkbox" aria-checked="false" id="c1"><i></i>Retenir pendant 5 minutes</div>
+						</div>
+						<div class="boutons"><span class="bt">Annuler</span><span class="bt def">Autoriser</span></div>
+					</div>
+				</div>
+				<figcaption><b>A. Par défaut.</b> La case est décochée à chaque ouverture : retenir est un choix de
+					l'instant. La carte grandit de 30 px (250 → 280). Cliquez la case pour la cocher.</figcaption>
+			</figure>
+			<figure>
+				<div class="scene">
+					<div class="carte">
+						<div class="titre">Autorisation</div>
+						<div class="corps">
+							<div class="raison">Réglages veut modifier l'accès à distance.</div>
+							<div class="dim">Compte : stephane</div>
+							<div class="champ focus">••••••••</div>
+							<div class="case on" tabindex="0" role="checkbox" aria-checked="true" id="c2"><i></i>Retenir pendant 5 minutes</div>
+						</div>
+						<div class="boutons"><span class="bt">Annuler</span><span class="bt def">Autoriser</span></div>
+					</div>
+				</div>
+				<figcaption><b>B. Cochée.</b> Après Autoriser avec le bon mot de passe, authd retient ce compte pour
+					la session graphique jusqu'à 11 h 47 (5 min après la saisie). Un mauvais mot de passe ne retient
+					rien.</figcaption>
+			</figure>
+			<figure>
+				<div class="scene" style="display:grid;place-items:center;min-height:240px;width:476px;max-width:100%">
+					<p class="note" style="text-align:center;max-width:300px">Pas de carte.<br>Logiciels installe Pac-Man
+						tout de suite ; le journal d'authd note « élévation par stephane : accordée (retenue) ».</p>
+				</div>
+				<figcaption><b>C. Seconde demande dans les 5 min.</b> authd passe l'app en uid 0 sans lancer la carte.
+					Après 11 h 47, la carte A revient.</figcaption>
+			</figure>
+		</div>
+	</section>
+
+	<section>
+		<h2>Dans un terminal : sudo</h2>
+		<div class="galerie">
+			<figure>
+<div class="term">$ sudo pkg install tetris
+[sudo] mot de passe :
+<span class="d">Retenir pendant 5 minutes ? [o/N]</span> o
+<span class="ok">tetris 1.2.0 installé</span>
+$ sudo pkg install pacman
+<span class="ok">pacman 1.0.4 installé</span>          <span class="d"># pas de mot de passe</span>
+$ sudo -k                          <span class="d"># oublier tout de suite</span></div>
+				<figcaption><b>Proposé.</b> sudo pose la même question que la case, après le mot de passe (Entrée
+					seule = non). Ce qui est retenu vaut pour ce terminal seulement (le shell qui a lancé sudo), pas
+					pour la session graphique ni pour un autre terminal. <code>sudo -k</code> efface le délai, comme
+					sous Linux.</figcaption>
+			</figure>
+		</div>
+	</section>
+
+	<section class="regles">
+		<div>
+			<h2>Ce qui est retenu</h2>
+			<ul>
+				<li>Gardé en mémoire par authd seulement : ni fichier, ni app.</li>
+				<li>Par compte (uid) et par portée : la session graphique, ou un terminal.</li>
+				<li>5 minutes à partir de la saisie du mot de passe ; une élévation retenue ne prolonge pas le délai.</li>
+			</ul>
+		</div>
+		<div>
+			<h2>Quand c'est effacé</h2>
+			<ul>
+				<li>Au bout de 5 minutes.</li>
+				<li>Au redémarrage (mémoire d'authd).</li>
+				<li>À l'ouverture d'une session par l'écran de connexion : tout ce qui était retenu est oublié
+					(la déconnexion ramène à cet écran).</li>
+				<li>Terminal : quand son shell se ferme ; <code>sudo -k</code>.</li>
+			</ul>
+		</div>
+		<div>
+			<h2>Ce qui ne change pas</h2>
+			<ul>
+				<li>Compte sans mot de passe : pas de champ, pas de case.</li>
+				<li>Compte absent de <code>/etc/elevate.ini</code> : toujours refusé.</li>
+				<li>Le Pi (noyau sans uid) : rien à élever, rien à retenir.</li>
+			</ul>
+		</div>
+	</section>
+
+	<section class="question">
+		<h2>À valider</h2>
+		<p>La case décochée par défaut, le délai fixe de 5 min (pas prolongé à chaque usage), et la question
+			« Retenir pendant 5 minutes ? [o/N] » de sudo, valable pour ce terminal seulement.</p>
+	</section>
+</main>
+
+<script>
+document.querySelectorAll('.case').forEach(function (c) {
+	function flip() { var on = c.classList.toggle('on'); c.setAttribute('aria-checked', on ? 'true' : 'false'); }
+	c.addEventListener('click', flip);
+	c.addEventListener('keydown', function (e) { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); flip(); } });
+});
+var b = { auto: document.getElementById('th-auto'), light: document.getElementById('th-light'), dark: document.getElementById('th-dark') };
+Object.keys(b).forEach(function (k) {
+	b[k].addEventListener('click', function () {
+		if (k === 'auto') document.documentElement.removeAttribute('data-theme');
+		else document.documentElement.setAttribute('data-theme', k);
+		Object.keys(b).forEach(function (j) { b[j].setAttribute('aria-pressed', j === k ? 'true' : 'false'); });
+	});
+});
+</script>

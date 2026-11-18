@@ -252,6 +252,13 @@ Pour le shell, la commande **`sudo commande…`** (nom connu des ports et des ha
 - authd lance alors `commande` avec l'uid 0, l'environnement nettoyé et le terminal hérité ;
 - `sudo -s` ouvre un shell `system`.
 
+**Retenir pendant 5 minutes** (18/11, maquette `docs/maquettes/elevation-retenir.html`) : pour un compte avec mot de
+passe, la carte d'authcard a une case « Retenir pendant 5 minutes » (décochée à chaque ouverture) et sudo demande
+« Retenir pendant 5 minutes ? [o/N] » après le mot de passe. authd garde le délai en mémoire seulement, par uid et par
+portée : la session graphique pour la carte, le shell qui lance sudo (son père) pour un terminal. Pendant le délai,
+l'élévation est accordée sans carte ni mot de passe. Le délai part de la saisie et ne s'allonge pas. Il est oublié au
+bout de 5 minutes, au redémarrage, à chaque ouverture de session (`/sys/login`, `AUTH_FORGET`) et par `sudo -k`.
+
 L'élévation **ne donne jamais les droits matériel** : seulement l'uid 0, donc l'écriture dans `/`.
 
 Il n'y a **pas de bit setuid** : aucun fichier ne peut le porter sur FAT. Tout passe par authd ou par un démon

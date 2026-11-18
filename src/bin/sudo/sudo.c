@@ -2,16 +2,22 @@
  *
  *   sudo commande [arguments]    la commande en uid 0, sur le même terminal
  *   sudo -s                      un shell system (bash, sinon sh)
+ *   sudo -k                      oublier les élévations retenues de ce compte
  *
  * Le mot de passe demandé est celui de l'utilisateur (décision du 16/11), vérifié par authd (service
  * « auth »), qui passe ce process en uid 0 ; la commande, lancée ensuite, hérite de cet uid. Les comptes qui
  * peuvent s'élever sont ceux de /etc/elevate.ini. Un compte sans mot de passe s'élève sans rien taper. Aucun
  * droit sur le matériel n'est donné : seulement l'uid 0, donc l'écriture dans /. La commande est cherchée
- * dans /sbin, /bin puis /devtools/gcc/bin (le PATH de system). */
+ * dans /sbin, /bin puis /devtools/gcc/bin (le PATH de system).
+ *
+ * Après le mot de passe, « Retenir pendant 5 minutes ? [o/N] » : oui, authd ne redemande plus le mot de passe
+ * pendant 5 minutes à ce compte depuis ce terminal (le shell qui lance sudo, son père) ; la carte de la
+ * session graphique a sa propre case (docs/maquettes/elevation-retenir.html). */
 #include "korinrt.h"
 
 #define AUTH_CAN 1
 #define AUTH_SUDO 2
+#define AUTH_FORGET 11
 #define E_ACCES -13
 #define VT_TCGETS 5
 #define VT_TCSETS 6
@@ -84,10 +90,12 @@ static void read_line(char *buf, u64 cap)
 	buf[n] = 0;
 }
 
-static long auth_call(long ch, u64 op, const char *pw)
+static long auth_call(long ch, u64 op, const char *pw, int keep)
 {
 	memset(m, 0, sizeof m);
 	m[0] = (long)op;
+	m[1] = korin_sys0(SYS_GETPPID); /* la portée de ce qui est retenu : le shell de ce terminal */
+	m[2] = keep ? 1 : 0;
 	u64 n = pw ? (u64)str_len(pw) : 0;
 	if (n > 400)
 		n = 400;
@@ -119,8 +127,16 @@ static int find(const char *name, char *o)
 int main(int argc, char **argv)
 {
 	if (argc < 2) {
-		out("usage : sudo commande [arguments] | sudo -s\n");
+		out("usage : sudo commande [arguments] | sudo -s | sudo -k\n");
 		return 1;
+	}
+	if (str_eq(argv[1], "-k")) {
+		long ch = korin_sys2(SYS_SVC_OPEN, "auth", 3000);
+		if (ch < 0 || auth_call(ch, AUTH_FORGET, 0, 0) != 0) {
+			out("sudo : le service auth (authd) ne repond pas\n");
+			return 1;
+		}
+		return 0;
 	}
 	if (korin_sys0(SYS_GETUID) != 0) {
 		long ch = korin_sys2(SYS_SVC_OPEN, "auth", 3000);
@@ -128,15 +144,16 @@ int main(int argc, char **argv)
 			out("sudo : le service auth (authd) ne repond pas\n");
 			return 1;
 		}
-		long can = auth_call(ch, AUTH_CAN, 0);
+		long can = auth_call(ch, AUTH_CAN, 0, 0);
 		if (can <= 0) {
 			out("sudo : ce compte ne peut pas s'elever (/etc/elevate.ini)\n");
 			return 1;
 		}
 		long r = E_ACCES;
 		if (can == 1)
-			r = auth_call(ch, AUTH_SUDO, "");
+			r = auth_call(ch, AUTH_SUDO, "", 0);
 		long vt = tty_in();
+		int keep = -1; /* (demandé une fois, après le premier mot de passe) */
 		for (int tries = 0; r == E_ACCES && tries < 3; tries++) {
 			char pw[128];
 			out("[sudo] mot de passe : ");
@@ -144,7 +161,13 @@ int main(int argc, char **argv)
 			read_line(pw, sizeof pw);
 			echo(vt, 1);
 			out("\n");
-			r = auth_call(ch, AUTH_SUDO, pw);
+			if (keep < 0) {
+				char a[16];
+				out("Retenir pendant 5 minutes ? [o/N] ");
+				read_line(a, sizeof a);
+				keep = a[0] == 'o' || a[0] == 'O' || a[0] == 'y' || a[0] == 'Y';
+			}
+			r = auth_call(ch, AUTH_SUDO, pw, keep);
 			memset(pw, 0, sizeof pw);
 			if (r == E_ACCES)
 				out("Mot de passe incorrect.\n");

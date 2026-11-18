@@ -4,3 +4,4 @@ Mot de passe = Password
 Autoriser = Allow
 Annuler = Cancel
 Mot de passe incorrect. = Incorrect password.
+Retenir pendant 5 minutes = Remember for 5 minutes

@@ -4,7 +4,9 @@
  * un simple bouton Autoriser pour un compte sans mot de passe). La réponse va à authd (AUTH_CARD) ; fermer
  * la carte vaut un refus.
  *
- * Argument : « jeton|raison|compte|1 » (1 : mot de passe demandé). */
+ * Argument : « jeton|raison|compte|1 » (1 : mot de passe demandé). Avec un mot de passe, la case « Retenir
+ * pendant 5 minutes » (décochée à chaque ouverture) : cochée, authd n'en redemande pas pendant 5 minutes à ce
+ * compte pour la session graphique (maquette docs/maquettes/elevation-retenir.html). */
 #include "sys_consts.h"
 #include "uikit_import.h"
 
@@ -16,17 +18,18 @@
 static struct krt_ui ui;
 static long chan;
 static u64 token;
-static long w_pw, w_msg;
+static long w_pw, w_msg, w_keep;
 static u8 msg[MSG_SIZE];
 
 #define TR(s) ((const char *)ui_tr((long)(s)))
 
-static long answer(int cancel, const char *pw)
+static long answer(int cancel, const char *pw, int keep)
 {
 	memset(msg, 0, MSG_SIZE);
 	M64(msg, 0) = AUTH_CARD;
 	M64(msg, 8) = token;
 	M64(msg, 16) = cancel ? 1 : 0;
+	M64(msg, 24) = keep ? 1 : 0;
 	u64 n = pw ? (u64)str_len(pw) : 0;
 	if (n > 400)
 		n = 400;
@@ -77,7 +80,8 @@ int main(int argc, char **argv)
 		return 1;
 	ui_init((long)&ui);
 	enum { DW = 420, M = 20 };
-	long DH = need ? 250 : 190;
+	long DH = need ? 280 : 190;
+	int keep = 0; /* (gardée d'un essai à l'autre après un mauvais mot de passe) */
 	for (;;) {
 		long d = ui_dialog_begin(DW, DH, (long)TR("Autorisation"));
 		if (!d)
@@ -89,11 +93,13 @@ int main(int argc, char **argv)
 		str_cat(str_cat(who, TR("Compte : ")), compte);
 		ui_label(M, y, DW - 2 * M, 20, (long)who, ULB_DIM);
 		y += 30;
-		w_pw = 0;
+		w_pw = w_keep = 0;
 		if (need) {
 			w_pw = ui_textbox(M, y, DW - 2 * M, 30, UTF_PASSWORD);
 			ui_textbox_hint(w_pw, (long)TR("Mot de passe"));
 			y += 40;
+			w_keep = ui_checkbox(M, y, 0, 0, (long)TR("Retenir pendant 5 minutes"), keep);
+			y += 30;
 		}
 		w_msg = ui_label(M, y, DW - 2 * M, 20, (long)"", ULB_DIM);
 		long e = ui_dialog_button(d, 0, (long)TR("Autoriser"), 1, UB_DEFAULT, DW - 12);
@@ -106,12 +112,13 @@ int main(int argc, char **argv)
 		pw[0] = 0;
 		if (w_pw)
 			str_copy_n(pw, (const char *)ui_w_get_text(w_pw), sizeof pw);
+		keep = w_keep && ui_w_get_value(w_keep) ? 1 : 0;
 		ui_dialog_end(d);
 		if (r != 1) {
-			answer(1, 0);
+			answer(1, 0, 0);
 			return 0;
 		}
-		long a = answer(0, pw);
+		long a = answer(0, pw, keep);
 		memset(pw, 0, sizeof pw);
 		if (a != E_ACCES)
 			return 0;

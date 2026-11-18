@@ -26,7 +26,16 @@
  *   AUTH_CARD    (la carte seulement) a = jeton, b = 1 annuler ; données : mot de passe -> 0 : accepté (ou
  *                annulé) ; E_ACCES : mauvais mot de passe, la carte reste
  *   AUTH_WAIT    (l'app, après E_AGAIN) -> comme AUTH_ELEVATE. Le noyau abandonne un appel au bout de 30 s :
- *                authd rend E_AGAIN au bout de 20 s, et ui_elevate redemande par AUTH_WAIT */
+ *                authd rend E_AGAIN au bout de 20 s, et ui_elevate redemande par AUTH_WAIT
+ *   AUTH_FORGET  oublier les élévations retenues : l'uid 0 (l'écran de connexion, à chaque ouverture de
+ *                session) les oublie toutes ; un compte, les siennes (sudo -k)
+ *
+ * Retenir pendant 5 minutes (maquette docs/maquettes/elevation-retenir.html) : la case de la carte (AUTH_CARD
+ * c = 1) ou la réponse « o » de sudo (AUTH_SUDO c = 1) retient le compte pour une portée : 0, la session
+ * graphique (la carte) ; pour sudo, le pid du shell qui l'a lancé (AUTH_CAN et AUTH_SUDO b = SYS_GETPPID, dit
+ * par sudo : les pids ne reviennent pas, un terminal fermé n'a plus rien de retenu). Tant que le délai court,
+ * AUTH_CAN rend 1 et l'élévation est accordée sans mot de passe ni carte. Le délai part de la saisie et ne
+ * s'allonge pas ; il n'est qu'en mémoire (un redémarrage l'oublie). */
 #include "korinrt.h"
 
 #define M64(m, off) (*(u64 *)((u8 *)(m) + (off)))
@@ -42,6 +51,9 @@
 #define AUTH_SETPW 8 /* (uid 0) données : nom, 0, nouveau, 0 : le mot de passe d'un compte (sudo passwd nom) */
 #define AUTH_VERIFY 9 /* (uid 0 : l'écran de connexion) données : nom, 0, mot de passe -> 0 / E_ACCES */
 #define AUTH_HASPW 10 /* données : nom -> 1 : le compte a un mot de passe, 0 : non */
+#define AUTH_FORGET 11
+#define GRACE_MS (5 * 60 * 1000)
+#define GRACES 32
 #define E_AGAIN -11
 #define WAIT_MS 20000
 #define E_BUSY -16
@@ -66,6 +78,7 @@ static struct {
 	u64 since;  /* depuis quand elle attend */
 	long pid;   /* l'app */
 	long card;  /* le pid de /sys/authcard */
+	long uid;   /* le compte de l'app */
 	u64 token;
 	char name[32];
 } pending;
@@ -359,6 +372,57 @@ static long ecrire_mdp(const char *name, const char *pw)
 	return r < 0 ? r : 0;
 }
 
+/* ---------------------------------------------------------------- retenir 5 minutes */
+
+static struct {
+	long uid;
+	u64 scope; /* 0 : la session graphique ; sinon le pid du shell de sudo */
+	u64 until; /* SYS_TIME_MS ; 0 : place libre */
+} graces[GRACES];
+
+static int retenu(long uid, u64 scope)
+{
+	u64 now = korin_sys0(SYS_TIME_MS);
+	for (int i = 0; i < GRACES; i++) {
+		if (graces[i].until && graces[i].until <= now)
+			graces[i].until = 0;
+		if (graces[i].until && graces[i].uid == uid && graces[i].scope == scope)
+			return 1;
+	}
+	return 0;
+}
+
+static void retenir(long uid, u64 scope)
+{
+	u64 now = korin_sys0(SYS_TIME_MS);
+	int k = -1;
+	for (int i = 0; i < GRACES; i++) {
+		if (graces[i].until && graces[i].uid == uid && graces[i].scope == scope) {
+			k = i;
+			break;
+		}
+		if (k < 0 && (!graces[i].until || graces[i].until <= now))
+			k = i;
+	}
+	if (k < 0) { /* (tout est pris : la plus proche de sa fin cède la place) */
+		k = 0;
+		for (int i = 1; i < GRACES; i++)
+			if (graces[i].until < graces[k].until)
+				k = i;
+	}
+	graces[k].uid = uid;
+	graces[k].scope = scope;
+	graces[k].until = now + GRACE_MS;
+}
+
+/* uid < 0 : tout */
+static void oublier(long uid)
+{
+	for (int i = 0; i < GRACES; i++)
+		if (uid < 0 || graces[i].uid == uid)
+			graces[i].until = 0;
+}
+
 /* ---------------------------------------------------------------- le service */
 
 static void journal(const char *what, const struct compte *c, long pid, const char *res)
@@ -438,6 +502,11 @@ static long elever(const struct compte *c, long pid, const char *raison)
 	}
 	if (c->uid == 0)
 		return 0; /* (déjà system) */
+	if (retenu(c->uid, 0)) {
+		long r = korin_sys2(SYS_PROC_SETUID, pid, 0);
+		journal("elevation", c, pid, r ? "echec du changement d'uid" : "accordee (retenue)");
+		return r;
+	}
 	u64 tok = 0;
 	korin_sys2(SYS_GETRANDOM, &tok, sizeof tok);
 	tok |= 1;
@@ -466,6 +535,7 @@ static long elever(const struct compte *c, long pid, const char *raison)
 	pending.pid = pid;
 	pending.card = card;
 	pending.token = tok;
+	pending.uid = c->uid;
 	copie(pending.name, sizeof pending.name, c->name);
 	return DEFER;
 }
@@ -488,7 +558,10 @@ static long carte(long pid, const char *data)
 		return E_ACCES;
 	}
 	long r = korin_sys2(SYS_PROC_SETUID, pending.pid, 0);
-	journal("elevation", &c, pending.pid, r ? "echec du changement d'uid" : "accordee");
+	int keep = !r && M64(msg, 24) == 1 && empreinte_de(pending.name) && empreinte[0];
+	if (keep)
+		retenir(pending.uid, 0);
+	journal("elevation", &c, pending.pid, r ? "echec du changement d'uid" : keep ? "accordee, retenue 5 min" : "accordee");
 	finir(r);
 	return 0;
 }
@@ -529,7 +602,13 @@ static long traiter(void)
 	case AUTH_CAN:
 		if (uid != 0 && !peut_elever(&c))
 			return 0;
+		if (retenu(uid, M64(msg, 8)))
+			return 1;
 		return empreinte_de(c.name) && empreinte[0] ? 2 : 1;
+	case AUTH_FORGET:
+		oublier(uid == 0 ? -1 : uid);
+		journal("oubli des elevations retenues", &c, pid, "fait");
+		return 0;
 	case AUTH_CHECK:
 		if (verifier(c.name, data))
 			return 0;
@@ -540,12 +619,21 @@ static long traiter(void)
 			journal("sudo", &c, pid, "refuse (pas dans /etc/elevate.ini)");
 			return E_PERM;
 		}
+		if (uid != 0 && retenu(uid, M64(msg, 8))) {
+			journal("sudo", &c, pid, "accorde (retenu)");
+			return korin_sys2(SYS_PROC_SETUID, pid, 0);
+		}
 		if (!verifier(c.name, data)) {
 			journal("sudo", &c, pid, "mauvais mot de passe");
 			korin_sys1(SYS_SLEEP, 1000);
 			return E_ACCES;
 		}
-		journal("sudo", &c, pid, "accorde");
+		{
+			int keep = uid != 0 && M64(msg, 16) == 1 && M64(msg, 8) && empreinte_de(c.name) && empreinte[0];
+			if (keep)
+				retenir(uid, M64(msg, 8));
+			journal("sudo", &c, pid, keep ? "accorde, retenu 5 min" : "accorde");
+		}
 		return korin_sys2(SYS_PROC_SETUID, pid, 0);
 	case AUTH_PASSWD: {
 		const char *old = data, *nw = data + str_len(data) + 1;

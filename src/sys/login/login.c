@@ -19,6 +19,7 @@
 
 #define AUTH_VERIFY 9
 #define AUTH_HASPW 10
+#define AUTH_FORGET 11 /* (une session s'ouvre : les élévations retenues 5 min sont oubliées) */
 #define ACC_MAX 6
 #define M64(m, off) (*(u64 *)((u8 *)(m) + (off)))
 #define M32(m, off) (*(u32 *)((u8 *)(m) + (off)))
@@ -440,6 +441,7 @@ int main(int argc, char **argv)
 	(void)argv;
 	charger();
 	auth = korin_sys2(SYS_SVC_OPEN, "auth", 5000);
+	auth_call(AUTH_FORGET, "", 0);
 	if (!nacc)
 		return 0; /* (pas de compte : la session par défaut, comme avant le multi-utilisateur) */
 	for (int i = 0; i < nacc; i++) {
