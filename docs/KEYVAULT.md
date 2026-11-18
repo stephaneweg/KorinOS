@@ -251,7 +251,7 @@ Ce qui est voulu :
    `.`, `*`, `?` compris), jusqu'à 128 octets. Seuls les caractères de contrôle (octet nul, saut de ligne…) restent
    refusés : ils ne se tapent pas dans un champ et `kv_list` rend un nom par ligne. Le **premier** `.` sépare le
    fournisseur (ASCII, sans `.`) du nom : `Gemini.Clé 1.bis` = fournisseur `Gemini`, nom `Clé 1.bis`. Dans un motif,
-   `\*`, `\?` et `\` désignent les caractères eux-mêmes (`kv_list_match` ; un nom qui en contient reste listé par
+   `\*`, `\?` et `\\` désignent les caractères eux-mêmes (`kv_list_match` ; un nom qui en contient reste listé par
    `Gemini.*`). Le coffre vérifie que le nom est de l'UTF-8 valide. Les noms des autres programmes gardent les mêmes
    règles (élargies pour tous).
 5. **Koton** : **pas de migration** (décision du 18/11 : installation neuve, rien dans les réglages de Koton) ;
