@@ -1,0 +1,703 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fichiers en deux vues</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Maquettes : Fichiers (src/apps/files/main.c) partagé en deux vues indépendantes.
+ * Couleurs : jetons TJ_* de UIKit (uk_jet_givre, uk_jet_noir, uk_jet_more dans src/kits/uikit/uk_theme.c) ;
+ * dossiers : COL_FOLDER, COL_FOLDER_D de l'app. Tailles : constantes de main.c (PAN_W 190, TOP_H 44, ROW_H 26,
+ * HDR_H 24, CELL_W 96, CELL_H 88, SB_H0 24, BAND_H 64, FRAME_CAP_W 102, NAV_W 32, SEG_W 28). */
+
+/* page : Givre, ou Onyx Noir selon le système (bouton de bascule en haut) */
+:root {
+	--p-face: #F5F6F8; --p-surface: #FFFFFF; --p-creux: #ECEEF2; --p-ligne: #E2E5EA; --p-ligne2: #B8BFC9;
+	--p-t1: #14171C; --p-t2: #4C5563; --p-t3: #5F6877; --p-acc: #2563D8; --p-accl: #E4ECFB; --p-ok: #1E8A5A; --p-danger: #D93A3F;
+	--f-text: Inter, "Segoe UI", system-ui, sans-serif; --f-mono: "JetBrains Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+	--p-face: #15171B; --p-surface: #1B1E23; --p-creux: #101216; --p-ligne: #2A2E36; --p-ligne2: #525966;
+	--p-t1: #ECEEF2; --p-t2: #B0B6C0; --p-t3: #8B929D; --p-acc: #2F72DC; --p-accl: #1C2F4D; --p-ok: #46A758; --p-danger: #D93A3F;
+	color-scheme: dark; } }
+:root[data-theme="dark"] {
+	--p-face: #15171B; --p-surface: #1B1E23; --p-creux: #101216; --p-ligne: #2A2E36; --p-ligne2: #525966;
+	--p-t1: #ECEEF2; --p-t2: #B0B6C0; --p-t3: #8B929D; --p-acc: #2F72DC; --p-accl: #1C2F4D; --p-ok: #46A758; --p-danger: #D93A3F;
+	color-scheme: dark; }
+
+/* jetons d'une fenêtre : .t-g (Givre) ou .t-o (Onyx Noir), indépendants du thème de la page */
+.t-g { --face: #F5F6F8; --surface: #FFFFFF; --sunken: #ECEEF2; --raised: #FFFFFF; --line: #E2E5EA; --line2: #B8BFC9;
+	--t1: #14171C; --t2: #4C5563; --t3: #5F6877; --acc: #2563D8; --accl: #E4ECFB; --accd: #1D4FB3; --danger: #D93A3F;
+	--menu: #FFFFFF; --hover: #E9ECF1; --ink: #FFFFFF; --desk: #E9EDF2; --shadow: rgba(20,23,28,.19); }
+.t-o { --face: #15171B; --surface: #1B1E23; --sunken: #101216; --raised: #262A31; --line: #2A2E36; --line2: #525966;
+	--t1: #ECEEF2; --t2: #B0B6C0; --t3: #8B929D; --acc: #2F72DC; --accl: #1C2F4D; --accd: #2560C0; --danger: #D93A3F;
+	--menu: #262A31; --hover: #23272E; --ink: #FFFFFF; --desk: #1F2228; --shadow: rgba(0,0,0,.50); }
+.t-g, .t-o { --fold: #E8B64C; --foldd: #C99A35; }
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--p-creux); color: var(--p-t1); font: 14px/1.55 var(--f-text);
+	padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+	padding-block: 24px 64px; }
+main { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 36px; }
+h1 { font-size: 22px; margin: 0; font-weight: 650; text-wrap: balance; }
+h2 { font-size: 17px; margin: 0 0 6px; font-weight: 650; }
+h3 { font-size: 14px; margin: 0 0 4px; font-weight: 650; }
+p { margin: 0; max-width: 78ch; color: var(--p-t2); }
+p b, li b { color: var(--p-t1); }
+code { font-family: var(--f-mono); font-size: 12.5px; }
+.kbd { font-family: var(--f-mono); font-size: 12px; border: 1px solid var(--p-ligne2); border-radius: 4px; padding: 0 4px; background: var(--p-surface); }
+.toggles { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.toggle { display: inline-flex; gap: 4px; background: var(--p-face); border-radius: 8px; padding: 2px; border: 1px solid var(--p-ligne); }
+.toggle button { font: inherit; font-size: 13px; border: 0; background: none; color: var(--p-t2); padding: 3px 12px; border-radius: 6px; cursor: pointer; }
+.toggle button[aria-pressed="true"] { background: var(--p-surface); color: var(--p-t1); font-weight: 600; box-shadow: 0 1px 2px rgba(20,23,28,.12); }
+.toggle button:focus-visible { outline: 2px solid var(--p-acc); outline-offset: 1px; }
+.reco { background: var(--p-accl); border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.reco p { color: var(--p-t1); }
+section { display: flex; flex-direction: column; gap: 14px; }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+figcaption { font-size: 13px; color: var(--p-t2); max-width: 90ch; }
+figcaption b { color: var(--p-t1); }
+.scene { border-radius: 10px; padding: 24px; overflow-x: auto; max-width: 100%; }
+.scene.t-g, .scene.t-o { background: var(--desk); }
+.fit .scene { overflow-x: hidden; }
+.pc { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.pc > div { background: var(--p-surface); border: 1px solid var(--p-ligne); border-radius: 8px; padding: 12px 14px; min-width: 0; }
+.pc ul { margin: 0; padding-left: 18px; color: var(--p-t2); display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
+.pc .plus h3 { color: var(--p-ok); } .pc .moins h3 { color: var(--p-danger); }
+.row { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+.questions ol { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; color: var(--p-t2); max-width: 90ch; }
+.questions li b { color: var(--p-t1); }
+
+/* la fenêtre dessinée (positions en pixels, comme draw_* de main.c) */
+.win { position: relative; overflow: hidden; border-radius: 10px; background: var(--face); color: var(--t1);
+	box-shadow: 0 0 0 1px var(--line2), 0 6px 18px var(--shadow); font-family: var(--f-text); flex: none; }
+.win * { position: absolute; }
+.win .tx { white-space: nowrap; line-height: 1; overflow: hidden; text-overflow: ellipsis; }
+.win .b { font-weight: 600; }
+.mini { display: flex; gap: 16px; flex-wrap: wrap; }
+.mini .win { box-shadow: 0 0 0 1px var(--line2); }
+.zoomed { zoom: 2; }
+.win .fl > * { position: static; }
+</style>
+
+<main>
+	<header style="display:flex;flex-direction:column;gap:10px">
+		<h1>Fichiers : deux vues côte à côte</h1>
+		<p>Un bouton de l'en-tête partage la fenêtre en deux vues indépendantes, chacune dans son dossier, avec son
+			chemin et sa sélection, pour copier ou déplacer d'un dossier à l'autre. Le même bouton revient à une seule
+			vue. Maquettes à valider avant tout code : trois variantes, en Givre et en Onyx Noir, à la taille d'une
+			grande fenêtre (1100 × 650) puis à 800 × 600.</p>
+		<div class="toggles">
+			<div class="toggle" role="group" aria-label="Thème de la page">
+				<button type="button" data-th="auto" aria-pressed="true">Système</button>
+				<button type="button" data-th="light" aria-pressed="false">Givre</button>
+				<button type="button" data-th="dark" aria-pressed="false">Onyx Noir</button>
+			</div>
+			<div class="toggle" role="group" aria-label="Échelle des fenêtres">
+				<button type="button" data-fit="1" aria-pressed="true">Ajuster à la page</button>
+				<button type="button" data-fit="0" aria-pressed="false">Taille réelle</button>
+			</div>
+		</div>
+	</header>
+
+	<section class="reco">
+		<h2>Recommandation : la variante B, « en-tête unique »</h2>
+		<p>L'en-tête reste celui d'aujourd'hui et agit sur la <b>vue active</b>, comme le panneau de gauche et la ligne
+			d'état : une seule règle, « tout ce qui est hors des vues suit la vue active ». Chaque vue a un bandeau de
+			26 px (nom du dossier, chemin, place libre de son volume) qui la désigne et l'active d'un clic ; la vue
+			active a son bandeau aux couleurs de l'accent. C'est la seule variante qui garde un fil d'Ariane lisible à
+			800 × 600, et la plus proche du code actuel (un en-tête, une ligne d'état). La place libre de la vue
+			<i>destination</i> reste visible dans son bandeau pendant qu'on choisit quoi copier.</p>
+		<p>Les états clés (glisser, menu contextuel, copie en cours) sont dessinés sur B. Si le rail de C plaît pour
+			les petits écrans, il se combine avec B (variante B à 800 × 600, panneau en rail).</p>
+	</section>
+
+	<section>
+		<h2>1. Aujourd'hui, avec le nouveau bouton</h2>
+		<p>Le bouton se place dans l'en-tête, juste à gauche du choix icônes / liste : un bouton fantôme de 32 × 32
+			comme ← → ↑ (fond CREUX au survol), son glyphe deux colonnes. Infobulle « Deux vues » ; en deux vues il
+			reste enfoncé (fond ACCENT_CLAIR, glyphe ACCENT) et son infobulle devient « Une seule vue ». Aussi dans
+			le menu <b>Affichage &gt; Deux vues</b> (coché).</p>
+		<figure>
+			<div class="scene t-g" data-win="now"></div>
+			<figcaption><b>Une vue, Givre, 1100 × 650.</b> Le fil d'Ariane perd 40 px à droite pour le bouton (CR_R
+				passe de SEG_X_R + 12 à SEG_X_R + 52). L'infobulle est celle de UIKit (fond TEXTE1, texte SURFACE).</figcaption>
+		</figure>
+		<figure>
+			<div class="row">
+				<div class="scene t-g" style="padding:16px"><div class="mini zoomed" data-win="btn-g"></div></div>
+				<div class="scene t-o" style="padding:16px"><div class="mini zoomed" data-win="btn-o"></div></div>
+			</div>
+			<figcaption><b>Le bouton, agrandi deux fois</b> : au repos, survolé, enfoncé (deux vues), en Givre puis en
+				Onyx Noir, à côté du choix icônes / liste.</figcaption>
+		</figure>
+	</section>
+
+	<section>
+		<h2>2. Variante A : deux en-têtes</h2>
+		<p>L'en-tête est coupé au droit de la séparation : chaque moitié a ses boutons ← → ↑ et son fil d'Ariane. La
+			ligne d'état est coupée de même (nombre d'éléments, place libre du volume de chaque vue). La vue active a un
+			trait ACCENT de 2 px sous sa moitié d'en-tête et sa sélection en ACCENT_CLAIR ; l'autre a son en-tête en
+			TEXTE3 et sa sélection en CREUX (« en veille »). Le choix icônes / liste agit sur la vue active.</p>
+		<figure>
+			<div class="scene t-g" data-win="A-g"></div>
+			<figcaption><b>A, Givre.</b> Vue de gauche active (icônes), vue de droite inactive (liste). Dans le panneau,
+				l'emplacement de la vue active est surligné ; celui de l'autre vue a un simple contour (proposition).</figcaption>
+		</figure>
+		<figure>
+			<div class="scene t-o" data-win="A-o"></div>
+			<figcaption><b>A, Onyx Noir.</b> Vue de droite active : son trait d'accent, son fil en TEXTE1 ; le panneau
+				de gauche suit (/media/usb0 surligné).</figcaption>
+		</figure>
+		<div class="pc">
+			<div class="plus"><h3>Pour</h3><ul>
+				<li>Aucune hauteur perdue : l'en-tête et la ligne d'état gardent leur place.</li>
+				<li>Chaque vue a ses boutons et son chemin juste au-dessus d'elle ; on navigue dans l'inactive sans l'activer d'abord.</li>
+			</ul></div>
+			<div class="moins"><h3>Contre</h3><ul>
+				<li>La moitié droite porte aussi le bouton, le choix de vue et les boutons de la fenêtre (202 px) : son fil
+					d'Ariane n'a qu'environ 120 px à 1100 de large, presque rien à 800.</li>
+				<li>Deux jeux de ← → ↑ : plus de code (en-tête par vue) et des boutons dédoublés à l'écran.</li>
+			</ul></div>
+		</div>
+	</section>
+
+	<section>
+		<h2>3. Variante B : en-tête unique (recommandée)</h2>
+		<p>L'en-tête ne change pas et agit sur la vue active : ← → ↑, fil d'Ariane, choix de vue. Chaque vue a en haut
+			un bandeau de 26 px : icône, nom du dossier, chemin en TEXTE3, et à droite la place libre de son volume.
+			Bandeau de la vue active : fond ACCENT_CLAIR, trait ACCENT de 2 px en haut, nom en TEXTE1 ; inactive : fond
+			FACE, texte TEXTE2. Un clic n'importe où dans une vue (bandeau, contenu, vide) l'active. La ligne d'état est
+			celle de la vue active.</p>
+		<figure>
+			<div class="scene t-g" data-win="B-g"></div>
+			<figcaption><b>B, Givre.</b> Gauche active (liste, « Photos 2026 » choisi), droite en icônes : chaque vue
+				garde sa présentation.</figcaption>
+		</figure>
+		<figure>
+			<div class="scene t-o" data-win="B-o"></div>
+			<figcaption><b>B, Onyx Noir.</b> Droite active : l'en-tête montre son chemin, le panneau surligne
+				/media/usb0, la ligne d'état dit sa place ; la sélection de gauche reste, en veille.</figcaption>
+		</figure>
+		<div class="pc">
+			<div class="plus"><h3>Pour</h3><ul>
+				<li>En-tête et ligne d'état inchangés : rien à réapprendre, le moins de code (une vue = un dossier, une sélection, un défilement).</li>
+				<li>Fil d'Ariane pleine largeur ; tient à 800 × 600. Le bandeau montre la place libre de la destination.</li>
+			</ul></div>
+			<div class="moins"><h3>Contre</h3><ul>
+				<li>26 px de hauteur en moins par vue.</li>
+				<li>Pour remonter dans la vue inactive, il faut d'abord l'activer (un clic), puis ↑ ou le fil.</li>
+			</ul></div>
+		</div>
+	</section>
+
+	<section>
+		<h2>4. Variante C : deux en-têtes, panneau en rail</h2>
+		<p>Ma proposition pour les écrans serrés : en deux vues, le panneau de gauche se replie en un rail de 48 px
+			(icônes des accès rapides et des volumes, nom en infobulle) et rend 142 px aux vues. L'en-tête et la ligne
+			d'état sont coupés comme en A. Revenir à une vue rend le panneau entier.</p>
+		<figure>
+			<div class="scene t-g" data-win="C-g"></div>
+			<figcaption><b>C, Givre.</b> Le rail garde le surlignage (vue active) et le contour (autre vue) ; une
+				infobulle donne le nom au survol (« Documents »).</figcaption>
+		</figure>
+		<figure>
+			<div class="scene t-o" data-win="C-o"></div>
+			<figcaption><b>C, Onyx Noir.</b> Droite active.</figcaption>
+		</figure>
+		<div class="pc">
+			<div class="plus"><h3>Pour</h3><ul>
+				<li>Les vues les plus larges : à 800 de large, 376 px chacune au lieu de 305.</li>
+				<li>La place libre reste lisible dans les lignes d'état coupées.</li>
+			</ul></div>
+			<div class="moins"><h3>Contre</h3><ul>
+				<li>Le panneau change de forme selon le mode : volumes et accès rapides ne se lisent plus qu'en infobulle, plus de jauge par volume.</li>
+				<li>Garde le défaut de A (moitié droite d'en-tête chargée) ; le rail est le plus gros morceau de code.</li>
+			</ul></div>
+		</div>
+	</section>
+
+	<section>
+		<h2>5. Les états clés (sur B)</h2>
+		<figure>
+			<div class="scene t-g" data-win="drag"></div>
+			<figcaption><b>Glisser en cours, Givre.</b> « Photos 2026 » part de la vue de gauche (active) vers la vue de
+				droite. Le fantôme est l'image de la ligne (comme <code>drag_ghost</code>) ; la vue survolée est la cible :
+				contour ACCENT de 2 px et bandeau aux couleurs de l'accent. Sous le pointeur, une étiquette dit ce qui se
+				passera : « Copier dans Sauvegarde » (volumes différents : copie ; même volume : « Déplacer dans … »).
+				Lâché sur un dossier de la cible, c'est ce dossier qui est surligné et nommé. La vue source reste active
+				jusqu'au lâcher, puis la cible devient active et l'élément copié y est choisi.</figcaption>
+		</figure>
+		<figure>
+			<div class="scene t-o" data-win="menu"></div>
+			<figcaption><b>Menu contextuel, Onyx Noir.</b> Clic droit sur « Photos 2026 » dans la vue active : deux
+				entrées de plus, avec le nom du dossier de l'autre vue. Les raccourcis F5 / F6 sont montrés grisés : ils
+				ne sont pas décidés (F5 sert aujourd'hui à Actualiser). En une seule vue, ces entrées n'apparaissent pas.</figcaption>
+		</figure>
+		<figure>
+			<div class="scene t-g" data-win="band"></div>
+			<figcaption><b>Copie en cours, Givre.</b> La bande de progression (BAND_H 64) remplace la ligne d'état sur
+				toute la largeur des vues. On continue de travailler : ici la vue de gauche est partie dans
+				/home/documents/Projets pendant que la copie avance ; la vue de droite montre déjà ce qui est arrivé.</figcaption>
+		</figure>
+		<figure>
+			<div class="row">
+				<div class="scene t-g" style="padding:16px" data-win="menus-g"></div>
+				<div class="scene t-o" style="padding:16px" data-win="menus-o"></div>
+			</div>
+			<figcaption><b>La barre de menus</b> (globale, en haut de l'écran) : <b>Affichage &gt; Deux vues</b>, et dans
+				<b>Édition</b> les deux commandes vers l'autre vue, grisées en une seule vue. Le nom de la destination
+				pourrait y figurer aussi (menu_build est déjà refait quand les accès rapides changent).</figcaption>
+		</figure>
+	</section>
+
+	<section>
+		<h2>6. La plus serrée : 800 × 600</h2>
+		<figure>
+			<div class="scene t-g" data-win="B-800"></div>
+			<figcaption><b>B, 800 × 600, Givre.</b> Vues de 305 px : en liste, les colonnes Taille et Type passent à
+				leur largeur minimale ; le fil d'Ariane garde sa place dans l'en-tête ; le bandeau coupe le chemin à gauche.</figcaption>
+		</figure>
+		<figure>
+			<div class="scene t-o" data-win="C-800"></div>
+			<figcaption><b>C, 800 × 600, Onyx Noir.</b> Vues de 376 px grâce au rail, mais la moitié droite de l'en-tête
+				ne laisse au fil qu'une quarantaine de pixels (« … › S… ») : il faudrait y ôter le choix de vue ou les boutons ← → ↑.</figcaption>
+		</figure>
+		<figure>
+			<div class="scene t-g" data-win="A-800"></div>
+			<figcaption><b>A, 800 × 600, Givre,</b> pour comparer : le fil d'Ariane de droite n'a plus la place d'un nom.
+				A n'est pas défendable à cette taille sans le rail de C.</figcaption>
+		</figure>
+	</section>
+
+	<section class="questions">
+		<h2>Questions à trancher</h2>
+		<ol>
+			<li><b>La variante</b> : B (recommandée), A, ou C ; et le rail de C pour B quand la fenêtre est étroite (au-dessous de 1000 px ?).</li>
+			<li><b>F5 / F6</b> pour « Copier vers l'autre vue » / « Déplacer vers l'autre vue », façon Total Commander ? F5
+				vaut aujourd'hui <b>Actualiser</b> (avec Ctrl+L) : en deux vues, F5 changerait de sens, ou Actualiser ne
+				garderait que Ctrl+L. Autre choix : Maj+F5 / Maj+F6, ou pas de touche. Et Tab pour passer d'une vue à l'autre ?</li>
+			<li><b>Une confirmation</b> avant « Copier / Déplacer vers l'autre vue » (comme Total Commander), ou action directe
+				(comme Coller aujourd'hui, avec la question « remplacer ? » seulement en cas de nom pris) ?</li>
+			<li><b>Le raccourci du bouton</b> Deux vues (Affichage) : aucun, Ctrl+D, F3 ?</li>
+			<li><b>Panneau de gauche</b> : unique et qui suit la vue active (proposé), ou un par vue ; et le contour qui
+				montre l'emplacement de l'autre vue, à garder ?</li>
+			<li><b>Partage horizontal</b> (une vue au-dessus de l'autre) en option, pour un écran haut ou une fenêtre étroite ?</li>
+			<li><b>Séparation</b> fixe au milieu, ou déplaçable à la souris (retenue) ?</li>
+			<li><b>Glisser-déposer</b> : garder la règle d'aujourd'hui (même volume : déplacer ; sinon : copier) et
+				l'afficher dans l'étiquette, ou ajouter Ctrl (copier) / Maj (déplacer) pour forcer ?</li>
+			<li><b>Retenir l'état</b> dans <code>files.ini</code> : le mode deux vues, les deux dossiers, la vue de chaque côté ? Et
+				une nouvelle fenêtre de Fichiers ouverte avec un dossier en argument : une vue seule ?</li>
+			<li><b>En revenant à une vue</b>, laquelle reste : la vue active (proposé) ou toujours celle de gauche ?</li>
+			<li><b>Plusieurs éléments choisis</b> : Fichiers n'en choisit qu'un aujourd'hui ; la sélection multiple (Ctrl, Maj)
+				vient-elle avec les deux vues, ou après ?</li>
+		</ol>
+	</section>
+</main>
+
+<script>
+(function () {
+	"use strict";
+	var PAN = 190, RAIL = 48, TOP = 44, SB = 24, BAND = 64, ROW = 26, HDR = 24, CW = 96, CH = 88, CAP = 102,
+		NAVW = 32, SEGR = 60, STRIP = 26;
+
+	/* ---- données ---- */
+	var places = ["Applications", "Documents", "Musique", "Images", "Vidéos"];
+	var vols = [
+		{ n: "/", k: "Carte SD", sp: "12,3 Go libres sur 29,7 Go", p: 59 },
+		{ n: "/media/sd1", k: "Carte SD", sp: "41,0 Go libres sur 89,2 Go", p: 54 },
+		{ n: "/media/usb0", k: "Clé USB", sp: "3,1 Go libres sur 14,9 Go", p: 79, rem: 1 },
+		{ n: "/tmp", k: "RAM" }
+	];
+	var DOCS = { name: "Documents", path: ["/", "home", "documents"], full: "/home/documents", place: 1, vol: 0,
+		free: "12,3 Go libres", freeFull: "12,3 Go libres sur 29,7 Go", p: 59, items: [
+			{ n: "Factures", d: 1 }, { n: "Photos 2026", d: 1 }, { n: "Projets", d: 1 }, { n: "Recettes", d: 1 },
+			{ n: "budget-2026.csv", s: "18 Ko" }, { n: "compte-rendu.txt", s: "4,2 Ko" },
+			{ n: "lettre-banque.pdf", s: "212 Ko" }, { n: "plan-jardin.png", s: "1,8 Mo" } ] };
+	var PROJ = { name: "Projets", path: ["/", "home", "documents", "Projets"], full: "/home/documents/Projets", place: -1, vol: 0,
+		free: "12,3 Go libres", freeFull: "12,3 Go libres sur 29,7 Go", p: 59, items: [
+			{ n: "atelier", d: 1 }, { n: "jardin", d: 1 }, { n: "korin-site", d: 1 },
+			{ n: "idees.txt", s: "3,1 Ko" }, { n: "planning.csv", s: "9 Ko" } ] };
+	var SAVE = { name: "Sauvegarde", path: ["/", "media", "usb0", "Sauvegarde"], full: "/media/usb0/Sauvegarde", place: -1, vol: 2,
+		free: "3,1 Go libres", freeFull: "3,1 Go libres sur 14,9 Go", p: 79, items: [
+			{ n: "2024", d: 1 }, { n: "2025", d: 1 }, { n: "Musique", d: 1 },
+			{ n: "archive-octobre.zip", s: "640 Mo" }, { n: "notes.txt", s: "2,0 Ko" } ] };
+	var SAVE2 = { name: "Sauvegarde", path: SAVE.path, full: SAVE.full, place: -1, vol: 2, free: "2,9 Go libres",
+		freeFull: "2,9 Go libres sur 14,9 Go", p: 80, items: [ SAVE.items[0], SAVE.items[1], SAVE.items[2],
+			{ n: "Photos 2026", d: 1 }, SAVE.items[3], SAVE.items[4] ] };
+
+	/* ---- primitives ---- */
+	function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+	function box(x, y, w, h, st, inner) {
+		return '<div style="left:' + x + 'px;top:' + y + 'px;width:' + w + 'px;height:' + h + 'px;' + (st || "") + '">' + (inner || "") + "</div>";
+	}
+	function fill(x, y, w, h, c) { return box(x, y, w, h, "background:" + c); }
+	function rbox(x, y, w, h, r, c, b) { return box(x, y, w, h, "border-radius:" + r + "px;background:" + c + (b ? ";box-shadow:inset 0 0 0 1px " + b : "")); }
+	/* texte : x, ligne de base, comme text() de main.c */
+	function text(s, x, base, c, px, bold, maxw, align) {
+		var st = "left:" + x + "px;top:" + (base - Math.round(px * 0.86)) + "px;font-size:" + px + "px;color:" + c +
+			(maxw ? ";max-width:" + maxw + "px" : "") + (align ? ";text-align:" + align + ";width:" + maxw + "px" : "");
+		return '<span class="tx' + (bold ? " b" : "") + '" style="' + st + '">' + esc(s) + "</span>";
+	}
+	var meas = document.createElement("canvas").getContext("2d");
+	function tw(s, px, bold) {			/* largeur du texte, mesurée */
+		meas.font = (bold ? "600 " : "") + px + 'px Inter, "Segoe UI", system-ui, sans-serif';
+		return Math.ceil(meas.measureText(String(s)).width);
+	}
+
+	/* glyphes */
+	function folder(x, y, w, c1, c2) {		/* w : 20 (ligne) ou 48 (case) */
+		var h = Math.round(w * 0.8), t = Math.round(w * 0.42), th = Math.max(3, Math.round(w * 0.12));
+		return rbox(x, y, t, th + 2, 2, c2 || c1) + rbox(x, y + th, w, h - th, Math.max(2, w / 12), c1);
+	}
+	function doc(x, y, w, h) {
+		var s = rbox(x, y, w, h, 1, "var(--raised)", "var(--line2)");
+		var n = Math.floor((h - 8) / (w > 20 ? 5 : 3));
+		for (var i = 0; i < n; i++) s += fill(x + Math.round(w * 0.2), y + (w > 20 ? 10 : 4) + i * (w > 20 ? 5 : 3), Math.round(w * 0.6), 1, "var(--line2)");
+		return s;
+	}
+	function disk(x, y) { return rbox(x, y, 20, 15, 3, "var(--t2)") + fill(x + 14, y + 9, 3, 3, "var(--sunken)"); }
+	function eject(x, y) {
+		return box(x - 5, y, 11, 6, "background:var(--t2);clip-path:polygon(50% 0,100% 100%,0 100%)") + fill(x - 4, y + 8, 9, 2, "var(--t2)");
+	}
+	function splitGlyph(x, y, c) {			/* deux colonnes */
+		return box(x, y, 7, 14, "border:2px solid " + c + ";border-radius:2px") + box(x + 9, y, 7, 14, "border:2px solid " + c + ";border-radius:2px");
+	}
+	function cursor(x, y) {
+		return '<svg style="left:' + x + "px;top:" + y + 'px;overflow:visible" width="14" height="21" viewBox="0 0 14 21">' +
+			'<path d="M1 1 L1 17 L5 13 L8 20 L10.5 19 L7.5 12 L13 12 Z" fill="#14171C" stroke="#FFFFFF" stroke-width="1.2" stroke-linejoin="round"/></svg>';
+	}
+	function tip(x, y, s) {				/* infobulle de UIKit : TEXTE1, texte SURFACE, 24 de haut */
+		var w = tw(s, 13) + 16;
+		return box(x, y, w, 24, "background:var(--t1);z-index:6", text(s, 8, 16, "var(--surface)", 13));
+	}
+
+	/* ---- panneau de gauche ---- */
+	function panel(H, hl, ring) {			/* hl, ring : {p: rang} ou {v: rang} */
+		var s = fill(0, 0, PAN - 1, H, "var(--sunken)") + fill(PAN - 1, 0, 1, H, "var(--line)");
+		s += text("Accès rapides", 14, 20, "var(--t2)", 12, 1);
+		function mark(o, kind, i, y, h) {
+			if (hl && hl[kind] === i) s += rbox(6, y + 1, PAN - 13, h - 2, 8, "var(--accl)");
+			else if (ring && ring[kind] === i) s += rbox(6, y + 1, PAN - 13, h - 2, 8, "transparent", "var(--line2)");
+		}
+		for (var i = 0; i < places.length; i++) {
+			var y = 30 + i * 28;
+			mark(0, "p", i, y, 28);
+			s += folder(14, y + 6, 20, "var(--t2)") + text(places[i], 42, y + 19, "var(--t1)", 13, 0, PAN - 50);
+		}
+		var y0 = 30 + places.length * 28 + 30;
+		s += text("Volumes", 14, y0 - 10, "var(--t2)", 12, 1);
+		for (var j = 0; j < vols.length; j++) {
+			var v = vols[j], yy = y0 + j * 48;
+			if (yy + 48 > H) break;
+			mark(0, "v", j, yy, 48);
+			s += disk(14, yy + 10) + text(v.n, 42, yy + 16, "var(--t1)", 13, 1, PAN - 78);
+			if (v.sp) {
+				var spt = tw(v.sp, 11) <= PAN - 56 ? v.sp : v.sp.replace(/ sur .*/, "");	/* comme space_text */
+				s += text(spt, 42, yy + 31, "var(--t2)", 11, 0, PAN - 56);
+				s += gauge(42, yy + 36, PAN - 56, 5, v.p);
+			} else s += text(v.k, 42, yy + 31, "var(--t2)", 12);
+			if (v.rem) s += eject(PAN - 22, yy + 13);
+		}
+		return s;
+	}
+	function rail(H, hl, ring, tipOn) {
+		var s = fill(0, 0, RAIL - 1, H, "var(--sunken)") + fill(RAIL - 1, 0, 1, H, "var(--line)");
+		var y = 30;
+		function mark(kind, i, yy) {
+			if (hl && hl[kind] === i) s += rbox(5, yy, RAIL - 11, 34, 8, "var(--accl)");
+			else if (ring && ring[kind] === i) s += rbox(5, yy, RAIL - 11, 34, 8, "transparent", "var(--line2)");
+		}
+		for (var i = 0; i < places.length; i++, y += 36) { mark("p", i, y); s += folder(13, y + 9, 20, "var(--t2)"); }
+		s += fill(12, y + 6, RAIL - 25, 1, "var(--line)"); y += 14;
+		for (var j = 0; j < vols.length && y + 36 < H; j++, y += 36) {
+			mark("v", j, y); s += disk(13, y + 10);
+			if (vols[j].rem) s += eject(RAIL - 12, y + 4);
+		}
+		if (tipOn) s += cursor(26, 30 + 36 + 18) + tip(38, 30 + 36 + 38, "Documents");
+		return s;
+	}
+	function gauge(x, y, w, h, p) {
+		var f = Math.max(h, Math.round(w * p / 100)), c = p >= 90 ? "var(--danger)" : "var(--acc)";
+		return rbox(x, y, w, h, h / 2, "var(--line)") + rbox(x, y, f, h, h / 2, c);
+	}
+
+	/* ---- en-tête ---- */
+	function nav(x, on, dim) {			/* on : [précédent, suivant, parent] ; dim : vue inactive */
+		var g = ["←", "→", "↑"], s = "";
+		for (var i = 0; i < 3; i++) s += text(g[i], x + i * NAVW + 9, 28, on[i] ? (dim ? "var(--t2)" : "var(--t1)") : "var(--t3)", 16);
+		return s;
+	}
+	function crumbs(path, x, maxw, dim) {
+		if (maxw < 24) return "";		/* (plus de place) */
+		var segs = path.slice(), w = function (a) {
+			var t = 0; for (var i = 0; i < a.length; i++) t += tw(a[i], 14, i === a.length - 1) + (i ? 6 + tw("›", 14) + 6 : 0); return t;
+		};
+		var cut = false;
+		while (segs.length > 1 && w((cut ? ["…"] : []).concat(segs)) > maxw) { segs.shift(); cut = true; }
+		if (cut) segs.unshift("…");
+		var s = "";
+		for (var i = 0; i < segs.length; i++) {
+			var last = i === segs.length - 1;
+			if (i) s += '<span style="color:var(--t3);padding:0 6px">›</span>';
+			var c = dim ? (last ? "var(--t2)" : "var(--t3)") : (last ? "var(--t1)" : "var(--t2)");
+			s += '<span style="color:' + c + (last ? ';font-weight:600;overflow:hidden;text-overflow:ellipsis;min-width:0' : ';flex:none') + '">' + esc(segs[i]) + "</span>";
+		}
+		s = box(x, 6, maxw, 32, "display:flex;align-items:center;font-size:14px;white-space:nowrap;overflow:hidden", s).replace('<div ', '<div class="fl" ');
+		return s;
+	}
+	function seg(x, view, dim) {			/* view : 0 icônes, 1 liste */
+		var s = rbox(x, 8, SEGR, 28, 8, "var(--sunken)");
+		var sx = x + 2 + view * 28;
+		s += rbox(sx, 10, 28, 25, 6, "var(--line)") + rbox(sx, 10, 28, 24, 6, "var(--raised)");
+		var i0 = view === 0 ? "var(--t1)" : "var(--t2)", i1 = view === 1 ? "var(--t1)" : "var(--t2)";
+		for (var i = 0; i < 4; i++) s += rbox((i & 1) * 8 + x + 2 + 7, (i >> 1) * 8 + 15, 6, 6, 1, i0);
+		var lx = x + 2 + 28 + 7;
+		for (var j = 0, y = 16; j < 3; j++, y += 5) s += fill(lx, y, 2, 2, i1) + fill(lx + 4, y, 10, 2, i1);
+		return s;
+	}
+	function splitBtn(x, st) {			/* st : 0 repos, 1 survol, 2 enfoncé */
+		var s = "";
+		if (st === 1) s += rbox(x, 6, 32, 32, 8, "var(--sunken)");
+		if (st === 2) s += rbox(x, 6, 32, 32, 8, "var(--accl)");
+		return s + splitGlyph(x + 8, 15, st === 2 ? "var(--acc)" : "var(--t1)");
+	}
+	function caps(W) {
+		var c = "var(--t1)";
+		return fill(W - 87, 22, 10, 2, c) + box(W - 57, 16, 11, 11, "border:1.6px solid " + c) +
+			box(W - 28, 22, 13, 2, "background:" + c + ";transform:rotate(45deg)") + box(W - 28, 22, 13, 2, "background:" + c + ";transform:rotate(-45deg)");
+	}
+	function rightCtl(W, view, split, hoverSplit) {	/* bouton deux vues, choix de vue, boutons de la fenêtre */
+		var segx = W - CAP - 8 - SEGR, bx = segx - 8 - 32;
+		return { x: bx, html: splitBtn(bx, split ? 2 : hoverSplit ? 1 : 0) + seg(segx, view) + caps(W) };
+	}
+
+	/* ---- contenu d'une vue ---- */
+	function listView(x, y, w, h, d, sel, selOn, o) {
+		o = o || {};
+		var s = fill(x, y, w, h, "var(--surface)");
+		var narrow = w < 420, cwT = narrow ? 60 : 90, cwS = narrow ? 60 : 90;
+		var tx = x + w - cwT - 10, sx = tx - cwS;
+		s += fill(x, y + HDR - 1, w, 1, "var(--line)") + fill(sx, y + 4, 1, HDR - 8, "var(--line)") + fill(tx, y + 4, 1, HDR - 8, "var(--line)");
+		s += text("Nom", x + 42, y + 16, "var(--t2)", 12, 1) + text("▲", x + 42 + 29, y + 15, "var(--t2)", 9);
+		s += text("Taille", sx + 8, y + 16, "var(--t2)", 12, 1, cwS - 12) + text("Type", tx + 8, y + 16, "var(--t2)", 12, 1, cwT - 12);
+		for (var i = 0; i < d.items.length; i++) {
+			var e = d.items[i], ry = y + HDR + i * ROW;
+			if (ry + ROW > y + h) break;
+			if (i === sel) s += rbox(x + 4, ry + 1, w - 8, ROW - 2, 8, selOn ? "var(--accl)" : "var(--sunken)");
+			if (o.target === i) s += rbox(x + 4, ry + 1, w - 8, ROW - 2, 8, "var(--accl)", "var(--acc)");
+			if (o.ghost === i) s += "";
+			s += e.d ? folder(x + 12, ry + 5, 20, "var(--fold)", "var(--foldd)") : doc(x + 15, ry + 4, 14, 18);
+			if (e.s) s += text(e.s, sx + 4, ry + 18, "var(--t2)", 12, 0, tx - sx - 14, "right");
+			s += text(e.d ? "Dossier" : "Fichier", tx + 8, ry + 18, "var(--t2)", 12, 0, cwT - 12);
+			s += text(e.n, x + 42, ry + 18, "var(--t1)", 13, 0, sx - x - 50);
+		}
+		return s;
+	}
+	function iconView(x, y, w, h, d, sel, selOn) {
+		var s = fill(x, y, w, h, "var(--surface)");
+		var cols = Math.max(1, Math.floor((w - 8) / CW)), gx = x + Math.floor((w - cols * CW) / 2), by = y + 6;
+		for (var i = 0; i < d.items.length; i++) {
+			var e = d.items[i], cx = gx + (i % cols) * CW, cy = by + Math.floor(i / cols) * CH;
+			if (cy + CH > y + h) break;
+			if (i === sel) s += rbox(cx + 3, cy + 1, CW - 6, CH - 2, 8, selOn ? "var(--accl)" : "var(--sunken)");
+			s += e.d ? folder(cx + 24, cy + 9, 48, "var(--fold)", "var(--foldd)") : doc(cx + 32, cy + 5, 32, 44);
+			s += text(e.n, cx + 4, cy + 66, "var(--t1)", 13, 0, CW - 8, "center");
+		}
+		return s;
+	}
+	function viewBody(x, y, w, h, v, active) {
+		return v.mode === "list" ? listView(x, y, w, h, v.d, v.sel, active, v) : iconView(x, y, w, h, v.d, v.sel, active);
+	}
+	function statusText(v) {
+		var d = v.d, n = d.items.length, s = n + (n === 1 ? " élément" : " éléments");
+		if (v.sel >= 0) { var e = d.items[v.sel]; s += "   —   " + e.n + (e.s ? ", " + e.s : ""); }
+		return v.msg || s;
+	}
+	function status(x, w, H, v, short) {
+		var y = H - SB, s = fill(x, y, w, SB, "var(--surface)") + fill(x, y, w, 1, "var(--line)");
+		var right = x + w - 12, t = short ? v.d.free : v.d.freeFull;
+		s += gauge(right - 64, H - 15, 64, 6, v.d.p);
+		right -= 64 + 8 + tw(t, 12);
+		s += text(t, right, H - 8, "var(--t2)", 12);
+		s += text(statusText(v), x + 12, H - 8, "var(--t2)", 12, 0, right - 16 - x - 12);
+		return s;
+	}
+	function band(x, w, H, b) {
+		var y = H - BAND, s = fill(x, y, w, BAND, "var(--surface)") + fill(x, y, w, 1, "var(--line)");
+		var bw = tw("Annuler", 13) + 28, bx = x + w - 12 - bw, x0 = x + 12, t = bx - 16 - x0;
+		s += text(b.l1, x0, y + 20, "var(--t1)", 13, 0, t);
+		s += rbox(x0, y + 29, t, 6, 3, "var(--line)") + rbox(x0, y + 29, Math.round(t * b.p), 6, 3, "var(--acc)");
+		s += text(b.l2, x0, y + 53, "var(--t2)", 12, 0, t);
+		s += rbox(bx, y + 18, bw, 28, 6, "var(--raised)", "var(--line2)") + text("Annuler", bx + 14, y + 37, "var(--t1)", 13);
+		return s;
+	}
+	/* bandeau d'une vue (variante B) */
+	function strip(x, y, w, v, active, target) {
+		var on = active || target;
+		var s = fill(x, y, w, STRIP, on ? "var(--accl)" : "var(--face)") + fill(x, y + STRIP, w, 1, "var(--line)");
+		if (on) s += fill(x, y, w, 2, "var(--acc)");
+		s += folder(x + 12, y + 7, 16, on ? "var(--fold)" : "var(--t3)", on ? "var(--foldd)" : "var(--t3)");
+		var nx = x + 36, nm = v.d.name, nw = tw(nm, 13, 1);
+		s += text(nm, nx, y + 18, on ? "var(--t1)" : "var(--t2)", 13, 1);
+		var fr = v.d.free, fw = tw(fr, 12), px = nx + nw + 10, pmax = x + w - 12 - fw - 12 - px;
+		var p = v.d.full;
+		if (tw(p, 12) > pmax) { while (p.indexOf("/", 1) > 0 && tw("…" + p, 12) > pmax) p = p.slice(p.indexOf("/", 1)); p = "…" + p; }
+		if (pmax > 30) s += text(p, px, y + 18, "var(--t3)", 12, 0, pmax);
+		s += text(fr, x + w - 12 - fw, y + 18, "var(--t3)", 12);
+		return s;
+	}
+
+	/* ---- popups ---- */
+	function popup(x, y, w, items, hover) {		/* items : [libellé, raccourci, grisé] ou "-" */
+		var RH = 26, SEP = 9, h = 8;
+		items.forEach(function (it) { h += it === "-" ? SEP : RH; });
+		var s = box(x, y, w, h, "border-radius:8px;background:var(--menu);box-shadow:0 0 0 1px var(--line), 0 6px 18px var(--shadow);z-index:5");
+		var yy = y + 4, inner = "";
+		items.forEach(function (it, i) {
+			if (it === "-") { inner += fill(x + 10, yy + 4, w - 20, 1, "var(--line)"); yy += SEP; return; }
+			var hot = i === hover, ink = hot ? "var(--ink)" : it[2] ? "var(--t3)" : "var(--t1)";
+			if (hot) inner += rbox(x + 5, yy, w - 10, RH, 5, "var(--acc)");
+			inner += text(it[0], x + 14, yy + 18, ink, 13, 0, w - 80);
+			if (it[1]) { var kw = tw(it[1], 12); inner += text(it[1], x + w - 14 - kw, yy + 18, hot ? "var(--ink)" : "var(--t3)", 12); }
+			yy += RH;
+		});
+		return s + '<div style="left:0;top:0;width:100%;height:100%;z-index:5">' + inner + "</div>";
+	}
+
+	/* ---- la fenêtre ---- */
+	function win(c) {
+		var W = c.W, H = c.H, s = "", vr = c.variant, split = vr !== "one";
+		var pan = vr === "C" ? RAIL : PAN;
+		var act = c.active || 0, V = c.views, va = V[act], vo = V[1 - act];
+		var sbH = c.band ? BAND : SB;
+		/* panneau : suit la vue active ; contour pour l'autre */
+		var hl = va.d.place >= 0 ? { p: va.d.place } : { v: va.d.vol };
+		var ring = split ? (vo.d.place >= 0 ? { p: vo.d.place } : { v: vo.d.vol }) : null;
+		if (ring && ((ring.p !== undefined && ring.p === hl.p) || (ring.v !== undefined && ring.v === hl.v))) ring = null;
+		s += vr === "C" ? rail(H, hl, ring, c.railTip) : panel(H, hl, ring);
+		var rc = rightCtl(W, va.mode === "list" ? 1 : 0, split, c.hoverSplit);
+
+		if (!split) {
+			s += fill(pan, 0, W - pan, TOP, "var(--surface)") + fill(pan, TOP, W - pan, 1, "var(--line)") + fill(pan, TOP + 1, W - pan, 2, "var(--surface)");
+			s += nav(pan + 8, [1, 0, 1]) + crumbs(va.d.path, pan + 8 + 96 + 10, rc.x - 12 - (pan + 114)) + rc.html;
+			s += viewBody(pan, TOP + 3, W - pan, H - TOP - 3 - SB, va, true) + status(pan, W - pan, H, va);
+			if (c.tip) s += cursor(rc.x + 18, 22) + tip(rc.x + 30, 42, c.tip);
+			return s;
+		}
+		var xd = pan + Math.floor((W - pan) / 2), X = [pan, xd + 1], Wv = [xd - pan, W - xd - 1];
+		if (vr === "B") {
+			s += fill(pan, 0, W - pan, TOP, "var(--surface)") + fill(pan, TOP, W - pan, 1, "var(--line)");
+			s += nav(pan + 8, [1, 0, 1]) + crumbs(va.d.path, pan + 8 + 96 + 10, rc.x - 12 - (pan + 114)) + rc.html;
+			var by = TOP + 1, bodyY = by + STRIP + 1, bodyH = H - sbH - bodyY;
+			for (var i = 0; i < 2; i++) {
+				s += strip(X[i], by, Wv[i], V[i], i === act, c.drag && c.drag.to === i);
+				s += viewBody(X[i], bodyY, Wv[i], bodyH, V[i], i === act);
+			}
+			s += fill(xd, by, 1, H - sbH - by, "var(--line)");
+			s += c.band ? band(pan, W - pan, H, c.band) : status(pan, W - pan, H, va);
+		} else {
+			/* A, C : en-tête et ligne d'état coupés au droit de la séparation */
+			s += fill(pan, 0, W - pan, TOP, "var(--surface)") + fill(pan, TOP, W - pan, 1, "var(--line)") + fill(pan, TOP + 1, W - pan, 2, "var(--surface)");
+			for (var k = 0; k < 2; k++) {
+				var hx = X[k], on = k === act, hr = k === 1 ? rc.x - 12 : xd - 12;
+				s += nav(hx + 8, [1, 0, 1], !on);
+				s += crumbs(V[k].d.path, hx + 114, hr - (hx + 114), !on);
+				if (on) s += fill(hx, TOP - 1, Wv[k], 2, "var(--acc)");
+				s += viewBody(hx, TOP + 3, Wv[k], H - TOP - 3 - SB, V[k], on);
+				s += status(hx, Wv[k], H, V[k], true);
+			}
+			s += rc.html + fill(xd, 0, 1, H, "var(--line)");
+		}
+		/* glisser en cours */
+		if (c.drag) {
+			var t = c.drag.to, tx0 = X[t], ty0 = vr === "B" ? TOP + 1 + STRIP + 1 : TOP + 3, th = H - sbH - ty0;
+			s += box(tx0 + 1, ty0 + 1, Wv[t] - 2, th - 2, "border:2px solid var(--acc);border-radius:6px");
+			var gx = c.drag.cx - 30, gy = c.drag.cy - 14, nm = c.drag.name, gw = Math.min(42 + tw(nm, 13) + 10, 260);
+			s += box(gx, gy, gw, ROW - 2, "opacity:.85;border-radius:8px;background:var(--accl)",
+				'<div style="left:8px;top:4px">' + folder(0, 0, 20, "var(--fold)", "var(--foldd)") + "</div>" + text(nm, 38, 17, "var(--t1)", 13));
+			s += cursor(c.drag.cx, c.drag.cy) + tip(c.drag.cx + 14, c.drag.cy + 22, c.drag.label);
+		}
+		if (c.menu) s += popup(c.menu.x, c.menu.y, c.menu.w, c.menu.items, c.menu.hover) + cursor(c.menu.x - 2, c.menu.y - 4);
+		return s;
+	}
+	function frame(c, theme) {
+		return '<div class="win" style="width:' + c.W + "px;height:" + c.H + 'px">' + win(c) + "</div>";
+	}
+
+	/* ---- scènes ---- */
+	function L(d, mode, sel, extra) { var v = { d: d, mode: mode, sel: sel }; for (var k in extra || {}) v[k] = extra[k]; return v; }
+	var ctxItems = [["Ouvrir", "Entrée"], ["Couper", "Ctrl+X"], ["Copier", "Ctrl+C"], "-",
+		["Copier vers « Sauvegarde »", "F5 ?", 0], ["Déplacer vers « Sauvegarde »", "F6 ?", 0], "-",
+		["Renommer…", "F2"], ["Supprimer", "Suppr"]];
+	var scenes = {
+		"now": { W: 1100, H: 650, variant: "one", views: [L(DOCS, "icons", 1)], hoverSplit: 1, tip: "Deux vues" },
+		"A-g": { W: 1100, H: 650, variant: "A", active: 0, views: [L(DOCS, "icons", 1), L(SAVE, "list", 1)] },
+		"A-o": { W: 1100, H: 650, variant: "A", active: 1, views: [L(DOCS, "list", 1), L(SAVE, "list", 3)] },
+		"B-g": { W: 1100, H: 650, variant: "B", active: 0, views: [L(DOCS, "list", 1), L(SAVE, "icons", -1)] },
+		"B-o": { W: 1100, H: 650, variant: "B", active: 1, views: [L(DOCS, "list", 1), L(SAVE, "list", 3)] },
+		"C-g": { W: 1100, H: 650, variant: "C", active: 0, views: [L(DOCS, "list", 1), L(SAVE, "list", -1)], railTip: 1 },
+		"C-o": { W: 1100, H: 650, variant: "C", active: 1, views: [L(DOCS, "icons", 1), L(SAVE, "list", 4)] },
+		"drag": { W: 1100, H: 650, variant: "B", active: 0, views: [L(DOCS, "list", 1), L(SAVE, "list", -1)],
+			drag: { to: 1, cx: 820, cy: 330, name: "Photos 2026", label: "Copier dans Sauvegarde" } },
+		"menu": { W: 1100, H: 650, variant: "B", active: 0, views: [L(DOCS, "list", 1), L(SAVE, "list", -1)],
+			menu: { x: 300, y: 142, w: 290, items: ctxItems, hover: 4 } },
+		"band": { W: 1100, H: 650, variant: "B", active: 0, views: [L(PROJ, "list", -1), L(SAVE2, "list", 3)],
+			band: { l1: "Copier « Photos 2026 » vers /media/usb0/Sauvegarde — fichier 38 sur 120", p: 0.44,
+				l2: "182 Mo sur 412 Mo — 9,8 Mo/s — moins d'une minute restante" } },
+		"B-800": { W: 800, H: 600, variant: "B", active: 0, views: [L(DOCS, "list", 1), L(SAVE, "list", -1)] },
+		"C-800": { W: 800, H: 600, variant: "C", active: 1, views: [L(DOCS, "list", 1), L(SAVE, "list", 3)] },
+		"A-800": { W: 800, H: 600, variant: "A", active: 0, views: [L(DOCS, "list", 1), L(SAVE, "list", -1)] }
+	};
+	document.querySelectorAll("[data-win]").forEach(function (el) {
+		var id = el.getAttribute("data-win");
+		if (scenes[id]) { el.innerHTML = frame(scenes[id]); return; }
+		if (id === "btn-g" || id === "btn-o") {		/* le bouton : repos, survol, enfoncé */
+			var h = "";
+			for (var st = 0; st < 3; st++)
+				h += '<div class="win" style="width:120px;height:44px;background:var(--surface);border-radius:6px">' + splitBtn(8, st) + seg(48, 0) + "</div>";
+			el.innerHTML = h;
+			return;
+		}
+		if (id === "menus-g" || id === "menus-o") {	/* menus Affichage et Édition */
+			el.innerHTML = '<div class="win" style="width:560px;height:250px;background:transparent;box-shadow:none">' +
+				fill(0, 0, 560, 26, "var(--surface)") + text("Fichier", 12, 18, "var(--t1)", 14) + text("Édition", 74, 18, "var(--t1)", 14, 1) +
+				text("Aller", 142, 18, "var(--t1)", 14) + text("Affichage", 194, 18, "var(--t1)", 14, 1) + text("Volume", 282, 18, "var(--t1)", 14) +
+				popup(66, 30, 270, [["Couper", "Ctrl+X"], ["Copier", "Ctrl+C"], ["Coller", "Ctrl+V"], "-",
+					["Copier vers l'autre vue", "F5 ?"], ["Déplacer vers l'autre vue", "F6 ?"]], 4) +
+				popup(350, 30, 190, [["Icônes", ""], ["✓  Liste", ""], "-", ["✓  Deux vues", ""]], -1) + "</div>";
+		}
+	});
+
+	/* thème de la page, échelle */
+	document.querySelectorAll("[data-th]").forEach(function (b) {
+		b.addEventListener("click", function () {
+			var k = b.getAttribute("data-th");
+			if (k === "auto") document.documentElement.removeAttribute("data-theme");
+			else document.documentElement.setAttribute("data-theme", k);
+			document.querySelectorAll("[data-th]").forEach(function (o) { o.setAttribute("aria-pressed", o === b ? "true" : "false"); });
+		});
+	});
+	var fit = true;
+	function rescale() {
+		document.querySelectorAll(".scene").forEach(function (sc) {
+			var w = sc.querySelector(":scope > .win");
+			if (!w) return;
+			w.style.zoom = "";
+			if (!fit) return;
+			var avail = sc.clientWidth - 48, ww = w.offsetWidth;
+			if (ww > avail && avail > 0) w.style.zoom = (avail / ww).toFixed(3);
+		});
+	}
+	document.querySelectorAll("[data-fit]").forEach(function (b) {
+		b.addEventListener("click", function () {
+			fit = b.getAttribute("data-fit") === "1";
+			document.querySelectorAll("[data-fit]").forEach(function (o) { o.setAttribute("aria-pressed", o === b ? "true" : "false"); });
+			rescale();
+		});
+	});
+	window.addEventListener("resize", rescale);
+	rescale();
+})();
+</script>
+</html>
