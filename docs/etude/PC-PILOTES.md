@@ -256,6 +256,13 @@ son USB disparaissent).
 
 ## 5. Reste
 
+0. **PRIORITÉ (signalé le 18/11/2026)** : sur le ZBook, le touchpad marche (déplacement, toucher pour cliquer,
+   défilement à deux doigts) mais **pas les boutons autour** : ni les 3 boutons sous le touchpad (`COL03`, bits de
+   boutons du rapport du touchpad de précision, « pas de bouton 1 déclaré » le 15/11), ni les 3 boutons au-dessus
+   (`COL05`, le PointStick ELAN en souris, avec son propre numéro de rapport). À faire dans `i2chid` : lire les
+   boutons des deux collections et les rendre à hidmanager comme des clics (gauche, milieu, droit), et le
+   déplacement du PointStick comme une souris. Vérifier sur le ZBook (journal d'`i2chid` : numéros de rapport reçus).
+
 1. **Plusieurs xHCI** : le ZBook en a deux ; hwmanager lancerait deux usbd, et le second ne peut pas
    s'inscrire sous « usb » (il s'arrête). À faire : un seul usbd à plusieurs contrôleurs (le second
    lancement passe son adresse au premier, ou usbd prend tous les xHCI de pcid), poignée = contrôleur
