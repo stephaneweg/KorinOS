@@ -376,7 +376,9 @@ Chaque changement de fichiers d'un paquet augmente sa version.
    `system` (root) ne sert qu'en secours, à la console.
 3. ~~Entre utilisateurs~~ : réglé le 16/11. Un home est **invisible** aux autres comptes (`0700`) ; `/home/public`
    est ouvert à tous.
-4. **Données d'app** : garder `~/jet`, `~/koton`… à la racine du home (migration simple), ou les ranger sous
-   `~/.local/` (home plus propre) ?
+4. ~~Données d'app~~ : réglé le 18/11. Les données des apps vont sous **`~/.local/<app>/`** (`~/.local/jet`,
+   `~/.local/koton`…) ; le home ne garde que les fichiers de l'utilisateur (et `HOME:/etc` pour les réglages).
+   Pas de migration (installation neuve). Fichiers cache `.local` comme les autres noms en point. À faire : un
+   chemin commun dans AppKit/UIKit (à côté de `uk_conf_path`/`korin_conf_path`) que toutes les apps utilisent.
 5. ~~Installer des paquets~~ : réglé le 16/11. Installer ou retirer est réservé aux comptes d'`elevate.ini`
    (élévation) ; les mises à jour du dépôt signé se font sans rien demander.

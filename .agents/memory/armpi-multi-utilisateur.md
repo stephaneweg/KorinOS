@@ -19,7 +19,7 @@ L'étude est faite (non commitée au moment de l'écriture) : docs/etude/MULTI-U
 - `HOME:/etc` pour les réglages personnels (décision du 16/11 ; d'abord `~/.config/korin`) ;
 - login avec connexion automatique par défaut quand il n'y a qu'un compte.
 
-Questions de l'étude (§4) : quatre réglées les 15-16/11 ; **reste la question 4** (données d'app à la racine du home ou sous ~/.local/), au 18/11.
+Questions de l'étude (§4) : quatre réglées les 15-16/11 ; question 4 réglée le 18/11 : données des apps sous **~/.local/<app>/**, sans migration ; un chemin commun dans AppKit/UIKit à ajouter. Toutes les questions ont une réponse.
 
 **Why:** c'est une évolution de [[armpi-pas-de-securite-attaquant]]. Le cadre reste la résistance aux bugs et la séparation des données, pas un système durci.
 
