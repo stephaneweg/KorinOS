@@ -1,6 +1,6 @@
 ---
 name: armpi-batterie
-description: Batterie du PC (17/11) : acpid sur ACPICA, alertes, extinction à 5 %, profil d'énergie, icône de la barre ; QEMU seulement
+description: Batterie du PC (17-18/11) : acpid sur ACPICA, alertes, profil d'énergie ; publié en pc 2026.11.50 ; ZBook : port 0x62 refusé par le noyau, corrigé (edbed0f1), pas encore réessayé
 metadata:
   type: project
 ---
@@ -27,3 +27,15 @@ cachés sans HWP/EIST) ; essayés sous QEMU avec et sans batterie.
 Reste : S3 (l'écran GOP ne revient pas au réveil sans pilote d'affichage ; tous les pilotes à relancer ; le
 DSDT du ZBook a _S3), thermique, luminosité.
 Voir [[armpi-x86-pc]].
+
+**18/11, publié en pc 2026.11.50** (KorinOS-pub 5e345a03 ; 11.51 de l'autre session = 11.50 + mediakit.so).
+Sur le ZBook, « Batterie absente ou illisible » pour deux raisons :
+1. acpid jamais lancé : /etc/services.txt changé par Accès à distance (telnetd, vncd…), donc gardé par pkg, la
+   ligne /sys/svc/acpid seulement dans services.txt.new. L'utilisateur l'a ajoutée à la main. Correctif durable
+   (edbed0f1) : clé `merge =` des paquets (mkrepo, packages*.ini : etc/services.txt) ; pkglib (merge_lines) garde
+   les lignes de l'utilisateur et ajoute celles du paquet qui manquent, même en commentaire (« # » = coupé exprès).
+2. EC muet (« EC : pas de réponse (adresse e3, état 8) », _REG/ECRI, _PSR en AE_TIME) : arch_io_port
+   (src/kernel/arch/pc/ps2.c) gardait 0x60..0x64 pour l'i8042, donc refusait 0x62, le port de données de l'EC
+   (la commande 0x80 passait, l'adresse non). 0x62 permis (edbed0f1) ; acpid note les ports refusés.
+**Non compilé ni essayé** (WSL tombé en panne : l'utilisateur relance lui-même une construction générale). À
+faire : publier pc avec ce noyau, acpid et pkg (paquet pkgman ?), puis réessayer sur le ZBook.

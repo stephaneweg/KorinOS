@@ -34,3 +34,11 @@ Designs lancés en sessions séparées le 15/11 : docs/DESIGN-INSTALLATEUR.md (p
 **16/11, demande de l'utilisateur** : la bibliotheque GPT (src/lib/gpt, faite le 16/11, jugee par sgdisk) servira aussi a un outil de partitionnement dans Korin (Disques), pas seulement a l'installateur ; la passer dans un kit de stockage quand une app en aura besoin.
 
 **16/11, étapes 2 à 4 faites sous QEMU** (étude §9.2) : clé (tools/pc/installkey.py build|run, --disktest), bibliothèque GPT (src/lib/gpt, jugée par sgdisk), mode installation de nvme (install = yes, BLK_PLAN, BLK_RESCAN). Construire dans le worktree C:/Projects/KorinOS-zip : d'autres sessions construisent dans build/ du checkout principal en même temps. Ne jamais `git commit -a` (embarque le travail non commité des autres sessions). Prochaine : mkfs (FAT32, exFAT, ext4 avec ext4fs), puis les écrans de l'installateur.
+
+**17-18/11, clé d'installation publiée en pc 2026.11.49 (installée sur le ZBook)** : réinstaller en gardant /home
+(choix sur l'accueil, sans étape Disque ni Compte, pas de formatage sans partition home), dictionnaire anglais,
+ext4 pour /home et /, rôles « Utiliser… » sur les partitions existantes, logiciels en ligne pendant l'installation
+par `pkg --root /media/tgt add` (repli sur l'archive de la clé ; le vrai téléchargement HTTPS pas encore essayé).
+Décisions : docs/etude/INSTALLATEUR.md. Publier depuis un worktree propre (git worktree, Windows git) : sinon les
+tables .abi non commitées des autres sessions montent l'ABI (doit rester 616) ; remettre les paquets que mkrepo
+reconstruit à cause des versions.ini montées par d'autres.
