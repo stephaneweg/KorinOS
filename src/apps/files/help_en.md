@@ -62,13 +62,26 @@ Deleting is final: Files has no trash (on Google Drive, what you delete goes to 
 3. Go to the destination folder, on the same volume or another one (a USB drive, a network share, Google Drive…).
 4. **Edit > Paste** (Ctrl+V), or **Paste** in the menu of a right-click on an empty spot.
 
-You can also **drag** an item out of the window, and **drop** files on Files (from another Files window, for example): they go into the folder you release them on, otherwise into the current folder. On the same volume they are moved; from one volume to another, copied.
+You can also **drag** an item out of the window, and **drop** files on Files (from another Files window, for example): they go into the folder you release them on, otherwise into the current folder. Dropping **copies**; hold **Shift** when releasing to **move** instead.
 
 Moving on the same volume is instant. Otherwise Files copies, then (for **Cut**) deletes the original. Pasting into the original folder makes a copy named "name (copy)". If an item with the same name already exists, a message asks whether to **replace** it (a folder: put its contents into it), skip it (**No**) or stop everything (**Cancel**).
 
 Copying happens **in the background**: you keep working in Files (change folder, open, rename, paste again) while it runs. A copy that takes more than a moment turns the status line into a **progress strip**: the current item (and "file 3 of 120" for a folder), a bar, the bytes copied out of the total, the speed and the time left. What you paste during a copy is **queued** and runs next ("2 waiting"). Even to or from a network share or Google Drive, where a read or a write can take time, the window stays responsive. The strip's **Cancel** button stops the copy at the end of the current chunk (1 MB) and drops the queued ones: the half-copied file is deleted, the items already copied stay, and for **Cut** the originals are not deleted. To Google Drive, a file is sent to Google when it is closed ("Finishing…"): this step cannot be interrupted, cancelling waits for its end. Closing Files during a copy asks whether to stop it. A folder that is slow to read (Google Drive during a copy, a distant server) shows up when it arrives ("Loading…" in the status line): meanwhile the window stays usable.
 
 If an error stops the copy (no space left, read-only volume, a file over 4 GB to a FAT32 USB drive…), a message tells which file and why.
+
+## Two views side by side
+
+The two-column button in the header, just left of the icons / list switch (or **View > Two views**), splits the window into **two independent views**, each in its own folder, with its own selection and presentation (icons or list). Each view has a banner: the folder name, its path and the free space of its volume. The **active view** has its banner in the accent colours; a click anywhere in a view makes it active. The header (arrows, breadcrumb), the left panel and the status line follow the active view; the other view keeps its selection, greyed.
+
+- **Edit > Copy to the other view** and **Move to the other view** (also in the right-click menu, with the destination folder's name): done at once, without asking, unless an item with the same name would be replaced.
+- **Dragging** from one view to the other copies; with **Shift**, it moves. The view you drop on becomes the active one.
+- The separator between the two views can be moved with the mouse.
+- The same button goes back to **a single view** (the active view stays).
+
+Several items can be selected: **Ctrl+click** adds or removes one, **Shift+click** selects a range, **Ctrl+A** selects all; copy, cut, drag and delete act on the whole selection.
+
+The two views, their folders and the separator position are remembered for next time.
 
 ## Choosing the view
 

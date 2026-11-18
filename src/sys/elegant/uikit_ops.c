@@ -860,5 +860,6 @@ void drag_drop(long x, long y)
 	M32(evbuf, EV_Y) = (u32)(y - w->y);
 	M32(evbuf, 16) = (u32)drag_type;
 	M32(evbuf, 20) = (u32)drag_len;
+	M32(evbuf, EV_MODS) = (u32)cur_mods; /* Maj, Ctrl tenus au relâché (Fichiers : Maj déplace) */
 	win_push(w, evbuf);
 }

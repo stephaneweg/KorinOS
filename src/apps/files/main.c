@@ -73,7 +73,7 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define SEG_H		28
 #define SEG_X_R		(FRAME_CAP_W + 8 + SEG_RAIL)	/* x du rail, depuis la droite */
 #define CR_X0		(NAV_X + 3 * NAV_W + 10)	/* fil d'Ariane */
-#define CR_R		(SEG_X_R + 12)		/* sa fin, depuis la droite */
+#define CR_R		(SEG_X_R + 52)		/* sa fin, depuis la droite (avant le bouton Deux vues) */
 #define CR_BASE		27			/* ligne de base */
 #define CR_PX		14
 #define CR_GAP		6			/* de part et d'autre du separateur */
@@ -103,6 +103,7 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define POLL_MS		1000
 
 /* codes HID */
+#define KEY_A_		0x04
 #define KEY_C_		0x06
 #define KEY_V_		0x19
 #define KEY_X_		0x1B
@@ -133,6 +134,9 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define ID_GDRIVE	32
 #define ID_ICONS	40
 #define ID_LIST		41
+#define ID_DUAL		42			/* Affichage > Deux vues */
+#define ID_COPYTO	13			/* Edition > Copier vers l'autre vue */
+#define ID_MOVETO	14
 
 #define HDR_H		24			/* en-tete des colonnes (vue liste) */
 #define CELL_W		96			/* case de la vue icones */
@@ -190,6 +194,7 @@ static long w_size = COL_SIZE_W, w_type = COL_TYPE_W;	/* largeurs des colonnes (
 static long drag;				/* separateur saisi (1, 2) */
 static int band_on;				/* bande de progression montree (copie en arriere-plan) */
 static long press_i = -1, press_x, press_y;	/* element appuye (pour le glisser) */
+static int press_keep;				/* appui dans une selection multiple : relache sans glisser = elle seule */
 static long hover;				/* separateur survole */
 static long hhot;				/* element de l'en-tete survole */
 static long cr_n;				/* segments du fil d'Ariane */
@@ -209,11 +214,51 @@ static struct vol vols[VMAX];
 static struct place places[PL_MAX];
 static char pl_buf[PL_BUF];
 static char menu_buf[WS_MENU_MAX + 16];
-static char path[272], fullpath[600], tmpname[272], crbuf[272], stbuf[400], popbuf[400], cellbuf[272], cfgbuf[128];
+static char path[272], fullpath[600], tmpname[272], crbuf[272], stbuf[400], popbuf[400], cellbuf[272];
 static struct crumb crumbs[CR_MAX];
-static char hist[HIST_MAX][HIST_SZ];
-static long order[MAXE];
+static char (*hist)[HIST_SZ];			/* HIST_MAX dossiers (ceux de la vue en cours) */
+static long *order;				/* MAXE rangs -> entrees */
 static struct ent *ents;			/* MAXE entrees */
+static unsigned char *selm;			/* MAXE : 1 si l'entree (par numero d'entree) est choisie */
+static long nsel;				/* entrees choisies */
+static long anchor = -1;			/* rang de depart d'une plage (Maj+clic) */
+
+/* ---- deux vues (docs/maquettes/fichiers-deux-vues.html, variante B) ----
+ * Tout ce qui tient a un dossier (chemin, entrees, selection, defilement, presentation, tri, colonnes,
+ * historique, lecture en cours) est dans les variables globales pour la vue en cours (curp) ; l'autre vue
+ * garde les siens dans panes[]. pane_use echange. L'en-tete, le panneau de gauche et la ligne d'etat
+ * suivent la vue active (act). Une seule vue : la vue active seule, sur toute la largeur. */
+#define NPANE		2
+#define BAN_H		26			/* bandeau d'une vue (deux vues) */
+#define SPL_W		5			/* separation des vues (saisie a la souris) */
+#define PANE_MIN	240			/* largeur minimale d'une vue */
+#define H_DUAL		6			/* bouton Deux vues de l'en-tete */
+#define DUAL_X_R	(SEG_X_R + 40)		/* son x, depuis la droite */
+
+struct pane
+{
+	char path[272];
+	struct ent *ents;
+	long *order;
+	unsigned char *selm;
+	char (*hist)[HIST_SZ];
+	long nents, cursel, scroll_, rows, cols, body_y, line_h, view, sort_key, sort_desc, w_size, w_type;
+	long h_pos, h_n, last_idx, nsel, anchor;
+	const char *msg;
+	int ls_loading;
+	char ls_sel[256];
+};
+static struct pane panes[NPANE];
+static int dual;				/* deux vues montrees */
+static int act;					/* vue active */
+static int curp;				/* vue dans les variables globales */
+static long split_pm = 500;			/* place de la separation (pour mille de la largeur des vues) */
+static long vx0 = PAN_W, vx1 = WIN_W;		/* la vue en cours : de vx0 a vx1 */
+static long vtop = LIST_Y;			/* haut de son contenu (sous son bandeau en deux vues) */
+static int pane_dim;				/* 1 : la vue dessinee n'est pas l'active (selection « en veille ») */
+static int other_stale;				/* l'autre vue est a relire */
+static long split_drag;				/* separation saisie */
+static int act_pane (void) { return act; }	/* (ou un nom local « act » le cache) */
 static const unsigned *tk;			/* jetons du theme (pendant draw) */
 static long W_, H_;				/* taille de la fenetre (pendant draw) */
 
@@ -582,7 +627,8 @@ static void sort_ents (void)
 
 struct listing
 {
-	long gen;				/* la lecture (ls_gen quand elle a ete demandee) */
+	long gen;				/* la lecture (ls_gen[pane] quand elle a ete demandee) */
+	int pane;				/* la vue qui l'attend */
 	char dir[272];
 	struct ent *e;				/* MAXE entrees */
 	long n;
@@ -590,11 +636,161 @@ struct listing
 };
 
 static pthread_mutex_t ls_mx = PTHREAD_MUTEX_INITIALIZER;	/* ls_ready ; app_info (tampon d'ini_read, cur_ent) */
-static volatile long ls_gen;			/* la lecture voulue */
-static struct listing *ls_ready;		/* finie, a prendre (ls_mx) */
-static int ls_loading;				/* une lecture est attendue */
+static volatile long ls_gen[NPANE];		/* la lecture voulue, par vue */
+static struct listing *ls_ready[NPANE];		/* finie, a prendre (ls_mx) */
+static int ls_loading;				/* une lecture est attendue (vue en cours) */
 static char ls_sel[256];			/* le nom a choisir a son arrivee */
 static void select_name (const char *name);
+
+/* ---- deux vues : echange des variables globales ---- */
+
+static long split_x (void)
+{
+	long w = ui.w - PAN_W, x = PAN_W + w * split_pm / 1000;
+	if (w < 2 * PANE_MIN)
+		return PAN_W + w / 2;
+	if (x < PAN_W + PANE_MIN)
+		x = PAN_W + PANE_MIN;
+	if (x > ui.w - PANE_MIN)
+		x = ui.w - PANE_MIN;
+	return x;
+}
+
+/* vx0, vx1, vtop de la vue en cours */
+static void pane_rect (void)
+{
+	vtop = dual ? LIST_Y + BAN_H : LIST_Y;
+	if (!dual)
+	{
+		vx0 = PAN_W;
+		vx1 = ui.w;
+		return;
+	}
+	long sx = split_x ();
+	if (curp == 0)
+	{
+		vx0 = PAN_W;
+		vx1 = sx - SPL_W / 2;
+	}
+	else
+	{
+		vx0 = sx + SPL_W - SPL_W / 2;
+		vx1 = ui.w;
+	}
+}
+
+/* les variables globales -> panes[p] */
+static void pane_save (int p)
+{
+	struct pane *P = &panes[p];
+	str_copy_n (P->path, path, sizeof P->path);
+	P->ents = ents;
+	P->order = order;
+	P->selm = selm;
+	P->hist = hist;
+	P->nents = nents;
+	P->cursel = cursel;
+	P->scroll_ = scroll_;
+	P->rows = rows;
+	P->cols = cols;
+	P->body_y = body_y;
+	P->line_h = line_h;
+	P->view = view;
+	P->sort_key = sort_key;
+	P->sort_desc = sort_desc;
+	P->w_size = w_size;
+	P->w_type = w_type;
+	P->h_pos = h_pos;
+	P->h_n = h_n;
+	P->last_idx = last_idx;
+	P->nsel = nsel;
+	P->anchor = anchor;
+	P->msg = msg;
+	P->ls_loading = ls_loading;
+	memcpy (P->ls_sel, ls_sel, sizeof ls_sel);
+}
+
+/* panes[p] -> les variables globales */
+static void pane_load (int p)
+{
+	struct pane *P = &panes[p];
+	str_copy_n (path, P->path, sizeof path);
+	ents = P->ents;
+	order = P->order;
+	selm = P->selm;
+	hist = P->hist;
+	nents = P->nents;
+	cursel = P->cursel;
+	scroll_ = P->scroll_;
+	rows = P->rows;
+	cols = P->cols;
+	body_y = P->body_y;
+	line_h = P->line_h;
+	view = P->view;
+	sort_key = P->sort_key;
+	sort_desc = P->sort_desc;
+	w_size = P->w_size;
+	w_type = P->w_type;
+	h_pos = P->h_pos;
+	h_n = P->h_n;
+	last_idx = P->last_idx;
+	nsel = P->nsel;
+	anchor = P->anchor;
+	msg = P->msg;
+	ls_loading = P->ls_loading;
+	memcpy (ls_sel, P->ls_sel, sizeof ls_sel);
+	curp = p;
+	pane_rect ();
+}
+
+/* la vue p dans les variables globales */
+static void pane_use (int p)
+{
+	if (p == curp)
+	{
+		pane_rect ();
+		return;
+	}
+	pane_save (curp);
+	pane_load (p);
+}
+
+/* ---- la selection (par numero d'entree : elle suit un nouveau tri) ---- */
+
+static int is_sel (long i) { return i >= 0 && i < nents && selm[order[i]]; }
+
+static void sel_clear (void)
+{
+	memset (selm, 0, MAXE);
+	nsel = 0;
+}
+
+static void sel_put (long i, int on)
+{
+	if (i < 0 || i >= nents || !selm[order[i]] == !on)
+		return;
+	selm[order[i]] = (unsigned char) (on != 0);
+	nsel += on ? 1 : -1;
+}
+
+/* rang i seul choisi (-1 : rien) */
+static void sel_one (long i)
+{
+	sel_clear ();
+	cursel = i;
+	anchor = i;
+	sel_put (i, 1);
+}
+
+/* de anchor a i (Maj) */
+static void sel_range (long i)
+{
+	long a = anchor >= 0 && anchor < nents ? anchor : i, lo = a < i ? a : i, hi = a < i ? i : a;
+	sel_clear ();
+	for (long k = lo; k <= hi; k++)
+		sel_put (k, 1);
+	cursel = i;
+}
 
 static void *ls_thread (void *a)
 {
@@ -609,7 +805,7 @@ static void *ls_thread (void *a)
 	{
 		char fp[600];
 		struct dirent *de;
-		while (L->n < MAXE && L->gen == ls_gen && (de = readdir (d)))
+		while (L->n < MAXE && L->gen == ls_gen[L->pane] && (de = readdir (d)))
 		{
 			if (!de->d_name[0] || de->d_name[0] == '.')
 				continue;		/* caches : « .xxx » */
@@ -640,10 +836,10 @@ static void *ls_thread (void *a)
 		closedir (d);
 	}
 	pthread_mutex_lock (&ls_mx);
-	if (L->gen == ls_gen)
+	if (L->gen == ls_gen[L->pane])
 	{					/* (sinon : depassee, jetee) */
-		struct listing *o = ls_ready;
-		ls_ready = L;
+		struct listing *o = ls_ready[L->pane];
+		ls_ready[L->pane] = L;
 		L = o;
 	}
 	pthread_mutex_unlock (&ls_mx);
@@ -659,12 +855,12 @@ static void *ls_thread (void *a)
 static int ls_take (void)
 {
 	pthread_mutex_lock (&ls_mx);
-	struct listing *L = ls_ready;
-	ls_ready = 0;
+	struct listing *L = ls_ready[curp];
+	ls_ready[curp] = 0;
 	pthread_mutex_unlock (&ls_mx);
 	if (!L)
 		return 0;
-	if (L->gen != ls_gen || strcmp (L->dir, path))
+	if (L->gen != ls_gen[curp] || strcmp (L->dir, path))
 	{					/* (depassee entre-temps) */
 		free (L->e);
 		free (L);
@@ -681,6 +877,7 @@ static int ls_take (void)
 		free (ents);
 		ents = L->e;
 		nents = L->n;
+		sel_clear ();
 		for (long i = 0; i < nents; i++)
 		{
 			set_type (&ents[i]);
@@ -703,6 +900,8 @@ static void load_dir (void)
 	nents = 0;
 	scroll_ = 0;
 	cursel = -1;
+	anchor = -1;
+	sel_clear ();
 	last_idx = -1;
 	msg = 0;
 	ls_sel[0] = 0;
@@ -712,7 +911,8 @@ static void load_dir (void)
 		set_err (-ENOMEM);
 		return;
 	}
-	L->gen = ++ls_gen;
+	L->gen = ++ls_gen[curp];
+	L->pane = curp;
 	str_copy_n (L->dir, path, sizeof L->dir);
 	ls_loading = 1;
 	pthread_t th;
@@ -741,7 +941,19 @@ static void load_dir (void)
 /* la boucle : une lecture arrivee -> 1 (a redessiner) */
 static int ls_poll (void)
 {
-	return ls_loading && ls_take ();
+	int r = ls_loading && ls_take ();
+	int me = curp, o = !curp;
+	if (dual && panes[o].ls_loading)
+	{					/* (l'autre vue attend aussi le sien) */
+		pane_use (o);
+		if (ls_take ())
+		{
+			keep_visible ();
+			r = 1;
+		}
+		pane_use (me);
+	}
+	return r;
 }
 
 /* retrier en gardant la selection */
@@ -763,7 +975,7 @@ static void resort (void)
 /* x de la colonne Taille (*sx), de la colonne Type (*tx) */
 static void col_x (long *sx, long *tx)
 {
-	*tx = ui.w - w_type - 6;
+	*tx = vx1 - w_type - 6;
 	*sx = *tx - w_size;
 }
 
@@ -786,7 +998,7 @@ static void header_click (long x)
 /* largeurs lues : bornees (sinon celles par defaut) */
 static void cols_fix (void)
 {
-	if (w_size < COL_MIN || w_type < COL_MIN || ui.w - w_size - w_type - (6 + PAN_W + NAME_MIN) < 0)
+	if (w_size < COL_MIN || w_type < COL_MIN || vx1 - w_size - w_type - (6 + vx0 + NAME_MIN) < 0)
 	{
 		w_size = COL_SIZE_W;
 		w_type = COL_TYPE_W;
@@ -797,7 +1009,7 @@ static void cols_fix (void)
 static long sep_at (long x, long y)
 {
 	long sx, tx;
-	if (!view || y < LIST_Y || y >= LIST_Y + HDR_H)
+	if (!view || x < vx0 || x >= vx1 || y < vtop || y >= vtop + HDR_H)
 		return 0;
 	col_x (&sx, &tx);
 	if (labs (x - sx) <= SEP_HIT)
@@ -823,52 +1035,58 @@ static long drag_to (long x)
 	col_x (&sx, &tx);
 	if (drag == 1)
 	{					/* avant Taille : Type ne bouge pas */
-		x = clamp (x, PAN_W + NAME_MIN, tx - COL_MIN);
+		x = clamp (x, vx0 + NAME_MIN, tx - COL_MIN);
 		long old = w_size;
 		w_size = tx - x;
 		return old != w_size;
 	}
-	x = clamp (x, sx + COL_MIN, ui.w - 6 - COL_MIN);	/* avant Type : Taille ne bouge pas a gauche */
+	x = clamp (x, sx + COL_MIN, vx1 - 6 - COL_MIN);	/* avant Type : Taille ne bouge pas a gauche */
 	long old = w_type;
 	w_size = x - sx;
-	w_type = ui.w - 6 - x;
+	w_type = vx1 - 6 - x;
 	return old != w_type;
 }
 
-/* /etc/files.ini : « vue = ... », « taille = ... », « type = ... » */
+/* files.ini (HOME:/etc, sinon /etc) : la presentation et les colonnes de chaque vue (« vue », « taille »,
+ * « type » ; « vue2 »... pour la seconde), les deux vues (« deux_vues », « active », « partage », les dossiers
+ * « dossier » et « dossier2 ») */
 static void save_cfg (void)
 {
-	char *e = str_cat (cfgbuf, view ? "vue = liste\n" : "vue = icones\n");
-	e = fmt_dec ((unsigned long) w_size, str_cat (e, "taille = "));
-	e = fmt_dec ((unsigned long) w_type, str_cat (e, "\ntype = "));
-	*e++ = 10;
-	*e = 0;
+	char b[1400];
+	pane_save (curp);
+	const struct pane *a = &panes[0], *o = &panes[1];
+	int n = snprintf (b, sizeof b, "vue = %s\ntaille = %ld\ntype = %ld\nvue2 = %s\ntaille2 = %ld\ntype2 = %ld\n"
+		"deux_vues = %d\nactive = %d\npartage = %ld\ndossier = %s\ndossier2 = %s\n",
+		a->view ? "liste" : "icones", a->w_size, a->w_type, o->view ? "liste" : "icones", o->w_size, o->w_type,
+		dual, act, split_pm, a->path, o->path);
+	if (n <= 0 || n >= (int) sizeof b)
+		return;
 	char cp_[160];
 	int fd = open (korin_conf_path ("files.ini", cp_, sizeof cp_, 1), O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd < 0)
 		return;
-	write (fd, cfgbuf, (size_t) (e - cfgbuf));
+	write (fd, b, (size_t) n);
 	close (fd);
 }
 
 /* x de la premiere colonne de la grille (centree) */
-static long grid_x0 (void) { return ((ui.w - PAN_W - cols * CELL_W) >> 1) + PAN_W; }
+static long grid_x0 (void) { return ((vx1 - vx0 - cols * CELL_W) >> 1) + vx0; }
 
 /* disposition de la vue : cols, body_y, line_h, rows */
 static void layout (void)
 {
 	if (!view)
 	{
-		cols = (long) ((unsigned long) (ui.w - (PAN_W + 8)) / CELL_W);
+		cols = (long) ((unsigned long) (vx1 - (vx0 + 8)) / CELL_W);
 		if (cols < 1)
 			cols = 1;
-		body_y = LIST_Y + 4;
+		body_y = vtop + 4;
 		line_h = CELL_H;
 	}
 	else
 	{
 		cols = 1;
-		body_y = LIST_Y + HDR_H;
+		body_y = vtop + HDR_H;
 		line_h = ROW_H;
 	}
 	rows = (long) ((unsigned long) (ui.h - SB_H - body_y) / (unsigned long) line_h);
@@ -886,15 +1104,33 @@ static void set_view (long v)
 	save_cfg ();
 }
 
-/* (ini_read de files.ini) « vue = liste », « taille = <px> », « type = <px> » */
+/* (ini_read de files.ini) ce que save_cfg ecrit ; la vue 0 est dans les variables globales */
+static char cfg_dir[2][272];
 static void cfg_line (char *k, char *v)
 {
+	struct pane *o = &panes[1];
 	if (!strcmp (k, "vue"))
 		view = !strcmp (v, "liste");
 	else if (!strcmp (k, "taille"))
 		w_size = (long) parse_dec (v);
 	else if (!strcmp (k, "type"))
 		w_type = (long) parse_dec (v);
+	else if (!strcmp (k, "vue2"))
+		o->view = !strcmp (v, "liste");
+	else if (!strcmp (k, "taille2"))
+		o->w_size = (long) parse_dec (v);
+	else if (!strcmp (k, "type2"))
+		o->w_type = (long) parse_dec (v);
+	else if (!strcmp (k, "deux_vues"))
+		dual = *v == '1';
+	else if (!strcmp (k, "active"))
+		act = *v == '1';
+	else if (!strcmp (k, "partage"))
+		split_pm = clamp ((long) parse_dec (v), 100, 900);
+	else if (!strcmp (k, "dossier"))
+		str_copy_n (cfg_dir[0], v, sizeof cfg_dir[0]);
+	else if (!strcmp (k, "dossier2"))
+		str_copy_n (cfg_dir[1], v, sizeof cfg_dir[1]);
 }
 
 /* nom : le selectionne s'il est dans la liste */
@@ -909,7 +1145,7 @@ static void select_name (const char *name)
 	for (long i = 0; i < nents; i++)
 		if (!strcmp (ent_ptr (i)->name, name))
 		{
-			cursel = i;
+			sel_one (i);
 			keep_visible ();
 			return;
 		}
@@ -924,6 +1160,72 @@ static void go_dir (const char *p)
 }
 
 static void go_sd0 (void) { go_dir ("/"); }
+
+/* ---- deux vues : disposition, vue active, l'autre relue ---- */
+
+static void refresh (void);
+
+/* chaque vue montree : colonnes, rangees (apres un changement de taille, de mode, de separation) */
+static void relayout_all (void)
+{
+	int me = curp;
+	for (int p = 0; p < NPANE; p++)
+	{
+		if (!dual && p != act)
+			continue;
+		pane_use (p);
+		cols_fix ();
+		layout ();
+		keep_visible ();
+	}
+	pane_use (me);
+}
+
+/* la vue p devient la vue active (l'en-tete, le panneau et la ligne d'etat la suivent) */
+static void pane_activate (int p)
+{
+	if (!dual || p == act)
+		return;
+	act = p;
+	pane_use (p);
+	press_i = -1;
+	hhot = hover = 0;
+}
+
+/* l'autre vue : la relire (meme dossier change, copie arrivee) */
+static void other_refresh (void)
+{
+	other_stale = 0;
+	if (!dual)
+		return;
+	int me = curp;
+	pane_use (!act);
+	refresh ();
+	pane_use (me);
+}
+
+/* une vue <-> deux vues ; en revenant a une vue, la vue active reste */
+static void dual_set (int on)
+{
+	on = on != 0;
+	if (on == dual)
+		return;
+	pane_use (act);
+	dual = on;
+	if (dual)
+	{					/* la seconde vue : son dossier d'avant, sinon celui-ci */
+		struct pane *o = &panes[!act];
+		if (!o->path[0])
+			str_copy_n (o->path, path, sizeof o->path);
+		int me = curp;
+		pane_use (!act);
+		if (!h_n || !nents)
+			load_dir ();
+		pane_use (me);
+	}
+	relayout_all ();
+	save_cfg ();
+}
 
 /* ---------------------------------------------------------------------------
  *  Historique (hist[0..h_n[, h_pos = dossier courant) : load_dir y note tout changement de
@@ -1026,6 +1328,9 @@ static void menu_build (void)
 		"I9\tCouper\tCtrl+X\n"
 		"I8\tCopier\tCtrl+C\n"
 		"I12\tColler\tCtrl+V\n"
+		"-\n"
+		"I13\tCopier vers l'autre vue\n"
+		"I14\tDéplacer vers l'autre vue\n"
 		"MAller\n"
 		"I10\tDossier parent\tRetour\n"
 		"-\n";
@@ -1034,6 +1339,8 @@ static void menu_build (void)
 		"MAffichage\n"
 		"I40\tIcônes\n"
 		"I41\tListe\n"
+		"-\n"
+		"I42\tDeux vues\n"
 		"MVolume\n"
 		"I31\tSe connecter à un serveur…\tCtrl+K\n";
 	static const char tail2[] = "-\n"
@@ -1051,6 +1358,14 @@ static void menu_build (void)
 	if (access (GDRIVEFS, X_OK) == 0)		/* (gdrivefs : construit pour le PC seulement, pour l'instant) */
 		e = str_cat (e, "I32\tSe connecter à Google Drive…\n");
 	str_cat (e, tail2);
+}
+
+/* Deux vues coche ; Copier, Deplacer vers l'autre vue grises en une seule vue */
+static void menu_states (void)
+{
+	ui_menu_state (ID_DUAL, dual ? UMS_CHECKED : 0);
+	ui_menu_state (ID_COPYTO, dual ? 0 : UMS_DISABLED);
+	ui_menu_state (ID_MOVETO, dual ? 0 : UMS_DISABLED);
 }
 
 /* ---------------------------------------------------------------------------
@@ -1132,7 +1447,11 @@ static const char *vol_kind (struct vol *v)
 }
 
 /* -> volume du dossier courant : le point de montage au plus long prefixe (-1 : aucun) */
-static long cur_vol (void)
+static long vol_of (const char *p);
+static long cur_vol (void) { return vol_of (path); }
+
+/* le volume qui contient le chemin p (le point de montage le plus long), -1 */
+static long vol_of (const char *p)
 {
 	long best = -1;
 	size_t bl = 0;
@@ -1140,8 +1459,8 @@ static long cur_vol (void)
 	{
 		const char *d = vols[i].disp;
 		size_t l = strlen (d);
-		int in = l == 1 && d[0] == '/' ? path[0] == '/'
-			: !strncmp (path, d, l) && (path[l] == 0 || path[l] == '/');
+		int in = l == 1 && d[0] == '/' ? p[0] == '/'
+			: !strncmp (p, d, l) && (p[l] == 0 || p[l] == '/');
 		if (in && (best < 0 || l > bl))
 		{
 			best = i;
@@ -1202,6 +1521,8 @@ static void chg_publish (void)
 {
 	if (chg_n)
 		bus_publish ((long) BUS_TOPIC_CHANGED, (long) chg_buf, chg_len, BUS_RETAIN);
+	if (chg_n && dual)
+		other_stale = 1;		/* (l'autre vue de cette fenetre : relue par la boucle) */
 	chg_len = chg_n = 0;
 	chg_buf[0] = 0;
 }
@@ -1229,9 +1550,12 @@ static int chg_seen (long topic)
 			refresh ();
 			return 1;
 		}
+		const char *op = panes[!curp].path;	/* (l'autre vue) */
+		if (dual && (size_t) (e - q) == strlen (op) && !strncasecmp (q, op, strlen (op)))
+			other_stale = 1;
 		q = e + 1;
 	}
-	return 0;
+	return other_stale;
 }
 
 /* ---------------------------------------------------------------------------
@@ -1420,6 +1744,12 @@ static long vol_poll (void)
 	{					/* le volume du dossier courant a disparu */
 		go_sd0 ();
 		set_msg ("Volume retiré : retour à /");
+	}
+	if (vfs_ch >= 0 && dual && vol_of (panes[!curp].path) < 0)
+	{					/* celui de l'autre vue */
+		str_copy_n (panes[!curp].path, "/", sizeof panes[0].path);
+		panes[!curp].msg = TR ("Volume retiré : retour à /");
+		other_stale = 1;
 	}
 	return 1;
 }
@@ -2294,9 +2624,16 @@ static void draw (void);
 /* supprimer la selection, apres confirmation (menu surgissant) */
 static int del_enqueue (const char *p);
 
+static void delete_many (void);
+
 static void delete_sel (void)
 {
-	if (cursel < 0)
+	if (nsel > 1)
+	{
+		delete_many ();
+		return;
+	}
+	if (cursel < 0 || !is_sel (cursel))
 		return;
 	struct ent *en = ent_ptr (cursel);
 	int dir = en->kind != K_FILE;
@@ -2332,6 +2669,51 @@ static void delete_sel (void)
 		chg_add (path);
 		chg_publish ();
 	}
+}
+
+/* supprimer plusieurs elements choisis, apres une seule confirmation : les fichiers tout de suite, les dossiers
+ * (avec leur contenu) en arriere-plan, chacun un lot */
+static void delete_many (void)
+{
+	char t[64];
+	snprintf (t, sizeof t, TR ("Supprimer ces %ld éléments"), nsel);
+	char *e = str_cat (popbuf, t) + 1;
+	e = tr_cat (e, "Annuler");
+	e[1] = 0;
+	long x = scr[0], y = scr[1];
+	if (!x)
+	{
+		x = 640;
+		y = 480;
+	}
+	if (ui_popup ((x - 440) >> 1, (y >> 1) - 40, (long) popbuf, 440) != 0)
+		return;
+	long err = 0, files = 0;
+	for (long i = 0; i < nents; i++)
+	{
+		if (!is_sel (i))
+			continue;
+		make_full (i);
+		if (ent_ptr (i)->kind != K_FILE)
+		{
+			if (!del_enqueue (fullpath))
+				err = -ENOMEM;
+		}
+		else if (unlink (fullpath))
+			err = kerr (errno);
+		else
+			files++;
+	}
+	if (files)
+	{
+		load_dir ();
+		chg_add (path);
+		chg_publish ();
+	}
+	if (err)
+		set_err (err);
+	else if (files)
+		set_msg ("Supprimé");
 }
 
 /* nouveau nom (rogne de ses espaces autour, sur place) -> 0 s'il est permis, sinon le message
@@ -3004,8 +3386,7 @@ static void cp_poll (void)
 	if (want != band_on)
 	{
 		band_on = want;
-		layout ();
-		keep_visible ();
+		relayout_all ();
 		full = 1;
 	}
 	if (band_on && (full || now - bd_last >= 250))
@@ -3098,6 +3479,10 @@ static int del_enqueue (const char *p)
 /* les chemins de list (un par ligne) dans dir : M_COPY, M_CUT, M_DROP (rename() si c'est possible,
  * sinon une copie, en arriere-plan : un lot dans la file) -> 1 si tout est deja fait (sans lot,
  * rien d'ignore) */
+/* un depot : une copie, un deplacement si Maj etait tenue (decision du 18/11 : plus de « meme volume :
+ * deplacer ») */
+static int drop_move;
+
 static int paste_list (char *list, int mode, const char *dir)
 {
 	const char *title = mode == M_COPY ? "Copier" : mode == M_CUT ? "Déplacer" : "Déposer";
@@ -3188,7 +3573,8 @@ static int paste_list (char *list, int mode, const char *dir)
 		}
 		if (!first[0])
 			str_copy_n (first, base_name (dst), sizeof first);
-		if (mode != M_COPY && rename (src, dst) == 0)
+		int mv = mode == M_CUT || (mode == M_DROP && drop_move);
+		if (mv && rename (src, dst) == 0)
 		{
 			moved++;		/* meme volume : sans copie */
 			chg_add_parent (src);
@@ -3202,8 +3588,8 @@ static int paste_list (char *list, int mode, const char *dir)
 		struct cp_item *it = &b->it[b->n++];
 		str_copy_n (it->src, src, CP_PATH);
 		str_copy_n (it->dst, dst, CP_PATH);
-		it->move = mode == M_CUT;
-		b->move = b->move || mode != M_COPY;
+		it->move = mv;
+		b->move = b->move || mv;
 	}
 	long queued = b->n;
 	b->all = all;
@@ -3234,16 +3620,52 @@ static int paste_list (char *list, int mode, const char *dir)
 	return all && !queued;			/* (un lot : cp_report le dira) */
 }
 
-/* Copier, Couper : le chemin de la selection dans le presse-papiers */
+/* les chemins complets de la selection, un par ligne, dans l'ordre affiche -> leur nombre (0 : rien de choisi,
+ * ou trop long) */
+static long sel_list (char *b, long cap)
+{
+	long n = 0, k = 0;
+	for (long i = 0; i < nents; i++)
+	{
+		if (!is_sel (i))
+			continue;
+		make_full (i);
+		long l = (long) strlen (fullpath);
+		if (k + l + 2 > cap)
+			return 0;
+		memcpy (b + k, fullpath, (size_t) l);
+		k += l;
+		b[k++] = '\n';
+		n++;
+	}
+	b[k] = 0;
+	return n;
+}
+
+/* Copier, Couper : les chemins de la selection dans le presse-papiers */
 static void clip_sel (int cut)
 {
-	if (cursel < 0)
+	static char b[16384];
+	long n = sel_list (b, sizeof b);
+	if (!n)
 		return;
-	make_full (cursel);
-	if (!ui_clip_set_files ((long) fullpath, cut))
+	if (!ui_clip_set_files ((long) b, cut))
 		set_msg ("Presse-papiers indisponible");
 	else
 		set_msg (cut ? "Coupé : collez-le dans un autre dossier" : "Copié dans le presse-papiers");
+}
+
+/* Copier, Deplacer vers l'autre vue : la selection dans le dossier de l'autre vue, sans question (sauf un nom
+ * deja pris), comme Coller */
+static void to_other (int move)
+{
+	static char b[16384];
+	if (!dual || !sel_list (b, sizeof b))
+		return;
+	char dir[CP_PATH];
+	str_copy_n (dir, panes[!act].path, sizeof dir);
+	paste_list (b, move ? M_CUT : M_COPY, dir);
+	other_stale = 1;
 }
 
 /* Coller : dans le dossier courant */
@@ -3265,11 +3687,11 @@ static void paste (void)
  * Couper, Copier, Renommer..., Supprimer) ; dans le vide : Coller, Nouveau dossier */
 static void ctx_menu (long x, long y)
 {
-	enum { A_OPEN, A_WITH, A_CUT, A_COPY, A_RENAME, A_DELETE, A_PASTE, A_NEWDIR };
+	enum { A_OPEN, A_WITH, A_CUT, A_COPY, A_RENAME, A_DELETE, A_PASTE, A_NEWDIR, A_COPYTO, A_MOVETO };
 	static const char *const lab[] = { "Ouvrir", "Ouvrir avec…", "Couper", "Copier", "Renommer…", "Supprimer",
-		"Coller", "Nouveau dossier" };
-	int act[8], n = 0;
-	if (cursel < 0)
+		"Coller", "Nouveau dossier", "Copier vers « %s »", "Déplacer vers « %s »" };
+	int act[10], n = 0;
+	if (cursel < 0 || !nsel)
 	{
 		act[n++] = A_PASTE;
 		act[n++] = A_NEWDIR;
@@ -3277,22 +3699,39 @@ static void ctx_menu (long x, long y)
 	else
 	{
 		act[n++] = A_OPEN;
-		if (ent_ptr (cursel)->kind == K_FILE)
+		if (nsel == 1 && ent_ptr (cursel)->kind == K_FILE)
 			act[n++] = A_WITH;
 		act[n++] = A_CUT;
 		act[n++] = A_COPY;
-		act[n++] = A_RENAME;
+		if (dual)
+		{				/* (deux vues : vers le dossier de l'autre) */
+			act[n++] = A_COPYTO;
+			act[n++] = A_MOVETO;
+		}
+		if (nsel == 1)
+			act[n++] = A_RENAME;
 		act[n++] = A_DELETE;
 	}
+	const char *other = base_name (panes[!act_pane ()].path);
 	char *e = popbuf;
 	for (int i = 0; i < n; i++)
-		e = tr_cat (e, lab[act[i]]) + 1;
+	{
+		if (act[i] == A_COPYTO || act[i] == A_MOVETO)
+		{
+			e += snprintf (e, 120, TR (lab[act[i]]), *other ? other : "/");
+			e++;
+		}
+		else
+			e = tr_cat (e, lab[act[i]]) + 1;
+	}
 	*e = 0;
-	long r = ui_popup_local (x, y, (long) popbuf, 220);
+	long r = ui_popup_local (x, y, (long) popbuf, 260);
 	if (r < 0 || r >= n)
 		return;				/* Echap, clic ailleurs */
 	switch (act[r])
 	{
+	case A_COPYTO: to_other (0); break;
+	case A_MOVETO: to_other (1); break;
 	case A_OPEN: open_sel (); break;
 	case A_WITH: open_with_sel (); break;
 	case A_CUT: clip_sel (1); break;
@@ -3354,7 +3793,8 @@ static void draw_eject (long x, long y)
 /* fond de selection */
 static void draw_sel (long x, long y, long w, long h)
 {
-	ui_rbox (x, y, w, h, 8, TOK (TJ_ACCENT_LIGHT), TOK (TJ_ACCENT_LIGHT));
+	unsigned c = pane_dim ? TOK (TJ_SUNKEN) : TOK (TJ_ACCENT_LIGHT);	/* (vue inactive : « en veille ») */
+	ui_rbox (x, y, w, h, 8, c, c);
 }
 
 /* -> element du panneau du dossier courant : 0x200 + n (acces rapide exact), n (volume qui le
@@ -3493,6 +3933,24 @@ static void draw_seg (void)
 	}
 }
 
+/* bouton Deux vues : fantome comme les fleches ; enfonce en deux vues (fond ACCENT_CLAIR, glyphe ACCENT) ;
+ * glyphe : deux colonnes */
+static void draw_dual (void)
+{
+	long x = W_ - DUAL_X_R;
+	if (dual)
+		ui_rbox (x, NAV_Y, NAV_W, NAV_H, 8, TOK (TJ_ACCENT_LIGHT), TOK (TJ_ACCENT_LIGHT));
+	else if (hhot == H_DUAL)
+		ui_rbox (x, NAV_Y, NAV_W, NAV_H, 8, TOK (TJ_SUNKEN), TOK (TJ_SUNKEN));
+	unsigned ink = dual ? TOK (TJ_ACCENT) : hhot == H_DUAL ? TOK (TJ_TEXT1) : TOK (TJ_TEXT2);
+	long gx = x + 8, gy = NAV_Y + 9;
+	for (long c = 0; c < 2; c++)
+	{
+		ui_frame (gx + c * 9, gy, 7, 14, ink);
+		ui_fill (gx + c * 9, gy, 7, 3, ink);
+	}
+}
+
 /* path -> segments du fil d'Ariane (crumbs, cr_n ; noms dans crbuf). Trop profond : le dernier
  * segment reste le vrai */
 static void crumbs_make (void)
@@ -3596,6 +4054,7 @@ static void draw_top (void)
 	crumbs_make ();
 	for (long h = H_BACK; h <= H_UP; h++)
 		draw_nav (h);
+	draw_dual ();
 	draw_seg ();
 	draw_crumbs ();
 }
@@ -3609,6 +4068,9 @@ static long head_at (long x, long y)
 	long i = (x - NAV_X) / NAV_W;
 	if (i < 3)
 		return i + H_BACK;
+	long dx = x - (ui.w - DUAL_X_R);
+	if (dx >= 0 && dx < NAV_W)
+		return H_DUAL;
 	long s = x - (ui.w - SEG_X_R);
 	if (s >= 0)
 	{
@@ -3647,6 +4109,11 @@ static void head_click (long h)
 		hist_go (1);
 	else if (h == H_UP)
 		go_parent ();
+	else if (h == H_DUAL)
+	{
+		dual_set (!dual);
+		menu_states ();
+	}
 	else if (h <= H_LIST)
 	{
 		if (h - H_ICONS != view)
@@ -3659,10 +4126,10 @@ static void head_click (long h)
 /* titre de colonne, avec la fleche du tri */
 static void draw_hdr (const char *s, long x, long col, long max)
 {
-	text (s, x, LIST_Y + 16, TOK (TJ_TEXT2), 12, ui.font_b, max);
+	text (s, x, vtop + 16, TOK (TJ_TEXT2), 12, ui.font_b, max);
 	if (sort_key != col)
 		return;
-	text (sort_desc ? "▼" : "▲", x + text_w (s, 12, ui.font_b) + 5, LIST_Y + 15, TOK (TJ_TEXT2), 9, ui.font, 16);
+	text (sort_desc ? "▼" : "▲", x + text_w (s, 12, ui.font_b) + 5, vtop + 15, TOK (TJ_TEXT2), 9, ui.font, 16);
 }
 
 /* vue liste : en-tete (Nom, Taille, Type) et lignes */
@@ -3670,30 +4137,30 @@ static void draw_rows (void)
 {
 	char buf[32];
 	long sx, tx;
-	ui_fill (PAN_W, LIST_Y, W_ - PAN_W, H_ - (LIST_Y + SB_H), TOK (TJ_SURFACE));
+	ui_fill (vx0, vtop, vx1 - vx0, H_ - (vtop + SB_H), TOK (TJ_SURFACE));
 	col_x (&sx, &tx);
-	ui_fill (PAN_W, LIST_Y + HDR_H - 1, W_ - PAN_W, 1, TOK (TJ_LINE));
+	ui_fill (vx0, vtop + HDR_H - 1, vx1 - vx0, 1, TOK (TJ_LINE));
 	long sw = tx - sx;			/* largeur de Taille */
-	ui_fill (sx, LIST_Y + 4, 1, HDR_H - 8, TOK (TJ_LINE));	/* separateurs */
-	ui_fill (tx, LIST_Y + 4, 1, HDR_H - 8, TOK (TJ_LINE));
-	draw_hdr (TR ("Nom"), PAN_W + 42, S_NAME, sx - (PAN_W + 50));
+	ui_fill (sx, vtop + 4, 1, HDR_H - 8, TOK (TJ_LINE));	/* separateurs */
+	ui_fill (tx, vtop + 4, 1, HDR_H - 8, TOK (TJ_LINE));
+	draw_hdr (TR ("Nom"), vx0 + 42, S_NAME, sx - (vx0 + 50));
 	draw_hdr (TR ("Taille"), sx + 8, S_SIZE, sw - 12);
-	draw_hdr (TR ("Type"), tx + 8, S_TYPE, W_ - tx - 18);
+	draw_hdr (TR ("Type"), tx + 8, S_TYPE, vx1 - tx - 18);
 	for (long r = 0; r < rows; r++)
 	{
 		long i = scroll_ + r;		/* rang */
 		if (i >= nents)
 			break;
-		long y = r * ROW_H + LIST_Y + HDR_H;	/* haut de la ligne */
-		if (cursel == i)
-			draw_sel (PAN_W + 4, y + 1, W_ - (PAN_W + 8), ROW_H - 2);
+		long y = r * ROW_H + vtop + HDR_H;	/* haut de la ligne */
+		if (is_sel (i))
+			draw_sel (vx0 + 4, y + 1, vx1 - (vx0 + 8), ROW_H - 2);
 		struct ent *e = ent_ptr (i);
 		if (e->kind == K_DIR)
-			draw_folder (PAN_W + 12, y + 4, COL_FOLDER_D, COL_FOLDER);
+			draw_folder (vx0 + 12, y + 4, COL_FOLDER_D, COL_FOLDER);
 		else if (e->kind == K_APP)
-			ui_icon ((long) e->icon, PAN_W + 12, y + 3, 20);
+			ui_icon ((long) e->icon, vx0 + 12, y + 3, 20);
 		else
-			draw_doc (PAN_W + 15, y + 4);
+			draw_doc (vx0 + 15, y + 4);
 		if (e->kind == K_FILE)
 		{				/* taille, alignee a droite */
 			fmt_size (e->size, buf);
@@ -3702,18 +4169,18 @@ static void draw_rows (void)
 				x = sx;
 			text (buf, x, y + 18, TOK (TJ_TEXT2), 12, ui.font, sw - 4);
 		}
-		text (e->type, tx + 8, y + 18, TOK (TJ_TEXT2), 12, ui.font, W_ - tx - 18);
-		long m = sx - (PAN_W + 50);	/* nom */
-		text (ent_shown (e), PAN_W + 42, y + 18, TOK (TJ_TEXT1), 13, ui.font, m < 8 ? 8 : m);
+		text (e->type, tx + 8, y + 18, TOK (TJ_TEXT2), 12, ui.font, vx1 - tx - 18);
+		long m = sx - (vx0 + 50);	/* nom */
+		text (ent_shown (e), vx0 + 42, y + 18, TOK (TJ_TEXT1), 13, ui.font, m < 8 ? 8 : m);
 	}
-	long k = drag, h = H_ - (LIST_Y + SB_H);	/* separateur saisi (toute la hauteur) */
+	long k = drag, h = H_ - (vtop + SB_H);	/* separateur saisi (toute la hauteur) */
 	if (!k)
 	{
-		k = hover;			/* ou survole (l'en-tete) */
+		k = hover < 3 ? hover : 0;	/* ou survole (l'en-tete ; 3 : la separation des vues) */
 		h = HDR_H;
 	}
-	if (k)
-		ui_fill ((k == 1 ? sx : tx) - 1, LIST_Y, 2, h, TOK (TJ_ACCENT));
+	if (k && !pane_dim)
+		ui_fill ((k == 1 ? sx : tx) - 1, vtop, 2, h, TOK (TJ_ACCENT));
 }
 
 /* grand dossier (48 x 44) */
@@ -3778,7 +4245,7 @@ static void cell_name (const char *s, long x, long y)
 /* vue icones : grille de cases */
 static void draw_grid (void)
 {
-	ui_fill (PAN_W, LIST_Y, W_ - PAN_W, H_ - (LIST_Y + SB_H), TOK (TJ_SURFACE));
+	ui_fill (vx0, vtop, vx1 - vx0, H_ - (vtop + SB_H), TOK (TJ_SURFACE));
 	long gx = grid_x0 ();
 	for (long c = 0; c < rows * cols; c++)
 	{
@@ -3786,7 +4253,7 @@ static void draw_grid (void)
 		if (i >= nents)
 			break;
 		long x = (c % cols) * CELL_W + gx, y = (c / cols) * CELL_H + body_y;
-		if (cursel == i)
+		if (is_sel (i))
 			draw_sel (x + 3, y + 1, CELL_W - 6, CELL_H - 2);
 		struct ent *e = ent_ptr (i);
 		long ix = x + (CELL_W - ICON_S) / 2, iy = y + 5;
@@ -3817,7 +4284,9 @@ static void draw_status (void)
 	if (!s)
 	{
 		char *e = tr_cat (fmt_dec ((unsigned long) nents, stbuf), nents == 1 ? " élément" : " éléments");
-		if (cursel >= 0)
+		if (nsel > 1)
+			tr_cat (fmt_dec ((unsigned long) nsel, str_cat (e, "   —   ")), " choisis");
+		else if (cursel >= 0 && is_sel (cursel))
 		{
 			struct ent *en = ent_ptr (cursel);
 			e = str_cat (str_cat (e, "   —   "), ent_shown (en));
@@ -3842,17 +4311,74 @@ static void draw_status (void)
 	text (s, PAN_W + 12, H_ - 8, TOK (TJ_TEXT2), 12, ui.font, right - (PAN_W + 12));
 }
 
+/* deux vues : le bandeau de la vue en cours (26 px) : icone, nom du dossier, chemin en TEXTE3, a droite la
+ * place libre de son volume ; vue active : fond ACCENT_CLAIR, trait ACCENT de 2 px en haut */
+static void draw_banner (void)
+{
+	long y = LIST_Y, w = vx1 - vx0;
+	int on = curp == act;
+	ui_fill (vx0, y, w, BAN_H, on ? TOK (TJ_ACCENT_LIGHT) : TOK (TJ_FACE));
+	if (on)
+		ui_fill (vx0, y, w, 2, TOK (TJ_ACCENT));
+	ui_fill (vx0, y + BAN_H - 1, w, 1, TOK (TJ_LINE));
+	draw_folder (vx0 + 8, y + 6, COL_FOLDER_D, COL_FOLDER);
+	const char *nm = path[0] == '/' && !path[1] ? "/" : base_name (path);
+	long x = vx0 + 34, right = vx1 - 10;
+	long v = vol_of (path);
+	const struct vspace *sp = v >= 0 ? space_of (&vols[v]) : 0;
+	if (sp)
+	{
+		char sb[96];
+		tr_cat (fmt_bytes (sp->avail, sb), " libres");
+		long tw = text_w (sb, 12, ui.font);
+		if (right - tw > x + 60)
+		{
+			text (sb, right - tw, y + 17, TOK (TJ_TEXT2), 12, ui.font, 0);
+			right -= tw + 12;
+		}
+	}
+	if (right - x < 8)
+		return;
+	text (nm, x, y + 18, on ? TOK (TJ_TEXT1) : TOK (TJ_TEXT2), 13, ui.font_b, right - x);
+	x += text_w (nm, 13, ui.font_b) + 10;
+	if (right - x > 30 && strcmp (nm, "/"))
+		text (path, x, y + 17, TOK (TJ_TEXT3), 12, ui.font, right - x);
+}
+
+/* la separation des deux vues (saisie a la souris : ACCENT) */
+static void draw_split (void)
+{
+	long sx = split_x (), h = H_ - LIST_Y - SB_H;
+	ui_fill (sx - SPL_W / 2, LIST_Y, SPL_W, h, TOK (TJ_SURFACE));
+	unsigned c = split_drag || hover == 3 ? TOK (TJ_ACCENT) : TOK (TJ_LINE);
+	ui_fill (sx - (split_drag || hover == 3 ? 1 : 0), LIST_Y, split_drag || hover == 3 ? 2 : 1, h, c);
+}
+
 static void draw (void)
 {
 	tk = (const unsigned *) ui_tokens ();
 	W_ = ui.w;
 	H_ = ui.h;
+	pane_use (act);
 	draw_panel ();
 	draw_top ();
-	if (view)
-		draw_rows ();
-	else
-		draw_grid ();
+	for (int p = 0; p < NPANE; p++)
+	{					/* chaque vue montree dans son rectangle */
+		if (!dual && p != act)
+			continue;
+		pane_use (p);
+		pane_dim = dual && p != act;
+		if (dual)
+			draw_banner ();
+		if (view)
+			draw_rows ();
+		else
+			draw_grid ();
+	}
+	pane_dim = 0;
+	pane_use (act);
+	if (dual)
+		draw_split ();
 	draw_status ();
 	ui_update_all ();
 }
@@ -3862,9 +4388,7 @@ static long on_resize (long w, long h)
 {
 	(void) w;
 	(void) h;
-	cols_fix ();
-	layout ();
-	keep_visible ();
+	relayout_all ();
 	draw ();
 	return 0;
 }
@@ -3895,6 +4419,9 @@ static void on_menu (long id)
 	case ID_GDRIVE: connect_gdrive (); break;
 	case ID_ICONS: set_view (0); break;
 	case ID_LIST: set_view (1); break;
+	case ID_DUAL: dual_set (!dual); menu_states (); break;
+	case ID_COPYTO: to_other (0); break;
+	case ID_MOVETO: to_other (1); break;
 	default:
 		if ((unsigned long) (id - ID_PLACE) >= (unsigned long) pl_n)
 			return;
@@ -3907,6 +4434,21 @@ static void on_menu (long id)
 static void mouse_aux (void)
 {
 	long kind = ui_ev_field (&ui, EV_KIND), x = ui_ev_field (&ui, EV_X), y = ui_ev_field (&ui, EV_Y);
+	if (split_drag)
+	{					/* la separation des deux vues suit la souris */
+		if (kind == 2 || !ui_ev_field (&ui, EV_CODE))
+		{
+			split_drag = 0;
+			save_cfg ();
+		}
+		else if (ui.w > PAN_W)
+		{
+			split_pm = clamp ((x - PAN_W) * 1000 / (ui.w - PAN_W), 100, 900);
+			relayout_all ();
+		}
+		draw ();
+		return;
+	}
 	if (drag)
 	{
 		if (kind == 2 || !ui_ev_field (&ui, EV_CODE))
@@ -3920,31 +4462,47 @@ static void mouse_aux (void)
 		return;
 	}
 	if (kind)
-	{
-		press_i = -1;			/* relache */
+	{					/* relache */
+		if (press_keep && press_i >= 0 && press_i < nents)
+		{				/* un simple clic dans la selection : elle seule */
+			sel_one (press_i);
+			draw ();
+		}
+		press_keep = 0;
+		press_i = -1;
 		return;
 	}
 	if (press_i >= 0)
-	{					/* bouton tenu sur un element : assez loin, on le glisse */
+	{					/* bouton tenu sur un element : assez loin, on le glisse (toute la selection) */
+		static char b[16384];
 		if (!(ui_ev_field (&ui, EV_CODE) & 1))
 			press_i = -1;
 		else if (labs (x - press_x) + labs (y - press_y) >= DRAG_PX && press_i < nents)
 		{
 			long gi = press_i;
-			make_full (press_i);
+			if (!is_sel (gi) || !sel_list (b, sizeof b))
+				str_copy_n (b, (make_full (gi), fullpath), sizeof b);
 			press_i = -1;
+			press_keep = 0;
 			last_idx = -1;
-			ui_drag_start ((long) fullpath, -1, UDT_FILES);
+			ui_drag_start ((long) b, -1, UDT_FILES);
 			drag_ghost (gi);
 			return;
 		}
 	}
-	long s = sep_at (x, y), ch = s != hover;
+	long s = sep_at (x, y);
+	if (!s && dual && y >= LIST_Y && y < ui.h - SB_H && labs (x - split_x ()) <= SPL_W / 2 + 1)
+		s = 3;				/* (la separation des vues) */
+	long ch = s != hover;
 	hover = s;
 	long h = head_at (x, y);
 	if (h != hhot)
 	{
 		ch = 1;
+		if (h == H_DUAL)		/* l'infobulle du bouton Deux vues */
+			ui_tip_at (ui.w - DUAL_X_R, NAV_Y + NAV_H + 4, (long) TR (dual ? "Une seule vue" : "Deux vues"));
+		else if (hhot == H_DUAL)
+			ui_tip_at (0, 0, 0);
 		hhot = h;
 	}
 	if (ch)
@@ -4001,11 +4559,28 @@ static void on_mouse (void)
 		draw ();
 		return;
 	}
+	if (dual && y >= LIST_Y && y < ui.h - SB_H)
+	{					/* deux vues : la separation se saisit ; un clic dans une vue l'active */
+		long sx = split_x ();
+		if (labs (x - sx) <= SPL_W / 2 + 1)
+		{
+			split_drag = 1;
+			draw ();
+			return;
+		}
+		if ((x > sx) != act)
+		{
+			pane_activate (x > sx);
+			draw ();
+		}
+		if (y < LIST_Y + BAN_H)
+			return;			/* (le bandeau : l'activer, rien de plus) */
+	}
 	if (view)
 	{					/* en-tete des colonnes */
-		if (y < LIST_Y)
+		if (y < vtop)
 			return;
-		if (y < LIST_Y + HDR_H)
+		if (y < vtop + HDR_H)
 		{
 			long s = sep_at (x, y);	/* sur un separateur : on le saisit */
 			if (s)
@@ -4031,9 +4606,11 @@ static void on_mouse (void)
 		else
 			i += (x - gx) / CELL_W;
 	}
+	long mods = ui_ev_field (&ui, EV_MODS);
 	if (empty || i >= nents)
 	{					/* dans le vide : plus de selection */
-		cursel = -1;
+		if (!(mods & (UI_MOD_CTRL | UI_MOD_SHIFT)))
+			sel_one (-1);
 		last_idx = -1;
 		draw ();
 		if (ui_ev_field (&ui, EV_CODE) & 2)
@@ -4044,7 +4621,9 @@ static void on_mouse (void)
 		return;
 	}
 	if (ui_ev_field (&ui, EV_CODE) & 2)
-	{					/* bouton droit : le menu de l'entree */
+	{					/* bouton droit : le menu de l'entree (de toute la selection, s'il en est) */
+		if (!is_sel (i))
+			sel_one (i);
 		cursel = i;
 		draw ();
 		ctx_menu (x, y);
@@ -4052,17 +4631,32 @@ static void on_mouse (void)
 		return;
 	}
 	long now = time_ms ();
-	if (last_idx == i && (unsigned long) (now - last_time) < DCLICK_MS)
+	press_keep = 0;
+	if (last_idx == i && (unsigned long) (now - last_time) < DCLICK_MS && !(mods & (UI_MOD_CTRL | UI_MOD_SHIFT)))
 	{					/* double-clic */
 		last_idx = -1;
-		cursel = i;
+		sel_one (i);
 		open_sel ();
 	}
 	else
 	{
 		last_idx = i;
 		last_time = now;
-		cursel = i;
+		if (mods & UI_MOD_CTRL)
+		{				/* Ctrl : ajoute ou retire, comme Windows */
+			sel_put (i, !is_sel (i));
+			cursel = i;
+			anchor = i;
+		}
+		else if (mods & UI_MOD_SHIFT)
+			sel_range (i);		/* Maj : la plage depuis le dernier choisi */
+		else if (is_sel (i) && nsel > 1)
+		{				/* dans la selection : la garder pour la glisser (un simple clic : elle seule) */
+			cursel = i;
+			press_keep = 1;
+		}
+		else
+			sel_one (i);
 		msg = 0;			/* le message laisse place a la selection */
 		press_i = i;			/* (glisser l'element : mouse_aux) */
 		press_x = x;
@@ -4074,7 +4668,7 @@ static void on_mouse (void)
 /* l'element au point (x, y) de la fenetre, -1 : aucun */
 static long ent_at (long x, long y)
 {
-	if (x < PAN_W || y < body_y)
+	if (x < vx0 || x >= vx1 || y < body_y)
 		return -1;
 	long r = (y - body_y) / line_h;
 	if (r >= rows)
@@ -4097,7 +4691,7 @@ static void drag_ghost (long i)
 	long x, y, w, h;
 	if (view)
 	{				/* liste : l'icone et le nom de la ligne */
-		x = PAN_W + 6;
+		x = vx0 + 6;
 		y = (i - scroll_) * line_h + body_y;
 		w = 42 + text_w (ent_shown (ent_ptr (i)), 13, ui.font) + 10;
 		if (w > 260)
@@ -4127,13 +4721,20 @@ static void on_drop (void)
 		return;
 	b[n] = 0;
 	char dir[CP_PATH];
-	long i = ent_at (ui_ev_field (&ui, EV_X), ui_ev_field (&ui, EV_Y));
+	long dx = ui_ev_field (&ui, EV_X);
+	if (dual && dx >= PAN_W)
+		pane_activate (dx > split_x ());	/* (la vue ou l'on depose devient l'active) */
+	drop_move = (ui_ev_field (&ui, EV_MODS) & UI_MOD_SHIFT) != 0;	/* copie ; Maj : deplacer */
+	long i = ent_at (dx, ui_ev_field (&ui, EV_Y));
 	if (i >= 0 && ent_ptr (i)->kind == K_DIR)
 		make_full (i);
 	else
 		str_copy_n (fullpath, path, sizeof fullpath);
 	str_copy_n (dir, fullpath, sizeof dir);
 	paste_list (b, M_DROP, dir);
+	drop_move = 0;
+	if (dual)
+		other_stale = 1;		/* (la source est peut-etre dans l'autre vue) */
 	draw ();
 }
 
@@ -4158,6 +4759,13 @@ static void on_key (void)
 			clip_sel (1);
 		else if (k == KEY_V_)
 			paste ();
+		else if (k == KEY_A_)
+		{				/* tout choisir */
+			for (long i = 0; i < nents; i++)
+				sel_put (i, 1);
+			if (cursel < 0 && nents)
+				cursel = 0;
+		}
 		else
 			return;
 		draw ();
@@ -4227,8 +4835,15 @@ static void on_key (void)
 		return;
 	}
 	if (set)
-	{
-		cursel = cs;
+	{					/* Maj : la plage s'etend ; sinon un seul element */
+		if (ui_ev_field (&ui, EV_MODS) & UI_MOD_SHIFT)
+		{
+			if (anchor < 0)
+				anchor = cursel >= 0 ? cursel : cs;
+			sel_range (cs);
+		}
+		else
+			sel_one (cs);
 		msg = 0;
 		keep_visible ();
 	}
@@ -4240,9 +4855,24 @@ int main (int argc, char **argv)
 	if (!uikit_open (&ui))
 		return 1;
 	buskit_kit_open ();
-	ents = (struct ent *) calloc (MAXE, sizeof *ents);
-	if (!ents)
-		return 1;
+	for (int p = 0; p < NPANE; p++)
+	{					/* les deux vues ; la 0 dans les variables globales */
+		struct pane *P = &panes[p];
+		P->ents = (struct ent *) calloc (MAXE, sizeof *P->ents);
+		P->order = (long *) calloc (MAXE, sizeof *P->order);
+		P->selm = (unsigned char *) calloc (MAXE, 1);
+		P->hist = (char (*)[HIST_SZ]) calloc (HIST_MAX, HIST_SZ);
+		if (!P->ents || !P->order || !P->selm || !P->hist)
+			return 1;
+		P->cursel = P->anchor = P->last_idx = P->h_pos = -1;
+		P->rows = P->cols = 1;
+		P->line_h = ROW_H;
+		P->body_y = LIST_Y + HDR_H;
+		P->sort_key = S_NAME;
+		P->w_size = COL_SIZE_W;
+		P->w_type = COL_TYPE_W;
+	}
+	pane_load (0);
 	long ww = WIN_W, wh = WIN_H;		/* taille : bornee par l'ecran */
 	if (ui_screen ((long) scr) >= 0)
 	{
@@ -4263,13 +4893,31 @@ int main (int argc, char **argv)
 	places_load ();
 	menu_build ();
 	ui_menu ((long) menu_buf);		/* barre de menus globale */
+	menu_states ();
 	char cq_[160];
-	ini_read (korin_conf_path ("files.ini", cq_, sizeof cq_, 0), cfg_line);	/* vue choisie */
-	cols_fix ();
-	layout ();
-	str_copy_n (path, argc > 1 && argv[1][0] ? argv[1] : "/", 256);	/* dossier initial : argument ou / */
+	ini_read (korin_conf_path ("files.ini", cq_, sizeof cq_, 0), cfg_line);	/* vues choisies, deux vues */
+	/* dossiers : une vue, / (ou l'argument) ; deux vues, ceux d'avant (l'argument dans la vue active) */
+	struct stat st0;
+	for (int p = 0; p < NPANE; p++)
+		if (!dual || !cfg_dir[p][0] || stat (cfg_dir[p], &st0) || !S_ISDIR (st0.st_mode))
+			str_copy_n (cfg_dir[p], "/", sizeof cfg_dir[p]);
+	if (!dual)
+		act = 0;
+	if (argc > 1 && argv[1][0])
+		str_copy_n (cfg_dir[act], argv[1], sizeof cfg_dir[act]);
+	str_copy_n (panes[1].path, cfg_dir[1], sizeof panes[1].path);
+	str_copy_n (path, cfg_dir[0], 256);
 	vfs_ch = sys3 (SYS_SVC_OPEN_, (long) "vfs", 500);
+	if (dual)
+	{
+		pane_use (1);
+		load_dir ();
+		pane_use (0);
+	}
 	load_dir ();
+	pane_use (act);
+	relayout_all ();
+	menu_states ();
 	vol_sub = bus_subscribe ((long) BUS_TOPIC_VOLUME "*", 0);	/* montages et demontages : le bus */
 	if (vol_sub < 0)
 		vol_sub = 0;
@@ -4321,6 +4969,11 @@ int main (int argc, char **argv)
 		if (ls_poll ())			/* (un dossier lu dans son thread) */
 		{
 			keep_visible ();
+			draw ();
+		}
+		if (other_stale)		/* (deux vues : l'autre a change) */
+		{
+			other_refresh ();
 			draw ();
 		}
 		if (vol_sub)			/* sans le bus : les volumes environ chaque seconde */

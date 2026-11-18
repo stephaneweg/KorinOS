@@ -57,18 +57,29 @@ La suppression est définitive : il n'y a pas de corbeille dans Fichiers (sur Go
 
 ## Copier et déplacer
 
-1. Choisissez le fichier ou le dossier.
+1. Choisissez le fichier ou le dossier ; plusieurs avec **Ctrl+clic** (ajoute ou retire un élément) ou **Maj+clic** (une plage, depuis le dernier choisi), comme sous Windows ; **Ctrl+A** les choisit tous. Copier, couper, glisser et supprimer agissent sur toute la sélection.
 2. **Édition > Copier** (Ctrl+C) pour le copier, ou **Édition > Couper** (Ctrl+X) pour le déplacer ; aussi dans le menu du clic droit.
 3. Allez dans le dossier de destination, sur le même volume ou un autre (une clé, un partage réseau, Google Drive…).
 4. **Édition > Coller** (Ctrl+V), ou **Coller** dans le menu d'un clic droit dans le vide.
 
-On peut aussi **faire glisser** un élément hors de la fenêtre, et **déposer** des fichiers sur Fichiers (depuis une autre fenêtre de Fichiers, par exemple) : ils vont dans le dossier sur lequel on les lâche, sinon dans le dossier courant. Sur un même volume, ils sont déplacés ; d'un volume à l'autre, copiés.
+On peut aussi **faire glisser** un élément hors de la fenêtre, et **déposer** des fichiers sur Fichiers (depuis une autre fenêtre de Fichiers, par exemple) : ils vont dans le dossier sur lequel on les lâche, sinon dans le dossier courant. Déposer **copie** ; avec **Maj** tenue au moment de lâcher, les éléments sont **déplacés**.
 
 Déplacer sur un même volume est immédiat. Sinon, Fichiers copie, puis (pour **Couper**) efface l'original. Coller dans le dossier d'origine fait une copie nommée « nom (copie) ». Si un élément du même nom existe déjà, un message demande s'il faut le **remplacer** (un dossier : y mettre ce qu'il contient), le laisser (**Non**) ou tout arrêter (**Annuler**).
 
 La copie se fait **en arrière-plan** : on continue de travailler dans Fichiers (changer de dossier, ouvrir, renommer, coller encore) pendant qu'elle avance. Une copie qui dure plus d'un instant remplace la ligne d'état par une **bande de progression** : l'élément en cours (et « fichier 3 sur 120 » pour un dossier), une barre, les octets copiés sur le total, le débit et le temps restant. Ce qu'on colle pendant une copie se met **en file** et passe ensuite (« 2 en attente »). Même vers ou depuis un partage réseau ou Google Drive, où une lecture ou une écriture peut prendre du temps, la fenêtre reste réactive. Le bouton **Annuler** de la bande arrête la copie à la fin du morceau en cours (1 Mo) et retire celles en attente : le fichier à moitié copié est supprimé, les éléments déjà copiés restent, et pour **Couper** les originaux ne sont pas effacés. Vers Google Drive, un fichier est envoyé à Google quand il est fermé (« Finalisation de… ») : cette étape ne peut pas s'interrompre, l'annulation attend sa fin. Fermer Fichiers pendant une copie demande s'il faut l'arrêter. Un dossier lent à lire (Google Drive pendant une copie, un serveur loin) s'affiche quand il arrive (« Chargement… » dans la ligne d'état) : en attendant, la fenêtre reste utilisable.
 
 Si une erreur arrête la copie (plus de place, volume en lecture seule, fichier de plus de 4 Go vers une clé en FAT32…), un message dit quel fichier et pourquoi.
+
+## Deux vues côte à côte
+
+Le bouton à deux colonnes de l'en-tête, juste à gauche du choix icônes / liste (ou **Affichage > Deux vues**), partage la fenêtre en **deux vues indépendantes**, chacune dans son dossier, avec sa sélection et sa présentation (icônes ou liste). Chaque vue a un bandeau : le nom du dossier, son chemin et la place libre de son volume. La **vue active** a son bandeau aux couleurs de l'accent ; un clic n'importe où dans une vue l'active. L'en-tête (flèches, fil d'Ariane), le panneau de gauche et la ligne d'état suivent la vue active ; la sélection de l'autre reste, grisée.
+
+- **Édition > Copier vers l'autre vue** et **Déplacer vers l'autre vue** (aussi dans le menu du clic droit, avec le nom du dossier de destination) : directement, sans question, sauf si un élément du même nom serait remplacé.
+- **Glisser** d'une vue à l'autre copie ; avec **Maj**, déplace. La vue où l'on dépose devient l'active.
+- La séparation entre les deux vues se déplace à la souris.
+- Le même bouton revient à **une seule vue** (la vue active reste).
+
+Les deux vues, leurs dossiers et la place de la séparation sont retenus pour la prochaine fois.
 
 ## Choisir la vue
 
@@ -123,9 +134,10 @@ Le Drive devient un volume **/net/net0** (genre « Google Drive ») et s'ouvre, 
 | Édition | Couper | Ctrl+X |
 | Édition | Copier | Ctrl+C |
 | Édition | Coller | Ctrl+V |
+| Édition | Copier vers l'autre vue, Déplacer vers l'autre vue | |
 | Aller | Dossier parent | Retour arrière |
 | Aller | les accès rapides, / | |
-| Affichage | Icônes, Liste | |
+| Affichage | Icônes, Liste, Deux vues | |
 | Volume | Se connecter à un serveur… | Ctrl+K |
 | Volume | Se connecter à Google Drive… | |
 | Volume | Démonter le volume courant | |
