@@ -171,6 +171,15 @@ logiciel de WebKit2 (DrawingAreaCoordinatedGraphics → `ShareableBitmap` → `B
   `canPlayType` / `isTypeSupported` (`av_type_supported`) disent oui à WebM et MP4 en VP8, VP9, AV1
   avec Opus ; « fluide » jusqu'à 854 × 480 pour VP8 / VP9 et 640 × 360 pour AV1 (les mesures du Pi
   d'Onyx), accepté jusqu'à 1,5 fois (720p pour VP9) : c'est ce que YouTube consulte pour choisir.
+* **H.264, H.265, AAC (18/11/2026, PC)** : FFmpeg 7.1.2 en **LGPL** dans la bibliothèque média de Jet
+  (`tools/mediakit/ffmpeg.sh FLAVOR=jet`, appelé par `build-media.sh` ; `NO_FFMPEG=1` s'en passe) : `av.mk`
+  compile `av_ffmpeg.c` et `av_lavf.c` d'Onyx avec `AV_WITH_FFMPEG` (décodeurs H.264, H.265, AAC, Vorbis, MPEG-4
+  Part 2, MPEG-1/2, MJPEG, AC-3, MP2 ; conteneurs AVI, MPEG-TS/PS, FLV, Ogg par libavformat), `build-jet.sh`
+  et `build-media.sh` lient ses bibliothèques après `libonyxav.a`. `canPlayType` répond « probably » à
+  `avc1`, `mp4a`, `hvc1`, et `MediaSource.isTypeSupported` oui à `video/mp4; codecs="avc1…, mp4a…"`. Essayé sous
+  QEMU (PC) : la vidéo H.264 d'un MP4 se joue (`playing`). FFmpeg sans fils ni assembleur sur le PC (nasm
+  absent) : la vitesse en 1080p sur le ZBook reste à mesurer. Le Pi : pas encore (son WebKit n'est pas construit
+  ici).
   **Media Source** (MSE) est construit (`ENABLE_MEDIA_SOURCE`, `MediaSourcePrivateOnyx`), ManagedMediaSource
   non ; **WebAudio** non (`ENABLE_WEB_AUDIO` éteint : `AudioContext` absent).
   Ne sont pas lus : H.264, H.265, AAC (Onyx ne les avait pas sans FFmpeg), **Ogg** (pas de

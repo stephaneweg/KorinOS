@@ -33,6 +33,16 @@ AV_SRC := $(addprefix $(AV)/,av_demux.c av_mkv.c av_mp4.c av_riff.c av_flac.c av
 AV_CF := -std=gnu99 -O2 -DAV_POSIX -DAV_KAPI_SOUND $(AV_CODECS_CF) -I$(AV) -I$(GLUE)/include \
 	-I$(EXTRA)/onyx-libs/i/a/b
 GLUE_SRC := $(GLUE)/av_sound_armpi.c $(GLUE)/av_video_armpi.c
+# FFmpeg (LGPL, tools/mediakit/ffmpeg.sh FLAVOR=jet) quand il est construit : H.264, H.265, AAC, Vorbis... par
+# av_ffmpeg.c, et les conteneurs AVI, MPEG-TS/PS, FLV, Ogg par av_lavf.c (libavformat sur un fil) ;
+# build-media.sh et build-jet.sh lient ses bibliotheques (FF_LIBS) apres libonyxav.a
+FF ?=
+ifneq ($(and $(FF),$(wildcard $(FF)/libavcodec.a)),)
+AV_SRC += $(AV)/av_ffmpeg.c $(AV)/av_lavf.c
+AV_CF += -DAV_WITH_FFMPEG -I$(FF)/include
+endif
+# (av_ffmpeg.c d'Onyx donne _stat et _times a la newlib nue d'Onyx ; la libposix de Korin les a : les siens renommes)
+$(O)/av/av_ffmpeg.o: AV_CF += -D_stat=av__onyx_stat_unused -D_times=av__onyx_times_unused
 # (Korin PC : les decodeurs video sur plusieurs fils, par -Wl,--wrap a l'edition de liens : glue/av_threads_pc.c)
 ifeq ($(AV_ARCH),generic)
 GLUE_SRC += $(GLUE)/av_threads_pc.c

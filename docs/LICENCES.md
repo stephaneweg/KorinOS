@@ -40,8 +40,9 @@ Vaut pour les images, les paquets et `sdcard/`.
 
 * **GPL et AGPL** : qui donne GCC, SuperTux, SuperTuxKart ou le lecteur PDF doit offrir leurs sources, patchs
   compris. Ce dépôt et `tools/extra/fetch.sh` les fournissent, aux versions fixées.
-* **LGPL (WebKit)** : Jet est lié en statique, donc les objets doivent permettre de le relier à une autre version de
-  WebKit. La construction de `docs/CONSTRUIRE.md` le permet.
+* **LGPL (WebKit, FFmpeg)** : Jet est lié en statique, donc les objets doivent permettre de le relier à une autre
+  version de WebKit ou de FFmpeg (le PC, depuis le 18/11/2026 : `tools/mediakit/ffmpeg.sh FLAVOR=jet`). La
+  construction de `docs/CONSTRUIRE.md` le permet.
 * **LGPL (MediaKit, FFmpeg)** : FFmpeg est lié dans le kit, un fichier à part (`/lib/mediakit.so`) que les programmes
   appellent par sa table : on peut le remplacer par un kit refait avec un autre FFmpeg (`tools/mediakit/build.sh`).
   H.264, H.265 et AAC sont aussi couverts par des brevets dans certains pays.

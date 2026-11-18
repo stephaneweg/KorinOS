@@ -51,6 +51,10 @@ done
 # WebGL : ANGLE, puis Mesa par armgl
 GL="-Wl,--start-group $BUILD/lib/libANGLE.a $BUILD/lib/libGLESv2.a $GLKIT $S/lib/libz.a -Wl,--end-group"
 [ -f "$WK_OUT/av/libonyxav.a" ] || sh "$HERE/build-media.sh"
+# FFmpeg dans la bibliotheque media (LGPL, build-media.sh) : ses bibliotheques apres libonyxav.a
+FF=/tmp/korin-ffmpeg-jet-$ONYX_ARCH
+FFLIBS=
+[ "${NO_FFMPEG:-0}" = 1 ] || [ ! -f "$FF/libavcodec.a" ] || FFLIBS="$FF/libavformat.a $FF/libavcodec.a $FF/libswscale.a $FF/libavutil.a"
 ${ONYX_TOOLCHAIN_PREFIX}gcc -specs="$S/lib/onyx-cc.specs" -O2 $ONYX_CPU_FLAGS -c "$HERE/glue/webkit2_armpi.c" -o "$BUILD/webkit2_armpi.o"
 # gpucomp d'Onyx tel quel (le compositeur de LayerTreeHostOnyx) sur GpuKit : glue/gpucomp_armpi.c
 GC="-specs=$S/lib/onyx-cc.specs -O2 $ONYX_CPU_FLAGS -I$HERE/glue/include -I$EXTRA/onyx-libs/gpucomp"
@@ -66,7 +70,7 @@ AVWRAP=
 [ "$ONYX_ARCH" = x86_64 ] && AVWRAP="-Wl,--wrap=vpx_codec_dec_init_ver -Wl,--wrap=dav1d_open"
 ${ONYX_TOOLCHAIN_PREFIX}g++ $ONYX_CPU_FLAGS -specs="$S/lib/onyx.specs" -L"$S/lib" -Wl,--gc-sections $AVWRAP \
 	"$BUILD/jet_main.o" "$BUILD/jet_engine_webkit.o" "$BUILD/jet_present.o" "$BUILD/webkit2_armpi.o" "$BUILD/gpucomp.o" "$BUILD/gpucomp_armpi.o" $WK \
-	"$U/libuikit_c.a" "$WK_OUT/av/libonyxav.a" $LIBS $GL -o "$BUILD/bin/jet"
+	"$U/libuikit_c.a" "$WK_OUT/av/libonyxav.a" $FFLIBS $LIBS $GL -o "$BUILD/bin/jet"
 ${ONYX_TOOLCHAIN_PREFIX}size "$BUILD/bin/jet"
 ${STRIP} -o "$WK_OUT/out/jet.app/main" "$BUILD/bin/jet"
 cp "$J/app.txt" "$J/start.html" "$WK_OUT/out/jet.app/"
