@@ -233,3 +233,12 @@ double asin(double x) { return atan2(x, __builtin_sqrt((1.0 - x) * (1.0 + x))); 
 double acos(double x) { return atan2(__builtin_sqrt((1.0 - x) * (1.0 + x)), x); }
 float atanf(float x) { return (float)atan(x); }
 float atan2f(float y, float x) { return (float)atan2(y, x); }
+
+/* fmod : x - n y, n = trunc (x / y) (assez juste pour les angles et les phases de FFmpeg) */
+double fmod(double x, double y)
+{
+	if (y == 0 || x != x || y != y) return 0.0 / 0.0;
+	double q = mk_trunc(x / y), r = x - q * y;
+	if (y > 0 ? (x >= 0 ? r < 0 : r > 0) : (x >= 0 ? r < 0 : r > 0)) r += x >= 0 ? fabs(y) : -fabs(y);
+	return r;
+}

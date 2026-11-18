@@ -1,0 +1,31 @@
+Korin (MediaKit) : les transformees NEON de libavutil (AArch64) s'arretent aussi a 8192 points, comme
+les tables du C (0001) : sans cela elles visent les tables de 16384 a 131072 points, retirees.
+
+--- a/libavutil/aarch64/tx_float_neon.S
++++ b/libavutil/aarch64/tx_float_neon.S
+@@ -1173,11 +1173,7 @@
+ 
+ SR_TRANSFORM_DEF        2048, 4096
+ SR_TRANSFORM_DEF        4096, 8192
+-SR_TRANSFORM_DEF        8192, 16384
+-SR_TRANSFORM_DEF        16384, 32768
+-SR_TRANSFORM_DEF        32768, 65536
+-SR_TRANSFORM_DEF        65536, 131072
+-SR_TRANSFORM_DEF        131072
++SR_TRANSFORM_DEF        8192
+ 
+ 0: // general deinterleave loop
+         SR_COMBINE_DINT
+--- a/libavutil/aarch64/tx_float_init.c
++++ b/libavutil/aarch64/tx_float_init.c
+@@ -57,8 +57,8 @@
+     TX_DEF(fft32,     FFT, 32, 32, 2, 0, 128, neon_init, neon, NEON, AV_TX_INPLACE, 0),
+     TX_DEF(fft32_ns,  FFT, 32, 32, 2, 0, 192, neon_init, neon, NEON, AV_TX_INPLACE | FF_TX_PRESHUFFLE, 0),
+ 
+-    TX_DEF(fft_sr,    FFT, 64, 131072, 2, 0, 128, neon_init, neon, NEON, 0, 0),
+-    TX_DEF(fft_sr_ns, FFT, 64, 131072, 2, 0, 192, neon_init, neon, NEON, AV_TX_INPLACE | FF_TX_PRESHUFFLE, 0),
++    TX_DEF(fft_sr,    FFT, 64, 8192, 2, 0, 128, neon_init, neon, NEON, 0, 0),
++    TX_DEF(fft_sr_ns, FFT, 64, 8192, 2, 0, 192, neon_init, neon, NEON, AV_TX_INPLACE | FF_TX_PRESHUFFLE, 0),
+ 
+     NULL,
+ };
