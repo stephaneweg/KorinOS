@@ -1,6 +1,6 @@
 ---
 name: armpi-build-world-pc
-description: Prochain « build world » du PC (après Jet, demandé le 18/11) : nettoyer build, tout reconstruire, tout publier, nouvelle clé ; ce qui doit y partir
+description: Prochain « build world » du PC (18/11) : nettoyer, tout reconstruire, publier, nouvelle clé ; puis intégrer les apps de FromClaude et faire des widgets (Météo, Agenda, Notes) un choix de l'utilisateur
 metadata:
   type: project
 ---
@@ -21,3 +21,12 @@ Plan de l'utilisateur (18/11) : quand le diagnostic de Jet (connexion Facebook) 
 Pièges : WSL a 7 Go, WebCore à 12 travaux le fait planter (JOBS=4) ; /tmp/korin-ffmpeg-jet-x86_64 disparaît quand WSL
 s'arrête (`FLAVOR=jet ARCH=x86_64 sh tools/mediakit/ffmpeg.sh`) ; ninja refait tout WebCore (en-tête précompilé).
 Pas de worktree ni d'image de test superflus (consigne du 18/11). Voir [[armpi-batterie]], [[armpi-installateur]].
+
+**Après le build world, la clé et la publication (décisions du 18/11)** :
+- Intégrer les trois apps de `FromClaude/` (zips faits par Claude dans Korin) aux sources officielles et les revoir
+  (règles, style, ergonomie) : `weather` (app + widget), `asteroids` (C), `parkingjam` (Godot).
+- **Widgets du bureau = choix de l'utilisateur, pas du système** : un widget n'est plus dans `/etc/session` ni dans
+  `src/sys` ; c'est un rôle de son app (`main --widget`), que l'utilisateur ajoute depuis l'app (« Afficher sur le
+  bureau » : une ligne dans `HOME:/etc/startup.txt`). Vaut pour Météo, et aussi pour **agenda** (Calendrier) et
+  **stickies** (Notes) : les sortir de `src/sys` et de `/etc/session` (aujourd'hui sys/agenda, sys/stickies sur
+  korinrt, dans les paquets calendar et notes). Compétence `korin-widget` à mettre à jour en même temps.
