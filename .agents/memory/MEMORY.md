@@ -126,3 +126,4 @@
 - [build world du PC](armpi-build-world-pc.md) — après Jet : nettoyer build, tout reconstruire (libposix relinkée partout, GCC STAGES=posix), tout publier, nouvelle clé
 - [Identification GitHub](armpi-gh.md) — au plan le 18/11 : code d'appareil dans git-credential-korin (oauthd) ; pas de gh, pas de PR ; docs/etude/GH.md §5
 - [Sécurité contre le web](armpi-securite.md) — plan du 18/11 : enforce, SMEP/SMAP, unveil pour Jet, ASLR, pledge ; docs/etude/SECURITE.md, rien de fait
+- [WebKit construit dans Korin](armpi-webkit-dans-korin.md) — plan du 18/11 : libs tierces en .so/.a, outils de construction, puis WebKit et Jet dans Korin sur le ZBook ; rien de fait
