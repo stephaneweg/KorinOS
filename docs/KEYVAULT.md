@@ -222,6 +222,7 @@ Vérifié sous QEMU (image d'essai NVMe, `tools/pc/qemu_nvme.py --boot-disk`, sc
 | séparation | deux scripts ne voient pas leurs secrets ; noms invalides refusés |
 | mot de passe | coffre ouvert à la connexion par mot de passe ; `passwd` réenveloppe (l'ancien refusé, le nouveau accepté, secrets gardés) |
 | cartes | coffre fermé : carte du mot de passe ; programme de `HOME:` recompilé : carte d'accord, accord retenu |
+| ensemble (tout reconstruit, migrations comprises) | démarrage et services sans erreur ; `secret` ; valeur de plus de 64 Kio refusée ; `git-credential-korin` (`store`, `get`, `erase`) ; `/var/keyvault` et `machine.key` refusés à l'uid 1000 |
 
 Contre swtpm : scellement, descellement, reprise de `machine.key`, fichier abîmé refusé.
 
@@ -229,4 +230,5 @@ Pas encore essayé :
 - le ZBook ;
 - le vrai TPM (CRB) ;
 - bash, CPython et dotnet reconstruits avec la déclaration du script, sauf bash ;
-- les migrations des apps et des services en marche.
+- les migrations des apps et des services en marche (sous QEMU, telnetd ne lit `remote.txt` qu'à une connexion :
+  la reprise du mot de passe n'a pas pu se voir).
