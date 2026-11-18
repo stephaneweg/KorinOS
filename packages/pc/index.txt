@@ -1,9 +1,9 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-18 20:05
+date = 2026-11-18 20:12
 abi = 626
-packages = 114
+packages = 113
 board = pc
 
 [avdemo]
@@ -81,21 +81,6 @@ required = 0
 restart = 0
 content = 6323dec095198f6fcdfe6ccaefdf3869d1ebb7d001f4a2a8e871aed0e0d56207
 arch = any
-
-[installer]
-title = Installer Korin OS
-version = 1.0.0
-category = Système
-author = Korin OS
-summary = 
-size = 168703
-installed = 339672
-sha256 = bc6e202a52fb4bdbdf7b44d4ce8af37a2062734aa287807c2a3d4c2c1aece42e
-file = pkgs/installer-1.0.0.opk
-needs = abi >= 626
-required = 0
-restart = 0
-content = 75c72d46e64a67dd4163e57e388d032c56b99d9037e871cea2904afb02816a17
 
 [pkgman]
 title = Logiciels
