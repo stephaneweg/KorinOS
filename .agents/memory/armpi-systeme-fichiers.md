@@ -41,3 +41,8 @@ l'étude et ses réponses (§9). Prérequis repérés :
 **18/11, au plan (demande de l'utilisateur)** : le **journal ext4** (étude §6, étape 4 : jbd2, validation, rejeu au montage, `fsync`, essais de coupure), précédé de l'étape 0 (`BLK_FLUSH`, FUA ; absent de `nvme` le 18/11). Aujourd'hui `mkfs -t ext4` crée un journal vide, ext4w écrit sans lui et un journal à rejouer met le volume en lecture seule : FAT32 reste conseillé dans l'installateur.
 
 **18/11, réponse à la question 2** : pas de port d'e2fsprogs ; un fsck ext4 écrit par nous, validé contre `e2fsck -fn` sur des images saines et abîmées exprès (mêmes défauts trouvés, plus rien après réparation).
+
+**18/11, toutes les questions répondues** (étude §9, fin) : lisibilité hors de Korin pas importante (ext4 gardé) ;
+pas d'étiquettes sur supports amovibles ni réseau ; casse ignorée pour l'instant ; sur ext4 les droits du fichier
+remplacent les règles par chemin (celles-ci ne restent que pour FAT/exFAT) ; pas d'indexation du contenu ; pas
+d'instantanés ni de compression ; SQLite pour indexd.

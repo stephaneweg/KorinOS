@@ -554,6 +554,24 @@ quelques minutes.
 10. **SQLite dans un service du système** : `indexd` peut-il lier SQLite (domaine public, déjà porté pour CPython
     et WebKit, ~1,5 Mo), ou faut-il des B+ arbres écrits par nous (§3.7) ?
 
+**Réponses de l'utilisateur (18/11/2026)** :
+
+1. **Lisibilité hors de Korin** : pas importante. On garde quand même ext4 (sûreté : `e2fsck` comme juge, format
+   documenté), puisque la question 9 écarte le besoin d'un autre système.
+2. **e2fsprogs** : voir la réponse sous la question (fsck maison validé contre `e2fsck`).
+3. **Étiquettes** : **aucune sur les supports amovibles ni sur le réseau** (clés, cartes, `/media/…`, `/net/…`,
+   SMB, Google Drive) ; seulement sur les volumes ext4 du disque. Copier un fichier étiqueté vers un tel volume ne
+   garde pas ses étiquettes (pas d'avertissement demandé).
+4. **Casse** : ignorée **pour l'instant** (`casefold` sur `/home`, comme aujourd'hui) ; à revoir plus tard.
+5. **Couleurs** : réglée par le §10 (une couleur est une étiquette).
+6. **Droits** : sur ext4, les droits du fichier (propriétaire, mode) **remplacent** les règles par chemin. Les
+   règles par chemin de vfs n'étaient là que pour combler l'absence de droits du FAT : elles ne restent que pour
+   les volumes FAT/exFAT.
+7. **Contenu** : **pas d'indexation du contenu**, seulement les étiquettes.
+8. **`/` en ext4** : possible depuis l'installateur (18/11) ; FAT32 conseillé jusqu'au journal.
+9. **Instantanés, compression** : **non**. ext4 reste le choix.
+10. **SQLite** : oui (le §10 le prévoit).
+
 ## 10. Les étiquettes telles que l'utilisateur les veut (16/11/2026)
 
 **Décision** : `indexd` (étiquettes et couleurs) se fera **plus tard**, après ext4 et l'installateur. Le modèle
