@@ -247,10 +247,13 @@ Ce qui est voulu :
 3. **La liste n'est plus gardée** dans les réglages de l'app : à l'ouverture de la liste déroulante des clés,
    l'app demande `Gemini.*` (ou `Claude.*`, `Mistral.*`…) et affiche ce qui revient. Les réglages ne gardent que
    le nom de la clé choisie par fournisseur (pas la clé).
-4. **Les noms** : le coffre n'admet aujourd'hui que lettres et chiffres ASCII et `. _ - / @ :`. Pour garder
-   « Clé 1 » tel quel : soit le coffre admet l'UTF-8 et l'espace dans un nom (sauf les caractères de contrôle et
-   `*`, `?` réservés au motif ; le `.` reste le séparateur), soit l'app code le nom (`Cl%C3%A9%201`) et le décode à
-   l'affichage. **Recommandé : l'UTF-8 dans le coffre**, plus simple pour toutes les apps et lisible par `secret ls`.
+4. **Les noms (décision du 18/11)** : **tout nom de clé en UTF-8** est accepté (accents, espaces, ponctuation,
+   `.`, `*`, `?` compris), jusqu'à 128 octets. Seuls les caractères de contrôle (octet nul, saut de ligne…) restent
+   refusés : ils ne se tapent pas dans un champ et `kv_list` rend un nom par ligne. Le **premier** `.` sépare le
+   fournisseur (ASCII, sans `.`) du nom : `Gemini.Clé 1.bis` = fournisseur `Gemini`, nom `Clé 1.bis`. Dans un motif,
+   `\*`, `\?` et `\` désignent les caractères eux-mêmes (`kv_list_match` ; un nom qui en contient reste listé par
+   `Gemini.*`). Le coffre vérifie que le nom est de l'UTF-8 valide. Les noms des autres programmes gardent les mêmes
+   règles (élargies pour tous).
 5. **Koton** : **pas de migration** (décision du 18/11 : installation neuve, rien dans les réglages de Koton) ;
    `ai-keys` et la migration depuis `settings.json` (`loadVault`, `legacyKeys`) sont retirés. Ajouter, renommer
    (= nouveau secret puis effacer l'ancien), supprimer une clé.
