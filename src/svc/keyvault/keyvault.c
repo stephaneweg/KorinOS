@@ -1192,7 +1192,13 @@ static long handle(struct msg *m)
 		if (ksys(SYS_PROC_UID, pid, 0, 0, 0) != caller_uid)
 			return fail(E_PERM, "le père n'est pas du même compte");
 	}
-	if ((r = identify(pid, &who)))
+	if (m->b & KVF_SYSTEM) { /* l'espace partagé du compte system : ses programmes seulement */
+		if (caller_uid != 0)
+			return fail(E_PERM, "espace @system : réservé au compte system");
+		who.uid = 0;
+		snprintf(who.id, sizeof who.id, "@system");
+		who.pin = 0;
+	} else if ((r = identify(pid, &who)))
 		return r;
 	who.uid = (int)caller_uid;
 	if (m->op == KV_WHOAMI) {

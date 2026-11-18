@@ -117,6 +117,8 @@
 - [Installateur USB](armpi-installateur.md) — 15/11 : clé live + Setup --install, nvme -I, GPT, racine par GUID, NVRAM par korin.efi ; étude docs/etude/INSTALLATEUR.md avec réponses (FAT32, ESP séparée, base sur la clé, elevate.ini, NVMe+USB), rien de fait
 - [OAuth du système](armpi-oauth.md) — 16/11 : service oauthd + oauth_* de NetKit + commande oauth, client_id de l'utilisateur ; QEMU PC vérifié, connexion Google réelle validée sur le ZBook ; pc 2026.11.17
 - [Système de fichiers](armpi-systeme-fichiers.md) — 16/11 : étude docs/etude/SYSTEME-FICHIERS.md, ext4 maison pour /home + indexd sur SQLite (étiquettes, couleurs en xattrs), rien de fait, 10 questions en attente
+- [Idée emerge](armpi-idee-emerge.md) — pour plus tard, surtout Korin PC : recettes de construction du dépôt exécutées dans l'OS, à la Gentoo, options dans /etc
+- [Idée pibuild + Godot](armpi-idee-pibuild-godot.md) — pour plus tard : pibuild reconnaît project.godot, exporte le jeu et l'installe dans /apps
 - [Fonds d'écran](armpi-fonds-ecran.md) — fonds d'Onyx dans Korin (17/11) : wallpaper.c commun voronoy/Réglages, wallpaper.ini personnel, korin.wallpaper
 - [Démarrage](armpi-demarrage.md) — volet de Réglages façon services.msc (17/11) : .off/.manual, services.deps, INIT_OP_SVC_*, QEMU seulement
 - [Batterie du PC](armpi-batterie.md) — acpid sur ACPICA (17/11) : %, temps restant, alertes, extinction à 5 %, profil d'énergie, icône de la barre ; QEMU seulement

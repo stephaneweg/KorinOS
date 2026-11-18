@@ -59,6 +59,7 @@
 #include <unistd.h>
 #include <uikit.h>
 #include "acp.h"
+#include "../../lib/keyvault/keyvault.h"
 
 #define TR(s)	((const char *) ui_tr ((long) (s)))
 
@@ -1521,12 +1522,15 @@ static long wz_fn (long d, long w, long code)
 	return 0;
 }
 
+static void secrets_env (void);
+
 static void restart_agent (void)
 {
 	g_warned_t0 = -1;
 	acp_close (A);
 	g_o.load = NULL;
 	g_t0 = now ();
+	secrets_env ();
 	A = acp_start (&g_o, &g_ev, NULL);
 	add (I_NOTE, VC ("Moteur de Vibe relancé avec ce compte.", "claude-acp relancé."));
 	relayout ();
@@ -1657,6 +1661,83 @@ static const char *key_write (const char *key)
 	return NULL;
 }
 
+/* Les clés d'API au coffre à secrets (keyvault, docs/KEYVAULT.md), sous l'identité de l'app : toute ligne
+   NOM_API_KEY= ou NOM_AUTH_TOKEN= du .env de l'agent (écrite par key_write ou par vibe-account) y passe, sous le nom
+   « env/NOM », et quitte le fichier ; au lancement de l'agent, l'app la lui donne dans son environnement (ce qui y
+   est déjà, mis par l'utilisateur, l'emporte). Sans coffre (le Pi), .env reste tel quel. */
+static int secret_var (const char *line, size_t *klen)
+{
+	const char *eq = strchr (line, '=');
+	if (!eq || eq == line) return 0;
+	size_t n = (size_t) (eq - line);
+	for (size_t i = 0; i < n; i++)
+		if (!((line[i] >= 'A' && line[i] <= 'Z') || (line[i] >= '0' && line[i] <= '9') || line[i] == '_')) return 0;
+	*klen = n;
+	return (n > 8 && !strncmp (eq - 8, "_API_KEY", 8)) || (n > 11 && !strncmp (eq - 11, "_AUTH_TOKEN", 11));
+}
+
+static void secrets_sync (void)
+{
+	if (kv_status () < 0) return;
+	char p[700], tmp[720];
+	snprintf (p, sizeof p, "%s/.env", g_vhome);
+	FILE *f = fopen (p, "r");
+	if (!f) return;
+	jbuf keep;
+	jb_init (&keep);
+	int moved = 0, failed = 0;
+	char line[2048];
+	while (fgets (line, sizeof line, f))
+	{
+		size_t kl;
+		if (!secret_var (line, &kl)) { jb_puts (&keep, line); continue; }
+		char name[80], *v = line + kl + 1;
+		size_t vl = strcspn (v, "\r\n");
+		if (vl >= 2 && (v[0] == '"' || v[0] == '\'') && v[vl - 1] == v[0]) { v++; vl -= 2; }
+		snprintf (name, sizeof name, "env/%.*s", (int) kl, line);
+		if (kv_set (name, v, (long) vl) >= 0) moved++;
+		else { failed++; jb_puts (&keep, line); }
+		memset (line, 0, sizeof line);
+	}
+	fclose (f);
+	if (moved)
+	{
+		snprintf (tmp, sizeof tmp, "%s.tmp", p);
+		int fd = open (tmp, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+		int ok = fd >= 0 && write (fd, keep.p ? keep.p : "", keep.n) == (ssize_t) keep.n;
+		if (fd >= 0) close (fd);
+		if (!ok || rename (tmp, p) != 0) unlink (tmp);
+	}
+	(void) failed;
+	jb_free (&keep);
+}
+
+static void secrets_env (void)
+{
+	secrets_sync ();
+	static char names[4096], v[KV_VALUE_MAX + 1], mine[4096];	/* (mine : les variables que l'app a mises) */
+	long n = kv_list (names, sizeof names - 1);
+	if (n <= 0) return;
+	names[n] = 0;
+	for (char *l = names; *l; )
+	{
+		char *e = l + strcspn (l, "\n");
+		char save = *e;
+		*e = 0;
+		char tag[90];
+		snprintf (tag, sizeof tag, "\n%s\n", l + 4);
+		int ours = strstr (mine, tag) != NULL;
+		if (!strncmp (l, "env/", 4) && (ours || !getenv (l + 4)))
+		{
+			if (!ours && strlen (mine) + strlen (tag) < sizeof mine) strcat (mine, tag + (mine[0] ? 1 : 0));
+			long r = kv_get (l, v, KV_VALUE_MAX);
+			if (r >= 0) { v[r] = 0; setenv (l + 4, v, 1); memset (v, 0, (size_t) r); }
+		}
+		*e = save;
+		l = *e ? e + 1 : e;
+	}
+}
+
 static long g_key_jet;
 
 static long key_fn (long d, long w, long code)
@@ -1678,7 +1759,7 @@ static void key_dialog (void)
 	if (!d) return;
 	char note[400];
 	snprintf (note, sizeof note, TR ("Claude passe par l'API d'Anthropic, payée à l'usage. Créez une clé dans la console "
-		"(Settings > API keys), puis collez-la ici. Elle est rangée dans %s/.env."), g_vhome);
+		"(Settings > API keys), puis collez-la ici. Elle est rangée dans le coffre à secrets de Korin."), g_vhome);
 	ui_label (16, 44, W - 32, 64, (long) note, ULB_DIM | ULB_WRAP);
 	int JW = 170, y = 44 + 72;
 	long key = ui_textbox (16, y, W - 32 - JW - 8, CTL, UTF_PASSWORD);
@@ -2002,6 +2083,7 @@ int main (int argc, char **argv)
 	add (I_WELCOME, NULL);
 	g_o = o;
 	g_ev = ev;
+	secrets_env ();
 	A = acp_start (&o, &ev, NULL);
 	add (I_NOTE, VC ("Démarrage du moteur de Vibe (Python) : sous Korin, cela peut prendre une minute ou deux.",
 		"Démarrage de claude-acp (Python) : quelques secondes."));

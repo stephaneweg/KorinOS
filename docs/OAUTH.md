@@ -195,6 +195,11 @@ d'utilisateurs ([etude/MULTI-UTILISATEUR.md](etude/MULTI-UTILISATEUR.md)), chacu
 | `secrets` | les jetons de rafraîchissement : « KORINOA1 », 12 octets d'IV, 16 de marque, puis le texte (« nom, tabulation, jeton » par ligne) chiffré en AES-256-GCM (EVP d'OpenSSL) |
 | `key` | la clé, 32 octets aléatoires, faite au premier jeton |
 
+Avec le coffre à secrets ([KEYVAULT.md](KEYVAULT.md), le PC) : les jetons de rafraîchissement et les `client_secret`
+des comptes sont dans le coffre, sous l'identité d'oauthd (secret « oauth ») ; `accounts.ini` n'a plus de secret,
+et `secrets` et `key` passent au coffre puis sont effacés au premier démarrage. Les fichiers ci-dessus restent
+ceux du Pi.
+
 Chaque fichier est écrit à côté puis renommé : jamais à moitié écrit. Les jetons d'accès ne sont jamais écrits.
 
 **Ce que protège le chiffrement** : un fichier `secrets` copié seul, ou ouvert par erreur, ne se lit pas. La clé est

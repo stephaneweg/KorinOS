@@ -41,6 +41,8 @@
 #define KV_ERROR 11		/* c, d : sortie -> octets */
 #define KV_WHOAMI 12		/* c, d : sortie, l'identité vue par le coffre -> octets */
 #define KVF_PARENT 1		/* b : pour le process père (/bin/secret, lancé par un script) */
+#define KVF_SYSTEM 2		/* b : l'espace « @system » du compte system, partagé par ses programmes (uid 0 seulement) :
+				   un secret écrit par Réglages (élevé) et lu par un service */
 
 #define KVS_LOCKED 0
 #define KVS_OPEN 1
@@ -133,6 +135,22 @@ static inline long kv_list (char *out, long max)
 static inline long kv_status (void)
 {
 	return kv_request (KV_STATUS, 0, 0, 0, 0);
+}
+
+/* l'espace « @system » (programmes d'uid 0 : services, Réglages élevé) */
+static inline long kv_sys_set (const char *name, const void *value, long len)
+{
+	return kv_request (KV_SET, KVF_SYSTEM, name, value, len);
+}
+
+static inline long kv_sys_get (const char *name, void *out, long max)
+{
+	return kv_request (KV_GET, KVF_SYSTEM, name, out, max);
+}
+
+static inline long kv_sys_delete (const char *name)
+{
+	return kv_request (KV_DELETE, KVF_SYSTEM, name, 0, 0);
 }
 
 static inline long kv_error (char *out, long max)

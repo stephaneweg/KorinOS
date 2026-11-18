@@ -30,6 +30,7 @@ AppKit, le kit de base (fichiers, lancement des programmes, chaînes, langues), 
 - [Écrire un service](service_fr.md) : un programme de `/sys` qui répond aux autres par un nom.
 - [Les fonctions d'IPC](ipc_fr.md) : services nommés, canaux, mémoire partagée, attente.
 - [Écrire un kit](kit_fr.md) : une bibliothèque partagée par tous les programmes.
+- [Le coffre à secrets](keyvault_fr.md) : ranger une clé d'API, un jeton, un mot de passe sans fichier en clair.
 
 ## Aide d'une application
 

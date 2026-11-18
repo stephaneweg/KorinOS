@@ -1,27 +1,29 @@
 ---
 name: armpi-coffre
-description: Coffre à secrets (keyvault) — étude du 18/11 docs/etude/COFFRE.md, décisions de l'utilisateur prises (chemin, interprètes, mot de passe par défaut + TPM, pas de clé de secours, PC seulement) ; rien de codé, 2 questions mineures
+description: Coffre à secrets (keyvault) — étude docs/etude/COFFRE.md, référence docs/KEYVAULT.md ; fait sur le PC le 18/11 (service, noyau, AppKit, authd, TPM CRB, migrations), vérifié sous QEMU, TPM contre swtpm ; pas sur le ZBook ; access = enforce pas mis
 metadata:
   type: project
 ---
 
-Le 18/11/2026, l'utilisateur a demandé une étude : recenser les apps qui gardent un secret en clair et les ranger
-dans un coffre chiffré lisible par le seul service ; une entrée = (identité de l'app, nom). Étude :
-docs/etude/COFFRE.md (§1 : 15 programmes en clair ; Mail et oauthd chiffrent avec la clé à côté).
+Le 18/11/2026, l'utilisateur a demandé une étude puis (« tu fais tout jusqu'à la fin ») le coffre à secrets.
 
 Décisions de l'utilisateur (18/11) :
-- menaces à couvrir : vol d'un secret par un autre exécutable, vol du disque, vol de la machine ;
-- identité = **chemin** de l'exécutable (pas le paquet : marche pour les apps compilées sur la machine) ;
-- scripts et .NET : l'interprète donne le chemin du script/assembly (proposé : SYS_PROC_SET_SCRIPT une fois,
-  cru seulement pour les interprètes de /etc/keyvault/interpreters.ini) ;
+- menaces : vol d'un secret par un autre exécutable, vol du disque, vol de la machine ;
+- identité = **chemin** de l'exécutable (pas le paquet) ; scripts et .NET : l'interprète donne le chemin ;
 - mot de passe de session par défaut ; pas de clé de secours pour l'instant ; Pi plus tard ; nom keyvault.
 
-Conception retenue dans l'étude : KEK = HKDF(Argon2id(mot de passe), secret scellé dans le TPM 2.0) ; secrets du
-système sous TPM + PCR 7/4 ; chemin attesté par vfs (V_LOAD_IMAGE, SYS_PROC_EXE) ; /var/keyvault/<uid>.db ;
-access = enforce indispensable pour la menace « autre exécutable ».
+Fait (PC) : SYS_PROC_EXE 0x94 / SYS_PROC_SET_SCRIPT 0x95 (noyau C), service src/svc/keyvault (OpenSSL,
+/var/keyvault/<uid>.db, KEK = HKDF(Argon2id(mdp) || clé machine)), tpm.c (CRB, sans PCR), /bin/secret,
+vault_* d'AppKit (version 59), carte /sys/authcard mode coffre, authd → KV_UNLOCK/KV_PASSWD/KV_SETPW,
+espace @system (uid 0), vfs refuse /var/keyvault et /etc/keyvault même en mode log, patches bash/CPython/dotnet.
+Migrations : oauthd, Mail, apps Claude/Vibe (.env → env/NOM), puis apps et services par deux agents.
 
-**Why:** revient sur [[armpi-pas-de-securite-attaquant]] pour ce domaine, à la demande de l'utilisateur, comme
-[[armpi-multi-utilisateur]].
+Tranché en faisant : compte sans mot de passe = coffre sous la clé machine seule (comportement d'avant gardé).
 
-**How to apply:** plan §6 de l'étude (étape 1 : service, AppKit, /bin/secret, mot de passe ; oauthd et Mail
-d'abord). Voir [[armpi-oauth]].
+**Why:** revient sur [[armpi-pas-de-securite-attaquant]] pour ce domaine, à la demande de l'utilisateur.
+
+**How to apply:** pas essayé sur le ZBook ni avec le vrai TPM ; CPython et dotnet pas reconstruits avec la
+déclaration du script (bash oui) ; `access = enforce` reste à décider (étape 5 de [[armpi-multi-utilisateur]]).
+Pièges : patchs Python écrits par Write : « \r\n » dans une chaîne non brute devient un vrai retour ;
+QEMU n'est que dans WSL (OVMF sans shell) : image d'essai avec EFI/BOOT/BOOTX64.EFI sur KORIN OS, qemu_nvme.py
+--boot-disk, sortie relue par mtype -i disk.img@@74448896. Voir [[armpi-oauth]].

@@ -9,9 +9,12 @@
  *   - rafraîchissement (RFC 6749 6).
  *
  * Fichiers (dossier personnel, comme Mail) :
- *   HOME:/oauth/accounts.ini   une section par compte : provider, client_id, client_secret, scope...
+ *   HOME:/oauth/accounts.ini   une section par compte : provider, client_id, scope... (sans secret)
+ * Les jetons de rafraîchissement et les client_secret des comptes sont dans le coffre à secrets (keyvault,
+ * docs/KEYVAULT.md), sous l'identité d'oauthd, secret « oauth ». Sans coffre (le Pi), comme avant :
  *   HOME:/oauth/secrets        les jetons de rafraîchissement, AES-256-GCM (EVP d'OpenSSL)
  *   HOME:/oauth/key            la clé (32 octets, getentropy), faite une fois
+ * Au premier démarrage avec le coffre, secrets et key y passent puis sont effacés.
  *
  * Les fournisseurs (fichier du système, livré avec Korin) : /etc/oauth/providers.ini, une section par
  * fournisseur (« [google] ») ; ses clés valent pour tout compte de ce fournisseur qui ne les donne pas lui-même
@@ -36,6 +39,8 @@
 #include <time.h>
 #include <unistd.h>
 #include <armpi/syscall.h>
+
+#include "../../lib/keyvault/keyvault.h"
 
 #include <openssl/err.h>
 #include <openssl/evp.h>
@@ -820,8 +825,74 @@ static int get_key(u8 k[32], int create)
 
 static struct account *find(const char *name);
 static struct account *add(const char *name);
+static int save_accounts(void);
+
+/* le coffre (keyvault) : 1 là, 0 absent (le Pi : l'ancien fichier chiffré) */
+static int vault;
+#define VAULT_NAME "oauth"
+
+/* texte du coffre : « refresh\tcompte\tjeton » et « secret\tcompte\tclient_secret », une ligne chacun */
+static void parse_vault(char *text)
+{
+	for (char *line = text; *line;) {
+		char *e = line + strcspn(line, "\n");
+		char save = *e;
+		*e = 0;
+		char *t1 = strchr(line, '\t'), *t2 = t1 ? strchr(t1 + 1, '\t') : 0;
+		if (t2) {
+			*t1 = *t2 = 0;
+			struct account *a = find(t1 + 1);
+			if (a && !strcmp(line, "refresh")) {
+				wipe_free(&a->refresh);
+				a->refresh = strdup(t2 + 1);
+			} else if (a && !strcmp(line, "secret"))
+				scpy(a->client_secret, t2 + 1, sizeof a->client_secret);
+		}
+		*e = save;
+		line = *e ? e + 1 : e;
+	}
+}
+
+static void load_legacy_secrets(void);
+static int save_secrets(void);
 
 static void load_secrets(void)
+{
+	vault = kv_status() >= 0;
+	if (!vault) {
+		load_legacy_secrets();
+		return;
+	}
+	static char t[KV_VALUE_MAX + 1];
+	long n = kv_get(VAULT_NAME, t, KV_VALUE_MAX);
+	if (n >= 0) {
+		t[n] = 0;
+		parse_vault(t);
+		OPENSSL_cleanse(t, (size_t)n);
+		return;
+	}
+	if (n != -2) {
+		char e[256] = "";
+		kv_error(e, sizeof e);
+		say("coffre : %s (%ld) ; comptes à reconnecter", e, n);
+		return;
+	}
+	/* rien au coffre : l'ancien fichier chiffré (et les client_secret d'accounts.ini) y passent */
+	struct stat st;
+	int had = stat(SECRETS_FILE, &st) == 0;
+	load_legacy_secrets();
+	int secrets = 0;
+	for (int i = 0; i < ACC_MAX; i++)
+		secrets |= accs[i].used && accs[i].client_secret[0];
+	if ((had || secrets) && save_secrets() == 0) {
+		unlink(SECRETS_FILE);
+		unlink(KEY_FILE);
+		save_accounts();
+		say("jetons et secrets passés au coffre (%s et %s effacés)", SECRETS_FILE, KEY_FILE);
+	}
+}
+
+static void load_legacy_secrets(void)
 {
 	size_t len = 0;
 	char *b = file_read(SECRETS_FILE, &len);
@@ -859,6 +930,22 @@ static int save_secrets(void)
 {
 	struct buf t = {0};
 	b_add(&t, "", 0);
+	if (vault) {
+		for (int i = 0; i < ACC_MAX; i++) {
+			if (accs[i].used && accs[i].refresh)
+				b_fmt(&t, "refresh\t%s\t%s\n", accs[i].name, accs[i].refresh);
+			if (accs[i].used && accs[i].client_secret[0])
+				b_fmt(&t, "secret\t%s\t%s\n", accs[i].name, accs[i].client_secret);
+		}
+		long r = kv_set(VAULT_NAME, t.p, (long)t.n);
+		b_free(&t);
+		if (r < 0) {
+			char e[256] = "";
+			kv_error(e, sizeof e);
+			say("coffre : écriture impossible : %s (%ld)", e, r);
+		}
+		return r < 0 ? -1 : 0;
+	}
 	for (int i = 0; i < ACC_MAX; i++)
 		if (accs[i].used && accs[i].refresh)
 			b_fmt(&t, "%s\t%s\n", accs[i].name, accs[i].refresh);
@@ -1057,7 +1144,8 @@ static const struct account *cfg(const struct account *a)
 static int save_accounts(void)
 {
 	struct buf t = {0};
-	b_str(&t, "# Comptes OAuth (oauthd, docs/OAUTH.md) : écrit par oauthd ; les jetons sont dans secrets, chiffrés.\n");
+	b_str(&t, vault ? "# Comptes OAuth (oauthd, docs/OAUTH.md) : écrit par oauthd ; jetons et client_secret au coffre (keyvault).\n"
+		       : "# Comptes OAuth (oauthd, docs/OAUTH.md) : écrit par oauthd ; les jetons sont dans secrets, chiffrés.\n");
 	for (int i = 0; i < ACC_MAX; i++) {
 		struct account *a = &accs[i];
 		if (!a->used)
@@ -1066,6 +1154,8 @@ static int save_accounts(void)
 		for (int k = 0; KEYS[k]; k++) {
 			size_t cap;
 			const char *v = field(a, KEYS[k], &cap);
+			if (vault && !strcmp(KEYS[k], "client_secret"))
+				continue; /* (au coffre, avec les jetons) */
 			if (v && *v)
 				b_fmt(&t, "%s = %s\n", KEYS[k], v);
 		}
@@ -1191,6 +1281,8 @@ static long op_setup(struct account *a, const char *conf)
 			save_secrets();
 		}
 	}
+	if (vault && save_secrets()) /* (le client_secret, au coffre) */
+		return fail(E_IO, "écriture au coffre impossible");
 	return save_accounts() ? fail(E_IO, "écriture de %s impossible", ACCOUNTS_INI) : 0;
 }
 
@@ -1536,6 +1628,8 @@ static long op_remove(struct account *a)
 	long r = op_forget(a);
 	memset(a, 0, sizeof *a);
 	a->listen_fd = -1;
+	if (vault)
+		save_secrets(); /* (son client_secret aussi) */
 	if (save_accounts())
 		return fail(E_IO, "écriture de %s impossible", ACCOUNTS_INI);
 	return r;

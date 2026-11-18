@@ -1,6 +1,7 @@
 # Étude : un coffre à secrets (keyvault)
 
-État (18/11/2026) : **étude seulement, rien n'est fait.** PC seulement : le Pi plus tard.
+État (18/11/2026) : **fait sur le PC** (référence : [../KEYVAULT.md](../KEYVAULT.md)), vérifié sous QEMU ; le TPM
+essayé sous Linux contre swtpm seulement, pas encore sur le ZBook. Le Pi plus tard.
 
 Demande de l'utilisateur : recenser les programmes qui gardent un secret en clair (jetons OAuth, clés d'API, mots de
 passe…), puis tout ranger chiffré dans un coffre que seul le service du coffre sait lire. Un programme dépose un
@@ -281,3 +282,18 @@ Le Pi garde ses fichiers actuels jusqu'au portage (noyau asm sans uid ni chemin 
    la machine volée, mais une mise à jour du mot de passe doit aussi changer l'objet du TPM.
 2. Un compte sans mot de passe : pas de coffre du tout (proposé), ou un coffre sous T seul (protégé contre le
    disque volé, pas contre la machine volée) ?
+
+### Tranché en faisant (18/11)
+
+1. **Pas de valeur du mot de passe dans l'objet du TPM** : le TPM ne sert qu'à la clé de la machine, sans lien aux
+   PCR (Korin démarre sans Secure Boot, le PCR 4 change à chaque `korin.efi`) ; le mot de passe, par Argon2id,
+   protège la machine volée.
+2. **Un compte sans mot de passe a un coffre**, sous la clé de la machine seule : avec un seul compte en connexion
+   automatique, le comportement doit rester celui d'avant (les apps doivent pouvoir ranger leurs clés). Il est
+   protégé du disque emporté seul, pas de la machine emportée.
+3. **Espace `@system`** : un secret écrit par un programme du compte system (Réglages élevé) et lu par un autre
+   (un service) ; refusé aux autres comptes.
+4. **`access = enforce` n'est pas mis par défaut** (décision de l'étape 5 du multi-utilisateur : après un essai en
+   mode journal sur le ZBook). En attendant, vfs refuse `/var/keyvault` et `/etc/keyvault` aux autres comptes même
+   en mode journal ; sans `enforce`, un programme du compte pourrait encore remplacer un binaire de `/apps` et
+   prendre son identité.

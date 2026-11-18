@@ -6,7 +6,10 @@
  *   le dossier personnel du compte          lui (lecture, écriture)
  *   /home/public                           tout le monde
  *   le dossier personnel d'un autre compte  rien (question 3 de l'étude : 0700 proposé)
- *   /etc/shadow.ini, wifi.txt, remote.txt, smbd.ini   uid 0 seulement (même en lecture)
+ *   /etc/shadow.ini, wifi.txt, wifi.bak, remote.txt, smbd.ini, smbfs.ini, /etc/web/certs
+ *                                          uid 0 seulement (même en lecture)
+ *   /var/keyvault, /etc/keyvault           le coffre à secrets (docs/KEYVAULT.md) : uid 0 seulement, et refusé
+ *                                          même en mode « log » (rien ne les lit, le coffre seul)
  *   le reste (/bin, /apps, /sys, /etc, /var, /lib, /res, /devtools...)   lecture pour tous, écriture uid 0
  *
  * Mode (« access = » de /etc/system.ini, homes.c) : « log » (le défaut de l'étape 3) note les refus au
@@ -16,7 +19,10 @@
 #define E_ACCES -13
 #define NOTES 32 /* refus déjà notés (le journal ne répète pas le même) */
 
-static const char *const secrets[] = {"/etc/shadow.ini", "/etc/wifi.txt", "/etc/remote.txt", "/etc/smbd.ini", 0};
+static const char *const secrets[] = {"/etc/shadow.ini", "/etc/wifi.txt", "/etc/wifi.bak", "/etc/remote.txt",
+				      "/etc/smbd.ini", "/etc/smbfs.ini", "/etc/web/certs", 0};
+/* refusés aux autres que l'uid 0 quel que soit le mode (sauf « off ») : les fichiers du coffre */
+static const char *const toujours[] = {"/var/keyvault", "/etc/keyvault", 0};
 
 /* le chemin commence-t-il par le dossier d (« /home » couvre « /home » et « /home/a », pas « /homex ») ? */
 static int sous(const char *p, const char *d)
@@ -33,7 +39,10 @@ static int permis(long uid, const char *p, int ecrire)
 	if (uid == 0)
 		return 1;
 	for (int i = 0; secrets[i]; i++)
-		if (!strcmp(p, secrets[i]))
+		if (sous(p, secrets[i]))
+			return 0;
+	for (int i = 0; toujours[i]; i++)
+		if (sous(p, toujours[i]))
 			return 0;
 	if (sous(p, "/tmp") || sous(p, "/media") || sous(p, "/net") || sous(p, "/home/public"))
 		return 1;
@@ -138,6 +147,9 @@ long acces_verifier(long pid, const char *interne, int ecrire)
 	chemin_externe(interne, ext);
 	if (permis(uid, ext, ecrire))
 		return 0;
+	for (int i = 0; toujours[i]; i++)
+		if (sous(ext, toujours[i]))
+			mode = ACCESS_ENFORCE; /* (le coffre : refusé même en mode journal) */
 	if (!deja_note(uid, ext, ecrire)) {
 		char n[24], nom[64];
 		u64 info[8] = {0};

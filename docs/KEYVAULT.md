@@ -1,0 +1,232 @@
+# Le coffre à secrets (keyvault)
+
+Le coffre garde les secrets des programmes : clés d'API, jetons OAuth, mots de passe de serveurs, clés privées.
+Ils sont chiffrés dans `/var/keyvault`. Seul le service `keyvault` sait les lire, et il ne rend un secret qu'au
+programme qui l'a rangé. L'étude et les décisions sont dans [etude/COFFRE.md](etude/COFFRE.md).
+
+**État (18/11/2026) : PC seulement.** Vérifié sous QEMU (§8). Le TPM n'est essayé que sous Linux, contre
+swtpm. Le Pi n'a pas de coffre : ses programmes gardent leurs anciens fichiers, et les fonctions du coffre y
+rendent une erreur.
+
+```
+programme ──kv_* / vault_* / secret──▶ keyvault ──▶ /var/keyvault/<uid>.db
+                                         │  identité : SYS_PROC_EXE (noyau) + empreinte du fichier
+                                         │  clé : mot de passe du compte (authd) + clé de la machine (TPM)
+                                         └─ carte /sys/authcard (mot de passe, accord)
+```
+
+## 1. Ranger et relire un secret
+
+### En C ou en C++
+
+En C ou en C++ (libposix), avec l'en-tête seul `keyvault.h` : `src/lib/keyvault/keyvault.h` dans le dépôt,
+`<keyvault.h>` avec le GCC de Korin. Aucune bibliothèque n'est à lier.
+
+```c
+#include <keyvault.h>
+
+kv_set ("anthropic", key, strlen (key));        /* -> 0 */
+char k[256];
+long n = kv_get ("anthropic", k, sizeof k - 1); /* -> octets ; -2 : pas de tel secret */
+if (n >= 0) k[n] = 0;
+kv_delete ("anthropic");
+kv_list (buf, sizeof buf);                      /* les noms de ce programme, un par ligne */
+kv_status ();                                   /* < 0 : pas de coffre (le Pi) */
+kv_error (buf, sizeof buf);                     /* le texte de la dernière erreur */
+```
+
+### Les autres langages
+
+| Langage | Comment |
+|---|---|
+| assembleur, BASIC et tout langage qui appelle les kits | les mêmes fonctions dans AppKit : `vault_set`, `vault_get`, `vault_delete`, `vault_list`, `vault_status`, `vault_error` (fin de la table, version 59) |
+| scripts | la commande `secret` (§4) |
+
+### Noms, valeurs et erreurs
+
+- **Nom** : lettres, chiffres et `. _ - / @ :`, 128 caractères au plus.
+- **Valeur** : 64 Kio au plus, des octets quelconques.
+- **Erreurs** :
+
+| Code | Sens |
+|---|---|
+| `-2` | pas de tel secret |
+| `-13` | coffre fermé, ou mot de passe refusé |
+| `-1` | programme non reconnu |
+| `-125` | refusé à la carte |
+
+- **Coffre fermé** : le coffre ouvre la carte du mot de passe, et l'appel attend la réponse (5 minutes au plus).
+
+**Sans coffre** (`kv_status () < 0`), un programme garde son ancien comportement. Les migrations du §6 le font
+toutes.
+
+## 2. L'identité d'un programme
+
+Le programme ne dit jamais qui il est : le coffre le demande au noyau.
+
+### Les deux appels du noyau
+
+`SYS_PROC_EXE` (0x94) rend, pour un pid :
+- le chemin de son image, tel que son chargeur l'a déclaré ;
+- l'empreinte SHA-256 de cette image (calculée par le noyau à la première demande) ;
+- le script qu'il exécute, s'il en a déclaré un.
+
+`SYS_PROC_SET_SCRIPT` (0x95) déclare ce script :
+- une seule fois par process ;
+- remis à zéro par `exec`, gardé par `fork`.
+
+### Ce que le coffre en fait
+
+1. **Il vérifie le chemin.** Il relit le fichier lui-même, en calcule l'empreinte et la compare à celle de
+   l'image. Une image qui ne correspond pas à son fichier est refusée (« relancez-le »). Les programmes de `/sys`
+   (droits) sont crus sans relecture.
+2. **Il reconnaît les interprètes.** Pour un interprète de `/etc/keyvault/interpreters.ini` (bash, python3,
+   dotnet), l'identité est le **script** déclaré, pas l'interprète. Les déclarations :
+   - bash : `tools/bash/patches/03-coffre-script.patch` ;
+   - CPython : `config_run_filename_abspath`, avant `site` et les `.pth` (`tools/python/korin.patch`) ;
+   - dotnet : `armpihost.cpp` déclare l'assembly (`tools/dotnet/armpi.patch`).
+
+   Un interprète sans script (bash interactif, `python3 -c`) n'a pas de coffre.
+3. **Il partage un dossier d'app.** Une app de `/apps` peut partager ses secrets entre ses programmes avec
+   `vault = folder` dans son `app.txt`. L'identité devient alors le dossier `/apps/x.app`.
+4. **Il retient l'empreinte hors des dossiers du système.**
+   - Les dossiers du système sont `/apps`, `/bin`, `/sbin`, `/sys`, `/lib`, `/devtools`. Ailleurs (une app
+     compilée dans `HOME:`), le coffre retient l'empreinte au premier secret.
+   - Si le fichier change (nouvelle compilation, ou un autre programme l'a remplacé), la carte demande : « … a
+     changé depuis qu'il a rangé ses secrets. Lui laisser ses secrets ? ».
+
+### L'espace partagé @system
+
+L'espace `@system` (`kv_sys_set`, `kv_sys_get`, `kv_sys_delete`, drapeau `KVF_SYSTEM`) est partagé par les
+programmes du compte system (uid 0), et refusé aux autres comptes. Un secret écrit par Réglages, élevé, y est lu
+par un service : le mot de passe d'accès à distance, les clés Wi-Fi.
+
+## 3. Les clés
+
+### Hiérarchie
+
+```
+mot de passe du compte ──Argon2id (64 Mio, 3 passes)──▶ P ─┐
+                                                           ├─HKDF-SHA256─▶ KEK ──AES-256-GCM──▶ clé maîtresse du compte
+clé de la machine (TPM, sinon /etc/keyvault/machine.key) ─▶ T ─┘                                            │
+                                                         chaque secret : AES-256-GCM, données associées uid|identité|nom
+```
+
+- **La clé maîtresse** de chaque compte est tirée au hasard une fois. Seule son enveloppe change avec le mot de
+  passe. Elle ne vit qu'en mémoire de keyvault, coffre ouvert.
+- **Il faut P et T.** Le disque seul n'a pas T (il est dans le TPM). La machine seule n'a pas P (le mot de passe).
+- **Le compte system** (les services) n'a que T : ses secrets ne sont protégés que du disque emporté seul.
+- **Un compte sans mot de passe** est ouvert par T seul, au premier usage (connexion automatique : comme avant).
+
+### Ouverture et fermeture
+
+| Événement | Ce qui se passe |
+|---|---|
+| connexion | `/sys/login` fait vérifier le mot de passe par authd (`AUTH_VERIFY`), qui le passe à keyvault (`KV_UNLOCK`) |
+| `passwd` | authd demande d'abord au coffre de réenvelopper sa clé (`KV_PASSWD`) ; s'il refuse, rien ne change |
+| mot de passe remis par l'uid 0 (`AUTH_SETPW`, sans l'ancien) | coffre ouvert : réenveloppé ; coffre fermé : **vidé** (pas de clé de secours, décision du 18/11) |
+| `secret lock` | ferme le coffre du compte |
+| première demande, coffre fermé | la carte du mot de passe s'ouvre (`/sys/authcard`, mode coffre) |
+
+## 4. La commande `secret`
+
+| Commande | Effet |
+|---|---|
+| `secret set NOM [VALEUR]` | range (sans VALEUR : lue sur l'entrée standard, ou demandée sans écho) |
+| `secret get NOM` | écrit la valeur |
+| `secret rm NOM` | oublie |
+| `secret ls` | les noms |
+| `secret whoami` | l'identité vue par le coffre |
+| `secret status` | ouvert, fermé, pas encore créé |
+| `secret unlock` | ouvre le coffre du compte (mot de passe) |
+| `secret lock` | ferme le coffre du compte |
+
+L'identité est celle du **programme qui lance `secret`** : le script, déclaré par son interprète. `secret`
+demande au coffre l'espace de son père (`KVF_PARENT`, permis à `/bin/secret` seul, même compte). Exemple dans un
+script :
+
+```bash
+ANTHROPIC_API_KEY=$(secret get anthropic) claude-acp
+```
+
+Un bash interactif n'est pas un script : `secret get` y est refusé.
+
+git range ses identifiants par l'assistant `git-credential-korin` (`credential.helper = korin` dans
+`/etc/gitconfig`), qui s'appuie sur `secret`.
+
+## 5. Fichiers
+
+| Fichier | Contenu |
+|---|---|
+| `/var/keyvault/<uid>.db` | le coffre d'un compte (voir ci-dessous) |
+| `/etc/keyvault/machine.tpm` | la clé de la machine scellée dans le TPM (`KORINTPM1`, parties privée et publique) |
+| `/etc/keyvault/machine.key` | la clé de la machine sans TPM (32 octets) ; reprise dans le TPM puis effacée au premier démarrage avec un TPM |
+| `/etc/keyvault/interpreters.ini` | les interprètes dont le script déclaré est cru |
+
+Le format de `/var/keyvault/<uid>.db` :
+1. `KORINKV1`, la version, les réglages d'Argon2id et le sel ;
+2. la clé maîtresse enveloppée (IV, marque, 32 octets) ;
+3. les enregistrements, chacun : sorte, identité, nom, IV, marque, valeur chiffrée.
+
+Le fichier est écrit à côté puis renommé : jamais à moitié écrit.
+
+vfs refuse `/var/keyvault` et `/etc/keyvault` à tout autre que l'uid 0, **même en mode `access = log`**
+(`src/svc/vfs/access.c`). Les autres fichiers à secrets sont protégés en mode `enforce` seulement : `shadow.ini`,
+`wifi.txt`, `wifi.bak`, `remote.txt`, `smbd.ini`, `smbfs.ini`, `/etc/web/certs`.
+
+## 6. Ce qui y est rangé
+
+| Programme | Secret au coffre | Avant |
+|---|---|---|
+| oauthd | `oauth` : jetons de rafraîchissement et `client_secret` des comptes | `HOME:/oauth/secrets` + `key` |
+| Mail | `mail` : mots de passe IMAP/SMTP, jetons | `HOME:/mail/secrets` + `key` |
+| Claude, Vibe (apps) | `env/NOM_API_KEY` : les lignes `*_API_KEY=` et `*_AUTH_TOKEN=` du `.env` de l'agent, rendues à l'agent dans son environnement à son lancement | `.env` en clair |
+| Koton, PocketQI, IRC, Forge, Telegram, Budget, Courier (`{{vault:nom}}`) | voir leurs sources | fichiers de `HOME:` en clair |
+| telnetd, ftpd, vncd, rdpd (`@system`) | le mot de passe d'accès à distance | `/etc/remote.txt` |
+| wifisvc (`@system`) | les phrases WPA2 | `/etc/wifi.txt`, `wifi.bak` |
+| smbfs, smbd, webd (`@system`) | mots de passe des partages, comptes du serveur, clés TLS | `/etc/smbfs.ini`, `smbd.ini`, `/etc/web/certs/*.key` |
+
+Chaque programme fait passer une fois l'ancienne valeur au coffre, puis l'efface de son fichier. Jet (cookies
+SQLite) n'est pas concerné.
+
+## 7. Le TPM 2.0
+
+`src/svc/keyvault/tpm.c`. Le TPM est trouvé par la table ACPI `TPM2`, et seule l'interface **CRB** (méthode 7)
+est prise : c'est celle des fTPM d'Intel (PTT du ZBook) et d'AMD. Sans elle, la clé de la machine reste en
+fichier.
+
+Fonctionnement :
+- **La clé primaire** de stockage (ECC P-256) est refaite à chaque démarrage sous la hiérarchie du propriétaire.
+- **L'objet scellé** (keyedhash) contient la clé de la machine. `Load` puis `Unseal` la rendent.
+
+Pas de lien aux PCR :
+- **PCR 7** : Korin démarre sans Secure Boot, et le PCR 7 est le même pour tout système démarré ainsi.
+- **PCR 4** : il change à chaque `korin.efi`.
+
+Le TPM protège donc du disque emporté seul ; la machine emportée est protégée par le mot de passe.
+
+**Un TPM effacé** (BIOS, carte mère) perd les coffres.
+
+## 8. Construire et essayer
+
+```bash
+wsl sh tools/pc/apps.sh keyvault               # sys/svc/keyvault et bin/secret (OpenSSL)
+wsl sh src/svc/keyvault/test/run.sh            # le pilote TPM sous Linux contre swtpm (apt install swtpm)
+```
+
+Vérifié sous QEMU (image d'essai NVMe, `tools/pc/qemu_nvme.py --boot-disk`, script lancé par `startup.txt`) :
+
+| Domaine | Vérifié |
+|---|---|
+| rangement | coffre créé au premier secret ; `set`, `get`, `ls`, `rm` ; aucun secret en clair dans le fichier |
+| séparation | deux scripts ne voient pas leurs secrets ; noms invalides refusés |
+| mot de passe | coffre ouvert à la connexion par mot de passe ; `passwd` réenveloppe (l'ancien refusé, le nouveau accepté, secrets gardés) |
+| cartes | coffre fermé : carte du mot de passe ; programme de `HOME:` recompilé : carte d'accord, accord retenu |
+
+Contre swtpm : scellement, descellement, reprise de `machine.key`, fichier abîmé refusé.
+
+Pas encore essayé :
+- le ZBook ;
+- le vrai TPM (CRB) ;
+- bash, CPython et dotnet reconstruits avec la déclaration du script, sauf bash ;
+- les migrations des apps et des services en marche.

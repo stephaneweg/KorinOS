@@ -30,6 +30,7 @@ AppKit, the base kit (files, launching programs, strings, languages), is already
 - [Writing a Service](service_en.md): a program of `/sys` that answers the others under a name.
 - [The IPC Functions](ipc_en.md): named services, channels, shared memory, waiting.
 - [Writing a Kit](kit_en.md): a library shared by all programs.
+- [The Secret Vault](keyvault_en.md): keep an API key, a token, a password without a plaintext file.
 
 ## Help for an App
 

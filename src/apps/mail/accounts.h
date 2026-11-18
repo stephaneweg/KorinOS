@@ -15,6 +15,7 @@
 #include "util.h"
 #include "conn.h"
 #include <openssl/evp.h>
+#include "../../lib/keyvault/keyvault.h"
 
 namespace mailapp {
 
@@ -301,7 +302,25 @@ struct Accounts
 		mkdirs (HOME_DIR);
 		return file_save (KEY_FILE, k, 32);
 	}
+	// The secrets live in Korin's keyvault (docs/KEYVAULT.md), under Mail's own identity, secret "mail"; without a
+	// vault (the Pi) in HOME:/mail/secrets as before. The first time with a vault, the old file moves into it.
 	void load_secrets ()
+	{
+		if (kv_status () >= 0)
+		{
+			static char t[KV_VALUE_MAX + 1];
+			long r = kv_get ("mail", t, KV_VALUE_MAX);
+			if (r >= 0) { t[r] = 0; parse_secrets (t); memset (t, 0, (size_t) r); return; }
+			if (r != -2) return;			// (vault refused: accounts must sign in again)
+			load_legacy_secrets ();
+			int len; char *b = file_read (SECRETS_FILE, &len);
+			if (b && save_secrets ()) { unlink (SECRETS_FILE); unlink (KEY_FILE); }
+			free (b);
+			return;
+		}
+		load_legacy_secrets ();
+	}
+	void load_legacy_secrets ()
 	{
 		int len; char *b = file_read (SECRETS_FILE, &len);
 		if (!b) return;
@@ -316,8 +335,13 @@ struct Accounts
 			memset (k, 0, sizeof k);
 		}
 		free (b);
-		// id <TAB> what <TAB> value
-		for (char *l = plain.p; l && *l; )
+		parse_secrets (plain.p);
+		if (plain.p) memset (plain.p, 0, plain.cap);
+	}
+	// id <TAB> what <TAB> value, one per line
+	void parse_secrets (char *text)
+	{
+		for (char *l = text; l && *l; )
 		{
 			char *e = strchr (l, '\n'); if (e) *e = 0;
 			char *t1 = strchr (l, '\t'), *t2 = t1 ? strchr (t1 + 1, '\t') : 0;
@@ -337,7 +361,6 @@ struct Accounts
 			}
 			l = e ? e + 1 : 0;
 		}
-		if (plain.p) memset (plain.p, 0, plain.cap);
 	}
 	bool save_secrets () const
 	{
@@ -349,6 +372,12 @@ struct Accounts
 			if (x.outSecret[0]) { plain.addf ("%s\tout\t", x.id); esc (plain, x.outSecret); plain.addc ('\n'); }
 			if (x.refresh[0]) { plain.addf ("%s\trefresh\t", x.id); esc (plain, x.refresh); plain.addc ('\n'); }
 			if (x.access[0]) { plain.addf ("%s\taccess\t", x.id); esc (plain, x.access); plain.addf ("\n%s\texpires\t%lld\n", x.id, x.expires); }
+		}
+		if (kv_status () >= 0)
+		{
+			long r = kv_set ("mail", plain.c (), (long) plain.n);
+			if (plain.p) memset (plain.p, 0, plain.cap);
+			return r >= 0;
 		}
 		unsigned char k[32], iv[12], tag[16];
 		if (!key (k) || getentropy (iv, 12) != 0) return false;
