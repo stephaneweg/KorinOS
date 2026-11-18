@@ -86,5 +86,5 @@ Voir [[armpi-x86-pc]], [[armpi-idee-libs-gcc]], [[armpi-ports-uikit-os]], [[armp
 **18/11, fabrication précisée par l'utilisateur** (DESIGN-CAO.md §14 bis) : trois procédés, CNC, SLA, FDM ; chacun
 calcule un **état intermédiaire** indépendant de la machine (trajets d'outil, pile de couches, chemins de buse), puis
 un **module d'export par machine** (.so, dlopen) écrit le fichier : Two Trees **6040** en GRBL, Photon Mono 2 en
-.pm3n, Kobra X en G-code (fichier d'exemple attendu). Comme 3DForge d'Onyx (fcam.h, fprint.h, ffdm.h). La maquette
-g1 disait TTC 450 : c'est la 6040.
+.pm3n, Kobra X en G-code (fichier d'exemple attendu). Comme 3DForge d'Onyx (fcam.h, fprint.h, ffdm.h). La fraiseuse est la
+Two Trees TTC 6040 : zone de travail 600 × 400 × 100 mm (confirmé le 18/11 ; la maquette g1 disait TTC 450).

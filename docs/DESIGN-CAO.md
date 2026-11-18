@@ -435,7 +435,7 @@ greffons »). Trois procédés :
 
 | Procédé | État intermédiaire (indépendant de la machine) | Export de la première machine |
 |---|---|---|
-| **CNC** (fraisage) | les **trajets d'outil** : brut, origine, outil, opérations (ébauche, contour…), mouvements rapides et d'usinage avec leurs avances, vérifiés (`fcam.h`) | G-code **GRBL** pour la **Two Trees 6040** |
+| **CNC** (fraisage) | les **trajets d'outil** : brut, origine, outil, opérations (ébauche, contour…), mouvements rapides et d'usinage avec leurs avances, vérifiés (`fcam.h`) | G-code **GRBL** pour la **Two Trees TTC 6040** (600 × 400 × 100 mm) |
 | **SLA** (résine) | la **pile des couches** : une image par couche de la taille de l'écran de la machine, avec les réglages d'exposition, de levée et les supports (`fprint.h`) | fichier **`.pm3n`** de l'**Anycubic Photon Mono 2** (écrivain d'Onyx prouvé à l'octet) |
 | **FDM** (filament) | les **chemins de buse** par couche : parois, couches pleines, remplissage, jupe, avec longueur et volume extrudé (`ffdm.h`, `FdmJob`) | G-code (Marlin) de l'**Anycubic Kobra X** : il manque un `.gcode` qui a bien imprimé sur elle pour son en-tête |
 
@@ -449,8 +449,8 @@ greffons »). Trois procédés :
   d'impression…), comme dans 3DForge.
 * Ordre : **CNC d'abord** (reprise de `fcam.h` sur la section exacte d'OCCT), puis **SLA** (`fprint.h`), puis
   **FDM** (`ffdm.h`, son écrivain quand un fichier de la Kobra X sera fourni).
-* À vérifier : la maquette g1 nomme la fraiseuse « Two Trees TTC 450 » ; l'utilisateur dit **6040** le 18/11
-  (c'est elle qui fait foi ; taille utile à reprendre de la machine).
+* La fraiseuse de l'utilisateur est la **Two Trees TTC 6040** (confirmé le 18/11) : **zone de travail 600 × 400 ×
+  100 mm** (X × Y × Z). La maquette g1 disait « TTC 450 » : c'est la 6040 qui fait foi.
 
 ## 15. Le moteur : construction et résultats
 
