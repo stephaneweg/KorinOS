@@ -54,11 +54,14 @@ Lecture en flux, file d'attente, touches multimédia, applet « en cours de lect
 MediaKit / AudioKit et UIKit, pas dans chaque app (la règle des kits). Le Media Player existant peut s'en servir
 aussi.
 
-## 4. Ordre proposé
+## 4. Ordre (décidé le 18/11/2026)
 
-1. **Jamendo** (rapide, sans risque, pose les pièces communes du §3).
-2. **librespot pour Korin** (voie B) avec une commande d'essai qui joue un titre.
-3. **L'app Spotify**, puis Spotify Connect, puis le service (voie C) si utile.
+1. **UIKit et Elegant** : une app peut déplacer et dimensionner sa fenêtre (la carte en bas à droite de l'écran,
+   au-dessus du panneau), et la garder **au-dessus des autres** ; à la fin des tables `.abi`.
+2. **Media Player** (`src/apps/media`) : le mini-lecteur d'Onyx (carte en bas à droite, au-dessus), et fermer la
+   fenêtre pendant la lecture réduit en carte au lieu de quitter.
+3. **Jamendo** : l'app, et les pièces communes du §3 dans les kits.
+4. **Spotify** : librespot pour Korin (voie B), puis l'app, puis Spotify Connect.
 
 ## 5. Questions
 

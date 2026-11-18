@@ -15,3 +15,5 @@ Décision du 18/11 : **deux apps** (Spotify, Jamendo). Décision du 18/11 : ferm
 
 **How to apply:** vérifier en ligne l'état de librespot et des conditions de l'API de Spotify avant de commencer.
 Voir [[armpi-rust]], [[armpi-oauth]], [[armpi-media-player]].
+
+**18/11, ordre donné par l'utilisateur** : 1) UIKit/Elegant (déplacer sa fenêtre, toujours au-dessus), 2) le mini-lecteur du Media Player et la fermeture qui réduit en carte, 3) Jamendo, 4) Spotify. Après les priorités (essais du build world, boutons du touchpad, Fichiers en deux vues).
