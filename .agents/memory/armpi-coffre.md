@@ -1,21 +1,27 @@
 ---
 name: armpi-coffre
-description: Coffre à secrets (keyvault) — étude du 18/11 docs/etude/COFFRE.md : recensement des secrets en clair, service keyvault, identité des apps, clé de la machine (TPM/OTP) + mot de passe ; rien de fait, 6 questions en attente
+description: Coffre à secrets (keyvault) — étude du 18/11 docs/etude/COFFRE.md, décisions de l'utilisateur prises (chemin, interprètes, mot de passe par défaut + TPM, pas de clé de secours, PC seulement) ; rien de codé, 2 questions mineures
 metadata:
   type: project
 ---
 
 Le 18/11/2026, l'utilisateur a demandé une étude : recenser les apps qui gardent un secret en clair et les ranger
-dans un coffre chiffré, lisible par le seul service du coffre ; une entrée = (identité de l'app, nom). Il ne savait
-pas où garder la clé du coffre.
+dans un coffre chiffré lisible par le seul service ; une entrée = (identité de l'app, nom). Étude :
+docs/etude/COFFRE.md (§1 : 15 programmes en clair ; Mail et oauthd chiffrent avec la clé à côté).
 
-Étude : docs/etude/COFFRE.md (§1 recensement : 15 programmes en clair, Mail et oauthd chiffrent avec la clé à côté).
-Propositions : service keyvault (uid 0, /var/vault/<uid>.db), vault_* dans AppKit, /bin/secret ; identité = paquet,
-sinon chemin attesté par vfs (V_LOAD_IMAGE, SYS_PROC_EXE : aujourd'hui AppKit charge l'image et déclare le chemin,
-rien n'est attesté) ; clé maîtresse par compte enveloppée par la clé de la machine (TPM 2.0 PC, OTP du Pi 4,
-fichier /etc/vault à défaut), le mot de passe de session (Argon2id) et une clé de secours.
+Décisions de l'utilisateur (18/11) :
+- menaces à couvrir : vol d'un secret par un autre exécutable, vol du disque, vol de la machine ;
+- identité = **chemin** de l'exécutable (pas le paquet : marche pour les apps compilées sur la machine) ;
+- scripts et .NET : l'interprète donne le chemin du script/assembly (proposé : SYS_PROC_SET_SCRIPT une fois,
+  cru seulement pour les interprètes de /etc/keyvault/interpreters.ini) ;
+- mot de passe de session par défaut ; pas de clé de secours pour l'instant ; Pi plus tard ; nom keyvault.
 
-**Why:** revient sur [[armpi-pas-de-securite-attaquant]] pour ce domaine, comme [[armpi-multi-utilisateur]] ; à
-confirmer par la question 1 de l'étude.
+Conception retenue dans l'étude : KEK = HKDF(Argon2id(mot de passe), secret scellé dans le TPM 2.0) ; secrets du
+système sous TPM + PCR 7/4 ; chemin attesté par vfs (V_LOAD_IMAGE, SYS_PROC_EXE) ; /var/keyvault/<uid>.db ;
+access = enforce indispensable pour la menace « autre exécutable ».
 
-**How to apply:** rien à coder avant les réponses au §7. oauthd ([[armpi-oauth]]) deviendrait client du coffre.
+**Why:** revient sur [[armpi-pas-de-securite-attaquant]] pour ce domaine, à la demande de l'utilisateur, comme
+[[armpi-multi-utilisateur]].
+
+**How to apply:** plan §6 de l'étude (étape 1 : service, AppKit, /bin/secret, mot de passe ; oauthd et Mail
+d'abord). Voir [[armpi-oauth]].
