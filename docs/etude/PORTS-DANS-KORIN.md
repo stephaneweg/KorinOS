@@ -33,6 +33,18 @@ seulement) et le runtime **.NET** lui-même (clang, et construit par `dotnet`).
 
 ## 2. Les étapes
 
+**Étape 0 : Korin lui-même (ajoutée le 18/11/2026).** Le Pi s'auto-héberge déjà pour son asm (`selfhost` : FASMARM
+dans l'OS, sorties comparées octet par octet) ; le C du Pi et **tout le PC** se construisent encore dans WSL. Dans
+Korin PC il y a déjà GCC 14.2, binutils, GNU make (`/devtools/gcc`), fasm x86-64, bash, python3, find, sed, grep,
+sort : les scripts de `tools/pc` (`build.sh`, `apps.sh`, `sysroot*.sh`) sont du `sh` et devraient presque passer.
+À faire : un script `tools/pc/selfhost.sh` (ou une liste dans `selfhost`) lancé dans Korin sur une copie du dépôt ;
+le préfixe de la chaîne (`x86_64-…-gcc` → `gcc`) réglable ; ce qui manque : **`tar`** (l'initrd ustar :
+`mkinitramfs` ou une commande `tar`), `install`, `sha256sum`, des options de `find`/`sort`/`sed` à vérifier ;
+`abi2c.py`/`abi2bas.py` par le python3 de Korin ; libposix et newlib pris tels qu'installés (pas reconstruits).
+Fini quand `kernel.elf`, `initrd.tar`, les kits, services, commandes et apps C construits dans Korin sont
+identiques (ou équivalents) à ceux de WSL, et que le ZBook démarre dessus.
+
+
 | # | Étape | Contenu | Fini quand |
 |---|---|---|---|
 | 1 | **Paquets des bibliothèques** | pour chacune : `lib<nom>` (les `.so`) et `<nom>-dev` (`.a`, en-têtes, `.pc` ; dépend de `lib<nom>`), décision du 13/11 ; une seule construction croisée partagée par tous les ports ; `.so` avec `-fPIC -shared` sur libposix (liaison au démarrage et `dlopen` existent : `armpi-dlopen`) ; versions dans `tools/pkg/versions.ini` | `gcc -o t t.c $(pkg-config --cflags --libs libcurl)` dans Korin, en statique et en dynamique |

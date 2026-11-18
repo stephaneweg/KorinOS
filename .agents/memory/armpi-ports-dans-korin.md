@@ -16,3 +16,5 @@ docs/etude/PORTS-DANS-KORIN.md. Rien de fait.
 sur ext4 : [[armpi-systeme-fichiers]]), ports de perl et ruby. Voir [[armpi-webkit]], [[armpi-dlopen]], [[armpi-paquets]].
 
 **18/11, précision de l'utilisateur** : WebKit n'était qu'un exemple ; cela vaut pour tous les ports (SDL, SuperTux, SuperTuxKart…). Ordre proposé : SDL → SuperTux → CPython → STK → OCCT/Forge → Mesa → Godot → WebKit/Jet. Outils ajoutés : autotools, m4, scons. Hors d'atteinte : rustc, runtime .NET.
+
+**18/11, étape 0 ajoutée** : Korin PC construit dans Korin (tools/pc/selfhost.sh) : GCC, binutils, make, fasm, bash, python3 sont déjà dans l'OS ; manquent tar (initrd), install, sha256sum ; le Pi s'auto-héberge déjà pour son asm seulement.
