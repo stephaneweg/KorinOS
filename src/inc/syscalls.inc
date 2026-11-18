@@ -198,6 +198,19 @@ SYS_SETUID		= 0x91		; (uid) -> 0 ; E_PERM sauf pour l'uid 0 (login, authd) ; avi
 SYS_PROC_UID		= 0x92		; (pid) -> uid, E_SRCH
 SYS_PROC_SETUID		= 0x93		; (pid, uid) -> 0 ; appelant d'uid 0 (authd : sudo apres le mot de passe),
 					; E_PERM sinon, E_SRCH ; avis SVC_OP_SETUID a vfs
+SYS_PROC_EXE		= 0x94		; (pid, sortie PEX_SIZE o) -> 0 / E_SRCH : l'identite du programme (le coffre,
+					; docs/etude/COFFRE.md 2.1) : chemin de l'image, script, SHA-256 de l'image
+SYS_PROC_SET_SCRIPT	= 0x95		; (chemin) -> 0 ; E_PERM au second appel : le script ou l'assembly qu'un
+					; interprete execute (une fois par process, remis a zero par exec, garde par fork)
+PEX_FLAGS		= 0		; (u32) PEXF_*
+PEX_UID			= 4		; (u32)
+PEX_HASH		= 8		; 32 o : SHA-256 du contenu de l'image
+PEX_EXE			= 40		; 128 o : chemin de l'image (declare par son chargeur ; le coffre le verifie)
+PEX_SCRIPT		= 168		; 128 o : chemin du script (PROC_SET_SCRIPT)
+PEX_SIZE		= 296
+PEXF_IMAGE		= 1		; lance d'une image (sinon : pas de chemin ni d'empreinte)
+PEXF_RIGHTS		= 2		; droits de /sys
+PEXF_SCRIPT		= 4		; un script est declare
 SPAWN_UID		= 2		; options de SPAWN_IMAGE / SPAWN_PRELOADED (params+16) : l'uid du fils dans
 					; les bits 32-63 ; appelant d'uid 0 seulement (E_PERM)
 SYS_APPKIT_FIRST	= SYS_OPEN

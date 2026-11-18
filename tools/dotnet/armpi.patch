@@ -186,7 +186,7 @@ new file mode 100755
 index 000000000..5746b3fc0
 --- /dev/null
 +++ b/src/native/corehost/apphost/static/armpihost.cpp
-@@ -0,0 +1,166 @@
+@@ -0,0 +1,171 @@
 +// armpihost.cpp -- l'hote des programmes C# d'ARMPI quand l'executable ne porte pas de bundle :
 +//     /devtools/dotnet/dotnet app.dll [arguments]
 +// Pas de hostfxr, ni de .deps.json : les assemblys sont ceux du dossier de app.dll, puis ceux de
@@ -198,6 +198,7 @@ index 000000000..5746b3fc0
 +#include <limits.h>
 +#include <string>
 +#include <unistd.h>
++#include <armpi/syscall.h>
 +
 +extern "C"
 +{
@@ -314,6 +315,10 @@ index 000000000..5746b3fc0
 +    const char* colon = strstr(app, ":/");
 +    std::string dir(colon != nullptr ? colon + 1 : app);
 +    std::string path(dir);
++    // Korin : l'assembly que cet hote execute, dit au noyau une fois (SYS_PROC_SET_SCRIPT 0x95), avant tout code
++    // C# : le coffre a secrets (docs/KEYVAULT.md) range ses secrets sous ce chemin, pas sous celui de dotnet
++    armpi_syscall(0x95, (long)path.c_str(), 0, 0, 0, 0, 0);
++
 +    size_t slash = dir.rfind('/');
 +    dir = slash == std::string::npos ? std::string(".") : dir.substr(0, slash);
 +

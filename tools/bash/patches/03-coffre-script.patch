@@ -1,0 +1,33 @@
+Korin OS : bash dit au noyau le script qu'il execute (SYS_PROC_SET_SCRIPT), pour le coffre a secrets
+(docs/KEYVAULT.md : l'identite d'un script est son chemin, pas celui de bash).
+
+--- a/shell.c
++++ b/shell.c
+@@ -27,6 +27,10 @@
+ 
+ #include "config.h"
+ 
++#if defined (__armpi__)
++#  include <armpi/syscall.h>
++#endif
++
+ #include "bashtypes.h"
+ #if !defined (_MINIX) && defined (HAVE_SYS_FILE_H)
+ #  include <sys/file.h>
+@@ -1603,6 +1607,16 @@
+       sh_exit ((e == ENOENT) ? EX_NOTFOUND : EX_NOINPUT);
+     }
+ 
++#if defined (__armpi__)
++  /* Korin OS : le script que ce bash execute, dit au noyau une fois (SYS_PROC_SET_SCRIPT 0x95) : le coffre a
++     secrets (docs/KEYVAULT.md) range ses secrets sous ce chemin, pas sous celui de bash */
++  {
++    char *rp = realpath (filename, (char *)NULL);
++    armpi_syscall (0x95, (long)(rp ? rp : filename), 0, 0, 0, 0, 0);
++    free (rp);
++  }
++#endif
++
+   free (dollar_vars[0]);
+   dollar_vars[0] = exec_argv0 ? savestring (exec_argv0) : savestring (script_name);
+   if (exec_argv0)

@@ -391,6 +391,69 @@ int64_t sys_proc_setuid(int64_t pid, int64_t uid)
 	return 0;
 }
 
+/* SYS_PROC_EXE : l'identité d'un programme pour le coffre (docs/etude/COFFRE.md §2.1) : le chemin déclaré de son
+ * image, l'empreinte SHA-256 de son contenu (le coffre relit le fichier et compare : le chemin est ainsi
+ * vérifié), le script déclaré par un interprète */
+struct pex {
+	uint32_t flags, uid;
+	uint8_t hash[32];
+	char exe[128];
+	char script[128];
+};
+_Static_assert(sizeof(struct pex) == 296, "PEX_SIZE");
+
+int64_t sys_proc_exe(int64_t pid, uint64_t out)
+{
+	struct pex *x = kzalloc(sizeof *x);
+	if (!x)
+		return E_NOMEM;
+	uint64_t f = sched_lock_take();
+	struct process *p = proc_get((int)pid);
+	struct image *im = 0;
+	if (p && p->state != P_ZOMBIE) {
+		x->uid = (uint32_t)p->uid;
+		x->flags = p->rights ? 2 : 0;
+		if (p->script_set) {
+			x->flags |= 4;
+			memcpy(x->script, p->script, sizeof x->script);
+		}
+		im = p->image;
+		image_hold(im); /* (img_lock sous le verrou de l'ordonnanceur ; exec et la fin changent p->image sous lui) */
+	}
+	sched_lock_give(f);
+	if (!p) {
+		kfree(x);
+		return E_SRCH;
+	}
+	if (im) {
+		image_identity(im, x->exe, x->hash);
+		image_put(im);
+		x->flags |= 1;
+	}
+	int64_t r = copy_to_user(out, x, sizeof *x) ? E_FAULT : 0;
+	kfree(x);
+	return r;
+}
+
+/* SYS_PROC_SET_SCRIPT : un interprète dit quel script il exécute, une fois (avant le code du script) */
+int64_t sys_proc_set_script(uint64_t upath)
+{
+	struct process *me = sched_current()->proc;
+	char path[128];
+	if (copy_string_from_user(path, upath, sizeof path) <= 0)
+		return E_INVAL;
+	path[sizeof path - 1] = 0;
+	uint64_t f = sched_lock_take();
+	int64_t r = E_PERM;
+	if (!me->script_set) {
+		memcpy(me->script, path, sizeof path);
+		me->script_set = 1;
+		r = 0;
+	}
+	sched_lock_give(f);
+	return r;
+}
+
 int64_t sys_proc_uid(int64_t pid)
 {
 	uint64_t f = sched_lock_take();
@@ -494,6 +557,8 @@ int64_t sys_fork(void)
 	 * passagère et ses pages pendant que le fils les exécutait encore */
 	c->image = p->image;
 	image_hold(c->image);
+	memcpy(c->script, p->script, sizeof c->script); /* (le fils d'un interprète garde son script) */
+	c->script_set = p->script_set;
 	c->restorer = p->restorer;
 	c->flags = p->flags;
 	ct->priority = t->priority;
@@ -620,8 +685,13 @@ static int64_t sys_exec_image(struct thread *t, struct process *p, uint64_t path
 	vm_activate(p->vm);
 	vm_destroy(old_vm);
 	mm_free(old_mm);
-	image_put(p->image);
+	f = sched_lock_take(); /* (SYS_PROC_EXE lit p->image sous ce verrou) */
+	struct image *old_im = p->image;
 	p->image = im;
+	p->script_set = 0; /* (le nouveau programme dira son script) */
+	memset(p->script, 0, sizeof p->script);
+	sched_lock_give(f);
+	image_put(old_im);
 	/* signaux : gestionnaires remis par défaut, ignorés gardés */
 	for (int i = 0; i < NSIG; i++)
 		if (p->act[i].handler > 1)

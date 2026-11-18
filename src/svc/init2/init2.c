@@ -749,6 +749,9 @@ int main(int argc, char **argv)
 		long st[2];
 		if (sys_stat("/sys/svc/authd", st) >= 0 && korin_sys2(SYS_SVC_OPEN, "auth", 0) < 0)
 			lancer_ligne("/sys/svc/authd", 1);
+		/* le coffre à secrets (docs/KEYVAULT.md) : authd lui passe le mot de passe à la connexion */
+		if (sys_stat("/sys/svc/keyvault", st) >= 0 && korin_sys2(SYS_SVC_OPEN, "keyvault", 0) < 0)
+			lancer_ligne("/sys/svc/keyvault", 1);
 	}
 	if (korin_sys2(SYS_SVC_OPEN, "hwmanager", 0) < 0) /* (la clé d'installation : init l'a déjà lancé) */
 		lancer_ligne("/sys/svc/hwmanager", 1); /* étape 2 : hwmanager, le shell */

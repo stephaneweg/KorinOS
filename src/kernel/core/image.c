@@ -18,6 +18,7 @@
 #include <korin/lib.h>
 #include <korin/mm.h>
 #include <korin/pmm.h>
+#include <korin/sha256.h>
 #include <korin/sched.h>
 #include <korin/spinlock.h>
 #include <korin/vm.h>
@@ -42,6 +43,8 @@ struct image {
 	int window;
 	int refs;      /* process lancés d'elle + 1 si épinglée */
 	uint64_t rw_pages, lazy;
+	uint8_t hash[32]; /* SHA-256 du fichier, calculé au premier SYS_PROC_EXE (le coffre) */
+	volatile int hashed;
 };
 
 static struct image *imgs[IMG_MAX];
@@ -100,6 +103,27 @@ void image_hold(struct image *im)
 	uint64_t f = spin_lock_irqsave(&img_lock);
 	im->refs++;
 	spin_unlock_irqrestore(&img_lock, f);
+}
+
+/* le chemin déclaré et l'empreinte SHA-256 du contenu (calculée une fois : les pages d'une image scellée ne
+ * changent plus) ; l'appelant tient une référence */
+void image_identity(struct image *im, char path[80], uint8_t hash[32])
+{
+	memcpy(path, im->path, PATH);
+	path[PATH - 1] = 0;
+	if (!im->hashed) {
+		struct sha256 s;
+		sha256_init(&s);
+		for (uint64_t i = 0; i < im->npages; i++) {
+			uint64_t n = im->fsize - i * PAGE_SIZE;
+			if (n > PAGE_SIZE)
+				n = PAGE_SIZE;
+			sha256_update(&s, arch_phys_to_virt(im->pages[i]), n);
+		}
+		sha256_final(&s, im->hash);
+		__atomic_store_n(&im->hashed, 1, __ATOMIC_RELEASE);
+	}
+	memcpy(hash, im->hash, 32);
 }
 
 /* une référence de moins (process fini, exec) ; rendue à la dernière */
@@ -424,6 +448,9 @@ void image_proc_exit(struct process *p)
 	spin_unlock_irqrestore(&img_lock, f);
 	for (int i = 0; i < nd; i++)
 		img_free(drop[i]);
-	image_put(p->image);
+	uint64_t g = sched_lock_take(); /* (SYS_PROC_EXE lit p->image sous ce verrou) */
+	struct image *im = p->image;
 	p->image = 0;
+	sched_lock_give(g);
+	image_put(im);
 }

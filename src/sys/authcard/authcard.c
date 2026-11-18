@@ -6,11 +6,16 @@
  *
  * Argument : « jeton|raison|compte|1 » (1 : mot de passe demandé). Avec un mot de passe, la case « Retenir
  * pendant 5 minutes » (décochée à chaque ouverture) : cochée, authd n'en redemande pas pendant 5 minutes à ce
- * compte pour la session graphique (maquette docs/maquettes/elevation-retenir.html). */
+ * compte pour la session graphique (maquette docs/maquettes/elevation-retenir.html).
+ *
+ * Mode coffre (docs/KEYVAULT.md) : « jeton|raison|compte|1|keyvault », lancée par le service keyvault : ouvrir
+ * le coffre fermé d'un compte (mot de passe), ou laisser ses secrets à un programme qui a changé (sans mot de
+ * passe) ; la réponse va à keyvault (KV_CARD), sans la case « Retenir ». */
 #include "sys_consts.h"
 #include "uikit_import.h"
 
 #define AUTH_CARD 6
+#define KV_CARD 10
 #define E_ACCES -13
 #define M64(m, off) (*(u64 *)((u8 *)(m) + (off)))
 #define M32(m, off) (*(u32 *)((u8 *)(m) + (off)))
@@ -18,6 +23,7 @@
 static struct krt_ui ui;
 static long chan;
 static u64 token;
+static int vault; /* mode coffre */
 static long w_pw, w_msg, w_keep;
 static u8 msg[MSG_SIZE];
 
@@ -26,7 +32,7 @@ static u8 msg[MSG_SIZE];
 static long answer(int cancel, const char *pw, int keep)
 {
 	memset(msg, 0, MSG_SIZE);
-	M64(msg, 0) = AUTH_CARD;
+	M64(msg, 0) = vault ? KV_CARD : AUTH_CARD;
 	M64(msg, 8) = token;
 	M64(msg, 16) = cancel ? 1 : 0;
 	M64(msg, 24) = keep ? 1 : 0;
@@ -68,14 +74,17 @@ int main(int argc, char **argv)
 	(void)argc;
 	(void)argv;
 	static char line[512];
-	str_copy_n(line, krt_line ? krt_line : "", sizeof line);
-	char *part[4];
-	if (split(line, part, 4) < 4)
+	/* (posix_spawn du coffre : un seul argument ; SYS_SPAWN d'authd : la ligne entière) */
+	str_copy_n(line, krt_argc == 2 ? krt_argv[1] : krt_line ? krt_line : "", sizeof line);
+	char *part[5];
+	int np = split(line, part, 5);
+	if (np < 4)
 		return 1;
+	vault = np == 5 && str_eq(part[4], "keyvault");
 	token = parse_dec(part[0]);
 	const char *raison = part[1], *compte = part[2];
 	int need = part[3][0] == '1';
-	chan = korin_sys2(SYS_SVC_OPEN, "auth", 3000);
+	chan = korin_sys2(SYS_SVC_OPEN, vault ? "keyvault" : "auth", 3000);
 	if (chan < 0)
 		return 1;
 	ui_init((long)&ui);
@@ -83,7 +92,7 @@ int main(int argc, char **argv)
 	long DH = need ? 280 : 190;
 	int keep = 0; /* (gardée d'un essai à l'autre après un mauvais mot de passe) */
 	for (;;) {
-		long d = ui_dialog_begin(DW, DH, (long)TR("Autorisation"));
+		long d = ui_dialog_begin(DW, DH, (long)TR(vault ? "Coffre à secrets" : "Autorisation"));
 		if (!d)
 			return 1;
 		long y = 20;
@@ -98,11 +107,13 @@ int main(int argc, char **argv)
 			w_pw = ui_textbox(M, y, DW - 2 * M, 30, UTF_PASSWORD);
 			ui_textbox_hint(w_pw, (long)TR("Mot de passe"));
 			y += 40;
-			w_keep = ui_checkbox(M, y, 0, 0, (long)TR("Retenir pendant 5 minutes"), keep);
-			y += 30;
+			if (!vault) {
+				w_keep = ui_checkbox(M, y, 0, 0, (long)TR("Retenir pendant 5 minutes"), keep);
+				y += 30;
+			}
 		}
 		w_msg = ui_label(M, y, DW - 2 * M, 20, (long)"", ULB_DIM);
-		long e = ui_dialog_button(d, 0, (long)TR("Autoriser"), 1, UB_DEFAULT, DW - 12);
+		long e = ui_dialog_button(d, 0, (long)TR(vault && need ? "Ouvrir" : "Autoriser"), 1, UB_DEFAULT, DW - 12);
 		ui_dialog_button(d, 1, (long)TR("Annuler"), 0, 0, e);
 		ui_dialog_cancel(d, 0);
 		if (w_pw)
@@ -122,6 +133,6 @@ int main(int argc, char **argv)
 		memset(pw, 0, sizeof pw);
 		if (a != E_ACCES)
 			return 0;
-		ui_message((long)TR("Autorisation"), (long)TR("Mot de passe incorrect."), UM_OK);
+		ui_message((long)TR(vault ? "Coffre à secrets" : "Autorisation"), (long)TR("Mot de passe incorrect."), UM_OK);
 	}
 }

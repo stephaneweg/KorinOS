@@ -2534,3 +2534,38 @@ EXPORT long lang_load(const char *path)
 	lang_init();
 	return lang_add(path);
 }
+
+/* ---- le coffre à secrets (service keyvault, docs/KEYVAULT.md) : le client de src/lib/keyvault/keyvault.h ;
+ * l'identité du programme est prise par le coffre lui-même */
+#define KV_SYSCALL(n, a, b) korin_sys2((n), (a), (b))
+#include "../../lib/keyvault/keyvault.h"
+
+EXPORT long vault_set(const char *name, const void *value, long len)
+{
+	return kv_set(name, value, len);
+}
+
+EXPORT long vault_get(const char *name, void *out, long max)
+{
+	return kv_get(name, out, max);
+}
+
+EXPORT long vault_delete(const char *name)
+{
+	return kv_delete(name);
+}
+
+EXPORT long vault_list(char *out, long max)
+{
+	return kv_list(out, max);
+}
+
+EXPORT long vault_status(void)
+{
+	return kv_status();
+}
+
+EXPORT long vault_error(char *out, long max)
+{
+	return kv_error(out, max);
+}

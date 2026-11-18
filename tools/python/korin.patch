@@ -61,3 +61,48 @@
  #  endif
  #endif
  
+--- a/Python/initconfig.c
++++ b/Python/initconfig.c
+@@ -3355,6 +3355,22 @@
+ 
+ 
+ /* Get run_filename absolute path */
++#if defined(__armpi__)
++#include <armpi/syscall.h>
++/* Korin OS : le script que cet interprete execute, dit au noyau une fois (SYS_PROC_SET_SCRIPT 0x95), avant tout
++   code Python (site, .pth) : le coffre a secrets (docs/KEYVAULT.md) range ses secrets sous ce chemin, pas sous
++   celui de python3 */
++static void
++korin_set_script(const wchar_t *w)
++{
++    char *b = Py_EncodeLocale(w, NULL);
++    if (b != NULL) {
++        armpi_syscall(0x95, (long)b, 0, 0, 0, 0, 0);
++        PyMem_Free(b);
++    }
++}
++#endif
++
+ static PyStatus
+ config_run_filename_abspath(PyConfig *config)
+ {
+@@ -3365,6 +3381,9 @@
+ #ifndef MS_WINDOWS
+     if (_Py_isabs(config->run_filename)) {
+         /* path is already absolute */
++#if defined(__armpi__)
++        korin_set_script(config->run_filename);
++#endif
+         return _PyStatus_OK();
+     }
+ #endif
+@@ -3381,6 +3400,9 @@
+ 
+     PyMem_RawFree(config->run_filename);
+     config->run_filename = abs_filename;
++#if defined(__armpi__)
++    korin_set_script(config->run_filename);
++#endif
+     return _PyStatus_OK();
+ }
+ 

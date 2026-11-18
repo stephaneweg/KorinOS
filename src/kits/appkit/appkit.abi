@@ -61,4 +61,10 @@ kit_fn f_pwrite		; x0 = descripteur, x1 = tampon, x2 = octets, x3 = position -> 
 kit_fn f_exec			; x0 = chemin, x1 = argv, x2 = envp, x3 = &fds[3] (0 : inchanges) -> erreur ; sinon ne revient pas
 kit_fn f_exec_file		; x0 = reponse de V_EXEC, x1 = params EXP_* (72 o) -> erreur ; sinon ne revient pas
 kit_fn f_exec_resume		; () : etat d'AppKit d'avant un exec repris (fait seul au premier usage) (version 53)
+kit_fn vault_set		; x0 = nom, x1 = valeur, x2 = octets -> 0 : secret range dans le coffre (keyvault, docs/KEYVAULT.md)
+kit_fn vault_get		; x0 = nom, x1 = tampon, x2 = taille -> octets (taille 0 : la longueur seule) ; E_NOENT
+kit_fn vault_delete		; x0 = nom -> 0
+kit_fn vault_list		; x0 = tampon, x1 = taille -> octets : les noms de ce programme, un par ligne
+kit_fn vault_status		; -> 0 coffre ferme, 1 ouvert, 2 pas encore cree
+kit_fn vault_error		; x0 = tampon, x1 = taille -> octets : la derniere erreur du coffre (texte) (version 59)
 kit_end

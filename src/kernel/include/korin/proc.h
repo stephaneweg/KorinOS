@@ -13,6 +13,8 @@ int64_t sys_proc_rights(int64_t pid);
 int64_t sys_setuid(int64_t uid);
 int64_t sys_proc_uid(int64_t pid);
 int64_t sys_proc_setuid(int64_t pid, int64_t uid);
+int64_t sys_proc_exe(int64_t pid, uint64_t out);
+int64_t sys_proc_set_script(uint64_t path);
 int64_t sys_getppid(void);
 int64_t sys_spawn_image(uint64_t image, uint64_t size, uint64_t params);
 int64_t sys_fork(void);

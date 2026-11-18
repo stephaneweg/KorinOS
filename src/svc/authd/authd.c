@@ -35,7 +35,12 @@
  * graphique (la carte) ; pour sudo, le pid du shell qui l'a lancé (AUTH_CAN et AUTH_SUDO b = SYS_GETPPID, dit
  * par sudo : les pids ne reviennent pas, un terminal fermé n'a plus rien de retenu). Tant que le délai court,
  * AUTH_CAN rend 1 et l'élévation est accordée sans mot de passe ni carte. Le délai part de la saisie et ne
- * s'allonge pas ; il n'est qu'en mémoire (un redémarrage l'oublie). */
+ * s'allonge pas ; il n'est qu'en mémoire (un redémarrage l'oublie).
+ *
+ * Le coffre à secrets (docs/KEYVAULT.md) : sa clé dépend du mot de passe du compte. authd passe donc au service
+ * keyvault le mot de passe vérifié à la connexion (KV_UNLOCK), l'ancien et le nouveau quand il change
+ * (KV_PASSWD), le nouveau seul quand l'uid 0 le remet (KV_SETPW : le coffre fermé est alors perdu). keyvault
+ * n'appelle jamais authd (pas d'attente croisée). */
 #include "korinrt.h"
 
 #define M64(m, off) (*(u64 *)((u8 *)(m) + (off)))
@@ -372,6 +377,43 @@ static long ecrire_mdp(const char *name, const char *pw)
 	return r < 0 ? r : 0;
 }
 
+/* ---------------------------------------------------------------- le coffre (keyvault) */
+
+#define KV_UNLOCK 6
+#define KV_PASSWD 8
+#define KV_SETPW 9
+
+/* données : a, 0, b, 0, c (c peut manquer) -> la réponse de keyvault ; pas de coffre : 0 */
+static long coffre(long op, const char *a, const char *b, const char *c)
+{
+	static long ch = -1; /* (le canal se garde : pas de fermeture des canaux) */
+	if (ch < 0)
+		ch = korin_sys2(SYS_SVC_OPEN, "keyvault", 0);
+	if (ch < 0)
+		return 0;
+	static u8 m[MSG_SIZE];
+	memset(m, 0, MSG_SIZE);
+	M64(m, 0) = (u64)op;
+	u8 *d = m + MSG_DATA;
+	u64 o = 0, cap = MSG_SIZE - MSG_DATA - 1;
+	const char *p[3] = {a, b, c};
+	for (int i = 0; i < 3 && p[i]; i++) {
+		u64 n = (u64)str_len(p[i]);
+		if (o + n + 1 > cap)
+			return E_INVAL;
+		memcpy(d + o, p[i], n);
+		o += n + 1;
+	}
+	M32(m, 40) = (u32)o;
+	long r = korin_sys2(SYS_SVC_CALL, ch, m);
+	if (r >= 0)
+		r = (long)M64(m, 0);
+	memset(m, 0, MSG_SIZE);
+	if (r == E_PIPE) /* (keyvault relancé : un autre canal la prochaine fois) */
+		ch = -1;
+	return r;
+}
+
 /* ---------------------------------------------------------------- retenir 5 minutes */
 
 static struct {
@@ -644,6 +686,10 @@ static long traiter(void)
 			korin_sys1(SYS_SLEEP, 1000);
 			return E_ACCES;
 		}
+		if (coffre(KV_PASSWD, c.name, old, nw) < 0) { /* (d'abord le coffre : s'il refuse, rien ne change) */
+			journal("passwd", &c, pid, "refuse par le coffre");
+			return E_IO;
+		}
 		long r = ecrire_mdp(c.name, nw);
 		journal("passwd", &c, pid, r ? "echec de l'ecriture de /etc/shadow.ini" : "change");
 		return r;
@@ -661,6 +707,8 @@ static long traiter(void)
 		copie(t.name, sizeof t.name, who);
 		if (verifier(who, pw)) {
 			journal("connexion", &t, pid, "accordee");
+			if (coffre(KV_UNLOCK, who, pw, 0) < 0)
+				journal("connexion", &t, pid, "le coffre ne s'ouvre pas avec ce mot de passe");
 			return 0;
 		}
 		journal("connexion", &t, pid, "mauvais mot de passe");
@@ -676,6 +724,8 @@ static long traiter(void)
 		if ((const u8 *)nw >= msg + MSG_SIZE || !*who)
 			return E_INVAL;
 		long r = ecrire_mdp(who, nw);
+		if (!r && coffre(KV_SETPW, who, nw, 0) == 1)
+			ak_puts("authd : coffre vide (mot de passe remis alors qu'il etait ferme)\n");
 		struct compte t;
 		memset(&t, 0, sizeof t);
 		copie(t.name, sizeof t.name, who);

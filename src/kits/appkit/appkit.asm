@@ -19,6 +19,17 @@ include 'fileclient.inc'
 include 'lang.inc'			; la langue et les traductions
 include 'sync.inc'			; mutex et conditions (futex)
 
+; le coffre (service keyvault, docs/KEYVAULT.md) : seulement dans l'AppKit en C (appkit.c), qui remplace
+; celui-ci sur la carte ; ici, les places de la table et E_NOSYS (-38)
+vault_set:
+vault_get:
+vault_delete:
+vault_list:
+vault_status:
+vault_error:
+	mov	x0,-38
+	ret
+
 segment readable writeable
 fileclient_data
 lang_data
