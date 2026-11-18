@@ -123,7 +123,7 @@ def plan (sd, boot, ini):
 		      "needs": [n.strip () for n in sec.get ("needs", "").split (",") if n.strip ()],
 		      "required": sec.get ("required", "0"), "restart": sec.get ("restart", "0"),
 		      "publish": sec.get ("publish", "1"), "release": sec.get ("release", "0"),
-		      "config_pats": split (sec.get ("config", "")), "boot_pats": split (sec.get ("boot", "")), "part": "",
+		      "config_pats": split (sec.get ("config", "")), "merge_pats": split (sec.get ("merge", "")), "boot_pats": split (sec.get ("boot", "")), "part": "",
 		      "replaces": [n.strip () for n in sec.get ("replaces", "").split (",") if n.strip ()] }
 		p["files"] = take (name, pats)
 		p["src"] = src
@@ -194,6 +194,9 @@ def manifest_text (p, version, abi):
 		 "installed = %d" % p["bytes"], "config = " + " ".join (cfgfiles)]
 	if p["boot_pats"]: lines.append ("boot = " + " ".join (p["boot_pats"]))	# (ses fichiers de demarrage : /boot/)
 	if p["replaces"]: lines.append ("replaces = " + ", ".join (p["replaces"]))
+	# les listes de lignes qu'une app change (services.txt) : pkg y ajoute les lignes nouvelles du paquet
+	merge = [f for f in cfgfiles if any (matches (f, c) for c in p["merge_pats"])]
+	if merge: lines.append ("merge = " + " ".join (merge))
 	return "\n".join (lines) + "\n", needs, cfgfiles
 
 def write_opk (path, p, manifest):

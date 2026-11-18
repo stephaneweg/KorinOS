@@ -315,11 +315,16 @@ static int kernel_port(unsigned port, unsigned width)
 
 /* IO_PORT (core/hw.c) : les deux ports de l'i8042 (données 0x60, état et commandes 0x64),
  * en octets, pour ps2kbd, E_BUSY tant que le noyau les tient (moniteur) ; les autres pour
- * acpid (régions SystemIO de l'AML, EC 0x62/0x66, registres PM), sauf ceux du noyau */
+ * acpid (régions SystemIO de l'AML, EC 0x62/0x66, registres PM), sauf ceux du noyau. Entre
+ * les deux, 0x62 est le port de données de l'EC (refusé jusqu'au 18/11 : sur le ZBook, l'EC
+ * recevait la commande de lecture sans l'adresse, et la batterie restait illisible) ;
+ * 0x61 (haut-parleur, NMI) et 0x63 restent refusés. */
 int64_t arch_io_port(unsigned port, unsigned op, uint32_t value)
 {
 	unsigned width = 1u << (op >> 1);
-	if (port + width - 1 >= DATA && port <= STATUS) { /* 0x60..0x64 */
+	if (width == 1 && port == 0x62) {
+		/* (l'EC : à acpid) */
+	} else if (port + width - 1 >= DATA && port <= STATUS) { /* 0x60..0x64 */
 		if (width != 1 || (port != DATA && port != STATUS))
 			return E_PERM;
 		if (owned)

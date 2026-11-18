@@ -44,15 +44,26 @@ static int ec_errors;
 #define EC_OBF 0x01
 #define EC_IBF 0x02
 
+static void port_refused(UINT16 p, long r)
+{
+	static int said;
+	if (said++ < 4)
+		elog("EC : port %x refusé par le noyau (%ld)", p, r);
+}
+
 static UINT8 inb(UINT16 p)
 {
 	long r = korin_sys3(SYS_IO_PORT, p, 0, 0);
+	if (r < 0)
+		port_refused(p, r);
 	return r < 0 ? 0xFF : (UINT8)r;
 }
 
 static void outb(UINT16 p, UINT8 v)
 {
-	korin_sys3(SYS_IO_PORT, p, 1, v);
+	long r = korin_sys3(SYS_IO_PORT, p, 1, v);
+	if (r < 0)
+		port_refused(p, r);
 }
 
 /* attendre que (état & mask) == want -> 0, -1 après 100 ms */

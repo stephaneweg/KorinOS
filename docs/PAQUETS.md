@@ -56,6 +56,11 @@ Un `.opk` est un ZIP dont l'arborescence est celle de `/`, plus `PKG/manifest.in
 - **`config`** : les fichiers de l'utilisateur. Écrits s'ils manquent ou s'ils sont tels que le paquet les a laissés ;
   sinon le nouveau va à côté en `<fichier>.new`. Tout `home/` est traité plus strictement : rien n'y est écrasé,
   même pas de `.new`.
+- **`merge`** : parmi les `config`, les listes de lignes (`etc/services.txt`). Changée (Accès à distance y ajoute
+  telnetd, vncd…), la liste garde toutes ses lignes et reçoit à la fin celles du paquet qu'elle n'a pas, même en
+  commentaire (une ligne « # » est un service coupé exprès), chacune avec les lignes de commentaire qui la précèdent ;
+  pas de `.new`. Sans cela, un service nouveau (acpid, en 2026.11.50) ne démarrait pas sur un système dont la liste
+  avait changé.
 - **`boot`** (12/11/2026) : les fichiers de démarrage, des motifs comme `files =` (`kernel8.img kernel_2712.img *.mod
   config.txt` pour `armpi`, `start4.elf fixup4.dat *.dtb overlays/` pour `pi-firmware` ; sur PC, plus tard,
   `EFI/BOOT/BOOTX64.EFI korin/`). Dans l'archive ils restent à la racine (un `pkg` plus ancien les met donc à la

@@ -257,6 +257,53 @@ static inline bool write_file (const char *path, const void *b, u64 n)
 	if (!ok || rename (tmp, path) != 0) { unlink (tmp); return false; }
 	return true;
 }
+// Une liste de lignes changee par l'utilisateur (`merge =` du manifeste, services.txt) + celle du paquet -> malloc :
+// la sienne entiere, puis chaque ligne du paquet (hors commentaire) qu'elle n'a pas, meme en commentaire (« # ligne » :
+// coupee expres), avec les lignes de commentaire qui la precedent dans le paquet ; 0 : rien a ajouter
+static inline const char *ml_norm (const char *s, const char *e, size_t *n)
+{
+	while (s < e && (*s == ' ' || *s == '\t' || *s == '#')) s++;
+	while (e > s && (e[-1] == ' ' || e[-1] == '\t' || e[-1] == '\r')) e--;
+	*n = (size_t) (e - s);
+	return s;
+}
+static inline char *merge_lines (const char *mine, const char *pkg)
+{
+	size_t ml = strlen (mine), cap = ml + strlen (pkg) + 2, ol = ml;
+	char *out = (char *) malloc (cap + 1);
+	if (!out) return 0;
+	memcpy (out, mine, ml);
+	bool added = false;
+	const char *blk = pkg;				// le debut du bloc de commentaire en cours
+	for (const char *l = pkg; *l; )
+	{
+		const char *e = strchr (l, '\n'); if (!e) e = l + strlen (l);
+		const char *nx = *e ? e + 1 : e;
+		const char *t = l; while (t < e && (*t == ' ' || *t == '\t' || *t == '\r')) t++;
+		if (t == e) { blk = nx; l = nx; continue; }			// ligne vide : le bloc recommence
+		if (*t == '#') { l = nx; continue; }
+		size_t kn; const char *k = ml_norm (l, e, &kn);
+		bool have = false;
+		for (const char *m = mine; *m && !have; )
+		{
+			const char *me = strchr (m, '\n'); if (!me) me = m + strlen (m);
+			size_t mn; const char *mk = ml_norm (m, me, &mn);
+			have = mn == kn && !memcmp (mk, k, kn);
+			m = *me ? me + 1 : me;
+		}
+		if (!have)
+		{
+			if (ol && out[ol - 1] != '\n') out[ol++] = '\n';
+			memcpy (out + ol, blk, (size_t) (nx - blk)); ol += (size_t) (nx - blk);
+			if (out[ol - 1] != '\n') out[ol++] = '\n';
+			added = true;
+		}
+		blk = nx; l = nx;
+	}
+	if (!added) { free (out); return 0; }
+	out[ol] = 0;
+	return out;
+}
 // Un programme epingle (/etc/preload.txt) : vfs oublie son image quand le fichier change, elle est rechargee
 static inline void repin (const char *path)
 {
@@ -1149,7 +1196,7 @@ public:
 			// le fichier de l'utilisateur : remplace seulement s'il manque, ou tel que le paquet l'a laisse
 			bool isCfg = user_tree (rel);
 			for (const char *s = cfg; !isCfg && (s = strstr (s, rel)) != 0; s += el) if ((s == cfg || s[-1] == ' ') && (s[el] == 0 || s[el] == ' ')) isCfg = true;
-			bool skip = false;
+			bool skip = false, merge = false;
 			if (isCfg && exists (card))
 			{
 				char now[65]; const char *was = old ? old->hash (rel) : 0;
@@ -1157,9 +1204,9 @@ public:
 				for (int k = 0; !was && *repl && k < db.n; k++) if (in_list (repl, db.v[k]->name)) was = db.v[k]->hash (rel);
 				if (!sha_file (card, now) || !was || !eq (now, was))
 				{
-					kept++;
-					if (user_tree (rel)) skip = true;
-					else strncat (target, ".new", sizeof target - strlen (target) - 1);
+					if (user_tree (rel)) { kept++; skip = true; }
+					else if (in_list (man.get ("", "merge"), rel)) merge = true;	// (ses lignes + les nouvelles du paquet)
+					else { kept++; strncat (target, ".new", sizeof target - strlen (target) - 1); }
 				}
 			}
 			char dest[320], tmp[330];
@@ -1179,6 +1226,16 @@ public:
 				long x = ar_extract (a, i, (long) tmp);
 				if (x < 0) { unlink (tmp); rc = x == -28 ? E_IO : E_BADPKG; r.sayf ("%s : %s : %s", name, en, (const char *) ar_strerror (x)); break; }
 				if (!sha_file (tmp, hh)) { unlink (tmp); rc = E_IO; r.sayf ("écriture impossible : %s", tmp); break; }
+				if (merge)		// (la base garde le hash du paquet : la liste reste « changée »)
+				{
+					char *mine = read_file (card), *theirs = read_file (tmp);
+					char *both = mine && theirs ? merge_lines (mine, theirs) : 0;
+					const char *put_ = both ? both : mine;		// (rien de nouveau : la sienne telle quelle)
+					bool ok = put_ && write_file (tmp, put_, strlen (put_));
+					if (both) r.sayf ("%s : %s", rel, TR ("vos lignes gardées, les nouvelles du paquet ajoutées"));
+					free (mine); free (theirs); free (both);
+					if (!ok) { unlink (tmp); rc = E_IO; r.sayf ("écriture impossible : %s", tmp); break; }
+				}
 				if (!stage && !move (tmp, dest)) { unlink (tmp); rc = E_IO; r.sayf ("remplacement impossible : %s", dest); break; }
 			}
 			snprintf (line, sizeof line, "%s = %s\n", rel, hh); put (line);
