@@ -18,6 +18,7 @@ fichiers pkg ecrit dans /boot/ (la vraie racine de la partition de demarrage, do
 le manifeste et la base la portent (boot = ...). --sd DIR : une autre carte ; --versions FICHIER ; --no-sign : pas d'index.sig.
 --keep-unbuilt : un paquet deja publie mais pas construit ici (WebKit, .NET, bureautique... faits dans WSL) garde son
 entree et son archive telles quelles, au lieu de disparaitre de l'index (publication depuis une machine sans WSL).
+--drop NOM[,NOM...] : ces paquets sortent de l'index meme avec --keep-unbuilt (un paquet qui ne doit plus etre publie).
 
 Une archive de plus de 100 Mo (GitHub refuse le fichier) est retiree de l'index et signalee.
 
@@ -249,6 +250,7 @@ def main ():
 	ap.add_argument ("--versions", default = os.path.join (HERE, "versions.ini"))
 	ap.add_argument ("--no-sign", action = "store_true"); ap.add_argument ("--repo-name", default = "korin-packages")
 	ap.add_argument ("--keep-unbuilt", action = "store_true", help = "garder tels quels les paquets publies mais pas construits ici")
+	ap.add_argument ("--drop", default = "", help = "paquets a retirer de l'index, meme avec --keep-unbuilt (NOM,NOM...)")
 	a = ap.parse_args ()
 	if a.db_only: a.db = True
 	elif not a.out: sys.exit ("mkrepo: --out DOSSIER (ou --db-only)")
@@ -316,8 +318,9 @@ def main ():
 	kept = set ()
 	if a.keep_unbuilt:				# (les paquets publies mais pas construits ici : l'entree publiee, telle quelle)
 		built = set (p["name"] for p in pkgs)
+		drop = set (x for x in a.drop.split (",") if x)
 		for n in old.sections ():
-			if n == "repo" or n in built: continue
+			if n == "repo" or n in built or n in drop: continue
 			o = old[n]
 			idx += ["[%s]" % n] + ["%s = %s" % kv for kv in o.items ()] + [""]
 			kept.add (os.path.basename (o.get ("file", "")))
