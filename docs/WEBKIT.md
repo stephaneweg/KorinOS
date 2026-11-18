@@ -610,6 +610,20 @@ la valeur. Ce qu'on y lit :
   hérite de l'environnement : `posix_spawn` avec `environ`, ProcessLauncherOnyx ; JSC lit `JSC_<option>` par
   `getenv`) ; si elle passe alors, le JIT x86-64 calcule faux.
 
+**La trace du ZBook (18/11)** : l'heure est juste (UTC), aucune erreur JavaScript, mais
+`subtle.encrypt AES-GCM iv=12 aad=10 données=14 ÉCHEC OperationError` juste après `generateKey AES-GCM 256` et
+`exportKey raw` (32 octets) : le chiffrement du mot de passe échoue dans WebKit, la page n'envoie rien et affiche
+« incorrect ». C'est donc **AES-GCM de WebCrypto sur le PC** : les essais de `crypto.html` n'ont tourné que sur
+l'AArch64 (QEMU du Pi), jamais sur l'OpenSSL x86-64 (son assembleur AES-NI / VAES). Pour trouver la variante qui
+échoue, `tests/gcm.html` (l'appel exact de Facebook, puis une variante à la fois : tagLength, clé importée, sans AAD,
+tailles de clé et de texte, valeurs connues, CBC et CTR), dans Jet, puis une seconde fois sans AES-NI ni PCLMUL dans
+OpenSSL (le processus web hérite de l'environnement) :
+
+```
+/apps/jet.app/main /webkit/gcm.html
+OPENSSL_ia32cap="~0x200000200000000" /apps/jet.app/main /webkit/gcm.html
+```
+
 ## https : le fichier des autorités (30/10/2026)
 
 `/etc/ca-bundle` (le paquet Mozilla, repris d'Onyx ; `skel/sd0/etc`) : curl est construit avec ce

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>AES-GCM</title></head>
+<body><pre id="out">attente</pre>
+<script type="module">
+// gcm.html -- ce qui fait échouer crypto.subtle.encrypt AES-GCM (docs/WEBKIT.md, « Connexion à Facebook ») : l'appel
+// exact de la page de connexion de Facebook (clé de 256 bits tirée par generateKey, IV nul de 12 octets, 10 octets de
+// données associées, 14 octets, sans tagLength), puis une variante à la fois. À ouvrir dans Jet : /webkit/gcm.html.
+const out = document.getElementById("out"), lines = [];
+let bad = 0;
+const s = crypto.subtle, te = new TextEncoder();
+const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
+const unhex = h => new Uint8Array(h.match(/../g).map(x => parseInt(x, 16)));
+const show = () => { out.textContent = lines.join("\n"); };
+async function one(name, f) {
+	try { const r = await f(); if (r !== true) bad++; lines.push((r === true ? "ok    " : "ECHEC ") + name + (r === true ? "" : " : " + r)); }
+	catch (e) { bad++; lines.push("ECHEC " + name + " : " + (e && e.name) + " " + (e && e.message)); }
+	show();
+}
+const gen = (bits, ex = true) => s.generateKey({ name: "AES-GCM", length: bits }, ex, ["encrypt", "decrypt"]);
+const imp = (bytes) => s.importKey("raw", bytes, "AES-GCM", true, ["encrypt", "decrypt"]);
+const enc = async (k, p, o = {}) => {
+	const a = { name: "AES-GCM", iv: o.iv || new Uint8Array(12) };
+	if (o.aad !== null) a.additionalData = o.aad || te.encode("1731900000");
+	if (o.tag) a.tagLength = o.tag;
+	const c = await s.encrypt(a, k, p);
+	const d = await s.decrypt(a, k, c);
+	return hex(d) === hex(p) ? true : "aller-retour faux";
+};
+const p14 = new Uint8Array(14).fill(0x61);
+
+lines.push("cœurs " + navigator.hardwareConcurrency + ", " + navigator.userAgent);
+await one("Facebook : generateKey 256, IV nul 12, AAD 10, 14 octets, sans tagLength", async () => enc(await gen(256), p14));
+await one("  avec tagLength 128", async () => enc(await gen(256), p14, { tag: 128 }));
+await one("  clé importée (32 octets nuls)", async () => enc(await imp(new Uint8Array(32)), p14));
+await one("  clé importée de l'export d'une clé tirée", async () => enc(await imp(await s.exportKey("raw", await gen(256))), p14));
+await one("  sans AAD", async () => enc(await gen(256), p14, { aad: null }));
+await one("  IV au hasard", async () => enc(await gen(256), p14, { iv: crypto.getRandomValues(new Uint8Array(12)) }));
+await one("  clé de 128 bits", async () => enc(await gen(128), p14));
+await one("  clé de 192 bits", async () => enc(await gen(192), p14));
+for (const n of [0, 1, 15, 16, 17, 25, 32, 64, 1000])
+	await one("  " + n + " octets", async () => enc(await gen(256), new Uint8Array(n).fill(0x62)));
+await one("GCM cas 4 (AES-128, AAD 20, valeur connue)", async () => {
+	const k = await s.importKey("raw", unhex("feffe9928665731c6d6a8f9467308308"), "AES-GCM", false, ["encrypt"]);
+	const c = await s.encrypt({ name: "AES-GCM", iv: unhex("cafebabefacedbaddecaf888"), additionalData: unhex("feedfacedeadbeeffeedfacedeadbeefabaddad2") }, k,
+		unhex("d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39"));
+	return hex(c).endsWith("5bc94fbc3221a5db94fae95ae7121a47") || "valeur fausse " + hex(c).slice(-32);
+});
+await one("AES-256 IV nul AAD horodatage (valeur connue)", async () => {
+	const k = await s.importKey("raw", new Uint8Array(32), "AES-GCM", false, ["encrypt"]);
+	const c = await s.encrypt({ name: "AES-GCM", iv: new Uint8Array(12), additionalData: te.encode("1731900000") }, k, te.encode("Le chiffrement sous ARMPI"));
+	return hex(c) === "82c2605e25090d08752ba8b6d487bd6b1d1570ea76f4672498f70f35afec4a61ce8aa626d223ac356b" || "valeur fausse";
+});
+await one("AES-CBC 256", async () => {
+	const k = await s.generateKey({ name: "AES-CBC", length: 256 }, false, ["encrypt", "decrypt"]);
+	const a = { name: "AES-CBC", iv: new Uint8Array(16) };
+	return hex(await s.decrypt(a, k, await s.encrypt(a, k, p14))) === hex(p14) || "aller-retour faux";
+});
+await one("AES-CTR 256", async () => {
+	const k = await s.generateKey({ name: "AES-CTR", length: 256 }, false, ["encrypt", "decrypt"]);
+	const a = { name: "AES-CTR", counter: new Uint8Array(16), length: 64 };
+	return hex(await s.decrypt(a, k, await s.encrypt(a, k, p14))) === hex(p14) || "aller-retour faux";
+});
+lines.push("FINI : " + bad + " echecs");
+show();
+document.title = "FINI " + bad;
+</script></body></html>
