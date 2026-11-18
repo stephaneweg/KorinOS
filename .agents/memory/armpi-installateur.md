@@ -42,3 +42,5 @@ par `pkg --root /media/tgt add` (repli sur l'archive de la clé ; le vrai télé
 Décisions : docs/etude/INSTALLATEUR.md. Publier depuis un worktree propre (git worktree, Windows git) : sinon les
 tables .abi non commitées des autres sessions montent l'ABI (doit rester 616) ; remettre les paquets que mkrepo
 reconstruit à cause des versions.ini montées par d'autres.
+
+**18/11, état vérifié et décision** : étapes 1 à 6 et 8 faites (clé live, installation sur le ZBook par l'utilisateur, réinstallation). **Disque USB externe abandonné** (étape 7 : l'utilisateur n'en veut pas). Restent : étape 9 (mettre à jour un Korin installé depuis la clé, en gardant les logiciels ; recréer l'entrée du firmware), essai réel du téléchargement HTTPS pendant l'installation, l'effet des comptes avec `access = enforce`.

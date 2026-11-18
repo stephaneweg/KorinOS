@@ -1,6 +1,8 @@
 # Étude : une clé USB d'installation pour le PC
 
-Demandée le 15/11/2026. Rien n'est fait. Ce document propose un modèle et un plan. Les réponses de l'utilisateur
+Demandée le 15/11/2026. **État (18/11/2026)** : étapes 1 à 6 et 8 faites, clé publiée (pc 2026.11.49) et installation
+faite sur le ZBook ; l'étape 7 (disque USB externe) est abandonnée ; reste l'étape 9 (mise à jour par la clé). Ce
+document propose un modèle et un plan. Les réponses de l'utilisateur
 (15/11) sont au §10 et déjà reportées dans le texte.
 
 But : démarrer le PC sur une clé USB, choisir les partitions du disque interne (supprimer, créer, formater, points
@@ -9,7 +11,7 @@ composants, régler écran, Wi-Fi, clavier et région, puis créer le mot de pas
 utilisateur.
 
 Cible : le PC (ZBook d'abord, mais rien de propre au ZBook). Korin s'installe sur le **disque NVMe interne** ou sur
-un **disque USB externe** (réponse 6). IDE, SATA et PATA viendront peut-être plus tard. Le Pi garde ses images de
+un **disque USB externe** (réponse 6 ; abandonné le 18/11/2026, voir §3.5). IDE, SATA et PATA viendront peut-être plus tard. Le Pi garde ses images de
 carte SD et l'étape Disque de Setup.
 
 ## 0. Résumé
@@ -177,6 +179,9 @@ kit de stockage le jour où Disks en a besoin. Pour commencer, une bibliothèque
 la vérification) et une commande `gpt` (essais, `gpt show`, `gpt apply plan.ini`) suffit.
 
 ### 3.5 Disque USB externe
+
+**Abandonné le 18/11/2026** (l'utilisateur n'en veut pas) : l'installateur ne vise que le NVMe. Le texte qui suit
+reste pour mémoire.
 
 Un disque USB externe est une cible au même titre que le NVMe (réponse 6). Différences :
 
@@ -367,7 +372,7 @@ vérifiée par le pilote et non par l'application.
 | 4 | **Setup --install** | pages Disque (A, B, C), Points de montage, Résumé ; `mkfs` sur une source non montée ; copie et `pkg --root` ; dépôt hors ligne |
 | 5 | **Démarrage** | chargeur sur la racine ou l'ESP, `root=` dans `boot.cfg`, `firmware = install/done`, entrée « Démarrer Korin installé » du menu de la clé |
 | 6 | **Comptes** | page Comptes, `users.ini`, `elevate.ini`, `shadow.ini`, empreintes ; effet réel avec le multi-utilisateur (étapes 2, 4, 6) |
-| 7 | **Disque USB externe** | plan et protection dans `usbstorage`, chargeur sur l'ESP du disque, `init.txt` générique qui lance aussi l'USB |
+| 7 | ~~**Disque USB externe**~~ (abandonné le 18/11) | plan et protection dans `usbstorage`, chargeur sur l'ESP du disque, `init.txt` générique qui lance aussi l'USB |
 | 8 | **Vrai ZBook** | cas A, puis B si voulu |
 | 9 | **Plus tard : réparer, mettre à jour** | la clé reconnaît une installation de Korin (`/korin`, `var/pkg/db`), garde `/home`, `/etc` et `local.tar`, remplace le système, recrée l'entrée NVRAM si elle manque |
 

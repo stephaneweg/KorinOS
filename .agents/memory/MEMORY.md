@@ -114,9 +114,9 @@
 - [Branche future main](armpi-branche-future-main.md) — 15/11 : claude/x86-64-pc deviendra main ; ne pas ménager les autres branches pour les gros chantiers
 - [Arbre Unix](armpi-arbre-unix.md) — 15/11 : / = volume système, /home/<user>, /media, /net, montage dans un dossier, /devtools, /sbin ; remplace SD0: → SYS:
 - [Serveur MCP](armpi-mcp.md) — 15/11 : étude docs/etude/MCP.md (korin-mcp : capture, entrées, app_run, kit_api ; client MCP à ajouter à claude-acp ; korin-mcp-sys pour pilotes, matériel, audit ; fautes, arbre des widgets, kits et appels système exposés), rien de fait
-- [Installateur USB](armpi-installateur.md) — 15/11 : clé live + Setup --install, nvme -I, GPT, racine par GUID, NVRAM par korin.efi ; étude docs/etude/INSTALLATEUR.md avec réponses (FAT32, ESP séparée, base sur la clé, elevate.ini, NVMe+USB), rien de fait
+- [Installateur USB](armpi-installateur.md) — 15/11 : clé live + Setup --install, nvme -I, GPT, racine par GUID, NVRAM par korin.efi ; clé live et installation sur le ZBook faites (pc 2026.11.49), USB externe abandonné (18/11) ; reste la mise à jour par la clé
 - [OAuth du système](armpi-oauth.md) — 16/11 : service oauthd + oauth_* de NetKit + commande oauth, client_id de l'utilisateur ; QEMU PC vérifié, connexion Google réelle validée sur le ZBook ; pc 2026.11.17
-- [Système de fichiers](armpi-systeme-fichiers.md) — 16/11 : étude docs/etude/SYSTEME-FICHIERS.md, ext4 maison pour /home + indexd sur SQLite (étiquettes, couleurs en xattrs), rien de fait, 10 questions en attente
+- [Système de fichiers](armpi-systeme-fichiers.md) — 16/11 : étude docs/etude/SYSTEME-FICHIERS.md, ext4 maison (lecture, écriture, mkfs faits ; journal au plan le 18/11) + indexd sur SQLite à faire
 - [Idée emerge](armpi-idee-emerge.md) — pour plus tard, surtout Korin PC : recettes de construction du dépôt exécutées dans l'OS, à la Gentoo, options dans /etc
 - [Idée pibuild + Godot](armpi-idee-pibuild-godot.md) — pour plus tard : pibuild reconnaît project.godot, exporte le jeu et l'installe dans /apps
 - [Fonds d'écran](armpi-fonds-ecran.md) — fonds d'Onyx dans Korin (17/11) : wallpaper.c commun voronoy/Réglages, wallpaper.ini personnel, korin.wallpaper

@@ -486,7 +486,8 @@ chaque campagne. Rien n'écrit sur le NVMe du ZBook avant l'étape 8.
   redevient « propre » après chacune (vfs arrête le service au démontage sans toujours envoyer FS_SYNC). Sous QEMU
   (`installkey.py --disktest ext4write`) : mkdir, cp, cp -r, mv, rm, rm -r et des redirections de bash sur la
   partition ; `e2fsck -fn` sans erreur ensuite, le contenu juste (debugfs).
-- **Le journal (étape 4) n'est pas fait** : une coupure pendant une écriture peut laisser une incohérence, que
+- **Le journal (étape 4) est au plan (décision du 18/11/2026)**, avec l'étape 0 (`BLK_FLUSH`, pas encore dans `nvme`)
+  qu'il exige. Il n'est pas fait : une coupure pendant une écriture peut laisser une incohérence, que
   seul e2fsck répare (pas encore dans Korin).
 - **Pas encore fait de l'étape 2** : les sommes de contrôle ne sont pas vérifiées à la lecture, les xattrs ne sont
   pas rendus, une recherche dans un grand dossier est linéaire (pas par le hachage htree), les lectures passent

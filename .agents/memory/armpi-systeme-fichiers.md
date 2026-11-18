@@ -37,3 +37,5 @@ l'étude et ses réponses (§9). Prérequis repérés :
 `/media/sd1` du Pi n'est jamais converti ni annoté.
 
 **16/11, décisions de l'utilisateur** : indexd (étiquettes, couleurs) plus tard. Modèle voulu (étude §10) : une couleur est une étiquette ; tables tags (id, type, name) et tag_files (tag, path) indexée sur tag ; recherche A + B (ou), A * B (et), A !B (et pas), parenthèses, traduite en SQL par un petit analyseur. Avec l'installateur : service ext4fs, mkfs exFAT et ext4.
+
+**18/11, au plan (demande de l'utilisateur)** : le **journal ext4** (étude §6, étape 4 : jbd2, validation, rejeu au montage, `fsync`, essais de coupure), précédé de l'étape 0 (`BLK_FLUSH`, FUA ; absent de `nvme` le 18/11). Aujourd'hui `mkfs -t ext4` crée un journal vide, ext4w écrit sans lui et un journal à rejouer met le volume en lecture seule : FAT32 reste conseillé dans l'installateur.
