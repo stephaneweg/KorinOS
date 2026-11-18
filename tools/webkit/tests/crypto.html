@@ -45,6 +45,23 @@ const s = crypto.subtle;
 			return eq(await s.decrypt({ name: alg, ...extra }, k, c), p);
 		});
 	}
+	// Valeurs connues avec données associées (AAD) : le cas 4 de GCM (McGrew et Viega, AES-128, tag 128), puis
+	// le chiffrement du mot de passe de Facebook (#PWD_BROWSER:5) : clé de 256 bits, IV nul, l'horodatage en AAD.
+	const unhex = h => new Uint8Array(h.match(/../g).map(x => parseInt(x, 16)));
+	await one("AES-GCM, AAD (GCM cas 4)", async () => {
+		const k = await s.importKey("raw", unhex("feffe9928665731c6d6a8f9467308308"), "AES-GCM", false, ["encrypt", "decrypt"]);
+		const a = { name: "AES-GCM", iv: unhex("cafebabefacedbaddecaf888"), additionalData: unhex("feedfacedeadbeeffeedfacedeadbeefabaddad2") };
+		const p = unhex("d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39");
+		const c = await s.encrypt(a, k, p);
+		return hex(c) === "42831ec2217774244b7221b784d0d49ce3aa212f2c02a4e035c17e2329aca12e21d514b25466931c7d8f6a5aac84aa051ba30b396a0aac973d58e091"
+			+ "5bc94fbc3221a5db94fae95ae7121a47" && eq(await s.decrypt(a, k, c), p);
+	});
+	await one("AES-GCM 256, IV nul, horodatage en AAD (Facebook)", async () => {
+		const k = await s.importKey("raw", new Uint8Array(32), { name: "AES-GCM", length: 256 }, true, ["encrypt"]);
+		const c = await s.encrypt({ name: "AES-GCM", iv: new Uint8Array(12), additionalData: te.encode("1731900000"), tagLength: 128 },
+			k, te.encode("Le chiffrement sous ARMPI"));
+		return hex(c) === "82c2605e25090d08752ba8b6d487bd6b1d1570ea76f4672498f70f35afec4a61ce8aa626d223ac356b";
+	});
 	await one("AES-KW", async () => {
 		const w = await s.generateKey({ name: "AES-KW", length: 256 }, false, ["wrapKey", "unwrapKey"]);
 		const k = await s.generateKey({ name: "AES-GCM", length: 128 }, true, ["encrypt"]);

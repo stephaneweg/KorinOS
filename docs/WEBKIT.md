@@ -572,6 +572,44 @@ REJETEE` des cadres de hCaptcha, les `message de …` (les échanges entre l'ifr
 requêtes (`api.hcaptcha.com/getcaptcha`, `checkcaptcha`, et leur code). `--trace-net` écrit les adresses entières :
 pas d'identifiant de compte dans celles de hCaptcha, mais relire avant de partager.
 
+## Connexion à Facebook (18/11/2026)
+
+* **Le symptôme** (ZBook) : « informations de connexion incorrectes » tout de suite, avec un mot de passe juste (le
+  même marche sur Gmail).
+* **Comment Facebook envoie le mot de passe** : jamais en clair. Le script de la page le chiffre (champ `encpass` =
+  `#PWD_BROWSER:5:<horodatage>:<base64>`) : une clé AES-GCM de 256 bits (`crypto.subtle`, IV nul, l'horodatage en
+  données associées), elle-même scellée en JavaScript pur (X25519, BLAKE2b) pour la clé publique du serveur. Si le
+  serveur ne sait pas déchiffrer, ou si l'horodatage est trop loin de son heure, il répond « mot de passe incorrect »,
+  pas « erreur ». Un mauvais résultat du chiffrement donne donc exactement ce symptôme.
+* **Écarté** : AES-GCM avec données associées. Le code OpenSSL de WebKit les passe bien, et `tests/crypto.html` a deux
+  vecteurs connus (le cas 4 de GCM, et le chiffrement de Facebook avec une clé nulle). La page est vérifiée dans un
+  navigateur de référence. **À lancer dans Jet** : `/apps/jet.app/main /webkit/crypto.html` (stage.sh avec `TESTS=1`).
+* **Les pistes qui restent** : l'heure du ZBook (Korin est en UTC : une horloge réglée à l'heure locale serait en
+  avance d'une heure) ; une erreur JavaScript dans le script de connexion ; un mauvais calcul du JIT x86-64 dans le
+  scellement en JavaScript pur (arithmétique de `Float64Array`), qui donnerait une clé que le serveur ne peut pas ouvrir.
+* **La trace à lancer sur le ZBook** (`login-probe.js` est livré dans `/apps/jet.app/`) :
+
+```
+date                                      (comparer à l'heure UTC réelle)
+cp /apps/jet.app/login-probe.js /etc/web-probe.js
+touch /etc/web-console
+/apps/jet.app/main --trace-net https://www.facebook.com/
+  (se connecter une fois, puis fermer Jet)
+journal                                   puis D:\journal.txt
+rm /etc/web-probe.js /etc/web-console
+```
+
+Dans le journal, les lignes `login <page>:` : l'heure de la machine ; les `ERREUR` et `PROMESSE REJETÉE` ; chaque appel
+de `crypto.subtle` et son issue ; l'envoi du formulaire et les POST, avec les noms des champs. Des champs de mot de
+passe, la sonde n'écrit que la version, l'horodatage (et son écart avec l'horloge de la machine) et la taille, jamais
+la valeur. Ce qu'on y lit :
+* **aucun envoi ni POST** : le script s'arrête avant, l'erreur est dans les `ERREUR` / `PROMESSE REJETÉE` ;
+* **`#PWD version 0`** : le chiffrement a échoué dans la page (le mot de passe part en clair, Facebook le refuse) ;
+* **`#PWD version 5`, POST parti, réponse « incorrect »** : l'heure (date ci-dessus) ou le scellement en JavaScript. Pour
+  trancher, refaire la connexion avec le JIT éteint, par exemple `JSC_useJIT=false /apps/jet.app/main …` (le processus web
+  hérite de l'environnement : `posix_spawn` avec `environ`, ProcessLauncherOnyx ; JSC lit `JSC_<option>` par
+  `getenv`) ; si elle passe alors, le JIT x86-64 calcule faux.
+
 ## https : le fichier des autorités (30/10/2026)
 
 `/etc/ca-bundle` (le paquet Mozilla, repris d'Onyx ; `skel/sd0/etc`) : curl est construit avec ce
