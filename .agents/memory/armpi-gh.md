@@ -14,3 +14,5 @@ Analyse (docs/etude/GH.md) : `gh` est en Go (~250 000 lignes, Go 1.24+), aucun p
 par [[armpi-linux-compat]] quand elle existera. Trois questions en attente (client_id, étape 2, le Pi).
 
 **How to apply:** relire l'étude et les réponses avant de commencer. Voir [[armpi-oauth]], [[armpi-coffre]].
+
+**18/11, piste plus simple notée (pas maintenant, dit l'utilisateur)** : sans gh, git-credential-korin lancerait lui-même le code d'appareil pour github.com (fournisseur [github] dans providers.ini, `oauth token NOM` à ajouter) ; gh ne servirait plus qu'aux PR, issues, api.
