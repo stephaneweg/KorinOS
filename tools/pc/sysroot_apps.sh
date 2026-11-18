@@ -32,6 +32,9 @@ done
 A=build/pc/apps/sdroot
 if [ -d "$A" ]; then
 	cp -r "$A"/. "$OUT/"
+	# l'installateur n'est que sur la clé d'installation (tools/pc/installkey.py le prend dans build/pc/apps/sdroot) :
+	# ni dans l'arbre système, ni en paquet
+	rm -rf "$OUT/apps/installer.app"
 fi
 # l'icône de chaque app (tools/icons/rendered, comme build.ps1 sur le Pi : elle part avec l'app)
 for d in "$OUT"/apps/*.app; do
