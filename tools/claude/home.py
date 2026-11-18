@@ -6,7 +6,7 @@ Pose dans <racine>/.claude-acp :
   AGENTS.md          les consignes sur Korin, dans le prompt système de chaque séance (tools/claude/home/AGENTS.md)
   skills/<nom>/      les compétences : celles du dépôt (.agents/skills : système, langages, kits, POSIX, port,
                      paquets) et celles de Vibe (tools/vibe/home/skills : korin et le guide du développeur, korin-app
-                     et son squelette, korin-graphics, korin-diag, korin-csharp, korin-freebasic, korin-forge, korin-godot)
+                     et son squelette, korin-graphics, korin-diag, korin-csharp, korin-freebasic, korin-forge, korin-godot, korin-game)
 Le reste (.env et la clé, config.toml, sessions, logs) est à l'utilisateur et n'est pas touché ; les compétences
 sont remplacées en entier.
 """
@@ -42,6 +42,16 @@ EXAMPLES = ["targets", "2048", "calculator", "snake", "bubbles", "notes"]
 ex = os.path.join(skills, "korin-app", "examples")
 for a in EXAMPLES:
     shutil.copytree(os.path.join(root, "src", "apps", a), os.path.join(ex, a),
+                    ignore=shutil.ignore_patterns("*.asm", "*.inc", "*.rgba", "*.png", "*.bin"))
+# korin-game : le cadre des jeux en C (src/inc) et trois jeux à lire (comme tools/vibe/home.py)
+GAME_INC = ["gamefb.h", "gamedraw.h", "gamepause.h", "gamesound.h", "gamepad.h"]
+GAME_EXAMPLES = ["arkanoid", "tetris", "invaders"]
+game = os.path.join(skills, "korin-game")
+os.makedirs(os.path.join(game, "inc"), exist_ok=True)
+for f in GAME_INC:
+    shutil.copyfile(os.path.join(root, "src", "inc", f), os.path.join(game, "inc", f))
+for a in GAME_EXAMPLES:
+    shutil.copytree(os.path.join(root, "src", "apps", a), os.path.join(game, "examples", a),
                     ignore=shutil.ignore_patterns("*.asm", "*.inc", "*.rgba", "*.png", "*.bin"))
 print("%s : AGENTS.md, %d compétences, %d pages du guide, exemples %s" % (home, len(names), len(pages),
                                                                        ", ".join(EXAMPLES)))

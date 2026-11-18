@@ -46,6 +46,8 @@ Pièges déjà rencontrés :
 * **`korin`** : le système : les **kits** (UIKit, AudioKit, NetKit...), la libc et ce que la couche POSIX n'a pas,
   les services, le guide du développeur complet (dans le dossier de la compétence).
 * **`korin-graphics`** : dessiner, animer, faire un jeu (affichage, boucle, entrées, images, tactile).
+* **`korin-game`** : un jeu d'arcade en C comme ceux du système (Tetris, Invaders, Arkanoid) : le cadre des
+  jeux (en-têtes joints), plein écran, pause, manette, sons, record ; et comment concevoir le jeu.
 * **`korin-diag`** : diagnostiquer : process, charge, journal du noyau, fautes, mémoire, carte, réseau, son, GPU.
 * **`korin-forge`** (avec Forge, sur le PC) : modéliser une pièce 3D en pilotant Forge, la CAO, par ses outils
   MCP `forge_*` ; à charger pour toute demande de pièce, de modèle 3D ou de CAO.
