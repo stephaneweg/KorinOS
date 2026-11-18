@@ -1,0 +1,9 @@
+# Manifeste de Météo (lu par le dock, la barre de menus, le lanceur et PocketQI)
+name     = Météo
+category = Accessoires
+description = Le temps qu'il fait et les prévisions des quatre jours qui viennent, pour une ville, par Open-Meteo.
+keywords = météo temps prévisions température pluie vent neige ville weather widget bureau
+help = Écrire une ville en haut, et au besoin son pays (nom ou code à deux lettres, comme BE ou FR), puis Entrée.
+help = Fichier, Actualiser (Ctrl+R) recharge les prévisions ; elles se rechargent seules toutes les 15 minutes.
+help = La dernière ville est gardée pour la prochaine ouverture.
+help = Fichier, Afficher sur le bureau met la même carte sur le bureau, sous l'Agenda, à chaque session ; un clic dessus ouvre Météo pour changer de ville.

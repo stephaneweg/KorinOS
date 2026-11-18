@@ -460,6 +460,19 @@ def clock(ic):
     ic.fill(ic.circ(50, 50, 3.8), 0xE8452C)
 
 
+@icon('weather', 0x63C0F7, 0x2A7BD8)
+def weather(ic):
+    # le soleil derriere un nuage
+    if not ic.small:
+        for i in range(8):
+            a = math.radians(i * 45 + 22.5)
+            ic.fill(ic.line([(60 + 21 * math.sin(a), 38 - 21 * math.cos(a)), (60 + 27 * math.sin(a), 38 - 27 * math.cos(a))], 3.4), 0xFFD54A)
+    ic.fill(ic.circ(60, 38, 16), Grad(0xFFE680, 0xFFAA22, 100))
+    cl = ic.many([ic.ell_pts(36, 62, 13, 13), ic.ell_pts(53, 54, 17, 17), ic.ell_pts(69, 63, 12, 12),
+                  ic.rr_pts(23, 60, 58, 15, 7.5)])
+    ic.raised(cl, Grad(0xFFFFFF, 0xD6E2EE, 100))
+
+
 @icon('editor', 0x8A6DF2, 0x4C2FC0)
 def editor(ic):
     doc(ic, 22, 14, 50, 70)
