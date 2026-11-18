@@ -1,6 +1,6 @@
 ---
 name: armpi-batterie
-description: Batterie du PC (17-18/11) : acpid sur ACPICA, alertes, profil d'énergie ; publié en pc 2026.11.50 ; ZBook : port 0x62 refusé par le noyau, corrigé (edbed0f1), pas encore réessayé
+description: Batterie du PC (17-18/11) : acpid sur ACPICA, alertes, profil d'énergie ; publié en pc 2026.11.50 ; ZBook : port 0x62 refusé par le noyau, corrigé (edbed0f1), publié en pc 2026.11.52, VALIDÉ sur le ZBook
 metadata:
   type: project
 ---
@@ -39,3 +39,5 @@ Sur le ZBook, « Batterie absente ou illisible » pour deux raisons :
    (la commande 0x80 passait, l'adresse non). 0x62 permis (edbed0f1) ; acpid note les ports refusés.
 **Non compilé ni essayé** (WSL tombé en panne : l'utilisateur relance lui-même une construction générale). À
 faire : publier pc avec ce noyau, acpid et pkg (paquet pkgman ?), puis réessayer sur le ZBook.
+**18/11 matin : publié en pc 2026.11.52 + pkgman 1.0.16 (KorinOS-pub 755c04d2) ; l'utilisateur confirme que la
+batterie marche sur le ZBook** (« le gestionnaire de batterie semble ok »).
