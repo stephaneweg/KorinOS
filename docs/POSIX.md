@@ -473,7 +473,8 @@ et la page n'envoyait pas le mot de passe ([WEBKIT.md](WEBKIT.md), « Connexion 
   le code d'`on_exit`). L'édition de liens de `posixtest` du PC : les fonctions viennent d'`exitproc.o`,
   `__atexit0` de newlib a disparu, et `register_fini` est la première entrée de `.init_array`. `posixtest` a deux
   essais de plus (groupe thread) : 1 000 `__cxa_atexit` sous un faux module puis `__cxa_finalize` (ordre inverse,
-  une fois), et 100 `atexit` de plus acceptés. **Pas encore lancé sur Korin** (`posixtest thread`, sur le ZBook ou QEMU).
+  une fois), et 100 `atexit` de plus acceptés. **Sur le ZBook** (18/11) : `posixtest thread` 21/0, les deux essais
+  compris, et le programme sort normalement avec plus de 100 fonctions inscrites.
 * **Jet** initialise de plus OpenSSL au départ, sans `atexit` (`OPENSSL_INIT_NO_ATEXIT`, `main.cpp`) : cela ne
   dépend plus de la table.
 
