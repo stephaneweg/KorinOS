@@ -18,6 +18,7 @@
 // "koton HOME:/koton/songs/a.kson" opens it.
 //
 #include "ui/view.h"
+#include <dirent.h>
 #include "ui/chrome.h"
 #include "ui/ai_dialog.h"
 #include "ui/chain.h"
@@ -221,12 +222,35 @@ static bool openFile (const char *path)
 	return true;
 }
 static void cmdNew () { if (!askSave ()) return; g_doc.newSong (); afterLoad (); setStatus ("A new song."); }
+/* (le dossier a-t-il un fichier ou un dossier visible ?) */
+static int dir_has_entries (const char *d)
+{
+	DIR *o = opendir (d);
+	if (!o) return 0;
+	struct dirent *e;
+	int n = 0;
+	while (!n && (e = readdir (o)) != 0) n = e->d_name[0] != '.';
+	closedir (o);
+	return n;
+}
+// The demos and songs of the packages are in /home/public/koton (koton-demos, for every account): opened from there while
+// the account has no song of its own; never saved there (HOME:/koton/songs).
+static const char *openDir ()
+{
+	if (!strcmp (g_settings.lastDir, "HOME:/koton/songs") && !dir_has_entries ("HOME:/koton/songs") && dir_has_entries ("/home/public/koton"))
+		return "/home/public/koton";
+	return g_settings.lastDir;
+}
+static const char *saveDir ()
+{
+	return strncmp (g_settings.lastDir, "/home/public", 12) ? g_settings.lastDir : "HOME:/koton/songs";
+}
 static void cmdOpen ()
 {
 	if (!askSave ()) return;
 	char p[256];
 	mkdir ("HOME:/koton", 0755); mkdir ("HOME:/koton/songs", 0755);
-	if (!fileOpen (p, sizeof p, g_settings.lastDir, "Koton songs|*.kson;*.sq|All files|*")) return;
+	if (!fileOpen (p, sizeof p, openDir (), "Koton songs|*.kson;*.sq|All files|*")) return;
 	if (openFile (p))
 	{
 		char *s = strrchr (p, '/'); if (s) { *s = 0; snprintf (g_settings.lastDir, sizeof g_settings.lastDir, "%s", p); g_settings.save (); }
@@ -237,7 +261,7 @@ static bool saveAs ()
 	savePluginStates ();
 	char p[256];
 	mkdir ("HOME:/koton", 0755); mkdir ("HOME:/koton/songs", 0755);
-	if (!fileSave (p, sizeof p, g_settings.lastDir, "song.kson", "Koton songs|*.kson|All files|*")) return false;
+	if (!fileSave (p, sizeof p, saveDir (), "song.kson", "Koton songs|*.kson|All files|*")) return false;
 	int n = (int) strlen (p);
 	if (n < 5 || strcmp (p + n - 5, ".kson")) { const char *d = strrchr (p, '.'); const char *sl = strrchr (p, '/'); if (d && (!sl || d > sl)) p[d - p] = 0; snprintf (p + strlen (p), sizeof p - strlen (p), ".kson"); }
 	g_doc.pruneRiffs ();
@@ -264,7 +288,7 @@ static void exportProgress (int pct)
 static void cmdExport ()
 {
 	char p[256];
-	if (!fileSave (p, sizeof p, g_settings.lastDir, "song.wav", "WAV audio|*.wav|All files|*")) return;
+	if (!fileSave (p, sizeof p, saveDir (), "song.wav", "WAV audio|*.wav|All files|*")) return;
 	g_audio.sync (g_doc);
 	if (g_audio.exportWav (g_doc, p, exportProgress)) setStatus ("Exported %s", p);
 	else setStatus ("The export failed (no SoundFont, or the file could not be written).");

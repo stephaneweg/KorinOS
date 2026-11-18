@@ -17,6 +17,7 @@
  * pour le Pi et le PC ; l'asm reste dans le dossier jusqu'a sa validation sur le Pi. Bizarreries de
  * l'asm gardees : Lecture apres la fin repart du debut sans rouvrir le son (horloge du systeme).
  */
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -53,6 +54,18 @@ static long now_ms (void) { return armpi_syscall (SYS_TIME_MS_, 0, 0, 0, 0, 0, 0
 static const char s_app[] = "Lecteur multim\xC3\xA9" "dia";
 static const char s_title[] = "Lecteur multim\xC3\xA9" "dia - ";
 static const char s_dir[] = "HOME:/video";
+static const char s_public_dir[] = "/home/public/video";	/* (les videos d'exemple : paquet home-samples) */
+/* (le dossier a-t-il un fichier ou un dossier visible ?) */
+static int dir_has_entries (const char *d)
+{
+	DIR *o = opendir (d);
+	if (!o) return 0;
+	struct dirent *e;
+	int n = 0;
+	while (!n && (e = readdir (o)) != 0) n = e->d_name[0] != '.';
+	closedir (o);
+	return n;
+}
 static const char s_playg[] = "\xE2\x96\xB6";			/* ▶ */
 static const char s_pauseg[] = "\xE2\x9D\x9A\xE2\x9D\x9A";		/* ❚❚ */
 static const char m_nofile[] = "Fichier > Ouvrir (Ctrl+O) : WebM, Matroska, MP4 (VP8, VP9, AV1)";
@@ -643,7 +656,7 @@ static void command (long id)
 			ui_message ((long) s_app, (long) TR (m_nomk), UM_OK);
 			return;
 		}
-		if (!ui_file_open ((long) s_dir, (long) path, 256))
+		if (!ui_file_open ((long) (dir_has_entries (s_dir) || !dir_has_entries (s_public_dir) ? s_dir : s_public_dir), (long) path, 256))
 			return;
 		open_media ();
 		paint ();

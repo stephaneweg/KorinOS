@@ -97,6 +97,6 @@ for app; do
 	cp app.txt "$A/"
 	[ ! -d data ] || cp -r data/. "$A/"
 	# (les préréglages d'exemple d'Arabesque : HOME:/arabesque, le paquet arabesque-samples)
-	[ "$app" != arabesque ] || [ ! -d presets ] || { mkdir -p "$OUT/sdroot/home/arabesque"; cp presets/*.arb "$OUT/sdroot/home/arabesque/"; }
+	[ "$app" != arabesque ] || [ ! -d presets ] || { mkdir -p "$OUT/sdroot/home/public/arabesque"; cp presets/*.arb "$OUT/sdroot/home/public/arabesque/"; }
 	ls -l "$A/main"
 done

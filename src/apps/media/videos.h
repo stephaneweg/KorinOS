@@ -17,6 +17,7 @@ namespace media {
 
 #define VIDEO_FILE	"HOME:/media/videos.tsv"
 #define VIDEO_DIR	"HOME:/video"
+#define PUBLIC_VIDEO_DIR	"/home/public/video"	// (les videos d'exemple : paquet home-samples, a tous les comptes)
 
 enum { VK_FILM, VK_CLIP, VK_SERIES };
 

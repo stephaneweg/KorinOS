@@ -70,12 +70,12 @@ if [ -f "$Y/avstudio.dll" ]; then
 	echo skia > "$S/apps/avstudio.app/main.skia"
 	cp "$ARMPI_ROOT"/tools/avalonia/avdemo/* "$S/dotnet/test/avdemo/"
 fi
-# gpudemo : la demo du GPU ; ses sources sont dans skel/sd0/home/projects (le Studio les ouvre)
+# gpudemo : la demo du GPU ; ses sources sont dans skel/sd0/home/public/projects (le Studio les ouvre)
 G=$A/out/gpudemo/bin	# (IL : la meme pour le Pi et le PC)
 if [ -f "$G/gpudemo.dll" ]; then
 	mkdir -p "$S/apps/gpudemo.app"
 	cp "$G/gpudemo.dll" "$S/apps/gpudemo.app/main"
-	cp "$ARMPI_ROOT/skel/sd0/home/projects/gpudemo/app.txt" "$S/apps/gpudemo.app/"
+	cp "$ARMPI_ROOT/skel/sd0/home/public/projects/gpudemo/app.txt" "$S/apps/gpudemo.app/"
 	echo skia > "$S/apps/gpudemo.app/main.skia"
 fi
 du -sh "$S"

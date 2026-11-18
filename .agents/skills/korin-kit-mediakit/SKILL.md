@@ -25,7 +25,7 @@ Vorbis, MP3 et FLAC sont décodés par AudioKit au travers de MediaKit.
 | Conception | — | `docs/MEDIAKIT.md`, `docs/KITS.md` |
 
 Usages réels : `src/apps/media/thumbs.h` (vignettes : `mk_open`, `mk_seek`, `mk_video_next`) ;
-`src/bin/mediatest/mediatest.asm` (assembleur). Vidéos d'essai : `HOME:/video`.
+`src/bin/mediatest/mediatest.asm` (assembleur). Vidéos d'essai : `/home/public/video`.
 
 ## Ouvrir le kit
 
@@ -78,7 +78,7 @@ Une image du milieu, réduite (adapté de « Exemple : ce que contient une vidé
 
 int main (int argc, char **argv)
 {
-	const char *path = argc > 1 ? argv[1] : "HOME:/video/sintel-vp9-opus.webm";
+	const char *path = argc > 1 ? argv[1] : "/home/public/video/sintel-vp9-opus.webm";
 	if (!mediakit_kit_open ()) return 1;
 	long h = mk_open ((long) path);
 	if (h < 0) { printf ("%s : %s\n", path, (const char *) mk_error_text (h)); return 1; }

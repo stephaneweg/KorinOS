@@ -59,6 +59,6 @@ décodeur FM Song d'AudioKit qui lit le `.FMS` écrit pour l'occasion ; même `.
 ## Construire
 
 * Pi : `wsl sh tools/office/build.sh fmtracker` ; `build.ps1` met `ins/` et `lang/` dans `fmtracker.app` et
-  `songs/` dans `HOME:/music/fms`, puis recopie `build/office/sdroot` par-dessus (le `main` du C).
+  `songs/` dans `/home/public/music/fms`, puis recopie `build/office/sdroot` par-dessus (le `main` du C).
 * PC : `wsl sh tools/pc/apps.sh fmtracker` ne copie que `app.txt`, `data/` et l'aide : il faut y ajouter `ins/` et
   `lang/` vers `fmtracker.app/` et `songs/*` vers `home/music/fms` (voir le rapport du port).

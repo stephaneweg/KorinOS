@@ -152,12 +152,12 @@ foreach ($n in $sys_c) {
 foreach ($d in @("documents","music","pictures","video")) {
   New-Item -ItemType Directory -Force (Join-Path $sdroot "home\$d") | Out-Null
 }
-# FM Tracker : ses instruments, ses mots, et les morceaux d'exemple dans HOME:/music/fms
+# FM Tracker : ses instruments, ses mots, et les morceaux d'exemple dans /home/public/music/fms (a tous les comptes)
 $fmt = Join-Path $root "src\apps\fmtracker"
 Copy-Item (Join-Path $fmt "ins") (Join-Path $sdroot "apps\fmtracker.app\ins") -Recurse -Force
 Copy-Item (Join-Path $fmt "lang") (Join-Path $sdroot "apps\fmtracker.app\lang") -Recurse -Force
-New-Item -ItemType Directory -Force (Join-Path $sdroot "home\music\fms") | Out-Null
-Copy-Item (Join-Path $fmt "songs\*") (Join-Path $sdroot "home\music\fms") -Force
+New-Item -ItemType Directory -Force (Join-Path $sdroot "home\public\music\fms") | Out-Null
+Copy-Item (Join-Path $fmt "songs\*") (Join-Path $sdroot "home\public\music\fms") -Force
 # init.txt (les services lances par init) : sur la carte aussi, pour
 # mkinitramfs (/etc/initramfs.txt)
 Copy-Item (Join-Path $root "src\svc\modules\init.txt") (Join-Path $sdroot "etc\init.txt") -Force
@@ -264,11 +264,11 @@ if ($sq -and (Test-Path (Join-Path $sq "*.sq"))) {
   New-Item -ItemType Directory -Force (Join-Path $sdroot "home\koton\songs") | Out-Null
   Copy-Item (Join-Path $sq "*.sq") (Join-Path $sdroot "home\koton\songs") -Force
 }
-# Morceaux d'exemple de Koton Studio (tools/koton/make_demos.py ; paquet koton-demos)
+# Morceaux d'exemple de Koton Studio (tools/koton/make_demos.py ; paquet koton-demos), dans le dossier public
 $kd = Join-Path $root "src\apps\koton\demos"
 if (Test-Path (Join-Path $kd "*.kson")) {
-  New-Item -ItemType Directory -Force (Join-Path $sdroot "home\koton\demos") | Out-Null
-  Copy-Item (Join-Path $kd "*.kson") (Join-Path $sdroot "home\koton\demos") -Force
+  New-Item -ItemType Directory -Force (Join-Path $sdroot "home\public\koton\demos") | Out-Null
+  Copy-Item (Join-Path $kd "*.kson") (Join-Path $sdroot "home\public\koton\demos") -Force
 }
 # sources du systeme sur la carte (assemblables sous ARMPI par /sd/bin/fasmarm,
 # fasmarm compris : il se reassemble lui-meme, octet pour octet)

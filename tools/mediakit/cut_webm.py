@@ -1,7 +1,7 @@
 """cut_webm.py ENTREE SORTIE DEBUT_S DUREE_S : un extrait d'un fichier WebM / Matroska, sans
 reencoder (pas de ffmpeg) : les Clusters de DEBUT_S a DEBUT_S + DUREE_S (le premier commence par
 une image cle ; les blocs apres la fin coupes), temps ramenes a 0, avec Info (duree), Tracks, et des Cues neuves (une par
-Cluster : la recherche marche). Sert aux videos d'essai de MediaKit (skel/sd0/home/video).
+Cluster : la recherche marche). Sert aux videos d'essai de MediaKit (skel/sd0/home/public/video).
 Les Clusters doivent avoir une taille connue (fichiers de ffmpeg, mkvmerge)."""
 import struct
 import sys

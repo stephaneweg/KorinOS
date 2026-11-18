@@ -22,10 +22,10 @@ if [ -f "$WK_OUT/out/llm" ]; then
 	mkdir -p "$D/bin"
 	cp "$WK_OUT/out/llm" "$D/bin/llm"
 fi
-# la chanson d'essai de Koton, la ou son dialogue d'ouverture commence
+# la chanson d'essai de Koton, dans le dossier public (son dialogue d'ouverture y commence tant que le compte n'a pas de chanson)
 if [ -f "$WK_OUT/out/koton.app/demo.kson" ]; then
-	mkdir -p "$D/home/koton/songs"
-	mv "$D/apps/koton.app/demo.kson" "$D/home/koton/songs/"
+	mkdir -p "$D/home/public/koton/songs"
+	mv "$D/apps/koton.app/demo.kson" "$D/home/public/koton/songs/"
 fi
 if [ "${TESTS:-0}" = 1 ]; then
 	mkdir -p "$D/bin" "$D/webkit"

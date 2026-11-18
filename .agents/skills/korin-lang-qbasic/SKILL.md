@@ -16,7 +16,7 @@ Langage à la QBasic étendu (classes, propriétés, fenêtres, kits), repris d'
 | QBStudio (`.form`, projets) | `src/apps/qbstudio/data/help.txt`, `src/apps/qbstudio/README.md` | F1 dans QBStudio |
 | Runtime, options | `src/apps/basic/README.md` | — |
 | Exemples | `skel/sd0/basic/examples/` (`uikit.bas`, `kits.bas`, `gui.bas`, `graphics.bas`, `gpio_*.bas`, `fr/`) | `/basic/examples/` (paquet `basic-samples`), QBasic > File > Examples |
-| Projets QBStudio d'exemple | `skel/sd0/home/projects/converter`, `pages` | `HOME:/projects/` |
+| Projets QBStudio d'exemple | `skel/sd0/home/public/projects/converter`, `pages` | `/home/public/projects/` (QBStudio recopie converter dans `HOME:/projects/`) |
 | Ce qu'un kit offre à `#import` | `src/lib/basic/bi/`, généré par `tools/kits/abi2bas.py` | `/lib/<kit>.bi` |
 
 ## Outils

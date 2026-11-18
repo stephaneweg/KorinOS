@@ -10,7 +10,7 @@
 | Sound | **no codec in MediaKit**: Opus, Vorbis, MP3 and FLAC are decoded by [AudioKit](audiokit_en.md); MediaKit returns s16 stereo at the rate you ask for |
 | Not supported | H.264, H.265, AAC |
 
-The decoders run on a single thread, the caller's. The card's test videos are in `HOME:/video`.
+The decoders run on a single thread, the caller's. The card's test videos are in `/home/public/video`.
 
 ## Opening the kit
 
@@ -101,7 +101,7 @@ A text-mode program: the information, the tracks, then a picture from the middle
 
 int main (int argc, char **argv)
 {
-	const char *path = argc > 1 ? argv[1] : "HOME:/video/sintel-vp9-opus.webm";
+	const char *path = argc > 1 ? argv[1] : "/home/public/video/sintel-vp9-opus.webm";
 	if (!mediakit_kit_open ()) { printf ("MediaKit missing\n"); return 1; }
 
 	long h = mk_open ((long) path);
@@ -188,7 +188,7 @@ static long paint (long w, long h)
 
 int main (int argc, char **argv)
 {
-	const char *path = argc > 1 ? argv[1] : "HOME:/video/sintel-vp8-opus.webm";
+	const char *path = argc > 1 ? argv[1] : "/home/public/video/sintel-vp8-opus.webm";
 	title = path;
 	if (!uikit_open (&ui)) return 1;
 	if (!mediakit_kit_open ())
@@ -260,7 +260,7 @@ enum { RATE = 44100, CHUNK = 4096 };
 
 int main (int argc, char **argv)
 {
-	const char *path = argc > 1 ? argv[1] : "HOME:/video/sintel-vp8-opus.webm";
+	const char *path = argc > 1 ? argv[1] : "/home/public/video/sintel-vp8-opus.webm";
 	const char *out = "HOME:/soundtrack.wav";
 	if (!mediakit_kit_open () || !audiokit_kit_open ()) return 1;
 
@@ -322,7 +322,7 @@ static long ak_format (long mk_codec)
 
 int main (int argc, char **argv)
 {
-	const char *path = argc > 1 ? argv[1] : "HOME:/video/sintel-vp8-opus.webm";
+	const char *path = argc > 1 ? argv[1] : "/home/public/video/sintel-vp8-opus.webm";
 	if (!mediakit_kit_open () || !audiokit_kit_open ()) return 1;
 	long h = mk_open ((long) path);
 	if (h < 0) return 1;

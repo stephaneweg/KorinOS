@@ -2267,6 +2267,7 @@ static void start_scan ()
 	bool videos = false;
 	for (int i = 0; i < g_nfolders; i++) { scopy (g_scan->roots[g_scan->nroots++], g_folders[i], 200); if (!strcasecmp (g_folders[i], VIDEO_DIR)) videos = true; }
 	if (!videos && g_scan->nroots < 8) scopy (g_scan->roots[g_scan->nroots++], VIDEO_DIR, 200);	// (always looked at)
+	if (g_scan->nroots < 8) scopy (g_scan->roots[g_scan->nroots++], PUBLIC_VIDEO_DIR, 200);	// (the sample videos, read only)
 	g_scan->old = L; g_scan->fresh = new Library;
 	g_scan->vold = VL->clone (); g_scan->vfresh = new VideoLib;
 	L->index_paths (); VL->index_paths ();

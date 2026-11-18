@@ -145,6 +145,7 @@ static const char s_lang_dir[] = "/apps/fmtracker.app/lang/";
 static const char s_piano_fmi[] = "/apps/fmtracker.app/ins/PIANO.FMI";
 static const char s_ins_dir[] = "/apps/fmtracker.app/ins";
 static const char s_song_dir[] = "HOME:/music/fms";
+static const char s_public_dir[] = "/home/public/music/fms";	// (les morceaux d'exemple : paquet fmtracker-samples, a tous les comptes)
 static const char s_tmp_dir[] = "/tmp";
 static const char s_tmp_fms[] = "/tmp/fmtracker-export.fms";
 static const char s_help[] = "C D E F G A B: a note (Shift: #), 0-7: octave, Space: silence, Del: ---, Shift+arrows: a block, Ctrl+P: play";
@@ -690,10 +691,23 @@ static bool load_song (const char *path)
 	after_load ();
 	return true;
 }
-// -> le dossier de départ des dialogues
+/* (le dossier a-t-il un fichier ou un dossier visible ?) */
+static int dir_has_entries (const char *d)
+{
+	DIR *o = opendir (d);
+	if (!o) return 0;
+	struct dirent *e;
+	int n = 0;
+	while (!n && (e = readdir (o)) != 0) n = e->d_name[0] != '.';
+	closedir (o);
+	return n;
+}
+// -> le dossier de départ des dialogues : celui du morceau ouvert ; sans lui, HOME:/music/fms, ou les exemples tant
+// qu'il est vide ; jamais le dossier public pour enregistrer (un morceau d'exemple s'enregistre dans HOME:)
 static const char *song_dir (void)
 {
-	if (!g_path[0]) return s_song_dir;
+	if (!g_path[0] || !strncmp (g_path, "/home/public/", 13))
+		return dir_has_entries (s_song_dir) || !dir_has_entries (s_public_dir) || g_path[0] ? s_song_dir : s_public_dir;
 	str_copy (g_dirbuf, g_path, 256);
 	path_parent (g_dirbuf);
 	return g_dirbuf;

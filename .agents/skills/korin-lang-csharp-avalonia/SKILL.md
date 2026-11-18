@@ -17,7 +17,7 @@ d'UIKit. L'application ne sait rien de Korin.
 | `.csproj` dans l'OS, csbuild | `docs/DOTNET.md`, « Projets .csproj » |
 | GPU (Mesa, Skia Ganesh) | `docs/MESA.md` |
 | La plateforme | `tools/avalonia/desktop/` (`ArmpiGl.cs`, `ArmpiTheme`, `ArmpiSettings`) |
-| Exemples | `tools/avalonia/avdemo` (liste, saisie, seconde fenêtre, dialogue), `skel/sd0/home/projects/gpudemo` (animation, GPU ; sur la carte `HOME:/projects/gpudemo`), `tools/avalonia/xamlload` (XAML lu à l'exécution) |
+| Exemples | `tools/avalonia/avdemo` (liste, saisie, seconde fenêtre, dialogue), `skel/sd0/home/public/projects/gpudemo` (animation, GPU ; sur la carte `/home/public/projects/gpudemo`), `tools/avalonia/xamlload` (XAML lu à l'exécution) |
 | Le Studio Avalonia | `tools/avalonia/studio` → `/apps/avstudio.app` |
 
 ## Outils

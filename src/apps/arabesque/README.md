@@ -89,7 +89,7 @@ recomposer et l'enregistre, mais n'a pas encore la bande des sections ni la fen�
 * `image.h` : les images calculées et leur cadrage ; `form.h` : la forme, ses régions et ses images. `main.cpp` : la fenêtre.
 * `data/` : six tracés, sept styles, `default.sca`, `exemples/nocturne.arb` (piano, cordes, violoncelle, harpe,
   pentatonique de ré, sur un Mandelbrot ; sa forme est dans le journal) ; ce qu'on enregistre va dans
-  `HOME:/arabesque`.
+  `HOME:/arabesque` (les préréglages d'exemple : `/home/public/arabesque`, ouverts tant que le compte n'en a pas).
 
 ## Ce qu'Art Song ne dit pas, et ce qui est choisi ici
 

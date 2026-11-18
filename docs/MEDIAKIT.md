@@ -11,7 +11,7 @@ hors du selfhost), utilisable par toutes les applications par sa table `kit_fn`.
 | Table | `src/kits/mediakit/mediakit.abi` (assembleur) = `tools/mediakit/mediakit.S` (kit) ; structures et erreurs : `src/kits/mediakit/mediakit.inc` ; en C / C++ : `src/kits/mediakit/mediakit.h` |
 | Sources | `tools/mediakit/` : glue (`mediakit.c`, `mk_libc.c`, `mk_math.c`, `mk_sys.h`, `mediakit.S`, `mediakit.ld`), copie modifiée de la bibliothèque **av** d'Onyx (`av/`), `Makefile`, `build.sh` ; libvpx, dav1d dans `src/extra` (hors dépôt, [README](../src/extra/README.md)) |
 | Construire | dans WSL, à la racine : `sh tools/mediakit/build.sh` (≈ 15 s sur 16 cœurs ; objets dans `/tmp/armpi-mediakit`) |
-| Essais | `/bin/mediatest fichier [images]`, `/apps/mediaplayer.app` ; vidéos d'essai dans `HOME:/video` |
+| Essais | `/bin/mediatest fichier [images]`, `/apps/mediaplayer.app` ; vidéos d'essai dans `/home/public/video` |
 
 ## Contenu
 
@@ -45,7 +45,7 @@ de 3 à 8 canaux remis dans l'ordre WAVE. PCM → conversion ; tout autre codec 
 standard. Un programme peut aussi prendre les paquets bruts (`mk_audio_packet`) et les donner
 lui-même à AudioKit. libopus est sorti du kit (955 Kio).
 
-Essais (QEMU) : `mediatest` sur `HOME:/video/*.webm|mp4` (Opus) et sur
+Essais (QEMU) : `mediatest` sur `/home/public/video/*.webm|mp4` (Opus) et sur
 `/res/audiotest/*.mka` (Opus CELT et SILK, Vorbis, MP3, FLAC en Matroska, faits par un
 petit multiplexeur, `tools/audiotest/mkmka.py`, à partir des fichiers d'essai d'AudioKit).
 

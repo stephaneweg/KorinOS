@@ -29,6 +29,7 @@ static inline unsigned jet (int j) { return s_jet[j] & 0xFFFFFF; }
 
 #define APPDIR		"/apps/arabesque.app/"
 #define HOMEDIR		"HOME:/arabesque"
+#define PUBLICDIR	"/home/public/arabesque"	// (les prereglages d'exemple : paquet arabesque-samples)
 enum { W_WANT = 784, H_WANT = 560, PANEL_W = 356, TOPBAR = 40, ROLL_H = 56, CHORD_H = 38, FOOT = 24, MARGIN = 8, ROW = 32, NFILES = 96, IMG_SIZE = 512 };
 enum { T_MUSIC, T_STYLE, T_TRACE, T_SCALES, T_KEYS };
 enum { M_NEW = 1, M_OPEN, M_SAVE, M_SAVEAS, M_XMID, M_XFMS, M_XWAV, M_XMP3, M_COPYRIGHT, M_QUIT,
@@ -67,6 +68,22 @@ static bool g_statusSet;		// un message plus utile que « Prêt » est affiche
 static unsigned g_marker = 0xFFFFFF;
 static ScaleList g_scales;
 static int g_scale, g_root;
+/* (le dossier a-t-il un fichier ou un dossier visible ?) */
+static int dir_has_entries (const char *d)
+{
+	DIR *o = opendir (d);
+	if (!o) return 0;
+	struct dirent *e;
+	int n = 0;
+	while (!n && (e = readdir (o)) != 0) n = e->d_name[0] != '.';
+	closedir (o);
+	return n;
+}
+// les prereglages : ceux du compte (HOME:/arabesque), ou les exemples tant qu'il n'en a pas
+static const char *preset_dir ()
+{
+	return dir_has_entries (HOMEDIR) || !dir_has_entries (PUBLICDIR) ? HOMEDIR : PUBLICDIR;
+}
 static char g_songPath[300], g_stylePath[300], g_tracePath[300], g_styleDir[260] = HOMEDIR, g_traceDir[260] = HOMEDIR;
 static uint32_t *g_scaled; static int g_sw, g_sh;
 static int g_lastMode = -1, g_keyHeld = -1, g_keyOct = 4, g_keyProg, g_keyVol = 100;
@@ -1639,7 +1656,7 @@ static void command (int c)
 		after_dialog ();
 		timeline ();
 		break;
-	case M_PRESETOPEN: if (confirm () && ask_open (HOMEDIR, "*.arb", p, sizeof p)) preset_load (p); break;
+	case M_PRESETOPEN: if (confirm () && ask_open (preset_dir (), "*.arb", p, sizeof p)) preset_load (p); break;
 	case M_PRESETSAVE: preset_save (); break;
 	case M_MARKER:
 	{

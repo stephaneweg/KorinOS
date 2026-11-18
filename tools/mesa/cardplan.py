@@ -12,7 +12,7 @@ for d in DIRS:
         for n in files:
             p = os.path.join(base, n)
             plan.append((p, os.path.join(E, os.path.relpath(p, os.path.join("build", "sdroot")))))
-for p in glob.glob("skel/sd0/home/projects/gpudemo/*"):
+for p in glob.glob("skel/sd0/home/public/projects/gpudemo/*"):
     plan.append((p, os.path.join(E, "home", "projects", "gpudemo", os.path.basename(p))))
 for p in glob.glob("build/modules/*.mod"):
     plan.append((p, os.path.join(E, os.path.basename(p))))

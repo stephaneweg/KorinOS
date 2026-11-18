@@ -404,7 +404,7 @@ Le DMA est asynchrone : Elegant ne l'attend qu'à la recomposition suivante. Il 
 
 `tools/avalonia/desktop/ArmpiGl.cs` donne à Avalonia un contexte OpenGL ES 3.0 par `armgl`, et `dotnet-skia` lie Skia Ganesh et Mesa. Sans GPU, sous QEMU ou avec `AVALONIA_ARMPI_GPU=0`, le rendu reste sur le processeur, sans rien changer à l'application. Chaque fenêtre a une surface de la taille de l'écran : redimensionner ne change que la zone rattachée. L'hôte passe de 25 à 37 Mo.
 
-`HOME:/projects/gpudemo`, ouvert dans le Studio, compilé dans l'OS par le Studio ou `pibuild`. Sur le Pi, 24 cartes tournantes, 760 × 520 :
+`/home/public/projects/gpudemo`, ouvert dans le Studio, compilé dans l'OS par le Studio ou `pibuild`. Sur le Pi, 24 cartes tournantes, 760 × 520 :
 
 | Images/s | GPU | Processeur |
 |---|---|---|

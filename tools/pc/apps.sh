@@ -71,13 +71,13 @@ BASEFLAGS="-specs=$SPECS -O2 -g0 -ffunction-sections -fdata-sections -MMD -MP -I
 note () { printf '%s\n' "$*" >> "$OUT/status.new"; }
 
 # KotonStudio (src/apps/koton, README.md du dossier) : options de tools/webkit/build-koton.sh (le Pi) ; un programme
-# pour l'app, un par greffon (plugins/<id>, POSIX seul), et bin/kptest ; ses chansons dans home/koton comme sur le Pi
+# pour l'app, un par greffon (plugins/<id>, POSIX seul), et bin/kptest ; ses chansons d'exemple dans home/public/koton comme sur le Pi
 build_koton () {
 	S=$ROOT/src/apps/koton
 	O=$OUT/obj/koton
 	D=$OUT/sdroot/apps/koton.app
 	FLAGS="$BASEFLAGS -std=gnu++17 -fno-exceptions -fno-rtti -fno-threadsafe-statics -Wno-write-strings -DFD_SETSIZE=1024 -I$S/ui"
-	mkdir -p "$O" "$D" "$OUT/sdroot/bin" "$OUT/sdroot/home/koton/songs" "$OUT/sdroot/home/koton/demos"
+	mkdir -p "$O" "$D" "$OUT/sdroot/bin" "$OUT/sdroot/home/public/koton/songs" "$OUT/sdroot/home/public/koton/demos"
 	cd "$S"
 	{
 		echo 'all:'
@@ -111,8 +111,8 @@ build_koton () {
 	done
 	cp app.txt data/drums.json help_*.md "$D/"
 	cp -r help "$D/"
-	cp data/demo.kson "$OUT/sdroot/home/koton/songs/"
-	cp demos/*.kson "$OUT/sdroot/home/koton/demos/"
+	cp data/demo.kson "$OUT/sdroot/home/public/koton/songs/"
+	cp demos/*.kson "$OUT/sdroot/home/public/koton/demos/"
 	note "koton : construite ($(stat -c %s "$D/main") octets, $(ls -d "$D"/plugins/*/ | wc -l) greffons, bin/kptest)"
 }
 
@@ -362,12 +362,12 @@ build_one () { # nom
 	# (l'aide de l'app et ses images, comme build.ps1 sur le Pi : le menu Aide de menubar, help.app)
 	for f in help_*.md; do [ ! -f "$f" ] || cp "$f" "$D/"; done
 	[ ! -d help ] || cp -r help "$D/"
-	[ "$app" != arabesque ] || [ ! -d presets ] || { mkdir -p "$OUT/sdroot/home/arabesque"; cp presets/*.arb "$OUT/sdroot/home/arabesque/"; }
-	# (FM Tracker : instruments et mots dans l'app, morceaux d'exemple dans HOME:/music/fms, comme build.ps1)
+	[ "$app" != arabesque ] || [ ! -d presets ] || { mkdir -p "$OUT/sdroot/home/public/arabesque"; cp presets/*.arb "$OUT/sdroot/home/public/arabesque/"; }
+	# (FM Tracker : instruments et mots dans l'app, morceaux d'exemple dans /home/public/music/fms, comme build.ps1)
 	if [ "$app" = fmtracker ]; then
 		cp -r ins lang "$D/"
-		mkdir -p "$OUT/sdroot/home/music/fms"
-		cp songs/* "$OUT/sdroot/home/music/fms/"
+		mkdir -p "$OUT/sdroot/home/public/music/fms"
+		cp songs/* "$OUT/sdroot/home/public/music/fms/"
 	fi
 	if [ "$app" = pkgman ]; then
 		build_pkg_applet || return 1

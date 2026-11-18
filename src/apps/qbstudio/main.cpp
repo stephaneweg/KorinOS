@@ -17,6 +17,7 @@
 // MIT License -- Copyright (c) 2026 Stéphane Wegener and the Onyx contributors (docs/LICENSING.md).
 //
 #include <fcntl.h>
+#include <dirent.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -35,6 +36,7 @@ enum { W0 = 1000, H0 = 700, LEFT_W = 210, RIGHT_W = 244, MSG_H = 118, ST_H = 24,
 static int TB_H = 44, CODEBAR_H = 38, TABS_H = 32;
 #define PROJECTS "HOME:/projects"
 static const char *SAMPLE = PROJECTS "/converter";
+static const char *PUBLIC_SAMPLE = "/home/public/projects/converter";	// (paquet home-samples, a tous les comptes)
 static const char *SETTINGS = PROJECTS "/qbstudio.ini";
 
 // ---- le projet ---------------------------------------------------------------------------------------------------
@@ -759,6 +761,32 @@ static void clear_project ()
 	g_p.docs.clear (); g_p.tabs.clear (); g_p.cur = -1; g_lastForm = -1;
 	g_probs.clear (); refresh_msgs ();
 }
+// l'exemple du paquet (/home/public/projects/converter) recopie dans HOME:/projects/converter s'il n'y est pas : il se
+// modifie et s'enregistre la, pas dans le dossier public
+static const char *sample_project ()
+{
+	char ini[300];
+	snprintf (ini, sizeof ini, "%s/project.ini", SAMPLE);
+	struct stat st;
+	if (stat (ini, &st) == 0) return SAMPLE;
+	DIR *d = opendir (PUBLIC_SAMPLE);
+	if (!d) return SAMPLE;
+	mkdir ("HOME:", 0755); mkdir (PROJECTS, 0755); mkdir (SAMPLE, 0755);
+	while (struct dirent *e = readdir (d))
+	{
+		if (e->d_name[0] == '.') continue;
+		char a[300], b[300];
+		snprintf (a, sizeof a, "%s/%s", PUBLIC_SAMPLE, e->d_name);
+		snprintf (b, sizeof b, "%s/%s", SAMPLE, e->d_name);
+		FILE *i = fopen (a, "rb");
+		if (!i) continue;
+		FILE *o = fopen (b, "wb");
+		if (o) { char buf[4096]; size_t n; while ((n = fread (buf, 1, sizeof buf, i)) > 0) fwrite (buf, 1, n, o); fclose (o); }
+		fclose (i);
+	}
+	closedir (d);
+	return SAMPLE;
+}
 static bool load_project (const char *dir)
 {
 	char ip[260]; join (ip, sizeof ip, dir, "project.ini");
@@ -1212,7 +1240,7 @@ static void command (int id)
 	{
 	case M_NEW: cmd_new (); break;
 	case M_OPEN: cmd_open (); break;
-	case M_SAMPLE: if (confirm_close ()) load_project (SAMPLE); break;
+	case M_SAMPLE: if (confirm_close ()) load_project (sample_project ()); break;
 	case M_SAVE: save_all (); break;
 	case M_APP: cmd_make_app (); break;
 	case M_QUIT: cmd_quit (); break;
@@ -1458,7 +1486,7 @@ int main (int argc, char **argv)
 		ok = load_project (dir);
 	}
 	if (!ok && last[0]) { char ip[300]; join (ip, sizeof ip, last, "project.ini"); if (file_exists (ip)) ok = load_project (last); }
-	if (!ok) load_project (SAMPLE);
+	if (!ok) load_project (sample_project ());
 	repaint ();
 
 	while (!g_quit)

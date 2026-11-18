@@ -9,7 +9,7 @@ bureautique.
     sh tools/office/build.sh media       # (WSL) -> build/office/sdroot/apps/media.app/{main,app.txt,lang-fr.txt}
     pibuild app /src/apps/media media    # sous ARMPI, par le GCC de la carte : 227 s sous QEMU, binaire de même taille
 
-Musique : `HOME:/music` et les dossiers ajoutés. Vidéos : `HOME:/video` (toujours regardé) et ces mêmes dossiers.
+Musique : `HOME:/music` et les dossiers ajoutés. Vidéos : `HOME:/video` et `/home/public/video` (les exemples ; toujours regardés) et ces mêmes dossiers.
 Fichiers de l'application : `HOME:/media/` (`settings.ini`, `library.tsv`, `stats.tsv`, `videos.tsv`, `thumbs/*.jpg`,
 `lastvideo.txt`) ; listes de lecture : `HOME:/music/Playlists/*.m3u`. Lancement : `/apps/media.app/main [fichier]`.
 
