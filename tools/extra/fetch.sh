@@ -14,13 +14,13 @@ ONYX_COMMIT=7114ea1ce5c3c7521ba3144ffc72b84f3ed4607d
 O=$ROOT/build/onyx
 
 # les bancs de comparaison (tools/emu/check_*.sh, tools/audiotest) lisent aussi user/Emulators, user/Apps/koton,
-# tools/qpu et third_party/ffmpeg-7.1.2 : ONYX_BANCS=1 les ajoute
+# tools/qpu : ONYX_BANCS=1 les ajoute (FFmpeg 7.1.2 est dans LIBS : MediaKit, en LGPL, tools/mediakit/ffmpeg.sh)
 LIBS="brotli-1.1.0 curl-8.16.0 dav1d-1.5.1 freetype-2.14.3 harfbuzz-14.5.1 icu-78.3 jpeg-9f
 libjpeg-turbo-3.1.4 libpng-1.6.44 libvpx-1.15.2 libwebp-1.4.0 libxml2-2.13.8 mupdf-1.28.5 nghttp2-1.70.0
-opus-1.5.2 skia-m154 sqlite-3.50.4 zlib-1.3.1"
+opus-1.5.2 skia-m154 sqlite-3.50.4 zlib-1.3.1 ffmpeg-7.1.2"
 PATHS="tools/toolchain tools/webkit tools/ports user/Libs/av user/Libs/gpucomp sdcard/res/soundfonts third_party/minimp3"
 for l in $LIBS; do PATHS="$PATHS third_party/$l"; done
-[ "${ONYX_BANCS:-0}" = 1 ] && PATHS="$PATHS user/Emulators user/Apps/koton user/Kits/audiokit kernel/include tools/qpu third_party/ffmpeg-7.1.2 docs/assets"
+[ "${ONYX_BANCS:-0}" = 1 ] && PATHS="$PATHS user/Emulators user/Apps/koton user/Kits/audiokit kernel/include tools/qpu docs/assets"
 
 if [ ! -e "$O/.git" ]; then
 	mkdir -p "$ROOT/build"

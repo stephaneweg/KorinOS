@@ -30,7 +30,7 @@ endif
 
 BASE := $(CPU) -fPIE -fvisibility=hidden -fno-stack-protector -ffunction-sections \
 	-fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables \
-	-fno-math-errno -include $(HERE)/hidden.h -DNDEBUG -w
+	-fno-math-errno -include $(HERE)/hidden.h -I$(HERE)/inc -DNDEBUG -w
 
 # ---- libvpx (codecs.mk : AV_ARCH aarch64 ; le PC : generic, sans les sources NEON de arm/)
 ifeq ($(ARCH),x86_64)
@@ -56,6 +56,14 @@ AV_SRC := $(addprefix $(HERE)/av/,av_demux.c av_mkv.c av_mp4.c av_riff.c av_code
 AV_CF  := -O2 -std=gnu99 -DMK_ARMPI -DAV_WITH_VPX -DAV_WITH_DAV1D -I$(HERE)/av \
 	-I$(VPX) -I$(DAV1D)/include
 GLUE_CF := -O2 -std=gnu11 -DMK_ARMPI -I$(HERE)
+# ---- FFmpeg (LGPL : tools/mediakit/ffmpeg.sh) : H.264, H.265, AAC... ; FF= (vide) : sans lui
+FF ?= /tmp/korin-ffmpeg-$(ARCH)
+ifneq ($(wildcard $(FF)/libavcodec.a),)
+AV_SRC += $(HERE)/av/av_ffmpeg.c
+AV_CF  += -DAV_WITH_FFMPEG -I$(FF)/include
+GLUE_CF += -DAV_WITH_FFMPEG
+FF_LIBS := $(FF)/libavformat.a $(FF)/libavcodec.a $(FF)/libswscale.a $(FF)/libavutil.a
+endif
 
 obj = $(patsubst /%,$(OUT)/obj/%.o,$(1))
 VPX_OBJ   := $(call obj,$(VPX_SRC))
@@ -91,6 +99,6 @@ $(OUT)/mediakit_table.o: $(GLUE_S) $(HERE)/kit_table.inc
 $(OUT)/mediakit.elf: $(ALL_OBJ) $(HERE)/mediakit.ld
 	$(CC) -nostdlib -pie -Wl,--no-dynamic-linker -Wl,-T,$(HERE)/mediakit.ld \
 		-Wl,--gc-sections -Wl,--hash-style=sysv -Wl,--unresolved-symbols=report-all \
-		-o $@ $(ALL_OBJ) -lgcc
+		-o $@ $(ALL_OBJ) $(FF_LIBS) -lgcc
 
 -include $(wildcard $(patsubst %.o,%.o.d,$(VPX_OBJ) $(DAV1D_OBJ) $(TMPL_OBJ) $(AV_OBJ)))

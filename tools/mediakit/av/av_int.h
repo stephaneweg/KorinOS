@@ -78,7 +78,8 @@ static inline uint32_t av_rl32(const uint8_t *p) { return (uint32_t) p[3] << 24 
 
 /* the containers */
 extern const struct av_fmt_ops av_mkv_ops, av_mp4_ops, av_wav_ops, av_flac_ops, av_mp3_ops;
-#ifdef AV_WITH_FFMPEG
+#ifdef AV_WITH_LAVF
+/* (AV_WITH_LAVF : les conteneurs de libavformat, av_lavf.c ; pas dans MediaKit, qui n'a pas de threads) */
 extern const struct av_fmt_ops av_lavf_ops;
 /* a stream's first bytes: one libavformat reads (AV_FMT_LAVF) */
 int av__lavf_probe(const uint8_t *p, size_t n);

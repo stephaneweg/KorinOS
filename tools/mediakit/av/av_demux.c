@@ -146,7 +146,7 @@ int av_probe(const uint8_t *p, size_t n)
 	if (av__mp3_probe(p, n))
 		return AV_FMT_MP3;
 #endif
-#ifdef AV_WITH_FFMPEG
+#ifdef AV_WITH_LAVF
 	if (av__lavf_probe(p, n))
 		return AV_FMT_LAVF;
 #endif
@@ -177,7 +177,7 @@ int av_format_of_mime(const char *mime)
 	if (!strcmp(t, "audio/mpeg") || !strcmp(t, "audio/mp3") || !strcmp(t, "audio/x-mp3") ||
 	    !strcmp(t, "audio/mpeg3"))
 		return AV_FMT_MP3;
-#ifdef AV_WITH_FFMPEG
+#ifdef AV_WITH_LAVF
 	/* the others FFmpeg reads (and "application/x-onyx-lavf": the file mode's, probed by it) */
 	if (!strcmp(t, "application/x-onyx-lavf") || !strcmp(t, "video/x-msvideo") || !strcmp(t, "video/avi") ||
 	    !strcmp(t, "video/mp2t") || !strcmp(t, "video/mpeg") || !strcmp(t, "video/x-flv") ||
@@ -200,7 +200,7 @@ static const struct av_fmt_ops *ops_of(int fmt)
 	case AV_FMT_FLAC: return &av_flac_ops;
 	case AV_FMT_MP3: return &av_mp3_ops;
 #endif
-#ifdef AV_WITH_FFMPEG
+#ifdef AV_WITH_LAVF
 	case AV_FMT_LAVF: return &av_lavf_ops;
 #endif
 	}
@@ -246,7 +246,7 @@ static int start_probe(struct av_demux *d)
 	if (d->len - d->off < 12 && !d->ended)
 		return AV_AGAIN;
 	d->fmt = av_probe(d->buf + d->off, d->len - d->off);
-#ifdef AV_WITH_FFMPEG
+#ifdef AV_WITH_LAVF
 	/* (FFmpeg's probe wants more bytes than ours: a few KB) */
 	if (d->fmt == AV_FMT_UNKNOWN && d->len - d->off < 4096 && !d->ended)
 		return AV_AGAIN;

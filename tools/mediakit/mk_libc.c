@@ -425,3 +425,241 @@ int posix_memalign(void **r, size_t al, size_t n)
 void *aligned_alloc(size_t al, size_t n) { return memalign(al, n); }
 
 size_t mk_heap_big(void) { return heap_big_bytes; }
+
+/* ---- pour FFmpeg (tools/mediakit/ffmpeg.sh) --------------------------------------------------------- */
+#include <time.h>
+
+size_t strspn(const char *s, const char *a)
+{
+	size_t n = 0;
+	while (s[n] && strchr(a, s[n])) n++;
+	return n;
+}
+size_t strcspn(const char *s, const char *r)
+{
+	size_t n = 0;
+	while (s[n] && !strchr(r, s[n])) n++;
+	return n;
+}
+void *bsearch(const void *key, const void *base, size_t n, size_t sz, int (*cmp)(const void *, const void *))
+{
+	const unsigned char *b = base;
+	size_t lo = 0, hi = n;
+	while (lo < hi) {
+		size_t mid = lo + (hi - lo) / 2;
+		int c = cmp(key, b + mid * sz);
+		if (!c) return (void *)(b + mid * sz);
+		if (c < 0) hi = mid; else lo = mid + 1;
+	}
+	return 0;
+}
+
+static unsigned long long mk_strtoull_raw(const char *s, char **end, int base, int *neg)
+{
+	unsigned long long v = 0;
+	const char *start;
+	*neg = 0;
+	while (isspace((unsigned char)*s)) s++;
+	if (*s == '-' || *s == '+') *neg = *s++ == '-';
+	if ((base == 0 || base == 16) && s[0] == '0' && (s[1] | 32) == 'x' && isxdigit((unsigned char)s[2])) { s += 2; base = 16; }
+	else if (base == 0) base = s[0] == '0' ? 8 : 10;
+	start = s;
+	for (;; s++) {
+		int c = (unsigned char)*s, d;
+		if (isdigit(c)) d = c - '0';
+		else if (isalpha(c)) d = (c | 32) - 'a' + 10;
+		else break;
+		if (d >= base) break;
+		v = v * (unsigned)base + (unsigned)d;
+	}
+	if (end) *end = (char *)s;
+	(void)start;
+	return v;
+}
+long long strtoll(const char *s, char **end, int base)
+{
+	int neg; unsigned long long v = mk_strtoull_raw(s, end, base, &neg);
+	return neg ? -(long long)v : (long long)v;
+}
+unsigned long long strtoull(const char *s, char **end, int base)
+{
+	int neg; unsigned long long v = mk_strtoull_raw(s, end, base, &neg);
+	return neg ? -v : v;
+}
+
+/* strtod : decimal (et inf, nan), assez juste pour les options et les en-tetes que FFmpeg lit */
+double strtod(const char *s, char **end)
+{
+	const char *p = s;
+	double v = 0, sign = 1;
+	int any = 0, ex = 0;
+	while (isspace((unsigned char)*p)) p++;
+	if (*p == '-' || *p == '+') { if (*p == '-') sign = -1; p++; }
+	if ((p[0] | 32) == 'i' && (p[1] | 32) == 'n' && (p[2] | 32) == 'f') {
+		p += 3;
+		if ((p[0] | 32) == 'i' && (p[1] | 32) == 'n' && (p[2] | 32) == 'i' && (p[3] | 32) == 't' && (p[4] | 32) == 'y') p += 5;
+		if (end) *end = (char *)p;
+		return sign / 0.0;
+	}
+	if ((p[0] | 32) == 'n' && (p[1] | 32) == 'a' && (p[2] | 32) == 'n') {
+		if (end) *end = (char *)p + 3;
+		return 0.0 / 0.0;
+	}
+	for (; isdigit((unsigned char)*p); p++, any = 1) v = v * 10 + (*p - '0');
+	if (*p == '.') {
+		p++;
+		for (; isdigit((unsigned char)*p); p++, any = 1) { v = v * 10 + (*p - '0'); ex--; }
+	}
+	if (!any) { if (end) *end = (char *)s; return 0; }
+	if ((*p | 32) == 'e') {
+		const char *q = p + 1;
+		int en = 0, eneg = 0, ed = 0;
+		if (*q == '-' || *q == '+') eneg = *q++ == '-';
+		for (; isdigit((unsigned char)*q); q++, ed = 1) if (en < 10000) en = en * 10 + (*q - '0');
+		if (ed) { ex += eneg ? -en : en; p = q; }
+	}
+	if (end) *end = (char *)p;
+	{
+		double scale = 1, b = 10;
+		int n = ex < 0 ? -ex : ex;
+		while (n) { if (n & 1) scale *= b; b *= b; n >>= 1; }
+		v = ex < 0 ? v / scale : v * scale;
+	}
+	return sign * v;
+}
+
+/* sscanf : d i u x X o (h hh l ll z j), f e g (l), s c [ensemble], n, %%, *, largeur */
+int vsscanf(const char *str, const char *f, va_list ap)
+{
+	const char *s = str;
+	int got = 0;
+	while (*f) {
+		if (isspace((unsigned char)*f)) { while (isspace((unsigned char)*s)) s++; f++; continue; }
+		if (*f != '%') { if (*s != *f) break; s++; f++; continue; }
+		f++;
+		if (*f == '%') { while (isspace((unsigned char)*s)) s++; if (*s != '%') break; s++; f++; continue; }
+		int skip = 0, width = 0, len = 0;	/* len : 1 h, 2 hh, 3 l, 4 ll */
+		if (*f == '*') { skip = 1; f++; }
+		while (isdigit((unsigned char)*f)) width = width * 10 + (*f++ - '0');
+		if (*f == 'h') { len = 1; f++; if (*f == 'h') { len = 2; f++; } }
+		else if (*f == 'l') { len = 3; f++; if (*f == 'l') { len = 4; f++; } }
+		else if (*f == 'z' || *f == 'j' || *f == 't') { len = 4; f++; }
+		char c = *f++;
+		if (c == 'n') { if (!skip) *va_arg(ap, int *) = (int)(s - str); continue; }
+		if (c != 'c' && c != '[') while (isspace((unsigned char)*s)) s++;
+		if (!*s) break;
+		char tmp[128];
+		const char *src = s;
+		if (width > 0 && width < (int)sizeof tmp && c != 's' && c != 'c' && c != '[') {
+			size_t k = 0;
+			while (k < (size_t)width && s[k]) { tmp[k] = s[k]; k++; }
+			tmp[k] = 0;
+			src = tmp;
+		}
+		if (c == 'd' || c == 'i' || c == 'u' || c == 'x' || c == 'X' || c == 'o') {
+			char *e;
+			int base = c == 'd' || c == 'u' ? 10 : c == 'i' ? 0 : c == 'o' ? 8 : 16;
+			long long v = strtoll(src, &e, base);
+			if (e == src) break;
+			s += e - src;
+			if (!skip) {
+				if (len == 1) *va_arg(ap, short *) = (short)v;
+				else if (len == 2) *va_arg(ap, char *) = (char)v;
+				else if (len == 3) *va_arg(ap, long *) = (long)v;
+				else if (len == 4) *va_arg(ap, long long *) = v;
+				else *va_arg(ap, int *) = (int)v;
+				got++;
+			}
+		} else if (c == 'f' || c == 'e' || c == 'g' || c == 'E' || c == 'G') {
+			char *e;
+			double v = strtod(src, &e);
+			if (e == src) break;
+			s += e - src;
+			if (!skip) { if (len == 3) *va_arg(ap, double *) = v; else *va_arg(ap, float *) = (float)v; got++; }
+		} else if (c == 's') {
+			char *d = skip ? 0 : va_arg(ap, char *);
+			int k = 0;
+			while (*s && !isspace((unsigned char)*s) && (!width || k < width)) { if (d) d[k] = *s; k++; s++; }
+			if (d) { d[k] = 0; got++; }
+		} else if (c == 'c') {
+			char *d = skip ? 0 : va_arg(ap, char *);
+			int k, w = width ? width : 1;
+			for (k = 0; k < w && *s; k++, s++) if (d) d[k] = *s;
+			if (k < w) break;
+			if (d) got++;
+		} else if (c == '[') {
+			int neg = 0, k = 0;
+			char set[256] = { 0 };
+			if (*f == '^') { neg = 1; f++; }
+			if (*f == ']') { set[']'] = 1; f++; }
+			while (*f && *f != ']') {
+				if (f[1] == '-' && f[2] && f[2] != ']') {
+					for (int ch = (unsigned char)f[0]; ch <= (unsigned char)f[2]; ch++) set[ch] = 1;
+					f += 3;
+				} else set[(unsigned char)*f++] = 1;
+			}
+			if (*f == ']') f++;
+			char *d = skip ? 0 : va_arg(ap, char *);
+			while (*s && (set[(unsigned char)*s] != neg) && (!width || k < width)) { if (d) d[k] = *s; k++; s++; }
+			if (!k) break;
+			if (d) { d[k] = 0; got++; }
+		} else break;
+	}
+	return got ? got : (*s ? 0 : -1);
+}
+int sscanf(const char *s, const char *f, ...)
+{
+	va_list ap; va_start(ap, f);
+	int r = vsscanf(s, f, ap);
+	va_end(ap);
+	return r;
+}
+
+/* le temps : UTC (le kit n'a pas le fuseau) ; clock () en ms (CLOCKS_PER_SEC de newlib : 1000) */
+extern int64_t av_now(void);
+clock_t clock(void) { return (clock_t)(av_now() / 1000); }
+
+static int64_t days_from_civil(int64_t y, unsigned m, unsigned d)
+{
+	y -= m <= 2;
+	int64_t era = (y >= 0 ? y : y - 399) / 400;
+	unsigned yoe = (unsigned)(y - era * 400);
+	unsigned doy = (153 * (m > 2 ? m - 3 : m + 9) + 2) / 5 + d - 1;
+	unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+	return era * 146097 + (int64_t)doe - 719468;
+}
+time_t mktime(struct tm *t)
+{
+	int64_t y = t->tm_year + 1900 + (t->tm_mon >= 0 ? t->tm_mon / 12 : (t->tm_mon - 11) / 12);
+	int m = ((t->tm_mon % 12) + 12) % 12;
+	int64_t days = days_from_civil(y, (unsigned)m + 1, 1) + t->tm_mday - 1;
+	return (time_t)(days * 86400 + t->tm_hour * 3600 + t->tm_min * 60 + t->tm_sec);
+}
+struct tm *gmtime_r(const time_t *tp, struct tm *t)
+{
+	int64_t s = (int64_t)*tp, days = s / 86400, rem = s % 86400;
+	if (rem < 0) { rem += 86400; days--; }
+	t->tm_hour = (int)(rem / 3600); t->tm_min = (int)(rem / 60 % 60); t->tm_sec = (int)(rem % 60);
+	t->tm_wday = (int)(((days % 7) + 11) % 7);	/* 1970-01-01 : jeudi */
+	int64_t z = days + 719468, era = (z >= 0 ? z : z - 146096) / 146097;
+	unsigned doe = (unsigned)(z - era * 146097);
+	unsigned yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+	int64_t y = (int64_t)yoe + era * 400;
+	unsigned doy = doe - (365 * yoe + yoe / 4 - yoe / 100), mp = (5 * doy + 2) / 153;
+	unsigned d = doy - (153 * mp + 2) / 5 + 1, m = mp < 10 ? mp + 3 : mp - 9;
+	y += m <= 2;
+	t->tm_year = (int)(y - 1900); t->tm_mon = (int)m - 1; t->tm_mday = (int)d;
+	t->tm_yday = (int)(days - days_from_civil(y, 1, 1));
+	t->tm_isdst = 0;
+	return t;
+}
+struct tm *gmtime(const time_t *tp) { static struct tm t; return gmtime_r(tp, &t); }
+struct tm *localtime_r(const time_t *tp, struct tm *t) { return gmtime_r(tp, t); }
+
+/* les fichiers : le kit lit les siens par AppKit (mk_fsys) ; ceux que FFmpeg ouvrirait lui-meme
+ * (av_file_map, /dev/urandom pour une graine) : absents */
+int open(const char *p, int flags, ...) { (void)p; (void)flags; *__errno() = 2; return -1; }
+void *fdopen(int fd, const char *m) { (void)fd; (void)m; return 0; }
+size_t fread(void *b, size_t sz, size_t n, void *f) { (void)b; (void)sz; (void)n; (void)f; return 0; }
+int fclose(void *f) { (void)f; return 0; }
+int setvbuf(void *f, char *b, int mode, size_t sz) { (void)f; (void)b; (void)mode; (void)sz; return 0; }

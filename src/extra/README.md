@@ -32,7 +32,9 @@ selfhost, [docs/MEDIAKIT.md](../../docs/MEDIAKIT.md)) :
 bibliothèque `av` d'Onyx (`user/Libs/av`, code de l'utilisateur, MIT) n'est pas ici : sa copie
 modifiée est suivie dans `tools/mediakit/av/`.
 
-Pas copié : `ffmpeg` (H.264 / H.265 / AAC, GPL-2 : à décider plus tard).
+Ajouté le 18/11/2026 pour **MediaKit** : `ffmpeg-7.1.2` (`third_party/` d'Onyx, la source de FFmpeg 7.1.2 telle
+quelle, sans `onyx/` et ses bibliothèques GPL précompilées). MediaKit le construit en **LGPL** (sans `--enable-gpl`,
+les décodeurs choisis seulement : `tools/mediakit/ffmpeg.sh`, correctifs dans `tools/mediakit/ffmpeg-patches`).
 
 Ajoutés le 29/10/2026 pour le portage (glue d'Onyx que la série de patchs de WebKit attend) :
 

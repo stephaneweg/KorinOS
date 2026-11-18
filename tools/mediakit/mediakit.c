@@ -8,8 +8,14 @@
  * Pas de codec audio dans MediaKit (decision de l'utilisateur) : les paquets
  * audio sont pour AudioKit. Seul point ou l'on decode un paquet audio :
  * audio_decode_packet () plus bas : Opus, Vorbis, MP3, FLAC par ak_codec_*
- * d'AudioKit (av/av_audiokit.c), le PCM brut converti ; AAC... : piste muette
- * et un avertissement.
+ * d'AudioKit (av/av_audiokit.c), le PCM brut converti ; AAC, AC-3, MP2 par
+ * FFmpeg quand il est lie (AV_WITH_FFMPEG) ; le reste : piste muette et un
+ * avertissement.
+ *
+ * Licence : avec FFmpeg (tools/mediakit/ffmpeg.sh, LGPL-2.1-or-later : H.264,
+ * H.265, AAC, MPEG-4 Part 2, MPEG-1/2, MJPEG, AC-3, MP2), MediaKit est sous
+ * LGPL-2.1-or-later (decision de l'utilisateur, 18/11/2026) : un kit a part,
+ * remplacable, que les programmes appellent par sa table.
  *
  * Fonctions (table d'exportation, ajout seul : mediakit.S, mediakit.abi) :
  * AAPCS64, entiers, pointeurs, poignees opaques : appelables de l'assembleur
@@ -346,7 +352,12 @@ static int track_supported(const struct av_track *t)
 	if (t->kind == AV_AUDIO)
 		return !t->encrypted && (t->codec == AV_C_OPUS || t->codec == AV_C_VORBIS ||
 			t->codec == AV_C_MP3 || t->codec == AV_C_FLAC ||
-			(t->codec >= AV_C_PCM_S16LE && t->codec <= AV_C_PCM_U8));
+			(t->codec >= AV_C_PCM_S16LE && t->codec <= AV_C_PCM_U8)
+#ifdef AV_WITH_FFMPEG
+			/* AAC, AC-3, E-AC-3, MP2 : les decodeurs de FFmpeg (LGPL, tools/mediakit/ffmpeg.sh) */
+			|| av_decoder_supported_track(t)
+#endif
+			);
 	return 0;
 }
 

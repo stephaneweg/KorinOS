@@ -22,7 +22,10 @@ for d in libvpx-1.15.2 dav1d-1.5.1; do
 	[ -d "$EXTRA/$d" ] || { echo "mediakit : $EXTRA/$d absent (src/extra/README.md)"; exit 1; }
 done
 mkdir -p "$OUT"
-make -s -f "$HERE/Makefile" -j"${JOBS:-$(nproc)}" ARCH="$ARCH" OUT="$OUT" EXTRA="$EXTRA" TC="$TC"
+# FFmpeg (LGPL : H.264, H.265, AAC...) : construit une fois (tools/mediakit/ffmpeg.sh) ; NO_FFMPEG=1 : sans lui
+FFDIR=/tmp/korin-ffmpeg-$ARCH
+if [ "${NO_FFMPEG:-0}" = 1 ]; then FFDIR=; else ARCH=$ARCH JOBS=${JOBS:-4} sh "$HERE/ffmpeg.sh"; fi
+make -s -f "$HERE/Makefile" -j"${JOBS:-$(nproc)}" ARCH="$ARCH" FF="$FFDIR" OUT="$OUT" EXTRA="$EXTRA" TC="$TC"
 ${TC}readelf -lrSW "$OUT/mediakit.elf" > "$OUT/mediakit.txt"
 if grep -q "\.tbss\|\.tdata" "$OUT/mediakit.txt"; then
 	echo "mediakit : variables par thread (TLS) dans le kit : refuse"; exit 1

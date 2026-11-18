@@ -7,6 +7,7 @@ Le code de Korin OS est sous licence **MIT** ([LICENSE](../LICENSE)), sauf ce qu
 | Quoi | Où | Licence |
 |---|---|---|
 | Lecteur PDF | `src/apps/pdf`, `tools/pdf` | AGPL-3.0 à cause de MuPDF (`src/apps/pdf/COPYING`) |
+| MediaKit | `tools/mediakit` (kit `/lib/mediakit.so`) | LGPL-2.1-or-later à cause de FFmpeg (H.264, H.265, AAC… ; décision du 18/11/2026) ; la glue et la bibliothèque av restent MIT, libvpx et dav1d BSD |
 | Patchs de WebKit | `tools/extra/patches`, `tools/webkit/patches` | LGPL-2.1 / BSD, comme WebKit |
 | Patchs et pilote de FreeBASIC | `tools/gcc/fbc` | GPL-2.0+ pour le compilateur, LGPL-2.0+ avec exception pour `rtlib` et `gfxlib2` |
 | Scripts de GCC et binutils | `tools/gcc` | MIT pour les scripts ; GCC et binutils restent GPL-3.0+ |
@@ -20,7 +21,7 @@ Le code de Korin OS est sous licence **MIT** ([LICENSE](../LICENSE)), sauf ce qu
 | Firmware Wi-Fi Intel AX201 (PC) | `firmware/pc/iwlwifi/` | Intel, `LICENCE.iwlwifi_firmware` : redistribution binaire sans modification ; origine dans `SOURCE.txt` |
 | FASMARM, fasm | `tools/fasmarm`, `ref/fasm*`, `src/bin/fasmarm/fasmarm.asm` | licence de fasm (`LICENSE.TXT`), le code traduit compris |
 | Polices DejaVu, Inter, Spleen | `ref/fonts`, `ref/spleen` | leurs fichiers `LICENSE` |
-| Sintel (extraits) | `skel/sd0/home/video` | CC BY 3.0, Blender Foundation |
+| Sintel (extraits) | `skel/sd0/home/public/video` | CC BY 3.0, Blender Foundation |
 
 Les émulateurs sont réécrits sous MIT : leurs commentaires citent le comportement décrit par d'autres projets, sans
 reprendre leur code. Le code de Jet (`src/extra/onyxports/jet`) est sous MIT ; le programme lié à WebKit est soumis à
@@ -30,7 +31,8 @@ la LGPL, voir plus bas.
 
 WebKit (LGPL-2.1, BSD), GCC et binutils (GPL-3), newlib, Mesa (MIT), .NET et Avalonia (MIT), Skia (BSD), ICU, curl,
 OpenSSL (Apache-2.0), SDL (zlib), SuperTux et SuperTuxKart (GPL-3, données CC et autres), FreeBASIC (GPL-2, rtlib
-LGPL-2), MuPDF (AGPL-3.0), SoundFont GeneralUser GS (sa licence l'accompagne).
+LGPL-2), MuPDF (AGPL-3.0), FFmpeg 7.1.2 (LGPL-2.1+, construit sans `--enable-gpl` par `tools/mediakit/ffmpeg.sh`,
+correctifs dans `tools/mediakit/ffmpeg-patches`), SoundFont GeneralUser GS (sa licence l'accompagne).
 
 ## À respecter pour distribuer des binaires
 
@@ -40,6 +42,9 @@ Vaut pour les images, les paquets et `sdcard/`.
   compris. Ce dépôt et `tools/extra/fetch.sh` les fournissent, aux versions fixées.
 * **LGPL (WebKit)** : Jet est lié en statique, donc les objets doivent permettre de le relier à une autre version de
   WebKit. La construction de `docs/CONSTRUIRE.md` le permet.
+* **LGPL (MediaKit, FFmpeg)** : FFmpeg est lié dans le kit, un fichier à part (`/lib/mediakit.so`) que les programmes
+  appellent par sa table : on peut le remplacer par un kit refait avec un autre FFmpeg (`tools/mediakit/build.sh`).
+  H.264, H.265 et AAC sont aussi couverts par des brevets dans certains pays.
 * **Firmware** : redistribution binaire sans modification, licence jointe.
 * **Contenu des images** : `korin_full` contient tout ce qui précède ; `korin_lite` et `sdcard/` contiennent le firmware,
   les polices et le code MIT.
