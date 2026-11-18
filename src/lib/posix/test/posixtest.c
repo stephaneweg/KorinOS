@@ -620,6 +620,13 @@ static int s_onceRuns;
 static void once_fn (void) { s_onceRuns++; sched_yield (); }
 static void *t_once (void *a) { (void) a; pthread_once (&s_once, once_fn); return 0; }
 
+/* la table des fonctions de sortie (exitproc.c) : plus de 32 places, l'ordre inverse, une fois chacune */
+int __cxa_atexit (void (*) (void *), void *, void *);
+void __cxa_finalize (void *);
+static int s_exitOrder[1000], s_exitCalls;
+static void exit_fn (void *a) { if (s_exitCalls < 1000) s_exitOrder[s_exitCalls] = (int) (long) a; s_exitCalls++; }
+static void exit_noop (void) {}
+
 static pthread_key_t s_key;
 static volatile int s_dtorSeen;
 static void key_dtor (void *v) { if (v == (void *) 0x1234) s_dtorSeen = 1; }
@@ -832,6 +839,28 @@ static void group_thread (void)
 	for (int i = 0; i < 10; i++)
 		pthread_join (t[i], 0);
 	CHECK ("pthread_once from 10 threads: once", s_onceRuns == 1, "%d runs", s_onceRuns);
+
+	/* 1000 fonctions sous un faux module, puis __cxa_finalize (comme dlclose) : newlib n'en gardait que 32 */
+	static char s_fakeDso;
+	int refused = 0;
+	for (int i = 0; i < 1000; i++)
+		if (__cxa_atexit (exit_fn, (void *) (long) i, &s_fakeDso) != 0)
+			refused++;
+	s_exitCalls = 0;
+	__cxa_finalize (&s_fakeDso);
+	int calls1 = s_exitCalls, order = 1;
+	for (int i = 0; i < 1000 && i < calls1; i++)
+		if (s_exitOrder[i] != 999 - i)
+			order = 0;
+	__cxa_finalize (&s_fakeDso);
+	CHECK ("atexit table: 1000 __cxa_atexit, __cxa_finalize in reverse order, once",
+	       refused == 0 && calls1 == 1000 && order && s_exitCalls == 1000, "%d refused, %d calls, order %d, after a 2nd finalize %d",
+	       refused, calls1, order, s_exitCalls);
+	int arefused = 0;
+	for (int i = 0; i < 100; i++)
+		if (atexit (exit_noop) != 0)
+			arefused++;
+	CHECK ("atexit: 100 more accepted (no limit of 32)", arefused == 0, "%d refused", arefused);
 
 	pthread_key_create (&s_key, key_dtor);
 	void *kv = 0;

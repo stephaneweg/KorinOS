@@ -98,7 +98,8 @@ TC=$TC sh "$ROOT/tools/posix/dlexport.sh" "$SYSROOT/lib/dlhost-cxx.ld" 5 1 "$SYS
 	"$NEWLIB/libc.a" "$NEWLIB/libm.a" "$LIBGCC" "$NEWLIB/libstdc++.a"
 
 # specs : crt0posix.o et la bibliotheque d'abord (-u pour les remplacements : signal.o avant
-# celui de newlib, les gardes C++ par futex, l'ancre des threads de gthr-posix), le script de
+# celui de newlib, les gardes C++ par futex, l'ancre des threads de gthr-posix, la table des
+# fonctions de sortie sans limite d'exitproc.c a la place de celle de 32 places de newlib), le script de
 # liens, puis newlib apres les bibliotheques du programme. Deux variantes (docs/POSIX.md
 # « dlopen ») : -rdynamic, un hote de modules (table des symboles, exports de dlhost.ld, reserve
 # TLS de 32 Ko par thread, -tls-reserve=N pour une autre taille) ; -shared, un module (-fPIC) : ni crt0, ni libposix, ni newlib (il
@@ -124,7 +125,7 @@ cat > "$L/posix.specs" <<EOF
 
 
 *link:
-$LINKX%{!shared:%{rdynamic:--no-dynamic-linker %{tls-reserve=*:--defsym=__posix_dl_tls_reserve_abs=%*}%{!tls-reserve=*:--defsym=__posix_dl_tls_reserve_abs=0x8000} $L/dlhost.ld} -T $L/posix.ld -z max-page-size=0x1000 --build-id=none --gc-sections --eh-frame-hdr -u __cxa_guard_acquire -u __posix_pthread_anchor -u abort} %{shared:-z max-page-size=0x1000 --build-id=none --eh-frame-hdr -z now $L/dlmod.o} -L $L %(posix_orig_link)
+$LINKX%{!shared:%{rdynamic:--no-dynamic-linker %{tls-reserve=*:--defsym=__posix_dl_tls_reserve_abs=%*}%{!tls-reserve=*:--defsym=__posix_dl_tls_reserve_abs=0x8000} $L/dlhost.ld} -T $L/posix.ld -z max-page-size=0x1000 --build-id=none --gc-sections --eh-frame-hdr -u __cxa_guard_acquire -u __posix_pthread_anchor -u abort -u __register_exitproc -u __call_exitprocs} %{shared:-z max-page-size=0x1000 --build-id=none --eh-frame-hdr -z now $L/dlmod.o} -L $L %(posix_orig_link)
 
 *lib:
 %{!shared:--start-group $L/libposix.a -lc -lm --end-group} %(posix_orig_lib)

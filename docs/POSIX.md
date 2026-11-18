@@ -444,6 +444,39 @@ plutôt que contourné dans CPython :
 | échéances immenses saturées | `pthread_sync.c` (`__posix_ms_until`), `time.c` (`clock_nanosleep`) | la `std` donne `tv_sec = i64::MAX` pour un délai sans fin ; la conversion en ns débordait : `pthread_cond_timedwait` rendait `ETIMEDOUT` tout de suite |
 | `IPV6_UNICAST_HOPS` à `IPV6_DROP_MEMBERSHIP`, `IPV6_JOIN_GROUP`, `IPV6_LEAVE_GROUP`, `struct ipv6_mreq` | `include/netinet/in.h` | valeurs de Linux ; `std::net` les nomme sans `cfg`. Toujours pas de socket `AF_INET6` |
 
+## Fonctions de sortie sans limite (18/11/2026)
+
+**Le défaut de newlib** : `atexit`, `on_exit` et `__cxa_atexit` rangent leurs fonctions dans une table de **32 places**.
+`newlib.h` annonce `_ATEXIT_DYNAMIC_ALLOC`, mais la croissance par `malloc` n'est pas compilée pour nos cibles : le code de
+`__register_exitproc` (PC et Pi) rend -1 dès la 33e inscription. Or les destructeurs des objets statiques de C++ y
+vont aussi, inscrits au fil du code qui tourne. Un gros programme remplit donc la table : au-delà, ses destructeurs ne
+sont plus appelés à la sortie, sans un mot, et une bibliothèque qui vérifie le résultat échoue. Le cas trouvé : OpenSSL,
+dont la première initialisation fait `atexit (OPENSSL_cleanup)`. Si `atexit` refuse, OpenSSL refuse ensuite toute
+recherche d'algorithme jusqu'à la fin du process. Dans le process web de Jet sur Facebook, WebCrypto (AES-GCM) échouait,
+et la page n'envoyait pas le mot de passe ([WEBKIT.md](WEBKIT.md), « Connexion à Facebook »).
+
+**Le remplacement** (`exitproc.c`) : `libposix` fournit les deux fonctions par lesquelles passe newlib,
+`__register_exitproc` (qu'appellent `atexit`, `on_exit`, `__cxa_atexit`) et `__call_exitprocs` (`exit`, et
+`__cxa_finalize` quand `dlclose` décharge un module). La spec les tire de `libposix` avant newlib (`-u`, comme
+`signal.o`), si bien que `__atexit.o` et `__call_atexit.o` de newlib ne sont plus liés.
+* **Croissance** : 32 places d'abord, sans allocation (un programme peut s'inscrire avant que `malloc` serve), puis un
+  tableau qui double, alloué hors du verrou.
+* **Comportement de newlib conservé** : les fonctions sont appelées de la dernière à la première, une seule fois
+  chacune, et hors du verrou. Une fonction qui en inscrit d'autres pendant la sortie les voit appelées aussi. Avec
+  un module, seules ses fonctions de `__cxa_atexit` sont appelées. `__libc_fini_array` (`.fini_array`) est inscrit
+  en premier par un constructeur de priorité 0, donc appelé en dernier, comme le faisait `__call_atexit.c`
+  (`--enable-newlib-register-fini`).
+* **fork** : le verrou est une feuille (rien n'est pris sous lui), pris avant `malloc` (`proc.c`).
+* **Effet** : il faut relier un programme pour qu'il en profite (`libposix` est statique). Les specs du sysroot de
+  WebKit suivent : celle du PC est copiée de `posix.specs`, et `-u` est ajouté à celle du Pi (`tools/webkit/sysroot.sh`).
+* **Vérifié** : la logique, sur l'hôte (2 000 inscriptions, l'ordre, les modules, une inscription pendant la sortie,
+  le code d'`on_exit`). L'édition de liens de `posixtest` du PC : les fonctions viennent d'`exitproc.o`,
+  `__atexit0` de newlib a disparu, et `register_fini` est la première entrée de `.init_array`. `posixtest` a deux
+  essais de plus (groupe thread) : 1 000 `__cxa_atexit` sous un faux module puis `__cxa_finalize` (ordre inverse,
+  une fois), et 100 `atexit` de plus acceptés. **Pas encore lancé sur Korin** (`posixtest thread`, sur le ZBook ou QEMU).
+* **Jet** initialise de plus OpenSSL au départ, sans `atexit` (`OPENSSL_INIT_NO_ATEXIT`, `main.cpp`) : cela ne
+  dépend plus de la table.
+
 ## Ce qui manque (ENOSYS, ou sans effet)
 
 * **Processus** : `exec*` garde le pid (section « exec » ; repli : lancer, attendre, finir) ;

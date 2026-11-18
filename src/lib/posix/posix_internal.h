@@ -330,6 +330,7 @@ void __posix_thread_fork (int phase);		/* tls.c : liste des threads ; fils : lui
 void __posix_fd_fork (int phase);		/* fd.c : table des descripteurs */
 void __posix_mman_fork (int phase);		/* mman.c : regions de mmap */
 void __posix_stdio_fork (int phase);		/* newlib_syscalls.c : liste des FILE, environnement */
+void __posix_exitproc_fork (int phase);	/* exitproc.c : table des fonctions de sortie */
 void __posix_malloc_fork (int phase);		/* newlib_syscalls.c : malloc (pris en dernier) */
 void __armpi_netkit_fork_child (void);		/* armpi.c : NetKit, s'il est ouvert (son tampon) */
 

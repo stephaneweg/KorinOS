@@ -54,7 +54,7 @@ $L/crt0posix.o $L/libposix.a
 
 
 *link:
--T $L/posix.ld -z max-page-size=0x1000 --build-id=none --gc-sections --eh-frame-hdr -u __cxa_guard_acquire -u __posix_pthread_anchor -u abort %(posix_orig_link)
+-T $L/posix.ld -z max-page-size=0x1000 --build-id=none --gc-sections --eh-frame-hdr -u __cxa_guard_acquire -u __posix_pthread_anchor -u abort -u __register_exitproc -u __call_exitprocs %(posix_orig_link)
 
 *lib:
 --start-group $L/libposix.a -lc -lm --end-group %(posix_orig_lib)

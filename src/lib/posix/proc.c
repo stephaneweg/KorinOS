@@ -1037,10 +1037,12 @@ pid_t fork (void)
 	__posix_keys_fork (POSIX_FORK_PREPARE);
 	__posix_thread_fork (POSIX_FORK_PREPARE);
 	__posix_mman_fork (POSIX_FORK_PREPARE);
+	__posix_exitproc_fork (POSIX_FORK_PREPARE);
 	__posix_malloc_fork (POSIX_FORK_PREPARE);
 	long r = kfork ();
 	int phase = r == 0 ? POSIX_FORK_CHILD : POSIX_FORK_PARENT;
 	__posix_malloc_fork (phase);
+	__posix_exitproc_fork (phase);
 	__posix_mman_fork (phase);
 	__posix_thread_fork (phase);		/* (fils : lui seul, son tid) */
 	__posix_keys_fork (phase);
