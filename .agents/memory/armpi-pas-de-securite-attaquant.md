@@ -21,3 +21,5 @@ qu'on « en faisait un peu trop pour un petit OS maison ».
 une mesure est proposée, dire si elle protège des bugs ou sert la performance. Exception à signaler
 seulement : les services réseau (ftpd, telnet, httpd, rdpd, vncd) exposés à l'extérieur. Voir
 [[armpi-feuille-de-route]], [[armpi-pocketterm]].
+
+**18/11 : assoupli** pour le web : plan de [[armpi-securite]] (enforce, SMEP/SMAP, unveil, ASLR, pledge) décidé par l'utilisateur.

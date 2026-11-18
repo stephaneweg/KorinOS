@@ -125,3 +125,4 @@
 - [Coffre à secrets](armpi-coffre.md) — 18/11 : fait sur le PC (keyvault, TPM, migrations), vérifié sous QEMU ; ZBook, vrai TPM et enforce restent
 - [build world du PC](armpi-build-world-pc.md) — après Jet : nettoyer build, tout reconstruire (libposix relinkée partout, GCC STAGES=posix), tout publier, nouvelle clé
 - [Identification GitHub](armpi-gh.md) — au plan le 18/11 : code d'appareil dans git-credential-korin (oauthd) ; pas de gh, pas de PR ; docs/etude/GH.md §5
+- [Sécurité contre le web](armpi-securite.md) — plan du 18/11 : enforce, SMEP/SMAP, unveil pour Jet, ASLR, pledge ; docs/etude/SECURITE.md, rien de fait
