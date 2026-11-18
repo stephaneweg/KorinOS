@@ -5,7 +5,8 @@ ni `kapi_*`, ni uikit d'Onyx. Son interface a été refaite : proposition d'un d
 
     irc                 /apps/irc.app/main
 
-Fichiers : `HOME:/irc` (`servers.txt`, `nick.txt`, `config.ini` : user, realname, channel, password, server, port).
+Fichiers : `HOME:/irc` (`servers.txt`, `nick.txt`, `config.ini` : user, realname, channel, password, server, port) ; avec un coffre à secrets (le PC,
+`docs/KEYVAULT.md`), le mot de passe est dans son secret « password » et quitte `config.ini`.
 Compilation : `pibuild app /src/apps/irc irc` (GCC natif, pas d'OpenSSL) ou `wsl sh tools/office/build.sh irc`.
 
 ## Repris et écrit

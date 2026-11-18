@@ -61,6 +61,14 @@ void reply (int fd, int code, const char *reason, const std::string &body, const
 	if (!body.empty ()) sendAll (fd, body.data (), body.size ());
 }
 
+// deux secrets comparés en un temps qui ne dit pas où ils diffèrent (le jeton)
+static bool sameSecret (const std::string &a, const std::string &b)
+{
+	unsigned char d = a.size () != b.size ();
+	for (size_t i = 0, n = a.size () < b.size () ? a.size () : b.size (); i < n; i++) d |= (unsigned char) (a[i] ^ b[i]);
+	return !d;
+}
+
 // la valeur d'un en-tête (sans la casse du nom) dans le bloc des en-têtes -> "" si absent
 std::string header (const std::string &hd, const char *name)
 {
@@ -101,7 +109,7 @@ void serve (int fd)
 	if (path != "/mcp" && path != "/mcp/" && path != "/") return reply (fd, 404, "Not Found", "");
 	if (!header (hd, "Origin").empty ())	// (un navigateur : refusé, contre le rebond DNS)
 		return reply (fd, 403, "Forbidden", "{\"error\":\"Origin refused\"}");
-	if (!g_token.empty () && header (hd, "Authorization") != "Bearer " + g_token)
+	if (!g_token.empty () && !sameSecret (header (hd, "Authorization"), "Bearer " + g_token))
 		return reply (fd, 401, "Unauthorized", "{\"error\":\"bad or missing token (Authorization: Bearer ...)\"}");
 	if (method == "GET" || method == "DELETE")	// (pas de flux SSE, pas de session à fermer)
 		return reply (fd, 405, "Method Not Allowed", "", "application/json", "Allow: POST\r\n");

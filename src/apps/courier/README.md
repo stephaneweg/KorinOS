@@ -9,6 +9,11 @@ uikit d'Onyx. Il remplace sur la carte la version C# (`tools/dotnet/courier`), t
 Fichiers : `HOME:/courier` (`collections/`, `environments/`, `globals.json`, `history.json`, `state.json`, `cookies.json`),
 aux formats de Postman, les mêmes que la version C# et qu'Onyx (`insecure` en plus dans le membre `onyx`).
 
+Secrets (le PC, coffre à secrets de Korin, `docs/KEYVAULT.md`) : une variable nommée `vault:NOM` (environnement, globales ou
+collection) voit sa valeur passer dans le coffre à l'enregistrement, et quitter le fichier ; `{{vault:NOM}}` la reprend à
+l'envoi seulement (un extrait de code la laisse telle quelle). Les collections restent celles de Postman. Sans coffre (le Pi) :
+`vault:NOM` est une variable comme une autre (`vars.h`, `model.h` : `vault_keep`).
+
 Compilation : `wsl sh tools/office/build.sh courier`. **Pas par `pibuild`** : OpenSSL n'est pas sous `/devtools/gcc` (`docs/OPENSSL.md`).
 4,8 Mo.
 

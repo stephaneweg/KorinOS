@@ -22,11 +22,14 @@ Forge existe **sur le PC** (x86-64) seulement pour l'instant : pas sur le Pi. `l
    (/apps/forge.app/main --mcp >/dev/null 2>&1 &)
    ```
 
-   Elle écoute sur le port **7311**. Le jeton est dans `/home/forge/mcp.txt` (`token = ...`, créé au premier
-   départ) : `cat /home/forge/mcp.txt`. Une fenêtre s'ouvre pour l'utilisateur ; Forge se ferme comme une app.
+   Elle écoute sur le port **7311**. Le jeton : sur le Pi, dans `/home/forge/mcp.txt` (`token = ...`, créé au premier
+   départ) : `cat /home/forge/mcp.txt`. Sur le PC, Forge le garde dans le coffre à secrets, que toi tu ne lis pas :
+   lance-la avec un jeton à toi, `--mcp --mcp-token JETON` (une suite au hasard d'au moins 32 caractères
+   hexadécimaux), ou demande à l'utilisateur celui que montre *Fichier > Piloter par un agent (MCP)*. Une fenêtre
+   s'ouvre pour l'utilisateur ; Forge se ferme comme une app.
 2. **Déclarer le serveur à l'agent**, dans son `config.toml` : `/.vibe/config.toml` pour Vibe,
    `/.claude-acp/config.toml` pour Claude (claude-acp). Le même bloc pour les deux ; le dire à l'utilisateur et lui
-   demander d'abord ; ne pas toucher au reste du fichier ; remplacer `JETON` par celui du fichier :
+   demander d'abord ; ne pas toucher au reste du fichier ; remplacer `JETON` par le jeton :
 
    ```toml
    [[mcp_servers]]

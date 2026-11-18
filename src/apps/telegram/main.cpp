@@ -76,6 +76,7 @@ static void notify (const char *title, const char *msg)
 #define TG_API_HASH	"e33e9fae5727447538e9aea5c0f5a0fc"
 
 static char g_cfgExtra[800];				// (the tests' lines, kept as they are when the settings are written)
+static bool g_kvApi;					// a secret vault (client.h, loadSession): the user's api_hash is its secret "api-hash"
 
 static void save_config ()
 {
@@ -83,8 +84,12 @@ static void save_config ()
 	int n;
 	if (g_c.apiId == TG_API_ID && !strcmp (g_c.apiHash, TG_API_HASH))	// (the app's own key: not written)
 		n = snprintf (t, sizeof t, "[telegram]\ntest=%d\npictures=%d\nwindows=%d\n%s", (int) g_c.test, (int) g_pictures, (int) g_windowed, g_cfgExtra);
+	else if (g_kvApi && kv_set ("api-hash", g_c.apiHash, (long) strlen (g_c.apiHash)) >= 0)	// (in the vault: not in config.ini)
+		n = snprintf (t, sizeof t, "[telegram]\napi_id=%d\ntest=%d\npictures=%d\nwindows=%d\n%s", g_c.apiId, (int) g_c.test, (int) g_pictures, (int) g_windowed, g_cfgExtra);
 	else n = snprintf (t, sizeof t, "[telegram]\napi_id=%d\napi_hash=%s\ntest=%d\npictures=%d\nwindows=%d\n%s", g_c.apiId, g_c.apiHash, (int) g_c.test, (int) g_pictures, (int) g_windowed, g_cfgExtra);
+	if (n >= (int) sizeof t) n = (int) sizeof t - 1;
 	tg_save (TG_DIR "config.ini", t, n);
+	memset (t, 0, sizeof t);
 }
 
 // One ini value (key = value; [sections] do not matter: the file has one).
@@ -116,12 +121,24 @@ static void load_config ()
 {
 	g_c.apiId = TG_API_ID;
 	snprintf (g_c.apiHash, sizeof g_c.apiHash, "%s", TG_API_HASH);
+	g_kvApi = kv_status () >= 0;
 	int n = 0;
 	char *t = (char *) tg_load (TG_DIR "config.ini", &n);
 	if (!t) return;
 	char v[600];
 	if (ini_get (t, "api_id", v, sizeof v)) g_c.apiId = atoi (v);
-	if (ini_get (t, "api_hash", v, sizeof v)) snprintf (g_c.apiHash, sizeof g_c.apiHash, "%s", v);
+	bool fileHash = ini_get (t, "api_hash", v, sizeof v) && v[0];
+	if (fileHash) snprintf (g_c.apiHash, sizeof g_c.apiHash, "%s", v);
+	// the user's api_hash: in the vault when there is one; one of config.ini (of before, or written by hand) goes into it
+	bool moveHash = false;
+	if (g_kvApi)
+	{
+		char h[64];
+		long r = kv_get ("api-hash", h, sizeof h - 1);
+		if (r >= 0 && !fileHash) { h[r] = 0; snprintf (g_c.apiHash, sizeof g_c.apiHash, "%s", h); }
+		moveHash = fileHash && r != -13 && r != -125;	// (the vault closed or refused: config.ini keeps it)
+		memset (h, 0, sizeof h);
+	}
 	if (!g_c.apiId || !g_c.apiHash[0]) { g_c.apiId = TG_API_ID; snprintf (g_c.apiHash, sizeof g_c.apiHash, "%s", TG_API_HASH); }
 	if (ini_get (t, "test", v, sizeof v)) g_c.test = atoi (v) != 0;
 	if (ini_get (t, "pictures", v, sizeof v)) g_pictures = atoi (v) != 0;
@@ -139,7 +156,10 @@ static void load_config ()
 		if (strlen (rsa) == 512) strcpy (tgc::rsa_test_hex (), rsa);
 		snprintf (g_cfgExtra, sizeof g_cfgExtra, "test_host=%s\ntest_port=%d\ntest_rsa_n=%s\n", host, g_c.onlyPort, rsa);
 	}
+	memset (t, 0, (size_t) n);
+	memset (v, 0, sizeof v);
 	free (t);
+	if (moveHash) save_config ();
 }
 static void save_api (int id, const char *hash)
 {

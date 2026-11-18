@@ -106,17 +106,13 @@ struct Settings
 			snprintf (aiModel, sizeof aiModel, "%s", r["aiModel"].asStr ("gemini-flash-latest"));
 			// the keys; a settings.json of before (one "aiKey"): that key, for its provider
 			aiKeys.clear ();
-			for (const json::Value *k = r["aiKeys"].first (); k; k = k->next)
-			{
-				AiKey &e = aiKeys.add ();
-				e.provider = (*k)["provider"].asStr ("gemini"); e.name = (*k)["name"].asStr (""); e.key = (*k)["key"].asStr ("");
-				e.last = (*k)["last"].asBool (false);
-			}
+			readKeys (r["aiKeys"]);
 			if (!r.has ("aiKeys") && r["aiKey"].asStr ("")[0])
 			{
 				AiKey &e = aiKeys.add ();
 				e.provider = aiProvider; e.key = r["aiKey"].asStr (""); e.last = true;	// (its name: nameKeys, UIKit not open yet)
 			}
+			legacyKeys = aiKeys.size () > 0;
 			const json::Value &a = r["aiLast"];
 			AiLast &L = aiLast;
 			L.kind = a["kind"].asInt (L.kind);
@@ -126,8 +122,51 @@ struct Settings
 			L.full = a["fullMelody"].asBool (L.full); L.drums = a["drums"].asBool (L.drums); L.voice = a["chordsVoice"].asBool (L.voice);
 			L.pchords = a["polyChords"].asBool (L.pchords); L.pdrums = a["polyDrums"].asBool (L.pdrums);
 		}
+		memset (b, 0, got);
 		free (b);
 	}
+	void readKeys (const json::Value &arr)
+	{
+		for (const json::Value *k = arr.first (); k; k = k->next)
+		{
+			AiKey &e = aiKeys.add ();
+			e.provider = (*k)["provider"].asStr ("gemini"); e.name = (*k)["name"].asStr (""); e.key = (*k)["key"].asStr ("");
+			e.last = (*k)["last"].asBool (false);
+		}
+	}
+	void writeKeys (json::Writer &w)
+	{
+		w.beginArr ();
+		for (int i = 0; i < aiKeys.size (); i++)
+		{
+			const AiKey &k = aiKeys[i];
+			w.beginObj (); w.key ("provider"); w.str (k.provider.c ()); w.key ("name"); w.str (k.name.c ());
+			w.key ("key"); w.str (k.key.c ()); w.key ("last"); w.boolean (k.last); w.endObj ();
+		}
+		w.endArr ();
+	}
+	// The keys live in Korin's secret vault (docs/KEYVAULT.md), under Koton's own identity, secret "ai-keys" (the
+	// "aiKeys" array, as JSON); settings.json keeps the rest. Without a vault (the Pi): in settings.json as before.
+	// The first time with a vault, the keys of settings.json move into it (and leave the file: save).
+	void loadVault ()
+	{
+		kvState = kv_status () >= 0 ? 1 : 0;
+		if (!kvState) return;
+		static char t[KV_VALUE_MAX + 1];
+		long n = kv_get ("ai-keys", t, KV_VALUE_MAX);
+		if (n >= 0)
+		{
+			json::Doc d;
+			aiKeys.clear ();
+			if (n > 0 && d.parse (t, (unsigned long) n, json::TOLERANT)) readKeys (d.root ());
+			memset (t, 0, (size_t) n);
+			if (legacyKeys) save ();		// (keys left in settings.json: out of it)
+		}
+		else if (n != -2) kvState = 2;		// (vault refused: no keys this time; save leaves the vault alone)
+		else if (legacyKeys) save ();		// (the migration: into the vault, out of the file)
+	}
+	int kvState = 0;			// 0 no vault (the keys in settings.json), 1 the vault, 2 the vault refused us
+	bool legacyKeys = false;		// settings.json had keys
 	// the keys without a name (the one taken from "aiKey") named, in the chosen language: after uikit_open (TR)
 	void nameKeys () { for (int i = 0; i < aiKeys.size (); i++) if (aiKeys[i].name.empty ()) aiKeys[i].name = TR ("My key"); }
 	void save ()
@@ -138,14 +177,16 @@ struct Settings
 		w.key ("lastDir"); w.str (lastDir);
 		w.key ("aiProvider"); w.str (aiProvider);
 		w.key ("aiModel"); w.str (aiModel);
-		w.key ("aiKeys"); w.beginArr ();
-		for (int i = 0; i < aiKeys.size (); i++)
+		bool kvOk = true;
+		if (kvState && (kvState == 1 || aiKeys.size ()))	// (refused at the start, no key given since: the vault left alone)
 		{
-			const AiKey &k = aiKeys[i];
-			w.beginObj (); w.key ("provider"); w.str (k.provider.c ()); w.key ("name"); w.str (k.name.c ());
-			w.key ("key"); w.str (k.key.c ()); w.key ("last"); w.boolean (k.last); w.endObj ();
+			json::Writer k (false);
+			writeKeys (k);
+			kvOk = k.ok () && kv_set ("ai-keys", k.data (), (long) k.size ()) >= 0;
+			if (kvOk) { kvState = 1; legacyKeys = false; }
+			if (k.size ()) memset ((void *) k.data (), 0, k.size ());
 		}
-		w.endArr ();
+		if (!kvState || !kvOk) { w.key ("aiKeys"); writeKeys (w); }	// (the vault refused them: in the file as before, not lost)
 		w.key ("aiLast"); w.beginObj ();
 		w.key ("kind"); w.num (aiLast.kind);
 		w.key ("style"); w.str (aiLast.style.c ());
@@ -157,6 +198,7 @@ struct Settings
 		w.endObj ();
 		mkdir ("HOME:/koton", 0755);
 		if (w.ok ()) writeFile ("HOME:/koton/settings.json", w.data (), (unsigned) w.size ());
+		if (w.size ()) memset ((void *) w.data (), 0, w.size ());
 	}
 };
 static Settings g_settings;
@@ -677,6 +719,7 @@ int main (int argc, char **argv)
 	new (s_docMem) Doc ();
 	seedIds (ticks () ^ 0x5A17u);
 	g_settings.load ();
+	g_settings.loadVault ();	// (the API keys: in Korin's secret vault when there is one)
 	// (ARMPI: a window smaller than the work area, for the frame's button to bring back; it opens maximised)
 	ScreenInfo si; screenInfo (&si);
 	int sw = si.workW > 0 ? si.workW : 1024, sh = si.workH > 0 ? si.workH : 768;

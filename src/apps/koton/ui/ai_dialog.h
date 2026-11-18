@@ -21,6 +21,7 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include "../../../lib/keyvault/keyvault.h"
 
 extern char **environ;
 
@@ -72,7 +73,7 @@ public:
 		y += 34;
 		lab (16, y + 1, 110, "API key");
 		key = addCtl (ui_textbox (x, y, w, 26, UTF_PASSWORD), 0, x, y, w, 26, -1); ui_w_set_range (key, 0, 255, 0, 0);
-		ui_w_tip (key, (long) TR ("Kept in HOME:/koton/settings.json, in plain text"));
+		ui_w_tip (key, (long) (kv_status () >= 0 ? TR ("Kept in Korin's secret vault") : TR ("Kept in HOME:/koton/settings.json, in plain text")));
 		addCtl (ui_pushbutton (16, height - 40, 110, 28, (long) TR ("New key"), 0), B_NEW, 16, height - 40, 110, 28, UN_ACTIVATE);
 		delB = addCtl (ui_pushbutton (134, height - 40, 110, 28, (long) TR ("Delete"), 0), B_DEL, 134, height - 40, 110, 28, UN_ACTIVATE);
 		for (int i = 0; i < work.size (); i++) ui_list_add (list, (long) row (work[i]), i);

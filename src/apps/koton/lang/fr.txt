@@ -85,6 +85,7 @@ Provider = Fournisseur
 API key = Clé d'API
 The model's name at this provider = Le nom du modèle chez ce fournisseur
 Kept in HOME:/koton/settings.json, in plain text = Gardée dans HOME:/koton/settings.json, en clair
+Kept in Korin's secret vault = Gardée dans le coffre à secrets de Korin
 Generate = Générer
 Copy the prompt = Copier la demande
 Paste a reply = Coller une réponse

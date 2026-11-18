@@ -563,7 +563,8 @@ static void app_send ()
 	update_scope ();
 	Job *j = new Job;
 	j->jar = g_jar;
-	prepare (j->prep, t->req, g_scope, effective_auth (t->req, it, c), g_jar);
+	Scope sc = g_scope; sc.vault = true;	// ({{vault:name}}: read now, for this request only)
+	prepare (j->prep, t->req, sc, effective_auth (t->req, it, c), g_jar);
 	j->onDone = job_done; j->user = t;
 	t->job = j; t->started = now_ms ();
 	send_button ();

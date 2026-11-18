@@ -2,6 +2,10 @@
 // vars.h -- {{variables}}: found in the environment chosen, then the request's collection, then the
 // globals (Postman's order: the narrower scope wins), or made on the spot ({{$guid}}, {{$timestamp}}...).
 // A value may itself hold {{variables}}: resolved again (a few levels deep).
+// {{vault:name}}: Courier's secret "name" in Korin's secret vault (docs/KEYVAULT.md; put there by a variable
+// "vault:name", model.h vault_keep), read only when the request is sent (Scope::vault): the collection keeps
+// "{{vault:name}}" as written, so it stays Postman's and holds no secret; a code snippet shows it as written. Without a
+// vault (the Pi): the variable "vault:name" of the environment, the collection or the globals, as any other.
 //
 #ifndef _courier_vars_h
 #define _courier_vars_h
@@ -10,8 +14,8 @@
 
 namespace cr {
 
-enum { VS_NONE, VS_DYNAMIC, VS_ENV, VS_COLL, VS_GLOBAL };
-static const char *const VS_NAMES[] = { "unresolved", "dynamic", "environment", "collection", "global" };
+enum { VS_NONE, VS_DYNAMIC, VS_ENV, VS_COLL, VS_GLOBAL, VS_VAULT };
+static const char *const VS_NAMES[] = { "unresolved", "dynamic", "environment", "collection", "global", "vault" };
 
 // the dynamic variables Courier makes
 static const char *const DYN_VARS[] = { "$guid", "$randomUUID", "$timestamp", "$isoTimestamp", "$randomInt",
@@ -23,7 +27,8 @@ struct Scope
 	Environment *env;			// the environment chosen (0: none)
 	Collection *coll;			// the request's collection (0: none)
 	Environment *globals;
-	Scope () : env (0), coll (0), globals (0) {}
+	bool vault;				// {{vault:name}} read from the vault (only to send: not in a snippet)
+	Scope () : env (0), coll (0), globals (0), vault (false) {}
 };
 
 static inline const KV *find_var (const KVList &l, const char *name, int n)
@@ -72,6 +77,18 @@ static inline int lookup_var (const Scope &sc, const char *name, int n, Str *val
 			{ if (val) dynamic_var (*val, name, n); return VS_DYNAMIC; }
 		return VS_NONE;
 	}
+	if (n > 6 && !strncmp (name, "vault:", 6) && kv_status () >= 0)
+	{
+		if (!sc.vault || n - 6 > KV_NAME_MAX) return VS_NONE;
+		char key[KV_NAME_MAX + 1];
+		memcpy (key, name + 6, (size_t) (n - 6)); key[n - 6] = 0;
+		static char buf[KV_VALUE_MAX + 1];
+		long got = kv_get (key, buf, KV_VALUE_MAX);
+		if (got < 0) return VS_NONE;
+		if (val) val->set (buf, (int) got);
+		memset (buf, 0, (size_t) got);
+		return VS_VAULT;
+	}
 	const KV *kv = 0;
 	if (sc.env && (kv = find_var (sc.env->vars, name, n))) { if (val) *val = kv->value; return VS_ENV; }
 	if (sc.coll && (kv = find_var (sc.coll->vars, name, n))) { if (val) *val = kv->value; return VS_COLL; }
@@ -109,10 +126,11 @@ static inline void resolve (Str &out, const Scope &sc, const char *s, int depth 
 		if (var_at (s, n, i, &ns, &nl, &end))
 		{
 			Str v;
-			if (lookup_var (sc, s + ns, nl, &v))
+			if (int kind = lookup_var (sc, s + ns, nl, &v))
 			{
-				if (depth < 4 && strstr (v.c (), "{{")) { Str r; resolve (r, sc, v.c (), depth + 1); out.add (r.c ()); }
+				if (kind != VS_VAULT && depth < 4 && strstr (v.c (), "{{")) { Str r; resolve (r, sc, v.c (), depth + 1); out.add (r.c ()); }
 				else out.add (v.c ());
+				if (kind == VS_VAULT && v.len ()) memset (v.data (), 0, (size_t) v.len ());
 				i = end;
 				continue;
 			}

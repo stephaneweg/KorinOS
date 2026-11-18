@@ -18,6 +18,7 @@
 #include "util.h"
 #include <dirent.h>
 #include "../koton/ui/json.hpp"
+#include "../../lib/keyvault/keyvault.h"
 
 namespace cr {
 
@@ -693,9 +694,27 @@ static inline void store_dirs ()
 {
 	mkdir (DIR_ROOT, 0755); mkdir (DIR_COLL, 0755); mkdir (DIR_ENV, 0755);
 }
+// A variable "vault:name" with a value, in an environment, the globals or a collection's variables: with Korin's secret
+// vault (the PC), its value goes into it (Courier's secret "name", for {{vault:name}}, vars.h) and leaves the file;
+// without (the Pi): kept as any variable.
+static inline void vault_keep (KVList &vars)
+{
+	int st = -1;
+	for (int i = 0; i < vars.size (); i++)
+	{
+		KV &v = vars[i];
+		if (v.key.len () <= 6 || v.key.len () - 6 > KV_NAME_MAX || strncmp (v.key.c (), "vault:", 6) || v.value.empty ()) continue;
+		if (st == -1) st = kv_status () >= 0 ? 1 : 0;
+		if (!st) return;
+		if (kv_set (v.key.c () + 6, v.value.c (), v.value.len ()) < 0) continue;
+		memset (v.value.data (), 0, (size_t) v.value.len ());
+		v.value.clear ();
+	}
+}
 static inline bool save_collection (Collection &c)
 {
 	store_dirs ();
+	vault_keep (c.vars);
 	if (c.file.empty ()) { c.file.set (DIR_COLL); c.file.add ("/"); c.file.add (c.id.c ()); c.file.add (".postman_collection.json"); }
 	json::Writer w (true);
 	write_collection (w, c);
@@ -707,6 +726,7 @@ static inline bool save_environment (Environment &e)
 {
 	store_dirs ();
 	if (e.file.empty ()) { e.file.set (DIR_ENV); e.file.add ("/"); e.file.add (e.id.c ()); e.file.add (".postman_environment.json"); }
+	vault_keep (e.vars);
 	json::Writer w (true);
 	write_environment (w, e, "environment");
 	bool ok = save_json (e.file.c (), w);
@@ -716,6 +736,7 @@ static inline bool save_environment (Environment &e)
 static inline bool save_globals (Environment &g)
 {
 	store_dirs ();
+	vault_keep (g.vars);
 	json::Writer w (true);
 	write_environment (w, g, "globals");
 	bool ok = save_json (F_GLOBALS, w);

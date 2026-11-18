@@ -15,6 +15,7 @@
 //
 #include <spawn.h>
 #include "bank.h"
+#include "../../lib/keyvault/keyvault.h"
 
 extern char **environ;
 
@@ -29,16 +30,73 @@ static bool g_syncing;
 
 // le décalage de l'heure locale (secondes, au quart d'heure), pour écrire les dates comme l'app Windows
 static long bk_tz () { long d = local_seconds () - (long) time (0); return (d + (d >= 0 ? 450 : -450)) / 900 * 900; }
+// Le coffre à secrets de Korin (docs/KEYVAULT.md ; le PC), sous l'identité de Budget : « bank-key », le contenu de la
+// clé privée (PEM), et « bank-session », SessionId. La clé est importée du .pem de KeyPath la première fois (et de
+// nouveau quand ce fichier change) ; ensuite l'app n'a plus besoin du .pem : l'utilisateur peut l'enlever de la carte
+// (Budget ne l'efface jamais, c'est son fichier ; KeyPath reste dans banque.json pour l'app Windows). SessionId quitte
+// banque.json (un SessionId qui y revient, d'un banque.json copié de Windows, repasse dans le coffre). Sans coffre
+// (le Pi) : tout comme avant, dans banque.json et le .pem.
+static int g_bkKv;				// 0 pas de coffre, 1 le coffre, 2 le coffre nous a refusés (banque.json comme avant)
+// le .pem nommé par les réglages, s'il est là et autre que la copie du coffre : dans le coffre
+static void bk_key_import ()
+{
+	std::string kf = bank::key_file (g_bk, DIR_), pem;
+	if (g_bkKv != 1 || kf.empty () || !bank::read_file (kf, pem) || pem.empty () || pem == g_bk.keyPem) { std::fill (pem.begin (), pem.end (), 0); return; }
+	if (pem.size () <= KV_VALUE_MAX && kv_set ("bank-key", pem.data (), (long) pem.size ()) >= 0)
+	{
+		std::fill (g_bk.keyPem.begin (), g_bk.keyPem.end (), 0);
+		g_bk.keyPem = pem;
+	}
+	std::fill (pem.begin (), pem.end (), 0);
+}
+static bool bk_save_file ()
+{
+	mkdir (DIR_, 0755);
+	if (g_bkKv != 1) return bank::save (BANK_FILE, g_bk, bk_tz (), g_today);
+	bank::Settings c = g_bk;			// (SessionId : dans le coffre, pas dans le fichier)
+	c.sessionId.clear (); c.keyPem.clear ();
+	bool ok = bank::save (BANK_FILE, c, bk_tz (), g_today);
+	g_bk.seen = c.seen;
+	return ok;
+}
+static void bk_load_vault ()
+{
+	g_bkKv = 0;
+	if (kv_status () < 0) return;
+	std::vector<char> b (KV_VALUE_MAX + 1);
+	long n = kv_get ("bank-key", b.data (), KV_VALUE_MAX);
+	if (n < 0 && n != -2) { g_bkKv = 2; return; }
+	g_bkKv = 1;
+	if (n > 0) g_bk.keyPem.assign (b.data (), (size_t) n);
+	std::fill (b.begin (), b.end (), 0);
+	bk_key_import ();
+	n = kv_get ("bank-session", b.data (), KV_VALUE_MAX);
+	if (!g_bk.sessionId.empty ())		// (banque.json en a un : d'avant, ou copié de Windows, le plus récent)
+	{
+		if (kv_set ("bank-session", g_bk.sessionId.data (), (long) g_bk.sessionId.size ()) >= 0) bk_save_file ();
+		else g_bkKv = 2;
+	}
+	else if (n > 0) g_bk.sessionId.assign (b.data (), (size_t) n);
+	std::fill (b.begin (), b.end (), 0);
+}
 static void bk_load ()
 {
 	std::string err;
-	if (bank::load (BANK_FILE, g_bk, bk_tz (), &err)) return;
+	if (bank::load (BANK_FILE, g_bk, bk_tz (), &err)) { bk_load_vault (); return; }
 	g_bkOk = false;
 	char m[600];
 	snprintf (m, sizeof m, TR ("R\xC3\xA9glages bancaires illisibles (%s) : %s\nLa synchronisation est d\xC3\xA9sactiv\xC3\xA9" "e."), BANK_FILE, err.c_str ());
 	ui_message ((long) TR ("Banque"), (long) m, UM_OK);
 }
-static bool bk_save () { mkdir (DIR_, 0755); return bank::save (BANK_FILE, g_bk, bk_tz (), g_today); }
+static bool bk_save ()
+{
+	if (g_bkKv == 1)
+	{
+		bk_key_import ();
+		if (kv_set ("bank-session", g_bk.sessionId.data (), (long) g_bk.sessionId.size ()) < 0) g_bkKv = 2;
+	}
+	return bk_save_file ();
+}
 // un message dans la barre d'état, montré tout de suite (avant une requête qui attend la banque)
 static void busy (const char *s) { status (s); ui_w_draw (g_lStatus); ui_update_all (); }
 static bool web_available () { struct stat st; return stat (WEB_PROGRAM, &st) == 0; }

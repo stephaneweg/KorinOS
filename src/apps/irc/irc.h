@@ -23,6 +23,7 @@
 #include <sys/stat.h>
 #include <netinet/in.h>
 #include <uikit.h>
+#include "../../lib/keyvault/keyvault.h"
 
 #define TR(s)	((const char *) ui_tr ((long) (s)))
 
@@ -741,11 +742,35 @@ static void hist_add (const char *host, unsigned port)
 	if (found < 0 && g_histn < 8) g_histn++;
 	hist_save ();
 }
+// The NickServ password: in Korin's secret vault (docs/KEYVAULT.md), under IRC's own identity, secret "password",
+// when there is one (the PC); without (the Pi): in config.ini as before. A config.ini of before with a password: moved
+// into the vault at the start (g_pwMove: main.cpp saves config.ini again, without it).
+static int g_kv;				// 0 no vault, 1 the vault, 2 the vault refused us (the password: none this time)
+static bool g_pwMove;
+static void password_load (bool inFile)
+{
+	if (kv_status () < 0) return;
+	g_kv = 1;
+	char pw[sizeof g_password];
+	long r = kv_get ("password", pw, sizeof pw - 1);
+	if (r >= 0) { pw[r] = 0; scpy (g_password, sizeof g_password, pw); memset (pw, 0, sizeof pw); g_pwMove = inFile; }
+	else if (r != -2) { g_kv = 2; g_pwMove = false; }
+	else g_pwMove = inFile;
+}
+// true: kept in the vault (config.ini without it); false: config.ini keeps it, as before
+static bool password_save (void)
+{
+	if (!g_kv || (g_kv == 2 && !g_password[0])) return g_kv != 0;	// (refused at the start, none given since: the vault left alone)
+	if (kv_set ("password", g_password, slen (g_password)) < 0) return false;
+	g_kv = 1;
+	return true;
+}
 // HOME:/irc/config.ini, Onyx's: "server = x" lines (a [irc] heading, comments: passed over).
 static void config_load (void)
 {
 	static char b[2048];
-	if (read_small (CONFIGPATH, b, sizeof b) <= 0) return;
+	bool inFile = false;
+	if (read_small (CONFIGPATH, b, sizeof b) <= 0) { password_load (false); return; }
 	for (char *l = b; l && *l; )
 	{
 		char *e = strchr (l, '\n'); if (e) *e = 0;
@@ -761,11 +786,13 @@ static void config_load (void)
 			else if (!strcmp (l, "user")) scpy (g_user, sizeof g_user, v);
 			else if (!strcmp (l, "realname")) scpy (g_real, sizeof g_real, v);
 			else if (!strcmp (l, "channel")) scpy (g_autojoin, sizeof g_autojoin, v);
-			else if (!strcmp (l, "password")) scpy (g_password, sizeof g_password, v);
+			else if (!strcmp (l, "password")) { scpy (g_password, sizeof g_password, v); inFile = *v != 0; }
 			else if (!strcmp (l, "port")) g_port = (unsigned) atoi (v);
 		}
 		l = e ? e + 1 : 0;
 	}
+	memset (b, 0, sizeof b);
+	password_load (inFile);
 }
 
 } // namespace irc

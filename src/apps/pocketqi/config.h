@@ -12,13 +12,19 @@
 //   voice_fr, voice_en    facultatif : la voix Mistral de chaque langue (voice.h : VOICES_FR, VOICES_EN)
 //   tts_url               facultatif : un serveur à la place de .../v1/audio/speech de Mistral, pour les essais
 //
+// Avec un coffre à secrets (le PC, docs/KEYVAULT.md), les trois clés ne sont plus dans config.ini mais dans le secret
+// « api-keys » du coffre (les mêmes lignes « mistral_key = ... »), sous l'identité de PocketQI ; celles d'un config.ini
+// d'avant y passent au premier chargement et quittent le fichier. Sans coffre (le Pi) : dans config.ini, comme avant.
+//
 #ifndef POCKETQI_CONFIG_H
 #define POCKETQI_CONFIG_H
 
 #include <fcntl.h>
+#include <pthread.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include "skills.h"
+#include "../../lib/keyvault/keyvault.h"
 
 namespace pq {
 
@@ -32,12 +38,37 @@ struct Config
 	std::string city, weatherUrl;
 	bool voice = false;
 	std::string voiceFr, voiceEn, ttsUrl;
+	mutable int kvState = 0;	// 0 pas de coffre (les clés dans config.ini), 1 le coffre, 2 le coffre nous a refusés
 	std::string path () const { return std::string (HOME_DIR) + "/config.ini"; }
 	void load ()
 	{
 		*this = Config ();
 		std::string t;
-		if (!read_file (path (), t)) return;
+		if (read_file (path (), t)) parse (t);
+		std::fill (t.begin (), t.end (), 0);
+		// (load sert aussi au fil de la voix, voice.h : un verrou autour du coffre et de la migration)
+		static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
+		pthread_mutex_lock (&mu);
+		if (kv_status () >= 0)
+		{
+			kvState = 1;
+			std::string v (4096, '\0');
+			long n = kv_get ("api-keys", &v[0], (long) v.size ());
+			if (n >= 0)
+			{
+				v.resize ((size_t) n);
+				mistralKey.clear (); groqKey.clear (); urlKey.clear ();
+				parse (v);
+			}
+			else if (n != -2) kvState = 2;	// (refusé : pas de clé cette fois ; save laisse le coffre tel quel)
+			else if (hasKeys ()) save ();	// (la migration : dans le coffre, hors du fichier)
+			std::fill (v.begin (), v.end (), 0);
+		}
+		pthread_mutex_unlock (&mu);
+	}
+	bool hasKeys () const { return !mistralKey.empty () || !groqKey.empty () || !urlKey.empty (); }
+	void parse (const std::string &t)
+	{
 		size_t p = 0;
 		while (p < t.size ())
 		{
@@ -67,7 +98,20 @@ struct Config
 	{
 		mkdir ("HOME:", 0755);
 		mkdir (HOME_DIR, 0755);
-		std::string t = "# PocketQI (src/apps/pocketqi/README.md) : ce fichier garde les cles d'API ; il ne sort pas de la carte\n"
+		bool kvOk = true;
+		if (kvState && (kvState == 1 || hasKeys ()))	// (refusé au chargement et aucune clé donnée depuis : rien)
+		{
+			std::string k = "mistral_key = " + mistralKey + "\ngroq_key = " + groqKey + "\nurl_key = " + urlKey + "\n";
+			kvOk = kv_set ("api-keys", k.data (), (long) k.size ()) >= 0;
+			if (kvOk) kvState = 1;
+			std::fill (k.begin (), k.end (), 0);
+		}
+		std::string t;
+		if (kvState && kvOk)	// (le coffre a refusé de les garder : dans le fichier, comme avant, plutôt que perdues)
+			t = "# PocketQI (src/apps/pocketqi/README.md) : les cles d'API sont dans le coffre a secrets de Korin\n"
+				"[pocketqi]\nprovider = " + provider + "\nurl = " + url + "\nmodel = " + model + "\ncity = " + city + "\n";
+		else
+			t = "# PocketQI (src/apps/pocketqi/README.md) : ce fichier garde les cles d'API ; il ne sort pas de la carte\n"
 				"[pocketqi]\nprovider = " + provider + "\nmistral_key = " + mistralKey + "\ngroq_key = " + groqKey +
 				"\nurl = " + url + "\nurl_key = " + urlKey + "\nmodel = " + model + "\ncity = " + city + "\n";
 		if (!weatherUrl.empty ()) t += "weather_url = " + weatherUrl + "\n";

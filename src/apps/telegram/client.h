@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "mtproto.h"
+#include "../../lib/keyvault/keyvault.h"
 
 namespace tg {
 
@@ -1729,14 +1730,41 @@ private:
 
 	// ---- the session file ---------------------------------------------------------------------
 
+	// With a secret vault (Korin's keyvault, docs/KEYVAULT.md: the PC), the session file's text is the vault's secret
+	// "session", under Telegram's own identity, and no session.dat; a session.dat of before moves into it (then is
+	// removed). The vault refused (its card cancelled): no session this time, the vault left as it is unless one signs
+	// in again. No vault (the Pi): session.dat, as before.
 	void loadSession ()
 	{
 		char path[160];
 		snprintf (path, sizeof path, "%ssession.dat", dir);
 		int n = 0;
-		unsigned char *b = tg_load (path, &n);
+		unsigned char *b = 0;
+		m_kv = 0;
+		if (kv_status () >= 0)
+		{
+			m_kv = 1;
+			b = (unsigned char *) malloc (KV_VALUE_MAX + 1);
+			long r = b ? kv_get ("session", b, KV_VALUE_MAX) : -12;
+			if (r >= 0) { n = (int) r; b[n] = 0; m_kvFile = access (path, F_OK) == 0; }
+			else
+			{
+				free (b); b = 0;
+				if (r != -2) { m_kv = 2; return; }
+				b = tg_load (path, &n);		// (the migration: as it is into the vault, then removed)
+				if (b && kv_set ("session", b, n) >= 0) unlink (path);
+				else if (b) m_kv = 0;		// (the vault would not keep it: session.dat, as before)
+			}
+		}
+		else b = tg_load (path, &n);
 		if (!b) return;
-		char *line = (char *) b;
+		parseSession ((char *) b);
+		memset (b, 0, (size_t) n);
+		free (b);
+	}
+	void parseSession (char *b)
+	{
+		char *line = b;
 		while (*line)
 		{
 			char *e = line;
@@ -1750,12 +1778,13 @@ private:
 				int dc = 0;
 				if (!strcmp (k, "home")) m_home = atoi (val) > 0 && atoi (val) < MAXDC ? atoi (val) : 2;
 				else if (!strcmp (k, "user")) selfId = atoll (val);
-				else if (!strcmp (k, "test")) { if (atoi (val) != serverSet ()) { free (b); return; } }	// (another server set)
+				else if (!strcmp (k, "test")) { if (atoi (val) != serverSet ()) return; }	// (another server set)
 				else if (sscanf (k, "key%d", &dc) == 1 && dc > 0 && dc < MAXDC && strlen (val) == 512)
 				{
 					unsigned char key[256];
 					for (int i = 0; i < 256; i++) { unsigned x = 0; sscanf (val + i * 2, "%2x", &x); key[i] = (unsigned char) x; }
 					m_s[dc].setKey (key, 0);
+					memset (key, 0, sizeof key);
 				}
 				else if (sscanf (k, "auth%d", &dc) == 1 && dc > 0 && dc < MAXDC) m_auth[dc] = atoi (val) != 0;
 				else if (sscanf (k, "addr%d", &dc) == 1 && dc > 0 && dc < MAXDC && !onlyHost[0])
@@ -1767,7 +1796,6 @@ private:
 			*e = save;
 			line = *e ? e + 1 : e;
 		}
-		free (b);
 		if (!m_auth[m_home]) selfId = 0;
 		if (onlyHost[0]) defaultAddrs ();
 	}
@@ -1785,11 +1813,34 @@ private:
 			for (int k = 0; k < 256; k++) o += snprintf (t + o, (size_t) (8192 - o), "%02x", m_s[i].key[k]);
 			o += snprintf (t + o, (size_t) (8192 - o), "\nauth%d=%d\n", i, (int) (m_auth[i] && state == AS_READY));
 		}
+		if (o > 8191) o = 8191;
 		char path[160];
 		snprintf (path, sizeof path, "%ssession.dat", dir);
+		bool anyKey = false;
+		for (int i = 1; i < MAXDC; i++) anyKey |= m_s[i].haveKey;
+		if (m_kv == 2 && !anyKey) { free (t); return; }	// (refused at the start, no new sign-in since: the vault left alone)
+		if (m_kv)
+		{
+			unsigned h = 2166136261u;		// (the same text as last time: not again)
+			for (int i = 0; i < o; i++) h = (h ^ (unsigned char) t[i]) * 16777619u;
+			bool kept = (m_kv == 1 && h == m_kvHash) || kv_set ("session", t, o) >= 0;
+			if (kept)
+			{
+				m_kv = 1; m_kvHash = h;
+				if (m_kvFile) { unlink (path); m_kvFile = false; }	// (the session.dat of before)
+				memset (t, 0, 8192);
+				free (t);
+				return;
+			}
+			// (the vault would not keep it: session.dat, as before)
+		}
 		tg_save (path, t, o);
+		memset (t, 0, 8192);
 		free (t);
 	}
+	int m_kv = 0;				// 0 no vault (session.dat), 1 the vault, 2 the vault refused us
+	bool m_kvFile = false;			// a session.dat of before, to remove once the vault has it
+	unsigned m_kvHash = 0;
 };
 
 inline void DcListener::onResult (int req, const tl::Val &v) { c->result (dc, req, v); }

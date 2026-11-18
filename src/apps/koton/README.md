@@ -44,6 +44,8 @@ C++ d'Onyx, ni `kapi_*`, ni noms de compatibilité ; ce qui manque s'ajoute au k
 * Les clés d'API (`KeysDialog`, menu IA > « Clés d'API... » ou le bouton du dialogue) : plusieurs par fournisseur, chacune
   avec un nom ; le dialogue d'IA propose dans une liste déroulante celles du fournisseur choisi, la dernière utilisée en
   premier. Dans `settings.json` : `aiKeys` (`provider`, `name`, `key`, `last`) ; l'ancien `aiKey` devient « Ma clé ».
+  Avec un coffre à secrets (le PC, `docs/KEYVAULT.md`), `aiKeys` va dans le secret « ai-keys » du coffre (le même
+  JSON) et quitte `settings.json` au premier démarrage.
   Différence avec Onyx (une seule clé, tapée dans le dialogue).
 * `ui/audio.h` : un thread pthread de haute priorité rend des blocs de 256 trames et les écrit par `ak_write`,
   35 ms d'avance. La SoundFont est lue par un autre thread : la fenêtre vient tout de suite, le son ensuite.

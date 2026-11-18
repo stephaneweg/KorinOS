@@ -20,8 +20,8 @@
 //   forge --selftest [s] les mêmes, puis des vérifications écrites sur la sortie (essais sous QEMU) ; code 0 si tout
 //                        passe ; s : la fenêtre reste ouverte s secondes ensuite (gestes et captures)
 //   --mcp [port]         (avec l'une ou l'autre) le pilotage par un agent dès le départ (mcp.cpp, mcptools.inc), port
-//                        7311 par défaut ; --mcp-token t : le jeton demandé (sans : celui de HOME:/forge/mcp.txt,
-//                        « - » : aucun). Sinon : Fichier > Piloter par un agent (MCP).
+//                        7311 par défaut ; --mcp-token t : le jeton demandé (sans : celui gardé, dans le coffre à
+//                        secrets ou HOME:/forge/mcp.txt, mcpToken ; « - » : aucun). Sinon : Fichier > Piloter par un agent (MCP).
 //
 // C++ sur UIKit, appels ui_* directs, couleurs par les jetons du thème (aucune en dur, sauf la palette des corps, qui
 // est une donnée du document).
@@ -37,6 +37,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/random.h>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -51,6 +52,7 @@
 #include "mcp.h"
 #include "model.h"
 #include "render.h"
+#include "../../lib/keyvault/keyvault.h"
 
 using namespace forge;
 
@@ -2430,8 +2432,17 @@ void buildWindow ()
 const int MCP_PORT = 7311;
 const char *const MCP_CONF = "HOME:/forge/mcp.txt";
 
-// le jeton gardé (HOME:/forge/mcp.txt : « token = ... ») ; absent : un nouveau, écrit
-std::string mcpToken ()
+// Le jeton gardé. Avec un coffre à secrets (le PC, docs/KEYVAULT.md) : son secret « mcp-token », sous l'identité de
+// Forge ; un HOME:/forge/mcp.txt d'avant y passe la première fois, puis le fichier est effacé ; coffre refusé (la
+// carte annulée) : un jeton pour cette session seulement. Sans coffre (le Pi) : HOME:/forge/mcp.txt (« token = ... »),
+// comme avant. Absent : un nouveau, 32 octets de getentropy en hexadécimal.
+static bool mcpInVault ()
+{
+	static int st = kv_status () >= 0 ? 1 : 0;
+	return st;
+}
+
+static std::string mcpFileToken ()
 {
 	char line[256];
 	FILE *f = fopen (MCP_CONF, "r");
@@ -2441,25 +2452,66 @@ std::string mcpToken ()
 			std::string l = line;
 			while (!l.empty () && (l.back () == '\n' || l.back () == '\r' || l.back () == ' ')) l.pop_back ();
 			if (l.rfind ("token = ", 0) == 0) tok = l.substr (8);
+			std::fill (l.begin (), l.end (), 0);
 		}
 		fclose (f);
+		memset (line, 0, sizeof line);
 	}
-	if (!tok.empty ()) return tok;
+	return tok;
+}
+
+static std::string mcpNewToken ()
+{
+	unsigned char r[32];
+	std::string tok;
+	if (getentropy (r, sizeof r) == 0) {
+		static const char H[] = "0123456789abcdef";
+		for (unsigned i = 0; i < sizeof r; i++) tok += H[r[i] >> 4], tok += H[r[i] & 15];
+		memset (r, 0, sizeof r);
+		return tok;
+	}
+	// (getentropy en échec : l'ancien mélange, plutôt qu'aucun jeton)
 	static const char A[] = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 	unsigned long long x = (unsigned long long) (nowMs () * 1000) ^ ((unsigned long long) time (nullptr) << 20) ^ (unsigned long long) (size_t) &tok;
-	int fd = open ("/dev/urandom", O_RDONLY);	// (s'il existe)
-	if (fd >= 0) {
-		unsigned long long r = 0;
-		if (read (fd, &r, sizeof r) == (ssize_t) sizeof r) x ^= r;
-		close (fd);
-	}
 	for (int i = 0; i < 24; i++) {
 		x ^= x << 13, x ^= x >> 7, x ^= x << 17;
 		tok += A[x % (sizeof A - 1)];
 	}
+	return tok;
+}
+
+std::string mcpToken ()
+{
+	std::string tok;
+	if (mcpInVault ()) {
+		char b[256];
+		long n = kv_get ("mcp-token", b, sizeof b - 1);
+		if (n > 0) {
+			tok.assign (b, (size_t) n);
+			memset (b, 0, sizeof b);
+			if (access (MCP_CONF, F_OK) == 0) unlink (MCP_CONF);	// (un fichier resté d'avant)
+			return tok;
+		}
+		static std::string session;		// (refusé : pour cette session)
+		if (n < 0 && n != -2) {
+			if (session.empty ()) session = mcpNewToken ();
+			return session;
+		}
+		tok = mcpFileToken ();			// (la migration d'un mcp.txt d'avant)
+		if (tok.empty ()) tok = mcpNewToken ();
+		if (kv_set ("mcp-token", tok.data (), (long) tok.size ()) >= 0) {
+			unlink (MCP_CONF);
+			return tok;
+		}
+		// (le coffre n'a pas voulu le garder : dans le fichier, comme avant)
+	} else {
+		tok = mcpFileToken ();
+		if (!tok.empty ()) return tok;
+		tok = mcpNewToken ();
+	}
 	mkdir ("HOME:", 0755);
 	mkdir ("HOME:/forge", 0755);
-	f = fopen (MCP_CONF, "w");
+	FILE *f = fopen (MCP_CONF, "w");
 	if (f) {
 		fprintf (f, "# Forge : le jeton du pilotage par un agent (MCP). Le changer ou effacer ce fichier invalide l'ancien.\ntoken = %s\n", tok.c_str ());
 		fclose (f);
@@ -2512,7 +2564,8 @@ void mcpMenu ()
 	std::string cmd = "claude mcp add --transport http forge " + url + " --header \"Authorization: Bearer " + tok + "\"";
 	ui_clip_set ((long) cmd.c_str (), -1);
 	std::string m = std::string (TR ("Forge attend un agent sur ")) + url + TR (".\n\nPour Claude Code, sur la machine où il tourne :\n\n") + cmd
-		+ TR ("\n\nLa commande est dans le presse-papiers. Le jeton est gardé dans ") + MCP_CONF
+		+ TR ("\n\nLa commande est dans le presse-papiers. Le jeton est gardé dans ")
+		+ (mcpInVault () ? TR ("le coffre à secrets de Korin") : MCP_CONF)
 		+ TR (" : chaque changement fait par l'agent est une étape de l'historique, qu'Annuler défait.");
 	ui_message ((long) TR ("Piloter Forge par un agent"), (long) m.c_str (), UM_OK);
 	status (TR ("Pilotage par un agent (MCP) : en attente."));

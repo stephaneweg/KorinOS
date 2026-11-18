@@ -73,4 +73,6 @@ DejaVu, à connaître** :
   `session.dat`.
 * Vidéos, vocaux, fichiers, sondages, stickers animés : une étiquette, comme Onyx. Les stickers : leur émoji.
 * Sélection de texte dans la saisie : aucune, comme Onyx ; dans les messages : aucune.
-* `session.dat` est en clair sur la carte, comme chez Onyx.
+* `session.dat` est en clair sur la carte, comme chez Onyx, là où il n'y a pas de coffre à secrets (le Pi). Avec un
+  coffre (le PC, `docs/KEYVAULT.md`), le texte de la session est son secret « session » et l'`api_hash` de
+  l'utilisateur son secret « api-hash » ; un `session.dat` d'avant y passe au premier démarrage puis est effacé.

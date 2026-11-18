@@ -12,6 +12,9 @@
 //   requêtes HTTPS de PocketQI (../pocketqi/http.h : OpenSSL, certificats du système). Aucune clé, aucun jeton, aucun
 //   code n'est écrit nulle part hors de banque.json.
 //
+//   Avec le coffre à secrets de Korin (bankui.h, le PC) : la clé privée y est importée (Settings::keyPem) et
+//   SessionId y est gardé ; bank.h ne connaît que keyPem, pour se construire aussi hors de Korin (banktest).
+//
 #ifndef BUDGET_BANK_H
 #define BUDGET_BANK_H
 
@@ -41,6 +44,7 @@ struct Settings
 {
 	std::string appId, keyPath, redirect = "http://localhost:8765/banque", bankName = "BNP Paribas Fortis", country = "BE";
 	std::string sessionId, accountUid, accountLabel;	// vides : pas d'accès
+	std::string keyPem;					// la clé privée (PEM) du coffre à secrets ; pas dans banque.json
 	long long validUntil = 0, lastSync = 0;			// secondes UTC (0 : pas de valeur)
 	std::vector<Rule> rules;
 	std::vector<SeenTx> seen;				// opérations déjà classées ou ignorées
@@ -61,7 +65,7 @@ static std::string key_file (const Settings &s, const std::string &dir)
 	std::string near = dir + "/" + name;
 	return file_exists (near) ? near : "";
 }
-static bool configured (const Settings &s, const std::string &dir) { return !s.appId.empty () && !key_file (s, dir).empty (); }
+static bool configured (const Settings &s, const std::string &dir) { return !s.appId.empty () && (!s.keyPem.empty () || !key_file (s, dir).empty ()); }
 static long long utc_now () { return (long long) time (0); }
 static bool linked (const Settings &s) { return !s.sessionId.empty () && !s.accountUid.empty () && (s.validUntil == 0 || s.validUntil > utc_now ()); }
 
@@ -488,9 +492,16 @@ struct Client
 		appId = trim (s.appId);
 		base = api.empty () ? "https://api.enablebanking.com" : api;
 		while (!base.empty () && base.back () == '/') base.pop_back ();
+		// le .pem s'il est là (celui que les réglages nomment, peut-être nouveau), sinon la copie du coffre
 		std::string kf = key_file (s, dir);
-		FILE *f = fopen (kf.c_str (), "rb");
+		FILE *f = kf.empty () ? 0 : fopen (kf.c_str (), "rb");
 		if (f) { key = PEM_read_PrivateKey (f, 0, 0, 0); fclose (f); }
+		else if (!s.keyPem.empty ())
+		{
+			BIO *bio = BIO_new_mem_buf (s.keyPem.data (), (int) s.keyPem.size ());
+			if (bio) { key = PEM_read_bio_PrivateKey (bio, 0, 0, 0); BIO_free (bio); }
+			if (!kf.size ()) kf = "coffre \xC3\xA0 secrets";
+		}
 		if (!key) { err = "Cl\xC3\xA9 priv\xC3\xA9" "e illisible (" + kf + ")."; return false; }
 		return true;
 	}

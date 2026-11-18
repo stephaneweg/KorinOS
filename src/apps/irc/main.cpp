@@ -4,7 +4,7 @@
 // connection, Go to), its users on demand at the right; a private conversation is a window of its own.
 //
 // Plain-text IRC (port 6667). HOME:/irc keeps the servers used, the nickname and config.ini: server, port, nick,
-// user, realname, channel, password (NickServ). Commands: /join, /part, /nick, /msg, /query, /me, /topic, /list,
+// user, realname, channel, password (NickServ; in Korin's secret vault when there is one, irc.h). Commands: /join, /part, /nick, /msg, /query, /me, /topic, /list,
 // /server host[:port], /raw, /clear, /quit; anything else goes to the server as it is.
 //
 #include <initializer_list>
@@ -416,8 +416,11 @@ static void hist_options ()
 static void config_save ()
 {
 	char b[1024];
-	int n = snprintf (b, sizeof b, "# IRC\nuser = %s\nrealname = %s\nchannel = %s\npassword = %s\n", g_user, g_real, g_autojoin, g_password);
+	bool kv = password_save ();		// (in the vault: not in config.ini)
+	int n = snprintf (b, sizeof b, "# IRC\nuser = %s\nrealname = %s\nchannel = %s\npassword = %s\n", g_user, g_real, g_autojoin, kv ? "" : g_password);
+	if (n >= (int) sizeof b) n = (int) sizeof b - 1;
 	save_small (CONFIGPATH, b, n);
+	memset (b, 0, sizeof b);
 }
 static void server_spec (const char *spec)		// "host[:port]"
 {
@@ -1155,6 +1158,7 @@ int main (int, char **)
 
 	config_load ();
 	bool first = access (CONFIGPATH, F_OK) != 0 && access (NICKPATH, F_OK) != 0;
+	if (g_pwMove) config_save ();		// (the password of config.ini moved into the vault)
 	char nk[40];
 	if (read_small (NICKPATH, nk, sizeof nk) > 0)
 	{
