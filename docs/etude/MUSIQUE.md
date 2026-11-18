@@ -64,11 +64,14 @@ aussi.
 
 1. ~~Un seul lecteur ou deux apps ?~~ **Deux apps** (décision du 18/11) : une pour Spotify, une pour Jamendo ;
    les pièces communes (§3) restent dans les kits.
-2. ~~La musique continue-t-elle app fermée ?~~ **Oui** (décision du 18/11) : fermer la fenêtre pendant la lecture
-   ne coupe pas la musique ; la fenêtre disparaît et **un petit lecteur s'affiche sur le bureau** (pochette, titre,
-   précédent, lecture/pause, suivant ; un clic rouvre l'app ; une croix arrête et quitte). L'utilisateur le décrit
-   comme le Media Player venu d'Onyx ; dans Korin, `media.app` a un mini-lecteur (`enter_mini`, sa fenêtre réduite
-   en carte), mais **fermer la fenêtre arrête la musique** (`src/apps/media/main.cpp`, en tête) : la même chose est à
-   faire pour lui. Pièce commune dans UIKit/MediaKit (le mini-lecteur du bureau), servie aux trois apps ; le process
-   de l'app reste en vie sans fenêtre principale (pas besoin du service de la voie C pour cela).
+2. ~~La musique continue-t-elle app fermée ?~~ **Oui, comme le mini-lecteur du Media Player d'Onyx** (décision du
+   18/11, vérifié dans le dépôt d'Onyx : `user/Apps/media/main.cpp`, `enter_mini`, `MiniView` ; docs/media/README.md
+   d'Onyx). Dans Onyx, la fenêtre se **réduit en une carte en bas à droite de l'écran, au-dessus des autres
+   fenêtres** : pochette, titre, précédent / lecture / suivant, la position ; ses boutons : la fenêtre en grand,
+   fermer (la musique s'arrête). Onyx le faisait par un bouton, la fermeture arrêtant la musique ; **pour Korin,
+   fermer la fenêtre pendant la lecture fait la même chose** : réduire en carte au lieu de quitter (la croix de la
+   carte arrête et quitte). Le process reste le même, pas de service (voie C).
+   Dans le port Korin (`src/apps/media`, README « Mini-lecteur »), la fenêtre se réduit **sur place** : UIKit ne
+   sait pas encore déplacer une fenêtre ni la garder au-dessus des autres. **À ajouter à UIKit/Elegant** (déplacer
+   et dimensionner sa fenêtre, « toujours au-dessus »), puis aux trois apps : Media Player, Spotify, Jamendo.
 3. Noms des apps.
