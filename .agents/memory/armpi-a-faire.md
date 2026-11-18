@@ -37,3 +37,7 @@ gauche et la barre de chemin suivent la vue active ; le bouton revient à une se
 - **sélection multiple** (fichiers et dossiers), en surbrillance : **Ctrl+clic** ajoute ou retire de la sélection,
   comme Windows ; **Maj+clic** sélectionne une plage, comme Windows (confirmé le 18/11) ; copier, déplacer, glisser,
   supprimer agissent sur toute la sélection.
+
+**Au plan le 18/11 — Réglages, tous les volets en modules** : chaque volet devient un `/sys/applets/<nom>.so` comme
+Serveur web, SMB et Logiciels, livré par le paquet de son domaine ; Réglages n'est plus qu'un hôte. Ordre et
+catégories par le contrat de control.h ; Réglages en hôte sur le Pi aussi. Détail : src/apps/control/README.md.

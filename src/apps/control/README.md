@@ -23,6 +23,19 @@ intégré prend sa place : le volet Logiciels (`src/apps/pkgman/applet`, `sys/ap
 ainsi `applets/pkgman.cpp`, qui ne faisait que lancer la fenêtre `pkgman.app`. Le Pi : la construction AArch64 de Réglages
 en hôte reste à faire (sans elle, un module y est refusé au chargement et le volet n'apparaît pas).
 
+## Au plan : tous les volets en modules (demande du 18/11/2026)
+
+Chaque volet de Réglages devient un **module** `/sys/applets/<nom>.so`, comme le sont déjà Serveur web
+(`src/sys/webd/applet`), Partage SMB (`src/sys/smbd/applet`) et Logiciels (`src/apps/pkgman/applet`), et apparaît
+dans la liste du volet principal comme eux. Réglages n'est plus qu'un hôte : la fenêtre, la liste, le contrat de
+`control.h` et le chargement. Les volets intégrés (`applets/*.cpp` : Thème, Fond d'écran, Écran, Région/Clavier,
+Souris, Manette, Son, Wi-Fi, Énergie, Démarrage, Utilisateurs, Imprimantes, Accès à distance, Panel, Dock, .NET,
+Préchargement…) passent un à un en modules, chacun livré par le paquet du domaine quand il en a un (le volet
+Énergie avec acpid, Imprimantes avec printd, Wi-Fi avec le service wifi…) ; un volet dont le service manque n'est
+pas installé, donc pas montré. À régler en même temps : l'ordre et les catégories des volets dans la liste (un champ
+du contrat, plutôt que l'ordre des noms de fichiers), et la construction de Réglages en hôte pour le Pi (AArch64),
+sans laquelle aucun module n'y est chargé.
+
 ## Volets Thème, Région, Écran, .NET
 
 * `theme.cpp` (theme.inc) : thème et accent, aperçu, korin.theme publié (thème à chaud), sans busd la session
