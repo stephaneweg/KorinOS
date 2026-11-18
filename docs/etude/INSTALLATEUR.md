@@ -513,6 +513,20 @@ propose **Réinstaller en gardant mes fichiers** (par défaut) ou **Nouvelle ins
 * Le même jour : l'installateur choisit aussi le système de fichiers de `/home` (exFAT conseillé, ou ext4 : pas encore
   de journal) et parle anglais (`data/lang/en.txt`, la langue changée tout de suite).
 
+**Décisions du 17 au 18/11/2026.**
+* **Partitions choisies** (maquette `docs/maquettes/installateur-partitions.html`) : à l'étape Disque, « Utiliser… »
+  donne à une ligne le rôle `/` ou `/home`, formatée dans le système de fichiers choisi (une place libre devient une
+  partition neuve). Le plan : `root_part` ou `root_place`, `home_part` ou `home_place` ; les partitions choisies
+  prennent les noms « KORIN OS » et « KORIN HOME » (une réinstallation les reconnaît ensuite). L'étape Mes fichiers est
+  sautée quand `/` est donné ainsi ; une partition EFI doit exister.
+* **ext4 pour `/`** : `root_fs = ext4` ; ext4fs sert alors `/` dès `init.txt` (`vfs / blk.root ext4fs`), le type GPT
+  est Linux. L'installateur le propose (Mes fichiers, « Utiliser… »), FAT32 restant conseillé.
+* **Les logiciels en ligne pendant l'installation** : connecté, l'installateur lit l'index en ligne (`sudo pkg check`
+  sur la clé : `/var/pkg/index.txt`, signature vérifiée) ; un paquet choisi vient de la clé si elle l'a dans la même
+  version ou plus récente, sinon du dépôt : osinstall lance `pkg --root /media/tgt add NOM` (pkglib : une racine
+  réglable, `/etc/pkg`, la base et l'index de cette racine, sans étager). Sans réseau : les paquets de la clé
+  seulement. (Pas d'étape au premier démarrage.)
+
 ## Annexe : à quoi sert `/etc/nvme.txt`
 
 C'est la liste des **règles d'écriture du pilote NVMe** (`src/svc/nvme/policy.c`). Le disque NVMe du ZBook porte

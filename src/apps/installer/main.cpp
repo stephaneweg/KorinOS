@@ -10,10 +10,14 @@
 //               Nouvelle installation
 //   Disque      la liste des partitions à la Windows 7 : Actualiser, Supprimer, Nouveau (gardés en mémoire, écrits
 //               à la fin) ; la ligne choisie est formatée (partition) ou reçoit Korin (espace libre) ; l'EFI est
-//               réutilisée, sinon une neuve est créée
+//               réutilisée, sinon une neuve est créée. « Utiliser… » donne un rôle à une ligne (/ ou /home, formatée
+//               dans le système de fichiers choisi : maquette installateur-partitions.html) ; avec / donné ainsi,
+//               l'étape Mes fichiers est sautée
 //   Fichiers    la taille de /home (0 : dans le système), son système de fichiers (exFAT ou ext4)
 //   Internet    les réseaux Wi-Fi ; câble : passé
-//   Logiciels   les catégories de l'index de la clé (/packages/pc/index.txt), à cocher, le détail à déplier
+//   Logiciels   les catégories de l'index de la clé (/packages/pc/index.txt), à cocher, le détail à déplier ; connecté,
+//               l'index en ligne (« pkg check » : /var/pkg/index.txt, signature vérifiée) : un paquet vient de la clé
+//               si elle l'a dans la même version ou plus récente, sinon du dépôt (osinstall : pkg --root)
 //   Compte      nom, ordinateur, utilisateur, mot de passe (haché ici : seule l'empreinte va dans le plan), session,
 //               administrateur, mot de passe de root
 //   Résumé      les choix, ce qui sera effacé, la confirmation par le nom du disque
@@ -231,7 +235,10 @@ static void langue_choisie ()
 
 // ---- 2 Disque ----------------------------------------------------------------------------------------------------
 enum { G_EFI, G_MSR, G_REC, G_WIN, G_DATA, G_FREE, G_NEW };
-struct Part { int num; u64 first, last; int genre; char content[12], name[80]; };
+struct Part { int num; u64 first, last; int genre; char content[12], name[80]; int role, fs; };	// role : R_* ; fs : FS_*
+enum { R_NONE, R_ROOT, R_HOME };
+enum { FS_FAT32, FS_EXFAT, FS_EXT4 };
+static const char *const FS_NOMS[] = { "FAT32", "exFAT", "ext4" }, *const FS_PLAN[] = { "fat32", "exfat", "ext4" };
 enum { NPART = 64 };
 static Part g_p[NPART]; static int g_np;
 // un Korin déjà installé (la ligne K de osinstall --list) : KORIN OS, KORIN HOME (0 sans), la version, les comptes
@@ -239,7 +246,9 @@ static int g_kroot, g_khome; static char g_kver[40], g_kusers[200]; static bool 
 static long g_wreinst, g_wneuve, g_wreinstl, g_wneuvel;
 static char g_dev[16]; static u64 g_sectors; static bool g_gpt, g_lu;
 static int g_del[32], g_ndel, g_newnum = 100;
-static long g_dlist, g_dact, g_dsup, g_dnouv, g_dnote, g_defi;
+static long g_dlist, g_dact, g_dsup, g_dnouv, g_dnote, g_defi, g_duse, g_draz;
+static int role_ligne (int r) { for (int i = 0; i < g_np; i++) if (g_p[i].role == r) return i; return -1; }
+static bool roles_on () { return role_ligne (R_ROOT) >= 0; }	// (/ donné par « Utiliser… » : le parcours des rôles)
 
 static void disque_lit ()
 {
@@ -301,14 +310,22 @@ static const char *type_de (const Part &p)
 		       eq (p.content, "ext") ? TR ("Principal (ext4)") : TR ("Principal");
 	}
 }
+static const char *usage_de (const Part &p, char *o, size_t cap)
+{
+	o[0] = 0;
+	if (p.genre == G_EFI) cpy (o, TR ("démarrage (gardée)"), cap);
+	else if (p.role) snprintf (o, cap, "%s · %s, %s", p.role == R_ROOT ? "/" : "/home",
+		p.genre == G_FREE || p.genre == G_NEW ? TR ("nouvelle partition") : TR ("formatée"), FS_NOMS[p.fs]);
+	return o;
+}
 static void disque_remplit (int sel)
 {
 	ui_list_clear (g_dlist);
 	for (int i = 0; i < g_np; i++)
 	{
-		char n[120], t[32], l[240];
+		char n[120], t[32], u[80], l[300];
 		go_txt (t, sizeof t, g_p[i].last - g_p[i].first + 1);
-		snprintf (l, sizeof l, "%s\t%s\t%s\t%s", TR ("Disque 0"), nom_de (g_p[i], n, sizeof n), t, type_de (g_p[i]));
+		snprintf (l, sizeof l, "%s\t%s\t%s\t%s", nom_de (g_p[i], n, sizeof n), t, type_de (g_p[i]), usage_de (g_p[i], u, sizeof u));
 		ui_list_add (g_dlist, (long) l, i);
 	}
 	if (sel >= g_np) sel = g_np - 1;
@@ -324,6 +341,33 @@ static Verdict verdict ()
 	Verdict v; memset (&v, 0, sizeof v);
 	int s = disque_sel ();
 	if (!g_dev[0]) { cpy (v.note, TR ("Aucun disque interne trouvé (NVMe). Branchez le disque, puis Actualiser."), sizeof v.note); return v; }
+	int ir = role_ligne (R_ROOT), ih = role_ligne (R_HOME);
+	if (ir >= 0)	// (les rôles : / et peut-être /home sur des lignes choisies)
+	{
+		if (!efi_reste ()) { cpy (v.note, TR ("Avec « Utiliser… », la partition EFI de ce disque doit être gardée : sans elle, laissez les rôles et choisissez une place."), sizeof v.note); return v; }
+		char a[120], b[120], ta[32], tb[32], z[300] = "";
+		go_txt (ta, sizeof ta, g_p[ir].last - g_p[ir].first + 1);
+		snprintf (z, sizeof z, TR ("/ dans %s (%s, %s)"), nom_de (g_p[ir], a, sizeof a), ta, FS_NOMS[g_p[ir].fs]);
+		if (ih >= 0)
+		{
+			go_txt (tb, sizeof tb, g_p[ih].last - g_p[ih].first + 1);
+			char y[200]; snprintf (y, sizeof y, TR (", /home dans %s (%s, %s)."), nom_de (g_p[ih], b, sizeof b), tb, FS_NOMS[g_p[ih].fs]);
+			strncat (z, y, sizeof z - strlen (z) - 1);
+		}
+		else strncat (z, TR (", /home dans le système."), sizeof z - strlen (z) - 1);
+		bool fr = g_p[ir].genre != G_FREE && g_p[ir].genre != G_NEW, fh = ih >= 0 && g_p[ih].genre != G_FREE && g_p[ih].genre != G_NEW;
+		if (fr || fh)
+		{
+			v.danger = true;
+			char y[200]; snprintf (y, sizeof y, " %s %s%s%s.", TR ("Seront formatées :"), fr ? nom_de (g_p[ir], a, sizeof a) : "", fr && fh ? ", " : "", fh ? nom_de (g_p[ih], b, sizeof b) : "");
+			strncat (z, y, sizeof z - strlen (z) - 1);
+		}
+		cpy (v.note, z, sizeof v.note);
+		cpy (v.etat, ih >= 0 ? TR ("/ et /home sur des partitions choisies") : TR ("/ sur une partition choisie"), sizeof v.etat);
+		v.ok = true;
+		return v;
+	}
+	if (ih >= 0) { cpy (v.note, TR ("/home est choisi : choisissez aussi la place du système (/), avec « Utiliser… »."), sizeof v.note); cpy (v.etat, TR ("Il manque le système (/)."), sizeof v.etat); return v; }
 	if (s < 0) { cpy (v.etat, TR ("Choisissez où installer Korin OS."), sizeof v.etat); return v; }
 	Part &p = g_p[s];
 	char t[32], n[120]; go_txt (t, sizeof t, p.last - p.first + 1);
@@ -358,6 +402,8 @@ static void disque_note ()
 		: TR ("Plus de partition EFI : Korin en créera une de 512 Mo au début de la place choisie."))); ui_w_draw (g_defi);
 	ui_w_enable (g_dsup, s >= 0 && g_p[s].genre != G_FREE);
 	ui_w_enable (g_dnouv, s >= 0 && g_p[s].genre == G_FREE);
+	ui_w_enable (g_duse, s >= 0 && g_p[s].genre != G_EFI && g_p[s].genre != G_MSR && g_p[s].genre != G_REC);
+	ui_w_enable (g_draz, role_ligne (R_ROOT) >= 0 || role_ligne (R_HOME) >= 0);
 	ui_w_enable (g_next, v.ok);
 	ui_w_set_text (g_status, (long) v.etat); ui_w_draw (g_status);
 }
@@ -406,7 +452,7 @@ static void disque_supprime ()
 	ui_w_draw (0);
 	if (r != 1) return;
 	if (p.genre != G_NEW && g_ndel < 32) g_del[g_ndel++] = p.num;
-	p.genre = G_FREE; p.name[0] = 0; p.content[0] = 0;
+	p.genre = G_FREE; p.name[0] = 0; p.content[0] = 0; p.role = R_NONE;
 	fusionne ();
 	int sel = 0;
 	for (int i = 0; i < g_np; i++) if (g_p[i].first <= p.first && g_p[i].last >= p.first) sel = i;
@@ -463,12 +509,71 @@ static void disque_nouveau ()
 	disque_note ();
 }
 
+// « Utiliser… » : le rôle de la ligne choisie (rien, /, /home) et son système de fichiers
+static long g_ur[3], g_ufs_root, g_ufs_home, g_uavert;
+static void utilise_maj ()
+{
+	bool r = ui_w_get_value (g_ur[1]) != 0, h = ui_w_get_value (g_ur[2]) != 0;
+	int sp = disque_sel (); bool petit = sp >= 0 && g_p[sp].last - g_p[sp].first + 1 < MIN_KORIN;
+	ui_w_show (g_ufs_root, r && !petit); ui_w_show (g_ufs_home, h);
+	int s = disque_sel ();
+	char n[120], z[240] = "";
+	if (s >= 0 && (r || h))
+	{
+		if (g_p[s].genre == G_FREE || g_p[s].genre == G_NEW) cpy (z, TR ("Korin y crée une partition qui prend toute la place."), sizeof z);
+		else snprintf (z, sizeof z, TR ("Elle sera formatée : tout ce que contient %s sera effacé."), nom_de (g_p[s], n, sizeof n));
+	}
+	ui_w_set_text (g_uavert, (long) z);
+	ui_w_draw (0);
+}
+static long utilise_fn (long d, long w, long code)
+{
+	dlg_fn (d, w, code);
+	if (code == UN_CHANGE && (w == g_ur[0] || w == g_ur[1] || w == g_ur[2])) utilise_maj ();
+	return 0;
+}
+static void disque_utilise ()
+{
+	int s = disque_sel ();
+	if (s < 0 || g_p[s].genre == G_EFI || g_p[s].genre == G_MSR || g_p[s].genre == G_REC) return;
+	Part &p = g_p[s];
+	char n[120], t[32], ti[200];
+	go_txt (t, sizeof t, p.last - p.first + 1);
+	snprintf (ti, sizeof ti, TR ("Utiliser %s (%s)"), nom_de (p, n, sizeof n), t);
+	long d = dlg_debut (480, 300, ti, TR ("OK"), TR ("Annuler"));
+	if (!d) return;
+	bool petit = p.last - p.first + 1 < MIN_KORIN;
+	g_ur[0] = ui_radio (g_bx + 16, g_by + 48, 448, 24, (long) TR ("Ne pas utiliser"), 4);
+	g_ur[1] = ui_radio (g_bx + 16, g_by + 78, petit ? 448 : 230, 24, (long) (petit ? TR ("Système de Korin (/) : trop petite, il faut au moins 10 Go") : TR ("Système de Korin (/)")), 4);
+	g_ur[2] = ui_radio (g_bx + 16, g_by + 108, 230, 24, (long) TR ("Mes fichiers (/home)"), 4);
+	ui_w_enable (g_ur[1], !petit);
+	ui_w_set_value (g_ur[p.role], 1);
+	g_ufs_root = ui_dropdown (g_bx + 250, g_by + 74, 214, 32, (long) TR ("FAT32 (conseillé)|exFAT|ext4 (pas encore de journal)"));
+	g_ufs_home = ui_dropdown (g_bx + 250, g_by + 104, 214, 32, (long) TR ("exFAT (conseillé)|ext4 (pas encore de journal)"));
+	ui_w_set_value (g_ufs_root, p.role == R_ROOT ? (p.fs == FS_EXFAT ? 1 : p.fs == FS_EXT4 ? 2 : 0) : 0);
+	ui_w_set_value (g_ufs_home, p.role == R_HOME && p.fs == FS_EXT4 ? 1 : 0);
+	g_uavert = ui_label (g_bx + 16, g_by + 150, 448, 60, (long) "", ULB_WRAP);
+	utilise_maj ();
+	long r = ui_dialog_run (d, (long) utilise_fn, 0);
+	int role = ui_w_get_value (g_ur[1]) ? R_ROOT : ui_w_get_value (g_ur[2]) ? R_HOME : R_NONE;
+	long vr = ui_w_get_value (g_ufs_root);
+	int fs = role == R_ROOT ? (vr == 1 ? FS_EXFAT : vr == 2 ? FS_EXT4 : FS_FAT32) : (ui_w_get_value (g_ufs_home) == 1 ? FS_EXT4 : FS_EXFAT);
+	ui_dialog_end (d);
+	ui_w_draw (0);
+	if (r != 1) return;
+	if (role) { int o = role_ligne (role); if (o >= 0) g_p[o].role = R_NONE; }	// (un seul / et un seul /home)
+	p.role = role; p.fs = fs;
+	disque_remplit (s);
+	disque_note ();
+}
+
 // le choix fait sur la page Disque, pour la suite
 static Part g_choix; static bool g_efi_neuve; static u64 g_place;	// place utile (secteurs)
 
 // ---- 3 Mes fichiers ----------------------------------------------------------------------------------------------
-static long g_hview, g_hslider, g_htext, g_hbornes, g_hnote, g_hfsl, g_hexfat, g_hext4, g_hext4n;
+static long g_hview, g_hslider, g_htext, g_hbornes, g_hnote, g_hfsl, g_hexfat, g_hext4, g_hext4n, g_hrootl, g_hroot, g_hrootn;
 static bool g_ext4;
+static int g_rootfs;	// le système de fichiers de / : FS_FAT32 (conseillé), FS_EXFAT, FS_EXT4
 static long g_home_go;
 static const long SYS_GO = 10;
 static long home_max () { long m = (long) (g_place / GIB) - SYS_GO; return m < 0 ? 0 : m; }
@@ -506,6 +611,7 @@ static void home_montre ()
 	bool fs = g_home_go > 0;	// (le choix du système de fichiers : avec une partition /home seulement)
 	ui_w_show (g_hfsl, fs); ui_w_show (g_hexfat, fs); ui_w_show (g_hext4, fs); ui_w_show (g_hext4n, fs && g_ext4);
 	ui_w_set_value (g_hexfat, !g_ext4); ui_w_set_value (g_hext4, g_ext4);
+	ui_w_set_value (g_hroot, g_rootfs); ui_w_show (g_hrootn, g_rootfs == FS_EXT4);
 	ui_w_draw (0);
 }
 
@@ -584,7 +690,61 @@ static void wifi_connecte ()
 }
 
 // ---- 5 Logiciels -----------------------------------------------------------------------------------------------------
-struct Pq { char name[40], title[80], cat[32]; u64 size; bool cle, req, coche; };
+struct Pq { char name[40], title[80], cat[32], ver[24]; u64 size; bool cle, req, coche; };
+// la valeur de « clé = ... » dans la section [name] d'un index -> out (vide sans)
+static void idx_get (const char *idx, const char *name, const char *key, char *out, size_t cap)
+{
+	out[0] = 0;
+	if (!idx) return;
+	char sect[64]; snprintf (sect, sizeof sect, "[%s]", name);
+	size_t sl = strlen (sect), kl = strlen (key);
+	for (const char *p = idx; *p; )
+	{
+		if (!strncmp (p, sect, sl) && (p[sl] == '\n' || p[sl] == '\r'))
+		{
+			for (const char *l = p + sl; *l && *l != '['; )
+			{
+				while (*l == '\n' || *l == '\r') l++;
+				if (!strncmp (l, key, kl) && (l[kl] == ' ' || l[kl] == '='))
+				{
+					const char *v = l + kl; while (*v == ' ' || *v == '=') v++;
+					size_t n = strcspn (v, "\r\n"); if (n >= cap) n = cap - 1;
+					memcpy (out, v, n); out[n] = 0; return;
+				}
+				l += strcspn (l, "\n");
+			}
+			return;
+		}
+		p += strcspn (p, "\n"); if (*p) p++;
+	}
+}
+// deux versions, nombre par nombre : < 0, 0, > 0
+static int vcmp (const char *a, const char *b)
+{
+	while (*a || *b)
+	{
+		unsigned long long x = strtoull (a, (char **) &a, 10), y = strtoull (b, (char **) &b, 10);
+		if (x != y) return x < y ? -1 : 1;
+		while (*a && (*a < '0' || *a > '9')) a++;
+		while (*b && (*b < '0' || *b > '9')) b++;
+	}
+	return 0;
+}
+// l'index en ligne : « sudo pkg check » le télécharge et le vérifie (/var/pkg/index.txt, écrit seulement avec une
+// signature bonne ; la clé n'en a pas d'autre) ; lu une fois, dès qu'on est connecté
+static volatile bool s_idx_tourne, s_idx_fini; static bool g_online, s_idx_fait; static pthread_t s_idx_tid;
+static void *idx_thread (void *)
+{
+	if (FILE *f = popen ("/bin/sudo /bin/pkg check", "r")) { char l[256]; while (fgets (l, sizeof l, f)) {} pclose (f); }
+	s_idx_fini = true;
+	return 0;
+}
+static void index_en_ligne ()
+{
+	if (s_idx_tourne || s_idx_fait) return;
+	s_idx_tourne = true; s_idx_fini = false;
+	if (pthread_create (&s_idx_tid, 0, idx_thread, 0) != 0) { s_idx_tourne = false; s_idx_fait = true; }
+}
 struct Cat { char nom[32]; int first, n; bool ouvert; };
 enum { NPQ = 400, NCAT = 24 };
 static Pq g_pq[NPQ]; static int g_npq; static Cat g_cat[NCAT]; static int g_ncat;
@@ -620,18 +780,24 @@ static void paquets_lit ()
 {
 	g_npq = 0; g_ncat = 0;
 	categories_lit ();
-	char *b = lire ("/packages/pc/index.txt");
+	char *kb = lire ("/packages/pc/index.txt");		// (la clé : ses archives, leurs versions)
+	struct stat sto;
+	bool on = g_online && stat ("/var/pkg/index.txt", &sto) == 0;
+	char *b = on ? lire ("/var/pkg/index.txt") : kb;
 	Pq cur; bool in = false; memset (&cur, 0, sizeof cur);
 	char file[160] = "";
 	auto fin = [&]() {
 		if (in && cur.name[0] && cur.cat[0] && g_npq < NPQ && !eq (cur.name, "repo"))
 		{
-			if (file[0])	// (une archive de la Release : son seul nom, dans pkgs/ de la clé)
+			char kf[160], kv[24];		// (l'archive et la version de la clé, même avec l'index en ligne)
+			if (on) { idx_get (kb, cur.name, "file", kf, sizeof kf); idx_get (kb, cur.name, "version", kv, sizeof kv); }
+			else { cpy (kf, file, sizeof kf); cpy (kv, cur.ver, sizeof kv); }
+			if (kf[0])	// (une archive de la Release : son seul nom, dans pkgs/ de la clé)
 			{
-				char p[220]; const char *b = strrchr (file, '/');
-				if (strstr (file, "://")) snprintf (p, sizeof p, "/packages/pc/pkgs/%s", b ? b + 1 : file);
-				else snprintf (p, sizeof p, "/packages/pc/%s", file);
-				struct stat st; cur.cle = stat (p, &st) == 0;
+				char p[220]; const char *b = strrchr (kf, '/');
+				if (strstr (kf, "://")) snprintf (p, sizeof p, "/packages/pc/pkgs/%s", b ? b + 1 : kf);
+				else snprintf (p, sizeof p, "/packages/pc/%s", kf);
+				struct stat st; cur.cle = stat (p, &st) == 0 && (!on || vcmp (kv, cur.ver) >= 0);	// (en ligne plus récent : téléchargé)
 			}
 			if (!cur.cle)	// (déjà dans le système de la clé, que l'installation copie : pc, pkgman)
 			{
@@ -657,6 +823,7 @@ static void paquets_lit ()
 				if (eq (k, "title")) cpy (cur.title, v, sizeof cur.title);
 				else if (eq (k, "category")) cpy (cur.cat, v, sizeof cur.cat);
 				else if (eq (k, "size")) cur.size = strtoull (v, 0, 10);
+				else if (eq (k, "version")) cpy (cur.ver, v, sizeof cur.ver);
 				else if (eq (k, "required")) cur.req = eq (v, "1");
 				else if (eq (k, "file")) cpy (file, v, sizeof file);
 			}
@@ -664,7 +831,8 @@ static void paquets_lit ()
 		l = e ? e + 1 : l + strlen (l);
 	}
 	fin ();
-	free (b);
+	if (b != kb) free (b);
+	free (kb);
 	if (!g_npq)	// (une clé sans dépôt : le système copié seulement)
 	{
 		Pq &p = g_pq[g_npq++]; memset (&p, 0, sizeof p);
@@ -967,10 +1135,19 @@ static void sview_paint (long, long w, long h)
 	char l[6][200]; const char *lb[6] = { "Langue et clavier", "Disque", "Logiciels", "Compte", "Démarrage", "Nom de l'ordinateur" };
 	snprintf (l[0], 200, "%s · %s · %s %s", g_langc[0] == 'e' ? "English" : "Français", g_paysc, TR ("clavier"), g_kb);
 	char t[32], n[120]; go_txt (t, sizeof t, g_choix.last - g_choix.first + 1);
-	if (g_choix.genre == G_FREE) snprintf (l[1], 200, TR ("Korin dans %s d'espace libre"), t);
+	int ir = role_ligne (R_ROOT), ih = role_ligne (R_HOME);
+	if (ir >= 0)
+	{
+		char a[120], b[120], ta[32], tb[32];
+		go_txt (ta, sizeof ta, g_p[ir].last - g_p[ir].first + 1);
+		snprintf (l[1], 200, "/ : %s, %s (%s)", nom_de (g_p[ir], a, sizeof a), ta, FS_NOMS[g_p[ir].fs]);
+		if (ih >= 0) { go_txt (tb, sizeof tb, g_p[ih].last - g_p[ih].first + 1); char z[120]; snprintf (z, sizeof z, " · /home : %s, %s (%s)", nom_de (g_p[ih], b, sizeof b), tb, FS_NOMS[g_p[ih].fs]); strncat (l[1], z, 199 - strlen (l[1])); }
+	}
+	else if (g_choix.genre == G_FREE) snprintf (l[1], 200, TR ("Korin dans %s d'espace libre"), t);
 	else if (g_choix.genre == G_NEW) snprintf (l[1], 200, TR ("Korin dans la nouvelle partition (%s)"), t);
 	else snprintf (l[1], 200, TR ("Korin à la place de %s (%s)"), nom_de (g_choix, n, sizeof n), t);
-	if (g_home_go) { char z[64]; snprintf (z, sizeof z, " · %s", TR ("/home %ld Go (%s)")); { char zz[64]; snprintf (zz, sizeof zz, z, g_home_go, g_ext4 ? "ext4" : "exFAT"); cpy (z, zz, sizeof z); } strncat (l[1], z, 199 - strlen (l[1])); }
+	if (ir < 0 && g_rootfs != FS_FAT32) { char z[48]; snprintf (z, sizeof z, " · / %s", FS_NOMS[g_rootfs]); strncat (l[1], z, 199 - strlen (l[1])); }
+	if (g_home_go && ir < 0) { char z[64]; snprintf (z, sizeof z, " · %s", TR ("/home %ld Go (%s)")); { char zz[64]; snprintf (zz, sizeof zz, z, g_home_go, g_ext4 ? "ext4" : "exFAT"); cpy (z, zz, sizeof z); } strncat (l[1], z, 199 - strlen (l[1])); }
 	int nc = 0; for (int i = 0; i < g_ncat; i++) if (cat_etat (i, 0)) nc++;
 	snprintf (l[2], 200, nc > 1 ? TR ("%d catégories choisies") : TR ("%d catégorie choisie"), nc);
 	snprintf (l[3], 200, "%s (%s)%s", (const char *) ui_w_get_text (g_anom), (const char *) ui_w_get_text (g_auser), ui_w_get_value (g_aadmin) ? TR (", administrateur") : "");
@@ -989,7 +1166,18 @@ static void sview_paint (long, long w, long h)
 	int y = 6 * 46 + 16;
 	rbox (0, y, (int) w, 54, 8, s_danger ? jet (TJ_DANGER) : jet (TJ_SUCCESS));
 	rbox (1, y + 1, (int) w - 2, 52, 8, jet (TJ_SURFACE));
-	if (s_danger) { char z[200]; snprintf (z, sizeof z, TR ("Sera effacé définitivement : %s (%s)."), nom_de (g_choix, n, sizeof n), t); text (14, y + 17, z, jet (TJ_DANGER), 14, 1, (int) w - 28); }
+	if (s_danger && ir >= 0)	// (les rôles : les partitions formatées, et celles supprimées)
+	{
+		char z[300]; cpy (z, TR ("Seront effacées définitivement :"), sizeof z);
+		int k = 0;
+		for (int i = 0; i < g_np; i++)
+			if ((g_p[i].role) && g_p[i].genre != G_FREE && g_p[i].genre != G_NEW)
+			{ char a[120], ta[32], y[180]; go_txt (ta, sizeof ta, g_p[i].last - g_p[i].first + 1); snprintf (y, sizeof y, "%s %s (%s)", k++ ? "," : "", nom_de (g_p[i], a, sizeof a), ta); strncat (z, y, sizeof z - strlen (z) - 1); }
+		if (g_ndel) { char y[80], f[80]; snprintf (f, sizeof f, " %s", TR ("et %d partition(s) supprimée(s)")); snprintf (y, sizeof y, f, g_ndel); strncat (z, y, sizeof z - strlen (z) - 1); }
+		strncat (z, ".", sizeof z - strlen (z) - 1);
+		ui_text_wrap ((long) z, 14, y + 8, w - 28, jet (TJ_DANGER), (long) ui.font_b, 14, 0);
+	}
+	else if (s_danger) { char z[200]; snprintf (z, sizeof z, TR ("Sera effacé définitivement : %s (%s)."), nom_de (g_choix, n, sizeof n), t); text (14, y + 17, z, jet (TJ_DANGER), 14, 1, (int) w - 28); }
 	else text (14, y + 17, TR ("Rien ne sera effacé : les partitions gardées restent telles quelles."), jet (TJ_SUCCESS), 14, 1, (int) w - 28);
 }
 static long sview_mouse (long, long kind, long mx, long my, long)
@@ -1093,18 +1281,37 @@ static void plan_ecrit ()
 		bool win = false; for (int i = 0; i < g_np; i++) if (g_p[i].genre == G_WIN) win = true;
 		fprintf (f, "# plan de l'installateur (apps/installer.app) pour osinstall : réinstallation\n[disk]\ndevice = %s\nmode = reinstall\nroot = %d\nhome_part = %d\n", g_dev, g_kroot, g_khome);
 		fprintf (f, "\n[system]\nlang = %s\nkeyb = %s\ntimeout = %ld\n\n[user]\npasswords = none\n", g_langc, g_kb, win ? ui_w_get_value (g_sdelai) * 5 : 0);
-		fprintf (f, "\n[packages]\nlist =");
+		fprintf (f, "\n[packages]\nonline = %s\nlist =", g_online ? "yes" : "no");
 		for (int i = 0; i < g_npq; i++) if (g_pq[i].coche && pq_dispo (g_pq[i])) fprintf (f, " %s", g_pq[i].name);
 		fprintf (f, "\n");
 		fclose (f);
 		return;
 	}
+	if (roles_on ())	// (les rôles : / et /home sur des partitions choisies ou des espaces libres)
+	{
+		fprintf (f, "# plan de l'installateur (apps/installer.app) pour osinstall : partitions choisies\n[disk]\ndevice = %s\nmode = beside\ndelete = ", g_dev);
+		for (int i = 0; i < g_ndel; i++) fprintf (f, "%s%d", i ? ", " : "", g_del[i]);
+		fprintf (f, "\n");
+		static const char *const quoi[3] = { "", "root", "home" };
+		for (int r = R_ROOT; r <= R_HOME; r++)
+		{
+			int i = role_ligne (r);
+			if (i < 0) continue;
+			if (g_p[i].genre == G_FREE || g_p[i].genre == G_NEW) fprintf (f, "%s_place = %llu-%llu\n", quoi[r], g_p[i].first, g_p[i].last);
+			else fprintf (f, "%s_part = %d\n", quoi[r], g_p[i].num);
+			fprintf (f, "%s_fs = %s\n", quoi[r], FS_PLAN[g_p[i].fs]);
+		}
+		fprintf (f, "min_gb = %ld\n", (long) (MIN_KORIN / GIB));
+	}
+	else
+	{
 	fprintf (f, "# plan de l'installateur (apps/installer.app) pour osinstall\n[disk]\ndevice = %s\nmode = %s\n", g_dev, g_gpt ? "beside" : "wipe");
 	fprintf (f, "delete = ");
 	for (int i = 0; i < g_ndel; i++) fprintf (f, "%s%d", i ? ", " : "", g_del[i]);
 	if (g_choix.genre != G_FREE && g_choix.genre != G_NEW) fprintf (f, "%s%d", g_ndel ? ", " : "", g_choix.num);
-	fprintf (f, "\nplace = %llu-%llu\nroot_fs = fat32\nhome = %s\nroot_gb = %ld\nhome_fs = %s\nboot_mb = 512\nmin_gb = %ld\n",
-		g_choix.first, g_choix.last, g_home_go ? "yes" : "no", (long) (g_place / GIB) - g_home_go, g_ext4 ? "ext4" : "exfat", (long) (MIN_KORIN / GIB));
+	fprintf (f, "\nplace = %llu-%llu\nroot_fs = %s\nhome = %s\nroot_gb = %ld\nhome_fs = %s\nboot_mb = 512\nmin_gb = %ld\n",
+		g_choix.first, g_choix.last, FS_PLAN[g_rootfs], g_home_go ? "yes" : "no", (long) (g_place / GIB) - g_home_go, g_ext4 ? "ext4" : "exfat", (long) (MIN_KORIN / GIB));
+	}
 	bool win = false; for (int i = 0; i < g_np; i++) if (g_p[i].genre == G_WIN) win = true;
 	fprintf (f, "\n[system]\nhostname = %s\nlang = %s\nkeyb = %s\ntimeout = %ld\n", (const char *) ui_w_get_text (g_apc), g_langc, g_kb,
 		win ? ui_w_get_value (g_sdelai) * 5 : 0);
@@ -1115,7 +1322,7 @@ static void plan_ecrit ()
 	if (!admin || !pw[0]) empreinte ((const char *) ui_w_get_text (g_arpw), rh, sizeof rh); else cpy (rh, h, sizeof rh);
 	fprintf (f, "\n[user]\nname = %s\nfullname = %s\nautologin = %s\nadmin = %s\npasswords = none\nhash = %s\nroot_hash = %s\n",
 		(const char *) ui_w_get_text (g_auser), (const char *) ui_w_get_text (g_anom), ui_w_get_value (g_aauto) ? "yes" : "no", admin ? "yes" : "no", h, rh);
-	fprintf (f, "\n[packages]\nlist =");
+	fprintf (f, "\n[packages]\nonline = %s\nlist =", g_online ? "yes" : "no");
 	for (int i = 0; i < g_npq; i++) if (g_pq[i].coche && pq_dispo (g_pq[i])) fprintf (f, " %s", g_pq[i].name);
 	fprintf (f, "\n");
 	fclose (f);
@@ -1231,6 +1438,11 @@ void montre (int p)
 	else if (p == P_SUMMARY)
 	{
 		s_danger = !g_reinst && g_choix.genre != G_FREE && g_choix.genre != G_NEW;	// (réinstallation : vos fichiers restent, pas de nom à taper)
+		if (!g_reinst && roles_on ())	// (les rôles : une partition existante formatée)
+		{
+			s_danger = false;
+			for (int i = 0; i < g_np; i++) if (g_p[i].role && g_p[i].genre != G_FREE && g_p[i].genre != G_NEW) s_danger = true;
+		}
 		for (int i = 0; i < g_ndel && !g_reinst; i++) s_danger = true;
 		bool win = false; for (int i = 0; i < g_np; i++) if (g_p[i].genre == G_WIN) win = true;
 		ui_w_show (g_sconf, s_danger); ui_w_show (g_sconfl, s_danger);
@@ -1267,7 +1479,15 @@ static void suivant ()
 	case P_DISK:
 	{
 		int s = disque_sel ();
-		if (s < 0 || !verdict ().ok) return;
+		if (!verdict ().ok) return;
+		if (roles_on ())	// (/ donné par « Utiliser… » : pas d'étape Mes fichiers)
+		{
+			g_choix = g_p[role_ligne (R_ROOT)]; g_efi_neuve = false;
+			g_place = g_choix.last - g_choix.first + 1; g_home_go = 0;
+			montre (g_back_to_summary ? P_SUMMARY : P_NET);
+			break;
+		}
+		if (s < 0) return;
 		g_choix = g_p[s];
 		g_efi_neuve = !efi_reste ();
 		g_place = g_choix.last - g_choix.first + 1 - (g_efi_neuve ? EFI_NEUVE : 0);
@@ -1295,6 +1515,7 @@ static void precedent ()
 	if (g_back_to_summary && g_page < P_SUMMARY) { montre (P_SUMMARY); return; }
 	static const int avant[P_N] = { P_WELCOME, P_WELCOME, P_DISK, P_HOME, P_NET, P_PKG, P_ACCOUNT, P_SUMMARY, P_SUMMARY };
 	if (g_reinst && g_page == P_NET) { montre (P_WELCOME); return; }		// (réinstallation : ni Disque ni Compte)
+	if (!g_reinst && g_page == P_NET && roles_on ()) { montre (P_DISK); return; }	// (les rôles : pas d'étape Mes fichiers)
 	if (g_reinst && g_page == P_SUMMARY) { montre (P_PKG); return; }
 	montre (avant[g_page]);
 }
@@ -1313,6 +1534,8 @@ static void control (long w, long code)
 		else if (w == g_dact) { disque_lit (); disque_remplit (0); disque_note (); }
 		else if (w == g_dsup) disque_supprime ();
 		else if (w == g_dnouv) disque_nouveau ();
+		else if (w == g_duse) disque_utilise ();
+		else if (w == g_draz) { for (int i = 0; i < g_np; i++) g_p[i].role = R_NONE; disque_remplit (disque_sel ()); disque_note (); }
 		else if (w == g_wjoin || w == g_wpass) wifi_connecte ();
 		else if (w == g_wscan) { if (lance (T_SCAN)) { ui_w_set_text (g_wetat, (long) TR ("Recherche des réseaux…")); ui_w_draw (g_wetat); } }
 		else if (w == g_idet) { s_detail = !s_detail; ui_w_show (g_ijournal, s_detail); ui_w_set_text (g_idet, (long) (s_detail ? TR ("Cacher les détails") : TR ("Afficher les détails"))); ui_w_draw (0); }
@@ -1327,6 +1550,7 @@ static void control (long w, long code)
 	else if (w == g_tzville) { long v = ui_w_get_value (g_tzville); if (v >= 0 && v < s_nville) { cpy (g_tz, s_tz[s_ville[v]], sizeof g_tz); ui_w_set_text (g_tzlab, (long) g_tz); ui_w_draw (g_tzlab); } }
 	else if (w == g_dlist) disque_note ();
 	else if (w == g_hslider) { g_home_go = ui_w_get_value (g_hslider); home_montre (); }
+	else if (w == g_hroot) { long v = ui_w_get_value (g_hroot); g_rootfs = v == 1 ? FS_EXFAT : v == 2 ? FS_EXT4 : FS_FAT32; home_montre (); }
 	else if (w == g_hexfat || w == g_hext4) { g_ext4 = w == g_hext4 ? ui_w_get_value (w) != 0 : ui_w_get_value (w) == 0; home_montre (); }
 	else if (w == g_wreinst || w == g_wneuve)
 	{
@@ -1341,6 +1565,21 @@ static void control (long w, long code)
 	else if (w == g_anom || w == g_apw || w == g_apw2 || w == g_arpw || w == g_arpw2 || w == g_aauto || w == g_adem || w == g_aadmin) compte_maj ();
 	else if (w == g_sconf) resume_etat ();
 	else if (w == g_sdef || w == g_sdelai) ui_view_dirty (g_sview);
+}
+static void idx_poll ()
+{
+	if ((g_connecte || g_cable) && !s_idx_fait) index_en_ligne ();
+	if (!s_idx_tourne || !s_idx_fini) return;
+	pthread_join (s_idx_tid, 0);
+	s_idx_tourne = false; s_idx_fait = true;
+	struct stat st;
+	g_online = stat ("/var/pkg/index.txt", &st) == 0;
+	if (!g_online || !g_ncat) return;	// (pas encore lue : elle le sera avec l'index en ligne)
+	static char vus[NPQ][40]; static bool coches[NPQ]; int n = 0;
+	for (int i = 0; i < g_npq && n < NPQ; i++) { cpy (vus[n], g_pq[i].name, 40); coches[n++] = g_pq[i].coche; }
+	paquets_lit ();
+	for (int i = 0; i < g_npq; i++) for (int k = 0; k < n; k++) if (eq (g_pq[i].name, vus[k])) g_pq[i].coche = coches[k] || g_pq[i].req;
+	if (g_page == P_PKG) paquets_etat ();
 }
 static void net_poll ()
 {
@@ -1421,13 +1660,15 @@ int main (int, char **)
 	// 2 Disque
 	int lh = H - 150 < 160 ? 160 : H - 150;
 	g_dlist = item (P_DISK, ui_list (X, Y0, W, lh, UL_HEADER | UL_NOSORT));
-	ui_list_column (g_dlist, (long) TR ("Disque"), 90, 0);
-	ui_list_column (g_dlist, (long) TR ("Nom"), W - 90 - 100 - 190, 0);
-	ui_list_column (g_dlist, (long) TR ("Taille"), 100, ULC_RIGHT);
-	ui_list_column (g_dlist, (long) TR ("Type"), 190, 0);
+	ui_list_column (g_dlist, (long) TR ("Nom"), W - 90 - 150 - 200, 0);
+	ui_list_column (g_dlist, (long) TR ("Taille"), 90, ULC_RIGHT);
+	ui_list_column (g_dlist, (long) TR ("Type"), 150, 0);
+	ui_list_column (g_dlist, (long) TR ("Utilisation"), 200, 0);
 	g_dact = item (P_DISK, ui_pushbutton (X, Y0 + lh + 8, 120, 32, (long) TR ("Actualiser"), UB_GHOST));
 	g_dsup = item (P_DISK, ui_pushbutton (X + 128, Y0 + lh + 8, 120, 32, (long) TR ("Supprimer"), UB_GHOST));
 	g_dnouv = item (P_DISK, ui_pushbutton (X + 256, Y0 + lh + 8, 120, 32, (long) TR ("Nouveau"), UB_GHOST));
+	g_duse = item (P_DISK, ui_pushbutton (X + 384, Y0 + lh + 8, 120, 32, (long) TR ("Utiliser…"), UB_GHOST));
+	g_draz = item (P_DISK, ui_pushbutton (X + 512, Y0 + lh + 8, 168, 32, (long) TR ("Effacer les rôles"), UB_GHOST));
 	g_dnote = item (P_DISK, ui_label (X, Y0 + lh + 48, W, 44, (long) "", ULB_WRAP));
 	g_defi = item (P_DISK, ui_label (X, Y0 + lh + 94, W, 40, (long) "", ULB_WRAP | ULB_DIM));
 
@@ -1441,6 +1682,9 @@ int main (int, char **)
 	g_hfsl = item (P_HOME, ui_label (X, Y0 + 204, W, 20, (long) TR ("Système de fichiers de /home"), ULB_BOLD));
 	g_hexfat = item (P_HOME, ui_radio (X, Y0 + 232, W, 24, (long) TR ("exFAT (conseillé) : lisible aussi par Windows et macOS"), 3));
 	g_hext4 = item (P_HOME, ui_radio (X, Y0 + 260, W, 24, (long) TR ("ext4 : garde les droits des fichiers (Unix), lisible par Linux"), 3));
+	g_hrootl = item (P_HOME, ui_label (X, Y0 + 344, 260, 22, (long) TR ("Système de fichiers de /"), ULB_BOLD));
+	g_hroot = item (P_HOME, ui_segmented (X + 270, Y0 + 338, 0, 0, (long) TR ("FAT32 (conseillé)|exFAT|ext4")));
+	g_hrootn = item (P_HOME, ui_label (X, Y0 + 378, W, 40, (long) TR ("/ en ext4 : pas encore de journal (voir plus haut) ; FAT32 reste le plus éprouvé pour le système."), ULB_WRAP));
 	g_hext4n = item (P_HOME, ui_label (X, Y0 + 292, W, 44, (long) TR ("L'ext4 de Korin n'a pas encore de journal : après une coupure de courant pendant une écriture, le disque peut garder des erreurs que Korin ne sait pas encore réparer."), ULB_WRAP));
 
 	// 4 Internet
@@ -1521,6 +1765,7 @@ int main (int, char **)
 		}
 		else ui_w_idle ();
 		net_poll ();
+		idx_poll ();
 		install_poll ();
 		ui_view_flush ();
 	}

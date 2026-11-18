@@ -447,14 +447,24 @@ static int run (const char *c, char **rest, int nr)
 
 int main (int argc, char **argv)
 {
-	static Manager m; M = &m;
 	int a0 = 1;
-	if (argc >= 3 && eq (argv[1], "-r")) { cpy (m.repo, argv[2], sizeof m.repo); a0 = 3; }
+	const char *repo = 0;
+	for (;;)	// (avant la commande : -r DEPOT, --root RACINE, dans n'importe quel ordre)
+	{
+		if (argc - a0 >= 2 && eq (argv[a0], "-r")) { repo = argv[a0 + 1]; a0 += 2; continue; }
+		if (argc - a0 >= 2 && eq (argv[a0], "--root")) { pkg_set_root (argv[a0 + 1]); a0 += 2; continue; }
+		if (argc - a0 >= 1 && !strncmp (argv[a0], "root=", 5)) { pkg_set_root (argv[a0] + 5); a0 += 1; continue; }
+		break;
+	}
+	static Manager *mp = new Manager;	// (après --root : le Manager lit /etc/pkg et la base de cette racine)
+	Manager &m = *mp; M = &m;
+	if (repo) cpy (m.repo, repo, sizeof m.repo);
 	if (argc - a0 < 1)
 	{
 		fputs (TR ("usage : pkg list [-a] [filtre] | info NOM | add NOM... | delete [-p] NOM... |\n"
 			"        update NOM... | update -a | upgrade | check | mode NOM manual|auto|never | commit\n"
-			"        [-r DEPOT] avant la commande : un autre dépôt\n"), stdout);
+			"        [-r DEPOT] avant la commande : un autre dépôt\n"
+			"        [--root RACINE] avant la commande : le système à gérer (osinstall : /media/tgt)\n"), stdout);
 		return 3;
 	}
 	int rc = run (argv[a0], argv + a0 + 1, argc - a0 - 1);

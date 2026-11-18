@@ -86,6 +86,26 @@ typedef unsigned char u8;
 #define PKG_DL2		"/var/pkg/dl"			// (sans /tmp)
 #define PKG_COMMIT_LOG	"/var/pkg/commit.log"
 
+// --root : la racine du système que pkg gère (« /media/tgt » : osinstall installe dans le disque en cours d'installation ;
+// 18/11/2026). Vide : « / ». Avec une racine, pkg lit /etc/pkg, la base et l'index de cette racine, y installe sans
+// étager (le système qu'on installe ne tourne pas) et ne relance pas le bureau.
+static char g_pkgroot[160];
+static inline void pkg_set_root (const char *r)
+{
+	snprintf (g_pkgroot, sizeof g_pkgroot, "%s", r && strcmp (r, "/") ? r : "");
+	size_t l = strlen (g_pkgroot);
+	while (l && g_pkgroot[l - 1] == '/') g_pkgroot[--l] = 0;
+}
+// un chemin du système -> le même sous la racine (huit tampons tournants)
+static inline const char *RP (const char *path)
+{
+	if (!g_pkgroot[0]) return path;
+	static char b[8][400]; static int k;
+	char *o = b[k++ & 7];
+	snprintf (o, sizeof b[0], "%s%s", g_pkgroot, path);
+	return o;
+}
+
 // ---- appels systeme, comme src/apps/mail/main.cpp (Pi : svc 0 ; PC : syscall) -----------------------------------------
 static inline long sys_call (long n, long a, long b) { return armpi_syscall (n, a, b, 0, 0, 0, 0); }
 enum { SYS_KILL_ = 0x14, SYS_PROCLIST_ = 0x15, SYS_SVC_OPEN_ = 0x31, SYS_SVC_CALL_ = 0x32, SYS_SPAWN_ = 0x8B, SYS_PRELOAD_ = 0x8D };
@@ -183,7 +203,7 @@ struct BootScope { ~BootScope () { boot_release (); } };
 // rel (chemin de la carte), motifs `boot =` du paquet -> "/boot/rel" ou "/rel"
 static inline void card_path (char *out, size_t cap, const char *bootPats, const char *rel)
 {
-	snprintf (out, cap, "%s/%s", in_patterns (bootPats, rel) ? boot_volume () : "", rel);
+	snprintf (out, cap, "%s/%s", g_pkgroot[0] ? g_pkgroot : in_patterns (bootPats, rel) ? boot_volume () : "", rel);
 }
 static inline bool is_dir (const char *p) { struct stat st; return stat (p, &st) == 0 && S_ISDIR (st.st_mode); }
 // un fichier entier -> malloc, termine par 0 (*len : ses octets) ; 0 : absent
@@ -240,7 +260,7 @@ static inline bool write_file (const char *path, const void *b, u64 n)
 // Un programme epingle (/etc/preload.txt) : vfs oublie son image quand le fichier change, elle est rechargee
 static inline void repin (const char *path)
 {
-	char *t = read_file (PKG_PRELOAD);
+	char *t = read_file (RP (PKG_PRELOAD));
 	if (!t) return;
 	size_t l = strlen (path);
 	for (char *p = t; *p; )
@@ -403,7 +423,7 @@ static inline int parse_needs (const char *s, Need *out, int max)
 // ce qu'etait `kapi` sur Onyx. Un paquet construit contre des tables plus grandes attend le systeme.
 static inline int abi_level ()
 {
-	char *t = read_file (PKG_ABI);
+	char *t = read_file (RP (PKG_ABI));
 	int v = t ? atoi (t) : 0;
 	free (t);
 	return v;
@@ -510,7 +530,7 @@ struct Db
 	void load ()
 	{
 		clear ();
-		DIR *d = opendir (PKG_DB);
+		DIR *d = opendir (RP (PKG_DB));
 		if (!d) return;
 		struct dirent *e;
 		while ((e = readdir (d)) != 0)
@@ -518,7 +538,7 @@ struct Db
 			int l = (int) strlen (e->d_name);
 			if (l < 5 || strcmp (e->d_name + l - 4, ".ini")) continue;
 			Inst *x = new Inst;
-			char p[300]; snprintf (p, sizeof p, PKG_DB "/%s", e->d_name);
+			char p[400]; snprintf (p, sizeof p, "%s/%s", RP (PKG_DB), e->d_name);
 			if (!x->ini.load (p)) { delete x; continue; }
 			cpy (x->name, x->ini.get ("package", "name", ""), sizeof x->name);
 			if (!x->name[0]) { char t[128]; cpy (t, e->d_name, sizeof t); t[l - 4 < 127 ? l - 4 : 127] = 0; cpy (x->name, t, sizeof x->name); }
@@ -890,9 +910,9 @@ public:
 
 	Manager () : haveIndex (false), verified (false), kernelChanged (false), appsChanged (false)
 	{
-		Ini c; c.load (PKG_CONF);
+		Ini c; c.load (RP (PKG_CONF));
 		cpy (repo, c.get ("", "repo", PKG_REPO), sizeof repo);
-		cpy (key, c.get ("", "key", PKG_KEY), sizeof key);
+		cpy (key, RP (c.get ("", "key", PKG_KEY)), sizeof key);
 		db.load ();
 	}
 
@@ -949,18 +969,18 @@ public:
 			const char *ib = ii.get ("repo", "board", "?");
 			if (!eq (ib, PKG_BOARD)) { r.sayf ("ce dépôt est pour la carte « %s », pas pour %s : refusé", ib, PKG_BOARD); return E_SIG; }
 		}
-		write_file (PKG_VAR "/index.txt", ti.b, ti.n);
+		write_file (RP (PKG_VAR "/index.txt"), ti.b, ti.n);
 		index.ini.parse (ti.take ()); index.build (); haveIndex = verified = true;
 		return OK;
 	}
 	bool load_cached (Report &r)
 	{
-		if (!index.ini.load (PKG_VAR "/index.txt")) return false;
+		if (!index.ini.load (RP (PKG_VAR "/index.txt"))) return false;
 		index.build (); haveIndex = true; verified = false;
 		r.sayf ("(dépôt injoignable : son dernier index, du %s)", index.date);
 		return true;
 	}
-	bool load_cached_quiet () { if (!index.ini.load (PKG_VAR "/index.txt")) return false; index.build (); haveIndex = true; return true; }
+	bool load_cached_quiet () { if (!index.ini.load (RP (PKG_VAR "/index.txt"))) return false; index.build (); haveIndex = true; return true; }
 
 	// Une de ses apps tourne ? (son nom -> out) ; les programmes en memoire ne craignent rien, mais une app
 	// peut reecrire des fichiers que la mise a jour change. (Le gestionnaire se met a jour lui-meme : voir install.)
@@ -1084,7 +1104,7 @@ public:
 		const char *name = man.get ("", "name"), *ver = man.get ("", "version");
 		if (!*name || (p && (!eq (name, p->name) || !eq (ver, p->version))))
 		{ ar_close (a); r.sayf ("%s : le manifeste ne correspond pas à l'index", path); return E_BADPKG; }
-		bool stage = eq (man.get ("", "restart", "0"), "1");
+		bool stage = !g_pkgroot[0] && eq (man.get ("", "restart", "0"), "1");	// (une autre racine : directement)
 		if (!old) old = db.find (name);
 		long count = ar_count (a);
 		// avant toute ecriture : les noms
@@ -1100,7 +1120,7 @@ public:
 		BootScope bootScope;					// (/boot rendu en sortant)
 		char root[200];
 		if (stage) { snprintf (root, sizeof root, PKG_STAGE "/%s", name); remove_tree (root); mkdirs (root); }
-		else root[0] = 0;					// (la racine : « /cible »)
+		else snprintf (root, sizeof root, "%s", g_pkgroot);	// (la racine : « /cible », ou --root)
 		// l'entree de la base
 		size_t cap = 4096 + (size_t) count * 120; char *dbt = (char *) malloc (cap); size_t dl = 0;
 		auto put = [&] (const char *s) { size_t l = strlen (s); if (dl + l + 1 >= cap) { cap = (dl + l + 1) * 2; dbt = (char *) realloc (dbt, cap); } memcpy (dbt + dl, s, l + 1); dl += l; };
@@ -1143,7 +1163,7 @@ public:
 				}
 			}
 			char dest[320], tmp[330];
-			if (!stage && in_patterns (bootPats, rel)) snprintf (dest, sizeof dest, "%s/%s", boot_volume (), target);
+			if (!stage && in_patterns (bootPats, rel)) snprintf (dest, sizeof dest, "%s/%s", g_pkgroot[0] ? root : boot_volume (), target);
 			else snprintf (dest, sizeof dest, "%s/%s", root, target);
 			snprintf (tmp, sizeof tmp, stage ? "%s" : "%s.pkgtmp", dest);
 			char hh[65];
@@ -1185,7 +1205,7 @@ public:
 			}
 		char dbp[200];
 		if (stage) { put ("\n"); put (mv); snprintf (dbp, sizeof dbp, PKG_STAGE "/%s.ini", name); }
-		else snprintf (dbp, sizeof dbp, PKG_DB "/%s.ini", name);
+		else snprintf (dbp, sizeof dbp, "%s/%s.ini", RP (PKG_DB), name);
 		bool ok = write_file (dbp, dbt, dl);
 		if (ok && !stage && strstr (dbt, "\napps/")) appsChanged = true;
 		free (dbt); free (mv);
@@ -1199,7 +1219,7 @@ public:
 	// Une app ajoutee ou retiree : le panel (et la barre de menus) relus, comme relaunch du panneau de configuration
 	void refresh_desktop ()
 	{
-		if (!appsChanged) return;
+		if (!appsChanged || g_pkgroot[0]) return;	// (une autre racine : son bureau ne tourne pas)
 		appsChanged = false;
 		static const struct { const char *name, *path; } shell[] = { { "panel", "/sys/panel" }, { "menubar", "/sys/menubar" } };
 		for (auto &s : shell)
@@ -1252,7 +1272,7 @@ public:
 			if (unlink (card) == 0) gone++;
 			prune (card);
 		}
-		char dbp[200]; snprintf (dbp, sizeof dbp, PKG_DB "/%s.ini", name);
+		char dbp[400]; snprintf (dbp, sizeof dbp, "%s/%s.ini", RP (PKG_DB), name);
 		unlink (dbp);
 		r.sayf ("%s retiré : %d fichiers%s", name, gone, kept ? TR (" (vos réglages changés gardés)") : "");
 		db.load ();
@@ -1324,7 +1344,7 @@ public:
 	bool set_mode (const char *name, const char *mode)
 	{
 		if (!db.find (name)) return false;
-		char p[200]; snprintf (p, sizeof p, PKG_DB "/%s.ini", name);
+		char p[400]; snprintf (p, sizeof p, "%s/%s.ini", RP (PKG_DB), name);
 		u64 n; char *t = read_file (p, &n);
 		if (!t) return false;
 		size_t cap = (size_t) n + 64; char *o = (char *) malloc (cap); size_t ol = 0; bool done = false;

@@ -17,8 +17,13 @@
  *   [disk]   device = blk.nvme0 ; mode = beside (à côté de l'existant) | wipe (le disque entier) ;
  *            delete = 3, 4 (beside : les entrées à supprimer d'abord, numéros de la GPT) ;
  *            place = PREMIER-DERNIER (secteurs : la place de Korin, libre après les suppressions ; défaut : le plus
- *            grand espace libre) ; root_fs = fat32 | exfat ; home = no | yes ; root_gb = 64 (avec home) ;
+ *            grand espace libre) ; root_fs = fat32 | exfat | ext4 (18/11/2026 : ext4fs sert alors / dès init.txt) ;
+ *            home = no | yes ; root_gb = 64 (avec home) ;
  *            home_fs = exfat | ext4 ; boot_mb = 512 (une EFI neuve) ; min_gb = 10 (place exigée)
+ *            Des partitions choisies (beside, décision du 17/11/2026 soir) : root_part = 3 (une partition existante,
+ *            formatée en root_fs : /) ou root_place = PREMIER-DERNIER (un espace libre, une partition neuve) ;
+ *            home_part = 4 ou home_place = PREMIER-DERNIER (/home, formatée en home_fs) ; sans l'un ni l'autre, /home
+ *            reste dans /. Elles sont renommées « KORIN OS » et « KORIN HOME » ; une partition EFI doit exister.
  *            mode = reinstall ; root = 3 ; home_part = 4 (0 : pas de KORIN HOME) : la réinstallation (décision du
  *            17/11/2026) : avec KORIN HOME, KORIN OS est reformatée (même système de fichiers) et KORIN HOME n'est pas
  *            touchée ; sans, KORIN OS n'est pas formatée : tout y est effacé sauf /home (et les points de montage).
@@ -27,7 +32,10 @@
  *   [system] hostname, lang (fr, en), keyb (BE, FR, US...), timeout (secondes du menu ; défaut 5 si Windows, 0)
  *   [user]   name (uid 1000), fullname, autologin = yes|no, admin = yes|no, passwords = stdin|none ;
  *            hash, root_hash : les empreintes déjà faites (Setup : « pbkdf2-sha256$... », jamais le mot de passe)
- *   [packages] list = jet courier ... (les paquets choisis : ceux de la copie du système y sont déjà ; ceux dont
+ *   [packages] online = yes : l'installateur a l'index en ligne vérifié (/var/pkg/index.txt de la clé, « pkg check ») :
+ *            un paquet choisi vient de la clé si elle l'a dans la même version ou plus récente, sinon du dépôt en ligne
+ *            (« pkg --root /media/tgt add NOM » : la racine du disque installé, 18/11/2026) ;
+ *            list = jet courier ... (les paquets choisis : ceux de la copie du système y sont déjà ; ceux dont
  *            l'archive est dans le dépôt de la clé, /packages/pc, sont installés depuis elle (/bin/unzip, puis leur
  *            fiche var/pkg/db/<nom>.ini avec le SHA-256 de chaque fichier, comme mkrepo.py) ; les autres sont notés
  *            dans /var/pkg/wanted.txt de la cible, que Logiciels installera)
@@ -607,6 +615,63 @@ static void sha256_file(const char *path, char *hex)
 	hexs(h, 32, hex);
 }
 
+/* la valeur de « clé = ... » dans la section [name] d'un index -> out (vide s'il n'y en a pas) */
+static void idx_val(const char *idx, const char *name, const char *key, char *out, u64 cap)
+{
+	out[0] = 0;
+	char sect[64] = "[";
+	str_cat(str_cat(sect + 1, name), "]");
+	u64 sl = (u64)str_len(sect), kl = (u64)str_len(key);
+	for (const char *p = idx; *p;) {
+		if (!memcmp(p, sect, sl) && (p[sl] == '\n' || p[sl] == '\r')) {
+			for (const char *l = p + sl; *l && *l != '[';) {
+				while (*l == '\n' || *l == '\r')
+					l++;
+				if (!memcmp(l, key, kl) && (l[kl] == ' ' || l[kl] == '=')) {
+					const char *v = l + kl;
+					while (*v == ' ' || *v == '=')
+						v++;
+					u64 n = 0;
+					while (v[n] && v[n] != '\n' && v[n] != '\r' && n + 1 < cap) {
+						out[n] = v[n];
+						n++;
+					}
+					out[n] = 0;
+					return;
+				}
+				while (*l && *l != '\n')
+					l++;
+			}
+			return;
+		}
+		while (*p && *p != '\n')
+			p++;
+		if (*p)
+			p++;
+	}
+}
+
+/* deux versions « 2026.11.47 », « 1.3.2 » : < 0, 0, > 0 (nombre par nombre) */
+static int vcmp(const char *a, const char *b)
+{
+	while (*a || *b) {
+		u64 x = 0, y = 0;
+		while (*a >= '0' && *a <= '9')
+			x = x * 10 + (u64)(*a++ - '0');
+		while (*b >= '0' && *b <= '9')
+			y = y * 10 + (u64)(*b++ - '0');
+		if (x != y)
+			return x < y ? -1 : 1;
+		while (*a && (*a < '0' || *a > '9'))
+			a++;
+		while (*b && (*b < '0' || *b > '9'))
+			b++;
+	}
+	return 0;
+}
+
+static char onidx[262144]; /* l'index en ligne vérifié (/var/pkg/index.txt de la clé) */
+
 /* installe un paquet de la clé dans la cible -> 0, ou < 0 */
 static long key_install(const char *name, const char *opk)
 {
@@ -842,6 +907,10 @@ static int list_disks(void)
 	return 0;
 }
 
+/* le service de fichiers de / (fatfs pour FAT32 et exFAT, ext4fs pour ext4) : le montage de la cible, init.txt */
+static char rootsvc[8] = "fatfs";
+static const char *svc_of(const char *fs) { return str_eq(fs, "ext4") || str_eq(fs, "ext") ? "ext4fs" : "fatfs"; }
+
 /* ---- un Korin déjà installé (--list : la ligne K ; la réinstallation) */
 
 static int name_is(const struct gpt_entry *e, const char *n)
@@ -920,7 +989,7 @@ static void list_korin(const char *dev)
 		return;
 	char ver[40] = "?", us[200] = "?", pr[40];
 	part_name(pr, dev, nr);
-	if (vu_mount("oldkorin", pr, "fatfs") >= 0) {
+	if (vu_mount("oldkorin", pr, svc_of(content_word(g.e[nr - 1].first))) >= 0) {
 		if (rd_file("/media/oldkorin/var/pkg/db/pc.ini", tmp, sizeof tmp) >= 0) {
 			static const char *const k[] = {"version", 0};
 			char l[128] = "";
@@ -1051,6 +1120,139 @@ static void wipe_root(const char *root)
 	}
 }
 
+/* « PREMIER-DERNIER » -> 1 (a, b alignés au Mio : début vers le haut, fin vers le bas) */
+static int place_of(const char *v, u64 *a, u64 *b)
+{
+	if (!*v)
+		return 0;
+	*a = parse_dec(v);
+	while (*v && *v != '-')
+		v++;
+	*b = *v ? parse_dec(v + 1) : 0;
+	*a = (*a + MIB - 1) / MIB * MIB;
+	if ((*b + 1) / MIB * MIB - 1 > *a)
+		*b = (*b + 1) / MIB * MIB - 1;
+	return *b > *a;
+}
+
+/* 1. le disque, avec des partitions choisies (root_part / root_place, home_part / home_place) : les suppressions, le
+ * plan, la table (noms, types, partitions neuves), les formatages ; KORIN OS sur /media/tgt, l'EFI sur /media/tgtboot,
+ * /home sur /media/tgthome -> 0, ou fail() */
+static int parts_disk(const char *dev, u32 crc, const char *rootfs, const char *homefs, u64 min_gb, int *home, int *nboot,
+		      int *nroot, int *nhome, int *esp, u8 *gboot, u8 *groot, u8 *ghome)
+{
+	char v[64];
+	const char *d = ini("disk", "delete", "", v, sizeof v);
+	while (*d) {
+		while (*d == ' ' || *d == ',')
+			d++;
+		if (!*d)
+			break;
+		u64 nd = parse_dec(d);
+		while (*d >= '0' && *d <= '9')
+			d++;
+		if (nd >= 1 && nd <= GPT_ENTRIES)
+			gpt_del(&g, (int)nd);
+	}
+	for (int i = 0; i < GPT_ENTRIES && *esp < 0; i++)
+		if (gpt_used(&g.e[i]) && !memcmp(g.e[i].type, GPT_T_EFI, 16))
+			*esp = i;
+	if (*esp < 0)
+		return fail(E_INVAL, "partitions choisies : il faut une partition EFI (gardée)");
+	int rp = (int)parse_dec(ini("disk", "root_part", "0", v, sizeof v));
+	int hp = (int)parse_dec(ini("disk", "home_part", "0", v, sizeof v));
+	u64 ra = 0, rb = 0, ha = 0, hb = 0;
+	int rpl = !rp && place_of(ini("disk", "root_place", "", v, sizeof v), &ra, &rb);
+	int hpl = !hp && place_of(ini("disk", "home_place", "", v, sizeof v), &ha, &hb);
+	if (rp && (rp > GPT_ENTRIES || !gpt_used(&g.e[rp - 1])))
+		return fail(E_INVAL, "la partition choisie pour / n'existe pas");
+	if (hp && (hp > GPT_ENTRIES || hp == rp || !gpt_used(&g.e[hp - 1])))
+		return fail(E_INVAL, "la partition choisie pour /home n'existe pas");
+	if (!rp && !rpl)
+		return fail(E_INVAL, "partitions choisies : pas de place pour /");
+	for (int i = 0; i < GPT_ENTRIES; i++) { /* (ni EFI, ni MSR, ni récupération ; une place libre l'est vraiment) */
+		const struct gpt_entry *e = &g.e[i];
+		if (!gpt_used(e))
+			continue;
+		if ((i + 1 == rp || i + 1 == hp) && (!memcmp(e->type, GPT_T_EFI, 16) || !memcmp(e->type, GPT_T_MSR, 16) ||
+						     !memcmp(e->type, GPT_T_RECOVERY, 16)))
+			return fail(E_INVAL, "une partition EFI, MSR ou de récupération ne peut recevoir ni / ni /home");
+		if ((rpl && e->first <= rb && e->last >= ra) || (hpl && e->first <= hb && e->last >= ha))
+			return fail(E_INVAL, "la place choisie n'est pas libre");
+	}
+	if (rp) {
+		ra = g.e[rp - 1].first;
+		rb = g.e[rp - 1].last;
+	}
+	if (hp) {
+		ha = g.e[hp - 1].first;
+		hb = g.e[hp - 1].last;
+	}
+	if (rb - ra + 1 < min_gb * 1024 * MIB)
+		return fail(E_NOSPC, "la place choisie pour / est trop petite");
+	*home = hp || hpl;
+	logl(*home ? "plan : / et /home sur les partitions choisies, la partition EFI gardée"
+		   : "plan : / sur la partition choisie, la partition EFI gardée");
+	u64 ranges[6] = {ra, rb, g.e[*esp].first, g.e[*esp].last, ha, hb};
+	long r = plan_send(PLAN_ESP, crc, ranges, *home ? 3 : 2);
+	if (r < 0)
+		return plan_refused(r);
+	/* la table : les partitions choisies prennent leur nom (et leur type), les places libres deviennent des partitions */
+	*nboot = *esp + 1;
+	memcpy(gboot, g.e[*esp].guid, 16);
+	guid_rnd(groot);
+	guid_rnd(ghome);
+	if (rp) {
+		*nroot = rp;
+		gpt_name_set(&g.e[rp - 1], "KORIN OS");
+		memcpy(g.e[rp - 1].type, str_eq(rootfs, "ext4") ? GPT_T_LINUX : GPT_T_BASIC, 16);
+		memcpy(groot, g.e[rp - 1].guid, 16);
+	} else {
+		*nroot = gpt_add(&g, str_eq(rootfs, "ext4") ? GPT_T_LINUX : GPT_T_BASIC, ra, rb, "KORIN OS", groot);
+	}
+	const u8 *ht = str_eq(homefs, "ext4") ? GPT_T_LINUX : GPT_T_BASIC;
+	if (hp) {
+		*nhome = hp;
+		gpt_name_set(&g.e[hp - 1], "KORIN HOME");
+		memcpy(g.e[hp - 1].type, ht, 16);
+		memcpy(ghome, g.e[hp - 1].guid, 16);
+	} else if (hpl) {
+		*nhome = gpt_add(&g, ht, ha, hb, "KORIN HOME", ghome);
+	}
+	if (*nroot <= 0 || (*home && *nhome <= 0))
+		return fail(E_NOSPC, "la table est pleine");
+	if ((r = gpt_write(&g, disk_wr, 0)) < 0)
+		return fail(r, "écriture de la table");
+	if ((r = blk(dchan, BLK_RESCAN, 0, 0, 0)) < 0)
+		return fail(r, "relecture de la table");
+	prog(3, "Table des partitions écrite");
+	char pboot[40], proot[40], phome[40], args[128];
+	part_name(pboot, dev, *nboot);
+	part_name(proot, dev, *nroot);
+	part_name(phome, dev, *nhome);
+	args[0] = 0;
+	str_cat(str_cat(str_cat(str_cat(args, "-t "), rootfs), " -y -L KORINOS "), proot);
+	if ((r = run("/sbin/mkfs", args)) != 0)
+		return fail(r, "formatage de KORIN OS");
+	prog(6, "KORIN OS formatée");
+	if (*home) {
+		args[0] = 0;
+		str_cat(str_cat(str_cat(str_cat(args, "-t "), homefs), " -y -L KORINHOME "), phome);
+		if ((r = run("/sbin/mkfs", args)) != 0)
+			return fail(r, "formatage de KORIN HOME");
+		prog(8, "KORIN HOME formatée");
+	}
+	if ((r = vu_mount("tgt", proot, rootsvc)) < 0)
+		return fail(r, "montage de KORIN OS");
+	if ((r = vu_mount("tgtboot", pboot, "fatfs")) < 0)
+		return fail(r, "montage de la partition EFI");
+	if (vu_info("tgtboot") >= 0 && ((u64 *)vu_rep)[MSG_B / 8] < (16ull << 20))
+		return fail(E_NOSPC, "la partition EFI a moins de 16 Mo libres (le noyau et l'initrd)");
+	if (*home && (r = vu_mount("tgthome", phome, str_eq(homefs, "ext4") ? "ext4fs" : "fatfs")) < 0)
+		return fail(r, "montage de KORIN HOME");
+	return 0;
+}
+
 /* 1. le disque, pour une réinstallation : le plan (KORIN OS et l'EFI), l'ancien système lu, puis KORIN OS reformatée
  * (avec KORIN HOME) ou vidée sauf /home ; KORIN OS sur /media/tgt, l'EFI sur /media/tgtboot -> 0, ou fail() */
 static int reinstall_disk(const char *dev, u32 crc, int *nboot, int *nroot, int *nhome, int *esp, u8 *gboot, u8 *groot,
@@ -1071,8 +1273,12 @@ static int reinstall_disk(const char *dev, u32 crc, int *nboot, int *nroot, int 
 	const struct gpt_entry *er = &g.e[nr - 1];
 	char rootfs[16] = "";
 	str_cat(rootfs, content_word(er->first));
-	if (!str_eq(rootfs, "fat32") && !str_eq(rootfs, "exfat"))
-		return fail(E_INVAL, "réinstallation : KORIN OS n'est ni en FAT32 ni en exFAT");
+	if (str_eq(rootfs, "ext"))
+		rootfs[3] = '4', rootfs[4] = 0; /* (« ext » : reformatée en ext4) */
+	if (!str_eq(rootfs, "fat32") && !str_eq(rootfs, "exfat") && !str_eq(rootfs, "ext4"))
+		return fail(E_INVAL, "réinstallation : KORIN OS n'est ni en FAT32, ni en exFAT, ni en ext4");
+	rootsvc[0] = 0;
+	str_cat(rootsvc, svc_of(rootfs));
 	if (nh)
 		*fsvc_home = str_eq(content_word(g.e[nh - 1].first), "ext") ? "ext4fs" : "fatfs";
 	logl(nh ? "réinstallation : KORIN OS reformatée, KORIN HOME gardée"
@@ -1093,7 +1299,7 @@ static int reinstall_disk(const char *dev, u32 crc, int *nboot, int *nroot, int 
 	char pboot[40], proot[40], args[128];
 	part_name(pboot, dev, *nboot);
 	part_name(proot, dev, nr);
-	if ((r = vu_mount("tgt", proot, "fatfs")) < 0)
+	if ((r = vu_mount("tgt", proot, rootsvc)) < 0)
 		return fail(r, "montage de l'ancien KORIN OS");
 	rd_or_empty("/media/tgt/etc/users.ini", old_users, sizeof old_users);
 	rd_or_empty("/media/tgt/etc/shadow.ini", old_shadow, sizeof old_shadow);
@@ -1115,7 +1321,7 @@ static int reinstall_disk(const char *dev, u32 crc, int *nboot, int *nroot, int 
 		str_cat(str_cat(str_cat(str_cat(args, "-t "), rootfs), " -y -L KORINOS "), proot);
 		if ((r = run("/sbin/mkfs", args)) != 0)
 			return fail(r, "formatage de KORIN OS");
-		if ((r = vu_mount("tgt", proot, "fatfs")) < 0)
+		if ((r = vu_mount("tgt", proot, rootsvc)) < 0)
 			return fail(r, "montage de KORIN OS");
 		prog(8, "KORIN OS formatée");
 	} else {
@@ -1150,8 +1356,10 @@ int main(int argc, char **argv)
 	u64 root_gb = parse_dec(ini("disk", "root_gb", "64", v, sizeof v));
 	u64 boot_mb = parse_dec(ini("disk", "boot_mb", "512", v, sizeof v));
 	u64 min_gb = parse_dec(ini("disk", "min_gb", "10", v, sizeof v));
-	if (!str_eq(rootfs, "fat32") && !str_eq(rootfs, "exfat"))
-		return fail(E_INVAL, "root_fs : fat32 ou exfat");
+	if (!str_eq(rootfs, "fat32") && !str_eq(rootfs, "exfat") && !str_eq(rootfs, "ext4"))
+		return fail(E_INVAL, "root_fs : fat32, exfat ou ext4");
+	rootsvc[0] = 0;
+	str_cat(rootsvc, svc_of(rootfs));
 	if (home && !str_eq(homefs, "exfat") && !str_eq(homefs, "fat32") && !str_eq(homefs, "ext4"))
 		return fail(E_INVAL, "home_fs : exfat, fat32 ou ext4");
 	char user[32], full[64], host[64], lang[8], keyb[16];
@@ -1189,6 +1397,13 @@ int main(int argc, char **argv)
 		if (rr)
 			return rr;
 		home = nhome > 0;
+	} else if (!wipe && (str_eq(ini("disk", "root_part", "", v, sizeof v), "") == 0 ||
+			     str_eq(ini("disk", "root_place", "", v, sizeof v), "") == 0)) {
+		if (!had_table)
+			return fail(E_INVAL, "partitions choisies : pas de table GPT lisible");
+		int rr = parts_disk(dev, crc, rootfs, homefs, min_gb, &home, &nboot, &nroot, &nhome, &esp, gboot, groot, ghome);
+		if (rr)
+			return rr;
 	} else {
 	u64 a, b;
 	if (!wipe) {
@@ -1279,7 +1494,7 @@ int main(int argc, char **argv)
 	} else {
 		nboot = gpt_add(&g, GPT_T_EFI, a, a + bsz - 1, "EFI system partition", gboot);
 	}
-	nroot = gpt_add(&g, GPT_T_BASIC, rfirst, rlast, "KORIN OS", groot);
+	nroot = gpt_add(&g, str_eq(rootfs, "ext4") ? GPT_T_LINUX : GPT_T_BASIC, rfirst, rlast, "KORIN OS", groot);
 	nhome = home ? gpt_add(&g, str_eq(homefs, "ext4") ? GPT_T_LINUX : GPT_T_BASIC, hfirst, b, "KORIN HOME", ghome)
 			 : 0;
 	if (nboot <= 0 || nroot <= 0 || (home && nhome <= 0))
@@ -1311,7 +1526,7 @@ int main(int argc, char **argv)
 		if ((r = run("/sbin/mkfs", args)) != 0)
 			return fail(r, "formatage de KORIN HOME");
 	}
-	const char *fsvc_root = "fatfs";
+	const char *fsvc_root = rootsvc;
 	if ((r = vu_mount("tgt", proot, fsvc_root)) < 0)
 		return fail(r, "montage de KORIN OS");
 	if ((r = vu_mount("tgtboot", pboot, "fatfs")) < 0)
@@ -1354,6 +1569,10 @@ int main(int argc, char **argv)
 	{
 		static char pl[4096];
 		ini("packages", "list", "", pl, sizeof pl);
+		int online = yes(ini("packages", "online", "no", v, sizeof v)) && rd_file("/var/pkg/index.txt", onidx, sizeof onidx) > 0;
+		if (online)
+			logl("index en ligne : les paquets plus récents ou absents de la clé viennent du dépôt");
+		u64 nnet = 0;
 		txt[0] = 0;
 		str_cat(txt, "# paquets choisis à l'installation, pas encore installés (osinstall) : Logiciels les installe\n");
 		u64 nw = 0;
@@ -1371,9 +1590,36 @@ int main(int argc, char **argv)
 			join(db, "/media/tgt/var/pkg/db", s);
 			str_cat(db + str_len(db), ".ini");
 			long f = sys_open(db, O_READ);
+			char kv[40] = "", ov[40] = "";
+			int onkey = f < 0 && key_opk(s, opk, sizeof opk);
+			if (onkey)
+				idx_val(kidx, s, "version", kv, sizeof kv);
+			if (online && f < 0)
+				idx_val(onidx, s, "version", ov, sizeof ov);
 			if (f >= 0) {
 				sys_close(f);
-			} else if (key_opk(s, opk, sizeof opk)) {
+			} else if (ov[0] && (!onkey || vcmp(kv, ov) < 0)) { /* en ligne : absent de la clé, ou plus récent */
+				char m[96] = "depuis Internet : ", a[160] = "--root /media/tgt add ";
+				str_cat(m + str_len(m), s);
+				str_cat(a + str_len(a), s);
+				prog(83, m);
+				long rr = run("/bin/pkg", a);
+				f = sys_open(db, O_READ); /* (installé : sa fiche est là) */
+				if (f >= 0) {
+					sys_close(f);
+					nnet++;
+				} else if (onkey && key_install(s, opk) >= 0) { /* (le dépôt ne répond pas : la version de la clé) */
+					logl(m);
+				} else {
+					char e[96] = "échec : ";
+					str_cat(m + str_len(m), "");
+					str_cat(e + str_len(e), s);
+					logl(e);
+					(void)rr;
+					str_cat(str_cat(txt + str_len(txt), s), "\n");
+					nw++;
+				}
+			} else if (onkey) {
 				char m[96] = "depuis la clé : ";
 				str_cat(m + str_len(m), s);
 				prog(82, m);
@@ -1387,6 +1633,11 @@ int main(int argc, char **argv)
 				nw++;
 			}
 			*p = c;
+		}
+		if (nnet) {
+			char m[64] = "paquets installés depuis Internet : ";
+			num(nnet, m + str_len(m));
+			logl(m);
 		}
 		if (nw) {
 			wr_file("/media/tgt/var/pkg/wanted.txt", txt, (u64)str_len(txt));
@@ -1492,7 +1743,8 @@ int main(int argc, char **argv)
 	step(5, "Rendre Korin démarrable");
 	txt[0] = 0;
 	str_cat(txt, "# init.txt de cette machine (osinstall, dans \\korin\\local.tar) : / par son GUID (nvme.txt)\n"
-		     "pcid -n\nnvme\nwait blk.root 30000\nvfs / blk.root fatfs\n");
+		     "pcid -n\nnvme\nwait blk.root 30000\nvfs / blk.root ");
+	str_cat(str_cat(txt + str_len(txt), rootsvc), "\n");
 	tar_add("init.txt", txt);
 	txt[0] = 0;
 	str_cat(txt, "# nvme.txt de cette machine (osinstall) : ses partitions par leur GUID ; le reste en lecture seule\n");
