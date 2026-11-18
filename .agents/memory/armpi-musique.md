@@ -1,6 +1,6 @@
 ---
 name: armpi-musique
-description: "Au plan le 18/11 : app Spotify (compte Famille = Premium) sur librespot construit par la cible Rust en bibliothèque C, et client Jamendo natif ; docs/etude/MUSIQUE.md, rien de fait"
+description: "18/11 : les 4 étapes faites et construites (UIKit/Elegant, mini-lecteur, Jamendo, Spotify avec librespot pour Korin et Connect), pas encore essayées : il faut les client_id"
 metadata:
   type: project
 ---
@@ -17,3 +17,9 @@ Décision du 18/11 : **deux apps** (Spotify, Jamendo). Décision du 18/11 : ferm
 Voir [[armpi-rust]], [[armpi-oauth]], [[armpi-media-player]].
 
 **18/11, ordre donné par l'utilisateur** : 1) UIKit/Elegant (déplacer sa fenêtre, toujours au-dessus), 2) le mini-lecteur du Media Player et la fermeture qui réduit en carte, 3) Jamendo, 4) Spotify. Après les priorités (essais du build world, boutons du touchpad, Fichiers en deux vues).
+
+**18/11, fait (construit pour le PC, pas essayé)** : 395cac7a (ui_window_place, ui_window_top), 10b35594 (mini-lecteur
+du Media Player, ui_window_pos), 040227ce (Jamendo), acae5d5b et 75c8c47b (Spotify : librespot 0.7.1 pour
+x86_64-unknown-korin, src/lib/korinspot, tools/spotify/build.sh avec 7 caisses patchées ; l'app, OAuth par oauthd,
+Connect par le nuage). Pour essayer : un client_id Jamendo (devportal.jamendo.com) et une app Spotify (retour
+http://127.0.0.1:8898/). Reste : pochettes, touches multimédia, pièces communes dans les kits (§3), korinspot pour le Pi.
