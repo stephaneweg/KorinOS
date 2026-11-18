@@ -19,7 +19,7 @@ L'étude est faite (non commitée au moment de l'écriture) : docs/etude/MULTI-U
 - `HOME:/etc` pour les réglages personnels (décision du 16/11 ; d'abord `~/.config/korin`) ;
 - login avec connexion automatique par défaut quand il n'y a qu'un compte.
 
-Cinq questions restent posées à l'utilisateur à la fin de l'étude (§4).
+Questions de l'étude (§4) : quatre réglées les 15-16/11 ; **reste la question 4** (données d'app à la racine du home ou sous ~/.local/), au 18/11.
 
 **Why:** c'est une évolution de [[armpi-pas-de-securite-attaquant]]. Le cadre reste la résistance aux bugs et la séparation des données, pas un système durci.
 
