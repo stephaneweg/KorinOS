@@ -460,6 +460,9 @@ greffons »). Trois procédés :
   avant / dessus du brut tel qu'il est posé sur la table), si bien que « dessus, avant gauche » du setup 2 est, dans
   le projet, de l'autre côté (l'autre face en Z, l'autre bord en Y ; X inchangé pour un retournement autour du X de
   la machine) ; le setup 2 reprend d'office le même point que le setup 1 dans ce repère, et la vue le montre.
+  **Origine par défaut : le milieu de la face du dessus du brut** (habitude de l'utilisateur, 18/11 ; dans
+  `fcam.h` d'Onyx, le point 22 = milieu en X, milieu en Y, dessus ; Onyx partait du 18, avant gauche). Elle a
+  l'avantage de rester au milieu après le retournement : seule la face change (le nouveau dessus).
   Pas de pions de centrage (l'utilisateur recale lui-même). Un G-code par mise en position ; la vue
   montre la pièce telle qu'elle est posée ; les vérifications (course 600 × 400 × 100, profondeur) se font pour
   chacune.
