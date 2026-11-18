@@ -460,6 +460,22 @@ def clock(ic):
     ic.fill(ic.circ(50, 50, 3.8), 0xE8452C)
 
 
+@icon('jamendo', 0x2BD4B0, 0x157A8E)
+def jamendo(ic):
+    # deux croches sur une onde : la musique libre
+    if not ic.small:
+        ic.fill(ic.arc(50, 88, 46, 210, 330, 3.2), 0xFFFFFF, .35)
+        ic.fill(ic.arc(50, 88, 36, 220, 320, 3.2), 0xFFFFFF, .25)
+    beam = ic.poly([(38, 28), (72, 20), (72, 29), (38, 37)])
+    stems = ic.many([ic.rr_pts(35, 30, 5, 38, 1.5), ic.rr_pts(69, 22, 5, 38, 1.5)])
+    heads = ic.many([ic.ell_pts(30, 69, 10, 8), ic.ell_pts(64, 61, 10, 8)])
+    for m in (beam, stems, heads):
+        ic.shadow(m, 1.2, 1.4, .25)
+    ic.fill(beam, 0xFFFFFF)
+    ic.fill(stems, 0xFFFFFF)
+    ic.fill(heads, Grad(0xFFFFFF, 0xE4F6F2, 100))
+
+
 @icon('weather', 0x63C0F7, 0x2A7BD8)
 def weather(ic):
     # le soleil derriere un nuage

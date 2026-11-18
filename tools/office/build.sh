@@ -16,7 +16,7 @@ OUT=$ROOT/build/office
 JOBS=${JOBS:-8}
 # (terminal ... arkanoid : les apps passées de l'assembleur au C, docs/etude/PC-PILOTES.md « Apps asm en C » : leur main
 # remplace celui de l'asm sur la carte ; 2048 ... tetris : les apps d'Onyx refaites depuis leur source, « Apps d'Onyx en C/C++ » ; l'asm reste dans src/apps, assemblé par build.ps1, jusqu'à sa validation sur le Pi)
-[ $# -gt 0 ] || set -- letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram courier calendar notes paint pdf photos vector printd archiver iconedit disks pinball critters arabesque pocketqi help imageview screenshot budget 	terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano recorder targets bubbles arkanoid 	2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris weather asteroids
+[ $# -gt 0 ] || set -- letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram courier calendar notes paint pdf photos vector printd archiver iconedit disks pinball critters arabesque pocketqi help imageview screenshot budget 	terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano recorder targets bubbles arkanoid 	2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris weather asteroids jamendo
 mkdir -p "$OUT"
 sed -E "s#/[^ ]*/build/posix#$ROOT/build/posix#g" "$ROOT/build/posix/lib/posix.specs" > "$OUT/posix.specs"
 
@@ -25,7 +25,7 @@ for app; do
 	# (OpenSSL, le seul TLS de l'OS, n'est pas sous /devtools/gcc : ces apps ne se construisent que sur le PC)
 	FLAGS=$BASEFLAGS
 	SSL=
-	case $app in mail|telegram|courier|pocketqi|budget)
+	case $app in mail|telegram|courier|pocketqi|budget|jamendo)
 		FLAGS="$FLAGS -I$ROOT/build/openssl/include"
 		SSL="-L$ROOT/build/openssl/lib -lssl -lcrypto" ;;
 	pdf)	# (MuPDF, hors du depot : tools/pdf/build.sh)

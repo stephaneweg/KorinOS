@@ -1,0 +1,9 @@
+# Manifeste de Jamendo (la musique libre de jamendo.com : docs/etude/MUSIQUE.md)
+name     = Jamendo
+category = Multimédia
+description = La musique libre (Creative Commons) de Jamendo : titres populaires, nouveautés, recherche et radios par genre, à écouter ou à télécharger.
+keywords = musique jamendo écouter radio genre libre creative commons mp3 télécharger artiste album
+help = Il faut une clé d'accès gratuite : un client_id d'application, créé sur devportal.jamendo.com, à donner par Fichier, Clé d'accès Jamendo (gardée dans le coffre).
+help = À gauche : Populaires, Nouveautés, et une radio par genre (les titres s'enchaînent sans fin) ; en haut, la recherche. Double-clic ou Entrée sur un titre : il joue.
+help = Espace : lecture ou pause ; Ctrl+→, Ctrl+← : suivant, précédent ; Ctrl+S : télécharger le titre dans HOME:/music/Jamendo (si sa licence le permet).
+help = Fermer la fenêtre pendant la lecture la réduit en carte en bas à droite, au-dessus des autres ; la musique continue. Fermer la carte l'arrête.
