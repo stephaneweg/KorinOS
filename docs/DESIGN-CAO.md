@@ -456,7 +456,11 @@ greffons »). Trois procédés :
   (Y = Z × X), donc jamais de miroir. −Z sert à **usiner la deuxième face** : la pièce retournée autour du X de la
   machine. Exemple de l'utilisateur, un violon modélisé en longueur selon Y, usiné en longueur selon le X de la
   machine : mise en position 1, X = +Y, Z = +Z, donc Y = −X ; on retourne ; mise en position 2, X = +Y, Z = −Z,
-  donc Y = +X. Pas de pions de centrage (l'utilisateur recale lui-même). Un G-code par mise en position ; la vue
+  donc Y = +X. **L'origine suit le retournement** : les 27 points se lisent dans le repère de la machine (gauche /
+  avant / dessus du brut tel qu'il est posé sur la table), si bien que « dessus, avant gauche » du setup 2 est, dans
+  le projet, de l'autre côté (l'autre face en Z, l'autre bord en Y ; X inchangé pour un retournement autour du X de
+  la machine) ; le setup 2 reprend d'office le même point que le setup 1 dans ce repère, et la vue le montre.
+  Pas de pions de centrage (l'utilisateur recale lui-même). Un G-code par mise en position ; la vue
   montre la pièce telle qu'elle est posée ; les vérifications (course 600 × 400 × 100, profondeur) se font pour
   chacune.
 * La fraiseuse de l'utilisateur est la **Two Trees TTC 6040** (confirmé le 18/11) : **zone de travail 600 × 400 ×
