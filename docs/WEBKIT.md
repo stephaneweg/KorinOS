@@ -633,6 +633,22 @@ OpenSSL (le processus web hérite de l'environnement) :
 OPENSSL_ia32cap="~0x200000200000000" /apps/jet.app/main /webkit/gcm.html
 ```
 
+**La cause (18/11, six Jet de diagnostic)** : `gcm.html` passe en entier sur le ZBook, OpenSSL calcule juste. Dans le
+process de Facebook, `EVP_EncryptInit_ex` ne trouve plus aucun algorithme (`inner_evp_generic_fetch : unsupported`,
+même SHA2-256), parce que `OPENSSL_init_crypto (LOAD_CONFIG)` rend 0. L'étape qui échoue est `register_atexit`
+(`ossl_init_register_atexit_ossl_ret_ = 0`, lu dans les variables d'`init.c`) : `atexit (OPENSSL_cleanup)` refusé, car la
+table de newlib (32 places, destructeurs statiques de C++ compris) est pleine quand la page appelle WebCrypto pour la
+première fois. Écartés en chemin : l'horloge, les arguments de la page, le JIT, AES-NI, les verrous, les clés
+`pthread`, les descripteurs, la locale.
+* **Correctif durable** : une table sans limite dans `libposix` ([POSIX.md](POSIX.md), « Fonctions de sortie sans
+  limite »).
+* **Dans Jet** : OpenSSL est initialisé au départ de chaque process, sans `atexit` (`OPENSSL_INIT_NO_ATEXIT`, `main.cpp`).
+* **Vérifié sur le ZBook** avec ce Jet : `subtle.encrypt … -> 30 octets`, la connexion part, et Facebook accepte le bon
+  mot de passe.
+* **Les sondes** restent pour d'autres sites. `login-probe.js` lit aussi le mot de passe chiffré dans le JSON
+  `variables` des requêtes graphql (sa forme seulement), et la réponse d'erreur de la requête qui le portait (adresses
+  et numéros masqués).
+
 ## https : le fichier des autorités (30/10/2026)
 
 `/etc/ca-bundle` (le paquet Mozilla, repris d'Onyx ; `skel/sd0/etc`) : curl est construit avec ce

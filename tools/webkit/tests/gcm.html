@@ -29,6 +29,16 @@ const enc = async (k, p, o = {}) => {
 const p14 = new Uint8Array(14).fill(0x61);
 
 lines.push("cœurs " + navigator.hardwareConcurrency + ", " + navigator.userAgent);
+// la suite exacte de la page de Facebook (trace du 18/11) : un SHA-256 d'abord, puis generateKey, et exportKey avec
+// encrypt en parallèle ; params { name, iv, additionalData, tagLen } (tagLen n'est pas tagLength : ignoré), le texte
+// dans un ArrayBuffer
+await one("suite de Facebook : digest, generateKey, exportKey et encrypt en parallèle", async () => {
+	await s.digest("SHA-256", te.encode("x"));
+	const k = await s.generateKey({ name: "AES-GCM", length: 256 }, true, ["decrypt", "encrypt"]);
+	const [raw, c] = await Promise.all([s.exportKey("raw", k),
+		s.encrypt({ name: "AES-GCM", iv: new Uint8Array(12), additionalData: te.encode("1731900000"), tagLen: 16 }, k, p14.slice().buffer)]);
+	return raw.byteLength === 32 && c.byteLength === 30 || "tailles " + raw.byteLength + ", " + c.byteLength;
+});
 await one("Facebook : generateKey 256, IV nul 12, AAD 10, 14 octets, sans tagLength", async () => enc(await gen(256), p14));
 await one("  avec tagLength 128", async () => enc(await gen(256), p14, { tag: 128 }));
 await one("  clé importée (32 octets nuls)", async () => enc(await imp(new Uint8Array(32)), p14));

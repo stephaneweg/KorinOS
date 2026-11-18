@@ -23,6 +23,7 @@
 #include "engine.h"
 #include "present.h"
 #include <uikit.h>
+#include <openssl/crypto.h>
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1127,6 +1128,13 @@ int main (int argc, char **argv)
 			setenv ("WEBKIT_TRACE_NET", "1", 1);
 	if (access ("/etc/web-trace-net", F_OK) == 0)
 		setenv ("WEBKIT_TRACE_NET", "1", 1);
+	// OpenSSL initialise des le depart, dans chaque process, sans atexit (OPENSSL_INIT_NO_ATEXIT). Sa premiere
+	// initialisation fait atexit (OPENSSL_cleanup) et, si atexit refuse, OpenSSL refuse ensuite toute recherche
+	// d'algorithme jusqu'a la fin du process. La table d'atexit de newlib (32 places, les destructeurs des objets
+	// statiques de C++ compris) est pleine dans le process web d'une grosse page (Facebook) avant son premier
+	// appel a WebCrypto : AES-GCM echouait, le mot de passe de Facebook n'etait pas chiffre (docs/WEBKIT.md,
+	// "Connexion a Facebook").
+	OPENSSL_init_crypto (OPENSSL_INIT_NO_ATEXIT | OPENSSL_INIT_LOAD_CONFIG, nullptr);
 	if (engine_is_auxiliary (argc, argv))
 		return engine_auxiliary_main (argc, argv);
 

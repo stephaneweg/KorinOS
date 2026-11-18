@@ -23,20 +23,55 @@
 	}
 	// Ce que dit un champ chiffré (#PWD_BROWSER:5:1731900000:AbC...) : la version, l'horodatage et sa différence
 	// avec l'horloge de la machine, la taille ; jamais la valeur.
+	// La charge d'un #PWD_BROWSER:5 (base64) : [1 octet, 1][numéro de la clé publique][longueur de la clé scellée,
+	// 2 octets petit-boutiste][clé scellée : 32 + 48 = 80][étiquette GCM 16][texte chiffré] -- sa forme, pas son contenu
+	function payload(b64) {
+		try {
+			var s = atob(b64), n = s.length, k = s.charCodeAt(2) | (s.charCodeAt(3) << 8);
+			return "charge " + n + " octets : octet0=" + s.charCodeAt(0) + " clé n°" + s.charCodeAt(1) + " scellée=" + k
+				+ " reste " + (n - 4 - k) + " (16 d'étiquette + " + (n - 4 - k - 16) + " de mot de passe)";
+		} catch (e) { return "charge illisible : " + e; }
+	}
 	function pwd(v) {
 		var m = /^#PWD_[A-Z]+:(\d+):(\d+):(.*)$/.exec(v);
 		if (!m) return "pas au format #PWD_ (" + v.length + " caractères)";
 		var d = m[2] - Math.floor(Date.now() / 1000);
 		return "#PWD version " + m[1] + ", horodatage " + m[2] + " (" + (d >= 0 ? "+" : "") + d + " s), " + m[3].length + " caractères"
-			+ (m[1] === "0" ? " : VERSION 0 = mot de passe EN CLAIR, le chiffrement a échoué" : "");
+			+ (m[1] === "0" ? " : VERSION 0 = mot de passe EN CLAIR, le chiffrement a échoué" : " ; " + payload(m[3]));
 	}
+	// les champs « mot de passe » dans un JSON (le champ variables des requêtes graphql de Facebook)
+	function jsonPwd(text) {
+		var out = [];
+		try {
+			(function walk(o, path) {
+				if (o && typeof o === "object")
+					for (var k in o) {
+						var v = o[k];
+						if (typeof v === "string" && (/pass/i.test(k) || /^#PWD_/.test(v))) out.push(path + k + "=[" + pwd(v) + "]");
+						else if (typeof v === "string" && v.charAt(0) === "{") { try { walk(JSON.parse(v), path + k + "."); } catch (e) {} }
+						else walk(v, path + k + ".");
+					}
+			})(JSON.parse(text), "");
+		} catch (e) {}
+		return out.join(" ");
+	}
+	function mask(s) { return String(s).replace(/[^\s"'<>@]+@[^\s"'<>@]+/g, "<adresse>").replace(/\+?\d[\d .-]{7,}\d/g, "<numéro>"); }
 	function fields(names, get) {
 		var out = [];
 		for (var i = 0; i < names.length; i++) {
 			var n = names[i];
-			out.push(/pass/i.test(n) ? n + "=[" + pwd(String(get(n) || "")) + "]" : n);
+			if (/pass/i.test(n)) out.push(n + "=[" + pwd(String(get(n) || "")) + "]");
+			else if (n === "variables") { var j = jsonPwd(String(get(n) || "")); out.push(j ? n + "{" + j + "}" : n); }
+			else out.push(n);
 		}
 		return out.join(" ");
+	}
+	// une requête qui portait un mot de passe : la réponse dit pourquoi elle est refusée (l'erreur, adresses masquées)
+	function hasPwd(desc) { return /#PWD|pass[a-z]*=\[/i.test(desc); }
+	function answer(text) {
+		text = String(text || "");
+		var i = text.search(/"(errors?|error_code|error_msg|description|summary|message|login_failure|err)"/);
+		return mask(i < 0 ? text.substring(0, 300) : text.substring(Math.max(0, i - 20), i + 400)).replace(/\s+/g, " ");
 	}
 	function body(b) {
 		try {
@@ -158,9 +193,14 @@
 	if (of) window.fetch = function (u, o) {
 		var m = (o && o.method) || (u && u.method) || "GET";
 		if (String(m).toUpperCase() !== "GET") {
-			var url = addr(u && u.url ? u.url : u);
-			say("fetch " + m + " " + url + " : " + body(o && o.body));
-			return of.apply(this, arguments).then(function (r) { say("fetch " + url + " -> " + r.status); return r; },
+			var url = addr(u && u.url ? u.url : u), desc = body(o && o.body);
+			say("fetch " + m + " " + url + " : " + desc);
+			var withPwd = hasPwd(desc);
+			return of.apply(this, arguments).then(function (r) {
+				if (withPwd) r.clone().text().then(function (t) { say("fetch " + url + " -> " + r.status + " ; réponse : " + answer(t)); }, function () {});
+				else say("fetch " + url + " -> " + r.status);
+				return r;
+			},
 				function (e) { say("fetch " + url + " ÉCHEC " + e); throw e; });
 		}
 		return of.apply(this, arguments);
@@ -170,8 +210,14 @@
 	XMLHttpRequest.prototype.send = function (b) {
 		var p = this.__probe;
 		if (p && String(p[0]).toUpperCase() !== "GET") {
-			say("XHR " + p[0] + " " + p[1] + " : " + body(b));
-			this.addEventListener("loadend", function () { say("XHR " + p[1] + " -> " + this.status); });
+			var desc = body(b);
+			say("XHR " + p[0] + " " + p[1] + " : " + desc);
+			var withPwd = hasPwd(desc);
+			this.addEventListener("loadend", function () {
+				var r = "";
+				if (withPwd) try { r = " ; réponse : " + answer(this.responseType === "" || this.responseType === "text" ? this.responseText : "(" + this.responseType + ")"); } catch (e) { r = " ; réponse illisible : " + e; }
+				say("XHR " + p[1] + " -> " + this.status + r);
+			});
 		}
 		return xs.apply(this, arguments);
 	};
