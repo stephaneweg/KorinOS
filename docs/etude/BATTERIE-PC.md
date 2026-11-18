@@ -224,8 +224,14 @@ Pas de vraie veille. Trois choses, dans cet ordre :
    **Un seul chemin d'arrêt** (décision du 18/11) : l'arrêt manuel (menu, bouton d'alimentation), l'arrêt après
    30 minutes couvercle fermé et l'arrêt sur batterie faible passent tous par `/sys/shutdown` avec une raison
    (`manual`, `lid`, `battery`, notée au journal) ; ce chemin enregistre toujours la session (point 3) avant
-   d'arrêter les services, et le démarrage suivant la rouvre de la même façon, quelle que soit la raison. Une construction ou une copie en cours retarde l'arrêt ? À décider (au moins : prévenir au
-   journal et ne pas couper `pkgd` au milieu d'une installation).
+   d'arrêter les services, et le démarrage suivant la rouvre de la même façon, quelle que soit la raison.
+
+   **Disque qui écrit (décision du 18/11)** : l'arrêt après 30 minutes couvercle fermé **attend tant que les disques
+   écrivent** (construction, copie, téléchargement, installation de `pkgd`). acpid lit un compteur d'octets écrits
+   par périphérique bloc (à ajouter à `blkserv`, lu par une op d'information) : s'il a bougé dans les 2 dernières
+   minutes, le délai repart pour 5 minutes, au journal (« arrêt retardé : écritures sur blk.nvme0 »). L'arrêt sur
+   batterie faible, lui, n'attend pas (une coupure de courant serait pire) : il laisse seulement finir les écritures
+   en cours et vide les caches avant d'arrêter.
 3. **Session enregistrée à l'arrêt, rouverte au démarrage** (comme la reprise de macOS) :
    * à l'arrêt (`/sys/shutdown`), Elegant envoie à chaque app un événement « enregistrer l'état » ; l'app répond
      par quelques lignes (documents ouverts, onglets de Jet, dossier de Fichiers, dossier du terminal), gardées
