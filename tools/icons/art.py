@@ -1155,6 +1155,25 @@ def ndsemu(ic):
     ic.fill(ic.circ(74, 72, 2.6), 0xF0596A)
 
 
+@icon('asteroids', 0x26304F, 0x0A0E1E)
+def asteroids(ic):
+    if not ic.small:
+        for x, y, r in ((22, 20, 1.4), (78, 16, 1.1), (86, 44, 1.3), (16, 58, 1.0), (70, 84, 1.2), (40, 12, .9)):
+            ic.fill(ic.circ(x, y, r), 0xDDE6FF, .8)
+    rock = ic.poly([(46, 24), (60, 18), (74, 24), (82, 38), (78, 52), (66, 58), (52, 56), (42, 46), (40, 34)])
+    ic.raised(rock, Grad(0xB5A898, 0x6E6255, 100))
+    if not ic.small:
+        ic.fill(ic.circ(58, 34, 4.5), 0x5E5348, .55)
+        ic.fill(ic.circ(70, 46, 3.2), 0x5E5348, .55)
+        ic.fill(ic.circ(66, 30, 2.4), 0x5E5348, .5)
+    ic.push(0, 0, 1, 40, (34, 70))
+    ic.fill(ic.poly([(29.5, 80), (34, 93), (38.5, 80)]), Grad(0xFFE07A, 0xFF7A2E, 100))
+    hull = [(34, 50), (46, 84), (34, 77), (22, 84), (34, 50)]
+    ic.shadow(ic.line(hull, 4.2), .1, 2.5, .8, dx=0, color=0x6FD3FF)
+    ic.fill(ic.line(hull, 4.2), 0xF2F7FF)
+    ic.pop()
+
+
 @icon('invaders', 0x1A2150, 0x070A22)
 def invaders(ic):
     pat = ['..X.....X..', '...X...X...', '..XXXXXXX..', '.XX.XXX.XX.', 'XXXXXXXXXXX', 'X.XXXXXXX.X', 'X.X.....X.X', '...XX.XX...']

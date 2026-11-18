@@ -1,0 +1,9 @@
+# Manifeste d'Asteroids (lu par la barre de menus, le lanceur et PocketQI)
+name        = Asteroids
+category    = Jeux
+description = Le classique de l'arcade : pilotez un vaisseau dans un champ d'astéroïdes, brisez-les et abattez les ovnis, avec effets sonores et visuels.
+keywords    = jeu asteroids astéroïdes vaisseau espace tir arcade ovni
+help = Clavier : Gauche et Droite tournent le vaisseau, Haut accélère, Espace tire, Bas ou H saute en hyperespace.
+help = Souris : le vaisseau se tourne vers le pointeur et le rejoint ; clic gauche pour tirer (tenu : rafale), clic droit pour l'hyperespace.
+help = P, Échap ou le bouton || en haut à droite : menu de pause (Reprendre, Recommencer, Quitter) ; S coupe le son ; F2 lance une nouvelle partie.
+help = Une vie en plus tous les 10 000 points ; le record est gardé dans HOME:/asteroids/best.txt.

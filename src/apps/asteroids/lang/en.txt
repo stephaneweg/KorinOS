@@ -1,0 +1,22 @@
+# apps/asteroids : anglais (clés : les textes du source)
+Asteroids = Asteroids
+Partie = Game
+Nouvelle partie = New game
+Pause = Pause
+Son = Sound
+Agrandir la fenêtre = Enlarge the window
+Reprendre = Resume
+Recommencer = Restart
+Quitter = Quit
+Vie +1 = Life +1
+Niveau %d = Level %d
+Record %d = Best %d
+Son coupé = Sound off
+Score : %d = Score: %d
+Nouveau record ! = New high score!
+FIN DE PARTIE = GAME OVER
+Appuyez sur Espace ou cliquez pour jouer = Press Space or click to play
+Appuyez sur Espace ou cliquez pour rejouer = Press Space or click to play again
+Clavier : flèches pour tourner et accélérer, Espace pour tirer, Bas pour l'hyperespace = Keyboard: arrows to turn and thrust, Space to fire, Down for hyperspace
+Souris : le vaisseau suit le pointeur, clic gauche pour tirer, clic droit pour l'hyperespace = Mouse: the ship follows the pointer, left click to fire, right click for hyperspace
+P ou Échap : pause     S : son     F2 : nouvelle partie = P or Esc: pause     S: sound     F2: new game
