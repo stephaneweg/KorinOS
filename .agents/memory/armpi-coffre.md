@@ -31,4 +31,4 @@ QEMU n'est que dans WSL (OVMF sans shell) : image d'essai avec EFI/BOOT/BOOTX64.
 **18/11, au plan (demande de l'utilisateur)** : un secret par clé nommé `<Fournisseur>.<Nom>` (Gemini.Cle1,
 Claude.Cle1…), `kv_list_match` avec un motif (`Gemini.*`), la liste des clés plus gardée dans les réglages mais
 demandée au coffre à l'ouverture de la liste déroulante ; Koton d'abord (aujourd'hui un seul secret `ai-keys`
-en JSON), puis PocketQI et les autres. Noms en UTF-8 dans le coffre recommandé. Détail : docs/KEYVAULT.md §9.
+en JSON), sans migration (installation neuve : `ai-keys` et la migration depuis settings.json retirés), puis PocketQI et les autres. Noms en UTF-8 dans le coffre recommandé. Détail : docs/KEYVAULT.md §9.

@@ -251,8 +251,9 @@ Ce qui est voulu :
    « Clé 1 » tel quel : soit le coffre admet l'UTF-8 et l'espace dans un nom (sauf les caractères de contrôle et
    `*`, `?` réservés au motif ; le `.` reste le séparateur), soit l'app code le nom (`Cl%C3%A9%201`) et le décode à
    l'affichage. **Recommandé : l'UTF-8 dans le coffre**, plus simple pour toutes les apps et lisible par `secret ls`.
-5. **Koton** : migration de `ai-keys` vers un secret par clé au premier lancement (puis `ai-keys` effacé) ;
-   ajouter, renommer (= nouveau secret puis effacer l'ancien), supprimer une clé.
+5. **Koton** : **pas de migration** (décision du 18/11 : installation neuve, rien dans les réglages de Koton) ;
+   `ai-keys` et la migration depuis `settings.json` (`loadVault`, `legacyKeys`) sont retirés. Ajouter, renommer
+   (= nouveau secret puis effacer l'ancien), supprimer une clé.
 6. **Les autres apps** qui ont plusieurs clés ou comptes suivent la même règle (PocketQI d'abord ; Mail, IRC,
    Telegram si elles en ont plusieurs). Le petit code commun (lister un fournisseur, nommer, renommer) va dans
    AppKit ou UIKit (une liste déroulante « clés du coffre »), pas dans chaque app.
