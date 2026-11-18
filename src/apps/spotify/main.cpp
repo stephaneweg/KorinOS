@@ -8,7 +8,8 @@
 // jeton ; son PCM va dans un flux AudioKit, dans un fil.
 //
 // Fermer la fenêtre pendant la lecture la réduit en carte en bas à droite, au-dessus des autres ; la musique
-// continue (fermer la carte l'arrête), comme le Media Player et Jamendo. Pas encore : Spotify Connect.
+// continue (fermer la carte l'arrête), comme le Media Player et Jamendo. Spotify Connect : connecté, Korin est un
+// appareil de l'app Spotify du téléphone (« Korin (nom de la machine) »), qui peut y lancer et piloter la musique.
 //
 #include "../media/sys.h"
 #include "../pocketqi/http.h"
@@ -133,6 +134,13 @@ static std::string g_loginToken;
 static void *login_main (void *)
 {
 	g_loginRc = ks_login (g_loginToken.c_str ());
+	if (g_loginRc == 0)
+	{					// Spotify Connect : visible depuis les autres appareils du compte
+		char host[64] = "", name[96];
+		gethostname (host, sizeof host - 1);
+		snprintf (name, sizeof name, host[0] ? "Korin (%s)" : "Korin", host);
+		ks_connect (name);
+	}
 	std::fill (g_loginToken.begin (), g_loginToken.end (), 0);
 	__atomic_store_n (&g_loginDone, 1, __ATOMIC_RELEASE);
 	return 0;
@@ -328,7 +336,7 @@ static void paint_controls (long W, long H, bool mini)
 	g_hits.push_back ({ nx, by, 32, 32, H_NEXT });
 	tri (nx + 9, by + 9, 14, false, hot (H_NEXT) ? acc : ink);
 	ui_fill (nx + 23, by + 9, 2, 14, hot (H_NEXT) ? acc : ink);
-	bool has = g_cur >= 0;
+	bool has = !g_playing.name.empty ();
 	int tx = mini ? 14 : nx + 48, tw = (int) W - tx - (mini ? 40 : 150);
 	ui_text_fit ((long) (has ? g_playing.name.c_str () : TR ("Rien en lecture")), tx, mini ? 24 : (int) H / 2 - 6, ink, 14,
 		     (long) ui.font_b, tw);
@@ -537,6 +545,12 @@ static void poll_all ()
 		}
 	}
 	ks_status (&g_st);
+	if (g_st.state == KS_PLAYING || g_st.state == KS_PAUSED)
+	{						// (le titre, aussi quand le téléphone l'a choisi : Connect)
+		char nm[256], ar[256];
+		ks_now (nm, sizeof nm, ar, sizeof ar);
+		if (nm[0] && g_playing.name != nm) { g_playing.name = nm; g_playing.artist = ar; g_playing.ms = (int) g_st.duration_ms; }
+	}
 	if (g_st.ended != g_lastEnded) { g_lastEnded = g_st.ended; play_next (); }
 	if (g_st.unavailable != g_lastUnavail)
 	{

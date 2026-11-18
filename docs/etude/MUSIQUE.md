@@ -7,7 +7,8 @@ Demandée le 18/11/2026. **Fait le 18/11** (construit, pas encore essayé : il f
 4. **Spotify** : librespot 0.7.1 construit pour `x86_64-unknown-korin` en bibliothèque C (`src/lib/korinspot`,
    `tools/spotify/build.sh` : sept caisses patchées, `tools/spotify/patches`, mio par poll(2)) ; l'app
    (`src/apps/spotify`) : OAuth par oauthd (client_id de l'utilisateur, retour `http://127.0.0.1:8898/`), API web
-   (titres aimés, playlists, recherche), son par un flux AudioKit. **Reste** : Spotify Connect ; les pochettes, les
+   (titres aimés, playlists, recherche), son par un flux AudioKit ; **Spotify Connect** (Korin, appareil du compte,
+   par le nuage de Spotify : \`ks_connect\`). **Reste** : les pochettes, les
    touches multimédia et les pièces communes dans les kits (§3) ; korinspot pour le Pi.
 
 Le reste de l'étude : L'utilisateur a un compte **Spotify Famille** (Premium) et veut une app

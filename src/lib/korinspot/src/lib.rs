@@ -21,7 +21,11 @@ use librespot_playback::audio_backend::{Sink, SinkResult};
 use librespot_playback::config::PlayerConfig;
 use librespot_playback::convert::Converter;
 use librespot_playback::decoder::AudioPacket;
-use librespot_playback::mixer::NoOpVolume;
+use librespot_connect::{ConnectConfig, Spirc};
+use librespot_core::config::DeviceType;
+use librespot_metadata::audio::UniqueFields;
+use librespot_playback::mixer::softmixer::SoftMixer;
+use librespot_playback::mixer::{Mixer, MixerConfig};
 use librespot_playback::player::{Player, PlayerEvent};
 
 const RATE: u64 = 44_100;
@@ -86,6 +90,8 @@ struct Status {
     ended: u32,    // titres finis (compteur)
     unavailable: u32,
     error: String,
+    now_name: String, // le titre en cours (aussi quand le téléphone le choisit : Spotify Connect)
+    now_artist: String,
 }
 
 const KS_STOPPED: c_int = 0;
@@ -106,6 +112,9 @@ struct Core {
     rt: tokio::runtime::Runtime,
     player: Mutex<Option<Arc<Player>>>,
     session: Mutex<Option<Session>>,
+    mixer: Mutex<Option<Arc<dyn Mixer>>>,
+    token: Mutex<String>,
+    spirc: Mutex<Option<Spirc>>,
 }
 
 fn core() -> Option<&'static Core> {
@@ -116,7 +125,14 @@ fn core() -> Option<&'static Core> {
             .enable_all()
             .build()
             .ok()
-            .map(|rt| Core { rt, player: Mutex::new(None), session: Mutex::new(None) })
+            .map(|rt| Core {
+                rt,
+                player: Mutex::new(None),
+                session: Mutex::new(None),
+                mixer: Mutex::new(None),
+                token: Mutex::new(String::new()),
+                spirc: Mutex::new(None),
+            })
     })
     .as_ref()
 }
@@ -151,7 +167,16 @@ fn on_event(ev: PlayerEvent) {
             s.base_ms = position_ms;
             s.read = 0;
         }
-        PlayerEvent::TrackChanged { audio_item } => s.duration_ms = audio_item.duration_ms,
+        PlayerEvent::TrackChanged { audio_item } => {
+            s.duration_ms = audio_item.duration_ms;
+            s.now_name = audio_item.name.clone();
+            s.now_artist = match &audio_item.unique_fields {
+                UniqueFields::Track { artists, .. } => {
+                    artists.0.iter().map(|a| a.name.as_str()).collect::<Vec<_>>().join(", ")
+                }
+                UniqueFields::Episode { show_name, .. } => show_name.clone(),
+            };
+        }
         PlayerEvent::EndOfTrack { .. } => {
             s.state = KS_STOPPED;
             s.ended += 1;
@@ -176,6 +201,7 @@ pub unsafe extern "C" fn ks_login(token: *const c_char) -> c_int {
         return -1;
     };
     let token = token.to_string();
+    *c.token.lock().unwrap() = token.clone();
     let r = c.rt.block_on(async move {
         let session = Session::new(SessionConfig::default(), None);
         session.connect(Credentials::with_access_token(token), false).await.map(|_| session)
@@ -189,9 +215,17 @@ pub unsafe extern "C" fn ks_login(token: *const c_char) -> c_int {
     };
     let _g = c.rt.enter();
     let p = pcm().clone();
-    let pl = Player::new(PlayerConfig::default(), session.clone(), Box::new(NoOpVolume), move || {
+    let mixer: Arc<dyn Mixer> = match SoftMixer::open(MixerConfig::default()) {
+        Ok(m) => Arc::new(m),
+        Err(e) => {
+            set_error(e);
+            return -1;
+        }
+    };
+    let pl = Player::new(PlayerConfig::default(), session.clone(), mixer.get_soft_volume(), move || {
         Box::new(KorinSink(p)) as Box<dyn Sink>
     });
+    *c.mixer.lock().unwrap() = Some(mixer);
     let mut events = pl.get_player_event_channel();
     c.rt.spawn(async move {
         while let Some(ev) = events.recv().await {
@@ -264,6 +298,60 @@ pub extern "C" fn ks_seek(position_ms: u32) {
         drop(s);
         pl.seek(position_ms);
     }
+}
+
+/// Spotify Connect : Korin, appareil « name », visible dans l'app Spotify des autres appareils du compte (par le
+/// nuage de Spotify : pas de mDNS) ; ils y lancent et pilotent la lecture, jouée ici -> 0, -1. Après ks_login.
+#[no_mangle]
+pub unsafe extern "C" fn ks_connect(name: *const c_char) -> c_int {
+    let Some(c) = core() else { return -1 };
+    let name = cstr(name).unwrap_or("Korin").to_string();
+    let (Some(session), Some(pl), Some(mixer)) = (
+        c.session.lock().unwrap().clone(),
+        c.player.lock().unwrap().clone(),
+        c.mixer.lock().unwrap().clone(),
+    ) else {
+        set_error("pas connecté");
+        return -1;
+    };
+    let token = c.token.lock().unwrap().clone();
+    let config = ConnectConfig { name, device_type: DeviceType::Computer, ..Default::default() };
+    let r = c.rt.block_on(Spirc::new(config, session, Credentials::with_access_token(token), pl, mixer));
+    match r {
+        Ok((spirc, task)) => {
+            c.rt.spawn(task);
+            if let Some(old) = c.spirc.lock().unwrap().replace(spirc) {
+                let _ = old.shutdown();
+            }
+            0
+        }
+        Err(e) => {
+            set_error(e);
+            -1
+        }
+    }
+}
+
+/// Le volume, 0 à 65 535 (le même pour Spotify Connect)
+#[no_mangle]
+pub extern "C" fn ks_volume(volume: u16) {
+    if let Some(m) = core().and_then(|c| c.mixer.lock().unwrap().clone()) {
+        m.set_volume(volume);
+    }
+}
+
+/// Le titre en cours et ses artistes (UTF-8, terminés par 0 ; aussi choisi depuis un autre appareil) -> 0
+#[no_mangle]
+pub unsafe extern "C" fn ks_now(name: *mut c_char, ncap: usize, artist: *mut c_char, acap: usize) -> c_int {
+    let s = status().lock().unwrap();
+    for (src, dst, cap) in [(&s.now_name, name, ncap), (&s.now_artist, artist, acap)] {
+        if !dst.is_null() && cap > 0 {
+            let n = src.len().min(cap - 1);
+            std::ptr::copy_nonoverlapping(src.as_ptr() as *const c_char, dst, n);
+            *dst.add(n) = 0;
+        }
+    }
+    0
 }
 
 /// Le son : jusqu'à frames trames stéréo (2 × i16) dans out -> trames rendues (0 : rien pour l'instant)

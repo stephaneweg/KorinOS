@@ -38,4 +38,5 @@ the music.
 ## Good to know
 
 - librespot is not a Spotify product: a change on Spotify's side can stop it playing for a while, until it follows.
-- Not yet: controlling Korin from the Spotify app on your phone (Spotify Connect).
+- **Spotify Connect**: once connected, Korin appears in the device list of the Spotify app on your phone ("Korin
+  (machine name)"): pick it, the music plays here, controlled from the phone.

@@ -8,6 +8,7 @@
  *   ks_play, ks_pause, ks_stop, ks_seek (ms)
  *   ks_read (pcm, trames)     le son : PCM 16 bits stéréo à 44 100 Hz (à donner à AudioKit : ak_open (44100, 2, 16, 0))
  *   ks_status (&st)           l'état (KS_*), la position, la durée, les compteurs de fin et d'indisponibilité
+ *   ks_connect (nom)          Spotify Connect (après ks_login) ; ks_now : le titre en cours ; ks_volume
  */
 #ifndef KORINSPOT_H
 #define KORINSPOT_H
@@ -38,6 +39,9 @@ void ks_seek (uint32_t position_ms);
 size_t ks_read (int16_t *out, size_t frames);
 int ks_status (struct ks_status *out);
 size_t ks_error (char *buf, size_t cap);
+int ks_connect (const char *device_name);	/* Spotify Connect : visible et pilotable depuis les autres appareils du compte */
+void ks_volume (uint16_t volume);		/* 0..65535 */
+int ks_now (char *name, size_t ncap, char *artist, size_t acap);	/* le titre en cours, ses artistes */
 
 #ifdef __cplusplus
 }
