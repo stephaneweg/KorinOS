@@ -427,6 +427,31 @@ S : moins d'un jour, M : quelques jours, L : une à deux semaines.
 
 ---
 
+## 14 bis. La fabrication : trois procédés, un état intermédiaire, des exports en modules (18/11/2026)
+
+Précisé par l'utilisateur le 18/11, comme dans 3DForge d'Onyx (`user/Apps/3dforge` : `fcam.h`, `fprint.h`,
+`ffdm.h` ; `docs/3dforge/README.md` d'Onyx, « Generators » : « les slicers devraient peut-être être des
+greffons »). Trois procédés :
+
+| Procédé | État intermédiaire (indépendant de la machine) | Export de la première machine |
+|---|---|---|
+| **CNC** (fraisage) | les **trajets d'outil** : brut, origine, outil, opérations (ébauche, contour…), mouvements rapides et d'usinage avec leurs avances, vérifiés (`fcam.h`) | G-code **GRBL** pour la **Two Trees 6040** |
+| **SLA** (résine) | la **pile des couches** : une image par couche de la taille de l'écran de la machine, avec les réglages d'exposition, de levée et les supports (`fprint.h`) | fichier **`.pm3n`** de l'**Anycubic Photon Mono 2** (écrivain d'Onyx prouvé à l'octet) |
+| **FDM** (filament) | les **chemins de buse** par couche : parois, couches pleines, remplissage, jupe, avec longueur et volume extrudé (`ffdm.h`, `FdmJob`) | G-code (Marlin) de l'**Anycubic Kobra X** : il manque un `.gcode` qui a bien imprimé sur elle pour son en-tête |
+
+* Chaque procédé calcule **son état intermédiaire**, montré dans la vue (trajets, couches, animation de la buse)
+  et vérifié avant d'écrire (machine assez grande, rien dans le vide, rien sous la profondeur la plus basse…).
+* **L'export vers une machine est un module** (un `.so` par machine ou famille de machines, chargé par `dlopen`,
+  dans le dossier de Forge) : son nom, ses machines (taille utile, écran, broche…), ses réglages, et une fonction
+  qui transforme l'état intermédiaire en fichier pour la machine. Ajouter une imprimante ou une fraiseuse = ajouter
+  un module, sans toucher au calcul.
+* La **machine choisie** dans la préparation décide des outils de la barre et du bouton principal (G-code, fichier
+  d'impression…), comme dans 3DForge.
+* Ordre : **CNC d'abord** (reprise de `fcam.h` sur la section exacte d'OCCT), puis **SLA** (`fprint.h`), puis
+  **FDM** (`ffdm.h`, son écrivain quand un fichier de la Kobra X sera fourni).
+* À vérifier : la maquette g1 nomme la fraiseuse « Two Trees TTC 450 » ; l'utilisateur dit **6040** le 18/11
+  (c'est elle qui fait foi ; taille utile à reprendre de la machine).
+
 ## 15. Le moteur : construction et résultats
 
 ### 15.1 Ce qui est porté
