@@ -460,7 +460,7 @@ chaque campagne. Rien n'écrit sur le NVMe du ZBook avant l'étape 8.
 | 2 | **`ext4fs` en lecture seule** : superbloc, groupes, inodes, extents, htree, inline, xattrs, contrôle des sommes, refus des fonctions inconnues ; journal propre exigé (sinon lecture seule sans rejeu) | ~3 000 | une image de Linux se lit entière ; `git status` sur un dépôt copié ; grands dossiers rapides |
 | 3 | **Écriture sans journal**, derrière une option `rw-nojournal` réservée aux essais : allocation (bitmaps, flex_bg), extents (ajout, découpe, libération), htree (ajout, découpe), inline (sortie vers un bloc), xattrs, liens, renommage, troncature | ~4 000 | `fstest2`, `posixtest file`, `git clone`, une compilation gcc puis `e2fsck -fn` sans erreur, 100 fois de suite |
 | 4 | **Journal jbd2** (transactions, validation, rejeu au montage) et sommes à l'écriture ; `fsync` ; cache différé des métadonnées | ~1 500 | essais de coupure : QEMU tué au hasard pendant des écritures, 500 fois ; `e2fsck -fn` sans erreur après chaque rejeu |
-| 5 | **Outils** : port d'e2fsprogs (ou `mkfs -t ext4` + fsck minimal) ; réglages de §4.2 ; `fstrim` ; `df`, `mount` et `eject` connaissent le type | port + ~500 | formater, vérifier, réparer depuis Korin |
+| 5 | **Outils** : `mkfs -t ext4` (fait) + **fsck maison validé contre `e2fsck`** (décision du 18/11, §9 question 2) ; réglages de §4.2 ; `fstrim` ; `df`, `mount` et `eject` connaissent le type | port + ~500 | formater, vérifier, réparer depuis Korin |
 | 6 | **`indexd`** sur SQLite (§3.7 : `libsqlite3.a` installée pour les programmes du système, schéma, traduction des requêtes en SQL, base reconstruite si elle est abîmée) ; journal des changements dans ext4fs (et ramfs) ; reparcours ; requêtes, requêtes vivantes | ~2 000 (3 500 avec des B+ arbres faits main) | `query 'tag=x && ext=pdf'` en moins de 10 ms sur 200 000 fichiers ; un renommage apparaît en moins d'une seconde |
 | 7 | **Interface** : commandes `tag` et `query` ; UIKit (pastilles en jetons du thème, menu Étiquettes) ; Fichiers (pastilles, panneau, recherche, dossiers intelligents) ; boîte Ouvrir ; aides (`help_fr.md`, guide de l'API C) | ~1 500 | l'utilisateur étiquette et retrouve ses fichiers sans ligne de commande |
 | 8 | **Installateur et migration** : `ext4` dans la table des systèmes de fichiers, partition `/home` (cas A et C), outil de migration (§7), règles `nvme.txt` par GUID dans `local.tar` | ~600 | installation sur le disque d'essai de QEMU (`mkgpt.py`), puis sur le ZBook |
@@ -531,6 +531,12 @@ quelques minutes.
    recommandation pour la sûreté (oracle, fsck).
 2. **e2fsprogs** : accepte-t-on de porter `mke2fs` et `e2fsck` (GPL, comme gcc et git), ou faut-il tout écrire
    nous-mêmes (formatage et fsck minimal, plus long) ?
+   **Réponse (18/11/2026)** : `mkfs -t ext4` est déjà à nous (`src/lib/ext4/mkext4.c`). Le **fsck est écrit par
+   nous aussi** (un `fsck -t ext4` de Korin), mais **validé contre `e2fsck`** : sur des images saines et abîmées
+   exprès (sous WSL : `mke2fs`, puis corruptions choisies — bitmaps faux, compteurs, inodes orphelins, entrées de
+   dossier cassées, extents qui se chevauchent, sommes crc32c fausses, journal à rejouer), notre fsck doit trouver
+   les mêmes défauts que `e2fsck -fn`, et après sa réparation `e2fsck -fn` ne doit plus rien trouver. Pas de port
+   d'e2fsprogs.
 3. **Étiquettes sur FAT** (clés, `/media/sd1` du Pi) : pas d'étiquettes du tout (proposé), ou un fichier annexe
    `.korin/attrs`, au risque de les perdre au premier renommage fait sous Windows ? Et quand un fichier étiqueté
    est copié sur une clé : simple avertissement, ou rien ?
