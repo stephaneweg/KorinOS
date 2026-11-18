@@ -35,5 +35,5 @@ gauche et la barre de chemin suivent la vue active ; le bouton revient à une se
 - **glisser-déposer = copie** ; **Maj** pendant le glisser = déplacement (remplace la règle « même volume : déplacer ») ;
 - **pas de F5/F6** pour copier/déplacer (F5 reste Actualiser) ;
 - **sélection multiple** (fichiers et dossiers), en surbrillance : **Ctrl+clic** ajoute ou retire de la sélection,
-  comme Windows (Maj+clic pour une plage, comme Windows : proposé, à confirmer) ; copier, déplacer, glisser,
+  comme Windows ; **Maj+clic** sélectionne une plage, comme Windows (confirmé le 18/11) ; copier, déplacer, glisser,
   supprimer agissent sur toute la sélection.
