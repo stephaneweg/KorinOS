@@ -62,6 +62,7 @@ aussi.
 
 ## 5. Questions
 
-1. Un seul lecteur avec deux sources (Spotify, Jamendo, puis radios, Subsonic…), ou deux apps ?
+1. ~~Un seul lecteur ou deux apps ?~~ **Deux apps** (décision du 18/11) : une pour Spotify, une pour Jamendo ;
+   les pièces communes (§3) restent dans les kits.
 2. La musique continue-t-elle app fermée (service, voie C) dès le début ?
 3. Noms des apps.

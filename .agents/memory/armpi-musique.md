@@ -11,7 +11,7 @@ Proposé (docs/etude/MUSIQUE.md) : ne pas réécrire librespot en C (gros, et pe
 construire par la cible Rust croisée avec une façade `extern "C"`, l'app en C/C++ sur UIKit ; connexion OAuth par
 oauthd (client_id de l'utilisateur), API web pour parcourir, Spotify Connect ensuite. Jamendo d'abord (API
 publique, MP3 directs), pièces communes (flux, file, touches multimédia, applet) dans MediaKit/AudioKit/UIKit.
-Trois questions en attente (un lecteur ou deux apps, service en arrière-plan, noms).
+Décision du 18/11 : **deux apps** (Spotify, Jamendo). Questions en attente : service en arrière-plan, noms.
 
 **How to apply:** vérifier en ligne l'état de librespot et des conditions de l'API de Spotify avant de commencer.
 Voir [[armpi-rust]], [[armpi-oauth]], [[armpi-media-player]].
