@@ -11,6 +11,8 @@
 #ifndef KORIN_SHARES_H
 #define KORIN_SHARES_H
 
+#include <stddef.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,6 +44,17 @@ int share_name_ok(const char *name);
 int smbd_account_get(const char *file, char *user, int usz, char *pw, int psz);
 /* le compte remplace ceux de [users] (le reste du fichier gardé) -> 0 */
 int smbd_account_set(const char *file, const char *user, const char *pw);
+
+/* le coffre à secrets (le PC, service keyvault, docs/etude/COFFRE.md) : le mot de passe d'un compte est le secret
+ * « smbd/<compte> » de l'espace @system (uid 0 : smbd lancé par init2, Réglages élevé) ; smbd.ini garde
+ * « compte = » (valeur vide). smbd y range au chargement un mot de passe encore en clair. Sans coffre : en clair dans
+ * smbd.ini, comme avant. */
+int smbd_vault_present(void); /* son programme est là (le PC) : un compte sans mot de passe est alors refusé */
+int smbd_vault_ok(void);      /* il répond (appelant d'uid 0) */
+void smbd_vault_name(char *out, size_t size, const char *user);
+/* (uid 0) le compte : son mot de passe dans le coffre s'il répond (smbd.ini sans lui), sinon dans smbd.ini ; pw vide :
+ * celui de old_user (dans le coffre) gardé -> 0, -1 fichier, -3 pas de mot de passe */
+int smbd_account_store(const char *file, const char *user, const char *pw, const char *old_user);
 
 #ifdef __cplusplus
 }

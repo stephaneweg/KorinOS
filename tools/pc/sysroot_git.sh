@@ -3,6 +3,7 @@
 # PC »), dans WSL, après tools/pc/sysroot.sh (qui refait build/pc/sysroot) :
 #     bin/git               git 2.51.0 (commandes internes), comme /bin/git du Pi
 #     bin/git-core/         gitexecdir : git-remote-http, git-remote-https (libcurl, OpenSSL), scripts
+#     bin/git-credential-korin  l'assistant d'identification de git sur le coffre à secrets (tools/git)
 #     etc/gitconfig         la configuration du système (tools/git/gitconfig) ; protocole 2 par défaut, comme
 #                           le Pi (le contournement « protocol.version = 0 » est retiré : réveil perdu des
 #                           futex corrigé dans le noyau, docs/etude/PC-PILOTES.md « Réveils perdus »)
@@ -32,6 +33,9 @@ if [ -f "$G/bin/git" ]; then
 	x86 "$G/bin/git"
 	rm -rf "$OUT/bin/git-core" "$OUT/etc/git-core"
 	cp -r "$G"/. "$OUT/"
+	# (la configuration et l'assistant d'identification de tools/git : à jour sans reconstruire git)
+	cp tools/git/gitconfig "$OUT/etc/gitconfig"
+	cp tools/git/git-credential-korin "$OUT/bin/git-credential-korin"
 	[ -f "$OUT/etc/ca-bundle" ] || cp skel/sd0/etc/ca-bundle "$OUT/etc/"
 else
 	echo "git pas construit ($G : ARCH=x86_64 sh tools/git/build.sh)"

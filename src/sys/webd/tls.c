@@ -18,11 +18,13 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <openssl/bn.h>
+#include <openssl/buffer.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/x509v3.h>
 #include "webd.h"
+#include "../../lib/keyvault/keyvault.h"
 
 int webtls_init (void)
 {
@@ -47,8 +49,86 @@ static int is_ip (const char *h)
 	return 1;
 }
 
+/* ---- les clés privées : dans le coffre à secrets (le PC, service keyvault, docs/etude/COFFRE.md), le secret
+ * « tls/<nom du fichier> » de l'espace @system (webd est d'uid 0 ; « webd cert » aussi, lancé élevé par le volet
+ * de Réglages), lu en mémoire ; les certificats (publics) restent des fichiers. Une clé encore en fichier
+ * (/etc/web/certs/<hôte>.key, .pending.key) passe dans le coffre à sa première lecture, puis le fichier est
+ * effacé ; webd range ainsi toutes celles du dossier à son chargement. Sans coffre (ou appelant d'uid autre que 0) :
+ * les fichiers PEM, comme avant. */
+
+static int vault_ok (void)
+{
+	static int ok = -1;
+	if (ok < 0)
+		ok = access ("/sys/svc/keyvault", F_OK) == 0 && kv_request (KV_STATUS, KVF_SYSTEM, 0, 0, 0) >= 0;
+	return ok;
+}
+
+/* chemin d'une clé -> son nom dans le coffre : « tls/<nom du fichier> », « tls/@<hexadécimal> » s'il a un caractère
+ * qu'un nom n'admet pas */
+static void vault_name (const char *path, char *out, size_t n)
+{
+	const char *b = strrchr (path, '/');
+	b = b ? b + 1 : path;
+	size_t len = strlen (b);
+	int raw = len <= 120;
+	for (const char *p = b; *p && raw; p++)
+		raw = (*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || strchr ("._-:", *p);
+	size_t o = (size_t) snprintf (out, n, "tls/%s", raw ? "" : "@");
+	for (size_t i = 0; i < len && i < (raw ? 120 : 60) && o + 3 < n; i++) {
+		if (raw)
+			out[o++] = b[i];
+		else
+			o += (size_t) snprintf (out + o, 3, "%02x", (unsigned char) b[i]);
+	}
+	out[o] = 0;
+}
+
+/* la clé dans le coffre -> 0 */
+static int vault_put (const char *path, EVP_PKEY *k)
+{
+	char name[160];
+	vault_name (path, name, sizeof name);
+	BIO *b = BIO_new (BIO_s_mem ());
+	int r = -1;
+	if (b && PEM_write_bio_PrivateKey (b, k, NULL, NULL, 0, NULL, NULL)) {
+		BUF_MEM *m = NULL;
+		BIO_get_mem_ptr (b, &m);
+		if (m && m->length <= KV_VALUE_MAX && kv_sys_set (name, m->data, (long) m->length) >= 0)
+			r = 0;
+		if (m)
+			OPENSSL_cleanse (m->data, m->length);
+	}
+	BIO_free (b);
+	return r;
+}
+
+/* -> la clé du coffre, NULL si elle n'y est pas */
+static EVP_PKEY *vault_read (const char *path)
+{
+	char name[160];
+	vault_name (path, name, sizeof name);
+	char *t = malloc (KV_VALUE_MAX);
+	long n = t ? kv_sys_get (name, t, KV_VALUE_MAX) : -1;
+	EVP_PKEY *k = NULL;
+	if (n > 0) {
+		BIO *b = BIO_new_mem_buf (t, (int) n);
+		k = b ? PEM_read_bio_PrivateKey (b, NULL, NULL, NULL) : NULL;
+		BIO_free (b);
+	}
+	if (t) {
+		OPENSSL_cleanse (t, KV_VALUE_MAX);
+		free (t);
+	}
+	return k;
+}
+
 static int write_key (const char *path, EVP_PKEY *k)
 {
+	if (vault_ok () && vault_put (path, k) == 0) {
+		remove (path);			/* (une ancienne en clair) */
+		return 0;
+	}
 	FILE *f = fopen (path, "w");
 	if (!f)
 		return -1;
@@ -60,12 +140,62 @@ static int write_key (const char *path, EVP_PKEY *k)
 
 static EVP_PKEY *read_key (const char *path)
 {
-	FILE *f = fopen (path, "r");
-	if (!f)
-		return NULL;
-	EVP_PKEY *k = PEM_read_PrivateKey (f, NULL, NULL, NULL);
-	fclose (f);
-	return k;
+	EVP_PKEY *k = NULL;
+	FILE *f = fopen (path, "r");		/* en clair : la plus récente (ancien système, coffre absent un temps) */
+	if (f) {
+		k = PEM_read_PrivateKey (f, NULL, NULL, NULL);
+		fclose (f);
+		if (k && vault_ok () && vault_put (path, k) == 0) {	/* rangée dans le coffre, le fichier effacé */
+			remove (path);
+			log_msg ("clé %s rangée dans le coffre à secrets", path);
+		}
+		return k;
+	}
+	return vault_ok () ? vault_read (path) : NULL;
+}
+
+/* -> 1 si la clé existe (fichier ou coffre) */
+static int key_exists (const char *path)
+{
+	if (file_exists (path))
+		return 1;
+	if (!vault_ok ())
+		return 0;
+	char name[160];
+	vault_name (path, name, sizeof name);
+	return kv_sys_get (name, NULL, 0) > 0;
+}
+
+/* la clé retirée (fichier et coffre) */
+static void remove_key (const char *path)
+{
+	remove (path);
+	if (vault_ok ()) {
+		char name[160];
+		vault_name (path, name, sizeof name);
+		kv_sys_delete (name);
+	}
+}
+
+/* les clés en fichier du dossier -> dans le coffre (read_key les y range) */
+static void keys_migrate (void)
+{
+	if (!vault_ok ())
+		return;
+	DIR *d = opendir (CERT_DIR);
+	if (!d)
+		return;
+	struct dirent *e;
+	char paths[32][300];
+	int n = 0;
+	while (n < 32 && (e = readdir (d))) {
+		size_t l = strlen (e->d_name);
+		if (l > 4 && !strcmp (e->d_name + l - 4, ".key"))
+			snprintf (paths[n++], sizeof paths[0], "%s/%s", CERT_DIR, e->d_name);
+	}
+	closedir (d);
+	for (int i = 0; i < n; i++)
+		EVP_PKEY_free (read_key (paths[i]));
 }
 
 /* le nom alternatif (SAN) d'un hôte */
@@ -136,7 +266,11 @@ static SSL_CTX *ctx_for (const char *host, int make)
 	char kp[300], cp[300];
 	cert_path (host, "key", kp, sizeof kp);
 	cert_path (host, "crt", cp, sizeof cp);
-	if (!file_exists (cp) || !file_exists (kp)) {
+	if (file_exists (cp) && !key_exists (kp) && access ("/sys/svc/keyvault", F_OK) == 0 && !vault_ok ()) {
+		log_msg ("clé de %s : dans le coffre à secrets, qui ne répond pas (webd doit être d'uid 0)", host);
+		return NULL;			/* (pas de nouveau certificat à la place du sien) */
+	}
+	if (!file_exists (cp) || !key_exists (kp)) {
 		if (!make || cert_self (host, 825) < 0) {
 			log_msg ("pas de certificat pour %s (%s)", host, cp);
 			return NULL;
@@ -147,8 +281,11 @@ static SSL_CTX *ctx_for (const char *host, int make)
 	if (!ctx)
 		return NULL;
 	SSL_CTX_set_min_proto_version (ctx, TLS1_2_VERSION);
-	if (SSL_CTX_use_certificate_chain_file (ctx, cp) != 1 || SSL_CTX_use_PrivateKey_file (ctx, kp, SSL_FILETYPE_PEM) != 1 ||
-		SSL_CTX_check_private_key (ctx) != 1) {
+	EVP_PKEY *k = read_key (kp);		/* (le coffre, ou le fichier) */
+	int bad = !k || SSL_CTX_use_certificate_chain_file (ctx, cp) != 1 || SSL_CTX_use_PrivateKey (ctx, k) != 1 ||
+		SSL_CTX_check_private_key (ctx) != 1;
+	EVP_PKEY_free (k);
+	if (bad) {
 		unsigned long e = ERR_get_error ();
 		char why[256];
 		ERR_error_string_n (e, why, sizeof why);
@@ -197,6 +334,7 @@ static SSL_CTX *conf_cert (struct conf *c, const char *host)
 int webtls_conf (struct conf *c, struct listener *ls, int nls)
 {
 	int bad = 0;
+	keys_migrate ();
 	for (int k = 0; k < nls; k++) {
 		if (ls[k].scheme != SCHEME_HTTPS)
 			continue;
@@ -292,7 +430,7 @@ static int cert_import (const char *host, const char *file)
 	cert_path (host, "key", kp, sizeof kp);
 	cert_path (host, "crt", cp, sizeof cp);
 	snprintf (pk, sizeof pk, "%s/%s.pending.key", CERT_DIR, file_host (host));
-	int pending = file_exists (pk);
+	int pending = key_exists (pk);
 	EVP_PKEY *k = read_key (pending ? pk : kp);
 	if (!k) {
 		fprintf (stderr, "webd: pas de clé pour %s : d'abord « webd cert csr %s »\n", host, host);
@@ -322,9 +460,10 @@ static int cert_import (const char *host, const char *file)
 		if (o)
 			fclose (o);
 	}
-	if (ok && pending) {
-		remove (kp);
-		ok = rename (pk, kp) == 0;
+	if (ok && pending) {			/* la clé en attente devient celle de l'hôte */
+		ok = write_key (kp, k) == 0;
+		if (ok)
+			remove_key (pk);
 	}
 	for (int i = 0; i < n; i++)
 		X509_free (chain[i]);
@@ -387,7 +526,7 @@ int cert_command (int argc, char **argv)
 		for (int i = 0; i < 4; i++) {
 			char p[300];
 			cert_path (host, exts[i], p, sizeof p);
-			remove (p);
+			remove_key (p);		/* (un fichier ; une clé : aussi dans le coffre) */
 		}
 		printf ("certificat de %s retiré\n", host);
 		return 0;

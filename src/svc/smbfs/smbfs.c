@@ -19,7 +19,13 @@
  * Sur libposix et l'API synchrone de libsmb2 (NTLMv2, signature, SMB 2 et 3) ; un seul thread : une
  * requête à la fois. La connexion se fait à la première requête d'un programme (jamais pendant le
  * montage : vfs attend alors ce service, et lire /etc/smbfs.ini passe par vfs) ; elle est refaite
- * si le serveur l'a coupée. Pas de rootpath au montage (un dossier dans la source à la place). */
+ * si le serveur l'a coupée. Pas de rootpath au montage (un dossier dans la source à la place).
+ *
+ * Mots de passe et coffre à secrets (le PC, service keyvault, docs/etude/COFFRE.md) : celui d'une section est
+ * le secret « smbfs/<section> » de l'espace @system (smbfs est d'uid 0). Un « password = » encore dans
+ * smbfs.ini passe dans le coffre à la première lecture de sa section, et smbfs.ini est réécrit sans lui.
+ * Limite : Fichiers (src/apps/files) écrit encore le mot de passe en clair dans smbfs.ini ; il y reste jusqu'à
+ * la prochaine connexion de smbfs à ce partage. Sans coffre : smbfs.ini seul, comme avant. */
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
@@ -31,6 +37,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <armpi/syscall.h>
+#include "../../lib/keyvault/keyvault.h"
 
 #include <smb2/smb2.h>
 #include <smb2/libsmb2.h>
@@ -236,14 +243,101 @@ static char *trim(char *s)
 	return s;
 }
 
-/* les clés de la section « name » (sans la casse) ; 1 : trouvée */
+/* -> 1 si le coffre répond (son programme d'abord : sans lui, pas d'attente du service) */
+static int vault_ok(void)
+{
+	static int ok = -1;
+	if (ok < 0)
+		ok = access("/sys/svc/keyvault", F_OK) == 0 && kv_request(KV_STATUS, KVF_SYSTEM, 0, 0, 0) >= 0;
+	return ok;
+}
+
+/* section -> nom de son mot de passe dans le coffre : « smbfs/<section> » en minuscules (les sections ne
+ * tiennent pas compte de la casse) ; « smbfs/@<hexadécimal> » si elle a un caractère qu'un nom n'admet pas */
+static void vault_name(char *out, size_t size, const char *sec)
+{
+	size_t len = strlen(sec);
+	int raw = len <= 100; /* (« smbfs/ » et 100 octets, ou « smbfs/@ » et 60 en hexadécimal : moins de 128) */
+	for (const char *p = sec; *p && raw; p++)
+		raw = (*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') ||
+		      strchr("._-/:", *p);
+	size_t o = (size_t)snprintf(out, size, "smbfs/%s", raw ? "" : "@");
+	for (size_t i = 0; i < len && i < (raw ? 100 : 60) && o + 3 < size; i++) {
+		unsigned char c = (unsigned char)sec[i];
+		if (c >= 'A' && c <= 'Z')
+			c += 32;
+		if (raw)
+			out[o++] = (char)c;
+		else
+			o += (size_t)snprintf(out + o, 3, "%02x", c);
+	}
+	out[o] = 0;
+}
+
+/* smbfs.ini réécrit sans les lignes « password = » de la section name -> 0 ou -1 */
+static int ini_strip_password(const char *name)
+{
+	FILE *f = fopen("/etc/smbfs.ini", "rb");
+	if (!f)
+		return -1;
+	size_t cap = 65536, n = 0;
+	char *in = malloc(cap), *out = malloc(cap);
+	if (in && out)
+		n = fread(in, 1, cap - 1, f);
+	fclose(f);
+	if (!in || !out || n >= cap - 1) { /* (trop grand : laissé tel quel) */
+		free(in);
+		free(out);
+		return -1;
+	}
+	in[n] = 0;
+	size_t o = 0;
+	char sec[160] = "";
+	for (char *l = in; *l;) {
+		char *e = strchr(l, '\n');
+		e = e ? e + 1 : l + strlen(l);
+		char line[512];
+		snprintf(line, sizeof line, "%.*s", (int)(e - l), l);
+		char *s = trim(line), *eq;
+		int drop = 0;
+		if (*s == '[') {
+			char *b = strchr(s, ']');
+			if (b)
+				*b = 0;
+			snprintf(sec, sizeof sec, "%s", trim(s + 1));
+		} else if (*s && *s != '#' && *s != ';' && !strcasecmp(sec, name) && (eq = strchr(s, '='))) {
+			*eq = 0;
+			drop = !strcasecmp(trim(s), "password");
+		}
+		memset(line, 0, sizeof line);
+		if (!drop) {
+			memcpy(out + o, l, (size_t)(e - l));
+			o += (size_t)(e - l);
+		}
+		l = e;
+	}
+	memset(in, 0, n);
+	free(in);
+	int r = -1;
+	f = fopen("/etc/smbfs.ini", "wb");
+	if (f) {
+		r = fwrite(out, 1, o, f) == o ? 0 : -1;
+		if (fclose(f))
+			r = -1;
+	}
+	free(out);
+	return r;
+}
+
+/* les clés de la section « name » (sans la casse) ; 1 : trouvée. Avec le coffre : son mot de passe en vient, ou y
+ * passe s'il est encore dans le fichier */
 static int ini_section(const char *name)
 {
 	FILE *f = fopen("/etc/smbfs.ini", "r");
 	if (!f)
 		return 0;
 	char line[512], sec[160] = "";
-	int found = 0;
+	int found = 0, seen = 0, file_pw = 0;
 	while (fgets(line, sizeof line, f)) {
 		char *s = trim(line);
 		if (!*s || *s == '#' || *s == ';')
@@ -253,6 +347,7 @@ static int ini_section(const char *name)
 			if (e)
 				*e = 0;
 			snprintf(sec, sizeof sec, "%s", trim(s + 1));
+			seen |= !strcasecmp(sec, name);
 			continue;
 		}
 		if (strcasecmp(sec, name))
@@ -265,9 +360,10 @@ static int ini_section(const char *name)
 		found = 1;
 		if (!strcasecmp(k, "user"))
 			snprintf(user, sizeof user, "%s", v);
-		else if (!strcasecmp(k, "password"))
+		else if (!strcasecmp(k, "password")) {
 			snprintf(password, sizeof password, "%s", v);
-		else if (!strcasecmp(k, "domain"))
+			file_pw = 1;
+		} else if (!strcasecmp(k, "domain"))
 			snprintf(domain, sizeof domain, "%s", v);
 		else if (!strcasecmp(k, "host") && !host[0])
 			snprintf(host, sizeof host, "%s", v);
@@ -277,6 +373,24 @@ static int ini_section(const char *name)
 			snprintf(subdir, sizeof subdir, "%s", v);
 	}
 	fclose(f);
+	memset(line, 0, sizeof line);
+	if (!seen || !vault_ok())
+		return found;
+	char vn[160];
+	vault_name(vn, sizeof vn, name);
+	if (file_pw && password[0]) { /* encore en clair : dans le coffre, puis retiré du fichier */
+		if (kv_sys_set(vn, password, (long)strlen(password)) >= 0 && !ini_strip_password(name))
+			say("mot de passe de [%s] rangé dans le coffre", name);
+	} else if (!file_pw) {
+		char t[sizeof password];
+		long r = kv_sys_get(vn, t, (long)sizeof t - 1);
+		if (r > 0) {
+			memcpy(password, t, (size_t)r);
+			password[r] = 0;
+			found = 1; /* (une section qui n'a plus que son mot de passe, dans le coffre) */
+		}
+		memset(t, 0, sizeof t);
+	}
 	return found;
 }
 

@@ -31,7 +31,8 @@
  *            system.ini le nom, la langue, l'ouverture automatique ; [user] est ignoré, les logiciels ne sont pas repris
  *   [system] hostname, lang (fr, en), keyb (BE, FR, US...), timeout (secondes du menu ; défaut 5 si Windows, 0)
  *   [user]   name (uid 1000), fullname, autologin = yes|no, admin = yes|no, passwords = stdin|none ;
- *            hash, root_hash : les empreintes déjà faites (Setup : « pbkdf2-sha256$... », jamais le mot de passe)
+ *            hash, root_hash : les empreintes déjà faites (Setup : « pbkdf2-sha256$... », jamais le mot de passe) ;
+ *            osinstall les retire du fichier dès qu'il l'a lu (plan_scrub : /tmp n'a pas de droits par fichier)
  *   [packages] online = yes : l'installateur a l'index en ligne vérifié (/var/pkg/index.txt de la clé, « pkg check ») :
  *            un paquet choisi vient de la clé si elle l'a dans la même version ou plus récente, sinon du dépôt en ligne
  *            (« pkg --root /media/tgt add NOM » : la racine du disque installé, 18/11/2026) ;
@@ -326,6 +327,48 @@ static long rd_file(const char *path, char *buf, u64 cap)
 		return n;
 	buf[n] = 0;
 	return n;
+}
+
+/* le plan relu sans ses lignes « hash = », « root_hash = » (les empreintes des mots de passe : seul osinstall les lit,
+ * gardées dans plan ; /tmp n'a pas de droits par fichier), s'il est sous /tmp (un plan d'essai reste tel quel) */
+static void plan_scrub(const char *path)
+{
+	static char t[sizeof plan];
+	if (strncmp(path, "/tmp/", 5))
+		return;
+	char *o = t;
+	int found = 0;
+	for (const char *p = plan; *p;) {
+		const char *e = p;
+		while (*e && *e != '\n')
+			e++;
+		if (*e)
+			e++;
+		const char *s = p;
+		while (s < e && (*s == ' ' || *s == '\t'))
+			s++;
+		int drop = 0;
+		static const char *const k[] = {"hash", "root_hash", 0};
+		for (int i = 0; k[i] && !drop; i++) {
+			u64 kl = (u64)str_len(k[i]);
+			const char *v = s + kl;
+			if ((u64)(e - s) > kl && !memcmp(s, k[i], kl)) {
+				while (v < e && (*v == ' ' || *v == '\t'))
+					v++;
+				drop = v < e && *v == '=';
+			}
+		}
+		if (drop)
+			found = 1;
+		else {
+			memcpy(o, p, (u64)(e - p));
+			o += e - p;
+		}
+		p = e;
+	}
+	if (found)
+		wr_file(path, t, (u64)(o - t));
+	memset(t, 0, sizeof t);
 }
 
 static long cp_file(const char *from, const char *to)
@@ -1304,6 +1347,9 @@ static int reinstall_disk(const char *dev, u32 crc, int *nboot, int *nroot, int 
 	rd_or_empty("/media/tgt/etc/users.ini", old_users, sizeof old_users);
 	rd_or_empty("/media/tgt/etc/shadow.ini", old_shadow, sizeof old_shadow);
 	rd_or_empty("/media/tgt/etc/elevate.ini", old_elevate, sizeof old_elevate);
+	/* (avec le coffre à secrets du PC, wifi.txt n'a plus les clés des réseaux : elles sont dans le coffre de l'ancien
+	   système, /var/keyvault, qui ne se reprend pas ici ; le nouveau système redemandera les mots de passe du Wi-Fi.
+	   De même pour l'accès à distance, smbfs, smbd et les clés de webd, qui ne sont pas repris) */
 	rd_or_empty("/media/tgt/etc/wifi.txt", old_wifi, sizeof old_wifi);
 	rd_or_empty("/media/tgt/etc/options.txt", old_options, sizeof old_options);
 	old_sys[0] = 0;
@@ -1346,6 +1392,7 @@ int main(int argc, char **argv)
 	}
 	if (rd_file(argv[1], plan, sizeof plan) < 0)
 		return fail(E_NOENT, "plan illisible");
+	plan_scrub(argv[1]); /* (les empreintes : plus dans le fichier) */
 	char dev[32], mode[16], rootfs[16], homefs[16], v[64];
 	ini("disk", "device", "blk.nvme0", dev, sizeof dev);
 	ini("disk", "mode", "beside", mode, sizeof mode);

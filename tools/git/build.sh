@@ -14,6 +14,7 @@
 #                                                       build.ps1 et tools/ci/carte_linux.py :
 #     bin/git                    le programme (commandes internes)
 #     bin/git-core/              gitexecdir : git-remote-http(s), git-http-fetch, scripts
+#     bin/git-credential-korin   l'assistant d'identification sur le coffre a secrets (tools/git)
 #     etc/gitconfig              la configuration du systeme (tools/git/gitconfig)
 #     etc/git-core/templates/    modele de git init
 # Arbres de construction : $WORK (hors de git). REBUILD=1 : tout reconstruire.
@@ -142,6 +143,8 @@ for s in git-sh-setup git-sh-i18n git-submodule git-merge-octopus git-merge-one-
 	[ -f "$G/$s" ] && cp "$G/$s" "$OUT/bin/git-core/"
 done
 cp "$P/gitconfig" "$OUT/etc/gitconfig"
+# l'assistant d'identification sur le coffre a secrets (credential.helper = korin ; docs/GIT.md) : un script bash
+cp "$P/git-credential-korin" "$OUT/bin/git-credential-korin"
 # le modele de git init : sans les exemples de crochets
 make -C "$G/templates" $UN > /dev/null
 mkdir -p "$OUT/etc/git-core/templates"

@@ -7,7 +7,8 @@
  *   * Dossiers partagés : nom, type, dossier, accès ; Ajouter, Modifier, Retirer. Un partage : le dossier, le
  *     type (SMB, le réseau Windows ; FTP plus tard) et, pour SMB, le nom sous lequel il se voit (\\korin\Nom) ;
  *     lecture seule ou non. Écrits dans /etc/shares.ini (src/sys/smbd/shares.h, commun aux types) ;
- *   * Compte d'accès : le nom et le mot de passe que Windows demande (/etc/smbd.ini, [users]) ;
+ *   * Compte d'accès : le nom et le mot de passe que Windows demande (/etc/smbd.ini, [users]) ; avec le coffre à
+ *     secrets (le PC), le mot de passe y va (« smbd/<compte> », shares.h) et smbd.ini ne garde que le nom ;
  *   * la ligne d'état.
  * smbd relit shares.ini et smbd.ini quand ils changent : pas besoin de le relancer.
  */
@@ -405,10 +406,16 @@ static void on_account (long, long)
 		}
 		snprintf (pw, sizeof pw, "%s", old_p);	/* (vide : le mot de passe enregistré gardé) */
 	}
-	struct acct { const char *u, *p; } ac = { user, pw };
-	int ar = elevated ([] (void *a) -> int { struct acct *c = (struct acct *) a; return smbd_account_set (SMBD_INI, c->u, c->p); }, &ac);
+	struct acct { const char *u, *p, *o; } ac = { user, pw, had ? old_u : 0 };	/* (le coffre : smbd_account_store) */
+	int ar = elevated ([] (void *a) -> int { struct acct *c = (struct acct *) a; return smbd_account_store (SMBD_INI, c->u, c->p, c->o); }, &ac);
+	memset (pw, 0, sizeof pw);
+	memset (old_p, 0, sizeof old_p);
 	if (ar == -2)
 		return;
+	if (ar == -3) {
+		status (TR ("Donnez un mot de passe."));
+		return;
+	}
 	if (ar < 0) {
 		status (TR ("/etc/smbd.ini ne peut pas être écrit."));
 		return;
@@ -476,7 +483,8 @@ static void sh_open (void)
 	ui_w_set_text (w_user, (long) u);
 	in (g, ui_label (x + 10, y + SH_CT + 84, 110, 20, (long) TR ("Mot de passe"), 0));
 	w_pw = in (g, ui_textbox (x + 120, y + SH_CT + 78, 200, SH_BTN, UTF_PASSWORD));
-	ui_textbox_hint (w_pw, (long) TR (p[0] ? "inchangé" : "à choisir"));
+	ui_textbox_hint (w_pw, (long) TR (p[0] || (u[0] && smbd_vault_present ()) ? "inchangé" : "à choisir"));	/* (le coffre : « nom = ») */
+	memset (p, 0, sizeof p);
 	button (g, x + 340, y + SH_CT + 78, 160, "Enregistrer le compte", on_account);
 	y += gh + 4;
 

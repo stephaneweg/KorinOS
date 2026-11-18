@@ -13,6 +13,8 @@
  *   workgroup = WORKGROUP
  *   [users]
  *   stephane = motdepasse      un compte : nom = mot de passe (celui que Windows demande)
+ *                              (avec le coffre à secrets, le PC : « stephane = », le mot de passe est le
+ *                              secret « smbd/stephane » de l'espace @system ; shares.h)
  *   [shares]
  *   Korin = HOME:/          un partage : nom = dossier [, readonly] (ancienne forme, gardée)
  *
@@ -35,6 +37,7 @@
 
 #include "smbd.h"
 #include "shares.h"
+#include "../../lib/keyvault/keyvault.h"
 
 struct config conf;
 static struct tree trees[SMBD_MAX_TREES];
@@ -86,11 +89,93 @@ static void copy(char *dst, const char *src, size_t n)
 	snprintf(dst, n, "%s", src);
 }
 
+/* smbd.ini réécrit avec « compte = » (sans mot de passe) dans [users] -> 0 ou -1 */
+static int conf_strip_passwords(const char *path)
+{
+	FILE *f = fopen(path, "r");
+	if (!f)
+		return -1;
+	size_t cap = 65536, n = 0;
+	char *out = malloc(cap), line[2048], t[2048], section[64] = "";
+	int r = out ? 0 : -1;
+	while (!r && fgets(line, sizeof line, f)) {
+		snprintf(t, sizeof t, "%s", line);
+		char *s = trim(t), *eq;
+		if (*s == '[') {
+			char *e = strchr(s, ']');
+			if (e)
+				*e = 0;
+			copy(section, trim(s + 1), sizeof section);
+		} else if (*s && *s != '#' && *s != ';' && !strcasecmp(section, "users") && (eq = strchr(s, '='))) {
+			*eq = 0;
+			snprintf(line, sizeof line, "%s =\n", trim(s));
+		}
+		size_t k = strlen(line);
+		if (n + k >= cap)
+			r = -1; /* (trop grand : laissé tel quel) */
+		else {
+			memcpy(out + n, line, k);
+			n += k;
+		}
+	}
+	fclose(f);
+	memset(line, 0, sizeof line);
+	memset(t, 0, sizeof t);
+	if (!r) {
+		f = fopen(path, "w");
+		r = f && fwrite(out, 1, n, f) == n ? 0 : -1;
+		if (f && fclose(f))
+			r = -1;
+	}
+	if (out)
+		memset(out, 0, n);
+	free(out);
+	return r;
+}
+
+/* les comptes lus depuis users0 et le coffre à secrets (shares.h) : un mot de passe encore dans smbd.ini y passe
+ * (puis smbd.ini est réécrit sans eux), un vide en vient. Coffre présent mais muet, ou pas de tel secret : le
+ * compte sans mot de passe est retiré (jamais de session sans mot de passe) ; sans coffre : comme avant */
+static void conf_vault(const char *path, int users0)
+{
+	if (!smbd_vault_present())
+		return;
+	int ok = smbd_vault_ok(), plain = 0, failed = 0, j = users0;
+	for (int i = users0; i < conf.nusers; i++) {
+		struct user *u = &conf.users[i];
+		char name[160];
+		smbd_vault_name(name, sizeof name, u->name);
+		if (u->password[0]) {
+			if (ok && kv_sys_set(name, u->password, (long)strlen(u->password)) >= 0)
+				plain = 1;
+			else
+				failed = 1;
+		} else {
+			long r = ok ? kv_sys_get(name, u->password, (long)sizeof u->password - 1) : -1;
+			if (r <= 0) {
+				log_msg("compte « %s » sans mot de passe (coffre à secrets : %ld) : ignoré", u->name, r);
+				memset(u->password, 0, sizeof u->password);
+				continue;
+			}
+			u->password[r] = 0;
+		}
+		if (j != i)
+			conf.users[j] = *u;
+		j++;
+	}
+	for (int i = j; i < conf.nusers; i++)
+		memset(&conf.users[i], 0, sizeof conf.users[i]);
+	conf.nusers = j;
+	if (plain && !failed && !conf_strip_passwords(path))
+		log_msg("mots de passe des comptes rangés dans le coffre à secrets");
+}
+
 int conf_load(const char *path)
 {
 	FILE *f = fopen(path, "r");
 	if (!f)
 		return -1;
+	int users0 = conf.nusers;
 	char line[2048], section[64] = "";
 	while (fgets(line, sizeof line, f)) {
 		char *s = trim(line);
@@ -142,6 +227,8 @@ int conf_load(const char *path)
 		}
 	}
 	fclose(f);
+	memset(line, 0, sizeof line);
+	conf_vault(path, users0);
 	return 0;
 }
 

@@ -7,8 +7,16 @@
  * Connexion automatique (docs/RESEAU.md 4.2) : au démarrage, le réseau connu préféré ; puis balayage,
  * réseaux connus présents triés par priorité puis signal, essayés l'un après l'autre ; lien perdu : le
  * même réseau après 2 s, puis le cycle ; sans réseau connu joint, un balayage toutes les 5 s, 10 s…
- * jusqu'à 60 s, sans fin ; QUITTER : plus rien jusqu'au prochain REJOINDRE. Jamais de clé au journal. */
+ * jusqu'à 60 s, sans fin ; QUITTER : plus rien jusqu'au prochain REJOINDRE. Jamais de clé au journal.
+ *
+ * Les clés (docs/etude/COFFRE.md) : avec le coffre à secrets (service keyvault), celle de chaque réseau est le
+ * secret « wifi/<SSID en hexadécimal> » de l'espace @system (le service est d'uid 0) ; /etc/wifi.txt et wifi.bak
+ * ne gardent que SSID, priorité et pays. Une clé encore dans l'un des deux (ancien système, coffre absent un
+ * temps) passe dans le coffre au chargement, puis les deux sont réécrits sans elle. Une clé que le coffre refuse
+ * reste dans le fichier (jamais perdue). Sans coffre : les clés dans wifi.txt, comme avant (et comme le Pi). */
 #include "iwl.h"
+#define KV_SYSCALL(n, a, b) korin_sys2((n), (a), (b))
+#include "../../lib/keyvault/keyvault.h"
 
 #define OP_STATUS 1
 #define OP_SCAN 2
@@ -206,12 +214,66 @@ static void cfg_read(const char *path)
 	}
 }
 
+/* ---- le coffre à secrets (les clés) */
+
+/* -> 1 si le coffre répond (son programme d'abord : sans lui, pas d'attente du service) */
+static int vault_ok(void)
+{
+	long st[2];
+	if (sys_stat("/sys/svc/keyvault", st) < 0)
+		return 0;
+	return kv_request(KV_STATUS, KVF_SYSTEM, 0, 0, 0) >= 0;
+}
+
+/* SSID -> nom de sa clé dans le coffre, « wifi/<SSID en hexadécimal> » (un SSID peut avoir tout octet) */
+static void vault_name(char *out, const char *ssid)
+{
+	static const char hex[] = "0123456789abcdef";
+	char *o = str_cat(out, "wifi/");
+	for (int i = 0; ssid[i] && i < 32; i++) {
+		*o++ = hex[(u8)ssid[i] >> 4];
+		*o++ = hex[(u8)ssid[i] & 15];
+	}
+	*o = 0;
+}
+
+/* path -> 1 s'il a encore une ligne de clé (key=, cle=, psk=) */
+static int file_has_key(const char *path)
+{
+	long n = read_file(path, cfgbuf, CFG_MAX - 1);
+	int r = 0;
+	if (n > 0) {
+		cfgbuf[n] = 0;
+		for (char *l = cfgbuf; *l && !r;) {
+			while (*l == ' ' || *l == '\t')
+				l++;
+			static const char *const keys[] = {"key=", "cle=", "psk="};
+			for (int j = 0; j < 3; j++) {
+				int i = 0;
+				while (keys[j][i] && (l[i] == keys[j][i] || (l[i] | 0x20) == keys[j][i]))
+					i++;
+				if (!keys[j][i])
+					r = 1;
+			}
+			while (*l && *l != '\n')
+				l++;
+			if (*l)
+				l++;
+		}
+	}
+	memset(cfgbuf, 0, sizeof cfgbuf);
+	return r;
+}
+
+static void cfg_save(void);
+
 static void cfg_load(void)
 {
 	known_n = 0;
 	cfg_read("/etc/wifi.txt");
 	if (!known_n)
 		cfg_read("/etc/wifi.bak");
+	memset(cfgbuf, 0, sizeof cfgbuf); /* (les clés lues) */
 	long n = read_file("/etc/options.txt", cfgbuf, CFG_MAX - 1); /* pays= (prioritaire) */
 	if (n > 0) {
 		cfgbuf[n] = 0;
@@ -225,13 +287,31 @@ static void cfg_load(void)
 		}
 	}
 	ilog("wifi : %d réseau(x) connu(s), pays %s\n", known_n, cc);
+	if (!vault_ok())
+		return;
+	/* les clés : celles des fichiers (les plus récentes) passent dans le coffre, les autres en viennent */
+	int plain = file_has_key("/etc/wifi.txt") | file_has_key("/etc/wifi.bak");
+	for (int i = 0; i < known_n; i++)
+		if (!known[i].key[0]) {
+			char name[80];
+			vault_name(name, known[i].ssid);
+			long r = kv_sys_get(name, known[i].key, 64);
+			known[i].key[r > 0 && r <= 64 ? r : 0] = 0;
+		}
+	if (plain) {
+		ilog("wifi : clés des fichiers rangées dans le coffre\n");
+		cfg_save();
+	}
 }
 
-/* /etc/wifi.bak puis /etc/wifi.txt */
+/* /etc/wifi.bak puis /etc/wifi.txt ; avec le coffre, les clés y vont (celle qu'il refuse reste au fichier) */
 static void cfg_save(void)
 {
+	int vault = vault_ok();
 	char *p = cfgbuf;
 	p = str_cat(p, "# Réseaux Wi-Fi connus (écrit par le service wifi ; docs/RESEAU.md 4.1)\n");
+	if (vault)
+		p = str_cat(p, "# (les clés sont dans le coffre à secrets : wifi/<SSID en hexadécimal>)\n");
 	if (cc[0]) {
 		p = str_cat(p, "country=");
 		p = str_cat(p, cc);
@@ -241,7 +321,9 @@ static void cfg_save(void)
 		p = str_cat(p, "ssid=\"");
 		p = str_cat(p, known[i].ssid);
 		p = str_cat(p, "\"\n");
-		if (known[i].key[0]) {
+		char name[80];
+		vault_name(name, known[i].ssid);
+		if (known[i].key[0] && !(vault && kv_sys_set(name, known[i].key, (long)strlen(known[i].key)) >= 0)) {
 			p = str_cat(p, "key=\"");
 			p = str_cat(p, known[i].key);
 			p = str_cat(p, "\"\n");
@@ -254,6 +336,7 @@ static void cfg_save(void)
 	}
 	write_file("/etc/wifi.bak", cfgbuf, p - cfgbuf);
 	write_file("/etc/wifi.txt", cfgbuf, p - cfgbuf);
+	memset(cfgbuf, 0, sizeof cfgbuf);
 }
 
 /* ---- balayage */
@@ -606,6 +689,11 @@ static long op_forget(u8 *m)
 	long r = E_NOENT;
 	if (k) {
 		int i = (int)(k - known);
+		if (vault_ok()) { /* (sa clé dans le coffre) */
+			char name[80];
+			vault_name(name, k->ssid);
+			kv_sys_delete(name);
+		}
 		memmove(&known[i], &known[i + 1], (u64)(known_n - i - 1) * sizeof known[0]);
 		known_n--;
 		cfg_save();

@@ -1227,6 +1227,7 @@ static void *installe (void *)
 		else if (eq (l, "OK")) s_ipct = 100;
 	}
 	int rc = pclose (f);
+	remove ("/tmp/install/plan.ini");	// (les empreintes des mots de passe : osinstall les retire en le lisant ; lui pas lancé, elles partent ici)
 	if (rc && !s_irc) { s_irc = 1; if (!s_ierr[0]) cpy (s_ierr, TR ("L'installation s'est arrêtée."), sizeof s_ierr); }
 	s_ifini = 1;
 	return 0;

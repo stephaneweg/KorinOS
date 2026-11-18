@@ -189,6 +189,11 @@ virtuelle) depuis le 14/11, comme le Pi ; le contournement `protocol.version = 0
 * Pas de pageur, pas d'éditeur par défaut, pas de traductions (`NO_GETTEXT`), pas de `git gui`,
   `gitk`, `git send-email`, `git svn`, `git p4` (Tcl, Perl, Python), ni de `git daemon` sur un
   socket Unix ; `credential-cache` (socket Unix) non plus (`credential-store` : pas essayé).
+* **Mots de passe et jetons** (https) : `/etc/gitconfig` règle `credential.helper = korin`, l'assistant
+  `/bin/git-credential-korin` (`tools/git/git-credential-korin`, un script bash) : `get`, `store`, `erase` sur la
+  commande `secret`, donc dans le coffre à secrets (docs/KEYVAULT.md), dans l'espace du script seul :
+  `git/<hôte>/<compte>` (le mot de passe), `git/<hôte>/@default` (le dernier compte de l'hôte). Rien en clair,
+  au contraire de `credential-store` (`~/.git-credentials`). Sans coffre (le Pi) : rien n'est gardé, git redemande.
 * HTTP/1.1 seulement (libcurl sans nghttp2).
 * La barre de progression ne s'actualise pas (pas de SIGALRM : `setitimer` sans effet, étape 5).
 * `relative_path` de git compare la première lettre des volumes : un chemin relatif d'un volume à

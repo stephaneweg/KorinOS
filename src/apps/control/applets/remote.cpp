@@ -6,7 +6,9 @@
  *     lignes sont gardées. Effet au prochain démarrage.
  *   * Mot de passe : deux champs masqués (ap.extra, sous les cases ; clic ou Tab pour passer de l'un à l'autre).
  *     Appliquer écrit « password = ... » dans /etc/remote.txt (src/inc/remotepw.inc) ; vides : il ne change pas ;
- *     différents : un message. Effet tout de suite (relu à chaque connexion).
+ *     différents : un message. Effet tout de suite (relu à chaque connexion). Avec le coffre à secrets (le PC,
+ *     docs/etude/COFFRE.md) : le secret « remote-password » de l'espace @system (src/svc/inc/remotepw.c), et
+ *     remote.txt n'a plus que « password_vault = 1 » (un mot de passe est défini, sans qu'on puisse le lire).
  *   * Un service coché sans mot de passe défini : un avertissement.
  *
  * Port en C++ de applets/remote.inc et de la lecture de src/inc/remotepw.inc (Korin ; Onyx n'avait pas ce volet).
@@ -15,6 +17,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "../control.h"
+#include "../../../lib/keyvault/keyvault.h"
 
 enum
 {
@@ -51,6 +54,8 @@ static const char ra_s_ok[] = "Enregistr\xC3\xA9. Services : au prochain d\xC3\x
 static const char ra_s_okpw[] = "Mot de passe chang\xC3\xA9. Services : au prochain d\xC3\xA9marrage.";
 #define RA_SERVICES	"/etc/services.txt"
 #define RP_FILE		"/etc/remote.txt"
+#define RP_VAULT	"remote-password"	/* le secret, espace @system (src/svc/inc/remotepw.c) */
+#define RP_MARK		"password_vault"	/* la ligne de remote.txt : « dans le coffre » */
 
 static long ra_len[2];				/* longueurs saisies (octets) */
 static long ra_field;				/* champ choisi (0, 1) */
@@ -61,11 +66,10 @@ static char ra_pw[2][RP_MAX + 1];
 /* ---- le mot de passe (src/inc/remotepw.inc) ---- */
 
 /* -> longueur du mot de passe de /etc/remote.txt (0 : aucun) : une ligne « password = ... » (UTF-8, 63 octets au
- * plus, espaces de fin retirées) */
+ * plus, espaces de fin retirées) ; sans elle, 1 si « password_vault = ... » dit qu'il est dans le coffre */
 static long rp_read (void)
 {
 	static char buf[RP_BUF];
-	char pw[RP_MAX + 1];
 	int fd = open (RP_FILE, O_RDONLY);
 	if (fd < 0)
 		return 0;
@@ -74,35 +78,34 @@ static long rp_read (void)
 	if (n <= 0)
 		return 0;
 	buf[n] = 0;
+	long l = 0, mark = 0;
 	const char *line = buf;
 	while (*line)
 	{
 		const char *p = line;
-		if (!strncmp (p, "password", 8))
+		if (!strncmp (p, RP_MARK, sizeof RP_MARK - 1))
+			mark = 1;
+		else if (!strncmp (p, "password", 8))
 		{
 			p += 8;
 			while (*p == ' ' || *p == '\t')	/* espaces, « = », espaces */
 				p++;
-			if (*p == '=')
+			if (*p == '=' && !l)
 			{
 				p++;
 				while (*p == ' ')
 					p++;
-				long l = 0;		/* la valeur, jusqu'à la fin de ligne */
-				while (p[l] && p[l] != '\n' && p[l] != '\r' && l < RP_MAX)
-				{
-					pw[l] = p[l];
+				while (p[l] && p[l] != '\n' && p[l] != '\r' && l < RP_MAX)	/* la valeur, jusqu'à la fin de ligne */
 					l++;
-				}
-				while (l && pw[l - 1] == ' ')	/* (espaces de fin retirées) */
+				while (l && p[l - 1] == ' ')	/* (espaces de fin retirées) */
 					l--;
-				return l;
 			}
 		}
 		while (*line && *line++ != '\n')	/* ligne suivante */
 			;
 	}
-	return 0;
+	memset (buf, 0, sizeof buf);
+	return l ? l : mark;
 }
 
 /* ---- /etc/services.txt ---- */
@@ -254,9 +257,21 @@ static void ra_apply (void)
 			werr = -1;
 	if (!werr && pw)
 	{
-		char buf[128];				/* « password = ... » */
-		strcpy (stpcpy (stpcpy (buf, "password = "), ra_pw[0]), "\n");
-		werr = file_write (RP_FILE, buf);
+		/* le coffre (élevé : uid 0, l'espace @system) ; sans lui, ou refusé : en clair comme avant (le service
+		   qui le relit le passe alors dans le coffre, src/svc/inc/remotepw.c) */
+		if (access ("/sys/svc/keyvault", F_OK) == 0 && kv_sys_set (RP_VAULT, ra_pw[0], l0) >= 0)
+		{
+			werr = ini_set (RP_FILE, "password", 0);
+			if (!werr)
+				werr = ini_set (RP_FILE, RP_MARK, "1");
+		}
+		else
+		{
+			char buf[128];			/* « password = ... » */
+			strcpy (stpcpy (stpcpy (buf, "password = "), ra_pw[0]), "\n");
+			werr = file_write (RP_FILE, buf);
+			memset (buf, 0, sizeof buf);
+		}
 	}
 	ap_unelevate (me);
 	if (werr)
@@ -270,7 +285,7 @@ static void ra_apply (void)
 		return;
 	}
 	ra_len[0] = ra_len[1] = 0;		/* champs vides, mot de passe relu */
-	ra_pw[0][0] = ra_pw[1][0] = 0;
+	memset (ra_pw, 0, sizeof ra_pw);
 	ra_field = 0;
 	ra_pwok = rp_read ();
 	ap.msg = ra_s_okpw;

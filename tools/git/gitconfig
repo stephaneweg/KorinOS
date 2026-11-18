@@ -28,6 +28,10 @@
 	ui = auto
 [advice]
 	detachedHead = false
+# les mots de passe et jetons de https : dans le coffre a secrets (/bin/git-credential-korin, sur la
+# commande secret ; docs/GIT.md), pas en clair comme credential-store. Sans coffre (le Pi) : rien n'est garde.
+[credential]
+	helper = korin
 # une seule identite (uid 0) : pas de controle de proprietaire
 [safe]
 	directory = *

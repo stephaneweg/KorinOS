@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include "uikit.h"
 #include "netkit_abi.h"
+#include "../../lib/keyvault/keyvault.h"
 
 using namespace pkg;
 
@@ -533,9 +534,15 @@ static bool mot_de_passe ()
 	if (err) { ui_w_set_text (g_pwmsg, (long) TR (err)); ui_w_draw (g_pwmsg); return false; }
 	if (a[0])
 	{
+		// avec le coffre a secrets (le PC, docs/etude/COFFRE.md) : le secret « remote-password » de l'espace @system
+		// (src/svc/inc/remotepw.c), remote.txt dit seulement qu'il y est ; sans lui, ou refuse : en clair
+		bool coffre = access ("/sys/svc/keyvault", F_OK) == 0 && kv_sys_set ("remote-password", a, (long) strlen (a)) >= 0;
 		FILE *f = fopen ("/etc/remote.txt", "wb");
-		if (f) { fprintf (f, "# le mot de passe de l'acces a distance (Reglages, Acces a distance)\npassword = %s\n", a); fclose (f); }
+		if (f && coffre) fprintf (f, "# le mot de passe de l'acces a distance (Reglages, Acces a distance) : dans le coffre\npassword_vault = 1\n");
+		else if (f) fprintf (f, "# le mot de passe de l'acces a distance (Reglages, Acces a distance)\npassword = %s\n", a);
+		if (f) fclose (f);
 	}
+	memset (a, 0, sizeof a); memset (b, 0, sizeof b);
 	return true;
 }
 static void finir ()
