@@ -11,4 +11,4 @@ Demande de l'utilisateur du 13/11/2026 : quand le projet sera stable, les biblio
 
 **How to apply:** pas maintenant ; noté à la fin du plan de docs/etude/PC-PILOTES.md (commit 2a708f36). Décidé (13/11) : deux paquets par bibliothèque, `lib<nom>` binaire avec les .so seulement, `<nom>-dev` avec les .a, les en-têtes et le .pc (dépend de lib<nom>) ; une seule construction partagée par les ports. Voir [[armpi-x86-pc]], [[armpi-gcc-sur-armpi]], [[armpi-paquets]].
 
-**18/11 : mis au plan** par [[armpi-webkit-dans-korin]] (docs/etude/WEBKIT-DANS-KORIN.md, étape 1).
+**18/11 : mis au plan** par [[armpi-ports-dans-korin]] (docs/etude/PORTS-DANS-KORIN.md, étape 1).
