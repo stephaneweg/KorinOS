@@ -26,7 +26,8 @@ nominale ; volet Énergie de Réglages (applets/power.cpp) et « Réglages d'én
 cachés sans HWP/EIST) ; essayés sous QEMU avec et sans batterie.
 Reste : thermique, luminosité. **18/11, décision : pas de S3** (démarrage en 0,46 s) ; au plan à la place
 (docs/etude/BATTERIE-PC.md, fin) : couvercle fermé = économie d'énergie (écran éteint, HWP, Wi-Fi en économie),
-arrêt automatique après 30 min couvercle fermé, session enregistrée à l'arrêt et rouverte au démarrage (API
+arrêt automatique après 30 min couvercle fermé ou sous un seuil de batterie (remplace l'extinction à 5 % sans
+enregistrement), un seul chemin d'arrêt (/sys/shutdown avec raison manual|lid|battery) qui enregistre toujours la session, session enregistrée à l'arrêt et rouverte au démarrage (API
 UIKit/AppKit, HOME:/etc/session.ini).
 Voir [[armpi-x86-pc]].
 

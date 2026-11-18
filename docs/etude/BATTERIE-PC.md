@@ -216,9 +216,15 @@ Pas de vraie veille. Trois choses, dans cet ordre :
    mettre le Wi-Fi en économie (power save d'iwl). Le son est coupé. À l'ouverture, tout revient tel quel
    (écran de verrouillage si un mot de passe est réglé, avec le multi-utilisateur). Réglage `lid = save | nothing |
    shutdown` dans `/etc/power.ini` et le volet Énergie ; `save` par défaut.
-2. **Arrêt automatique après 30 minutes** couvercle fermé (`lid_shutdown = 30`, en minutes, 0 = jamais ; réglable
-   dans le volet Énergie) ; aussi à la batterie critique (déjà : extinction à 5 %). L'arrêt enregistre la session
-   d'abord (point 3). Une construction ou une copie en cours retarde l'arrêt ? À décider (au moins : prévenir au
+2. **Arrêt automatique** dans deux cas : après **30 minutes couvercle fermé** (`lid_shutdown = 30`, en minutes,
+   0 = jamais) et quand **la batterie passe sous un seuil** (`battery_shutdown = 5`, en %, réglable ; remplace
+   l'extinction à 5 % d'aujourd'hui, qui coupe sans enregistrer). Les deux réglables dans le volet Énergie ; un
+   avis prévient une minute avant (annulable si l'utilisateur est là).
+
+   **Un seul chemin d'arrêt** (décision du 18/11) : l'arrêt manuel (menu, bouton d'alimentation), l'arrêt après
+   30 minutes couvercle fermé et l'arrêt sur batterie faible passent tous par `/sys/shutdown` avec une raison
+   (`manual`, `lid`, `battery`, notée au journal) ; ce chemin enregistre toujours la session (point 3) avant
+   d'arrêter les services, et le démarrage suivant la rouvre de la même façon, quelle que soit la raison. Une construction ou une copie en cours retarde l'arrêt ? À décider (au moins : prévenir au
    journal et ne pas couper `pkgd` au milieu d'une installation).
 3. **Session enregistrée à l'arrêt, rouverte au démarrage** (comme la reprise de macOS) :
    * à l'arrêt (`/sys/shutdown`), Elegant envoie à chaque app un événement « enregistrer l'état » ; l'app répond
