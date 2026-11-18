@@ -44,9 +44,9 @@ seulement) et le runtime **.NET** lui-même (clang, et construit par `dotnet`).
 
 ## 3. Points durs
 
-* **Mémoire et temps** : WebCore et OCCT demandent plusieurs Go par tâche (WSL tombe à 12 tâches sur 7 Go). Sur le
-  ZBook, compter les tâches sur la RAM libre ; pas de mémoire d'échange dans Korin : à vérifier, et peut-être à
-  faire (fichier d'échange) avant les gros ports.
+* **Mémoire et temps** : WebCore et OCCT demandent plusieurs Go par tâche (WSL tombe à 12 tâches sur 7 Go). Le
+  ZBook a **32 Go** (précisé le 18/11) : assez pour 8 à 12 tâches de WebCore sans mémoire d'échange ; compter les
+  tâches sur la RAM libre, et vérifier que Korin donne bien les 32 Go aux process (pas de plafond caché).
 * **Fichiers** : des dizaines de milliers de fichiers et de longs chemins ; FAT32 est lent pour ça et sans liens
   symboliques (des sources en ont : les déplier à l'extraction) : construire sur `/home` en ext4 (journal ext4 au
   plan) ou sur exFAT.

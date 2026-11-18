@@ -12,7 +12,7 @@ docs/etude/PORTS-DANS-KORIN.md. Rien de fait.
 
 **Why:** avance [[armpi-idee-libs-gcc]] (13/11, « quand stable ») et vise un Korin qui se reconstruit lui-même.
 
-**How to apply:** points durs : mémoire de WebCore (pas d'échange dans Korin ?), FAT32 lent et sans liens (construire
+**How to apply:** points durs : mémoire de WebCore (le ZBook a 32 Go : assez), FAT32 lent et sans liens (construire
 sur ext4 : [[armpi-systeme-fichiers]]), ports de perl et ruby. Voir [[armpi-webkit]], [[armpi-dlopen]], [[armpi-paquets]].
 
 **18/11, précision de l'utilisateur** : WebKit n'était qu'un exemple ; cela vaut pour tous les ports (SDL, SuperTux, SuperTuxKart…). Ordre proposé : SDL → SuperTux → CPython → STK → OCCT/Forge → Mesa → Godot → WebKit/Jet. Outils ajoutés : autotools, m4, scons. Hors d'atteinte : rustc, runtime .NET.
