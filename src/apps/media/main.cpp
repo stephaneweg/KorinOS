@@ -1,8 +1,9 @@
 //
 // main.cpp -- Media Player, Onyx's music library (user/Apps/media, docs/media/README.md there) on ARMPI's kits: the songs of
 // the folders it watches (HOME:/music), MP3, OGG, Opus, FLAC, WAV, MIDI and FM Songs, by artists, albums, songs, genres,
-// folders and playlists; a now-playing view (a MIDI file: its notes scrolling as coloured lines); a mini player. Closing the
-// window stops the music. Tags are read, never written; covers come from the files and their folders, nothing is
+// folders and playlists; a now-playing view (a MIDI file: its notes scrolling as coloured lines); a mini player (a card at the bottom
+// right, above the other windows). Closing the window while music plays turns it into the mini player; closing the
+// mini player stops the music. Tags are read, never written; covers come from the files and their folders, nothing is
 // downloaded. The videos (films, clips, episodes: WebM, Matroska, MP4) are played by MediaKit, in the window or full
 // screen, each resumed where it was left.
 //
@@ -2190,6 +2191,9 @@ static void on_resize (long w, long h)
 	(void) w; (void) h;
 	refresh_all ();
 }
+// the mini player is a card at the bottom right of the screen, above the dock, kept above the other windows (Onyx's
+// MiniView); leaving it puts the window back where it was, at its size
+static long g_restorePos[2] = { -1, -1 };
 static void enter_mini (bool on)
 {
 	if (on == g_miniMode) return;
@@ -2197,11 +2201,22 @@ static void enter_mini (bool on)
 	if (on)
 	{
 		g_restore[0] = (int) ui.w; g_restore[1] = (int) ui.h;
+		if (ui_window_pos ((long) g_restorePos) < 0) g_restorePos[0] = -1;
 		ui_min_size (330, 92);
 		g_miniMode = true;
 		ui_resize (330, 92);
+		long scr[4] = { 0, 0, 0, 0 };				// width, height, reserved at the top, at the bottom
+		if (ui_screen ((long) scr) >= 0 && scr[0] > 0)
+			ui_window_place (scr[0] - 330 - FRAME_BORDER - 16, scr[1] - scr[3] - 92 - FRAME_BORDER - 16);
+		ui_window_top (1);
 	}
-	else { g_miniMode = false; ui_resize (g_restore[0], g_restore[1]); ui_min_size (620, 420); }
+	else
+	{
+		g_miniMode = false;
+		ui_window_top (0);
+		ui_resize (g_restore[0], g_restore[1]); ui_min_size (620, 420);
+		if (g_restorePos[0] >= 0) ui_window_place (g_restorePos[0], g_restorePos[1]);
+	}
 	refresh_all ();
 }
 
@@ -2535,7 +2550,15 @@ static int run (int argc, char **argv)
 	for (;;)
 	{
 		long t = ui_event (g_vp.active () && !g_vp.paused ? 6 : 30);
-		if (t == WEV_CLOSE) break;
+		if (t == WEV_CLOSE)
+		{						// closing while music plays: the mini player, the music goes on;
+			if (!g_miniMode && g_player.state == PS_PLAYING)	// closing the mini player stops it and quits
+			{
+				enter_mini (true);
+				continue;
+			}
+			break;
+		}
 		if (t == WEV_MENU) command (ui_ev_field (&ui, EV_CODE));
 		else if (t > 0)
 		{

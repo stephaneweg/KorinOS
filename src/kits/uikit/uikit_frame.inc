@@ -1167,6 +1167,26 @@ ui_window_top:
 	bl	uk_call
 	epilogue
 
+; ui_window_pos : x0 = deux mots <- x, y du contenu de la fenetre courante sur l'ecran -> x0 = 0, < 0 si
+; Elegant ne le dit pas (WS_OP_WIN_POS)
+ui_window_pos:
+	prologue
+	str	x0,[sp,-16]!
+	bl	uk_win
+	adr	x9,uk_msg
+	str	x0,[x9,WM_A]
+	mov	x0,WS_OP_WIN_POS
+	bl	uk_call
+	ldr	x1,[sp],16
+	tbnz	x0,63,.ret
+	adr	x9,uk_msg
+	ldr	x2,[x9,WM_A]
+	ldr	x3,[x9,WM_A + 8]
+	stp	x2,x3,[x1]
+	mov	x0,0
+.ret:
+	epilogue
+
 ; x0 = pixels 0x00RRGGBB, x1 = largeur, x2 = hauteur (ui_screen : celles de
 ; l'ecran) : l'ecran compose, tel qu'il est montre (op WS_OP_SNAPSHOT
 ; d'Elegant, celle de bin/screenshot), recopie depuis son coin en haut a

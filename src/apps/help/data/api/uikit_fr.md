@@ -66,6 +66,7 @@ Les fenêtres n'ont pas de barre de titre : Elegant dessine le cadre et trois bo
 | `ui_maximize` | | comme le bouton agrandir (agrandie, ou rendue à sa taille d'avant) |
 | `ui_minimize` | | la fenêtre courante réduite, comme le bouton de son cadre (`ui_raise` la rend) |
 | `ui_window_place` | x, y | le contenu de la fenêtre courante va à cette place de l'écran (son cadre autour), quelle que soit sa couche ; avec `ui_resize` et `ui_screen`, un mini-lecteur se fait carte en bas à droite |
+| `ui_window_pos` | adresse de deux mots | x, y du contenu de la fenêtre courante sur l'écran y sont écrits (0 ; < 0 : inconnue) |
 | `ui_window_top` | 1 / 0 | 1 : la fenêtre courante reste au-dessus des autres, sur tous les espaces ; 0 : de nouveau comme les autres |
 | `ui_window_drag` | | pendant un appui dans le contenu : la fenêtre suit la souris |
 | `ui_frame_request` | | 1 : un `WEV_FRAME` viendra quand Elegant aura pris l'image (animations) |

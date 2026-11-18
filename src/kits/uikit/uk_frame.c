@@ -779,6 +779,18 @@ long ui_window_top(long on)
 	return uk_call(WS_OP_WIN_TOP);
 }
 
+/* ui_window_pos : deux mots <- x, y du contenu de la fenêtre courante sur l'écran -> 0, < 0 si Elegant ne le
+ * dit pas (WS_OP_WIN_POS) */
+long ui_window_pos(long out)
+{
+	ukr r = uk_win_pos();
+	if (r.r2 < 0)
+		return r.r2;
+	((long *)(uintptr_t)out)[0] = r.r0;
+	((long *)(uintptr_t)out)[1] = r.r1;
+	return 0;
+}
+
 /* ui_screen_grab : pixels 0x00RRGGBB, largeur, hauteur : l'écran composé, tel
  * qu'il est montré (WS_OP_SNAPSHOT), recopié depuis son coin en haut à gauche,
  * une ligne tous les « largeur » pixels -> 1 (0 : Elegant ne répond pas) */

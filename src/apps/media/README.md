@@ -49,8 +49,10 @@ Fichiers de l'application : `HOME:/media/` (`settings.ini`, `library.tsv`, `stat
   Elegant compose la surface au-dessus du contenu de la fenêtre, on ne peut rien dessiner sur elle. **En plein écran,
   aucun contrôle** : clavier (Espace, ← →, ↑ ↓, m, 0-9, Esc, f) et clic. À la fin, la surface part et les boutons Revoir /
   Épisode suivant s'affichent sur la vignette.
-* **Mini-lecteur** : la fenêtre se réduit sur place. UIKit ne sait pas la déplacer : pas de carte en bas à droite, ni au-dessus
-  des autres.
+* **Mini-lecteur** (18/11/2026) : une carte de 330 × 92 en bas à droite de l'écran, au-dessus du dock et des autres fenêtres
+  (`ui_window_place`, `ui_window_top`), comme celle d'Onyx ; la quitter rend la fenêtre à sa place et à sa taille
+  (`ui_window_pos`). Fermer la fenêtre pendant la lecture la réduit en carte, la musique continue ; fermer la carte arrête la
+  musique et quitte.
 * **Formats vidéo** : ceux de MediaKit, WebM, Matroska, MP4 ; VP8, VP9, AV1. Pas de FFmpeg, donc ni H.264, ni H.265, ni AAC, ni
   AVI, MPEG, WMV... Une vidéo H.264 que MediaKit refuse à l'ouverture n'apparaît pas dans la bibliothèque (Onyx la montrait
   avec son codec). Son illisible (AAC) : la vidéo joue muette.
