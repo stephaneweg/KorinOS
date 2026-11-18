@@ -1,27 +1,7 @@
 /* table d'exportation de MediaKit (docs/KITS.md) : 'AKIT', nombre, decalages ;
  * ajout seul : ne jamais retirer, deplacer ni renommer une ligne
  * (la meme liste que src/kits/mediakit/mediakit.abi) */
-	.section .text.kit_table,"ax"
-	.global kit_table
-	.balign 4
-kit_table:
-	.word	0x54494B41
-	.word	15
-	.word	mk_version - kit_table
-	.word	mk_open - kit_table
-	.word	mk_close - kit_table
-	.word	mk_info - kit_table
-	.word	mk_track - kit_table
-	.word	mk_select - kit_table
-	.word	mk_video_next - kit_table
-	.word	mk_video_convert - kit_table
-	.word	mk_video_read - kit_table
-	.word	mk_audio_open - kit_table
-	.word	mk_audio_read - kit_table
-	.word	mk_audio_packet - kit_table
-	.word	mk_seek - kit_table
-	.word	mk_stats - kit_table
-	.word	mk_error_text - kit_table
+#include "kit_table.inc"
 
 /* mk_on_stack(fonction, argument, sommet de pile) -> fonction(argument), sur
  * la pile du kit (les decodeurs veulent de la place : dav1d, libopus) ; la

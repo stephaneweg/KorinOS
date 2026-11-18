@@ -18,6 +18,7 @@
 #define MK_SYS_CLOSE		0x84
 #define MK_O_READ		1
 
+#if defined(__aarch64__)
 static inline long mk_svc(long n, long a, long b, long c, long d)
 {
 	register long x0 __asm__("x0") = a;
@@ -28,6 +29,20 @@ static inline long mk_svc(long n, long a, long b, long c, long d)
 	__asm__ volatile("svc 0" : "+r"(x0), "+r"(x1), "+r"(x2), "+r"(x3) : "r"(x8) : "memory", "cc");
 	return x0;
 }
+#elif defined(__x86_64__)
+/* Korin PC : syscall, numero dans rax, arguments rdi rsi rdx r10 (src/kits/common/korin_kit.h) */
+static inline long mk_svc(long n, long a, long b, long c, long d)
+{
+	register long r10 __asm__("r10") = d;
+	long r;
+	__asm__ volatile("syscall" : "=a"(r) : "a"(n), "D"(a), "S"(b), "d"(c), "r"(r10) : "rcx", "r11", "memory", "cc");
+	return r;
+}
+#else
+#error "mediakit : architecture non prise en charge"
+#endif
+#define MK_SYS_CLOCK_GET	0x1B		/* (3 : frequence du compteur lisible en mode utilisateur, PC) */
+#define MK_SYS_TIME_MS		0x19
 
 static inline long mk_vm_map(size_t n) { return mk_svc(MK_SYS_VM_MAP, 0, (long)n, 3, 0); }
 static inline void mk_vm_unmap(void *p, size_t n) { mk_svc(MK_SYS_VM_UNMAP, (long)p, (long)n, 0, 0); }

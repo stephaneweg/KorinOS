@@ -1880,8 +1880,8 @@ gpiolab, turtle, cosmozoom, irc, mail, telegram, courier, pocketqi (OpenSSL), ca
 photos, archiver, iconedit, disks, pinball, critters, arabesque, help, imageview, screenshot, budget, ndsemu
 (l'interpréteur : son JIT n'est construit que pour AArch64).
 
-**Construites, mais un kit leur manque sur le PC** (essayées après le GPU) : media (MediaKit : `prebuilt/mediakit.so`
-du Pi seulement, libvpx et dav1d à construire pour x86-64), cosmozoom et la 3D de qbasic / turtle (GpuKit : version
+**Construites, mais un kit leur manque sur le PC** (essayées après le GPU) : media (MediaKit : fait le 18/11, `ARCH=x86_64 sh tools/mediakit/build.sh`,
+libvpx et dav1d en C seul), cosmozoom et la 3D de qbasic / turtle (GpuKit : version
 du PC après le pilote du GPU Intel).
 
 **Pas construites** :
@@ -2296,8 +2296,8 @@ de `build/sdroot`, captures comparées au pixel (hors fond voronoy tiré au hasa
 
 * Le **vrai Pi** et le **vrai ZBook**.
 * Le **son sur le PC** (pas de pilote de son, pas de service `sound`) : music, mediaplayer, piano, recorder, mixer
-  et les sons des jeux s'ouvrent mais restent muets ; **MediaKit** n'existe que pour le Pi (`prebuilt/mediakit.so`)
-  : mediaplayer du PC ne lit rien.
+  et les sons des jeux s'ouvrent mais restent muets ; **MediaKit** existe pour le PC depuis le 18/11
+  (`build/pc/mediakit/mediakit.so`, essayé sous QEMU : VP8, VP9, AV1, Opus) ; le son reste muet sans pilote.
 * Sous QEMU : les menus de la barre au clic (ni l'asm ni le C ne s'ouvrent au clic de QEMU), l'éjection d'une clé
   et le bus de montage dans files, `korin.media.control`, le redimensionnement de mediaplayer, l'écoute et MP3 /
   Opus du recorder, les glissers du mixer, le record de targets, le mode poche de la calculatrice.
@@ -2305,7 +2305,7 @@ de `build/sdroot`, captures comparées au pixel (hors fond voronoy tiré au hasa
 
 ### Ce qui manque aux kits
 
-Rien pour ces apps, hors du PC : MediaKit (libvpx, dav1d à construire pour x86-64) et le son. `tools/kits/abi2c.py`
+Rien pour ces apps, hors du PC : le son (MediaKit : fait le 18/11). `tools/kits/abi2c.py`
 lit le commentaire de `ui_on_resize` comme deux arguments (`ui_on_resize (fn, 0)` dans les apps) : sans effet.
 
 ## KotonStudio pour le PC (13/11)

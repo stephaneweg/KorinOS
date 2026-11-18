@@ -1,5 +1,6 @@
 """mediakit : verifie le kit lie (deux PT_LOAD, aucune relocation hors des
-variables, seulement R_AARCH64_RELATIVE) et le met en ET_EXEC -> sortie."""
+variables, seulement R_AARCH64_RELATIVE, ou R_X86_64_RELATIVE pour le PC) et le met en
+ET_EXEC -> sortie."""
 import struct
 import sys
 
@@ -28,10 +29,10 @@ for i in range(e_shnum):
     if sh_type == 4:  # SHT_RELA
         for j in range(sh_size // 24):
             off, info, add = struct.unpack_from("<QQq", b, sh_off + j * 24)
-            assert (info & 0xFFFFFFFF) == 1027, "relocation %d dans %s" % (info & 0xFFFFFFFF, name)
+            assert (info & 0xFFFFFFFF) == (8 if e_machine == 62 else 1027), "relocation %d dans %s" % (info & 0xFFFFFFFF, name)
             assert vars_lo <= off < vars_hi, "relocation hors des variables : %#x" % off
             n_rel += 1
-print("relocations R_AARCH64_RELATIVE :", n_rel, "(toutes dans les variables)")
+print("relocations relatives :", n_rel, "(toutes dans les variables)")
 struct.pack_into("<H", b, 16, 2)  # ET_EXEC
 open(dst, "wb").write(b)
 print("ecrit", dst, len(b), "octets")

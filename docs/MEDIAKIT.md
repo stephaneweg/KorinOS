@@ -7,10 +7,10 @@ hors du selfhost), utilisable par toutes les applications par sa table `kit_fn`.
 
 | | |
 |---|---|
-| Sur la carte | `/lib/mediakit.so` (copié de `prebuilt/mediakit.so` par `build.ps1`) |
+| Sur la carte | `/lib/mediakit.so` : Pi, copié de `prebuilt/mediakit.so` par `build.ps1` ; PC (x86-64, depuis le 18/11/2026), `build/pc/mediakit/mediakit.so` mis dans `/lib` par `tools/pc/sysroot.sh` (paquet `pc`) |
 | Table | `src/kits/mediakit/mediakit.abi` (assembleur) = `tools/mediakit/mediakit.S` (kit) ; structures et erreurs : `src/kits/mediakit/mediakit.inc` ; en C / C++ : `src/kits/mediakit/mediakit.h` |
-| Sources | `tools/mediakit/` : glue (`mediakit.c`, `mk_libc.c`, `mk_math.c`, `mk_sys.h`, `mediakit.S`, `mediakit.ld`), copie modifiée de la bibliothèque **av** d'Onyx (`av/`), `Makefile`, `build.sh` ; libvpx, dav1d dans `src/extra` (hors dépôt, [README](../src/extra/README.md)) |
-| Construire | dans WSL, à la racine : `sh tools/mediakit/build.sh` (≈ 15 s sur 16 cœurs ; objets dans `/tmp/armpi-mediakit`) |
+| Sources | `tools/mediakit/` : glue (`mediakit.c`, `mk_libc.c`, `mk_math.c`, `mk_sys.h`, `mediakit.S` et `mediakit_x86_64.S` avec la table commune `kit_table.inc`, `mediakit.ld`), copie modifiée de la bibliothèque **av** d'Onyx (`av/`), `Makefile`, `build.sh` ; libvpx, dav1d dans `src/extra` (hors dépôt, [README](../src/extra/README.md)) |
+| Construire | dans WSL, à la racine : `sh tools/mediakit/build.sh` (≈ 15 s sur 16 cœurs ; objets dans `/tmp/armpi-mediakit`) ; le PC : `ARCH=x86_64 sh tools/mediakit/build.sh` (libvpx `onyx/generic` et dav1d en C seul, sans asm ; objets dans `/tmp/korin-mediakit-x86_64`) |
 | Essais | `/bin/mediatest fichier [images]`, `/apps/mediaplayer.app` ; vidéos d'essai dans `/home/public/video` |
 
 ## Contenu
@@ -71,7 +71,9 @@ les programmes en assembleur n'ont pas). MediaKit est donc un kit précompilé :
   et libvpx veulent plus que les 256 Kio du thread principal ;
 * **fichiers** : `file_sys` d'AppKit (rang 13 de sa table, `lib_open("appkit")` : AppKit est
   déjà dans tout programme) ; **journal** : `SYS_PRINT` par AppKit (sortie standard) ;
-  **horloge** : `CNTPCT_EL0`.
+  **horloge** : `CNTPCT_EL0` (PC : `rdtsc`, fréquence par `CLOCK_GET 3`, sinon `TIME_MS`). Sur le PC,
+  `file_sys` et AudioKit sont des fonctions C (numéro en 7e argument pour `file_sys`), appel système par
+  `syscall`, relocations `R_X86_64_RELATIVE`.
 
 Appels système utilisés : `VM_MAP`, `VM_UNMAP`, `YIELD`, `LIB_OPEN`, `EXIT` (abort). Aucun nouveau.
 

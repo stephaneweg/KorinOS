@@ -46,6 +46,9 @@ static int audiokit(void)
 /* une fonction d'AudioKit, 6 arguments au plus */
 static long ak_call(int fn, long a, long b, long c, long d, long e, long f)
 {
+#if defined(__x86_64__)
+	return ((long (*)(long, long, long, long, long, long))akfn[fn])(a, b, c, d, e, f);
+#else
 	register long x0 __asm__("x0") = a;
 	register long x1 __asm__("x1") = b;
 	register long x2 __asm__("x2") = c;
@@ -62,6 +65,7 @@ static long ak_call(int fn, long a, long b, long c, long d, long e, long f)
 		  "v13", "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24",
 		  "v25", "v26", "v27", "v28", "v29", "v30", "v31");
 	return x0;
+#endif
 }
 
 struct akc {

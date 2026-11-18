@@ -62,8 +62,13 @@ static void kit_relocate(void)
 {
 	if (relocated) return;
 	uintptr_t base = (uintptr_t)__kit_base;
+#if defined(__x86_64__)
+	const uint32_t relative = 8;		/* R_X86_64_RELATIVE */
+#else
+	const uint32_t relative = 1027;		/* R_AARCH64_RELATIVE */
+#endif
 	for (rela_t *r = __rela_start; r < __rela_end; r++)
-		if ((uint32_t)r->info == 1027)
+		if ((uint32_t)r->info == relative)
 			*(uint64_t *)(base + r->off) = base + r->addend;
 	relocated = 1;
 }
@@ -82,10 +87,14 @@ static int appkit_open(void)
 	return 0;
 }
 
-/* file_sys : x8 = numero, x0..x2 ; garde tout sauf x0, x16 (et x30) */
+/* file_sys : x8 = numero, x0..x2 ; garde tout sauf x0, x16 (et x30) ; sur le PC, une fonction C : le
+   numero en 7e argument (src/kits/appkit/kit.conf, x8_arg) */
 long mk_fsys(long n, long a, long b, long c)
 {
 	if (!fsys && appkit_open() < 0) return MK_E_NOKIT;
+#if defined(__x86_64__)
+	return ((long (*)(long, long, long, long, long, long, long))fsys)(a, b, c, 0, 0, 0, n);
+#else
 	register long x0 __asm__("x0") = a;
 	register long x1 __asm__("x1") = b;
 	register long x2 __asm__("x2") = c;
@@ -94,6 +103,7 @@ long mk_fsys(long n, long a, long b, long c)
 	__asm__ volatile("blr x9" : "+r"(x0) : "r"(x1), "r"(x2), "r"(x8), "r"(x9)
 			 : "x16", "x17", "x30", "memory", "cc");
 	return x0;
+#endif
 }
 
 void mk_log(const char *s)
@@ -104,12 +114,29 @@ void mk_log(const char *s)
 	if (s[n - 1] != '\n') mk_fsys(MK_SYS_PRINT, (long)"\n", 1, 0);
 }
 
+#if defined(__x86_64__)
+/* le compteur du processeur (rdtsc) et sa frequence, que le noyau donne (CLOCK_GET 3) ; sans elle, les ms */
+static uint64_t tsc_hz;
+static int64_t now_us(void)
+{
+	if (!tsc_hz) {
+		long f = mk_svc(MK_SYS_CLOCK_GET, 3, 0, 0, 0);
+		tsc_hz = f > 0 ? (uint64_t)f : 1;
+	}
+	if (tsc_hz == 1) return (int64_t)mk_svc(MK_SYS_TIME_MS, 0, 0, 0, 0) * 1000;
+	uint32_t lo, hi;
+	__asm__ volatile("rdtsc" : "=a"(lo), "=d"(hi));
+	uint64_t c = ((uint64_t)hi << 32) | lo, f = tsc_hz;
+	return (int64_t)(c / f) * 1000000 + (int64_t)((c % f) * 1000000 / f);
+}
+#else
 static int64_t now_us(void)
 {
 	uint64_t c, f;
 	__asm__ volatile("isb\n\tmrs %0, cntpct_el0\n\tmrs %1, cntfrq_el0" : "=r"(c), "=r"(f));
 	return (int64_t)(c / f) * 1000000 + (int64_t)((c % f) * 1000000 / f);
 }
+#endif
 
 /* (bibliotheque av) l'horloge */
 av_us av_now(void) { return now_us(); }

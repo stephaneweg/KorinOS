@@ -72,6 +72,9 @@ copy_files build/kits/x86_64 "$OUT/lib" '*.so'
 # comme GlKit, dans /lib et pas dans l'initrd. vktest (lié au kit) : le paquet vktest (packages-pc.ini)
 [ -f build/pc/mesa/sdroot/lib/vkkit.so ] && cp build/pc/mesa/sdroot/lib/vkkit.so "$OUT/lib/"
 [ -f build/pc/mesa/sdroot/bin/vktest ] && cp build/pc/mesa/sdroot/bin/vktest "$OUT/bin/"
+# MediaKit du PC (WebM, Matroska, MP4 ; VP8, VP9, AV1 en C : ARCH=x86_64 sh tools/mediakit/build.sh), s'il est
+# construit ; dans /lib, lu par AppKit au premier programme qui s'en sert (media, mediaplayer, mediatest)
+[ -f build/pc/mediakit/mediakit.so ] && cp build/pc/mediakit/mediakit.so "$OUT/lib/"
 
 # etc : les fichiers communs qui valent pour le PC (pas ceux du Pi : initramfs.txt, preload.txt,
 # startup.txt, session : celle du PC est dans skel/pc/etc, pkg dont le dépôt est celui du Pi) ; ceux du
