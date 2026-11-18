@@ -1174,6 +1174,26 @@ def asteroids(ic):
     ic.pop()
 
 
+@icon('parkingjam', 0x6F7680, 0x40464F)
+def parkingjam(ic):
+    # le parking vu de haut : des places, trois voitures, une qui sort
+    for i in range(4):
+        ic.fill(ic.rr(16 + i * 21, 14, 2.6, 30, 1.2), 0xFFFFFF, .45)
+        ic.fill(ic.rr(16 + i * 21, 58, 2.6, 30, 1.2), 0xFFFFFF, .45)
+
+    def car(x, y, w, h, c):
+        body = ic.rr(x, y, w, h, 5.5)
+        ic.raised(body, Grad(light(c, .15), dark(c, .12), 100))
+        if not ic.small:
+            ic.fill(ic.rr(x + 3, y + h * .22, w - 6, h * .2, 2.4), 0xBFE3FF, .9)
+            ic.fill(ic.rr(x + 3, y + h * .64, w - 6, h * .13, 2.4), 0xBFE3FF, .75)
+    car(21, 16, 14, 27, 0xE8452C)
+    car(42, 60, 14, 27, 0x2F8FE8)
+    ic.push(0, 0, 1, 90, (70, 51))
+    car(63, 36, 14, 30, 0xF5B83D)
+    ic.pop()
+
+
 @icon('invaders', 0x1A2150, 0x070A22)
 def invaders(ic):
     pat = ['..X.....X..', '...X...X...', '..XXXXXXX..', '.XX.XXX.XX.', 'XXXXXXXXXXX', 'X.XXXXXXX.X', 'X.X.....X.X', '...XX.XX...']

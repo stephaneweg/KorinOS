@@ -1,0 +1,2 @@
+# apps/parkingjam : anglais (le lanceur ; le jeu Godot a ses textes dans son projet)
+Ce jeu a besoin du paquet godot-templates : installez-le par Logiciels. = This game needs the godot-templates package: install it from Software.

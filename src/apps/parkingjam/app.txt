@@ -1,0 +1,7 @@
+# Manifeste de Parking Jam (un jeu Godot : main lance le modèle de godot-templates sur main.pck)
+name     = Parking Jam
+category = Jeux
+description = Vider le parking en faisant sortir les voitures une à une, sans les bloquer.
+keywords = jeu godot parking jam voitures casse-tête puzzle niveaux
+help = Touchez ou cliquez une voiture : elle roule dans son axe, du côté touché, jusqu'à heurter quelque chose ou sortir sur la route ; un glissé choisit le sens.
+help = Le niveau est gagné quand le parking est vide. Annuler défait le dernier coup, Recommencer reprend le niveau ; les niveaux réussis restent ouverts.
