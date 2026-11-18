@@ -70,6 +70,49 @@
 		say("PROMESSE REJETÉE " + (r && (r.name ? r.name + ": " : "") + (r.message || r)) + (r && r.stack ? " | " + String(r.stack).split("\n")[0].substring(0, 120) : ""));
 	});
 
+	// Ce qu'est un argument de crypto.subtle (jamais son contenu) : sa sorte, sa taille, son décalage dans son tampon,
+	// le tampon (partagé, redimensionnable, détaché) et le monde (realm) qui l'a fait.
+	function shape(b) {
+		try {
+			if (b == null) return String(b);
+			var buf = b.buffer || b, s = Object.prototype.toString.call(b).slice(8, -1);
+			if (b.constructor && b.constructor !== window[b.constructor.name]) s += " (autre realm)";
+			if (b.byteOffset != null) s += " +" + b.byteOffset;
+			s += " " + size(b) + "/" + size(buf);
+			if (buf instanceof ArrayBuffer || Object.prototype.toString.call(buf) === "[object ArrayBuffer]") {
+				if (buf.resizable) s += " redimensionnable";
+				if (buf.detached) s += " DÉTACHÉ";
+			} else s += " tampon " + Object.prototype.toString.call(buf).slice(8, -1);
+			return s;
+		} catch (e) { return "(illisible : " + e + ")"; }
+	}
+	function keyShape(k) {
+		try { return "clé " + k.type + " " + (k.algorithm && k.algorithm.name) + " " + (k.algorithm && k.algorithm.length) + " extractible=" + k.extractable + " usages=" + k.usages.join(","); }
+		catch (e) { return "(clé illisible : " + e + ")"; }
+	}
+	function copy(b) { var v = b.buffer ? new Uint8Array(b.buffer, b.byteOffset, b.byteLength) : new Uint8Array(b); return new Uint8Array(v); }
+	// encrypt a échoué : les arguments, puis le même appel refait avec des copies propres, un argument à la fois
+	function retry(S, orig, a) {
+		var p = a[0] || {}, k = a[1], d = a[2];
+		say("encrypt en échec : params " + Object.keys(p).join(",") + " ; iv " + shape(p.iv) + " ; aad " + shape(p.additionalData)
+			+ " ; données " + shape(d) + " ; " + keyShape(k) + " ; même realm que la page : " + (p.constructor === Object));
+		function again(name, pp, kk, dd) {
+			return Promise.resolve().then(function () { return orig.call(S, pp, kk, dd); })
+				.then(function (r) { say("  refait (" + name + ") -> " + r.byteLength + " octets"); }, function (e) { say("  refait (" + name + ") ÉCHEC " + (e && e.name + ": " + e.message)); });
+		}
+		var clean = { name: "AES-GCM", iv: copy(p.iv) };
+		if (p.additionalData) clean.additionalData = copy(p.additionalData);
+		if (p.tagLength) clean.tagLength = p.tagLength;
+		return again("tel quel", p, k, d)
+			.then(function () { return again("params copiés", clean, k, d); })
+			.then(function () { return again("données copiées", p, k, copy(d)); })
+			.then(function () { return again("tout copié", clean, k, copy(d)); })
+			.then(function () {
+				return S.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"])
+					.then(function (k2) { return again("tout copié, clé neuve", clean, k2, copy(d)); });
+			});
+	}
+
 	// crypto.subtle : chaque appel et son issue
 	if (window.crypto && crypto.subtle) {
 		var S = crypto.subtle;
@@ -84,7 +127,11 @@
 				var p;
 				try { p = orig.apply(S, a); } catch (e) { say("subtle." + f + " " + what + " LÈVE " + e); throw e; }
 				return p.then(function (r) { say("subtle." + f + " " + what + " -> " + (r && r.byteLength != null ? r.byteLength + " octets" : r && r.type ? "clé " + r.type : "ok")); return r; },
-					function (e) { say("subtle." + f + " " + what + " ÉCHEC " + (e && (e.name + ": " + e.message))); throw e; });
+					function (e) {
+						say("subtle." + f + " " + what + " ÉCHEC " + (e && (e.name + ": " + e.message)));
+						if (f === "encrypt") retry(S, orig, a);
+						throw e;
+					});
 			};
 		});
 	} else
