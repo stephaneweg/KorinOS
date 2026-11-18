@@ -219,4 +219,5 @@ kit_fn ui_anchor		; x0 = widget, x1 = UA_* (0 : automatique) : ancres depuis la 
 kit_fn ui_design_size		; x0, x1 = taille de conception de la fenetre courante ; places des widgets reprises (uk_adapt)
 kit_fn ui_surface_overlay	; x0 = zones (x, y, l, h en 16 bits), x1 = nombre (0 : aucune ; WS_OVER_MAX au plus) : ces zones du contenu passent par-dessus la surface de la fenetre courante (une vue GL ou video), avec leur transparence -> 0 (version 215)
 kit_fn ui_elevate		; x0 = raison -> 0 : le programme est passe en uid 0 apres la carte de confirmation d'authd (mot de passe de l'utilisateur) ; E_CANCELED, E_PERM, E_BUSY (version 216)
+kit_fn ui_drag_image		; x0, x1, x2, x3 = rectangle du contenu de la fenetre courante (l'element glisse), x4, x5 = point de ce rectangle sous le curseur : apres ui_drag_start, Elegant le dessine en transparence sous le curseur jusqu'au relache -> 0 (version 217)
 kit_end

@@ -123,12 +123,18 @@ chaque départ (longueur `BUS_DELETED`).
 |---|---|---|
 | `korin.usb.device.<n>` | usbd, au branchement | `vvvv:pppp cc/ss/pp ...` : vendeur, produit, puis classe, sous-classe et protocole de chaque interface (`0627:0001 03/01/01`) |
 | `korin.storage.volume.<vol>` | vfs, au montage | `<source> <service>` (`blk.usb0p1 fatfs`, `ram:16M ramfs`) ; `<vol>` en minuscules |
+| `korin.files.changed` | Fichiers, après un déplacement, une copie, une suppression, un renommage, un nouveau dossier | `<pid>` puis les dossiers changés, une ligne chacun (gardée : `BUS_RETAIN`) |
 
 * vfs et usbd n'ont pas BusKit : ils parlent à busd directement (`src/svc/inc/buspub.inc`).
   vfs démarre avant busd : son thread des montages attend le bus, puis publie les volumes déjà
   montés (la carte, RAM0...).
 * Fichiers et Disques s'abonnent à `korin.storage.volume.*` et relisent la liste des volumes à
   chaque événement ; sans busd, ils la relisent chaque seconde comme avant.
+* Chaque fenêtre de Fichiers s'abonne à `korin.files.changed` et relit son dossier s'il est dans la
+  liste (sauf la sienne, reconnue au pid) : un élément déposé d'une fenêtre dans l'autre disparaît
+  de la première. vfs ne signale pas les changements de fichiers : ceux d'un autre programme (le
+  shell) restent à Actualiser. Seule la dernière valeur est lisible : deux publications très
+  rapprochées, la première peut être manquée.
 * usbstorage s'abonne au sujet de sa clé (`korin.usb.device.<n>`) et dort jusqu'à ce qu'usbd le
   retire, au lieu de demander chaque seconde si la clé est encore là.
 

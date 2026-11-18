@@ -193,6 +193,18 @@ long ui_drag_start(long a0, long a1, long a2)
 	return uk_call(WS_OP_DRAG);
 }
 
+/* x0, x1, x2, x3 = rectangle du contenu de la fenêtre courante (l'élément glissé), x4, x5 = son
+ * point sous le curseur : après ui_drag_start, Elegant le dessine en transparence sous le curseur
+ * jusqu'au relâché (WS_OP_DRAG_IMAGE) -> 0 */
+long ui_drag_image(long a0, long a1, long a2, long a3, long a4, long a5)
+{
+	STX(uk.msg, WM_A, uk_win());
+	STX(uk.msg, WM_B, (a0 & 0xFFFF) | (a1 & 0xFFFF) << 16 | (a2 & 0xFFFF) << 32 | (a3 & 0xFFFF) << 48);
+	STX(uk.msg, WM_C, (a4 & 0xFFFFFFFF) | (a5 & 0xFFFFFFFF) << 32);
+	STW(uk.msg, WM_LEN, 0);
+	return uk_call(WS_OP_DRAG_IMAGE);
+}
+
 /* x0 = tampon, x1 = taille -> x0 = octets du dernier dépôt (texte terminé
  * par NUL), x1 = son genre */
 ukr ui_drop_get(long a0, long a1)

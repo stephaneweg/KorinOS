@@ -710,6 +710,7 @@ UKF long ui_anchor(long a0, long a1);
 UKF long ui_design_size(long a0, long a1);
 UKF long ui_surface_overlay(long a0, long a1);
 UKF long ui_elevate(long a0);
+UKF long ui_drag_image(long a0, long a1, long a2, long a3, long a4, long a5);
 
 /* appel d'une fonction du programme (rappel) : x0..x7 comme l'asm */
 typedef long (*uk_fn8)(long, long, long, long, long, long, long, long);

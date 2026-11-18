@@ -382,7 +382,9 @@ void pointer_unlock(void)
 
 void pointer_dirty(void)
 {
-	dirty(cur_x - 8, cur_y - 10, 20, 29);
+	long x, y, w, h;
+	cursor_box(&x, &y, &w, &h);
+	dirty(x, y, w, h);
 }
 
 /* WS_OP_CURSOR : a id (une fenêtre du programme), b forme -> 0 */
@@ -399,7 +401,7 @@ long req_cursor(void)
 	/* cur_req_win garde l'id de la fenêtre, pas sa fiche, comme l'asm (cursor_pick la compare à w->id) */
 	cur_req_win = w->id;
 	cur_req = (long)shape;
-	dirty(cur_x - 8, cur_y - 10, 20, 29); /* le curseur à redessiner */
+	pointer_dirty(); /* le curseur à redessiner */
 	return 0;
 }
 
@@ -717,6 +719,11 @@ long req_cursor_get(void)
 	return cur_shape;
 }
 
+/* image du glisser (WS_OP_DRAG_IMAGE, plus bas) */
+#define GHOST_ALPHA 150 /* sur 256 */
+static u32 ghost[WS_DRAG_IMG_W * WS_DRAG_IMG_H];
+static long ghost_w, ghost_h, ghost_hx, ghost_hy;
+
 /* WS_OP_DRAG : a genre, +40 octets, données -> 0 (glisser en cours ; il finit au relâché du
  * bouton) */
 long req_drag(void)
@@ -729,8 +736,97 @@ long req_drag(void)
 	const u8 *s = msg + WM_DATA;
 	for (u64 i = 0; i < n; i++)
 		drag_data[i] = s[i];
+	pointer_dirty();
+	ghost_w = 0; /* (l'image d'un glisser d'avant) */
 	drag_on = 1;
 	return 0;
+}
+
+/* ---- image du glisser (WS_OP_DRAG_IMAGE, 18/11/2026) : un rectangle du contenu de la fenêtre
+ * (l'élément glissé), copié ici et dessiné en transparence sous le curseur jusqu'au relâché */
+
+/* -> le rectangle du curseur, et de l'image d'un glisser en cours (zones à redessiner) */
+void cursor_box(long *x, long *y, long *w, long *h)
+{
+	long x0 = cur_x - 8, y0 = cur_y - 10, x1 = x0 + 20, y1 = y0 + 29;
+	if (drag_on && ghost_w) {
+		long gx = cur_x - ghost_hx, gy = cur_y - ghost_hy;
+		if (gx < x0)
+			x0 = gx;
+		if (gy < y0)
+			y0 = gy;
+		if (gx + ghost_w > x1)
+			x1 = gx + ghost_w;
+		if (gy + ghost_h > y1)
+			y1 = gy + ghost_h;
+	}
+	*x = x0;
+	*y = y0;
+	*w = x1 - x0;
+	*h = y1 - y0;
+}
+
+/* WS_OP_DRAG_IMAGE : a id, b x | y << 16 | largeur << 32 | hauteur << 48, c hx | hy << 32 -> 0 */
+long req_drag_image(void)
+{
+	struct win *w = req_win();
+	if (!w)
+		return E_BADF;
+	if (!drag_on || !w->surf)
+		return E_INVAL;
+	u64 b = M64(msg, WM_B), c = M64(msg, WM_C);
+	long x = (long)(b & 0xFFFF), y = (long)(b >> 16 & 0xFFFF);
+	long gw = (long)(b >> 32 & 0xFFFF), gh = (long)(b >> 48);
+	long hx = (long)(int)(u32)c, hy = (long)(int)(u32)(c >> 32);
+	if (x >= w->w || y >= w->h)
+		return E_INVAL;
+	if (gw > w->w - x)
+		gw = w->w - x;
+	if (gh > w->h - y)
+		gh = w->h - y;
+	if (gw > WS_DRAG_IMG_W) /* (coupé autour du point tenu) */
+		gw = WS_DRAG_IMG_W;
+	if (gh > WS_DRAG_IMG_H)
+		gh = WS_DRAG_IMG_H;
+	if (gw <= 0 || gh <= 0)
+		return E_INVAL;
+	pointer_dirty();
+	for (long r = 0; r < gh; r++)
+		for (long k = 0; k < gw; k++)
+			ghost[r * gw + k] = w->surf[(y + r) * w->w + x + k];
+	ghost_w = gw;
+	ghost_h = gh;
+	ghost_hx = hx;
+	ghost_hy = hy;
+	pointer_dirty();
+	return 0;
+}
+
+/* l'image du glisser en cours, dans le clip (avant le curseur) */
+void draw_ghost(void)
+{
+	if (!drag_on || !ghost_w)
+		return;
+	long px = cur_x - ghost_hx, py = cur_y - ghost_hy;
+	long r0 = clip_r.y0 - py, r1 = clip_r.y1 - py, k0 = clip_r.x0 - px, k1 = clip_r.x1 - px;
+	if (r0 < 0)
+		r0 = 0;
+	if (r1 > ghost_h)
+		r1 = ghost_h;
+	if (k0 < 0)
+		k0 = 0;
+	if (k1 > ghost_w)
+		k1 = ghost_w;
+	for (long r = r0; r < r1; r++) {
+		u32 *d = (u32 *)((u8 *)bb + (py + r) * bb_pitch) + px;
+		const u32 *s = ghost + r * ghost_w;
+		for (long k = k0; k < k1; k++) {
+			u32 a = s[k], o = d[k];
+			u32 rb = ((a & 0xFF00FF) * GHOST_ALPHA + (o & 0xFF00FF) * (256 - GHOST_ALPHA)) >> 8;
+			u32 g = ((a & 0xFF00) * GHOST_ALPHA + (o & 0xFF00) * (256 - GHOST_ALPHA)) >> 8;
+			d[k] = (rb & 0xFF00FF) | (g & 0xFF00);
+		}
+	}
 }
 
 /* WS_OP_DROP_GET : -> octets ; a genre, b octets ; données (le dernier glisser-déposer) */
@@ -751,7 +847,9 @@ void drag_drop(long x, long y)
 {
 	if (!drag_on)
 		return;
+	pointer_dirty(); /* (l'image du glisser s'en va) */
 	drag_on = 0;
+	ghost_w = 0;
 	long zone;
 	struct win *w = win_hit(x, y, &zone);
 	if (!w || zone != Z_CLIENT)

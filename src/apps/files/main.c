@@ -50,6 +50,7 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 };
 
 #define BUS_TOPIC_VOLUME "korin.storage.volume."	/* (src/inc/bus.inc) */
+#define BUS_TOPIC_CHANGED "korin.files.changed"	/* dossiers changes par une fenetre de Fichiers (docs/BUS.md) */
 #define GDRIVEFS	"/sys/svc/gdrivefs"		/* (« Se connecter à Google Drive… » s'il est là) */
 
 #define WIN_W		760
@@ -1151,6 +1152,89 @@ static long cur_vol (void)
 }
 
 /* ---------------------------------------------------------------------------
+ *  Dossiers changes : apres un deplacement, une copie, une suppression, un renommage, chaque fenetre de
+ *  Fichiers publie sur le bus (BUS_TOPIC_CHANGED) « <pid>\n<dossier>\n<dossier>... » ; les autres
+ *  fenetres de Fichiers ouvertes sur l'un de ces dossiers le relisent (deposer d'une fenetre dans
+ *  l'autre : la premiere voit l'element partir). La derniere valeur seule est lisible : deux
+ *  publications tres rapprochees, la premiere peut etre manquee (Actualiser la rattrape).
+ * --------------------------------------------------------------------------- */
+
+static char chg_buf[256];			/* la valeur en preparation */
+static long chg_len, chg_n, chg_sub;
+
+/* dossier d -> dans la valeur (une fois) */
+static void chg_add (const char *d)
+{
+	if (!d || !*d)
+		return;
+	if (!chg_len)
+		chg_len = snprintf (chg_buf, sizeof chg_buf, "%ld\n", (long) getpid ());
+	size_t l = strlen (d);
+	for (char *q = strchr (chg_buf, '\n') + 1; *q;)
+	{
+		char *e = strchr (q, '\n');
+		if (!e)
+			break;
+		if ((size_t) (e - q) == l && !strncasecmp (q, d, l))
+			return;			/* deja la */
+		q = e + 1;
+	}
+	if (chg_len + (long) l + 2 > (long) sizeof chg_buf)
+		return;				/* (trop : les premiers suffisent) */
+	memcpy (chg_buf + chg_len, d, l);
+	chg_len += (long) l;
+	chg_buf[chg_len++] = '\n';
+	chg_buf[chg_len] = 0;
+	chg_n++;
+}
+
+/* le dossier qui contient le chemin p */
+static void chg_add_parent (const char *p)
+{
+	char d[272];
+	str_copy_n (d, p, sizeof d);
+	path_parent (d);
+	chg_add (d);
+}
+
+/* la valeur preparee -> le bus */
+static void chg_publish (void)
+{
+	if (chg_n)
+		bus_publish ((long) BUS_TOPIC_CHANGED, (long) chg_buf, chg_len, BUS_RETAIN);
+	chg_len = chg_n = 0;
+	chg_buf[0] = 0;
+}
+
+/* WEV_BUS de BUS_TOPIC_CHANGED : une autre fenetre a change le dossier ouvert ici -> 1 (relu) */
+static void refresh (void);
+static int chg_seen (long topic)
+{
+	char v[260];
+	long n = bus_get_id (topic, (long) v, sizeof v - 1);
+	if (n <= 0)
+		return 0;
+	v[n < (long) sizeof v - 1 ? n : (long) sizeof v - 1] = 0;
+	char *q = strchr (v, '\n');
+	if (!q || strtol (v, 0, 10) == (long) getpid ())
+		return 0;			/* (la notre : deja relu) */
+	size_t l = strlen (path);
+	for (q++; *q;)
+	{
+		char *e = strchr (q, '\n');
+		if (!e)
+			break;
+		if ((size_t) (e - q) == l && !strncasecmp (q, path, l))
+		{
+			refresh ();
+			return 1;
+		}
+		q = e + 1;
+	}
+	return 0;
+}
+
+/* ---------------------------------------------------------------------------
  *  Place des volumes : statvfs de libposix (FS_INFO du service du volume), mesuree dans un thread
  *  (un partage ou Google Drive peut mettre du temps a repondre). Mesuree quand la liste change,
  *  apres une copie ou un effacement, a Actualiser ; les volumes locaux aussi toutes les SP_EVERY_MS.
@@ -1349,6 +1433,7 @@ static void go_vol (long i)
 
 static int mounts_set (const char *vol, const char *line);
 static int is_net_src (const char *s);
+static void drag_ghost (long i);
 static void draw (void);
 
 /* volume : le demonter (son service s'arrete) */
@@ -2195,7 +2280,11 @@ static void new_folder (void)
 		if (r)
 			set_err (r);
 		else
+		{
 			select_name (tmpname);
+			chg_add (path);
+			chg_publish ();
+		}
 		return;
 	}
 }
@@ -2238,7 +2327,11 @@ static void delete_sel (void)
 	if (r)
 		set_err (r);
 	else
+	{
 		set_msg ("Supprimé");
+		chg_add (path);
+		chg_publish ();
+	}
 }
 
 /* nouveau nom (rogne de ses espaces autour, sur place) -> 0 s'il est permis, sinon le message
@@ -2316,6 +2409,8 @@ static void rename_sel (void)
 	}
 	select_name (nn);
 	set_msg ("Renommé");
+	chg_add (path);
+	chg_publish ();
 }
 
 /* ---------------------------------------------------------------------------
@@ -2865,6 +2960,11 @@ static void cp_report (struct batch *b)
 	if (b->mode == M_CUT && b->all && !b->err && !b->cancelled)
 		ui_clip_done_cut ();		/* deplaces : le presse-papiers ne les garde plus */
 	refresh ();				/* (la selection est gardee) */
+	for (long i = 0; i < b->n; i++)		/* les autres fenetres de Fichiers */
+		if (b->mode == M_DEL || b->it[i].move)
+			chg_add_parent (b->it[i].src);
+	chg_add (b->dir);
+	chg_publish ();
 	if (b->mode == M_DEL)
 		set_msg (b->cancelled ? "Suppression annulée" : b->err ? "Suppression interrompue" : "Supprimé");
 	else
@@ -3091,6 +3191,7 @@ static int paste_list (char *list, int mode, const char *dir)
 		if (mode != M_COPY && rename (src, dst) == 0)
 		{
 			moved++;		/* meme volume : sans copie */
+			chg_add_parent (src);
 			continue;
 		}
 		if (b->n >= CP_MAX)
@@ -3120,6 +3221,11 @@ static int paste_list (char *list, int mode, const char *dir)
 	{
 		load_dir ();
 		select_name (first);
+	}
+	if (moved)
+	{				/* (les lots : cp_report) */
+		chg_add (dir);
+		chg_publish ();
 	}
 	if (queued)
 		msg = 0;			/* (la bande de progression le dit) */
@@ -3824,10 +3930,12 @@ static void mouse_aux (void)
 			press_i = -1;
 		else if (labs (x - press_x) + labs (y - press_y) >= DRAG_PX && press_i < nents)
 		{
+			long gi = press_i;
 			make_full (press_i);
 			press_i = -1;
 			last_idx = -1;
 			ui_drag_start ((long) fullpath, -1, UDT_FILES);
+			drag_ghost (gi);
 			return;
 		}
 	}
@@ -3980,6 +4088,33 @@ static long ent_at (long x, long y)
 		i += (x - gx) / CELL_W;
 	}
 	return i < nents ? i : -1;
+}
+
+/* element glisse : son image sous le curseur (Elegant copie sa case de la fenetre : icone et nom,
+ * fond de la selection compris), le point appuye restant sous le curseur */
+static void drag_ghost (long i)
+{
+	long x, y, w, h;
+	if (view)
+	{				/* liste : l'icone et le nom de la ligne */
+		x = PAN_W + 6;
+		y = (i - scroll_) * line_h + body_y;
+		w = 42 + text_w (ent_shown (ent_ptr (i)), 13, ui.font) + 10;
+		if (w > 260)
+			w = 260;
+		h = line_h;
+	}
+	else
+	{
+		long c = i - scroll_ * cols;
+		x = (c % cols) * CELL_W + grid_x0 () + 3;
+		y = (c / cols) * CELL_H + body_y + 1;
+		w = CELL_W - 6;
+		h = CELL_H - 2;
+	}
+	if (y < body_y || y + h > ui.h - SB_H)
+		return;				/* (a moitie cache : le curseur seul) */
+	ui_drag_image (x, y, w, h, press_x - x, press_y - y);
 }
 
 /* des fichiers deposes (UDT_FILES) : dans le dossier pointe, sinon le dossier courant ; deplaces
@@ -4138,6 +4273,9 @@ int main (int argc, char **argv)
 	vol_sub = bus_subscribe ((long) BUS_TOPIC_VOLUME "*", 0);	/* montages et demontages : le bus */
 	if (vol_sub < 0)
 		vol_sub = 0;
+	chg_sub = bus_subscribe ((long) BUS_TOPIC_CHANGED, 0);	/* les autres fenetres de Fichiers */
+	if (chg_sub < 0)
+		chg_sub = 0;
 	last_poll = time_ms ();
 	vol_poll ();
 	draw ();
@@ -4165,7 +4303,10 @@ int main (int argc, char **argv)
 			on_drop ();
 		else if (t == WEV_BUS)
 		{				/* un volume monte ou demonte */
-			if (ui_ev_field (&ui, BEV_SUB) == vol_sub && vol_poll ())
+			long sub = ui_ev_field (&ui, BEV_SUB);
+			if (sub == vol_sub && vol_poll ())
+				draw ();
+			else if (chg_sub && sub == chg_sub && chg_seen (ui_ev_field (&ui, BEV_TOPIC)))
 				draw ();
 		}
 		else if (t == WEV_WHEEL)

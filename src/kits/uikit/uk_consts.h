@@ -294,6 +294,9 @@
 #define WS_DAMAGE_MAX 58
 #define WS_OP_SURFACE_OVER 38
 #define WS_OVER_MAX 32
+#define WS_OP_DRAG_IMAGE 39
+#define WS_DRAG_IMG_W 256
+#define WS_DRAG_IMG_H 160
 /* bus.inc */
 #define BUS_OP_PUBLISH 1
 #define BUS_OP_SUBSCRIBE 2

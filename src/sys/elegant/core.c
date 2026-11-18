@@ -454,8 +454,9 @@ void compose_clip(void)
 		}
 	}
 	policy->front();
-	long cx = cur_x - 8, cy = cur_y - 10; /* le curseur, s'il touche la zone */
-	if (cx >= clip_r.x1 || cy >= clip_r.y1 || cx + 20 <= clip_r.x0 || cy + 29 <= clip_r.y0)
+	long cx, cy, cw, ch; /* le curseur (et l'image d'un glisser), s'il touche la zone */
+	cursor_box(&cx, &cy, &cw, &ch);
+	if (cx >= clip_r.x1 || cy >= clip_r.y1 || cx + cw <= clip_r.x0 || cy + ch <= clip_r.y0)
 		return;
 	draw_cursor();
 }
@@ -568,6 +569,7 @@ void draw_cursor(void)
 {
 	if (lock_win) /* (souris relative : pas de curseur) */
 		return;
+	draw_ghost(); /* (un glisser-déposer en cours : l'élément sous le curseur) */
 	long hx, hy;
 	const u8 *shape = cursor_pick(&hx, &hy); /* forme (uikit_ops.c), point chaud */
 	long px = cur_x - hx, py = cur_y - hy;
@@ -837,10 +839,10 @@ static void push_close(struct win *w)
 void mouse(long x, long y, long buttons)
 {
 	/* ancien curseur sale (formes : le point chaud jusqu'à 8, 10 dans la forme) */
-	dirty(cur_x - 8, cur_y - 10, 20, 29);
+	pointer_dirty();
 	cur_x = x;
 	cur_y = y;
-	dirty(x - 8, y - 10, 20, 29);
+	pointer_dirty();
 	long old = cur_buttons;
 	cur_buttons = buttons;
 	long down = buttons & ~old; /* appuyés */
@@ -1275,6 +1277,7 @@ void req_handle(long n)
 	case WS_OP_CURSOR_GET: r = req_cursor_get(); break;
 	case WS_OP_POINTER_LOCK: r = req_pointer_lock(); break;
 	case WS_OP_DRAG: r = req_drag(); break;
+	case WS_OP_DRAG_IMAGE: r = req_drag_image(); break;
 	case WS_OP_DROP_GET: r = req_drop_get(); break;
 	case WS_OP_SURFACE_ATTACH: r = req_surface_attach(); break; /* (surface.c) */
 	case WS_OP_SURFACE_DAMAGE: r = req_surface_damage(); break;

@@ -146,3 +146,10 @@ WS_DAMAGE_MAX		= 58		; rectangles par message (464 / 8)
 WS_OP_SURFACE_OVER	= 38		; a id, b nombre (0 : aucune ; WS_OVER_MAX au plus) ;
 					; donnees : x, y, l, h (16 bits) par zone, dans le contenu -> 0
 WS_OVER_MAX		= 32
+; Image du glisser-deposer (18/11/2026) : apres WS_OP_DRAG, un rectangle du contenu de la fenetre (l'element
+; glisse : icone et nom) qu'Elegant copie et dessine en transparence sous le curseur jusqu'au relache ;
+; le point (hx, hy) de ce rectangle suit le curseur. Sans elle : le curseur seul, comme avant.
+WS_OP_DRAG_IMAGE	= 39		; a id, b x | y << 16 | largeur << 32 | hauteur << 48 (contenu),
+					; c hx | hy << 32 -> 0 ; E_INVAL : pas de glisser en cours
+WS_DRAG_IMG_W		= 256		; (Elegant coupe le rectangle a cette taille)
+WS_DRAG_IMG_H		= 160

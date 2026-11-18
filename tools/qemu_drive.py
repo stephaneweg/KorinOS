@@ -12,6 +12,7 @@ Le script contient une commande par ligne :
   mclick <shift|ctrl> <x> <y>  (clic, la touche tenue)
   wheel <x> <y> <crans>     (molette, > 0 : vers le haut)
   drag <x1> <y1> <x2> <y2>
+  press <x> <y> / release <x> <y>  (bouton gauche tenu, puis lache : capture pendant un glisser)
   key <touches QEMU>        (ex. 'a', 'shift-a', 'ret', 'spc', 'backspace')
   type <texte>              (lettres/chiffres/espaces, disposition US cote QEMU)
   shot <fichier.png>
@@ -170,6 +171,10 @@ def main():
                     q.btn(False, b)
                     time.sleep(0.1)
                 time.sleep(0.2)
+            elif op in ("press", "release"):    # bouton gauche tenu / lache en x, y
+                q.abs(int(parts[1]), int(parts[2]))
+                time.sleep(0.15)
+                q.btn(op == "press")
             elif op == "drag":
                 x1, y1, x2, y2 = map(int, parts[1:5])
                 q.abs(x1, y1)

@@ -293,6 +293,32 @@ ui_drag_start:
 	ldp	x19,x20,[sp],16
 	epilogue
 
+; ui_drag_image : x0, x1, x2, x3 = rectangle du contenu de la fenetre courante (l'element glisse),
+; x4, x5 = son point sous le curseur : apres ui_drag_start, Elegant le dessine en transparence sous
+; le curseur jusqu'au relache (WS_OP_DRAG_IMAGE) -> 0
+ui_drag_image:
+	prologue
+	and	x0,x0,0xFFFF			; b = x | y << 16 | l << 32 | h << 48
+	and	x1,x1,0xFFFF
+	and	x2,x2,0xFFFF
+	and	x3,x3,0xFFFF
+	orr	x0,x0,x1,lsl 16
+	orr	x0,x0,x2,lsl 32
+	orr	x0,x0,x3,lsl 48
+	mov	w4,w4				; c = hx | hy << 32
+	orr	x4,x4,x5,lsl 32
+	stp	x0,x4,[sp,-16]!
+	bl	uk_win
+	ldp	x1,x2,[sp],16
+	adr	x9,uk_msg
+	str	x0,[x9,WM_A]
+	str	x1,[x9,WM_B]
+	str	x2,[x9,WM_C]
+	str	wzr,[x9,WM_LEN]
+	mov	x0,WS_OP_DRAG_IMAGE
+	bl	uk_call
+	epilogue
+
 ; x0 = tampon, x1 = taille -> x0 = octets du dernier depot (texte termine
 ; par NUL), x1 = son genre
 ui_drop_get:
