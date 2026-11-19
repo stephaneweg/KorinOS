@@ -510,6 +510,12 @@ Découpage décidé le 29/10/2026 : trois kits, chacun chargé seulement par qui
       Les mots de passe des connexions nommées ne doivent pas être en clair dans un fichier lisible
       par tous : à concevoir avec l'authentification (chantier de la fin), par exemple un service
       qui garde les secrets et ouvre la connexion pour le programme.
+      **Mis à jour le 19/11** : il vient **en premier pour l'app de base de données** (docs/BUREAUTIQUE.md
+      « À venir », comme Access) : d'abord le pilote **SQLite** seul (le moteur est déjà construit pour Python,
+      `tools/python/build.sh` : il passe dans le kit), puis **SQL Server** (protocole TDS), **MySQL / MariaDB**,
+      **PostgreSQL**. Écrit en **C**, comme les kits portés depuis (plus en assembleur). Les identifiants des
+      connexions nommées vont dans le **coffre à secrets** (docs/KEYVAULT.md, fait depuis), le TLS par OpenSSL
+      (déjà porté). Le nom reste à confirmer : SqlKit (décidé le 29/10) ou DBKit.
 
 ## Chantier perf (remplace le chantier IPC, 30/10/2026)
 
@@ -830,3 +836,8 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
 - [x] **Toute la RAM** : fait le 29/10/2026 (memmap.asm, pmm.asm, zones basse et haute, voir plus haut).
 - [ ] Application **Journal** (le journal du noyau en direct).
 - [ ] Idée seulement : personnalités (serveur exec) — par exemple des binaires Linux.
+
+- [ ] **Bureautique, trois apps de plus** (demandé le 19/11, docs/BUREAUTIQUE.md « À venir ») : **diagrammes** comme
+      Visio (formes, connecteurs, gabarits, vsdx) ; **base de données** comme Access sur **SQLite** (concepteurs de
+      tables, de requêtes avec jointures, de formulaires ; vues, états) ; **carnet de notes** comme OneNote (pages
+      libres : texte, images collées, fichiers joints, URL ouvertes dans Jet).

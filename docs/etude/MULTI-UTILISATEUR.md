@@ -3,7 +3,9 @@
 État (17/11/2026) : **étapes 1 à 4 faites** (§3) sur le PC : arbre unique à la Unix, `HOME:` par uid, uid dans le
 noyau du PC, règles d'accès de vfs, authd, sudo, passwd, `/sbin`, pkgd démon. **Étape 6 faite pour l'essentiel** :
 comptes (`useradd`, `userdel`, `usermod`), écran de connexion `/sys/login`, Réglages › Utilisateurs ; reste le
-verrou, fermer la session, changer d'utilisateur, `/home` → `/home/<nom>` et les accès distants par comptes.
+verrou, fermer la session, changer d'utilisateur et les accès distants par comptes. (`/home/<nom>` est déjà fait :
+l'installateur et `useradd` écrivent `home = /home/<nom>` ; seul le compte `user` du `skel/pc/etc/users.ini` des
+installations de développement, `korin.ps1`, garde `home = /home` — vérifié le 19/11.)
 **Étape 5 à faire** : les règles sont en `access = log` par défaut (rien n'est refusé, les écarts vont au journal).
 Le noyau asm du Pi n'a pas encore d'uid. Demande : des dossiers par utilisateur dans `/home`, comme sous
 Unix, et un utilisateur système, seul autorisé à modifier `/bin`, `/apps`, `/sys` et `/etc`, quitte à demander une

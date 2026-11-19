@@ -255,7 +255,7 @@ static void applyOp (Doc &d, std::vector<int> &rank, const Feature &f, int fi, c
 {
 	if (f.op == OP_NEW) {
 		Body b;
-		b.name = "Corps " + std::to_string (rank.size () + 1);
+		b.name = trUi ("Corps ") + std::to_string (rank.size () + 1);
 		if (rank.empty ()) b.name = d.name;
 		b.shape = tool;
 		b.color = (int) rank.size ();
@@ -349,7 +349,7 @@ int replay (Doc &d, double deflection)
 		try {
 			for (auto &e : f.expr) {	// (les valeurs données par une formule : les paramètres du moment)
 				double v;
-				if (!evalExpr (d, e.second.c_str (), v)) throw Fail { "formule illisible ou paramètre inconnu : " + e.second };
+				if (!evalExpr (d, e.second.c_str (), v)) throw Fail { trUi ("formule illisible ou paramètre inconnu : ") + e.second };
 				featureSet (f, e.first, v);
 			}
 			switch (f.kind) {
@@ -481,7 +481,7 @@ int replay (Doc &d, double deflection)
 			default: throw Fail { "opération inconnue" };
 			}
 		} catch (const Fail &x) {
-			f.error = x.msg, errors++;
+			f.error = trUi (x.msg.c_str ()), errors++;
 		} catch (const Standard_Failure &x) {
 #if OCC_VERSION_HEX >= 0x080000
 			f.error = std::string ("OpenCASCADE : ") + x.what ();
@@ -518,35 +518,35 @@ std::string fmtNum (double v)
 const char *opName (Op o)
 {
 	switch (o) {
-	case OP_NEW: return "nouveau corps";
-	case OP_JOIN: return "joindre";
-	case OP_CUT: return "enlever";
-	case OP_INTERSECT: return "intersection";
+	case OP_NEW: return trUi ("nouveau corps");
+	case OP_JOIN: return trUi ("joindre");
+	case OP_CUT: return trUi ("enlever");
+	case OP_INTERSECT: return trUi ("intersection");
 	}
 	return "";
 }
 
 std::string featureDetail (const Feature &f)
 {
-	std::string n = std::to_string (f.edges.size ()) + (f.edges.size () > 1 ? " arêtes" : " arête");
+	std::string n = std::to_string (f.edges.size ()) + (f.edges.size () > 1 ? trUi (" arêtes") : trUi (" arête"));
 	switch (f.kind) {
 	case ST_BOX: return fmtNum (f.a) + " × " + fmtNum (f.b) + " × " + fmtNum (std::fabs (f.c)) + " · " + opName (f.op);
 	case ST_CYLINDER: return "Ø " + fmtNum (2 * f.a) + " × " + fmtNum (std::fabs (f.c)) + " · " + opName (f.op);
 	case ST_FILLET: return "R " + fmtNum (f.a) + " · " + n;
 	case ST_CHAMFER: return fmtNum (f.a) + " · " + n;
-	case ST_PUSH: return (f.a > 0 ? "tirer " : "pousser ") + fmtNum (std::fabs (f.a)) + " mm";
-	case ST_HOLE: return "Ø " + fmtNum (f.d1) + (f.d2 > f.d1 ? " / Ø " + fmtNum (f.d2) : "") + (f.c > 0 ? " · prof. " + fmtNum (f.c) : " · traversant") + " · "
-		+ std::to_string (f.pos.size () / 2) + (f.pos.size () > 2 ? " trous" : " trou");
-	case ST_SLOT: return "oblong " + fmtNum (f.a) + " × " + fmtNum (f.b) + " · à travers";
-	case ST_SKETCH: return std::to_string (f.sk.geos.size ()) + " éléments, " + std::to_string (f.sk.cons.size ()) + " contraintes"
-		+ (f.sk.dof == 0 ? " · contrainte" : f.sk.dof > 0 ? " · " + std::to_string (f.sk.dof) + " DDL" : "");
-	case ST_EXTRUDE: return fmtNum (std::fabs (f.a)) + " mm" + (f.a < 0 ? " vers le bas" : "") + " · " + opName (f.op);
+	case ST_PUSH: return (f.a > 0 ? trUi ("tirer ") : trUi ("pousser ")) + fmtNum (std::fabs (f.a)) + " mm";
+	case ST_HOLE: return "Ø " + fmtNum (f.d1) + (f.d2 > f.d1 ? " / Ø " + fmtNum (f.d2) : "") + (f.c > 0 ? trUi (" · prof. ") + fmtNum (f.c) : trUi (" · traversant")) + " · "
+		+ std::to_string (f.pos.size () / 2) + (f.pos.size () > 2 ? trUi (" trous") : trUi (" trou"));
+	case ST_SLOT: return trUi ("oblong ") + fmtNum (f.a) + " × " + fmtNum (f.b) + trUi (" · à travers");
+	case ST_SKETCH: return std::to_string (f.sk.geos.size ()) + trUi (" éléments, ") + std::to_string (f.sk.cons.size ()) + trUi (" contraintes")
+		+ (f.sk.dof == 0 ? trUi (" · contrainte") : f.sk.dof > 0 ? " · " + std::to_string (f.sk.dof) + trUi (" DDL") : "");
+	case ST_EXTRUDE: return fmtNum (std::fabs (f.a)) + " mm" + (f.a < 0 ? trUi (" vers le bas") : "") + " · " + opName (f.op);
 	case ST_REVOLVE: return fmtNum (f.a) + "° · " + opName (f.op);
-	case ST_SHELL: return "épaisseur " + fmtNum (f.a) + " · " + std::to_string (f.faces.size ()) + (f.faces.size () > 1 ? " faces ouvertes" : " face ouverte");
-	case ST_PATTERN: return std::to_string (f.count) + " exemplaires · " + (f.mode == 0 ? "pas " + fmtNum (f.a) + " mm" : fmtNum (f.a) + "°");
-	case ST_MIRROR: return std::string ("symétrie · ") + (f.op == OP_JOIN ? "jointe" : "nouveau corps");
-	case ST_UNION: return "deux corps joints";
-	case ST_CUT: return "un corps retiré d'un autre";
+	case ST_SHELL: return trUi ("épaisseur ") + fmtNum (f.a) + " · " + std::to_string (f.faces.size ()) + (f.faces.size () > 1 ? trUi (" faces ouvertes") : trUi (" face ouverte"));
+	case ST_PATTERN: return std::to_string (f.count) + trUi (" exemplaires · ") + (f.mode == 0 ? trUi ("pas ") + fmtNum (f.a) + " mm" : fmtNum (f.a) + "°");
+	case ST_MIRROR: return std::string (trUi ("symétrie · ")) + (f.op == OP_JOIN ? trUi ("jointe") : trUi ("nouveau corps"));
+	case ST_UNION: return trUi ("deux corps joints");
+	case ST_CUT: return trUi ("un corps retiré d'un autre");
 	default: return "";
 	}
 }
@@ -557,7 +557,7 @@ std::string featureName (const Doc &d, StepKind k)
 		"Coque", "Réseau", "Symétrie" };
 	int n = 1;
 	for (auto &f : d.feats) n += f.kind == k;
-	return std::string (N[k]) + " " + std::to_string (n);
+	return std::string (trUi (N[k])) + " " + std::to_string (n);
 }
 
 // ---- l'exemple --------------------------------------------------------------------------------------------------
@@ -578,31 +578,31 @@ static EdgeRef er (double x, double y, double z, double tx, double ty, double tz
 void sampleDoc (Doc &d)
 {
 	d = Doc ();
-	d.name = "Équerre";
+	d.name = trUi ("Équerre");
 	auto add = [&] (Feature f) { d.feats.push_back (f); };
 	Feature f;
-	f.kind = ST_BOX, f.name = "Boîte 1", f.op = OP_NEW, f.frame = frame (45, 30, 0), f.a = 90, f.b = 60, f.c = 8;
+	f.kind = ST_BOX, f.name = std::string (trUi ("Boîte")) + " 1", f.op = OP_NEW, f.frame = frame (45, 30, 0), f.a = 90, f.b = 60, f.c = 8;
 	add (f);
 	f = Feature ();
-	f.kind = ST_FILLET, f.name = "Congé 1", f.body = 0, f.a = 8, f.edges = { er (0, 0, 4, 0, 0, 1), er (90, 0, 4, 0, 0, 1) };
+	f.kind = ST_FILLET, f.name = std::string (trUi ("Congé")) + " 1", f.body = 0, f.a = 8, f.edges = { er (0, 0, 4, 0, 0, 1), er (90, 0, 4, 0, 0, 1) };
 	add (f);
 	f = Feature ();
-	f.kind = ST_BOX, f.name = "Boîte 2", f.op = OP_JOIN, f.body = 0, f.frame = frame (45, 56, 8), f.a = 90, f.b = 8, f.c = 37;
+	f.kind = ST_BOX, f.name = std::string (trUi ("Boîte")) + " 2", f.op = OP_JOIN, f.body = 0, f.frame = frame (45, 56, 8), f.a = 90, f.b = 8, f.c = 37;
 	add (f);
 	f = Feature ();
-	f.kind = ST_FILLET, f.name = "Congé 2", f.body = 0, f.a = 12, f.edges = { er (0, 56, 45, 0, 1, 0), er (90, 56, 45, 0, 1, 0) };
+	f.kind = ST_FILLET, f.name = std::string (trUi ("Congé")) + " 2", f.body = 0, f.a = 12, f.edges = { er (0, 56, 45, 0, 1, 0), er (90, 56, 45, 0, 1, 0) };
 	add (f);
 	f = Feature ();
-	f.kind = ST_FILLET, f.name = "Congé 3", f.body = 0, f.a = 6, f.edges = { er (45, 52, 8, 1, 0, 0) };
+	f.kind = ST_FILLET, f.name = std::string (trUi ("Congé")) + " 3", f.body = 0, f.a = 6, f.edges = { er (45, 52, 8, 1, 0, 0) };
 	add (f);
 	f = Feature ();
-	f.kind = ST_CYLINDER, f.name = "Cylindre 1", f.op = OP_CUT, f.body = 0, f.frame = frame (45, 50, 30, 0, 1, 0), f.a = 11, f.c = 12;
+	f.kind = ST_CYLINDER, f.name = std::string (trUi ("Cylindre")) + " 1", f.op = OP_CUT, f.body = 0, f.frame = frame (45, 50, 30, 0, 1, 0), f.a = 11, f.c = 12;
 	add (f);
 	f = Feature ();
-	f.kind = ST_HOLE, f.name = "Perçage 1", f.op = OP_CUT, f.body = 0, f.frame = frame (0, 0, 8), f.d1 = 9, f.d2 = 14, f.dep2 = 3, f.pos = { 15, 22, 75, 22 };
+	f.kind = ST_HOLE, f.name = std::string (trUi ("Perçage")) + " 1", f.op = OP_CUT, f.body = 0, f.frame = frame (0, 0, 8), f.d1 = 9, f.d2 = 14, f.dep2 = 3, f.pos = { 15, 22, 75, 22 };
 	add (f);
 	f = Feature ();
-	f.kind = ST_SLOT, f.name = "Oblong 1", f.op = OP_CUT, f.body = 0, f.frame = frame (45, 26, 8), f.a = 19, f.b = 9;
+	f.kind = ST_SLOT, f.name = std::string (trUi ("Oblong")) + " 1", f.op = OP_CUT, f.body = 0, f.frame = frame (45, 26, 8), f.a = 19, f.b = 9;
 	add (f);
 	d.bar = (int) d.feats.size ();
 }

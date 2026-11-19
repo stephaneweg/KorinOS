@@ -57,6 +57,7 @@
 using namespace forge;
 
 #define TR(s) ((const char *) ui_tr ((long) (s)))
+const char *forge::trUi (const char *s) { return TR (s); }
 
 namespace {
 
@@ -237,7 +238,7 @@ void renderView ()
 	char s[160];
 	int tris = 0;
 	for (auto &b : g_doc.bodies) tris += (int) b.mesh.triFace.size ();
-	snprintf (s, sizeof s, "%s%d triangles   ·   rendu %.0f ms   ·   Accrochage %s mm   ·   mm", mcp::running () ? "Agent (MCP)   ·   " : "", tris, g_view.lastMs,
+	snprintf (s, sizeof s, TR ("%s%d triangles   ·   rendu %.0f ms   ·   Accrochage %s mm   ·   mm"), mcp::running () ? "Agent (MCP)   ·   " : "", tris, g_view.lastMs,
 		  fmtNum (g_snap).c_str ());
 	ui_w_set_text (w_stats, (long) s);
 }
@@ -370,7 +371,7 @@ void panelRows (const std::vector<std::pair<std::string, std::string>> &rows, in
 {
 	for (int i = 0; i < 8; i++) {
 		bool on = i < (int) rows.size ();
-		ui_w_set_text (p_name[i], (long) (on ? rows[i].first.c_str () : ""));
+		ui_w_set_text (p_name[i], (long) (on ? TR (rows[i].first.c_str ()) : ""));
 		ui_w_set_text (p_val[i], (long) (on && i >= skipVal ? rows[i].second.c_str () : ""));
 	}
 }
@@ -447,7 +448,7 @@ void panelUpdate ()
 		ui_w_set_text (p_sub, (long) TR (HINT[g_cmd.tool][imin (g_cmd.stage, 2)]));
 		ui_w_set_text (p_sec, (long) TR ("Valeurs"));
 		std::vector<std::pair<std::string, std::string>> rows;
-		for (auto &c : g_cmd.chips) rows.push_back ({ TR (c.label), (c.text.empty () ? fmtNum (c.val) : c.text) + " mm" + (c.locked ? "  (tenue)" : "") });
+		for (auto &c : g_cmd.chips) rows.push_back ({ TR (c.label), (c.text.empty () ? fmtNum (c.val) : c.text) + " mm" + (c.locked ? TR ("  (tenue)") : "") });
 		bool hasOp = g_cmd.tool == T_BOX || g_cmd.tool == T_CYL || g_cmd.tool == T_EXTRUDE || g_cmd.tool == T_REVOLVE;
 		static const char *const OPS[4] = { "nouveau", "joindre", "enlever", "intersection" };
 		if (hasOp) rows.push_back ({ TR ("Opération"), std::string (TR (OPS[g_cmd.f.op])) + (g_cmd.opAuto ? TR (" · auto") : "") });
@@ -528,7 +529,7 @@ void panelUpdate ()
 		if (k.face >= 0) faceInfo (b, k.face, in);
 		else if (k.edge >= 0) edgeInfo (b, k.edge, in);
 		else bodyInfo (b, in);
-		if (g_sels.size () > 1) in.title = std::to_string (g_sels.size ()) + (k.edge >= 0 ? " arêtes" : " faces"), in.sub = b.name;
+		if (g_sels.size () > 1) in.title = std::to_string (g_sels.size ()) + (k.edge >= 0 ? TR (" arêtes") : TR (" faces")), in.sub = b.name;
 		ui_w_set_text (p_title, (long) in.title.c_str ());
 		ui_w_set_text (p_sub, (long) in.sub.c_str ());
 		ui_w_set_text (p_sec, (long) TR ("Mesures"));
@@ -772,7 +773,7 @@ void cmdStart (Tool t)
 		std::string err;
 		if (skFaces (g_doc.feats[ref].sk, err).IsNull ()) {
 			g_cmd = Cmd ();
-			status ((std::string (TR ("L'esquisse n'a ")) + err + ".").c_str ());
+			status (TR (("L'esquisse n'a " + err + ".").c_str ()));
 			return;
 		}
 		double o[3], d[3];
@@ -1812,7 +1813,7 @@ void skPanel ()
 	std::string title = g_sm.edit >= 0 ? g_doc.feats[g_sm.edit].name : featureName (g_doc, ST_SKETCH);
 	ui_w_set_text (p_title, (long) title.c_str ());
 	const double *n = s.plane.n;
-	std::string pl = std::fabs (n[2]) > 0.999 && s.body < 0 ? "plan XY" : s.body >= 0 ? "sur une face" : "plan";
+	std::string pl = std::fabs (n[2]) > 0.999 && s.body < 0 ? TR ("plan XY") : s.body >= 0 ? TR ("sur une face") : TR ("plan");
 	std::string state;
 	if (!g_sm.message.empty ()) state = "⚠ " + g_sm.message;
 	else if (s.geos.empty ()) state = TR ("Dessinez : L ligne, R rectangle, C cercle, A arc.");
@@ -2008,7 +2009,7 @@ void timelinePaint (long, long w, long h)
 	ui_fill (bx, 6, 3, (int) h - 12, jet (TJ_ACCENT));
 	ui_fill (bx - 4, 3, 11, 5, jet (TJ_ACCENT));
 	char s[64];
-	snprintf (s, sizeof s, "%d étapes", (int) g_doc.feats.size ());
+	snprintf (s, sizeof s, TR ("%d étapes"), (int) g_doc.feats.size ());
 	long tw = ui_text_width ((long) s, 12, (long) ui.font);
 	ui_fill (w - 104, 1, 104, h - 1, jet (TJ_FACE));
 	ui_text ((long) s, w - 16 - tw, h / 2 + 5, jet (TJ_TEXT3), 12, (long) ui.font, 0);
@@ -2226,7 +2227,7 @@ long onResize (long, long)
 
 const char MENUS[] =
 	"MFichier\n" "I13c\tPiloter par un agent (MCP)…\n" "-\n" "I9\tQuitter\tCtrl+Q\n"
-	"MÉdition\n" "I10\tAnnuler\tCtrl+Z\n" "I11\tRétablir\tCtrl+Y\n" "-\n" "I12\tSupprimer l'étape\n"
+	"MÉdition\n" "I10\tAnnuler l'étape\tCtrl+Z\n" "I11\tRétablir l'étape\tCtrl+Y\n" "-\n" "I12\tSupprimer l'étape\n"
 	"MAffichage\n" "I20\tVue de face\tAlt+1\n" "I21\tVue de dessus\tAlt+2\n" "I22\tVue de droite\tAlt+3\n"
 	"I23\tVue isométrique\tAlt+0\n" "-\n" "I24\tAjuster\tF6\n" "-\n" "I25c\tArêtes\n" "I26c\tGrille\n" "-\n" "I45c\tAccrochage 1 mm\n" "I46c\tAccrochage 5 mm\n" "I47c\tAccrochage 10 mm\n"
 	"MCréer\n" "I37\tEsquisse (S)\n" "I38\tExtrusion (E)\n" "I39\tRévolution\n" "I41\tPerçage (H)\n" "-\n" "I30\tBoîte (B)\n" "I31\tCylindre\n" "-\n" "I32\tPousser/tirer (Q)\n"
@@ -2963,6 +2964,11 @@ int main (int argc, char **argv)
 		else if (!strcmp (argv[i], "--mcp-token") && i + 1 < argc) mcpTok = argv[++i], tokGiven = true;
 	}
 	if (!uikit_open (&ui)) return 1;
+	{	// (sa table en dernier : elle l'emporte sur le dictionnaire commun, où Réseau, Annuler, Terminer… ont un autre sens)
+		char lang[80];
+		snprintf (lang, sizeof lang, "/apps/forge.app/lang/%s.txt", (const char *) ui_lang ());
+		ui_tr_load ((long) lang);
+	}
 	g_ark = archivekit_kit_open () != 0;
 	sampleDoc (g_doc);
 	double t0 = nowMs ();

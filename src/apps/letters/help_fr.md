@@ -70,7 +70,7 @@ Pour les retraits, vous pouvez aussi tirer les marques de la règle : le triangl
 - **Fichier > Exporter en PDF...** fait un PDF de toutes les pages, de la page actuelle ou d'une plage (tapez `2-5`, ou `3` pour une seule page), avec des signets d'après les titres, un titre et un auteur.
 - **Fichier > Imprimer...** (Ctrl+P) ouvre le dialogue d'impression du système.
 
-Si Letters est fermé avec des modifications non enregistrées, le document est gardé : au lancement suivant, Letters propose de l'ouvrir.
+Fermer Letters avec des modifications non enregistrées demande s'il faut les enregistrer (Oui), les abandonner (Non) ou continuer (Annuler).
 
 ## Publipostage
 

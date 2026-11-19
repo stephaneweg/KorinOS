@@ -45,3 +45,10 @@ catégories par le contrat de control.h ; Réglages en hôte sur le Pi aussi. D�
 échoue (« Mot de passe refusé ») ; Tab puis Espace, ou Entrée, connecte. Même code des deux côtés : c'est l'activité du
 pavé (i2chid, IRQ IOAPIC, attente active de dw.c) pendant la connexion d'iwl (MSI, service(10), EAPOL en 6 s).
 Cause pas trouvée en lisant le code ; il faut les lignes `iwl :` du journal d'un échec. Mis de côté par l'utilisateur.
+
+**Plan, 19/11 — bureautique, trois apps « pro »** (docs/BUREAUTIQUE.md « À venir », FEUILLE-DE-ROUTE) : diagrammes
+comme Visio ; base de données comme Access sur SQLite (concepteurs de tables, requêtes avec jointures, vues,
+formulaires et leur concepteur ; Cardfile reste la base simple d'une table) ; carnet comme OneNote (images collées,
+fichiers joints, URL ouvertes dans Jet). Une étude DESIGN-<NOM>.md chacune avant le code ; rien de commencé.
+La base de données passe par un **kit** (19/11) : le SqlKit déjà prévu le 29/10 (FEUILLE-DE-ROUTE 8 bis), en C, SQLite
+d'abord puis SQL Server, MySQL, PostgreSQL ; identifiants dans le coffre ; nom SqlKit ou DBKit à confirmer.

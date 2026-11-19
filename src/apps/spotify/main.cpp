@@ -202,6 +202,8 @@ static void list_fill ()
 		snprintf (row, sizeof row, "%s\t%s\t%s\t%s", t.name.c_str (), t.artist.c_str (), t.album.c_str (), dur);
 		ui_list_add (g_list_w, (long) row, (long) i);
 	}
+	ui_w_draw (g_list_w);			// (la liste arrive du fil : sans cela elle reste blanche jusqu'au survol)
+	ui_update_all ();
 }
 
 static void start_list (int kind, const std::string &url)

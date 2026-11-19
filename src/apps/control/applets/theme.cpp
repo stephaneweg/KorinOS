@@ -72,8 +72,9 @@ static const char *const th_pat_labels[] = {
 static const char th_s_title[] = "Th\xC3\xA8me du bureau";
 static const char th_s_wp[] = "Fond d'\xC3\xA9" "cran";
 static const char th_s_tile[] = "Image en mosa\xC3\xAFque";
-static const char th_s_note[] = "Certaines applications ouvertes ne le";
-static const char th_s_note2[] = "prendront qu'\xC3\xA0 leur relance.";
+static const char th_s_note[] = "Certaines applications";	/* (trois lignes : une colonne fait COL_W) */
+static const char th_s_note2[] = "ouvertes ne le prendront";
+static const char th_s_note3[] = "qu'\xC3\xA0 leur relance.";
 static const char th_s_preview[] = "Aper\xC3\xA7u";
 static const char th_s_done[] = "Th\xC3\xA8me appliqu\xC3\xA9.";
 static const char th_s_accent[] = "Couleur d'accent";
@@ -560,6 +561,7 @@ static void th_open (void)
 	applet_row (th_s_tile, R_CHECK, 0, th_wp.tile);
 	applet_row (th_s_note, R_NOTE);
 	applet_row (th_s_note2, R_NOTE);
+	applet_row (th_s_note3, R_NOTE);
 }
 
 /* la copie de l'image à la taille de l'écran (cover : l'écran rempli ; tile : l'image, réduite à l'écran s'il le

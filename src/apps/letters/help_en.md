@@ -70,7 +70,7 @@ For indents, you can also drag the ruler's markers: the top triangle for the fir
 - **File > Export as PDF...** makes a PDF of all the pages, the current page or a range (type `2-5`, or `3` for a single page), with bookmarks from the headings, a title and an author.
 - **File > Print...** (Ctrl+P) opens the system's Print dialog.
 
-If Letters is closed with unsaved changes, the document is kept: at the next start, Letters offers to open it.
+Closing Letters with unsaved changes asks whether to save them (Yes), drop them (No) or keep working (Cancel).
 
 ## Mail Merge
 

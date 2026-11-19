@@ -2,7 +2,7 @@
   "os_list": [
     {
       "name": "Korin OS (lite)",
-      "description": "A 64-bit, micro-kernel based, desktop OS for the Raspberry Pi 4, written in assembly.",
+      "description": "A 64-bit microkernel desktop OS, written from scratch, for the Raspberry Pi 4 (also runs on x86-64 PCs).",
       "url": "https://stephaneweg.github.io/KorinOS/img/korin_lite.img.xz",
       "icon": "https://stephaneweg.github.io/KorinOS/assets/korin-os-40.png",
       "website": "https://stephaneweg.github.io/KorinOS/",
@@ -18,7 +18,7 @@
     },
     {
       "name": "Korin OS (full)",
-      "description": "A 64-bit, micro-kernel based, desktop OS for the Raspberry Pi 4, written in assembly.",
+      "description": "A 64-bit microkernel desktop OS, written from scratch, for the Raspberry Pi 4 (also runs on x86-64 PCs).",
       "url": "https://stephaneweg.github.io/KorinOS/img/korin_full.img.xz",
       "icon": "https://stephaneweg.github.io/KorinOS/assets/korin-os-40.png",
       "website": "https://stephaneweg.github.io/KorinOS/",

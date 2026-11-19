@@ -13,8 +13,8 @@ for xx in ("en", "fr"):
     vus, lignes = {}, []
     for f in [os.path.join(ROOT, "skel", "sd0", "res", "lang", xx + ".txt")] + sorted(
             glob.glob(os.path.join(ROOT, "src", "*", "*", "lang", xx + ".txt"))):
-        if os.sep + "fmtracker" + os.sep in f or not os.path.exists(f):
-            continue                                    # (FM Tracker charge le sien)
+        if any(os.sep + a + os.sep in f for a in ("fmtracker", "forge")) or not os.path.exists(f):
+            continue                                    # (FM Tracker et Forge chargent le leur)
         with open(f, encoding="utf-8") as h:
             for l in h.read().splitlines():
                 m = CLE.match(l)
