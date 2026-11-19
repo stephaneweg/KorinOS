@@ -56,7 +56,17 @@ namespace {
 struct ui_vars ui;
 Renderer R;
 void *g_ctx;
-struct gl_view g_view;
+// Le rendu : le GPU rend hors écran (une surface d'armgl à la taille de l'écran, la vue dans son coin), l'image est
+// relue (glReadPixels), les textes de UIKit y sont dessinés, puis elle est recopiée d'un coup dans la fenêtre
+// (ui_update_all), comme Cosmo Zoom. Elegant ne voit jamais une image à moitié faite : pas de scintillement (une
+// surface rendue directement dans la fenêtre, armgl_window, avec des textes posés par-dessus, scintillait sur le ZBook).
+struct GlTarget {
+	void *surf = nullptr;	// la surface hors écran
+	int capW = 0, capH = 0;	// sa taille
+	int w = 0, h = 0;	// la vue (la fenêtre) : le coin bas gauche de la surface, pour GL
+} g_view;
+std::vector<uint32_t> g_frame;	// l'image finie (0x00RRGGBB, ligne du haut d'abord)
+std::vector<uint8_t> g_read;	// (ce que rend glReadPixels)
 int g_mode;			// ARMGL_GPU / ARMGL_SOFT
 long g_win, g_winMain;		// la fenêtre (plein écran : une autre)
 bool g_full;
@@ -454,8 +464,8 @@ void placeView ()
 	int w = (int) ui.w, h = (int) ui.h;
 	if (w < 1) w = 1;
 	if (h < 1) h = 1;
-	armgl_make_current (g_ctx, g_view.surf);
-	gl_view_place (&g_view, g_win, 0, 0, w, h);
+	g_view.w = std::min (w, g_view.capW);
+	g_view.h = std::min (h, g_view.capH);
 	armgl_make_current (g_ctx, g_view.surf);
 }
 
@@ -516,6 +526,8 @@ const Recipe *furnaceRecipe ();
 int resultY ();
 std::string craftTipText ();
 
+void blendRect (int x, int y, int w, int h, unsigned rgb, int alpha);
+
 struct Zone {
 	int x, y, w, h;
 };
@@ -544,7 +556,6 @@ std::string hourText ()
 
 void panel (int x, int y, int w, int h)
 {
-	ui_fill (x, y, w, h, 0xFF000000u | jet (TJ_SURFACE));	// (autour des coins arrondis : transparent)
 	ui_rbox (x, y, w, h, 8, jet (TJ_LINE), jet (TJ_LINE));
 	ui_rbox (x + 1, y + 1, w - 2, h - 2, 7, jet (TJ_SURFACE), jet (TJ_SURFACE));
 	g_zones.push_back ({ x, y, w, h });
@@ -556,7 +567,7 @@ void craftText (const std::string &t, int x, int base, unsigned col, int size, l
 {
 	long w = ui_text_width ((long) t.c_str (), size, font);
 	int y = base - size - 2, h = size + 8;
-	if (clear) ui_fill (x - 2, y, (int) w + 4, h, 0xFF000000u | jet (TJ_SURFACE));
+	(void) clear;	// (le panneau, dessiné par le GPU, est déjà dessous)
 	ui_text ((long) t.c_str (), x, base, col, size, font, 0);
 	g_zones.push_back ({ x - 2, y, (int) w + 4, h });
 }
@@ -566,7 +577,7 @@ void craftTexts ()
 	long f = (long) ui.font, fb = (long) ui.font_b;
 	int x0 = C_.ox + PAD;
 	if (C_.book) {	// le livre des recettes, à la place des cases
-		ui_fill (C_.ox, C_.oy, PW, PH, 0xFF000000u | jet (TJ_SURFACE));
+		ui_fill (C_.ox, C_.oy, PW, PH, jet (TJ_SURFACE));
 		g_zones.push_back ({ C_.ox, C_.oy, PW, PH });
 		ui_text ((long) TR ("Livre des recettes"), x0, C_.oy + 28, jet (TJ_TEXT1), 15, fb, 0);
 		ui_text ((long) TR ("molette : faire défiler · clic ou R : refermer"), x0 + 170, C_.oy + 28, jet (TJ_TEXT3), 12, f, 0);
@@ -594,7 +605,7 @@ void craftTexts ()
 	if (!C_.msg.empty ()) {
 		long w = std::min ((long) PW, ui_text_width ((long) C_.msg.c_str (), 12, f) + 20);
 		int x = C_.ox + (PW - (int) w) / 2, y = C_.oy + PH + 8;
-		ui_fill (x, y, (int) w, 24, 0x50000000u | jet (TJ_SURFACE));
+		blendRect (x, y, (int) w, 24, jet (TJ_SURFACE), 175);
 		ui_text_fit ((long) C_.msg.c_str (), x + 10, y + 17, jet (TJ_TEXT1), 12, f, (int) w - 20);
 		g_zones.push_back ({ x, y, (int) w, 24 });
 	}
@@ -608,7 +619,23 @@ void craftTexts ()
 	}
 }
 
-void drawOverlay (bool force)
+// un rectangle à demi transparent (opacité 0 à 255), mélangé à l'image (la console, les messages)
+void blendRect (int x, int y, int w, int h, unsigned rgb, int alpha)
+{
+	int x0 = std::max (0, x), y0 = std::max (0, y), x1 = std::min ((int) ui.w, x + w), y1 = std::min ((int) ui.h, y + h);
+	unsigned a = (unsigned) alpha, ia = 255 - a;
+	unsigned cr = rgb >> 16 & 255, cg = rgb >> 8 & 255, cb = rgb & 255;
+	for (int yy = y0; yy < y1; yy++) {
+		uint32_t *p = ui.surf + (size_t) yy * ui.w;
+		for (int xx = x0; xx < x1; xx++) {
+			uint32_t d = p[xx];
+			p[xx] = ((d >> 16 & 255) * ia + cr * a) / 255 << 16 | ((d >> 8 & 255) * ia + cg * a) / 255 << 8 | ((d & 255) * ia + cb * a) / 255;
+		}
+	}
+}
+
+// les textes par-dessus la vue, dans l'image en cours (present)
+void drawTexts ()
 {
 	double t = nowMs ();
 	// ce qui est montré : ne redessiner que si cela change
@@ -642,31 +669,7 @@ void drawOverlay (bool force)
 		if (t - c.t < 12000 && !g_console) chat.push_back (c.text);
 	while (chat.size () > 6) chat.erase (chat.begin ());
 	bool flash = !g_flash.empty () && t - g_flashT < 1500;
-	std::string key = std::to_string (ui.w) + "x" + std::to_string (ui.h) + (g_locked ? "L" : "U") + (flash ? g_flash : "");
-	for (auto &s : lines) key += "\n" + s;
-	key += "\x01";
-	for (auto &s : chat) key += "\n" + s;
-	if (C_.open) {
-		std::string tip = craftTipText ();
-		key += "\x03" + tip + (tip.empty () ? std::string () : std::to_string (C_.mx / 6) + "," + std::to_string (C_.my / 6)) + C_.msg + (C_.book ? "B" : "") + std::to_string (C_.bookScroll) +
-		       std::to_string (C_.n) + std::to_string ((int) g.fuel) + (gridRecipe () ? gridRecipe ()->name : "") + (C_.cursor.empty () ? "" : "c");
-		for (auto &st : g.inv.s) key += (char) ('A' + (st.item & 31));
-	}
-	if (g_console) {
-		key += "\x02" + g_cin + std::to_string (g.console.size ());
-		key += ((long) (t / 530)) % 2 ? "|" : " ";	// (le curseur clignote)
-	}
-	if (!force && key == g_overlayKey) return;
-	g_overlayKey = key;
-	g_prevZones = g_zones;
 	g_zones.clear ();
-	// tout se dessine dans un tampon à part (UIKit dessine dans ui.surf : on le détourne, comme ui_canvas_begin),
-	// puis les zones finies sont recopiées d'un coup dans la fenêtre : Elegant, qui compose à tout moment, ne voit
-	// jamais un fond sans son texte (le scintillement)
-	static std::vector<uint32_t> back;
-	uint32_t *front = ui.surf;
-	back.assign ((size_t) (ui.w * ui.h), 0xFF000000u | jet (TJ_SURFACE));
-	ui.surf = back.data ();
 	int W = (int) ui.w, H = (int) ui.h;
 	long font = (long) ui.font;
 	const int LH = 19, SZ = 13;
@@ -688,15 +691,14 @@ void drawOverlay (bool force)
 		for (size_t i = 0; i < chat.size (); i++) ui_text_fit ((long) chat[i].c_str (), 24, y + 6 + LH * (int) i + 14, jet (TJ_TEXT1), SZ, font, w);
 	}
 	if (g_console) {
-		// la console, semi-transparente : un fond où l'octet haut de chaque pixel est sa transparence (Elegant mélange la
-		// vue du jeu dessous) ; le texte, lui, est opaque
+		// la console, semi-transparente : son fond mélangé à l'image ; le texte, opaque
 		const int N = 12;
 		int pw = std::min (W - 24, 900), ph = (N + 1) * LH + 22;
 		int x = 12, y = H - 78 - ph;
 		// (un fond sombre et un texte clair, quel que soit le thème : ses propres jetons, inversés en thème clair)
 		bool dark = g_jet[TJ_DARK / 4] != 0;
 		unsigned bg = dark ? jet (TJ_SURFACE) : jet (TJ_TEXT1), fg = dark ? jet (TJ_TEXT1) : jet (TJ_SURFACE), fg2 = dark ? jet (TJ_TEXT2) : jet (TJ_SUNKEN);
-		ui_fill (x, y, pw, ph, 0x58000000u | bg);
+		blendRect (x, y, pw, ph, bg, 167);
 		g_zones.push_back ({ x, y, pw, ph });
 		size_t first = g.console.size () > (size_t) N ? g.console.size () - N : 0;
 		long mono = ui_font_get (UFN_MONO);
@@ -704,7 +706,7 @@ void drawOverlay (bool force)
 			ui_text_fit ((long) g.console[i].c_str (), x + 12, y + 8 + LH * (int) (i - first) + 14,
 				     g.console[i].rfind ("> ", 0) == 0 ? fg : fg2, SZ, mono, pw - 24);
 		int ly = y + ph - LH - 6;
-		ui_fill (x + 8, ly - 2, pw - 16, LH + 2, 0x30000000u | bg);
+		blendRect (x + 8, ly - 2, pw - 16, LH + 2, bg, 120);
 		std::string in = "> " + g_cin + (((long) (t / 530)) % 2 ? "▏" : " ");
 		ui_text_fit ((long) in.c_str (), x + 12, ly + 13, fg, SZ, mono, pw - 24);
 	}
@@ -726,18 +728,6 @@ void drawOverlay (bool force)
 		ui_text ((long) a, (W - wa) / 2, y + 28, jet (TJ_ACCENT), 16, (long) ui.font_b, 0);
 		ui_text_fit ((long) b, std::max (x + 12, (W - wb) / 2), y + 52, jet (TJ_TEXT2), SZ, font, pw - 24);
 	}
-	ui.surf = front;
-	for (auto &z : g_zones) {
-		int x0 = std::max (0, z.x), y0 = std::max (0, z.y), x1 = std::min ((int) ui.w, z.x + z.w), y1 = std::min ((int) ui.h, z.y + z.h);
-		for (int y = y0; y < y1; y++) memcpy (front + (size_t) y * ui.w + x0, back.data () + (size_t) y * ui.w + x0, (size_t) (x1 - x0) * 4);
-	}
-	for (auto &z : g_zones) ui_update (z.x, z.y, z.w, z.h);
-	std::vector<uint16_t> rr;
-	for (size_t i = 0; i < g_zones.size () && i < 32; i++) {
-		rr.push_back ((uint16_t) g_zones[i].x), rr.push_back ((uint16_t) g_zones[i].y);
-		rr.push_back ((uint16_t) g_zones[i].w), rr.push_back ((uint16_t) g_zones[i].h);
-	}
-	ui_surface_overlay ((long) rr.data (), (long) (rr.size () / 4));
 }
 
 // ---- jouer ------------------------------------------------------------------------------------------------------
@@ -892,7 +882,7 @@ void chooseBlock ()
 // Par-dessus la vue (assombrie), un panneau dessiné par le GPU (render.cpp, CraftDraw) : en haut la table, une grille
 // 2 × 2 à la main ou 3 × 3 à l'établi, et son résultat ; le four à droite s'il y en a un près ; en bas l'inventaire,
 // le sac puis la barre. Les textes (titres, nom de l'objet survolé) sont posés par UIKit sur un fond transparent
-// (drawOverlay). La souris est rendue au joueur pendant ce temps.
+// (drawTexts, dans l'image en cours). La souris est rendue au joueur pendant ce temps.
 // Le glisser-déposer : appuyer sur une case prend sa pile (bouton droit : un seul objet), la lâcher sur une autre la
 // pose ; lâchée ailleurs, elle revient. Un clic sans glisser garde l'objet sous la souris, un second clic le pose.
 // Sur le résultat : le prendre (Maj : le plus possible, dans l'inventaire). 1 à 9 sur une case : vers cette case de la
@@ -1170,7 +1160,6 @@ void craftClose ()
 	C_.dragFrom = -1;
 	if (lost) gamePost (TR ("Inventaire plein : des objets sont perdus"));
 	selectSlot (g.selected);
-	drawOverlay (true);
 	lock ();
 }
 
@@ -1211,7 +1200,6 @@ void inventoryWindow (bool workbench)
 	craftPlace ();
 	unlock ();		// (la souris au joueur)
 	g_buttons = 0;
-	drawOverlay (true);
 }
 
 // ---- la console de commandes (T, / ou ²) ------------------------------------------------------------------------
@@ -1225,7 +1213,6 @@ void consoleOpen (const char *prefill)
 	unlock ();
 	if (g.console.empty ()) g.console.push_back (TR ("Console : help pour la liste des commandes, Échap pour fermer."));
 	if (g_selftest) printf ("terracube : [console] ouverte\n"), fflush (stdout);
-	drawOverlay (true);
 }
 
 void consoleClose ()
@@ -1444,8 +1431,7 @@ void handleEvent (long t)
 		long code = 0, taken = 0;
 		uikit_w_event (&code, &taken);
 		placeView ();
-		drawOverlay (true);
-		return;
+			return;
 	}
 	if (t == WEV_FOCUS) {
 		if ((long) ui_ev_field (&ui, EV_WIN) == g_win) {
@@ -1734,10 +1720,33 @@ bool gameStations (bool &workbench, bool &furnace)
 	return workbench || furnace;
 }
 
+// l'image rendue : relue, les textes dessinés dessus, puis recopiée d'un coup dans la fenêtre
+void present ()
+{
+	int w = g_view.w, h = g_view.h;
+	if (w < 1 || h < 1 || ui.w < 1 || ui.h < 1) return;
+	g_read.resize ((size_t) w * h * 4);
+	glPixelStorei (GL_PACK_ALIGNMENT, 4);
+	glReadPixels (0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, g_read.data ());
+	g_frame.resize ((size_t) (ui.w * ui.h));
+	int cw = std::min (w, (int) ui.w), chh = std::min (h, (int) ui.h);
+	for (int y = 0; y < chh; y++) {
+		const uint8_t *s = &g_read[(size_t) (h - 1 - y) * w * 4];	// (GL : la ligne du bas d'abord)
+		uint32_t *d = &g_frame[(size_t) y * ui.w];
+		for (int x = 0; x < cw; x++, s += 4) d[x] = (uint32_t) s[0] << 16 | (uint32_t) s[1] << 8 | s[2];
+	}
+	uint32_t *front = ui.surf;
+	ui.surf = g_frame.data ();	// (UIKit dessine dans ui.surf : les textes vont dans l'image, comme ui_canvas_begin)
+	drawTexts ();
+	ui.surf = front;
+	memcpy (front, g_frame.data (), g_frame.size () * 4);
+	ui_update_all ();
+}
+
 bool gameCapture (std::vector<uint32_t> &px, int &w, int &h, const double *eye, const float *yp)
 {
 	w = g_view.w, h = g_view.h;
-	if (w < 16 || h < 16 || !g_view.surf) return false;
+	if (w < 16 || h < 16 || !g_view.surf) return false;	// (une image à part : la vue du joueur ne change pas)
 	static void *off;
 	static int ow, oh;
 	if (!off || ow != w || oh != h) {
@@ -1917,7 +1926,7 @@ static void selftest ()
 		craftPlace ();
 		C_.open = true;
 		craftKey (0x15);
-		drawOverlay (true);
+			drawTexts ();
 		check (C_.book && !g_zones.empty (), "table : R ouvre le livre des recettes");
 		craftKey (0x15);
 		g.inv.s[8].item = PLANKS, g.inv.s[8].count = 1;
@@ -2031,7 +2040,8 @@ int main (int argc, char **argv)
 	g_ctx = armgl_context (3, 0, nullptr);
 	long scr[4] = { 1920, 1080, 0, 0 };
 	ui_screen ((long) scr);
-	if (!g_ctx || !gl_view_open (&g_view, g_win, 0, 0, (int) std::max (scr[0], sw), (int) std::max (scr[1], sh)) || !armgl_make_current (g_ctx, g_view.surf)) {
+	if (!g_ctx || !(g_view.capW = (int) std::max (scr[0], sw), g_view.capH = (int) std::max (scr[1], sh),
+					g_view.surf = armgl_surface (g_view.capW, g_view.capH)) || !armgl_make_current (g_ctx, g_view.surf)) {
 		ui_message ((long) "TerraCube", (long) TR ("Pas de surface OpenGL pour la fenêtre."), UM_OK);
 		return 1;
 	}
@@ -2078,7 +2088,8 @@ int main (int argc, char **argv)
 		R.updateMeshes (g.world, playerCamera (), g.distance, g_selftest ? 400 : 6);
 		freeChunks ();
 		renderTo (g_view.w, g_view.h, playerCamera ());
-		if (armgl_swap (g_view.surf) || armgl_lost ()) {
+		present ();
+		if (armgl_lost ()) {
 			fprintf (stderr, "terracube : image refusée ou GPU perdu\n");
 		}
 		frames++;
@@ -2086,7 +2097,6 @@ int main (int argc, char **argv)
 			g_fps = frames * 1000.0 / (now - fpsT);
 			frames = 0, fpsT = now;
 		}
-		drawOverlay (false);
 		if (g.edited && now - lastSave > 60000) {
 			gameSave (err);
 			lastSave = now;
