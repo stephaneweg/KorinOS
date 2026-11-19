@@ -150,7 +150,7 @@ static int clear_row (float x0, float x1, float y)
 
 /* ---- les entites ------------------------------------------------------------------------------------------ */
 enum { E_NONE, E_WALKER, E_SHOOTER, E_BAT, E_SPIDER, E_SHOT, E_DART, E_BOULDER, E_ROCK, E_CRUSHER, E_FLAME, E_SPIKES, E_DARTER,
-       E_ITEM, E_CHECK, E_EXIT, E_BULLET, E_DYN, E_CRUMB, E_FERN, E_CORPSE };
+       E_ITEM, E_CHECK, E_EXIT, E_BULLET, E_DYN, E_CRUMB, E_FERN, E_CORPSE, E_DECO };
 enum { IT_COIN, IT_GEM, IT_VASE, IT_RELIC, IT_AMMO, IT_DYN, IT_KEY, IT_LIFE };
 
 struct ent
@@ -298,6 +298,44 @@ static const struct sset *foe_set (int type, int v)
 {
 	struct sset *const *t = type == E_SHOOTER && g_cshoot[g_world][0] ? g_cshoot[g_world] : g_cfoe[g_world];
 	return v && t[1] ? t[1] : t[0];
+}
+
+/* le tileset d'un monde (tools/relics/mktiles.py) : world<n>.til -> g_til[n] ; 0 : pas de fichier */
+static const char *g_tildir = "/apps/relics.app/tiles";
+static int load_til (int w)
+{
+	char p[300];
+	snprintf (p, sizeof p, "%s/world%d.til", g_tildir, w);
+	int fd = open (p, O_RDONLY);
+	if (fd < 0) return 0;
+	unsigned char hd[8];
+	int ok = read (fd, hd, 8) == 8 && !memcmp (hd, "RTIL", 4) && hd[4] == 2 && (hd[6] | hd[7] << 8) == ET_N;
+	gf_sprite_t *im[ET_N];
+	for (int i = 0; i < ET_N && ok; i++)
+	{
+		unsigned char ih[8], run[6];
+		if (read (fd, ih, 8) != 8) { ok = 0; break; }
+		long w0 = ih[0] | ih[1] << 8, h0 = ih[2] | ih[3] << 8, nr = ih[4] | ih[5] << 8 | ih[6] << 16 | (long) ih[7] << 24;
+		if (w0 <= 0 || h0 <= 0 || w0 > 1024 || h0 > 512 || bank_left () < (unsigned long) (w0 * h0 * 4) + (4u << 20)) { ok = 0; break; }
+		gf_sprite_t *s = ga_new ((unsigned long) w0, (unsigned long) h0);
+		long at = 0, total = w0 * h0;
+		for (long k = 0; k < nr; k++)
+		{
+			if (read (fd, run, 6) != 6) { at = -1; break; }
+			long len = run[0] | run[1] << 8;
+			uint32_t v = (uint32_t) run[2] | (uint32_t) run[3] << 8 | (uint32_t) run[4] << 16 | (uint32_t) run[5] << 24;
+			if (at + len > total) { at = -1; break; }
+			for (long q = 0; q < len; q++) s[2 + at + q] = v;
+			at += len;
+		}
+		if (at != total) { ok = 0; break; }
+		im[i] = s;
+	}
+	close (fd);
+	if (!ok) return 0;
+	for (int i = 0; i < ET_N; i++) g_til[w][i] = im[i];
+	if (im[ET_BG][0] == BG_W && im[ET_BG][1] == BG_H) g_bg[w] = im[ET_BG] + 2;	/* (le fond, tout opaque) */
+	return 1;
 }
 
 /* l'image i du groupe g (bornee ; un groupe vide prend la marche) */
@@ -496,6 +534,23 @@ static void parse_level (int n)
 			int t = map_tile (c);
 			g_map[ty][tx] = (unsigned char) (t >= 0 ? t : g_bk[ty][tx] ? T_BACK : T_NONE);
 		}
+	/* des decors du tileset, semes sur les sols libres (ni objet, ni piege, ni bord) */
+	if (g_til[g_world][0])
+	{
+
+		for (int ty = 1; ty + 1 < g_mh; ty++)
+			for (int tx = 1; tx + 1 < g_mw; tx++)
+			{
+				char c = g_raw[ty][tx], below = g_raw[ty + 1][tx];
+				if ((c != '.' && c != ' ') || (below != '#' && below != '='))
+					continue;
+				if (g_raw[ty][tx - 1] != c || g_raw[ty][tx + 1] != c || hashu (tx, ty, 21) % 100 >= 11) continue;
+				int k = ET_DECO + (int) (hashu (tx, ty, 22) % 8);
+				const gf_sprite_t *im = g_til[g_world][k];
+				struct ent *e = ent_new (E_DECO, (float) (tx * TS) + TS / 2 - (float) im[0] / ZK / 2, (float) ((ty + 1) * TS) - (float) im[1] / ZK + 0.6f, (float) im[0] / ZK, (float) im[1] / ZK);
+				if (e) { e->kind = k; e->tx = tx; e->ty = ty; }
+			}
+	}
 	/* les entites (apres les cases : les araignees cherchent leur plafond) */
 	for (int ty = 0; ty < g_mh; ty++)
 		for (int tx = 0; tx < g_mw; tx++)
@@ -1624,9 +1679,15 @@ static void draw_ents (int pass)
 		{					/* derriere : sortie, points de passage, pieges de cases */
 			switch (e->type)
 			{
+			case E_DECO: blit_w (e->x, e->y, g_til[g_world][e->kind]); break;
 			case E_EXIT:
 				glow_w (e->x + 18, e->y + 26, g_lt_exit);
-				blit_w (e->x, e->y, g_sexit[g_world]);
+				if (g_til[g_world][0])
+				{
+					const gf_sprite_t *d = g_til[g_world][ET_DOOR];
+					ga_ablit (SX (e->x + 18) - (long) (d[0] >> 1), SY (e->y + 44) - (long) d[1] + 2, d);
+				}
+				else blit_w (e->x, e->y, g_sexit[g_world]);
 				break;
 			case E_CHECK:
 				blit_w (e->x, e->y, g_scheck[e->st]);
@@ -2126,6 +2187,7 @@ static void gen_sprites (void)
 		}
 	}
 	g_chero = load_spr ("hero.spr");
+
 	sp_k = 1;						/* (le bandeau, le titre : a leur taille) */
 	g_hheart = gen_heart ();
 	g_hbul = gen_bullet_icon ();
@@ -2137,6 +2199,18 @@ static void gen_sprites (void)
 	sp_tri (14, 1, 14, 21, 2, 11, 0x00FFD070);
 	sp_outline (0x00201008, 0.9f);
 	g_sarrow[1] = sp_mirror (g_sarrow[0], 0);
+}
+
+/* le tileset de chaque monde, s'il est la : ses tuiles (tile_get), son fond, ses palmiers, ses objets */
+static void use_tiles (void)
+{
+	for (int w = 0; w < NWORLD; w++)
+		if (load_til (w))
+		{
+			g_sfern[w] = g_til[w][ET_BIG];
+			g_svase[w] = g_til[w][ET_POT];
+		}
+	if (g_til[0][0]) { g_scoin = g_til[0][ET_COIN]; g_skey = g_til[0][ET_KEY]; }
 }
 
 static void gen_texts (void)
@@ -2169,6 +2243,7 @@ int main (void)
 		return 0;
 	g_bank0 = ga_bp;
 	gen_sprites ();
+	use_tiles ();
 	load_progress ();
 	gp_init (game_pause, game_resume, game_new, GF_W - 32, 0, on_pad);
 	ui_canvas_begin (gf_cv);

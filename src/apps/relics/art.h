@@ -758,6 +758,26 @@ enum { TK_BACK, TK_ROCK, TK_BRICK, TK_TRAPR, TK_TRAPB, TK_BREAK, TK_PLAT, TK_LAD
 #define TC_N		96
 static gf_sprite_t *g_tc[NWORLD][TK_N][TC_N];
 
+/* les tuiles et decors du tileset de l'utilisateur, par monde (tools/relics/mktiles.py, main.c load_til) : s'ils sont
+ * la, ils remplacent les tuiles dessinees du terrain (roche, mur du fond, planches, echelles, pointes, eau) */
+enum { ET_GRASS, ET_COBBLE, ET_BACKA, ET_BACKB, ET_PLANK, ET_LOGS, ET_LADDER, ET_SPIKES, ET_WSURF, ET_WMID, ET_DECO,
+       ET_BIG = ET_DECO + 8, ET_DOOR, ET_COIN, ET_POT, ET_KEY, ET_BG, ET_N };	/* (ET_DECO..+7 : les decors semes) */
+static gf_sprite_t *g_til[NWORLD][ET_N];
+
+/* une image du tileset dans la tuile en cours (TP x TP), en miroir si mirror (1 : de cote, 2 : de haut en bas) ;
+ * dx : decalage horizontal circulaire (les vagues) */
+static void til_copy (const gf_sprite_t *t, int mirror, int dx)
+{
+	int w = (int) t[0], h = (int) t[1];
+	for (int y = 0; y < TP && y < h; y++)
+		for (int x = 0; x < TP && x < w; x++)
+		{
+			int sx = mirror == 1 ? w - 1 - x : x, sy = mirror == 2 ? h - 1 - y : y;
+			sx = (sx + dx) % w;
+			sp_cur[2 + y * TP + x] = t[2 + sy * w + sx];
+		}
+}
+
 static inline uint32_t hashu (int x, int y, int k)
 {
 	unsigned h = (unsigned) x * 374761393u + (unsigned) y * 668265263u + (unsigned) k * 2246822519u;
@@ -856,6 +876,8 @@ static void tile_cap (int w, uint32_t cap, uint32_t ink, int x0)
 	sp_cap (2, 1.2f, 10, 1.2f, 0.6f, ga_shade (cap, 420));
 }
 
+static void back_shade (int sh);
+
 /* le mur du fond : de grosses pierres sombres ; sh : ombre du solide au-dessus (1), a gauche (2) */
 static void gen_back (const struct world *W, int v, int sh)
 {
@@ -874,6 +896,12 @@ static void gen_back (const struct world *W, int v, int sh)
 		sp_box_g (b[0] + 1.8f, b[1] + 1.8f, b[2] - 1.8f, b[3] - 1.8f, 3, ga_shade (sc, 120), ga_shade (sc, 92));
 		sp_cap (b[0] + 4, b[1] + 3, b[2] - 5, b[1] + 3, 0.6f, ga_shade (sc, 150));
 	}
+	back_shade (sh);
+}
+
+/* l'ombre du solide sur le mur du fond : au-dessus (1), a gauche (2) */
+static void back_shade (int sh)
+{
 	for (int y = 0; y < TP; y++)
 		for (int x = 0; x < TP; x++)
 		{
@@ -1180,6 +1208,30 @@ static gf_sprite_t *tile_get (int w, int kind, int sub)
 	sp_k = 1;
 	t = sp_new (TP, TP);
 	const struct world *W = &worlds[w];
+	gf_sprite_t *const *E = g_til[w];
+	if (E[0])
+		switch (kind)
+		{					/* le tileset de l'utilisateur */
+		case TK_BACK:
+			til_copy (E[sub % 3 == 1 ? ET_BACKB : ET_BACKA], sub % 3 == 2, 0);
+			back_shade (sub / 3);
+			goto done;
+		case TK_ROCK: case TK_TRAPR:
+		{
+			int mask = sub & 15;
+			til_copy (E[(mask & M_U) && kind == TK_ROCK ? ET_GRASS : ET_COBBLE], (sub >> 4) & 1, 0);
+			if (kind == TK_TRAPR)
+				for (int i = 0; i < 4; i++) sp_box (3.0f + (float) i * 7.5f, 3.2f, 5.6f + (float) i * 7.5f, 5.2f, 0.6f, 0x00100808);
+			tile_edges (mask, ink_of (w), kind == TK_ROCK ? sub >> 5 : 0);
+			goto done;
+		}
+		case TK_PLAT: til_copy (E[ET_PLANK], 0, 0); goto done;
+		case TK_LADDER: til_copy (E[ET_LADDER], 0, 0); goto done;
+		case TK_SPIKE: til_copy (E[ET_SPIKES], 0, 0); goto done;
+		case TK_SPIKEC: til_copy (E[ET_SPIKES], 2, 0); goto done;
+		case TK_LIQ: til_copy (E[ET_WMID], 0, 0); goto done;
+		case TK_LIQS: til_copy (E[ET_WSURF], 0, (sub & 3) * 8); goto done;
+		}
 	switch (kind)
 	{
 	case TK_BACK: gen_back (W, sub % 3, sub / 3); break;
@@ -1202,6 +1254,7 @@ static gf_sprite_t *tile_get (int w, int kind, int sub)
 	case TK_DECO: gen_deco (w, W, sub & 3); break;
 	case TK_JET: gen_jet (w, W); break;
 	}
+done:
 	sp_k = k;
 	g_tc[w][kind][sub] = t;
 	return t;

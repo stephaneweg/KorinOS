@@ -4,6 +4,7 @@
 #
 #   SPRITES=/chemin/des/personnages sh tools/relics/sprites.sh
 #
+# Les tuiles et decors : FOREST=/chemin/forest-tileset/png (tools/relics/mktiles.py -> data/tiles/world<n>.til).
 # SPRITES : un sous-dossier par personnage, chaque archive du paquet extraite dans le sien (« Black Wizard »,
 # « Medieval Sergeant »...). <monde> : 0 jungle, 1 pyramide, 2 glace, 3 volcan. hero.spr : l'explorateur
 # (tools/relics/explorer.py) ; foe<monde>.spr : le gardien qui marche ; shooter<monde>.spr : le tireur (sans lui,
@@ -13,6 +14,7 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 S=${SPRITES:?SPRITES : le dossier des personnages}
 O=$ROOT/src/apps/relics/data/sprites
 mkdir -p "$O"
+[ -z "${FOREST:-}" ] || python3 -I "$ROOT/tools/relics/mktiles.py" "$FOREST" "$ROOT/src/apps/relics/data/tiles"
 # les séquences PNG d'un personnage
 seq () { find "$S/$1" -type d -name "PNG Sequences" | head -1; }
 # l'explorateur : des morceaux du paquet, un chapeau et un revolver dessinés, animés par le Spriter du paquet
