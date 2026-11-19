@@ -1,6 +1,6 @@
 ---
 name: armpi-widevine
-description: "Widevine dans Jet : hôte Linux, jalon 1 fait (liblinux + linuxhost, QEMU PC) ; décisions du 19/11 prises ; module mesuré ; étapes 2b (capture des syscall) et 2c (requête de licence dans Korin) faites, QEMU ; docs/etude/WIDEVINE.md"
+description: "Widevine dans Jet : hôte Linux, jalon 1 fait (liblinux + linuxhost, QEMU PC) ; décisions du 19/11 prises ; module mesuré ; étapes 2b, 2c et 3 faites (licence réelle, audio déchiffré, vidéo décodée par le module, dans Korin sous QEMU) ; docs/etude/WIDEVINE.md"
 metadata:
   type: project
 ---
@@ -34,8 +34,14 @@ puis `test_pc.py --esp-src build/pc/linux/kbuild/esp`. **Étape 2c faite le 19/1
 glibc_thread.c, glibc_misc.c (177 imports servis), TLS (__tls_get_addr), .eh_frame déclaré à libgcc, /proc/self/maps
 fabriqué (hôte nommé libc.so.6), futex ; noyau PC : **arène haute** 0x1000_0000_0000-0x7000_0000_0000 (PartitionAlloc
 réserve 32 Go alignés sur 32 Go ; docs/ABI.md). Sonde Korin : `WIDEVINE_SO=… sh tools/linux/build.sh` puis
-`test_pc.py --probe --esp-src build/pc/linux/kbuild/esp` (module embarqué, build/ seulement). Suite : étape 3
-(UpdateSession avec une vraie licence, Decrypt, CreateFileIO, cdmhost et IPC), puis ZBook.
+`test_pc.py --probe --esp-src build/pc/linux/kbuild/esp` (module embarqué, build/ seulement).
+**Étape 3 faite le 19/11** (src/sys/cdmhost : host.cpp Host_10, cenc.cpp, cdmtest.cpp) : vraie licence du
+serveur de test de Shaka (« Angel One »), 5 clés ; **la vidéo ne sort jamais en clair** (Decrypt → kNoKey) :
+DecryptAndDecodeFrame rend des images I420 (H.264 en Annex B obligatoire, comme Chromium) ; l'audio sort en clair
+par Decrypt. Mêmes empreintes sous Linux et DANS Korin (QEMU avec netd et usb-net) : vidéo fabf757bb7928937, audio
+85bba6b1d46b3472. Refaire : `sh tools/linux/cdmtest.sh MODULE` (Linux) ; `sh tools/linux/build.sh` puis
+`WIDEVINE_SO=MODULE sh tools/linux/test_cdm_pc.sh` (disque d'essai effacé à la fin). Suite : serveur IPC de
+cdmhost + EME ClearKey dans Jet (étape 4), puis Widevine dans Jet (5), ZBook.
 
 Pièges : `linux` est une macro prédéfinie de gcc sous Linux (pas comme nom de champ) ; le canari de pile du code
 Linux (%fs:0x28) tombe dans le TCB de 64 octets de libposix, stable. Le module ne va jamais dans nos paquets.

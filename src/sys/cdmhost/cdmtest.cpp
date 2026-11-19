@@ -31,6 +31,9 @@
 #if defined(__linux__)
 #include <dlfcn.h>
 #else
+#include <armpi/syscall.h>
+
+#include "korin_sys_nr.h"
 #include "linux.h"
 #endif
 
@@ -42,14 +45,29 @@ extern "C" {
 
 static int s_fails;
 
+// empreinte FNV-1a 64 bits des sorties (comparée entre Linux et Korin : mêmes octets déchiffrés)
+static void fnv (uint64_t &h, const uint8_t *p, size_t n)
+{
+	for (size_t i = 0; i < n; i++)
+		h = (h ^ p[i]) * 0x100000001b3ULL;
+}
+
 static void say (const char *fmt, ...) __attribute__ ((format (printf, 1, 2)));
 static void say (const char *fmt, ...)
 {
+	char b[1024];
 	va_list ap;
 	va_start (ap, fmt);
-	vfprintf (stdout, fmt, ap);
+	int n = vsnprintf (b, sizeof b, fmt, ap);
 	va_end (ap);
+	if (n > (int) sizeof b - 1)
+		n = sizeof b - 1;
+	fwrite (b, 1, (size_t) n, stdout);
 	fflush (stdout);
+#if !defined(__linux__)
+	// (Korin : aussi dans le journal du noyau, pour l'essai sous QEMU lancé comme un service)
+	armpi_syscall (SYS_PRINT, (long) b, n, 0, 0, 0, 0);
+#endif
 }
 
 static void check (bool ok, const char *what)
@@ -102,7 +120,13 @@ static bool https_post (const std::string &url, const std::vector<uint8_t> &body
 	struct addrinfo hints = {}, *res = nullptr;
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
-	if (getaddrinfo (host.c_str (), "443", &hints, &res) || !res)
+	// (le réseau peut ne pas être prêt : jusqu'à 90 s d'attente)
+	for (int tries = 0; tries < 90 && (getaddrinfo (host.c_str (), "443", &hints, &res) || !res); tries++)
+	{
+		res = nullptr;
+		sleep (1);
+	}
+	if (!res)
 	{
 		say ("cdmtest : %s introuvable (réseau ?)\n", host.c_str ());
 		return false;
@@ -317,6 +341,7 @@ static bool load_stream (const char *path, const char *what, Stream &s)
 static void decrypt_pass (CdmHost &host, Stream &st, bool expect_refusal, bool verbose)
 {
 	int ok_n = 0, nokey = 0, errors = 0, enc_ok = 0, enc_n = 0;
+	uint64_t digest = 0xcbf29ce484222325ULL;
 #if defined(CDMTEST_AVCODEC)
 	bool aac = st.t.codec == 0x6d703461;	// 'mp4a'
 	const AVCodec *codec = avcodec_find_decoder (aac ? AV_CODEC_ID_AAC : AV_CODEC_ID_H264);
@@ -354,6 +379,8 @@ static void decrypt_pass (CdmHost &host, Stream &st, bool expect_refusal, bool v
 		{
 			ok_n++;
 			if (s.encrypted)
+				fnv (digest, out.DecryptedBuffer ()->Data (), out.DecryptedBuffer ()->Size ());
+			if (s.encrypted)
 				enc_ok++;
 #if defined(CDMTEST_AVCODEC)
 			if (dec_ok)
@@ -379,6 +406,8 @@ static void decrypt_pass (CdmHost &host, Stream &st, bool expect_refusal, bool v
 	}
 	say ("cdmtest : %s : Decrypt : %d rendus en clair (%d chiffrés sur %d), %d refusés (kNoKey), %d erreurs\n", st.what,
 	     ok_n, enc_ok, enc_n, nokey, errors);
+	if (enc_ok)
+		say ("cdmtest : %s : empreinte des échantillons déchiffrés %016llx\n", st.what, (unsigned long long) digest);
 	if (expect_refusal)
 		check (enc_ok == 0 && nokey == enc_n && !errors,
 		       "vidéo : Decrypt seul refusé par le module (la vidéo passe par DecryptAndDecodeFrame)");
@@ -416,6 +445,7 @@ static void decode_pass (CdmHost &host, Stream &st, bool verbose)
 	cdm::Status init = host.cdm->InitializeVideoDecoder (vc);
 	say ("cdmtest : %s : InitializeVideoDecoder (H.264 %dx%d) : statut %u\n", st.what, st.t.width, st.t.height, init);
 	int images = 0, need = 0, bad = 0, w = 0, h = 0;
+	uint64_t vdigest = 0xcbf29ce484222325ULL;
 	uint32_t fmt = 0;
 	for (size_t i = 0; init == cdm::kSuccess && i < st.samples.size (); i++)
 	{
@@ -428,6 +458,17 @@ static void decode_pass (CdmHost &host, Stream &st, bool verbose)
 		{
 			images++;
 			w = f.Size ().width, h = f.Size ().height, fmt = f.Format ();
+			if (f.FrameBuffer () && fmt == cdm::kI420)
+			{
+				// (les trois plans, ligne par ligne : sans les marges de chaque ligne)
+				for (int pl = 0; pl < 3; pl++)
+				{
+					int pw = pl ? (w + 1) / 2 : w, ph = pl ? (h + 1) / 2 : h;
+					const uint8_t *base = f.FrameBuffer ()->Data () + f.PlaneOffset ((cdm::VideoPlane) pl);
+					for (int y = 0; y < ph; y++)
+						fnv (vdigest, base + (size_t) y * f.Stride ((cdm::VideoPlane) pl), (size_t) pw);
+				}
+			}
 		}
 		else if (r == cdm::kNeedMoreData)
 			need++;
@@ -442,12 +483,15 @@ static void decode_pass (CdmHost &host, Stream &st, bool verbose)
 			break;
 		images++;
 	}
+	say ("cdmtest : %s : empreinte des images décodées %016llx\n", st.what, (unsigned long long) vdigest);
 	say ("cdmtest : %s : DecryptAndDecodeFrame : %d images %dx%d (format %u), %d « encore des données », %d erreurs\n",
 	     st.what, images, w, h, fmt, need, bad);
 	check (init == cdm::kSuccess && images == (int) st.samples.size () && !bad,
 	       "vidéo : chaque échantillon (en clair et chiffré) déchiffré et décodé par le module");
 	host.cdm->DeinitializeDecoder (cdm::kStreamTypeVideo);
 }
+
+static int run_test (const char **args, int na, bool verbose, const std::string &storage);
 
 int main (int argc, char **argv)
 {
@@ -464,11 +508,32 @@ int main (int argc, char **argv)
 		else if (na < 5)
 			args[na++] = argv[i];
 	}
+	bool service = false;
+#if !defined(__linux__)
+	if (na == 0)
+	{
+		// sans argument (lancé comme un service par init2, essai sous QEMU) : le dossier /widevine
+		static const char *def[] = { "/widevine/libwidevinecdm.so", "/widevine/video.mp4",
+					     "https://cwip-shaka-proxy.appspot.com/no_auth", "/widevine/audio.mp4" };
+		for (int i = 0; i < 4; i++)
+			args[na++] = def[i];
+		storage = "/widevine/storage";
+		service = true;
+	}
+#endif
 	if (na < 3)
 	{
 		say ("cdmtest MODULE.so VIDEO.mp4 URL_DE_LICENCE [AUDIO.mp4] [--storage DOSSIER] [-v]\n");
 		return 2;
 	}
+	int r = run_test (args, na, verbose, storage);
+	while (service)
+		pause ();	// (un service qui s'arrête serait relancé par init2)
+	return r;
+}
+
+static int run_test (const char **args, int na, bool verbose, const std::string &storage)
+{
 	Stream video, audio;
 	check (load_stream (args[1], "vidéo", video), "vidéo : pssh de Widevine, tenc, un fragment chiffré");
 	bool have_audio = na >= 4;

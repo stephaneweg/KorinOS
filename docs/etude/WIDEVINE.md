@@ -230,8 +230,17 @@ partagée pour les échantillons.
 | `CREATE_SESSION promise, session_type, init_data_type, init_data` | `NEW_SESSION promise, session_id` |
 | `UPDATE_SESSION promise, session_id, response` | `SESSION_MESSAGE session_id, type, message` (requête de licence ; Jet l'envoie au serveur du site) |
 | `LOAD/CLOSE/REMOVE_SESSION promise, session_id` | `KEYS_CHANGE session_id, has_new_usable_key, [key_id, statut]` |
-| `DECRYPT id, tampon partagé, key_id, iv, sous-échantillons, schéma cenc/cbcs, motif` | `DECRYPTED id, statut, taille` (le clair dans le même tampon partagé) |
+| `DECRYPT id, tampon partagé, key_id, iv, sous-échantillons, schéma cenc/cbcs, motif` | `DECRYPTED id, statut, taille` (le clair dans le même tampon partagé) — **audio seulement** |
+| `INIT_VIDEO_DECODER codec, profil, taille, extradata` | `VIDEO_DECODER_READY statut` |
+| `DECODE_VIDEO id, tampon partagé (Annex B pour H.264), key_id, iv, sous-échantillons, horodatage` | `VIDEO_FRAME id, statut, I420 (plans, pas) dans une mémoire partagée` ; `NEED_MORE_DATA` |
 | `GET_STATUS_FOR_POLICY promise, hdcp` | `EXPIRATION_CHANGE`, `SESSION_CLOSED` |
+
+**Constat de l'étape 3 : la vidéo ne sort jamais compressée en clair.** Le module L3 refuse `Decrypt` sur un
+échantillon vidéo chiffré (`kNoKey`) ; il déchiffre et décode lui-même (`DecryptAndDecodeFrame`, codecs du
+manifeste : H.264, VP9, AV1) et rend des images I420. Pour la vidéo, Jet reçoit donc des **images décodées** de
+`cdmhost` (comme Chrome), pas des échantillons pour FFmpeg ; l'audio, lui, revient en clair et passe par FFmpeg
+(MediaKit). Comme Chromium, le lecteur passe le H.264 en **Annex B** (codes de début, SPS/PPS avant chaque image
+clé, sous-échantillons ajustés : `cenc_to_annexb`), sinon le module ne reconnaît pas les images.
 
 Côté hôte : minuteries (`SetTimer` → boucle du `cdmhost`), heure (`GetCurrentWallTime`), stockage (`CreateFileIO`
 → `HOME:/.jet/widevine/<origine>/`), `RequestStorageId` (un identifiant aléatoire gardé par origine),
@@ -278,7 +287,7 @@ distribué à d'autres ne l'active jamais d'office.
 | 2a | Module réel : téléchargement de développement et `linuxhost --check` | la liste de ce qui manque | **fait le 19/11** (§ 2.5) |
 | 2b | Capture générique des `syscall` dans le noyau du PC (§ 3.2) ; `liblinux` s'en sert | un `syscall` direct d'un module d'essai traduit | **fait le 19/11** (QEMU) |
 | 2c | Les 108 imports, TLS du module (`__tls_get_addr`), `_Unwind_*`, threads ; `/proc/self/maps` et `/proc/net/unix` fabriqués, `rt_sigaction` | dans Korin, la sonde va jusqu'à la requête de licence, comme sous Linux | **fait le 19/11** (QEMU, § 8) |
-| 3 | `cdmhost` : `Host_10/11` en C++, essai hors de Jet sur un serveur de licences de test public | une licence de démonstration obtenue, un échantillon déchiffré | 2 à 3 jours |
+| 3 | `cdmhost` : `Host_10/11` en C++, essai hors de Jet sur un serveur de licences de test public | une licence de démonstration obtenue, un échantillon déchiffré | **fait le 19/11** (Linux et QEMU, § 9) ; le serveur IPC de `cdmhost` reste, avec l'étape 4 |
 | 4 | EME ClearKey dans Jet (WebKit, MSE chiffré, CENC) | un flux ClearKey de démonstration joue | 3 à 5 jours |
 | 5 | EME Widevine dans Jet par `cdmhost` (audio) | le lecteur web de Spotify joue un titre | 2 à 3 jours |
 | 6 | Vidéo, user agent, codecs | Netflix et Disney+ jouent (720p) | 2 à 4 jours |
@@ -351,6 +360,44 @@ Ce qu'il a fallu :
 
 Reste pour l'étape 3 : `UpdateSession` avec une vraie licence et `Decrypt` (ce qu'ils demandent n'a pas encore
 été parcouru), le stockage (`CreateFileIO`), les threads du module en vrai, et le ZBook.
+
+## 9. Étape 3 (19/11/2026) : une vraie licence, et le déchiffrement, dans Korin
+
+**L'hôte** (`src/sys/cdmhost`, commun à Linux et Korin) :
+* `host.h`, `host.cpp` : `CdmHost`, l'implémentation de `cdm::Host_10` : tampons, minuteries et tâches servies
+  par `pump ()` dans le thread du module (comme Chromium), heure, stockage (`CreateFileIO` : un fichier par nom
+  dans un dossier, écritures atomiques), identifiant de stockage (32 octets aléatoires gardés), protection de
+  sortie (« aucun lien »), défi de plateforme (réponse vide) ; les événements du module vont à un `CdmClient`
+  (l'essai aujourd'hui, le serveur IPC de `cdmhost` pour Jet ensuite). `CdmBuffer`, `CdmDecryptedBlock`,
+  `CdmVideoFrame`.
+* `cenc.h`, `cenc.cpp` : lecture minimale des MP4 chiffrés (pssh de Widevine, tenc, schm, frma, avcC, esds ;
+  fragments : tfhd, tfdt, trun, senc) et passage du H.264 en Annex B. Dans Jet, ce travail sera celui du lecteur
+  MSE.
+* `cdmtest.cpp` : l'essai de bout en bout ; HTTPS par OpenSSL (comme `oauthd`).
+
+**Le flux d'essai** : la démonstration publique « Angel One » du lecteur Shaka (Google), H.264 144p et AAC,
+`cenc`, avec un début en clair (« clear lead » : les fragments sans `senc`) ; la licence vient de son serveur de
+test (`cwip-shaka-proxy.appspot.com/no_auth`) ; seul le premier Mo de chaque fichier est téléchargé.
+
+**Résultats** (identiques sous Linux et dans Korin) :
+* requête de licence de 1714 octets, réponse HTTP 200 de 1228 octets, `UpdateSession` : **5 clés utilisables**
+  (dont celles de la vidéo et de l'audio) ;
+* vidéo : `Decrypt` refusé sur les 100 échantillons chiffrés (attendu) ; `DecryptAndDecodeFrame` : **300 images
+  I420 192×144, 0 erreur** ;
+* audio : **188 échantillons chiffrés sur 188 rendus en clair** ; sous Linux, les 564 trames AAC se décodent par
+  libavcodec sans erreur ;
+* **empreintes identiques** des sorties entre Linux et Korin (vidéo `fabf757bb7928937`, audio
+  `85bba6b1d46b3472`) : dans Korin, les mêmes octets déchiffrés et les mêmes images ;
+* dans Korin : 1058 `syscall` directs du module capturés et traduits ; réseau par `netd` (carte USB de QEMU,
+  DHCP, DNS, NTP), TLS par OpenSSL avec le paquet de certificats `/etc/ca-bundle`.
+
+**Comment le refaire** : sous Linux, `sh tools/linux/cdmtest.sh …/libwidevinecdm.so` ; dans Korin (WSL, QEMU),
+`sh tools/linux/build.sh` puis `WIDEVINE_SO=…/libwidevinecdm.so sh tools/linux/test_cdm_pc.sh` (noyau d'essai,
+arbre minimal avec `/widevine`, disque d'essai de 160 Mo effacé à la fin ; `cdmtest` lancé par `init2` comme un
+service, sortie copiée dans le journal du noyau).
+
+Reste : le serveur IPC de `cdmhost` et le client de Jet (étapes 4 et 5), l'essai sur le ZBook, les licences
+persistantes (le manifeste n'en a pas), les flux `cbcs` (motif) et VP9/AV1.
 
 ## Sources (19/11/2026)
 

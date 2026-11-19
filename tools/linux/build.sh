@@ -60,3 +60,22 @@ if [ -n "${WIDEVINE_SO:-}" ]; then
 		"$ROOT/tools/linux/cdmprobe/cdmprobe.cpp" "$OUT/obj/wvblob.o" "$OUT/liblinux.a" -lm -o "$OUT/cdmprobe"
 	ls -l "$OUT/cdmprobe"
 fi
+
+# 5. cdmtest pour Korin (src/sys/cdmhost : l'hôte du module et l'essai de bout en bout, OpenSSL du PC) :
+#    build/pc/linux/cdmtest ; le module et le flux ne sont pas embarqués (lus dans /widevine sous QEMU,
+#    tools/linux/test_cdm_pc.sh). L'en-tête de l'interface CDM est téléchargé s'il manque.
+TP=$ROOT/build/pc/thirdparty/openssl
+INC=$OUT/cdm
+if [ -f "$TP/lib/libssl.a" ]; then
+	mkdir -p "$INC"
+	for f in content_decryption_module.h content_decryption_module_export.h; do
+		[ -s "$INC/$f" ] || curl -sS -m 60 "https://chromium.googlesource.com/chromium/cdm/+/refs/heads/main/$f?format=TEXT" | base64 -d >"$INC/$f"
+	done
+	S=$ROOT/src/sys/cdmhost
+	${TC}g++ -specs=$POSIX/lib/posix.specs -O2 -g0 -std=gnu++17 -Wall -Wno-unused-result -I"$INC" -I"$SRC" -I"$S" \
+		-I"$OUT/gen" -I"$TP/include" "$S/cdmtest.cpp" "$S/host.cpp" "$S/cenc.cpp" "$OUT/liblinux.a" \
+		-L"$TP/lib" -lssl -lcrypto -lm -o "$OUT/cdmtest"
+	ls -l "$OUT/cdmtest"
+else
+	echo "linux : cdmtest pas construit (OpenSSL du PC absent : tools/pc/thirdparty.sh openssl)"
+fi
