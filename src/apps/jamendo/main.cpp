@@ -1,7 +1,8 @@
 //
 // main.cpp -- Jamendo : la musique libre (Creative Commons) de Jamendo dans Korin (docs/etude/MUSIQUE.md §2).
 //
-// L'API publique de Jamendo (v3.0, https://api.jamendo.com) avec le client_id de l'utilisateur (gratuit, sur
+// L'API publique de Jamendo (v3.0, https://api.jamendo.com) avec le client_id de Korin (DEFAULT_ID : pas un secret,
+// il passe en clair dans les adresses), ou celui de l'utilisateur s'il en a donné un (gratuit, sur
 // devportal.jamendo.com ; gardé dans le coffre, « jamendo.client_id ») : les titres populaires, les nouveautés,
 // une recherche, et des radios par genre (les titres d'un genre l'un après l'autre, la suite chargée quand la file
 // se vide). Un titre se joue par AudioKit (le Player du Media Player : MP3, son thread) après son arrivée dans
@@ -27,6 +28,7 @@ using media::now_ms;
 #define TR(s)		((const char *) ui_tr ((long) (s)))
 #define API		"https://api.jamendo.com/v3.0/tracks/?format=json&limit=50&audioformat=mp32&include=licenses"
 #define KV_NAME		"jamendo.client_id"
+#define DEFAULT_ID	"79a18255"	// (le client_id de Korin ; quota partagé : un autre, à soi, dans le coffre le remplace)
 #define BAR_H		76
 #define SIDE_W		210
 #define MINI_W		330
@@ -498,10 +500,16 @@ static void ask_key ()
 	char b[128];
 	snprintf (b, sizeof b, "%s", g_clientId.c_str ());
 	if (!ui_ask ((long) TR ("Clé d'accès Jamendo"),
-		     (long) TR ("Le client_id de votre application Jamendo (gratuit, sur devportal.jamendo.com) :"), (long) b, sizeof b))
+		     (long) TR ("Le client_id d'une application Jamendo à vous (gratuit, sur devportal.jamendo.com) ; vide : celui de Korin :"), (long) b, sizeof b))
 		return;
 	media::tidy (b);
-	if (!b[0]) return;
+	if (!b[0] || !strcmp (b, DEFAULT_ID))	// (vide : de retour à celui de Korin)
+	{
+		kv_delete (KV_NAME);
+		g_clientId = DEFAULT_ID;
+		load_list (false);
+		return;
+	}
 	g_clientId = b;
 	if (kv_set (KV_NAME, b, (long) strlen (b)) != 0) status (TR ("Le coffre n'a pas pu garder la clé : elle vaut jusqu'à la fermeture."));
 	load_list (false);
@@ -629,6 +637,7 @@ int main (int argc, char **argv)
 	char key[128];
 	long n = kv_get (KV_NAME, key, sizeof key - 1);
 	if (n > 0) { key[n] = 0; g_clientId = key; }
+	else g_clientId = DEFAULT_ID;
 	g_player.start ();
 	g_lastEnded = g_player.endedGen;
 	on_resize (ui.w, ui.h);

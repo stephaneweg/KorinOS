@@ -5,11 +5,15 @@ Commons, à écouter gratuitement, et souvent à télécharger.
 
 ## La clé d'accès
 
-Jamendo demande une clé à chaque application : un **client_id**, gratuit.
+Jamendo demande une clé à chaque application : un **client_id**. Korin a le sien, déjà dans l'app : rien à faire.
+
+Son nombre de requêtes est limité et partagé par tous ceux qui s'en servent. Si Jamendo ne répond plus, vous pouvez
+prendre le vôtre, gratuit :
 
 1. Sur [devportal.jamendo.com](https://devportal.jamendo.com), créez un compte de développeur, puis une application.
-2. Copiez son **Client ID**.
+2. Copiez son **Client ID** (pas le Client Secret, qui ne sert pas ici).
 3. Dans Jamendo : **Fichier > Clé d'accès Jamendo…**, collez-le, **OK**. Il est gardé dans votre coffre à secrets.
+   Le champ vidé : de retour à celui de Korin.
 
 ## Écouter
 

@@ -5,11 +5,15 @@ licences, to listen to for free, and often to download.
 
 ## The access key
 
-Jamendo asks every application for a key: a **client_id**, free.
+Jamendo asks every application for a key: a **client_id**. Korin has its own, already in the app: nothing to do.
+
+Its number of requests is limited and shared by everyone who uses it. If Jamendo stops answering, you can take
+your own, free:
 
 1. On [devportal.jamendo.com](https://devportal.jamendo.com), create a developer account, then an application.
-2. Copy its **Client ID**.
-3. In Jamendo: **File > Jamendo access key…**, paste it, **OK**. It is kept in your secrets vault.
+2. Copy its **Client ID** (not the Client Secret, which is not used here).
+3. In Jamendo: **File > Jamendo access key…**, paste it, **OK**. It is kept in your secrets vault. With the field
+   emptied: back to Korin's.
 
 ## Listening
 
