@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Features · Korin OS</title>
+<meta name="description" content="The Korin OS desktop, user accounts, the package manager and the apps: browser, office, music, CAD, games and emulators.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="fr" href="fr/fonctionnalites.html">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="index.html"><span class="diamond"></span>Korin OS</a>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="features.html" aria-current="page">Features</a>
+      <a href="developers.html">Developers</a>
+      <a href="technical.html">Technical</a>
+      <a href="download.html">Download</a>
+      <a href="https://github.com/stephaneweg/KorinOS">GitHub</a>
+    </nav>
+    <a class="lang" href="fr/fonctionnalites.html" hreflang="fr" lang="fr">FR</a>
+  </div>
+</header>
+
+<main>
+  <div class="wrap page-head">
+    <h1>Features</h1>
+    <p>The desktop, accounts, software management and the apps that come with Korin OS. All screenshots on this
+      page were taken under QEMU from a PC build of 19 November 2026, without a GPU.</p>
+  </div>
+
+  <section>
+    <div class="wrap split">
+      <div>
+        <h2>Elegant, the desktop</h2>
+        <p class="intro">Elegant is Korin's window server and desktop shell. It composes every window, draws the menu
+          bar of the active app at the top and a panel at the bottom.</p>
+        <ul>
+          <li>Launcher with categories and search</li>
+          <li>Four workspaces, minimised windows in the panel</li>
+          <li>Desktop widgets: upcoming events, pinned notes</li>
+          <li>Two themes, <b>Givre</b> (light) and <b>Onyx Noir</b> (dark), eight accent colours, several wallpapers</li>
+          <li>A full-screen “pocket” mode for small screens</li>
+          <li>Built-in help with a guide for each app</li>
+        </ul>
+      </div>
+      <figure class="shot">
+        <img src="assets/shots/settings.png" width="1280" height="800" loading="lazy" alt="The Settings app on its Theme page: Givre or Onyx Noir, wallpaper and accent colour.">
+        <figcaption>Settings: theme, region, display, panel, Wi-Fi, sound, power, startup services…</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap split rev">
+      <div>
+        <h2>Accounts and sign-in</h2>
+        <p class="intro">Each person has an account and a home folder. With a single account and no password, Korin
+          signs in automatically, like before.</p>
+        <ul>
+          <li>Sign-in screen with the list of accounts and their picture</li>
+          <li>Passwords stored as salted PBKDF2-SHA-256 hashes, readable only by the system</li>
+          <li><code>sudo</code> and a confirmation card when an app needs administrator rights, remembered for five
+            minutes</li>
+          <li><code>useradd</code>, <code>userdel</code>, <code>usermod</code> and a Users page in Settings</li>
+          <li>Log out from the shut-down menu</li>
+        </ul>
+        <p class="note warn" style="margin-top:18px">Path access rules are still in “log” mode: refusals are recorded,
+          not yet enforced. Lock screen and fast user switching are planned.</p>
+      </div>
+      <figure class="shot">
+        <img src="assets/shots/login.png" width="1280" height="800" loading="lazy" alt="The sign-in screen with two accounts, Alex and Sam.">
+        <figcaption>The sign-in screen, shown when there are several accounts.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap split">
+      <div>
+        <h2>Software, with signed packages</h2>
+        <p class="intro">Apps, kits, fonts and the system itself are packages. The <b>Software</b> app groups them by
+          category, installs and removes them, and applies updates.</p>
+        <ul>
+          <li>Each repository index is signed (ECDSA P-256); Korin refuses an index whose signature is wrong</li>
+          <li><code>pkg</code> on the command line, <code>pkgd</code> as a system service</li>
+          <li>A repository for PC (113 packages) and one for the Raspberry Pi, both on GitHub Pages</li>
+        </ul>
+      </div>
+      <figure class="shot">
+        <img src="assets/shots/software.png" width="1280" height="800" loading="lazy" alt="The Software app listing installed packages by category, with “signature good” in the status bar.">
+        <figcaption>Software after checking the online repository: “signature good”.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Apps</h2>
+      <p class="intro">Most apps are written for Korin on UIKit and follow the desktop theme. Some are ports, such as
+        WebKit, Godot or MuPDF. A few apps only exist on one kind of machine; that is noted.</p>
+      <div class="apps">
+        <div class="card"><h3>Internet</h3><ul>
+          <li><b>Jet</b>: web browser on WebKit, with WebGL</li>
+          <li><b>Mail</b>, <b>IRC</b>, <b>Telegram</b></li>
+          <li><b>Courier</b>: HTTP client for testing APIs</li>
+          <li><b>WebStudio</b>: website editor with live preview (PC)</li>
+          <li>Web server, SMB file sharing, Google sign-in (OAuth)</li>
+        </ul></div>
+        <div class="card"><h3>Office</h3><ul>
+          <li><b>Letters</b>: word processor, RTF, DOCX, ODT</li>
+          <li><b>Sheet</b> (XLSX, ODS), <b>Slides</b> (PPTX, ODP)</li>
+          <li><b>PDF</b> viewer, <b>Notes</b>, <b>Calendar</b>, <b>Cardfile</b></li>
+          <li><b>Budget</b>: monthly budget and balances</li>
+          <li>Printing to PDF or IPP printers</li>
+        </ul></div>
+        <div class="card"><h3>Music and video</h3><ul>
+          <li><b>Jamendo</b>: free Creative Commons music, radios by genre (PC)</li>
+          <li><b>Spotify</b>: Premium accounts, through librespot (PC, new)</li>
+          <li><b>Media Player</b>: music library, WebM, MKV and MP4 (VP8, VP9, AV1)</li>
+          <li><b>Koton</b> composition studio, <b>FM Tracker</b>, <b>Arabesque</b></li>
+          <li><b>Recorder</b> (WAV, MP3, Opus), <b>Mixer</b>, <b>Piano</b></li>
+        </ul></div>
+        <div class="card"><h3>Graphics and CAD</h3><ul>
+          <li><b>Forge</b>: parametric CAD on Open CASCADE (PC)</li>
+          <li><b>Paint</b>, <b>Photos</b>, <b>Image Viewer</b> (PNG, JPEG, GIF, WebP…)</li>
+          <li><b>Icon Editor</b>, <b>Fractals</b></li>
+        </ul></div>
+        <div class="card"><h3>Games and emulators</h3><ul>
+          <li><b>Game Library</b> with emulators for NES, Game Boy, SNES, GBA, N64, DS and GameCube</li>
+          <li>Solitaire, FreeCell, Tetris, 2048, Arkanoid, Invaders, Pinball, Snake…</li>
+          <li><b>Cosmo Zoom!</b>; <b>Asteroids</b> and <b>Parking Jam</b>, made with Godot (PC)</li>
+        </ul></div>
+        <div class="card"><h3>Assistants</h3><ul>
+          <li><b>PocketQI</b>: ask questions about the system, with spoken answers</li>
+          <li><b>Vibe</b>, Mistral's coding agent, running in Korin</li>
+          <li><b>Claude</b>, Anthropic's coding agent, with your API key</li>
+        </ul></div>
+        <div class="card"><h3>System</h3><ul>
+          <li><b>Files</b>, <b>Terminal</b> (bash), <b>Editor</b></li>
+          <li><b>Settings</b>, <b>Software</b>, <b>Disks</b>, <b>Task Manager</b></li>
+          <li><b>Archiver</b> (ZIP, tar, gzip), <b>Screenshot</b>, <b>Weather</b>, <b>Clock</b></li>
+        </ul></div>
+        <div class="card"><h3>Learning and making</h3><ul>
+          <li><b>QBasic</b> and <b>QBStudio</b></li>
+          <li><b>Turtle Quest</b>: learn BASIC in 48 levels</li>
+          <li><b>GPIO Lab</b>: drive the Pi's pins from BASIC (Pi or simulator)</li>
+          <li><b>Circuits</b>: a logic gate puzzle</li>
+        </ul></div>
+        <div class="card"><h3>Development</h3><ul>
+          <li><b>Studio</b>: C# IDE in Avalonia, with a form designer</li>
+          <li><b>Godot 4.7</b> editor (PC)</li>
+          <li>GCC, FASM, FreeBASIC, .NET, Python, git</li>
+          <li><a href="developers.html">More on the developer page</a></li>
+        </ul></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Screens</h2>
+      <p class="intro">Captured under QEMU (x86-64, four cores, no GPU) with the network through QEMU's user mode.</p>
+      <div class="gallery">
+        <figure class="shot"><img src="assets/shots/jet.png" width="1280" height="800" loading="lazy" alt="Jet showing the Wikipedia home page.">
+          <figcaption>Jet, the WebKit browser.</figcaption></figure>
+        <figure class="shot"><img src="assets/shots/jamendo.png" width="1280" height="800" loading="lazy" alt="The Jamendo app listing the popular tracks of the week.">
+          <figcaption>Jamendo, free music from jamendo.com.</figcaption></figure>
+        <figure class="shot"><img src="assets/shots/letters.png" width="1280" height="800" loading="lazy" alt="Letters with a short document.">
+          <figcaption>Letters, the word processor.</figcaption></figure>
+        <figure class="shot"><img src="assets/shots/forge.png" width="1280" height="800" loading="lazy" alt="Forge showing a bracket with fillets and holes in 3D.">
+          <figcaption>Forge, parametric CAD (its interface is in French for now).</figcaption></figure>
+        <figure class="shot"><img src="assets/shots/godot.png" width="1280" height="800" loading="lazy" alt="The Godot editor with a new 3D project.">
+          <figcaption>Godot 4.7.2, the game engine editor.</figcaption></figure>
+        <figure class="shot"><img src="assets/shots/files.png" width="1280" height="800" loading="lazy" alt="The Files app at the root of the file system.">
+          <figcaption>Files, at the root of the single Unix-style tree.</figcaption></figure>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Korin OS · MIT license, with exceptions listed in
+      <a href="https://github.com/stephaneweg/KorinOS/blob/main/docs/LICENCES.md">LICENCES.md</a></span>
+    <span><a href="https://github.com/stephaneweg/KorinOS">Source on GitHub</a> · <a href="fr/fonctionnalites.html" hreflang="fr">Français</a></span>
+  </div>
+</footer>
+</body>
+</html>

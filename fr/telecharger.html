@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Télécharger · Korin OS</title>
+<meta name="description" content="Installer Korin OS sur un PC depuis une clé USB, ou sur un Raspberry Pi 4 depuis une image de carte microSD.">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="en" href="../download.html">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="index.html"><span class="diamond"></span>Korin OS</a>
+    <nav>
+      <a href="index.html">Accueil</a>
+      <a href="fonctionnalites.html">Fonctionnalités</a>
+      <a href="developpement.html">Développement</a>
+      <a href="technique.html">Technique</a>
+      <a href="telecharger.html" aria-current="page">Télécharger</a>
+      <a href="https://github.com/stephaneweg/KorinOS">GitHub</a>
+    </nav>
+    <a class="lang" href="../download.html" hreflang="en" lang="en">EN</a>
+  </div>
+</header>
+
+<main>
+  <div class="wrap page-head">
+    <h1>Obtenir Korin OS</h1>
+    <p>Sur un PC, Korin s'installe depuis une clé USB. Sur un Raspberry Pi 4, il démarre sur une carte microSD. Une
+      fois installé, l'app Logiciels le tient à jour depuis le dépôt signé en ligne.</p>
+  </div>
+
+  <section>
+    <div class="wrap">
+      <h2>PC : la clé USB d'installation</h2>
+      <p class="intro">La clé démarre un Korin complet en mémoire, puis lance Setup en mode installation : choix du
+        disque et des partitions, des composants, du clavier, du Wi-Fi et de la région, puis création du premier
+        compte.</p>
+      <div class="grid two">
+        <div class="card"><h3>Ce qu'il faut</h3><ul class="plain">
+          <li>Un PC x86-64 avec UEFI, Secure Boot désactivé</li>
+          <li>Un disque NVMe interne avec de la place pour une partition Korin (Windows peut rester ; sa partition EFI
+            n'est jamais écrite)</li>
+          <li>Une clé USB plus grande que l'image, environ 320 Mo (elle est effacée)</li>
+          <li>Pour l'instant, un matériel proche du ZBook Fury 17 G8 : Wi-Fi Intel AX201, graphisme Intel, HD Audio</li>
+        </ul></div>
+        <div class="card"><h3>Télécharger</h3>
+          <p>L'image de la clé d'installation n'est <b>pas encore publiée</b>. En attendant, on la construit depuis les
+            sources, sous Windows (son contenu vient des paquets publiés) :</p>
+<pre><code>python -I tools/pc/keyroot.py
+python -I tools/pc/installkey.py build --sysroot build/pc/keyroot/root `
+    --esp build/pc/keyroot/esp --repo build/pc/keyroot/repo
+.\tools\pc\installkey.ps1 list
+.\tools\pc\installkey.ps1 write -Disk N   # en administrateur</code></pre>
+          <p><code>installkey.ps1</code> refuse tout disque qui n'est pas sur l'USB, le disque système de Windows et les
+            disques plus petits que l'image.</p></div>
+      </div>
+      <h3 style="margin-top:28px">Installer</h3>
+      <ol class="steps">
+        <li>Brancher la clé et démarrer le PC dessus (F9 ouvre le menu de démarrage des portables HP).</li>
+        <li>Setup démarre. Choisir le plan du disque : Korin a sa propre partition FAT32 ; les partitions existantes
+          ne sont touchées que si vous le demandez.</li>
+        <li>Choisir les composants, se connecter au Wi-Fi pour les paquets en ligne, et créer son compte.</li>
+        <li>Korin s'ajoute au menu de démarrage UEFI. Son propre menu propose aussi Windows s'il est sur le disque.</li>
+      </ol>
+      <p class="note warn">L'installateur n'a encore servi que sur un portable. Faites une sauvegarde avant de
+        l'essayer sur le vôtre, et gardez les outils de récupération de Windows sous la main.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Raspberry Pi 4 : images de carte</h2>
+      <p class="intro">Deux images de 4 Go avec une partition FAT32, compressées en xz.</p>
+      <div class="grid two">
+        <div class="card"><h3>Korin OS (lite)</h3><p>Le système de base ; les apps s'ajoutent ensuite par Logiciels.
+          12 Mo à télécharger.</p>
+          <div class="actions"><a class="btn" href="../img/korin_lite.img.xz">korin_lite.img.xz</a></div></div>
+        <div class="card"><h3>Korin OS (full)</h3><p>La plupart des paquets déjà installés (sauf GCC, .NET et les jeux
+          SDL). 89 Mo à télécharger.</p>
+          <div class="actions"><a class="btn" href="../img/korin_full.img.xz">korin_full.img.xz</a></div></div>
+      </div>
+      <p style="margin-top:20px">Avec <b>Raspberry Pi Imager</b>, ajouter ce dépôt dans ses options (« Content
+        repository », adresse personnalisée) pour voir Korin dans la liste, avec les sommes de contrôle :</p>
+<pre><code>https://stephaneweg.github.io/KorinOS/img/os-list.json</code></pre>
+      <p>Ou choisir « Use custom » et prendre le <code>.img.xz</code> téléchargé.</p>
+      <p class="note warn">Ces images datent du 7 novembre 2026. Elles précèdent l'arbre de fichiers unique et les
+        comptes d'utilisateurs. Après le premier démarrage, ouvrez Logiciels et installez les mises à jour du dépôt du
+        Pi.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Dépôts de paquets</h2>
+      <p class="intro">Korin se met à jour par ses propres dépôts signés, publiés avec ce site.</p>
+      <div class="table"><table>
+        <thead><tr><th>Machine</th><th>Dépôt</th><th>Contenu</th></tr></thead>
+        <tbody>
+          <tr><td>PC</td><td><code>https://stephaneweg.github.io/KorinOS/packages/pc</code></td><td>113 paquets</td></tr>
+          <tr><td>Raspberry Pi</td><td><code>https://stephaneweg.github.io/KorinOS/packages</code></td><td>108 paquets</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>L'essayer dans QEMU</h2>
+      <p>Les deux machines tournent sous QEMU depuis les sources : <code>.\build.ps1 run</code> pour le Pi
+        (<code>raspi4b</code>), <code>tools/pc/qemu_pc.py</code> et <code>tools/pc/qemu_nvme.py</code> pour le PC
+        (<code>q35</code> avec UEFI). QEMU n'offre pas de GPU à Korin : la 3D y est logicielle ou absente. Voir
+        <a href="https://github.com/stephaneweg/KorinOS/blob/main/docs/CONSTRUIRE.md"><code>docs/CONSTRUIRE.md</code></a>.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Korin OS · licence MIT, avec les exceptions de
+      <a href="https://github.com/stephaneweg/KorinOS/blob/main/docs/LICENCES.md">LICENCES.md</a></span>
+    <span><a href="https://github.com/stephaneweg/KorinOS">Sources sur GitHub</a> · <a href="../download.html" hreflang="en">English</a></span>
+  </div>
+</footer>
+</body>
+</html>

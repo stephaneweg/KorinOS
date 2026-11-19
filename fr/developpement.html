@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Développement · Korin OS</title>
+<meta name="description" content="Écrire des apps pour Korin OS en C, C++, C#, Rust, BASIC ou assembleur : GCC dans l'OS, les kits, la couche POSIX, les paquets.">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="en" href="../developers.html">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="index.html"><span class="diamond"></span>Korin OS</a>
+    <nav>
+      <a href="index.html">Accueil</a>
+      <a href="fonctionnalites.html">Fonctionnalités</a>
+      <a href="developpement.html" aria-current="page">Développement</a>
+      <a href="technique.html">Technique</a>
+      <a href="telecharger.html">Télécharger</a>
+      <a href="https://github.com/stephaneweg/KorinOS">GitHub</a>
+    </nav>
+    <a class="lang" href="../developers.html" hreflang="en" lang="en">EN</a>
+  </div>
+</header>
+
+<main>
+  <div class="wrap page-head">
+    <h1>Développement</h1>
+    <p>Les apps de Korin s'écrivent en C, C++, C#, Rust, BASIC ou assembleur. La plupart des chaînes de compilation
+      tournent dans Korin lui-même : on écrit, construit et lance un programme sans quitter le système.</p>
+  </div>
+
+  <section>
+    <div class="wrap">
+      <h2>Langages et outils</h2>
+      <p class="intro">Les outils sont installés dans <code>/devtools</code> par leurs paquets. « Dans Korin » : le
+        compilateur tourne sur Korin ; « croisé » : il tourne sur un autre ordinateur et produit des programmes pour
+        Korin.</p>
+      <div class="table"><table>
+        <thead><tr><th>Langage</th><th>Outils</th><th>Où il tourne</th></tr></thead>
+        <tbody>
+          <tr><td>C, C++</td><td>GCC 14.2 et binutils 2.43, newlib, libposix, libstdc++</td><td>Dans Korin, et en croisé depuis Linux/WSL</td></tr>
+          <tr><td>C#</td><td>.NET 10 (CoreCLR et son JIT, le compilateur Roslyn), Avalonia 12.1, WinForms ; l'EDI <b>Studio</b></td><td>Dans Korin</td></tr>
+          <tr><td>Rust</td><td>Cibles <code>x86_64-unknown-korin</code> et <code>aarch64-unknown-korin</code> : std, threads, fichiers, réseau, <code>cdylib</code></td><td>Croisé seulement, depuis Linux/WSL</td></tr>
+          <tr><td>Python</td><td>CPython 3.14 avec OpenSSL, SQLite, zlib, pip ; modules d'extension en Rust (pyo3)</td><td>Dans Korin</td></tr>
+          <tr><td>BASIC</td><td>FreeBASIC (<code>fbc</code>, GCC en arrière-plan) ; QBasic et QBStudio</td><td>Dans Korin</td></tr>
+          <tr><td>Assembleur</td><td>FASM sur PC, FASMARM sur le Pi</td><td>Dans Korin</td></tr>
+          <tr><td>Jeux</td><td>Éditeur Godot 4.7.2 ; export depuis Godot sous Windows avec le modèle Korin</td><td>Dans Korin (PC)</td></tr>
+        </tbody>
+      </table></div>
+      <p style="margin-top:18px">Aussi dans le système : <code>bash</code>, <code>git</code>, <code>rg</code> (ripgrep),
+        <code>pibuild</code> pour construire un programme depuis un dossier de sources, et les agents de code
+        <b>Claude</b> et <b>Vibe</b>, qui lisent et modifient les fichiers d'un dossier de travail et demandent avant de
+        lancer une commande.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Les kits</h2>
+      <p class="intro">Les kits sont les bibliothèques partagées de Korin (<code>.so</code>). Une app les appelle
+        directement ; chaque kit garde une table d'entrées stable pour que les anciennes apps marchent encore. Le
+        guide de l'API C est livré avec le système, dans l'app Aide.</p>
+      <div class="grid">
+        <div class="card"><h3>UIKit</h3><p>Fenêtres, événements, widgets, texte TrueType, jetons du thème (Givre, Onyx
+          Noir), dialogues de fichiers, « Ouvrir avec », demandes d'élévation.</p></div>
+        <div class="card"><h3>AppKit</h3><p>Environnement des process, fichiers, lancement de programmes,
+          <code>fork</code> et <code>exec</code>.</p></div>
+        <div class="card"><h3>NetKit</h3><p>Sockets, DNS, Wi-Fi et la connexion OAuth du système.</p></div>
+        <div class="card"><h3>AudioKit</h3><p>Flux PCM, capture, formats, par le mixeur du système.</p></div>
+        <div class="card"><h3>MediaKit</h3><p>WebM, Matroska et MP4 en VP8, VP9 et AV1 (sur FFmpeg).</p></div>
+        <div class="card"><h3>GlKit et VkKit</h3><p>OpenGL ES 3.0 par Mesa ; Vulkan par le pilote anv de Mesa sur le
+          graphisme Intel (PC).</p></div>
+        <div class="card"><h3>DocumentKit, ArchiveKit</h3><p>Formats bureautiques, XML et CSV ; deflate, ZIP, tar et
+          gzip.</p></div>
+        <div class="card"><h3>PrinterKit, BusKit</h3><p>Impression en PDF ou vers une imprimante IPP ; le bus
+          d'événements du système (thème, volumes, réseau, son).</p></div>
+        <div class="card"><h3>EmuKit, GpioKit, GpuKit</h3><p>La base des émulateurs ; le connecteur à 40 broches du
+          Pi, I2C et SPI ; le GPU V3D du Pi.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap split">
+      <div>
+        <h2>La couche POSIX</h2>
+        <p class="intro">newlib et la <code>libposix</code> de Korin. Elle sert à porter des apps et des
+          bibliothèques, pas à être conforme : on ajoute ce qu'un port demande.</p>
+        <ul>
+          <li>Threads, signaux, <code>fork</code> avec copie à l'écriture, <code>exec</code>, tubes</li>
+          <li>Sockets (IPv4), <code>select</code>, <code>poll</code></li>
+          <li>Un vrai <code>dlopen</code> pour les modules partagés</li>
+          <li>Portés par-dessus : bash, git, CPython, WebKit, Mesa, SDL 3, Skia, Open CASCADE, Godot, .NET, OpenSSL…</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Les différences à connaître</h3>
+        <p>Korin n'est pas Linux. Pas de liens symboliques, pas de <code>/proc</code>, pas de <code>/usr/bin/env</code>
+          (les scripts commencent par <code>#!/bin/bash</code>). Le réseau est en IPv4 seulement, l'heure en UTC, un
+          process ouvre 64 fichiers. Les commandes de <code>/bin</code> sont celles de Korin, avec moins d'options
+          GNU ; <code>bash</code>, <code>git</code> et <code>rg</code> sont complets.</p>
+        <p>Les fichiers forment un seul arbre à la Unix : <code>/</code> est le volume système, les autres volumes
+          sont montés dans <code>/media</code>, <code>/net</code> ou <code>/tmp</code>, et <code>HOME:/</code> est le
+          dossier personnel de l'utilisateur en cours.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Un premier programme</h2>
+      <p class="intro">Dans l'app Terminal, avec le paquet <code>gcc</code> installé :</p>
+<pre><code>$ cat hello.c
+#include &lt;stdio.h&gt;
+int main(void) { printf("Bonjour depuis Korin\n"); return 0; }
+$ gcc hello.c -o hello
+$ ./hello
+Bonjour depuis Korin</code></pre>
+      <p>Pour une app à fenêtres, on inclut l'en-tête d'UIKit et on lie avec le kit ; le guide de l'Aide, rubrique
+        « API », passe en revue fenêtres, événements et dessin. On peut aussi construire sous Windows ou Linux avec
+        les chaînes croisées décrites dans
+        <a href="https://github.com/stephaneweg/KorinOS/blob/main/docs/CONSTRUIRE.md"><code>docs/CONSTRUIRE.md</code></a>.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Paquets et publication</h2>
+      <div class="grid two">
+        <div class="card"><h3>Paquets</h3><p>Un paquet est une archive avec ses fichiers et une description
+          <code>.ini</code>. <code>tools/pkg/mkrepo.py</code> fait le dépôt : <code>index.txt</code>, sa signature
+          ECDSA P-256 <code>index.sig</code>, les icônes et les archives. Les grosses archives vont dans une Release de
+          GitHub.</p>
+          <p>Détails : <a href="https://github.com/stephaneweg/KorinOS/blob/main/docs/PAQUETS.md"><code>docs/PAQUETS.md</code></a>.</p></div>
+        <div class="card"><h3>Documentation</h3><p>Les études et références sont dans
+          <a href="https://github.com/stephaneweg/KorinOS/tree/main/docs"><code>docs/</code></a> :
+          <code>KITS.md</code>, <code>ABI.md</code>, <code>POSIX.md</code>, <code>GCC.md</code>, <code>DOTNET.md</code>,
+          <code>RUST.md</code>, <code>GODOT.md</code>, <code>PYTHON.md</code>.</p>
+          <p>Pour les agents d'IA, <code>AGENTS.md</code> et les compétences de <code>.agents/skills/</code> décrivent
+            chaque kit et chaque langage.</p></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Korin OS · licence MIT, avec les exceptions de
+      <a href="https://github.com/stephaneweg/KorinOS/blob/main/docs/LICENCES.md">LICENCES.md</a></span>
+    <span><a href="https://github.com/stephaneweg/KorinOS">Sources sur GitHub</a> · <a href="../developers.html" hreflang="en">English</a></span>
+  </div>
+</footer>
+</body>
+</html>
