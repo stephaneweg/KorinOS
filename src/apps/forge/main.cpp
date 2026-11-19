@@ -449,7 +449,7 @@ void panelUpdate ()
 			{ "Clic : la face plane à pousser ou à tirer", "Glisser pour la distance ; clic ou Entrée", "" },
 			{ "Clic : les arêtes (Maj : plusieurs) ; Entrée", "Tapez le rayon ; Entrée", "" },
 			{ "Clic : les arêtes (Maj : plusieurs) ; Entrée", "Tapez la distance ; Entrée", "" },
-			{ "Cible, puis Outils : leur bouton, puis les corps dans la vue (Échap : annule le choix)", "Cible, puis Outils : leur bouton, puis les corps dans la vue (Échap : annule le choix)", "" },
+			{ "Cible ou Outils, puis les corps dans la vue", "Cible ou Outils, puis les corps dans la vue", "" },
 			{ "Une esquisse fermée : l'étape choisie dans la frise, ou la dernière", "Glisser le long de la normale, ou tapez la distance ; Entrée", "" },
 			{ "Une esquisse avec une ligne de construction (l'axe)", "Tapez l'angle ; Entrée", "" },
 			{ "Clic : l'emplacement, sur une face plane", "Maj+clic : un trou de plus ; le diamètre, la profondeur (0 : traversant) ; Entrée", "" },

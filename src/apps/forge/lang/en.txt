@@ -338,7 +338,7 @@ Modifier = Modify
 # Combiner (une seule opération booléenne, comme Combine de Fusion)
 Combiner = Combine
 Combiner : une cible et des outils, en union, soustraction ou intersection = Combine: a target and tool bodies, as union, subtract or intersect
-Cible, puis Outils : leur bouton, puis les corps dans la vue (Échap : annule le choix) = Target, then Tools: their button, then the bodies in the view (Esc: cancels the choice)
+Cible ou Outils, puis les corps dans la vue = Target or Tools, then the bodies in the view
 Cible = Target
 Outils = Tools
 ▸ Cible = ▸ Target
