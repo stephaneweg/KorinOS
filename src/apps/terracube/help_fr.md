@@ -43,6 +43,18 @@ qui avancent seules), **bloc musical**, **dynamite**. Le **répéteur** redonne 
 (clic droit), le **comparateur** compare ou soustrait. Clic droit pour se servir d'un levier ou d'un bouton ; Maj +
 clic droit pour poser contre lui. Toutes les recettes : **R** dans la fabrication, ou `recipes`.
 
+## Les créatures, la santé, la faim
+
+En **mode survie**, dix cœurs et dix cuisses au-dessus de la barre : on se blesse en tombant, dans la lave, sous
+l'eau, sous les coups ; on a faim. **Clic droit** avec de la nourriture pour manger (le poulet et le porc cuisent au
+four). On meurt ? On revient au point de départ, l'inventaire gardé.
+
+**Les animaux** : les **poules** (des graines, dans les hautes herbes, les attirent et les font se reproduire), les
+**cochons** (des pommes, dans les feuilles), les **loups** : des **os** les apprivoisent ; clic droit sur un loup
+apprivoisé : assis, il **garde sa place** ; debout, il te **suit** et te défend. **La nuit**, et dans le noir des
+grottes, viennent les **rôdeurs** (ils brûlent au soleil) et les **araignées** (elles grimpent aux murs). Clic gauche
+pour frapper ; une épée frappe plus fort. La console : `summon wolf`, `mobs off` (sans créatures de la nuit), `heal`.
+
 ## Le son
 
 Une musique d'ambiance calme composée par le jeu au fil de la partie : une mélodie de piano électrique faite de

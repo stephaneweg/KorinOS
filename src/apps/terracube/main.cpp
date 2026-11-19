@@ -94,6 +94,10 @@ int g_mineX, g_mineY = -999, g_mineZ;
 double g_flashT;
 double g_fps;
 Hit g_target;
+int g_targetEnt;		// la créature visée (0 : aucune)
+double g_attackAt;		// (le prochain coup possible)
+float g_hurtFlash;		// (un coup reçu : la vue rougit)
+double g_lastHurt;		// (un peu d'invulnérabilité après un coup)
 bool g_selftest;
 const unsigned *g_jet;
 
@@ -185,8 +189,16 @@ bool saveWorldIni (std::string &err)
 	for (int i = 0; i < 9; i++) fprintf (f, " %d", g.hotbar[i]);
 	fprintf (f, "\nselected = %d\nmode = %s\nweather = %s\nweathercycle = %d\nfuel = %.2f\ninventory = %s\n", g.selected, modeName (g.mode),
 		 weatherName (g.weather), g.weatherCycle ? 1 : 0, g.fuel, g.inv.save ().c_str ());
+	fprintf (f, "health = %.1f\nhunger = %.1f\nsaturation = %.1f\nspawn = %.2f %.2f %.2f\nmonsters = %d\n", g.health, g.hunger, g.saturation, g.spawnX,
+		 g.spawnY, g.spawnZ, g.mobs.monsters ? 1 : 0);
 	bool ok = !ferror (f);
 	fclose (f);
+	FILE *fe = fopen ((g.world.dir + "/entities.txt").c_str (), "w");	// (les animaux, les loups apprivoisés)
+	if (fe) {
+		std::string t = g.mobs.save ();
+		fwrite (t.data (), 1, t.size (), fe);
+		fclose (fe);
+	}
 	if (!ok) err = "write error";
 	return ok;
 }
@@ -231,6 +243,10 @@ void openWorld (const std::string &name, uint32_t seed, bool seedGiven)
 	g.weatherLevel = 0;
 	g.weatherCycle = true;
 	g.weatherNext = 0;
+	g.health = 20, g.hunger = 20, g.saturation = 5, g.exhaustion = 0, g.air = 15, g.burn = 0;
+	g.spawnY = -1;
+	g.mobs.clear ();
+	g.mobs.monsters = true;
 	if (exists) {
 		for (auto &p : kv) {
 			const char *v = p.second.c_str ();
@@ -251,6 +267,11 @@ void openWorld (const std::string &name, uint32_t seed, bool seedGiven)
 			} else if (p.first == "weathercycle") g.weatherCycle = atoi (v) != 0;
 			else if (p.first == "fuel") g.fuel = (float) atof (v);
 			else if (p.first == "inventory") g.inv.load (p.second);
+			else if (p.first == "health") g.health = std::max (1.0f, std::min (20.0f, (float) atof (v)));
+			else if (p.first == "hunger") g.hunger = std::max (0.0f, std::min (20.0f, (float) atof (v)));
+			else if (p.first == "saturation") g.saturation = (float) atof (v);
+			else if (p.first == "spawn") sscanf (v, "%lf %lf %lf", &g.spawnX, &g.spawnY, &g.spawnZ);
+			else if (p.first == "monsters") g.mobs.monsters = atoi (v) != 0;
 			else if (p.first == "hotbar") {
 				char *s = (char *) v;
 				for (int i = 0; i < 9; i++) {
@@ -268,6 +289,18 @@ void openWorld (const std::string &name, uint32_t seed, bool seedGiven)
 	g.edited = false;
 	if (py >= 0) gameTeleport (px, py, pz);
 	else spawnNear (0, 0);
+	if (g.spawnY < 0) g.spawnX = g.pl.x, g.spawnY = g.pl.y, g.spawnZ = g.pl.z;
+	if (exists) {
+		FILE *fe = fopen ((g.world.dir + "/entities.txt").c_str (), "r");
+		if (fe) {
+			std::string t;
+			char b[4096];
+			size_t n;
+			while ((n = fread (b, 1, sizeof b, fe)) > 0) t.append (b, n);
+			fclose (fe);
+			g.mobs.load (t);
+		}
+	}
 	// le sol autour, tout de suite
 	int cx = floorDiv ((int) floor (g.pl.x), CW), cz = floorDiv ((int) floor (g.pl.z), CW);
 	for (int dz = -2; dz <= 2; dz++)
@@ -662,7 +695,10 @@ void drawTexts ()
 			lines.push_back (std::string (g_mode == ARMGL_GPU ? TR ("GPU : ") : TR ("Processeur : ")) + R.rendererName ());
 			snprintf (l, sizeof l, "%s %u · %s", TR ("graine"), g.world.seed, biomeName ((int) floor (g.pl.x), (int) floor (g.pl.z)));
 			lines.push_back (l);
-			if (g_target.hit) {
+			if (Entity *e = g_targetEnt ? g.mobs.get (g_targetEnt) : nullptr) {
+				snprintf (l, sizeof l, "%s : %s%s, %s %.0f", TR ("visé"), entityInfo (e->type).label, e->tamed ? TR (" apprivoisé") : "", TR ("santé"), e->health);
+				lines.push_back (l);
+			} else if (g_target.hit) {
 				snprintf (l, sizeof l, "%s %d %d %d : %s", TR ("visé"), g_target.x, g_target.y, g_target.z, info (g_target.block).label);
 				lines.push_back (l);
 			}
@@ -779,6 +815,9 @@ void collect (int b)
 	bool harvest;
 	mineTime (b, held.empty () ? 0 : held.item, &harvest);
 	Mining m = mining (b);
+	if (b == TALL_GRASS && rand () % 100 < 15) g.inv.add (I_SEEDS, 1);	// (des graines, pour les poules)
+	if (b == LEAVES && rand () % 100 < 6) g.inv.add (I_APPLE, 1);		// (une pomme, pour soi ou les cochons)
+	g.exhaustion += 0.005f;
 	if (harvest && m.drop && (m.chance >= 1 || rand () % 1000 < (int) (m.chance * 1000))) {
 		if (g.inv.add (m.drop, m.dropN) > 0) gamePost (TR ("Inventaire plein : l'objet est perdu"));
 		else audio::play (audio::S_PICKUP, 0, 0.7f);
@@ -813,9 +852,35 @@ void doBreak ()
 	g.edited = true;
 }
 
+// frapper la créature visée (une fois toutes les 0,45 s)
+void attackEntity ()
+{
+	Entity *e = g.mobs.get (g_targetEnt);
+	double t = nowMs ();
+	if (!e || t < g_attackAt) return;
+	g_attackAt = t + 450;
+	int held = survival () ? slotItem (g.selected) : 0;
+	float dmg = survival () ? attackDamage (held) : 5.0f;
+	g.mobs.hurtEntity (*e, dmg, g.pl.x, g.pl.z, -1);
+	audio::play (audio::S_HIT, audio::M_SOFT, 0.7f, panOf ((int) floor (e->x), (int) floor (e->z)));
+	if (!survival ()) return;
+	g.exhaustion += 0.1f;
+	Stack &st = g.inv.s[g.selected];
+	ItemInfo ti = itemInfo (st.empty () ? 0 : st.item);
+	if (!st.empty () && ti.durability && (st.dur += ti.tool == TOOL_SWORD ? 1 : 2) >= ti.durability) {
+		gamePost (std::string (ti.label) + TR (" s'est cassé"));
+		audio::play (audio::S_TOOLBREAK);
+		st = Stack ();
+	}
+}
+
 // créatif : casser tout de suite (le mode survie casse peu à peu, dans frame)
 void breakBlock ()
 {
+	if (g_targetEnt) {
+		attackEntity ();
+		return;
+	}
 	if (!g_target.hit || g_target.block == BEDROCK || survival ()) return;
 	doBreak ();
 }
@@ -856,8 +921,41 @@ bool useBucket (int item)
 	return true;
 }
 
+// manger ce qu'on tient (survie) -> vrai s'il a mangé
+bool eatHeld ()
+{
+	if (!survival ()) return false;
+	Stack &st = g.inv.s[g.selected];
+	if (st.empty ()) return false;
+	Food f = foodOf (st.item);
+	if (!f.hunger || g.hunger >= 20) return false;
+	g.hunger = std::min (20.0f, g.hunger + f.hunger);
+	g.saturation = std::min (g.hunger, g.saturation + f.saturation);
+	audio::play (audio::S_EAT, 0, 0.8f);
+	if (--st.count <= 0) st = Stack ();
+	return true;
+}
+
 void placeBlock ()
 {
+	// une créature visée : la nourrir, l'apprivoiser, l'asseoir…
+	if (g_targetEnt) {
+		Entity *e = g.mobs.get (g_targetEnt);
+		int held = slotItem (g.selected);
+		if (e && !survival ())	// (créatif : la barre n'a que des blocs ; on fait comme si on tenait ce qu'il faut)
+			held = e->type == E_WOLF ? (e->tamed ? 0 : I_BONE) : e->type == E_CHICKEN ? I_SEEDS : e->type == E_PIG ? I_APPLE : 0;
+		bool used;
+		std::string msg;
+		if (e && g.mobs.interact (*e, held, used, msg)) {
+			if (!msg.empty ()) gamePost (msg);
+			if (used && survival ()) {
+				Stack &st = g.inv.s[g.selected];
+				if (--st.count <= 0) st = Stack ();
+			}
+			return;
+		}
+	}
+	if (eatHeld ()) return;
 	if (!g_target.hit) return;
 	bool sneak = g_keys[0xE1] || g_keys[0xE5];
 	// survie : un clic droit sur un établi ou un four les ouvre (Maj : poser contre eux)
@@ -945,8 +1043,12 @@ void simDrop (int item, int x, int y, int z)
 	g.inv.add (item, 1);
 }
 
+void hurtPlayer (float dmg, const char *cause, double fx, double fz, bool periodic = false);
+
 void simPush (int x, int y, int z, int dir)
 {
+	for (auto &e : g.mobs.list)	// (les créatures dans la case poussée)
+		if ((int) floor (e.x) == x && (int) floor (e.z) == z && (int) floor (e.y + 0.3) == y) e.x += sim::DX[dir], e.y += sim::DY[dir], e.z += sim::DZ[dir];
 	if (!playerInside (g.pl, x, y, z)) return;
 	g.pl.x += sim::DX[dir], g.pl.y += sim::DY[dir], g.pl.z += sim::DZ[dir];
 	if (sim::DY[dir] > 0) g.pl.vy = std::max (g.pl.vy, 0.0);
@@ -959,6 +1061,22 @@ void simBlast (double x, double y, double z, float power)
 	if (d > power * 2 || d < 0.01) return;
 	double k = (1 - d / (power * 2)) * 18.0 / d;
 	g.pl.vx += dx * k, g.pl.vy += dy * k + 4, g.pl.vz += dz * k;
+}
+
+void simBlastAll (double x, double y, double z, float power)
+{
+	simBlast (x, y, z, power);
+	g.mobs.blast (x, y, z, power);
+	double dx = g.pl.x - x, dy = g.pl.y + 1 - y, dz = g.pl.z - z, d = sqrt (dx * dx + dy * dy + dz * dz);
+	if (d < power * 2) hurtPlayer ((float) floor ((1 - d / (power * 2)) * 20), TR ("une explosion"), x, z);
+}
+
+bool simOccupied (int x, int y, int z)
+{
+	if ((int) floor (g.pl.x) == x && (int) floor (g.pl.z) == z && g.pl.y >= y - 0.01 && g.pl.y < y + 0.6) return true;
+	for (auto &e : g.mobs.list)
+		if (e.dead < 0 && (int) floor (e.x) == x && (int) floor (e.z) == z && e.y >= y - 0.01 && e.y < y + 0.6) return true;
+	return false;
 }
 
 void selectSlot (int i)
@@ -1688,6 +1806,86 @@ void weatherStep (double dt)
 
 float daylight (float hour, float *sunAngle);
 
+// ---- la vie du joueur (mode survie) ----------------------------------------------------------------------------
+
+void respawn ()
+{
+	g.health = 20, g.hunger = 20, g.saturation = 5, g.exhaustion = 0, g.air = 15, g.burn = 0;
+	if (g.spawnY >= 0) gameTeleport (g.spawnX, g.spawnY, g.spawnZ);
+	else spawnNear (0, 0);
+	g.pl.vx = g.pl.vy = g.pl.vz = 0;
+	g_hurtFlash = 0;
+}
+
+void hurtPlayer (float dmg, const char *cause, double fx, double fz, bool periodic)
+{
+	if (!survival () || dmg <= 0 || g.health <= 0) return;
+	double t = nowMs ();
+	if (!periodic && t - g_lastHurt < 500) return;
+	g_lastHurt = t;
+	g.health = std::max (0.0f, g.health - dmg);
+	g_hurtFlash = 1;
+	g.exhaustion += 0.1f;
+	audio::play (audio::S_PLAYER_HURT, 0, 0.9f);
+	double dx = g.pl.x - fx, dz = g.pl.z - fz, d = sqrt (dx * dx + dz * dz);
+	if (d > 0.05) g.pl.vx += dx / d * 7, g.pl.vz += dz / d * 7, g.pl.vy = std::max (g.pl.vy, 5.0);
+	if (g.health <= 0) {
+		gamePost (std::string (TR ("Tu es mort (")) + cause + TR (") : retour au point de départ, l'inventaire gardé"));
+		respawn ();
+	}
+}
+
+// chaque image : la chute, la lave, le feu, l'eau, la faim, la guérison
+void vitals (double dt, bool wasGround, bool sprint, double dist)
+{
+	static double fallTop = 0, lavaT = 0, burnT = 0, drownT = 0, regenT = 0, starveT = 0;
+	g_hurtFlash = std::max (0.0f, g_hurtFlash - (float) dt * 2.5f);
+	if (!survival ()) {
+		g.health = 20, g.hunger = std::max (g.hunger, 20.0f), g.air = 15, g.burn = 0;
+		fallTop = g.pl.y;
+		return;
+	}
+	// la chute : plus de 3 blocs, un demi-cœur par bloc de plus (l'eau l'arrête)
+	if (g.pl.fly || g.pl.inWater) fallTop = g.pl.y;
+	else if (g.pl.onGround) {
+		if (!wasGround && fallTop - g.pl.y > 3.5) hurtPlayer ((float) floor (fallTop - g.pl.y - 3), TR ("une chute"), g.pl.x, g.pl.z, true);
+		fallTop = g.pl.y;
+	} else
+		fallTop = std::max (fallTop, g.pl.y);
+	// la lave, le feu qui reste ensuite
+	if (g.pl.inLava) {
+		g.burn = 5;
+		if ((lavaT += dt) >= 0.5) lavaT = 0, hurtPlayer (2, TR ("la lave"), g.pl.x, g.pl.z, true);
+	} else if (g.burn > 0) {
+		bool wet = g.pl.inWater || (g.weather != W_CLEAR && g.weatherLevel > 0.5f && g.world.skyLit ((int) floor (g.pl.x), (int) floor (g.pl.y + 1), (int) floor (g.pl.z)));
+		g.burn = wet ? 0 : g.burn - (float) dt;
+		if ((burnT += dt) >= 1) burnT = 0, hurtPlayer (1, TR ("le feu"), g.pl.x, g.pl.z, true);
+	}
+	// l'air sous l'eau : 15 s, puis un cœur par seconde
+	int eb = g.world.get ((int) floor (g.pl.x), (int) floor (g.pl.y + Player::EYE), (int) floor (g.pl.z));
+	if (eb == WATER) {
+		g.air = std::max (0.0f, g.air - (float) dt);
+		if (g.air <= 0 && (drownT += dt) >= 1) drownT = 0, hurtPlayer (2, TR ("noyé"), g.pl.x, g.pl.z, true);
+	} else
+		g.air = std::min (15.0f, g.air + (float) dt * 6);
+	// la faim : la fatigue use la satiété, puis la faim
+	g.exhaustion += (float) dt * 0.015f + (sprint ? (float) dist * 0.1f : 0.0f);
+	while (g.exhaustion >= 4) {
+		g.exhaustion -= 4;
+		if (g.saturation > 0) g.saturation = std::max (0.0f, g.saturation - 1);
+		else g.hunger = std::max (0.0f, g.hunger - 1);
+	}
+	// guérir (bien nourri), dépérir (affamé : jusqu'à un demi-cœur)
+	if (g.hunger >= 18 && g.health < 20) {
+		if ((regenT += dt) >= 3) regenT = 0, g.health = std::min (20.0f, g.health + 1), g.exhaustion += 6;
+	} else
+		regenT = 0;
+	if (g.hunger <= 0 && g.health > 1) {
+		if ((starveT += dt) >= 4) starveT = 0, hurtPlayer (1, TR ("la faim"), g.pl.x, g.pl.z, true);
+	} else
+		starveT = 0;
+}
+
 void frame (double dt)
 {
 	// la souris tourne la tête
@@ -1724,28 +1922,31 @@ void frame (double dt)
 	g_activity *= (float) exp (-dt / 25.0);
 	// la simulation : les liquides, les circuits (20 pas par seconde)
 	sim::step (dt, daylight (g.hour, nullptr) * (1.0f - 0.5f * g.weatherLevel), g.pl.x, g.pl.y, g.pl.z);
-	// survie : la lave brûle (on revient au point de départ, l'inventaire gardé)
-	static double lavaSince = 0;
-	if (survival () && g.pl.inLava) {
-		if (lavaSince == 0) lavaSince = nowMs (), audio::play (audio::S_FIZZ);
-		else if (nowMs () - lavaSince > 600) {
-			lavaSince = 0;
-			gamePost (TR ("Tu as brûlé dans la lave : retour au point de départ"));
-			spawnNear (0, 0);
-			g.pl.vx = g.pl.vy = g.pl.vz = 0;
-		}
-	} else
-		lavaSince = 0;
+	// la vie du joueur, les créatures
+	{
+		double moved = sqrt ((g.pl.x - px0) * (g.pl.x - px0) + (g.pl.z - pz0) * (g.pl.z - pz0));
+		if (wasGround && !g.pl.onGround && g.pl.vy > 5 && !g.pl.fly) g.exhaustion += in.sprint ? 0.2f : 0.05f;
+		vitals (dt, wasGround, in.sprint && g.pl.onGround, moved);
+	}
+	g.mobs.update (g.world, dt);
+	for (auto &e : g.mobs.list)	// (une créature sur une plaque)
+		if (e.dead < 0 && e.onGround) sim::press ((int) floor (e.x), (int) floor (e.y + 0.01), (int) floor (e.z));
 	if (g.timeRuns) g.hour = fmodf (g.hour + (float) dt * 24.0f / 1200.0f, 24.0f);	// une journée : 20 minutes
 	weatherStep (dt);
 	// le bloc visé ; les clics tenus se répètent
 	float eye[3], dir[3];
 	eyeOf (eye, dir);
 	g_target = g.world.raycast (eye, dir, survival () ? 5.0f : 6.0f);
+	{	// une créature plus proche que le bloc visé
+		float ed;
+		int id = g.mobs.pick (eye, dir, survival () ? 3.5f : 5.0f, ed);
+		g_targetEnt = id && (!g_target.hit || ed < g_target.dist) ? id : 0;
+	}
 	double t = nowMs ();
+	if (g_locked && (g_buttons & 1) && g_targetEnt) attackEntity ();
 	if (survival ()) {
 		// casser peu à peu : le temps dépend du bloc et de l'outil en main
-		bool on = g_locked && (g_buttons & 1) && g_target.hit;
+		bool on = g_locked && (g_buttons & 1) && g_target.hit && !g_targetEnt;
 		if (on && (g_target.x != g_mineX || g_target.y != g_mineY || g_target.z != g_mineZ)) {
 			g_mineX = g_target.x, g_mineY = g_target.y, g_mineZ = g_target.z;
 			g_mineProg = 0;
@@ -1763,7 +1964,7 @@ void frame (double dt)
 			g_mineProg = -1;
 			g_mineY = -999;
 		}
-	} else if (g_locked && (g_buttons & 1) && t > g_breakAt) breakBlock (), g_breakAt = t + 250;
+	} else if (g_locked && (g_buttons & 1) && t > g_breakAt && !g_targetEnt) breakBlock (), g_breakAt = t + 250;
 	// le tonnerre, un peu après l'éclair (la distance de l'orage)
 	if (g.lightning != g_lastLightning) g_lastLightning = g.lightning, g_thunderAt = t + 300 + rand () % 1800;
 	if (g_thunderAt > 0 && t >= g_thunderAt) g_thunderAt = 0, audio::play (audio::S_THUNDER, 0, 1.0f, (rand () % 200 - 100) / 150.0f);
@@ -1809,6 +2010,8 @@ void soundMood ()
 	m.altitude = std::max (0.0f, std::min (1.0f, (ey - 75) / 40.0f));
 	m.activity = g_activity;
 	m.seed = g.world.seed;
+	for (auto &e : g.mobs.list)	// (une créature de la nuit tout près, en survie : la musique se tend)
+		if (entityInfo (e.type).hostile && e.dead < 0 && survival () && (e.x - g.pl.x) * (e.x - g.pl.x) + (e.z - g.pl.z) * (e.z - g.pl.z) < 14 * 14) m.danger = 1;
 	audio::setMood (m);
 }
 
@@ -1850,6 +2053,16 @@ void renderTo (int w, int h, const Camera &cam, bool hotbar = true)
 		hud.wear[i] = dur ? (float) st.dur / dur : -1;
 	}
 	hud.mining = g_mineProg;
+	if (survival ()) {
+		hud.health = g.health, hud.hunger = g.hunger;
+		int ebw = g.world.get ((int) floor (cam.x), (int) floor (cam.y), (int) floor (cam.z));
+		hud.air = ebw == WATER || g.air < 15 ? g.air / 1.5f : -1;
+	}
+	hud.hurtFlash = g_hurtFlash;
+	static std::vector<EVertex> ev;
+	static std::vector<EDraw> ed;
+	buildEntityMeshes (g.mobs, g.world, floor (cam.x), floor (cam.z), ev, ed);
+	f.ents = &ev, f.entDraws = &ed;
 	hud.selected = g.selected;
 	int eb = g.world.get ((int) floor (cam.x), (int) floor (cam.y), (int) floor (cam.z));
 	hud.underwater = eb == WATER;
@@ -1891,6 +2104,8 @@ void freeChunks ()
 }
 
 } // namespace
+
+void gameHurtPlayer (float dmg, const char *cause, double fromX, double fromZ) { hurtPlayer (dmg, cause, fromX, fromZ); }
 
 void gameAudioChanged ()
 {
@@ -2272,6 +2487,66 @@ static void selftest ()
 		sim::runTicks (40);
 		check (lit (3, 105, 4) && g.world.get (1, 105, 7) == PISTON_HEAD, "scène : la lampe allumée, le piston sorti");
 	}
+	// les créatures, la santé, la faim (entity.cpp)
+	{
+		con ("mode survival");
+		con ("mobs on");
+		for (int cz = 1; cz <= 3; cz++)
+			for (int cx = 1; cx <= 3; cx++) g.world.ensure (cx, cz);	// (les créatures d'un tronçon pas fait restent figées)
+		for (int y = 100; y <= 104; y++)	// (une dalle en l'air : rien entre eux)
+			for (int z = 40; z <= 48; z++)
+				for (int x = 38; x <= 56; x++) g.world.set (x, y, z, y == 100 ? STONE : AIR);
+		gameTeleport (41.5, 101, 44.5);
+		g.health = 20, g.hunger = 20;
+		g.hour = 23;
+		int rid = g.mobs.spawn (E_RODEUR, 47.5, 101, 44.5)->id;
+		for (int i = 0; i < 200 && g.health >= 20; i++) g.mobs.update (g.world, 0.05);
+		check (g.health < 20, "créatures : le rôdeur vient frapper la nuit (santé " + std::to_string ((int) g.health) + ")");
+		if (Entity *rr = g.mobs.get (rid)) rr->dead = 9;
+		g.mobs.update (g.world, 0.05);
+		con ("heal");
+		con ("clear");
+		con ("give cooked_chicken 2");
+		g.hunger = 10, g.saturation = 0;
+		g.selected = 0;
+		check (eatHeld () && g.hunger == 16 && g.inv.count (I_COOKED_CHICKEN) == 1, "faim : manger un poulet rôti (+6)");
+		con ("give planks 2");
+		con ("give stick 1");
+		g.world.set ((int) floor (g.pl.x) + 2, (int) floor (g.pl.y), (int) floor (g.pl.z), WORKBENCH);
+		g.world.set ((int) floor (g.pl.x) - 2, (int) floor (g.pl.y), (int) floor (g.pl.z), FURNACE);
+		con ("craft wood_sword");
+		check (g.inv.count (I_WOOD_SWORD) == 1 && attackDamage (I_WOOD_SWORD) == 4, "fabrication : une épée en bois (4 de dégâts)");
+		con ("give raw_pork 1");
+		con ("give coal 1");
+		con ("craft cooked_pork");
+		check (g.inv.count (I_COOKED_PORK) == 1, "four : une côtelette grillée");
+		Entity *w = g.mobs.spawn (E_WOLF, g.pl.x + 2, g.pl.y, g.pl.z + 2);
+		bool used;
+		std::string msg;
+		for (int i = 0; i < 40 && !w->tamed; i++) g.mobs.interact (*w, I_BONE, used, msg);
+		check (w->tamed && w->sitting, "créatures : un loup apprivoisé avec des os");
+		std::string el = apiExec ("entities.list(16)", r);
+		check (el.find ("wolf") != std::string::npos && el.find (",1") != std::string::npos, "protocole : entities.list");
+		std::string ms = mcpHandle (R"({"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"spawn_entity","arguments":{"type":"pig","position":[44,80,40],"count":2}}})");
+		check (ms.find ("ids") != std::string::npos && g.mobs.count (E_PIG, 64) >= 2, "MCP : spawn_entity (deux cochons)");
+		con ("kill all");
+		g.mobs.update (g.world, 0.05);
+		con ("mode creative");
+		g.hour = 11;
+		// pour la capture : une poule, un cochon, un loup apprivoisé assis, un rôdeur, une araignée, au bord de la dalle
+		auto put = [] (int type, double x, double z, float yaw) {
+			Entity *e = g.mobs.spawn (type, x, 105, z);
+			e->yaw = yaw, e->onGround = true;
+			return e;
+		};
+		put (E_CHICKEN, -3.2, 3.5, 200);
+		put (E_PIG, -1.4, 3.5, 160);
+		Entity *ww = put (E_WOLF, 0.7, 3.4, 225);
+		ww->tamed = ww->sitting = true;
+		put (E_RODEUR, 2.6, 3.4, 210);
+		put (E_SPIDER, 2.8, 9.6, 250);
+		for (int z = 3; z <= 9; z++) g.world.set (-4, 105, z, AIR);
+	}
 	// une capture
 	gameTeleport (-6, 108, -6);
 	g.pl.yaw = 135, g.pl.pitch = -30;
@@ -2392,7 +2667,8 @@ int main (int argc, char **argv)
 	sim::soundHook = simSound;
 	sim::dropHook = simDrop;
 	sim::pushHook = simPush;
-	sim::blastHook = simBlast;
+	sim::blastHook = simBlastAll;
+	sim::occupiedHook = simOccupied;
 	if (audio::start ()) gameAudioChanged ();
 	else fprintf (stderr, "terracube : pas de son (AudioKit ou sa sortie absents)\n");
 	if (api) {

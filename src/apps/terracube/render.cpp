@@ -130,6 +130,7 @@ uniform sampler2D u_tex;
 uniform vec3 u_fogcol;
 uniform float u_alpha;
 uniform float u_water, u_time, u_day;
+uniform vec3 u_tint;
 in vec2 v_uv;
 in float v_light;
 in float v_fog;
@@ -163,7 +164,7 @@ void main () {
 	} else
 		t = texture (u_tex, v_uv);
 	if (u_alpha < 0.5 && t.a < 0.5) discard;
-	o = vec4 (mix (t.rgb * light, u_fogcol, v_fog), u_alpha < 0.5 ? 1.0 : t.a * u_alpha);
+	o = vec4 (mix (t.rgb * u_tint * light, u_fogcol, v_fog), u_alpha < 0.5 ? 1.0 : t.a * u_alpha);
 }
 )";
 
@@ -356,6 +357,7 @@ bool Renderer::init (std::string &err)
 	uWater = glGetUniformLocation (progWorld, "u_water");
 	uTime = glGetUniformLocation (progWorld, "u_time");
 	uCell = glGetUniformLocation (progWorld, "u_cell");
+	uTint = glGetUniformLocation (progWorld, "u_tint");
 	sInvVp = glGetUniformLocation (progSky, "u_invvp");
 	sSun = glGetUniformLocation (progSky, "u_sun");
 	sDay = glGetUniformLocation (progSky, "u_day");
@@ -380,6 +382,7 @@ bool Renderer::init (std::string &err)
 	glGenBuffers (1, &ibo);
 	glGenBuffers (1, &hudVbo);
 	glGenBuffers (1, &lineVbo);
+	glGenBuffers (1, &entVbo);
 	ensureIndices (4096);
 	return glGetError () == GL_NO_ERROR || true;
 }
@@ -555,6 +558,7 @@ void Renderer::draw (World &w, const Camera &cam, const Frame &f, const HudState
 	glUniform1f (uTime, (float) fmod (ts.tv_sec + ts.tv_nsec / 1e9, 3600.0));
 	glUniform2f (uCell, (float) (bx - floor (bx / 2048.0) * 2048.0), (float) (bz - floor (bz / 2048.0) * 2048.0));
 	glUniform1f (uWater, 0.0f);
+	glUniform3f (uTint, 1.0f, 1.0f, 1.0f);
 	glBindBuffer (GL_ELEMENT_ARRAY_BUFFER, ibo);
 	glEnableVertexAttribArray (0);
 	glEnableVertexAttribArray (1);
@@ -600,6 +604,23 @@ void Renderer::draw (World &w, const Camera &cam, const Frame &f, const HudState
 	glUniform1f (uAlpha, 0.0f);
 	for (Chunk *c : shown)
 		if (c->solid.quads) drawMesh (c, c->solid), drawnChunks++;
+	// les créatures : des boîtes en nombres réels, relatives à la case de l'œil
+	if (f.ents && f.entDraws && !f.entDraws->empty ()) {
+		float o[3] = { 0, 0, 0 };
+		glUniform3fv (uOrigin, 1, o);
+		glBindBuffer (GL_ARRAY_BUFFER, entVbo);
+		glBufferData (GL_ARRAY_BUFFER, (long) (f.ents->size () * sizeof (EVertex)), f.ents->data (), GL_STREAM_DRAW);
+		ensureIndices ((int) (f.ents->size () / 4));
+		glBindBuffer (GL_ELEMENT_ARRAY_BUFFER, ibo);
+		glVertexAttribPointer (0, 3, GL_FLOAT, GL_FALSE, sizeof (EVertex), (void *) 0);
+		glVertexAttribPointer (1, 2, GL_FLOAT, GL_FALSE, sizeof (EVertex), (void *) 12);
+		glVertexAttribPointer (2, 2, GL_FLOAT, GL_FALSE, sizeof (EVertex), (void *) 20);
+		for (auto &d : *f.entDraws) {
+			glUniform3fv (uTint, 1, d.tint);
+			glDrawElements (GL_TRIANGLES, d.quads * 6, GL_UNSIGNED_INT, (void *) ((size_t) d.first / 4 * 6 * 4));
+		}
+		glUniform3f (uTint, 1.0f, 1.0f, 1.0f);
+	}
 	// l'eau : mélangée, sans écrire la profondeur, des deux côtés
 	glEnable (GL_BLEND);
 	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -755,6 +776,7 @@ void Renderer::drawHud (const Frame &f, const HudState &hud)
 	float W = (float) f.w, H = (float) f.h;
 	if (hud.underwater) b.solid (0, 0, W, H, 0x1a4a90, 70);
 	if (hud.inLava) b.solid (0, 0, W, H, 0xff5a10, 150);
+	if (hud.hurtFlash > 0) b.solid (0, 0, W, H, 0xc81e1e, (int) (90 * hud.hurtFlash));
 	// la barre des blocs
 	float slot = 46, gap = 4, total = 9 * slot + 8 * gap;
 	float x0 = (W - total) * 0.5f, y0 = H - slot - 12;
@@ -776,6 +798,25 @@ void Renderer::drawHud (const Frame &f, const HudState &hud)
 			b.solid (x + 5, y0 + slot - 6, x + slot - 5, y0 + slot - 3, 0x000000, 200);
 			b.solid (x + 5, y0 + slot - 6, x + 5 + (slot - 10) * k, y0 + slot - 4, k > 0.5f ? hud.good : k > 0.2f ? hud.warn : hud.bad, 255);
 		}
+	}
+	// la santé (à gauche) et la faim (à droite), au-dessus de la barre ; l'air sous l'eau
+	if (hud.hotbar && hud.health >= 0) {
+		const float IS = 18, IG = 1;
+		auto icon = [&] (int tile, float x, float y) {
+			float u0 = (tile & 15) * 256 + 1, v0 = (tile >> 4) * 256 + 1;
+			b.quad (x, y, x + IS, y + IS, u0, v0, u0 + 254, v0 + 254, 0xffffff, 255);
+		};
+		float yh = y0 - 10 - IS;
+		bool low = hud.health <= 4;
+		for (int i = 0; i < 10; i++) {
+			float v = hud.health - i * 2;
+			float jig = low ? (float) ((i * 7 + (int) (hud.health * 13)) % 3) - 1 : 0;	// (presque mort : ils tremblent)
+			icon (v >= 2 ? T_HEART_FULL : v >= 1 ? T_HEART_HALF : T_HEART_EMPTY, x0 + i * (IS + IG), yh + jig);
+			float f = hud.hunger - i * 2;
+			icon (f >= 2 ? T_FOOD_FULL : f >= 1 ? T_FOOD_HALF : T_FOOD_EMPTY, x0 + total - (i + 1) * (IS + IG), yh);
+		}
+		if (hud.air >= 0)
+			for (int i = 0; i < (int) ceilf (hud.air); i++) icon (T_BUBBLE, x0 + total - (i + 1) * (IS + IG), yh - IS - 3);
 	}
 	// les nombres, par-dessus toutes les cases
 	for (auto &n : nums) number (b, n.n, n.x, n.y, 15);

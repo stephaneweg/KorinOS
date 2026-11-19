@@ -124,7 +124,7 @@ std::string playerJson ()
 		.raw ("tile", "[" + std::to_string (fx) + "," + std::to_string (fy) + "," + std::to_string (fz) + "]")
 		.num ("yaw", g.pl.yaw).num ("pitch", g.pl.pitch)
 		.raw ("direction", "[" + jn (d[0]) + "," + jn (d[1]) + "," + jn (d[2]) + "]")
-		.boo ("flying", g.pl.fly).boo ("in_water", g.pl.inWater)
+		.boo ("flying", g.pl.fly).boo ("in_water", g.pl.inWater).num ("health", g.health).num ("hunger", g.hunger)
 		.str ("block_below", info (g.world.get (fx, fy - 1, fz)).name);
 	if (h.hit)
 		o.raw ("looking_at", JO ().raw ("block_position", "[" + std::to_string (h.x) + "," + std::to_string (h.y) + "," + std::to_string (h.z) + "]")
@@ -232,6 +232,49 @@ std::string t_set_block (const Args &a)
 	if (!g.world.set (x, y, z, b, st)) fail ("outside the world (y from 0 to 127)");
 	g.edited = true;
 	return JO ().boo ("ok", true).end ();
+}
+
+std::string t_list_entities (const Args &a)
+{
+	double r = a.number ("radius", 64);
+	JA l;
+	for (auto &e : g.mobs.list) {
+		if (e.dead >= 0 || (e.x - g.pl.x) * (e.x - g.pl.x) + (e.z - g.pl.z) * (e.z - g.pl.z) > r * r) continue;
+		JO o;
+		o.num ("id", e.id).str ("type", entityInfo (e.type).name).raw ("position", "[" + jn (e.x) + "," + jn (e.y) + "," + jn (e.z) + "]").num ("health", e.health);
+		if (e.tamed) o.boo ("tamed", true).boo ("sitting", e.sitting);
+		if (e.age < 0) o.boo ("baby", true);
+		if (entityInfo (e.type).hostile) o.boo ("hostile", true);
+		l.add (o.end ());
+	}
+	return JO ().raw ("entities", l.end ()).boo ("monsters_enabled", g.mobs.monsters).end ();
+}
+
+std::string t_spawn_entity (const Args &a)
+{
+	int type = entityByName (a.text ("type").c_str ());
+	if (type < 0) fail ("type: chicken, pig, wolf, rodeur or spider");
+	double p[3];
+	a.vec ("position", 3, p);
+	int n = std::max (1, std::min (32, a.integer ("count", 1)));
+	JA ids;
+	for (int i = 0; i < n; i++) {
+		Entity *e = g.mobs.spawn (type, p[0] + (i % 4) * 0.8, p[1], p[2] + (i / 4) * 0.8);
+		if (a.boolean ("tamed", false) && type == E_WOLF) e->tamed = true, e->sitting = a.boolean ("sitting", false), e->hx = e->x, e->hy = e->y, e->hz = e->z, e->health = 20;
+		if (a.boolean ("baby", false) && !entityInfo (type).hostile) e->age = -300;
+		ids.add (std::to_string (e->id));
+	}
+	return JO ().raw ("ids", ids.end ()).end ();
+}
+
+std::string t_remove_entities (const Args &a)
+{
+	int id = a.integer ("id", 0), type = a.has ("type") ? entityByName (a.text ("type").c_str ()) : -1;
+	bool all = a.boolean ("all", false);
+	int n = 0;
+	for (auto &e : g.mobs.list)
+		if (e.dead < 0 && (all || e.id == id || e.type == type)) e.dead = 9, n++;
+	return JO ().num ("removed", n).end ();
 }
 
 std::string t_use_block (const Args &a)
@@ -557,6 +600,16 @@ const ToolDef TOOLS[] = {
 	  S ({ "type" : "object", "properties" : { "x" : { "type" : "integer" }, "y" : { "type" : "integer" }, "z" : { "type" : "integer" },
 		  "block" : { "type" : ["string", "integer"] }, "state" : { "type" : ["string", "integer"] } }, "required" : ["x", "y", "z", "block"] }),
 	  t_set_block, false },
+	{ "list_entities", "The creatures around the player (radius in blocks, 64 by default): id, type (chicken, pig, wolf, rodeur, spider), position, health; tamed/sitting wolves, babies, hostile ones.",
+	  S ({ "type" : "object", "properties" : { "radius" : { "type" : "number" } } }), t_list_entities, true },
+	{ "spawn_entity", "Make creatures appear: type chicken, pig, wolf (tamed:true: it follows the player, sitting:true: it guards its place), rodeur or spider (night creatures, they attack the player in survival mode); count up to 32; baby:true for young animals.",
+	  S ({ "type" : "object", "properties" : { "type" : { "type" : "string" }, "position" : { "type" : "array", "items" : { "type" : "number" } },
+		  "count" : { "type" : "integer" }, "tamed" : { "type" : "boolean" }, "sitting" : { "type" : "boolean" }, "baby" : { "type" : "boolean" } },
+		  "required" : ["type", "position"] }),
+	  t_spawn_entity, false },
+	{ "remove_entities", "Remove creatures: one by id, every one of a type, or all:true.",
+	  S ({ "type" : "object", "properties" : { "id" : { "type" : "integer" }, "type" : { "type" : "string" }, "all" : { "type" : "boolean" } } }),
+	  t_remove_entities, false },
 	{ "use_block", "Right-click a block as the player would: flip a lever, press a button, change a repeater delay or comparator mode, tune a note block, switch a daylight sensor. Returns whether it did something.",
 	  S ({ "type" : "object", "properties" : { "x" : { "type" : "integer" }, "y" : { "type" : "integer" }, "z" : { "type" : "integer" } },
 		  "required" : ["x", "y", "z"] }),

@@ -131,7 +131,9 @@ l'inventaire, sans poser la forme (la même recette, les mêmes ingrédients, l'
 
 Les objets qui ne sont pas des blocs (scripts, MCP, console) : `stick` 100, `coal` 101, `iron_ingot` 102,
 `gold_ingot` 103, `crystal` 104, `wood_pickaxe` 105 à `crystal_pickaxe` 108, `wood_axe` 109 à `crystal_axe` 112,
-`wood_shovel` 113 à `crystal_shovel` 116, `bucket` 117, `water_bucket` 118, `lava_bucket` 119, `resin` 120. Créatif et survie ont chacun leur barre ; passer de l'un à l'autre la garde.
+`wood_shovel` 113 à `crystal_shovel` 116, `bucket` 117, `water_bucket` 118, `lava_bucket` 119, `resin` 120, `seeds`
+121, `apple` 122, `raw_chicken` 123, `cooked_chicken` 124, `raw_pork` 125, `cooked_pork` 126, `feather` 127, `bone`
+128, `string` 129, `wood_sword` 130 à `crystal_sword` 133. Créatif et survie ont chacun leur barre ; passer de l'un à l'autre la garde.
 
 ## 2 quinquies. Les liquides
 
@@ -148,8 +150,7 @@ Les objets qui ne sont pas des blocs (scripts, MCP, console) : `stick` 100, `coa
   boutons, les plaques, les répéteurs (survie : ce qui tombe va dans l'inventaire si on est à moins de 8 blocs).
 * **Le seau** (`I·I` / `·I·`, du fer) : clic droit sur une source, il la prend ; plein, il la pose (survie ; en
   créatif, l'eau et la lave sont dans la liste des blocs, B).
-* Dans la lave on nage lentement, la vue est orange ; en survie, elle brûle : au bout d'une demi-seconde, on revient
-  au point de départ (l'inventaire gardé ; la santé viendra avec les créatures).
+* Dans la lave on nage lentement, la vue est orange ; en survie, elle brûle (§ 2 septies).
 
 ## 2 sexies. Les circuits de cuivre
 
@@ -185,6 +186,35 @@ Poser : la torche, le levier et le bouton contre la face visée ; le fil, les pl
 sur un bloc (le répéteur et le comparateur sortent dans la direction du regard) ; le piston pousse vers le joueur ;
 l'observateur regarde là où regarde le joueur. **Maj + clic droit** pose contre un levier, un bouton… au lieu de
 s'en servir. Casser la tête d'un piston casse le piston.
+
+## 2 septies. Les créatures, la santé, la faim
+
+**La santé et la faim ne comptent qu'en mode survie** (dix cœurs et dix cuisses au-dessus de la barre ; des bulles
+sous l'eau). En créatif rien ne blesse, les créatures y vivent mais n'attaquent pas.
+
+* **Se blesser** : une chute de plus de 3 blocs (un demi-cœur par bloc de plus ; l'eau l'amortit), la lave (un cœur
+  par demi-seconde, puis le feu quelques secondes : l'eau ou la pluie l'éteint), l'eau sans air (15 s, puis un cœur
+  par seconde), les coups des créatures, une explosion, la faim (jusqu'à un demi-cœur). Mort : on revient au **point
+  de départ** (`spawn set` le change), l'inventaire gardé.
+* **La faim** baisse lentement, plus vite en courant, en sautant, en se battant, en guérissant ; bien nourri (9 cuisses
+  et plus), on guérit d'un demi-cœur toutes les 3 s. **Manger** : clic droit avec la nourriture en main : pomme 4,
+  poulet cru 2, **poulet rôti** 6, porc cru 3, **côtelette grillée** 8 (la viande cuit au four).
+* **Se battre** : clic gauche sur une créature (3,5 blocs) ; la main fait 1, une **épée** (`M` / `M` / `S` : bois 4,
+  pierre 5, fer 6, cristal 7), une hache ou une pioche un peu moins ; le coup repousse. Les épées s'usent.
+
+| Créature | Où, quand | Ce qu'elle fait | Ce qu'elle laisse |
+|---|---|---|---|
+| **poule** | sur l'herbe, en groupes | flâne ; suit qui tient des **graines** (15 % des hautes herbes) ; nourrie, cherche un partenaire : un poussin, adulte en 5 min | poulet cru, plumes |
+| **cochon** | sur l'herbe | pareil avec les **pommes** (6 % des feuilles) | porc cru (1 à 3) |
+| **loup** | en meute, sur la neige, parfois sur l'herbe | sauvage, il ne fait rien ; frappé, il attaque. **Des os** (un sur trois) l'apprivoisent : collier rouge. **Clic droit** : assis, il **garde sa place** (il attaque toute créature de la nuit à moins de 12 blocs, puis revient) ; debout, il **suit** son maître (il le rejoint s'il est trop loin) et le défend. La viande le soigne ; deux loups nourris de viande : un louveteau | — |
+| **rôdeur** | la nuit dehors, ou dans le noir sous terre | marche vers le joueur (20 blocs) et frappe (1,5 cœur) ; **brûle au soleil** | os |
+| **araignée** | la nuit, ou dans le noir | rapide, **grimpe aux murs**, bondit ; le jour, dehors, laisse le joueur tranquille | fil d'araignée (4 : une laine) |
+
+Les animaux sont sauvés avec le monde (`entities.txt`) ; les créatures de la nuit non. Elles apparaissent à 18 à 40
+blocs du joueur (10 au plus), les animaux plus loin (14 au plus) ; une créature brûlée par la lave laisse sa viande
+cuite. La musique se tend quand une créature de la nuit est proche. Les plaques s'enfoncent sous les créatures ; les
+pistons et les explosions les poussent. La console : `summon <créature> [n]`, `kill <créature>|monsters|all`,
+`mobs on|off` (sans créatures de la nuit), `heal`, `feed`, `spawn set`.
 
 ## 2 quater. Le son
 
@@ -242,6 +272,10 @@ que tout soit fait). 16 connexions au plus.
 | `world.getBlock(x,y,z)` | le numéro |
 | `world.setBlock(x,y,z,bloc[,état])` | — (l'état : un nombre, ou `east`, `down+on`… ; § 2) |
 | `world.getBlockWithData(x,y,z)` | `numéro,état` |
+| `entities.list([rayon])` | `id,type,x,y,z,santé,apprivoisé\|…` (64 blocs autour du joueur par défaut) |
+| `entities.spawn(type,x,y,z[,tamed\|sitting])` | l'id (`chicken`, `pig`, `wolf`, `rodeur`, `spider` ; un loup apprivoisé, assis) |
+| `entities.remove(id\|type\|all)` | — |
+| `player.getHealth()` / `player.setHealth(santé[,faim])` | `santé,faim` (0 à 20) / — |
 | `world.getPower(x,y,z)` | la puissance d'un circuit (0 à 15) : un fil, la sortie d'un composant, un bloc alimenté |
 | `world.use(x,y,z)` | `1` si le bloc a servi (levier basculé, bouton enfoncé, délai d'un répéteur…), sinon `0` |
 | `world.setBlocks(x1,y1,z1,x2,y2,z2,bloc)` | — (un pavé plein, coins compris, 1 000 000 de blocs au plus) |
@@ -265,7 +299,7 @@ que tout soit fait). 16 connexions au plus.
 | `player.getInventory()` | `case:objet:nombre\|…` (survie ; les cases 0 à 8 sont la barre) |
 | `player.give(objet[,n])` | — (survie) |
 | `player.craft(recette[,fois])` | les fois faites, ou `error: …` (survie) |
-| `game.info()` | `TerraCube 1.3.0,<monde>,<graine>` |
+| `game.info()` | `TerraCube 1.4.0,<monde>,<graine>` |
 | `ping()` | `pong` |
 
 ### Python
@@ -274,7 +308,8 @@ que tout soit fait). 16 connexions au plus.
 `pyramid.py`, `rainbow.py`, `golden_touch.py` (les évènements), `snake_walk.py` (suivre le joueur),
 `survival_kit.py` (le mode survie : outils fabriqués par le script), `circuits.py` (trois montages : un piston
 collant, un arpège de blocs musicaux, une horloge à torche et répéteur), `flying_machine.py` (une machine qui
-avance seule : observateurs, pistons, colle)) ; `set_block(x, y, z, bloc, état)`,
+avance seule : observateurs, pistons, colle), `farm.py` (un enclos, des poules, des cochons, un loup qui garde)) ;
+`creatures()`, `spawn()`, `remove()`, `health()`, `set_health()` ; `set_block(x, y, z, bloc, état)`,
 `get_block_state()`, `get_power()`, `use()`, les directions dans `Facing` ; aussi `mode()`, `set_mode()`, `weather()`,
 `set_weather()`, `command()`, `inventory()`, `give()`, `craft()` :
 
@@ -322,6 +357,7 @@ de Forge (`mcp.cpp`).
 | `list_block_types` | les blocs : numéro, nom, solide, transparent |
 | `set_block`, `set_blocks`, `fill` | poser un bloc (avec un état : `"east"`, `"down+on"`…) ; une liste (200 000 au plus) ; un pavé plein ou creux |
 | `use_block` | un clic droit : basculer un levier, appuyer un bouton, changer un répéteur… |
+| `list_entities`, `spawn_entity`, `remove_entities` | les créatures autour ; en faire apparaître (un loup `tamed`, `sitting`, des petits `baby`) ; en enlever |
 | `post_message` | un message au joueur |
 | `set_time` | l'heure et si le temps passe |
 | `screenshot` | une image PNG de la vue du joueur, ou d'un autre point de vue (`eye` + `look_at` ou yaw/pitch) sans bouger le joueur |
@@ -355,6 +391,7 @@ essayé sur le ZBook (GPU Intel).
 | `main.cpp` | fenêtre, boucle, entrées ; la présentation : le GPU rend hors écran, l'image est relue (`glReadPixels`), les textes de UIKit y sont dessinés (console mélangée à demi), puis elle est recopiée d'un coup dans la fenêtre comme le fait Cosmo Zoom (`armgl_window` avec des zones posées par-dessus scintillait sur le ZBook) ; le panneau de fabrication (ses cases, le glisser-déposer), la console, menus, mondes, jeton du MCP, `--selftest` |
 | `world.h`, `world.cpp` | tronçons, génération (bruit de gradient, biomes, grottes, minerais, arbres), sauvegarde, lancer de rayon |
 | `mesh.cpp` | maillage : faces visibles, occlusion ambiante, lumière du ciel lissée, liquides en pente, plantes en croix, les formes des composants (des boîtes tournées par quarts de tour) |
+| `entity.h`, `entity.cpp` | les créatures : espèces, esprit (flâner, fuir, suivre, chasser, garder, se reproduire), corps (collisions, nage, escalade), apparitions, sauvegarde, et leurs corps en boîtes animées pour le rendu |
 | `sim.h`, `sim.cpp` | la simulation, 20 pas par seconde : l'écoulement de l'eau et de la lave, les circuits (puissance, fil en réseau, composants, pistons et colle, dynamite), les pas programmés |
 | `render.h`, `render.cpp` | OpenGL ES 3 : le panneau de fabrication (`CraftDraw`), shaders, ciel et soleil, pluie et neige (gouttes faites par le vertex shader, cachées sous les toits par une carte des hauteurs), tronçons (tronc de vue), eau animée (vagues de la surface dans le vertex shader, texture qui glisse et reflets dans le fragment shader), contour visé, barre de blocs |
 | `textures.cpp` | l'atlas de 16 × 16 tuiles, dessiné au départ |

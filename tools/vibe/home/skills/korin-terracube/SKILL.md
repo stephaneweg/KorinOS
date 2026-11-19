@@ -1,6 +1,6 @@
 ---
 name: korin-terracube
-description: Piloter TerraCube, le bac à sable de blocs en 3D de Korin (sur le PC), par son serveur MCP ou par un script Python - construire (maisons, pyramides, paysages), poser et faire marcher des circuits de cuivre (fil, leviers, torches-inverseurs, répéteurs, comparateurs, observateurs, pistons et pistons collants, colle, lampes, blocs musicaux, dynamite), faire couler l'eau et la lave, changer l'heure, la météo, le mode (créatif, survie), donner et fabriquer des objets, vérifier par capture. À utiliser dès qu'on parle de TerraCube, de construire dans le jeu, de blocs, de circuits, de « redstone », de portes logiques, d'horloge, de piston ou de machine dans le jeu.
+description: Piloter TerraCube, le bac à sable de blocs en 3D de Korin (sur le PC), par son serveur MCP ou par un script Python - construire (maisons, pyramides, paysages), poser et faire marcher des circuits de cuivre (fil, leviers, torches-inverseurs, répéteurs, comparateurs, observateurs, pistons et pistons collants, colle, lampes, blocs musicaux, dynamite), faire couler l'eau et la lave, les créatures (poules, cochons, loups apprivoisés qui gardent ou suivent, rôdeurs et araignées la nuit), la santé et la faim, changer l'heure, la météo, le mode (créatif, survie), donner et fabriquer des objets, vérifier par capture. À utiliser dès qu'on parle de TerraCube, de construire dans le jeu, de blocs, de circuits, de « redstone », de portes logiques, d'horloge, de piston, de machine, d'animaux, de ferme, de loup ou de monstres dans le jeu.
 user-invocable: true
 ---
 
@@ -67,6 +67,7 @@ Un script se lance dans le shell (`python3 fichier.py`) ; le jeu reste ouvert.
 | `get_block`, `get_blocks`, `get_heightmap`, `list_block_types` | lire un bloc (avec `state` et `power` pour un liquide ou un circuit), un pavé, les hauteurs du terrain, la liste des blocs |
 | `set_block`, `set_blocks`, `fill` | poser un bloc (`state`), une liste (`[[x, y, z, bloc, état], …]`, 200 000 au plus : **un montage entier d'un coup**), un pavé plein ou creux (`hollow`), `"air"` efface |
 | `use_block` | un clic droit : basculer un levier, appuyer un bouton, changer le délai d'un répéteur… |
+| `list_entities`, `spawn_entity`, `remove_entities` | les créatures autour du joueur ; en faire apparaître (`type`, `position`, `count` ; un loup `tamed`, `sitting` ; `baby`) ; en enlever (`id`, `type`, `all`) |
 | `run_command` | une commande de la console : `time 18`, `weather rain`, `mode survival`, `give wire 64`, `craft piston`, `tp x y z`, `fly`, `recipes`, `help` |
 | `screenshot` | une image de la vue du joueur, ou d'ailleurs (`eye`, `look_at`) sans le bouger : **pour vérifier** |
 | `get_events` | ce que le joueur a cassé, posé, touché (E) |
@@ -177,7 +178,26 @@ cuivre) :
   `stone`. L'eau et la lave cassent le fil, les torches, les leviers… : les éloigner des circuits.
 * Poser `water` ou `lava` (une source) les fait couler tout de suite ; `fill` d'air les arrête.
 
-## 6. Le mode survie
+## 6. Les créatures
+
+| `type` | Où, quand | Comportement | Laisse |
+|---|---|---|---|
+| `chicken` | l'herbe | flâne ; suit les **graines** ; nourrie de graines, avec une autre : un poussin | poulet cru, plumes |
+| `pig` | l'herbe | pareil avec les **pommes** | porc cru |
+| `wolf` | la neige, l'herbe | sauvage : neutre, attaque si on le frappe ; **des os** l'apprivoisent (un sur trois) ; apprivoisé : **assis, il garde sa place** (attaque toute créature de la nuit à moins de 12 blocs, puis revient) ; **debout, il suit** le joueur et le défend | — |
+| `rodeur` | la nuit dehors, le noir des grottes | marche vers le joueur et frappe (3) ; **brûle au soleil** | os |
+| `spider` | la nuit, le noir | rapide, grimpe aux murs, bondit (2) ; le jour dehors : tranquille | fil d'araignée |
+
+* Elles ne blessent le joueur **qu'en mode survie** ; `run_command` `mobs off` : plus de créatures de la nuit
+  (paisible), `mobs on` les rend ; `kill monsters`, `kill all`.
+* Un loup qui garde : `spawn_entity type=wolf tamed=true sitting=true position=[x, y, z]` (sa place est là où il
+  naît). Une ferme : un enclos de 2 blocs de haut (elles sautent 1 bloc), des animaux dedans, un loup assis à l'entrée
+  (exemple Python : `farm.py`).
+* La santé et la faim du joueur : `get_player` (`health`, `hunger`, sur 20) ; `heal`, `feed` dans la console.
+* Une pièce éclairée et fermée est sûre : les créatures de la nuit n'apparaissent que dans le noir (sans ciel au-dessus,
+  ou la nuit dehors), à 18 blocs au moins du joueur.
+
+## 7. Le mode survie
 
 `run_command` : `mode survival` / `mode creative`, `give <objet> [n]`, `craft <recette> [n]` (l'établi ou le four à
 moins de 4 blocs), `recipes`, `inv`, `clear`. Le cuivre (`copper_ore`, sous y = 20, pioche en fer) donne 4
@@ -185,6 +205,7 @@ moins de 4 blocs), `recipes`, `inv`, `clear`. Le cuivre (`copper_ore`, sous y = 
 `repeater` (`TDT` / `SSS`), `comparator` (`·T·` / `TKT` / `SSS`, K : cristal), `observer` (`CCC` / `DDK` / `CCC`),
 `piston` (`PPP` / `CIC` / `CDC`), `sticky_piston` (résine sur piston ; résine : un cactus au four), `glue_block`
 (9 résines), `signal_lamp` (4 poudres autour d'une lampe), `note_block` (planches autour d'une poudre), `tnt`
-(charbon et sable en damier), `bucket` (`I·I` / `·I·`).
+(charbon et sable en damier), `bucket` (`I·I` / `·I·`), les épées (`M` / `M` / `S`), `cooked_chicken`,
+`cooked_pork` (au four), `wool_from_string` (4 fils).
 
 La documentation complète : `/src/docs/TERRACUBE.md` si les sources sont là, ou l'aide du jeu (*Aide*).

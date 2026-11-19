@@ -281,6 +281,7 @@ struct Engine {
 				 AEOLIAN[7] = { 0, 2, 3, 5, 7, 8, 10 }, PHRYGIAN[7] = { 0, 1, 3, 5, 7, 8, 10 }, HIJAZ[7] = { 0, 1, 4, 5, 7, 8, 10 };
 		n = 7;
 		if (m.underwater) return LYDIAN;
+		if (m.danger > 0.4f) return PHRYGIAN;
 		if (m.cave > 0.5f) return m.daylight > 0.5f ? AEOLIAN : PHRYGIAN;
 		if (m.storm > 0.4f) return PHRYGIAN;
 		if (m.biome == BI_DESERT && m.daylight > 0.3f) return HIJAZ;
@@ -515,7 +516,7 @@ struct Engine {
 				}
 		}
 		// la batterie feutrée (de jour, au grand air, dans certaines sections pleines)
-		bool drumsOk = beat && section == 0 && m.cave < 0.3f && m.storm < 0.3f && !m.underwater && m.daylight > 0.25f && m.rain < 0.6f;
+		bool drumsOk = beat && section == 0 && m.danger < 0.3f && m.cave < 0.3f && m.storm < 0.3f && !m.underwater && m.daylight > 0.25f && m.rain < 0.6f;
 		if (drumsOk) {
 			int e8 = eighth % 8;
 			if (e8 == 0 || (e8 == 5 && rng.uni () < 0.8f) || (e8 == 3 && rng.uni () < 0.2f)) hitDrum (0, e8 == 0 ? 0.42f : 0.30f, swing);
@@ -687,10 +688,76 @@ struct Engine {
 			v->vol *= 1.0f, v->nf = 900, v->nfEnd = 120, v->filt = 0, v->nDecay = 0.7f, v->grain = 0.2f;
 			tone (70, 35, 0.4f, 1.0f);
 			break;
+		case S_CHICKEN:	// deux ou trois gloussements
+			v->vol *= 0.22f, v->filt = 1, v->nf = 1800, v->nDecay = 0.02f, v->grain = 0;
+			tone (rng.range (700, 820), 520, 0.035f, 0.8f);
+			echoOf (*v, 0.13f, 1.08f), echoOf (*v, rng.uni () < 0.5f ? 0.25f : -1, 0.95f);
+			break;
+		case S_PIG:	// un grognement rauque
+			v->vol *= 0.45f, v->filt = 0, v->nf = 500, v->nDecay = 0.12f, v->grain = 0.7f;
+			tone (rng.range (120, 145), 92, 0.12f, 0.8f), tone (260, 190, 0.08f, 0.3f);
+			if (rng.uni () < 0.5f) echoOf (*v, 0.2f, 0.9f);
+			break;
+		case S_WOLF:
+			switch (q.arg) {
+			case 1:	// grogne
+				v->vol *= 0.5f, v->filt = 0, v->nf = 320, v->nDecay = 0.5f, v->grain = 0.9f;
+				tone (95, 82, 0.45f, 0.6f);
+				break;
+			case 2:	// content
+				v->vol *= 0.22f, v->nDecay = 0;
+				tone (900, 1300, 0.12f, 0.5f), tone (1300, 1000, 0.2f, 0.3f);
+				break;
+			case 3:	// hurle, la nuit
+				v->vol *= 0.3f, v->nDecay = 0;
+				tone (470, 700, 0.9f, 0.7f), tone (940, 1400, 0.6f, 0.15f);
+				echoOf (*v, 1.1f, 0.85f);
+				break;
+			default:	// aboie
+				v->vol *= 0.42f, v->filt = 1, v->nf = 900, v->nDecay = 0.04f, v->grain = 0.3f;
+				tone (430, 260, 0.05f, 1.0f);
+				if (rng.uni () < 0.6f) echoOf (*v, 0.22f, 1.05f);
+			}
+			break;
+		case S_RODEUR:	// un gémissement creux
+			v->vol *= 0.4f, v->filt = 0, v->nf = 380, v->nDecay = 0.3f, v->grain = 0.5f;
+			tone (rng.range (140, 160), 112, 0.5f, 0.7f), tone (225, 170, 0.4f, 0.3f);
+			break;
+		case S_SPIDER:	// un sifflement, des cliquetis
+			v->vol *= 0.28f, v->filt = 2, v->nf = 3500, v->nDecay = 0.22f, v->grain = 0.6f;
+			tone (2600, 2400, 0.008f, 0.6f);
+			echoOf (*v, 0.09f, 1.0f);
+			break;
+		case S_MOB_HURT:
+			v->vol *= 0.4f, v->filt = 1, v->nDecay = 0.05f;
+			switch (q.arg) {
+			case 0: v->nf = 2200, tone (1050, 720, 0.04f, 0.8f); break;			// la poule
+			case 1: v->nf = 900, tone (620, 940, 0.12f, 0.8f); break;			// le cochon couine
+			case 2: v->nf = 1200, tone (950, 600, 0.08f, 0.8f); break;			// le loup glapit
+			case 3: v->nf = 400, v->filt = 0, v->grain = 0.6f, tone (180, 120, 0.12f, 0.8f); break;	// le rôdeur
+			default: v->nf = 3000, v->filt = 2, tone (2200, 1800, 0.01f, 0.5f); break;	// l'araignée
+			}
+			break;
+		case S_PLAYER_HURT:
+			v->vol *= 0.5f, v->filt = 0, v->nf = 800, v->nDecay = 0.05f, v->grain = 0.2f;
+			tone (240, 170, 0.08f, 0.8f);
+			break;
+		case S_EAT:	// croquer, trois fois
+			v->vol *= 0.3f, v->filt = 1, v->nf = 2200, v->nDecay = 0.05f, v->grain = 0.9f;
+			echoOf (*v, 0.16f, 0.9f), echoOf (*v, 0.32f, 1.1f);
+			break;
 		}
 		v->dur = std::max (v->nDecay * 6.0f, 0.02f);
 		for (int i = 0; i < v->tones; i++) v->dur = std::max (v->dur, v->tDecay[i] * 6.0f);
 		v->f.set (v->nf, v->filt == 1 ? 0.6f : 0.9f);
+		for (auto &pe : pendingEcho) {	// (les copies : les réglages finis de l'original)
+			Voice c = *v;
+			c.delay = pe.delay, c.nf *= pe.ratio, c.nfEnd *= pe.ratio;
+			for (int i = 0; i < 3; i++) c.tf[i] *= pe.ratio, c.tfEnd[i] *= pe.ratio;
+			c.f.set (c.nf, c.filt == 1 ? 0.6f : 0.9f);
+			*pe.v = c;
+		}
+		pendingEcho.clear ();
 	}
 
 	// une note du bloc musical : une voix de piano électrique (ou de la batterie), sur le bus des effets
@@ -734,6 +801,21 @@ struct Engine {
 				return;
 			}
 	}
+
+	// une copie d'un effet qui part plus tard (delay s ; < 0 : rien), un peu plus aigu ou grave (ratio)
+	void echoOf (Voice &src, float delay, float ratio)
+	{
+		if (delay < 0) return;
+		Voice *c = freeVoice ();
+		if (!c || c == &src) return;
+		c->on = true;	// (réservée : la copie est faite à la fin de trigger)
+		pendingEcho.push_back ({ c, delay, ratio });
+	}
+	struct Echo {
+		Voice *v;
+		float delay, ratio;
+	};
+	std::vector<Echo> pendingEcho;
 
 	// un échantillon d'un effet
 	float voiceTick (Voice &v)
@@ -793,6 +875,7 @@ struct Engine {
 		m.altitude += (want.altitude - m.altitude) * k;
 		m.activity += (want.activity - m.activity) * 0.05f;
 		m.lava += (want.lava - m.lava) * 0.05f;
+		m.danger += (want.danger - m.danger) * 0.02f;
 		m.underwater = want.underwater, m.biome = want.biome, m.snowing = want.snowing;
 		if (m.seed != want.seed) {
 			m.seed = want.seed;

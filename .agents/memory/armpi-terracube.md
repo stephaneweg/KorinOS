@@ -49,4 +49,9 @@ repris d'un jeu existant), doc `docs/TERRACUBE.md`.
   pistons + colle (12 blocs), lampe, bloc musical, capteur de jour, dynamite. Banc d'essai hôte de sim.cpp :
   scratchpad/simt/t.cpp. Suite demandée : santé/faim, créatures de nuit, animaux apprivoisables (poules, loups).
 
+- 1.4.0 (19/11) : créatures (`entity.cpp`) : poule, cochon, loup (apprivoisé par des os : garde assis, suit debout),
+  rôdeur (brûle au soleil) et araignée (grimpe) la nuit ou dans le noir ; santé, faim, air, chute, lave, mort ->
+  point de départ (inventaire gardé), en survie seulement ; épées, cuisine, graines et pommes. Corps en boîtes
+  animées (flottants, même shader, u_tint rouge au coup). Banc d'essai hôte : scratchpad/entt/t.cpp.
+
 **How to apply:** les numéros de blocs ne bougent jamais (ajout à la fin de `blocks.h`, de `terracube.py`, de la doc) ; de même les objets (100+, `items.h`).

@@ -482,6 +482,155 @@ static void circuitTiles ()
 		}
 }
 
+
+// ---- 1.4 : les créatures, la nourriture, les épées, la santé -------------------------------------------------------
+
+// une fourrure, un plumage : du bruit autour d'une couleur, des mèches
+static void fur (int t, unsigned base, int amp, int salt)
+{
+	for (int y = 0; y < 16; y++)
+		for (int x = 0; x < 16; x++) {
+			float r = rnd (t, x, y, salt), q = rnd (t, x / 2, y, salt + 1);
+			put (t, x, y, shade (base, (int) ((r - 0.5f) * amp) + (q < 0.2f ? -amp / 2 : 0)));
+		}
+}
+
+// une petite icône ronde (un fruit, un morceau de viande)
+static void blob (int t, float cx, float cy, float rx, float ry, unsigned c, unsigned hi, unsigned lo)
+{
+	for (int y = 0; y < 16; y++)
+		for (int x = 0; x < 16; x++) {
+			float dx = (x - cx) / rx, dy = (y - cy) / ry, d = dx * dx + dy * dy;
+			if (d > 1) continue;
+			put (t, x, y, dx + dy < -0.7f ? hi : dx + dy > 0.8f ? lo : shade (c, (int) (rnd (t, x, y) * 16) - 8));
+		}
+}
+
+static void creatureTiles ()
+{
+	// la poule : un plumage blanc ; sa tête : deux yeux, une crête rouge en haut ; ses pattes et son bec : orange
+	fur (T_CHICKEN_BODY, 0xf2efe6, 18, 1);
+	fur (T_CHICKEN_FACE, 0xf2efe6, 14, 2);
+	rect (T_CHICKEN_FACE, 6, 5, 6, 6, 0x101010), rect (T_CHICKEN_FACE, 9, 5, 9, 6, 0x101010);
+	rect (T_CHICKEN_FACE, 6, 9, 9, 10, 0xd02a20);	// (le barbillon)
+	fur (T_CHICKEN_LEG, 0xf0a020, 20, 3);
+	// le cochon : rose ; son groin, ses yeux
+	fur (T_PIG_SKIN, 0xf0a6a0, 14, 4);
+	fur (T_PIG_FACE, 0xf0a6a0, 12, 5);
+	rect (T_PIG_FACE, 5, 4, 5, 5, 0x1a1010), rect (T_PIG_FACE, 10, 4, 10, 5, 0x1a1010);
+	rect (T_PIG_FACE, 5, 7, 10, 10, 0xe08a88), rect (T_PIG_FACE, 6, 8, 6, 9, 0x8a4040), rect (T_PIG_FACE, 9, 8, 9, 9, 0x8a4040);
+	// le loup : gris clair, le museau plus clair, des yeux sombres ; son collier : rouge
+	fur (T_WOLF_FUR, 0xb8b4ae, 26, 6);
+	fur (T_WOLF_FACE, 0xbcb8b2, 20, 7);
+	rect (T_WOLF_FACE, 5, 6, 6, 6, 0x1a1a1a), rect (T_WOLF_FACE, 9, 6, 10, 6, 0x1a1a1a);
+	rect (T_WOLF_FACE, 6, 9, 9, 11, 0xdedad4), rect (T_WOLF_FACE, 7, 9, 8, 9, 0x202020);
+	fur (T_WOLF_COLLAR, 0xc42a24, 16, 8);
+	for (int x = 0; x < 16; x += 4) put (T_WOLF_COLLAR, x, 7, 0xd8c050);
+	// le rôdeur : une peau de mousse et de pierre, des haillons sombres ; son visage : une bouche, des orbites
+	for (int y = 0; y < 16; y++)
+		for (int x = 0; x < 16; x++) {
+			float r = rnd (T_RODEUR_SKIN, x, y), m = rnd (T_RODEUR_SKIN, x / 3, y / 3, 3);
+			unsigned c = m < 0.45f ? shade (0x5a7a4a, (int) (r * 24) - 12) : shade (0x6e7068, (int) (r * 22) - 11);
+			put (T_RODEUR_SKIN, x, y, c);
+			put (T_RODEUR_FACE, x, y, c);
+			put (T_RODEUR_CLOTH, x, y, shade (y % 5 == 0 ? 0x2a2a3a : 0x3e3a4e, (int) (rnd (T_RODEUR_CLOTH, x, y) * 18) - 9));
+		}
+	rect (T_RODEUR_FACE, 4, 5, 6, 7, 0x1a1a14), rect (T_RODEUR_FACE, 9, 5, 11, 7, 0x1a1a14);
+	rect (T_RODEUR_FACE, 5, 11, 10, 12, 0x2a2018);
+	// l'araignée : brun-noir velu ; sa tête : des yeux rouges en grappe ; ses pattes : brunes, annelées
+	fur (T_SPIDER_BODY, 0x3a2e28, 22, 9);
+	fur (T_SPIDER_FACE, 0x2e2420, 18, 10);
+	static const int EYES[][2] = { { 4, 5 }, { 6, 4 }, { 9, 4 }, { 11, 5 }, { 5, 7 }, { 10, 7 } };
+	for (auto &e : EYES) put (T_SPIDER_FACE, e[0], e[1], 0xd01818);
+	fur (T_SPIDER_LEG, 0x4a3a30, 16, 11);
+	for (int y = 0; y < 16; y++) put (T_SPIDER_LEG, 4, y, 0x2a1e18), put (T_SPIDER_LEG, 11, y, 0x2a1e18);
+	// la nourriture
+	clearTile (T_SEEDS);
+	for (int k = 0; k < 9; k++) {
+		int x = 3 + (int) (rnd (T_SEEDS, k, 0) * 10), y = 4 + (int) (rnd (T_SEEDS, k, 1) * 9);
+		put (T_SEEDS, x, y, 0x6a8a2a), put (T_SEEDS, x, y + 1, 0x4a6a1a);
+	}
+	clearTile (T_APPLE);
+	blob (T_APPLE, 7.5f, 9, 5.5f, 5.2f, 0xd42a20, 0xff8a7a, 0x8a1410);
+	rect (T_APPLE, 7, 2, 8, 4, 0x5a3a1a), rect (T_APPLE, 9, 3, 11, 4, 0x4aa02a);
+	clearTile (T_RAW_CHICKEN);
+	blob (T_RAW_CHICKEN, 8, 8, 5.5f, 4, 0xf0c0a8, 0xffe0d0, 0xc89080);
+	rect (T_RAW_CHICKEN, 2, 11, 4, 13, 0xf8f0e8);
+	clearTile (T_COOKED_CHICKEN);
+	blob (T_COOKED_CHICKEN, 8, 8, 5.5f, 4, 0xb8702a, 0xe0a050, 0x7a4012);
+	rect (T_COOKED_CHICKEN, 2, 11, 4, 13, 0xf0e6d0);
+	clearTile (T_RAW_PORK);
+	blob (T_RAW_PORK, 8, 8, 6, 4.5f, 0xe88a8a, 0xffc0c0, 0xb05a5a);
+	rect (T_RAW_PORK, 4, 6, 11, 6, 0xf8e0e0);
+	clearTile (T_COOKED_PORK);
+	blob (T_COOKED_PORK, 8, 8, 6, 4.5f, 0xa8602a, 0xd89050, 0x6a3810);
+	rect (T_COOKED_PORK, 4, 6, 11, 6, 0xe8c8a0);
+	clearTile (T_FEATHER);
+	for (int i = 0; i < 12; i++) {
+		int x = 3 + i, y = 13 - i;
+		put (T_FEATHER, x, y, 0xa0a0a0);
+		if (i > 2 && i < 11) put (T_FEATHER, x - 1, y - 1, 0xf4f4f4), put (T_FEATHER, x + 1, y + 1, 0xe4e4e4), put (T_FEATHER, x - 1, y, 0xffffff);
+	}
+	clearTile (T_BONE);
+	for (int i = 0; i < 10; i++) put (T_BONE, 3 + i, 12 - i, 0xeeeadc), put (T_BONE, 4 + i, 12 - i, 0xd8d2c0);
+	rect (T_BONE, 2, 11, 3, 13, 0xf4f0e4), rect (T_BONE, 12, 2, 13, 4, 0xf4f0e4);
+	clearTile (T_STRING);
+	for (int i = 0; i < 14; i++) put (T_STRING, 1 + i, 8 + (int) (sinf (i * 0.9f) * 3), 0xe8e8e8);
+	// les épées : une lame en diagonale, une garde, un manche
+	static const unsigned MAT[4] = { 0xa07a48, 0x8a8a8a, 0xdcdce2, 0x5fe6e0 };
+	for (int m = 0; m < 4; m++) {
+		int t = T_SWORD0 + m;
+		clearTile (t);
+		for (int i = 0; i < 10; i++) {
+			put (t, 5 + i, 10 - i, MAT[m]), put (t, 6 + i, 10 - i, shade (MAT[m], -50));
+			if (i < 9) put (t, 5 + i, 9 - i, shade (MAT[m], 40));
+		}
+		for (int i = 0; i < 4; i++) put (t, 2 + i, 8 + i, 0x5a3a1a), put (t, 6 - i, 12 - i + 1 > 15 ? 15 : 12 - i, 0x5a3a1a);
+		put (t, 2, 13, 0x7a5530), put (t, 3, 12, 0x7a5530), put (t, 4, 11, 0x7a5530), put (t, 1, 14, 0x4a321a);
+	}
+	// la santé et la faim : un cœur, une cuisse, plein, à moitié, vide (cerclés de noir), une bulle
+	auto heart = [] (int t, int fill) {	// fill : 2 plein, 1 la moitié gauche, 0 vide ; cerclé de noir
+		clearTile (t);
+		bool in[16][16];
+		for (int y = 0; y < 16; y++)
+			for (int x = 0; x < 16; x++) {
+				float fx = (x - 7.5f) / 6.2f, fy = -(y - 7.0f) / 6.2f, a = fx * fx + fy * fy - 0.55f;
+				in[y][x] = a * a * a - fx * fx * fy * fy * fy < 0;
+			}
+		for (int y = 0; y < 16; y++)
+			for (int x = 0; x < 16; x++) {
+				if (in[y][x]) {
+					bool full = fill == 2 || (fill == 1 && x < 8);
+					put (t, x, y, full ? (x + y < 10 ? 0xff7070 : 0xd81818) : 0x3a1010);
+					continue;
+				}
+				bool edge = (x > 0 && in[y][x - 1]) || (x < 15 && in[y][x + 1]) || (y > 0 && in[y - 1][x]) || (y < 15 && in[y + 1][x]);
+				if (edge) put (t, x, y, 0x101010);
+			}
+	};
+	heart (T_HEART_FULL, 2), heart (T_HEART_HALF, 1), heart (T_HEART_EMPTY, 0);
+	auto drum = [] (int t, int fill) {
+		clearTile (t);
+		for (int y = 0; y < 16; y++)
+			for (int x = 0; x < 16; x++) {
+				float dx = (x - 9.0f) / 5.0f, dy = (y - 6.5f) / 5.0f;
+				bool meat = dx * dx + dy * dy < 1;
+				bool bone = x - (15 - y) > -2 && x - (15 - y) < 1 && x < 7 && y > 8;
+				if (!meat && !bone) continue;
+				bool full = fill == 2 || (fill == 1 && x < 8);
+				unsigned c = bone ? 0xf0ead8 : full ? (dx + dy < -0.5f ? 0xe0a050 : 0xb06a2a) : 0x3a2412;
+				put (t, x, y, c);
+			}
+	};
+	drum (T_FOOD_FULL, 2), drum (T_FOOD_HALF, 1), drum (T_FOOD_EMPTY, 0);
+	clearTile (T_BUBBLE);
+	for (int y = 0; y < 16; y++)
+		for (int x = 0; x < 16; x++) {
+			float dx = x - 7.5f, dy = y - 7.5f, d = sqrtf (dx * dx + dy * dy);
+			if (d < 6.5f) put (T_BUBBLE, x, y, d > 5.2f ? 0x2a6ad8 : dx + dy < -4 ? 0xffffff : 0x9ac8f8, d > 5.2f ? 255 : 200);
+		}
+}
+
 } // namespace
 
 void buildAtlas (uint8_t *px)
@@ -642,6 +791,7 @@ void buildAtlas (uint8_t *px)
 		for (int x = 0; x < 16; x++) put (T_SELECT, x, y, 0xffffff);
 	extraTiles (px);
 	circuitTiles ();
+	creatureTiles ();
 }
 
 } // namespace tc
