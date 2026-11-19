@@ -110,10 +110,16 @@ static void *job_main (void *a)
 			const json::Value &r = d.root ();
 			const json::Value &items = !r["tracks"].isNull () ? r["tracks"]["items"] : r["items"];
 			for (const json::Value *it = items.first (); it; it = it->next)
-				parse_track (!(*it)["track"].isNull () ? (*it)["track"] : *it, j->tracks);
+				parse_track (!(*it)["item"].isNull () ? (*it)["item"] : !(*it)["track"].isNull () ? (*it)["track"] : *it, j->tracks);
 		}
 	}
 	else if (j->code == 401) j->err = "jeton refusé";
+	else if (j->code > 0)
+	{					// (le message de Spotify : {"error": {"status", "message"}})
+		json::Doc d;
+		if (d.parse (body.data (), (unsigned long) body.size ()))
+			j->err = std::to_string (j->code) + " : " + d.root ()["error"]["message"].asStr ();
+	}
 	__atomic_store_n (&j->done, 1, __ATOMIC_RELEASE);
 	return 0;
 }
@@ -129,6 +135,7 @@ static bool job_finished (Job &j)
 // la connexion de librespot (quelques secondes) : un fil à part
 static pthread_t g_loginTh;
 static bool g_loginBusy, g_loggedIn;
+static std::string g_playerErr;			// le dernier refus de librespot (ks_error)
 static volatile int g_loginDone, g_loginRc;
 static std::string g_loginToken;
 static void *login_main (void *)
@@ -225,9 +232,9 @@ static void start_list (int kind, const std::string &url)
 static void load_source ()
 {
 	if (g_source == 1) start_list (J_TRACKS, API "/me/tracks?limit=50");
-	else if (g_source == 2) start_list (J_TRACKS, API "/search?type=track&limit=50&q=" + urlenc (g_query));
+	else if (g_source == 2) start_list (J_TRACKS, API "/search?type=track&limit=10&q=" + urlenc (g_query));
 	else if (g_source >= 100 && g_source - 100 < (int) g_playlists.size ())
-		start_list (J_TRACKS, API "/playlists/" + g_playlists[g_source - 100].id + "/tracks?limit=100");
+		start_list (J_TRACKS, API "/playlists/" + g_playlists[g_source - 100].id + "/items?limit=50");	// (février 2026 : /tracks retiré par Spotify)
 }
 
 static void side_fill ()
@@ -239,10 +246,19 @@ static void side_fill ()
 	for (size_t i = 0; i < g_playlists.size (); i++) ui_list_add (g_side, (long) g_playlists[i].name.c_str (), (long) (100 + i));
 }
 
+static void login_player ();
+
 static void play_index (int i)
 {
 	if (i < 0 || i >= (int) g_tracks.size ()) return;
-	if (!g_loggedIn) { status (TR ("La connexion au lecteur n'est pas encore faite.")); return; }
+	if (!g_loggedIn)
+	{
+		if (g_loginBusy) { status (TR ("Connexion au lecteur de Spotify…")); return; }
+		std::string e = g_playerErr;	// (l'échec d'avant, que « 21 titres » a pu recouvrir) ; puis un nouvel essai
+		login_player ();
+		if (!e.empty ()) status ((std::string (TR ("Le lecteur de Spotify refuse la connexion (Premium ?) : ")) + e).c_str ());
+		return;
+	}
 	g_cur = i;
 	g_playing = g_tracks[i];
 	ui_w_set_value (g_list_w, i);
@@ -516,6 +532,7 @@ static void poll_all ()
 		{
 			char e[200];
 			ks_error (e, sizeof e);
+			g_playerErr = e;
 			status ((std::string (TR ("Le lecteur de Spotify refuse la connexion (Premium ?) : ")) + e).c_str ());
 		}
 	}
