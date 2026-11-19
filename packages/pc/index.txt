@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-19 21:44
+date = 2026-11-19 21:47
 abi = 626
 packages = 115
 board = pc
@@ -81,21 +81,6 @@ required = 0
 restart = 0
 content = 6323dec095198f6fcdfe6ccaefdf3869d1ebb7d001f4a2a8e871aed0e0d56207
 arch = any
-
-[relics]
-title = Relics
-version = 1.0.0
-category = Jeux
-author = Korin OS
-summary = Plates-formes et exploration : quinze niveaux de pièges et de trésors dans cinq mondes
-size = 2087917
-installed = 4886990
-sha256 = 13ffc8b36b16c43ff49949397666efc5ce6b135863d4b19b84c3116a8387ac0b
-file = pkgs/relics-1.0.0.opk
-needs = abi >= 626
-required = 0
-restart = 0
-content = 69c456d21d04548ab7b95933147d77212ecfab685a194d0c974e8ca0f52599cc
 
 [pkgman]
 title = Logiciels
@@ -1741,3 +1726,18 @@ needs = abi >= 626
 required = 0
 restart = 0
 content = 8a834697e1e4ca2e9e8a450abd47de56d3348bf099bd28de136315ee6ec371ca
+
+[relics]
+title = Relics
+version = 1.1.0
+category = Jeux
+author = Korin OS
+summary = Plates-formes et exploration : vingt et un niveaux de pièges et de trésors dans sept mondes
+size = 2736530
+installed = 6459016
+sha256 = e73dbe84a4fae293feb54de6a04ffcc49a70ac98d07a6c904caa30f48534015f
+file = pkgs/relics-1.1.0.opk
+needs = abi >= 626
+required = 0
+restart = 0
+content = 54355174d1b32af3956e579793b2e34a54d3e3075014608dd22f5872953ea49b
