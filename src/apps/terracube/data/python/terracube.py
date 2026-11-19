@@ -22,7 +22,7 @@ import math
 import os
 import socket
 
-__all__ = ["TerraCube", "Block", "Item", "Vec3", "BlockEvent", "TerraCubeError"]
+__all__ = ["TerraCube", "Block", "Item", "Facing", "Vec3", "BlockEvent", "TerraCubeError"]
 
 
 class TerraCubeError(RuntimeError):
@@ -93,6 +93,28 @@ class Block:
     BOOKSHELF = 39
     WORKBENCH = 40
     FURNACE = 41
+    LAVA = 42
+    OBSIDIAN = 43
+    COPPER_ORE = 44
+    WIRE = 45
+    COPPER_BLOCK = 46
+    COPPER_TORCH = 47
+    LEVER = 48
+    STONE_BUTTON = 49
+    WOOD_BUTTON = 50
+    STONE_PLATE = 51
+    WOOD_PLATE = 52
+    REPEATER = 53
+    COMPARATOR = 54
+    OBSERVER = 55
+    PISTON = 56
+    STICKY_PISTON = 57
+    PISTON_HEAD = 58
+    SIGNAL_LAMP = 59
+    NOTE_BLOCK = 60
+    DAYLIGHT_SENSOR = 61
+    GLUE_BLOCK = 62
+    TNT = 63
 
     @classmethod
     def name_of(cls, n):
@@ -121,6 +143,16 @@ class Item:
     STONE_SHOVEL = 114
     IRON_SHOVEL = 115
     CRYSTAL_SHOVEL = 116
+    BUCKET = 117
+    WATER_BUCKET = 118
+    LAVA_BUCKET = 119
+    RESIN = 120
+
+
+class Facing:
+    """Les directions de l'état d'un bloc (world.setBlock(..., état)) ; ON s'y ajoute (« Facing.DOWN | Facing.ON »)."""
+    EAST, WEST, UP, DOWN, SOUTH, NORTH = 0, 1, 2, 3, 4, 5
+    ON = 8
 
 
 class BlockEvent:
@@ -239,8 +271,25 @@ class TerraCube:
     def get_block(self, x, y, z):
         return int(self.ask("world.getBlock", int(x), int(y), int(z)))
 
-    def set_block(self, x, y, z, block):
-        self.send("world.setBlock", int(x), int(y), int(z), block)
+    def set_block(self, x, y, z, block, state=None):
+        """state : pour les circuits, une direction (Facing.EAST, "east", "down+on") ; voir docs/TERRACUBE.md."""
+        if state is None:
+            self.send("world.setBlock", int(x), int(y), int(z), block)
+        else:
+            self.send("world.setBlock", int(x), int(y), int(z), block, state)
+
+    def get_block_state(self, x, y, z):
+        """(numéro, état) : l'état d'un liquide (son niveau) ou d'un composant (direction, allumé...)."""
+        b, m = self.ask("world.getBlockWithData", int(x), int(y), int(z)).split(",")
+        return int(b), int(m)
+
+    def get_power(self, x, y, z):
+        """La puissance d'un circuit en ce bloc (0 à 15)."""
+        return int(self.ask("world.getPower", int(x), int(y), int(z)))
+
+    def use(self, x, y, z):
+        """Un clic droit : bascule un levier, enfonce un bouton, change le délai d'un répéteur... -> vrai s'il a servi."""
+        return self.ask("world.use", int(x), int(y), int(z)) == "1"
 
     def fill(self, x1, y1, z1, x2, y2, z2, block):
         """Un pavé plein, coins compris (1 000 000 de blocs au plus)."""

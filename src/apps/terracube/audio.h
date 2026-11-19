@@ -20,7 +20,11 @@ namespace audio {
 // la matière d'un bloc, pour le son
 enum Material { M_STONE, M_WOOD, M_EARTH, M_SAND, M_GLASS, M_LEAVES, M_SOFT, M_SNOW, M_METAL };
 
-enum Sfx { S_BREAK, S_HIT, S_PLACE, S_STEP, S_LAND, S_JUMP, S_SPLASH, S_CRAFT, S_PICKUP, S_TOOLBREAK, S_CLICK, S_THUNDER };
+enum Sfx { S_BREAK, S_HIT, S_PLACE, S_STEP, S_LAND, S_JUMP, S_SPLASH, S_CRAFT, S_PICKUP, S_TOOLBREAK, S_CLICK, S_THUNDER,
+	   S_PISTON_OUT, S_PISTON_IN, S_FIZZ, S_EXPLODE, S_FUSE, S_CLICK_ON, S_NOTE };
+
+// les instruments du bloc musical (selon le bloc dessous)
+enum Instrument { IN_HARP, IN_BASS, IN_DRUM, IN_SNARE, IN_CLICK, IN_BELL, IN_GUITAR, IN_CHIME };
 
 enum Biome { BI_TEMPERATE, BI_DESERT, BI_SNOW };
 
@@ -34,6 +38,7 @@ struct Mood {
 	int biome = BI_TEMPERATE;
 	float altitude = 0;	// 0 à 1 (le vent)
 	float activity = 0;	// 0 à 1 : le joueur casse et pose (la musique s'anime)
+	float lava = 0;		// 0 à 1 : de la lave tout près (elle bouillonne)
 	uint32_t seed = 1;	// la tonalité du monde
 };
 
@@ -45,6 +50,8 @@ void setMusic (bool on, float volume);	// volume 0 à 1
 void setSfx (bool on, float volume);
 // un effet : la matière, le volume (0 à 1), la place à gauche (-1) ou à droite (1)
 void play (Sfx s, int material = M_STONE, float volume = 1.0f, float pan = 0.0f);
+// une note du bloc musical : pitch 0 à 24 (deux octaves à partir de fa dièse), l'instrument
+void playNote (int pitch, int instrument, float volume, float pan);
 
 int materialOf (int block);
 

@@ -27,10 +27,27 @@ proche cuit le minerai, le sable, l'argile. Sans pioche, la pierre ne donne rien
 **T** (ou **/**) ouvre la console : `time 18`, `weather rain`, `weather storm`, `mode survival`, `give log 10`,
 `recipes`, `craft wood_pickaxe`, `tp ~ ~10 ~`, `help`… Entrée exécute, Échap ferme.
 
+## L'eau, la lave
+
+L'eau coule (7 blocs) et tombe dans les trous ; la lave, au fond des grottes, coule plus lentement et brûle en mode
+survie. Une source de lave touchée par l'eau devient de l'**obsidienne**, un écoulement de lave des pavés. Le
+**seau** (deux lingots de fer de chaque côté, un en dessous au milieu) prend une source et la repose.
+
+## Les circuits
+
+Le **cuivre** (sous y = 20, pioche en fer) donne de la poudre : posée au sol, c'est du **fil**, qui porte un signal
+de 15 blocs. Les sources : **levier**, **bouton**, **plaque**, **bloc de cuivre**, **torche de cuivre** (elle
+s'éteint quand son bloc est alimenté : l'inverseur), **capteur de jour**, **observateur** (il voit un bloc changer).
+Ce qui s'en sert : **lampe à signal**, **piston** et **piston collant** (avec des **blocs de colle**, des machines
+qui avancent seules), **bloc musical**, **dynamite**. Le **répéteur** redonne la force du signal avec un délai
+(clic droit), le **comparateur** compare ou soustrait. Clic droit pour se servir d'un levier ou d'un bouton ; Maj +
+clic droit pour poser contre lui. Toutes les recettes : **R** dans la fabrication, ou `recipes`.
+
 ## Le son
 
-Une musique d'ambiance composée par le jeu au fil de la partie, qui change avec le jour, la nuit, la météo, les
-grottes et les biomes, et des effets sonores (blocs, pas, eau, fabrication). Menu **Son**, ou `music off` et
+Une musique d'ambiance calme composée par le jeu au fil de la partie : une mélodie de piano électrique faite de
+motifs, sur des nappes discrètes, qui change avec le jour, la nuit, la météo, les grottes et les biomes ; et des
+effets sonores (blocs, pas, eau, fabrication, circuits, lave). Menu **Son**, ou `music off` et
 `sound 50` dans la console.
 
 ## Les mondes

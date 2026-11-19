@@ -68,6 +68,22 @@ Ligne de commande : `terracube [--world nom] [--seed n] [--distance n] [--no-api
 | | | | | | | 40 | workbench |
 | | | | | | | 41 | furnace |
 
+Depuis la 1.3 (les liquides et les circuits, § 2 quinquies et § 2 sexies) :
+
+| n° | nom | n° | nom | n° | nom | n° | nom |
+|---|---|---|---|---|---|---|---|
+| 42 | lava | 48 | lever | 54 | comparator | 60 | note_block |
+| 43 | obsidian | 49 | stone_button | 55 | observer | 61 | daylight_sensor |
+| 44 | copper_ore | 50 | wood_button | 56 | piston | 62 | glue_block |
+| 45 | wire | 51 | stone_plate | 57 | sticky_piston | 63 | tnt |
+| 46 | copper_block | 52 | wood_plate | 58 | piston_head | | |
+| 47 | copper_torch | 53 | repeater | 59 | signal_lamp | | |
+
+Un bloc a aussi un **état** (un octet, sauvé avec lui) : le niveau d'un liquide, la direction d'un composant,
+allumé ou non, la puissance d'un fil. Les directions : 0 est (+x), 1 ouest (−x), 2 haut, 3 bas, 4 sud (+z), 5 nord
+(−z) ; + 8 : allumé (levier abaissé, bouton enfoncé, piston sorti…). Les scripts l'écrivent en nombre ou en mots
+(`east`, `down+on`).
+
 ## 2 bis. Le mode survie
 
 * Les blocs se cassent **en tenant le clic** : le temps dépend du bloc et de l'outil en main (une barre sous le
@@ -115,24 +131,81 @@ l'inventaire, sans poser la forme (la même recette, les mêmes ingrédients, l'
 
 Les objets qui ne sont pas des blocs (scripts, MCP, console) : `stick` 100, `coal` 101, `iron_ingot` 102,
 `gold_ingot` 103, `crystal` 104, `wood_pickaxe` 105 à `crystal_pickaxe` 108, `wood_axe` 109 à `crystal_axe` 112,
-`wood_shovel` 113 à `crystal_shovel` 116. Créatif et survie ont chacun leur barre ; passer de l'un à l'autre la garde.
+`wood_shovel` 113 à `crystal_shovel` 116, `bucket` 117, `water_bucket` 118, `lava_bucket` 119, `resin` 120. Créatif et survie ont chacun leur barre ; passer de l'un à l'autre la garde.
+
+## 2 quinquies. Les liquides
+
+* **L'eau coule** : une source s'étale de 7 blocs sur un sol plat, tombe dans les trous, va d'abord vers la pente
+  la plus proche (4 blocs à la ronde) ; un écoulement sans source tarit ; deux sources côte à côte au-dessus d'un
+  sol font une troisième source (une source sans fin). L'eau d'avant la 1.3 (la mer) ne bouge que si on la touche :
+  casser un bloc au bord d'un lac le fait couler dans le trou.
+* **La lave** : des lacs au fond des grottes (sous y = 10, où il y avait de l'eau). Elle coule de 3 blocs, six fois
+  plus lentement que l'eau, et luit (animée par le shader, opaque). Elle bouillonne quand on en est près (le son).
+* **Lave et eau** : une source de lave qui touche de l'eau devient de l'**obsidienne** (noire, très dure : une
+  pioche en cristal, 80 s à la main) ; un écoulement de lave, des **pavés** ; de la lave qui tombe dans de l'eau, de
+  la **pierre**. Un sifflement les accompagne.
+* L'eau et la lave cassent ce qu'elles rencontrent de fragile : les plantes, le fil, les torches, les leviers, les
+  boutons, les plaques, les répéteurs (survie : ce qui tombe va dans l'inventaire si on est à moins de 8 blocs).
+* **Le seau** (`I·I` / `·I·`, du fer) : clic droit sur une source, il la prend ; plein, il la pose (survie ; en
+  créatif, l'eau et la lave sont dans la liste des blocs, B).
+* Dans la lave on nage lentement, la vue est orange ; en survie, elle brûle : au bout d'une demi-seconde, on revient
+  au point de départ (l'inventaire gardé ; la santé viendra avec les créatures).
+
+## 2 sexies. Les circuits de cuivre
+
+Un signal a une **puissance de 0 à 15**. La source donne 15 ; le **fil** (la poudre de cuivre posée au sol) perd 1
+par bloc, il monte et descend les marches d'un bloc. Un **bloc plein** est alimenté **fort** (par un répéteur, un
+comparateur ou un observateur qui pointe dedans, une torche dessous, un levier ou un bouton fixé dessus, une plaque
+posée dessus) ou **faible** (par du fil qui pointe dedans) ; fort, il alimente aussi le fil voisin ; faible,
+seulement les composants (lampe, piston, répéteur, torche fixée à lui…). La simulation avance de 20 pas par seconde ;
+un « temps » (le délai d'un répéteur) vaut 2 pas, 0,1 s.
+
+| Bloc | Rôle | Fabrication |
+|---|---|---|
+| minerai de cuivre | sous y = 20 ; une pioche en fer ; donne 4 poudres de cuivre | — |
+| poudre de cuivre (le fil) | posée sur un bloc : le fil, qui s'oriente seul vers ses voisins (seul : une croix) ; s'allume de son signal | 9 d'un bloc de cuivre |
+| bloc de cuivre | une source de 15, toujours | 9 poudres |
+| torche de cuivre | **l'inverseur** : allumée (15) tant que le bloc qui la porte n'est pas alimenté, éteinte s'il l'est (1 temps) ; alimente fort le bloc au-dessus. Elle grille si elle change plus de 8 fois en 3 s (8 s) | poudre sur un bâton |
+| levier | basculé au clic droit ; posé sur n'importe quelle face d'un bloc | bâton sur un pavé |
+| bouton de pierre / de bois | une impulsion d'1 s / 1,5 s | une pierre / une planche |
+| plaque de pierre / de bois | alimentée tant que le joueur est dessus | 2 pierres / 2 planches côte à côte |
+| répéteur | redonne 15 vers l'avant, après 1 à 4 temps (clic droit : le délai) ; allonge une impulsion trop courte ; **bloqué** par un répéteur ou comparateur allumé sur son côté | `TDT` / `SSS` (torches, poudre, pierres) |
+| comparateur | sortie = l'arrière s'il est ≥ les côtés ; en soustraction (clic droit, la torche de devant s'allume) : l'arrière moins le plus fort côté | `·T·` / `TKT` / `SSS` (torches, cristal, pierres) |
+| observateur | une impulsion de 1 temps par son dos quand le bloc qu'il regarde change (posé, cassé, changé d'état), ou quand un piston le déplace | `CCC` / `DDK` / `CCC` (pavés, poudre, cristal) |
+| piston | alimenté (pas par sa face) : pousse jusqu'à 12 blocs ; casse ce qui est fragile ; ne pousse ni le socle, ni l'obsidienne, ni le four, ni un piston sorti ; pousse le joueur | `PPP` / `CIC` / `CDC` (planches, pavés, fer, poudre) |
+| piston collant | ramène le bloc collé à sa tête en rentrant | résine sur un piston |
+| bloc de colle | entraîne les blocs qui le touchent quand un piston le pousse ou le tire (les machines qui avancent seules : observateurs, pistons collants et colle) | 9 résines |
+| lampe à signal | allumée quand elle est alimentée (s'éteint 2 temps après) | `·D·` / `DLD` / `·D·` (poudre, lampe) |
+| bloc musical | une note à chaque front montant ; clic droit : la note suivante (2 octaves) ; l'instrument selon le bloc dessous : bois → basse, pierre → grosse caisse, sable → caisse claire, verre → clic, métal → cloche, laine → guitare, neige → carillon, sinon une harpe | `PPP` / `PDP` / `PPP` |
+| capteur de jour | la puissance suit la lumière du jour (clic droit : inversé, la nuit) | `GGG` / `KKK` / `PPP` (verre, cristal, planches) |
+| dynamite | allumée par un signal (ou une torche de cuivre en main, clic droit) : 4 s, puis elle explose (rayon 3,5 ; ni le socle, ni l'obsidienne, ni les liquides) ; une dynamite dans l'explosion part aussi | `CSC` / `SCS` / `CSC` (charbon, sable) |
+| résine | — | un cactus au four, ou 4 aiguilles de pin |
+
+Poser : la torche, le levier et le bouton contre la face visée ; le fil, les plaques, le répéteur et le comparateur
+sur un bloc (le répéteur et le comparateur sortent dans la direction du regard) ; le piston pousse vers le joueur ;
+l'observateur regarde là où regarde le joueur. **Maj + clic droit** pose contre un levier, un bouton… au lieu de
+s'en servir. Casser la tête d'un piston casse le piston.
 
 ## 2 quater. Le son
 
 Tout est synthétisé par le jeu (`audio.cpp`), sans aucun fichier : un thread calcule le son et le donne à AudioKit
 (un flux PCM s16 stéréo 44,1 kHz), environ 1 % d'un cœur.
 
-* **La musique d'ambiance**, générative : une tonalité tirée de la graine du monde ; une gamme et un tempo qui
-  suivent la situation (le jour en majeur, la nuit en dorien, la pluie en mineur, l'orage en phrygien, le désert
-  en hijaz, la neige en lydien, la grotte grave et lente, sous l'eau étouffée) ; des accords enchaînés au hasard
-  guidé (des nappes), une mélodie en marche aléatoire (corde pincée le jour, cloches la nuit et dans la neige,
-  marimba sourd dans les grottes), une basse, un écho stéréo ; des passages pleins, clairsemés et des silences.
-  Casser et poser des blocs l'animent un peu.
+* **La musique d'ambiance**, générative et calme (de quoi rester concentré) : une tonalité tirée de la graine du
+  monde ; une gamme et un tempo (66 à 77 à la noire) qui suivent la situation (le jour en majeur, la nuit en dorien,
+  la pluie en mineur, l'orage en phrygien, le désert en hijaz, la neige en lydien, la grotte grave et lente, sous
+  l'eau étouffée). Devant : une **mélodie au piano électrique** doux, sur la pentatonique de la gamme, faite de
+  **motifs** (un rythme, un contour) repris et variés en périodes de quatre phrases (A, A', B, A'' qui se pose sur
+  la tonique), un peu balancée ; ses accords égrenés sans fondamentale (tierce, quinte, septième, neuvième), une
+  basse ronde ; derrière, des **nappes discrètes** et sombres ; de jour, au grand air, parfois une batterie feutrée
+  (grosse caisse, balais, charleston) ; la nuit et dans la neige, quelques cloches. Des passages pleins,
+  clairsemés et des silences ; casser et poser des blocs l'animent un peu.
 * **L'ambiance** : la pluie, le vent (en altitude, sous l'orage, dans la neige), les oiseaux le jour, les grillons la
-  nuit, les gouttes dans les grottes, le tonnerre un peu après l'éclair.
+  nuit, les gouttes dans les grottes, la lave qui bouillonne, le tonnerre un peu après l'éclair.
 * **Les effets**, selon la matière du bloc (pierre, bois, terre, sable, verre, feuilles, laine, neige, métal) :
   casser, les coups de la pioche, poser, les pas, le saut, la chute, plonger dans l'eau, fabriquer, ramasser, un
-  outil qui casse, les clics du panneau.
+  outil qui casse, les clics du panneau ; les circuits : leviers et boutons, pistons, la lave qui fige, la mèche et
+  l'explosion de la dynamite, les blocs musicaux (au volume des effets, plus faibles au loin).
 * Menu **Son** (musique, effets, musique plus ou moins fort) ou la console : `music on|off|<0..100>`,
   `sound on|off|<0..100>` ; gardé dans `terracube.ini`.
 
@@ -167,7 +240,10 @@ que tout soit fait). 16 connexions au plus.
 | Commande | Réponse |
 |---|---|
 | `world.getBlock(x,y,z)` | le numéro |
-| `world.setBlock(x,y,z,bloc)` | — |
+| `world.setBlock(x,y,z,bloc[,état])` | — (l'état : un nombre, ou `east`, `down+on`… ; § 2) |
+| `world.getBlockWithData(x,y,z)` | `numéro,état` |
+| `world.getPower(x,y,z)` | la puissance d'un circuit (0 à 15) : un fil, la sortie d'un composant, un bloc alimenté |
+| `world.use(x,y,z)` | `1` si le bloc a servi (levier basculé, bouton enfoncé, délai d'un répéteur…), sinon `0` |
 | `world.setBlocks(x1,y1,z1,x2,y2,z2,bloc)` | — (un pavé plein, coins compris, 1 000 000 de blocs au plus) |
 | `world.getBlocks(x1,y1,z1,x2,y2,z2)` | les numéros séparés par des virgules : y, puis z, puis x (262 144 au plus) |
 | `world.getHeight(x,z)` | y du plus haut bloc non vide |
@@ -189,14 +265,17 @@ que tout soit fait). 16 connexions au plus.
 | `player.getInventory()` | `case:objet:nombre\|…` (survie ; les cases 0 à 8 sont la barre) |
 | `player.give(objet[,n])` | — (survie) |
 | `player.craft(recette[,fois])` | les fois faites, ou `error: …` (survie) |
-| `game.info()` | `TerraCube 1.2.0,<monde>,<graine>` |
+| `game.info()` | `TerraCube 1.3.0,<monde>,<graine>` |
 | `ping()` | `pong` |
 
 ### Python
 
 `/apps/terracube.app/python/terracube.py`, sans dépendance (exemples dans `python/examples` : `house.py`,
 `pyramid.py`, `rainbow.py`, `golden_touch.py` (les évènements), `snake_walk.py` (suivre le joueur),
-`survival_kit.py` (le mode survie : outils fabriqués par le script)) ; aussi `mode()`, `set_mode()`, `weather()`,
+`survival_kit.py` (le mode survie : outils fabriqués par le script), `circuits.py` (trois montages : un piston
+collant, un arpège de blocs musicaux, une horloge à torche et répéteur), `flying_machine.py` (une machine qui
+avance seule : observateurs, pistons, colle)) ; `set_block(x, y, z, bloc, état)`,
+`get_block_state()`, `get_power()`, `use()`, les directions dans `Facing` ; aussi `mode()`, `set_mode()`, `weather()`,
 `set_weather()`, `command()`, `inventory()`, `give()`, `craft()` :
 
 ```python
@@ -238,10 +317,11 @@ de Forge (`mcp.cpp`).
 | `get_game_info` | monde, graine, heure, joueur, conventions des coordonnées (à appeler d'abord) |
 | `get_player` | position, case, yaw/pitch, regard, le bloc visé et où un bloc serait posé |
 | `teleport`, `look` | déplacer le joueur ; tourner la tête (yaw/pitch, ou `at` : un point à regarder) |
-| `get_block`, `get_blocks` | un bloc ; les blocs d'un pavé (32 768 au plus ; non vides en `[x,y,z,id]`, ou en couches) |
+| `get_block`, `get_blocks` | un bloc (un liquide ou un composant : avec son état et sa puissance) ; les blocs d'un pavé (32 768 au plus ; non vides en `[x,y,z,id]`, ou en couches) |
 | `get_heightmap` | relief d'une zone (128 × 128 colonnes au plus) : hauteur et bloc du dessus |
 | `list_block_types` | les blocs : numéro, nom, solide, transparent |
-| `set_block`, `set_blocks`, `fill` | poser un bloc ; une liste (200 000 au plus) ; un pavé plein ou creux |
+| `set_block`, `set_blocks`, `fill` | poser un bloc (avec un état : `"east"`, `"down+on"`…) ; une liste (200 000 au plus) ; un pavé plein ou creux |
+| `use_block` | un clic droit : basculer un levier, appuyer un bouton, changer un répéteur… |
 | `post_message` | un message au joueur |
 | `set_time` | l'heure et si le temps passe |
 | `screenshot` | une image PNG de la vue du joueur, ou d'un autre point de vue (`eye` + `look_at` ou yaw/pitch) sans bouger le joueur |
@@ -274,7 +354,8 @@ essayé sur le ZBook (GPU Intel).
 |---|---|
 | `main.cpp` | fenêtre, boucle, entrées ; la présentation : le GPU rend hors écran, l'image est relue (`glReadPixels`), les textes de UIKit y sont dessinés (console mélangée à demi), puis elle est recopiée d'un coup dans la fenêtre comme le fait Cosmo Zoom (`armgl_window` avec des zones posées par-dessus scintillait sur le ZBook) ; le panneau de fabrication (ses cases, le glisser-déposer), la console, menus, mondes, jeton du MCP, `--selftest` |
 | `world.h`, `world.cpp` | tronçons, génération (bruit de gradient, biomes, grottes, minerais, arbres), sauvegarde, lancer de rayon |
-| `mesh.cpp` | maillage : faces visibles, occlusion ambiante, lumière du ciel lissée, eau, plantes en croix |
+| `mesh.cpp` | maillage : faces visibles, occlusion ambiante, lumière du ciel lissée, liquides en pente, plantes en croix, les formes des composants (des boîtes tournées par quarts de tour) |
+| `sim.h`, `sim.cpp` | la simulation, 20 pas par seconde : l'écoulement de l'eau et de la lave, les circuits (puissance, fil en réseau, composants, pistons et colle, dynamite), les pas programmés |
 | `render.h`, `render.cpp` | OpenGL ES 3 : le panneau de fabrication (`CraftDraw`), shaders, ciel et soleil, pluie et neige (gouttes faites par le vertex shader, cachées sous les toits par une carte des hauteurs), tronçons (tronc de vue), eau animée (vagues de la surface dans le vertex shader, texture qui glisse et reflets dans le fragment shader), contour visé, barre de blocs |
 | `textures.cpp` | l'atlas de 16 × 16 tuiles, dessiné au départ |
 | `player.h`, `player.cpp` | marche, saut, nage, vol, collisions |

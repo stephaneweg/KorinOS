@@ -7,5 +7,6 @@ IA (MCP). Référence complète : [docs/TERRACUBE.md](../../../docs/TERRACUBE.md
 * Essayer : `terracube --selftest` (vérifications sur la sortie, `HOME:/terracube/selftest.png`).
 * Scripts : port 4730 (`data/python/terracube.py`, `data/basic/*.bas`) ; agent : port 7312, `/mcp`.
 
-État (19/11/2026, 1.1.0) : modes créatif et survie, table de fabrication à grille (glisser-déposer), console, météo ;
-essayé sous QEMU q35 (softpipe) seulement, `--selftest` 44 sur 44 ; GPU Intel du ZBook à essayer.
+État (19/11/2026, 1.3.0) : modes créatif et survie, table de fabrication à grille (glisser-déposer), console, météo,
+musique générative et effets (`audio.cpp`), eau et lave qui coulent, circuits de cuivre et pistons (`sim.cpp`) ;
+essayé sous QEMU q35 (softpipe), la simulation aussi sur l'hôte ; GPU Intel du ZBook : 1.1.2 vue par l'utilisateur.

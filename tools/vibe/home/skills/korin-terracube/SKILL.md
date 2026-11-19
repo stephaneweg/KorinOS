@@ -1,0 +1,190 @@
+---
+name: korin-terracube
+description: Piloter TerraCube, le bac à sable de blocs en 3D de Korin (sur le PC), par son serveur MCP ou par un script Python - construire (maisons, pyramides, paysages), poser et faire marcher des circuits de cuivre (fil, leviers, torches-inverseurs, répéteurs, comparateurs, observateurs, pistons et pistons collants, colle, lampes, blocs musicaux, dynamite), faire couler l'eau et la lave, changer l'heure, la météo, le mode (créatif, survie), donner et fabriquer des objets, vérifier par capture. À utiliser dès qu'on parle de TerraCube, de construire dans le jeu, de blocs, de circuits, de « redstone », de portes logiques, d'horloge, de piston ou de machine dans le jeu.
+user-invocable: true
+---
+
+# Piloter TerraCube
+
+TerraCube est le jeu de blocs de Korin (`/apps/terracube.app`, sur le PC x86-64 seulement : `ls /apps/terracube.app`
+le dit). Un monde sans fin de cubes, des modes créatif et survie, l'eau et la lave qui coulent, des **circuits de
+cuivre** qui marchent comme ceux des jeux du genre. Deux façons de le piloter, au choix :
+
+* **le MCP** (port 7312) : des outils `terracube_*` (poser des blocs, des listes de blocs, des pavés, lire, se servir
+  d'un levier, capture d'écran…) ; le mieux pour toi ;
+* **un script Python** (port 4730) : `import terracube`, pour une construction longue ou calculée, ou un programme
+  qui réagit au joueur (les évènements).
+
+## 1. Brancher le jeu
+
+**Le jeu doit tourner.** L'utilisateur le lance (le menu des apps), ou toi, **sans bloquer le shell** :
+
+```sh
+(/apps/terracube.app/main --mcp --mcp-token JETON >/dev/null 2>&1 &)
+```
+
+`JETON` : une suite au hasard d'au moins 32 caractères hexadécimaux, à toi. Sinon le jeu garde le sien dans le coffre
+à secrets (que tu ne lis pas) : l'utilisateur le voit dans *Pilotage > Piloter par un agent IA*, qui ouvre aussi le
+serveur sur un jeu déjà lancé. Sans coffre, il est dans `HOME:/terracube/mcp.txt` (`token = …`). Options utiles :
+`--world nom`, `--seed n` (un monde neuf), `--api-any` (les scripts depuis le réseau).
+
+**Le MCP** : dans le `config.toml` de l'agent (`/.vibe/config.toml` pour Vibe, `/.claude-acp/config.toml` pour
+Claude) ; le demander d'abord à l'utilisateur, ne pas toucher au reste du fichier :
+
+```toml
+[[mcp_servers]]
+name = "terracube"
+transport = "streamable-http"
+url = "http://127.0.0.1:7312/mcp"
+headers = { Authorization = "Bearer JETON" }
+startup_timeout_sec = 30
+tool_timeout_sec = 300
+```
+
+Puis une nouvelle séance : les outils s'appellent `terracube_<outil>`. Avec Claude, chaque outil qui change le monde
+demande l'accord de l'utilisateur (mode « ask »), sauf s'il l'a donné pour la séance.
+
+**Python** (le serveur des scripts est ouvert par défaut, *Pilotage > Scripts*) :
+
+```python
+import sys; sys.path.insert(0, "/apps/terracube.app/python")
+from terracube import TerraCube, Block, Item, Facing
+tc = TerraCube()                      # 127.0.0.1:4730 (TERRACUBE_HOST, TERRACUBE_PORT)
+x, y, z = tc.player.tile()
+tc.set_block(x + 2, y, z, Block.STONE)
+```
+
+Exemples à lire et à lancer : `/apps/terracube.app/python/examples/` (`house.py`, `pyramid.py`, `circuits.py`,
+`flying_machine.py`…).
+Un script se lance dans le shell (`python3 fichier.py`) ; le jeu reste ouvert.
+
+## 2. Les outils MCP
+
+| Outil | Pour |
+|---|---|
+| `get_game_info`, `get_player` | le monde, la version, le mode, l'heure ; où est le joueur et où il regarde |
+| `teleport`, `look` | déplacer le joueur, tourner sa tête (`at = [x, y, z]`) |
+| `get_block`, `get_blocks`, `get_heightmap`, `list_block_types` | lire un bloc (avec `state` et `power` pour un liquide ou un circuit), un pavé, les hauteurs du terrain, la liste des blocs |
+| `set_block`, `set_blocks`, `fill` | poser un bloc (`state`), une liste (`[[x, y, z, bloc, état], …]`, 200 000 au plus : **un montage entier d'un coup**), un pavé plein ou creux (`hollow`), `"air"` efface |
+| `use_block` | un clic droit : basculer un levier, appuyer un bouton, changer le délai d'un répéteur… |
+| `run_command` | une commande de la console : `time 18`, `weather rain`, `mode survival`, `give wire 64`, `craft piston`, `tp x y z`, `fly`, `recipes`, `help` |
+| `screenshot` | une image de la vue du joueur, ou d'ailleurs (`eye`, `look_at`) sans le bouger : **pour vérifier** |
+| `get_events` | ce que le joueur a cassé, posé, touché (E) |
+| `get_inventory`, `list_recipes`, `craft` | le mode survie |
+| `post_message`, `set_time`, `save_world` | un message à l'écran, l'heure, sauver |
+
+**La règle d'or** : `get_player` d'abord, et construire **près du joueur, devant lui** (relatif à sa case) ; poser
+d'un coup avec `set_blocks` ou `fill` ; puis **regarder** (`screenshot` avec `eye` et `look_at` bien placés, à
+quelques blocs du montage, un peu au-dessus) ; pour un circuit, **le faire marcher** (`use_block`) et lire le
+résultat (`get_block` : `state`, `power`).
+
+## 3. Le monde
+
+* x vers l'est, **y vers le haut** (0 à 127, la mer à 48), z vers le sud ; yaw 0 regarde le nord (−z), 90 l'est.
+* Un bloc par son **nom anglais** ou son numéro. Les blocs : `air stone grass dirt cobblestone planks bedrock water
+  sand gravel log leaves glass brick sandstone snow ice coal_ore iron_ore gold_ore crystal_ore lamp tall_grass
+  flower_red flower_yellow wool_white wool_red wool_orange wool_yellow wool_green wool_blue wool_purple wool_black
+  gold_block stone_brick clay pine_log pine_leaves cactus bookshelf workbench furnace` (0 à 41), puis `lava obsidian
+  copper_ore wire copper_block copper_torch lever stone_button wood_button stone_plate wood_plate repeater comparator
+  observer piston sticky_piston piston_head signal_lamp note_block daylight_sensor glue_block tnt` (42 à 63).
+* **L'état** d'un bloc (`state`) : une direction `east` (+x) `west` `up` `down` `south` (+z) `north`, plus `+on`
+  (allumé), ou un nombre (direction 0 à 5 : est, ouest, haut, bas, sud, nord ; + 8 allumé). Le répéteur : + 8 × (délai
+  − 1) (`repeater` délai 4 vers l'est : `24` = 0 + 3 × 8). Le bloc musical : la note, 0 à 24.
+* Un tronçon (16 × 128 × 16) se fait là où tu écris : on peut construire loin. Ne pas noyer le joueur : vérifier que
+  la place est libre (`get_blocks`), ou dégager d'abord (`fill` d'air).
+
+## 4. Les circuits de cuivre
+
+**La puissance** va de 0 à 15. Une source donne 15 ; le **fil** (`wire`, la poudre de cuivre posée sur un bloc
+plein) perd 1 par bloc : au-delà de 15 blocs, un **répéteur** redonne 15. Le fil se relie seul à ses voisins (fil,
+composants, la marche d'un bloc vers le haut ou le bas) ; seul, il pointe partout ; relié d'un seul côté, tout droit ;
+sinon vers ses liaisons. Il alimente le bloc **sous** lui et les blocs **vers lesquels il pointe**.
+
+**Les blocs pleins conduisent** (pierre, laine…, pas le verre, la colle, les pistons, l'observateur, le bloc de
+cuivre) :
+* alimenté **fort** : par un répéteur, un comparateur ou un observateur qui sort dedans, une torche **dessous**, un
+  levier ou un bouton **fixé à lui**, une plaque posée dessus ; il alimente alors tout ce qui le touche, **fil
+  compris** ;
+* alimenté **faible** : par du fil qui pointe dedans ou est posé dessus ; il n'alimente alors que les composants
+  (lampe, piston, répéteur, torche fixée à lui, bloc musical, dynamite), **pas le fil**.
+
+**Le temps** : 20 pas par seconde ; un « temps » de circuit = 2 pas (0,1 s).
+
+| Bloc | Ce qu'il fait | Son état (`state`) |
+|---|---|---|
+| `lever` | source 15 tant qu'il est abaissé ; alimente fort le bloc qui le porte | la direction **de son support** (`down` : posé au sol ; `west` : fixé au bloc à l'ouest) ; `+on` abaissé |
+| `stone_button`, `wood_button` | une impulsion de 10 / 15 temps | la direction de son support |
+| `stone_plate`, `wood_plate` | 15 tant que le joueur est dessus | — (sur un bloc) |
+| `copper_block` | source 15, toujours, tout autour | — |
+| `copper_torch` | **l'inverseur** : allumée (15, tout autour sauf son support ; fort vers le haut) tant que son support n'est pas alimenté ; s'éteint 1 temps après. Plus de 8 changements en 3 s : grillée 8 s | la direction de son support : `down` (au sol) ou est, ouest, sud, nord (au mur) ; jamais `up` |
+| `repeater` | redonne 15 **vers l'avant** après 1 à 4 temps ; allonge une impulsion courte ; **bloqué** (garde son état) si un répéteur ou comparateur allumé sort dans son côté ; n'écoute que **son arrière** | sa **sortie** (est, ouest, sud, nord) + 8 × (délai − 1) ; sur un bloc |
+| `comparator` | sortie = l'arrière si ≥ les côtés, sinon 0 ; `+on` : soustraction (arrière − le plus fort côté). Les côtés : fil, répéteur, comparateur, bloc de cuivre | sa sortie ; `+on` soustraction |
+| `observer` | une impulsion de 1 temps par **son dos** quand le bloc **qu'il regarde** change (posé, cassé, changé d'état), ou quand un piston le déplace | la direction **qu'il regarde** (son dos est à l'opposé) |
+| `piston` | alimenté (par tout côté sauf sa face) : pousse jusqu'à **12 blocs** ; casse ce qui est fragile (fil, torches, plantes, liquides) ; ne pousse ni `bedrock`, ni `obsidian`, ni `furnace`, ni un piston sorti | la direction **où il pousse** ; `+on` sorti (laisser à `off` : il sort seul s'il est alimenté) |
+| `sticky_piston` | pareil, et **ramène** le bloc collé à sa tête en rentrant | idem |
+| `glue_block` | poussé ou tiré, il **entraîne les blocs qui le touchent** (de tous côtés) : les machines | — |
+| `signal_lamp` | allumée quand alimentée ; s'éteint 2 temps après | — |
+| `note_block` | une note à chaque front montant ; l'instrument selon le bloc **dessous** (bois : basse, pierre : grosse caisse, sable : caisse claire, verre : clic, or/fer/cuivre : cloche, laine : guitare, neige : carillon, terre et autres : harpe) | la note, 0 à 24 (0 : fa dièse ; 6 : do) |
+| `daylight_sensor` | sa puissance suit le jour (0 la nuit, 15 à midi) ; `+on` : inversé (la nuit) | `on` inversé |
+| `tnt` | allumée par un signal : 4 s puis explosion (rayon 3,5) ; une dynamite prise dedans part aussi | — |
+
+### Des montages essayés (coordonnées relatives à un point (x, y, z), le sol en y − 1 en pierre)
+
+* **Lampe au levier** : `lever` `down` en (x, y, z), `wire` en x+1…x+3, `signal_lamp` en x+4. `use_block` sur le levier.
+* **NON** (inverseur) : un bloc plein, une `copper_torch` fixée à un de ses côtés ; alimenter le bloc éteint la torche.
+* **OU** : deux fils qui se rejoignent.
+* **ET** : trois blocs `stone` en (x, y, z), (x+1, y, z), (x+2, y, z) ; une torche `down` sur x et sur x+2 (y+1) ; du
+  `wire` sur x+1 (y+1) ; les entrées : un `lever` contre l'arrière de x et de x+2 (en z−1, état `south`) ; la sortie :
+  une torche en (x+1, y, z+1), état `north` (fixée à x+1), puis la lampe en (x+1, y, z+2). La lampe n'est allumée
+  que si les deux leviers le sont.
+* **Horloge lente** : un bloc B en (x, y, z) ; une torche contre son côté est (x+1, y, z), état `west` ; du fil en
+  (x+1, y, z+1), (x+1, y, z+2), (x, y, z+2) ; un `repeater` en (x, y, z+1) **vers le nord** (vers B), délai 4 (état
+  `29` = nord 5 + 24) ; une lampe en (x+1, y, z−1) clignote (≈ 1 s). Le délai du répéteur règle la vitesse.
+* **Horloge rapide** : deux `observer` face à face (l'un `east`, l'autre `west`) : une impulsion tous les 2 temps
+  derrière chacun (trop rapide pour éteindre une lampe ; bon pour un piston ou un bloc musical).
+* **Porte à pistons** : deux `sticky_piston` empilés, état vers la porte (`east`), un bloc devant chacun ; un bloc
+  plein derrière eux avec un `lever` posé dessus (`down`) : le levier alimente fort son bloc, qui alimente les deux
+  pistons. Basculer : les blocs avancent ; rebasculer : ils reviennent.
+* **Arpège** : un `stone_button` (`down`), puis en alternance `repeater` (`east`, délai 2 : `8`) et `note_block` (sur
+  de la terre, notes 3, 7, 10, 15…) : le bloc musical, plein, alimenté fort par le répéteur, alimente le répéteur
+  suivant.
+* **Machine qui avance seule** (vers l'est, **en l'air**, 8 blocs) : en y+1 : `glue_block` en x−1 et x ; en y :
+  `piston` `east` en x ; `glue_block` en x+1 et x+2 ; en y+1 : `sticky_piston` `west` en x+1, `observer` `east` en
+  x+2 ; en y : `observer` `west` en x−1. Le départ : poser puis enlever un bloc en (x−2, y). Elle avance d'environ 2,5
+  blocs par seconde et s'arrête au premier obstacle. (Un observateur **déplacé** par un piston envoie une impulsion :
+  c'est ce qui la fait repartir.) Pour un autre sens, tourner toutes les directions ensemble.
+* **Lampe de nuit** : `daylight_sensor` état `on` (inversé), du fil, une lampe.
+* **Ouvrir au passage** : une `stone_plate` devant la porte à pistons, reliée par du fil au bloc derrière les pistons.
+
+### Les pièges
+
+* Le fil, les plaques, les répéteurs et comparateurs veulent un bloc **plein dessous** ; la torche, le levier et le
+  bouton un bloc **plein et opaque** à leur support : sinon ils ne tiennent pas (ils tombent).
+* Du fil qui longe un bloc ne l'alimente que s'il **pointe** dedans ; une ligne droite pointe dans son axe.
+* Un bloc alimenté faible (par du fil) **n'alimente pas** le fil d'à côté : passer par un répéteur.
+* Un répéteur n'écoute que son arrière et ne sort que devant : vérifier sa direction (`get_block`, `state`).
+* La colle colle **à tout**, le sol compris : une machine à colle se construit en l'air, sinon le piston est trop
+  chargé (plus de 12 blocs) et ne bouge pas.
+* Un piston ne s'alimente pas par sa face ; une torche ne s'alimente pas elle-même par son support… lire `power`
+  avec `get_block` aux points clés quand quelque chose ne marche pas.
+
+## 5. Les liquides
+
+* `water` : une source s'étale de 7 blocs, tombe, va vers la pente la plus proche ; un écoulement sans source tarit ;
+  deux sources côte à côte au-dessus d'un sol font une source.
+* `lava` : coule de 3 blocs, lentement (1,5 s par bloc) ; brûle en survie.
+* Lave (source) touchée par l'eau → `obsidian` ; un écoulement de lave → `cobblestone` ; lave qui tombe dans l'eau →
+  `stone`. L'eau et la lave cassent le fil, les torches, les leviers… : les éloigner des circuits.
+* Poser `water` ou `lava` (une source) les fait couler tout de suite ; `fill` d'air les arrête.
+
+## 6. Le mode survie
+
+`run_command` : `mode survival` / `mode creative`, `give <objet> [n]`, `craft <recette> [n]` (l'établi ou le four à
+moins de 4 blocs), `recipes`, `inv`, `clear`. Le cuivre (`copper_ore`, sous y = 20, pioche en fer) donne 4
+`wire` (la poudre). Les recettes des circuits : `copper_torch` (poudre sur bâton), `lever` (bâton sur pavé),
+`repeater` (`TDT` / `SSS`), `comparator` (`·T·` / `TKT` / `SSS`, K : cristal), `observer` (`CCC` / `DDK` / `CCC`),
+`piston` (`PPP` / `CIC` / `CDC`), `sticky_piston` (résine sur piston ; résine : un cactus au four), `glue_block`
+(9 résines), `signal_lamp` (4 poudres autour d'une lampe), `note_block` (planches autour d'une poudre), `tnt`
+(charbon et sable en damier), `bucket` (`I·I` / `·I·`).
+
+La documentation complète : `/src/docs/TERRACUBE.md` si les sources sont là, ou l'aide du jeu (*Aide*).

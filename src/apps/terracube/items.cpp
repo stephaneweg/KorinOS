@@ -35,6 +35,10 @@ const ItemInfo ITEMS[I_END - 100] = {
 	{ "stone_shovel", "Pelle en pierre", T_SHOVEL1, 1, TOOL_SHOVEL, 2, 132 },
 	{ "iron_shovel", "Pelle en fer", T_SHOVEL2, 1, TOOL_SHOVEL, 3, 251 },
 	{ "crystal_shovel", "Pelle en cristal", T_SHOVEL3, 1, TOOL_SHOVEL, 4, 1562 },
+	{ "bucket", "Seau", T_BUCKET, 16, TOOL_NONE, 0, 0 },
+	{ "water_bucket", "Seau d'eau", T_BUCKET_WATER, 1, TOOL_NONE, 0, 0 },
+	{ "lava_bucket", "Seau de lave", T_BUCKET_LAVA, 1, TOOL_NONE, 0, 0 },
+	{ "resin", "Résine", T_RESIN, 64, TOOL_NONE, 0, 0 },
 };
 
 const float TIER_SPEED[5] = { 1, 2, 4, 6, 9 };
@@ -70,7 +74,7 @@ std::vector<int> allItems ()
 {
 	std::vector<int> v;
 	for (int i = 1; i < BLOCK_COUNT; i++)
-		if (i != BEDROCK && i != WATER) v.push_back (i);
+		if (i != BEDROCK && i != WATER && i != LAVA && i != PISTON_HEAD) v.push_back (i);
 	for (int i = 100; i < I_END; i++) v.push_back (i);
 	return v;
 }
@@ -150,7 +154,18 @@ void Inventory::load (const std::string &t)
 Mining mining (int b)
 {
 	switch (b) {
-	case AIR: case WATER: case BEDROCK: return { -1, TOOL_NONE, 0, 0, 0, 0 };
+	case AIR: case WATER: case LAVA: case BEDROCK: return { -1, TOOL_NONE, 0, 0, 0, 0 };
+	case OBSIDIAN: return { 80.0f, TOOL_PICKAXE, 4, OBSIDIAN, 1, 1 };
+	case COPPER_ORE: return { 3.0f, TOOL_PICKAXE, 3, WIRE, 4, 1 };
+	case COPPER_BLOCK: return { 5.0f, TOOL_PICKAXE, 1, COPPER_BLOCK, 1, 1 };
+	case WIRE: case COPPER_TORCH: case REPEATER: case COMPARATOR: case TNT: case GLUE_BLOCK: return { 0.05f, TOOL_NONE, 0, b, 1, 1 };
+	case LEVER: case STONE_BUTTON: case WOOD_BUTTON: case STONE_PLATE: case WOOD_PLATE: return { 0.5f, TOOL_NONE, 0, b, 1, 1 };
+	case OBSERVER: return { 3.0f, TOOL_PICKAXE, 1, OBSERVER, 1, 1 };
+	case PISTON: case STICKY_PISTON: return { 0.5f, TOOL_NONE, 0, b, 1, 1 };
+	case PISTON_HEAD: return { 0.5f, TOOL_NONE, 0, 0, 0, 0 };	// (main.cpp : le piston tombe)
+	case SIGNAL_LAMP: return { 0.3f, TOOL_NONE, 0, SIGNAL_LAMP, 1, 1 };
+	case NOTE_BLOCK: return { 0.8f, TOOL_AXE, 0, NOTE_BLOCK, 1, 1 };
+	case DAYLIGHT_SENSOR: return { 0.2f, TOOL_AXE, 0, DAYLIGHT_SENSOR, 1, 1 };
 	case STONE: return { 1.5f, TOOL_PICKAXE, 1, COBBLE, 1, 1 };
 	case GRASS: return { 0.6f, TOOL_SHOVEL, 0, DIRT, 1, 1 };
 	case DIRT: case CLAY: return { 0.5f, TOOL_SHOVEL, 0, b, 1, 1 };
@@ -240,6 +255,29 @@ std::vector<Recipe> buildRecipes ()
 		{ "brick", BRICK, 1, "X", { { 'X', CLAY } }, ST_FURNACE, true },
 		{ "charcoal", I_COAL, 1, "X", { { 'X', LOG } }, ST_FURNACE, true },
 		{ "charcoal_from_pine", I_COAL, 1, "X", { { 'X', PINE_LOG } }, ST_FURNACE, true },
+		// 1.3 : les seaux, la résine, les circuits
+		{ "bucket", I_BUCKET, 1, "I.I/.I.", { { 'I', I_IRON_INGOT } }, 0, false },
+		{ "resin", I_RESIN, 1, "X", { { 'X', CACTUS } }, ST_FURNACE, true },
+		{ "resin_from_needles", I_RESIN, 1, "LLLL", { { 'L', PINE_LEAVES } }, 0, true },
+		{ "copper_block", COPPER_BLOCK, 1, "DDD/DDD/DDD", { { 'D', WIRE } }, 0, false },
+		{ "copper_dust", WIRE, 9, "B", { { 'B', COPPER_BLOCK } }, 0, true },
+		{ "copper_torch", COPPER_TORCH, 1, "D/S", { { 'D', WIRE }, { 'S', I_STICK } }, 0, false },
+		{ "lever", LEVER, 1, "S/C", { { 'S', I_STICK }, { 'C', COBBLE } }, 0, false },
+		{ "stone_button", STONE_BUTTON, 1, "S", { { 'S', STONE } }, 0, true },
+		{ "wood_button", WOOD_BUTTON, 1, "P", { { 'P', PLANKS } }, 0, true },
+		{ "stone_plate", STONE_PLATE, 1, "SS", { { 'S', STONE } }, 0, false },
+		{ "wood_plate", WOOD_PLATE, 1, "PP", { { 'P', PLANKS } }, 0, false },
+		{ "repeater", REPEATER, 1, "TDT/SSS", { { 'T', COPPER_TORCH }, { 'D', WIRE }, { 'S', STONE } }, 0, false },
+		{ "comparator", COMPARATOR, 1, ".T./TKT/SSS", { { 'T', COPPER_TORCH }, { 'K', I_CRYSTAL }, { 'S', STONE } }, 0, false },
+		{ "observer", OBSERVER, 1, "CCC/DDK/CCC", { { 'C', COBBLE }, { 'D', WIRE }, { 'K', I_CRYSTAL } }, 0, false },
+		{ "piston", PISTON, 1, "PPP/CIC/CDC", { { 'P', PLANKS }, { 'C', COBBLE }, { 'I', I_IRON_INGOT }, { 'D', WIRE } }, 0, false },
+		{ "sticky_piston", STICKY_PISTON, 1, "R/P", { { 'R', I_RESIN }, { 'P', PISTON } }, 0, false },
+		{ "signal_lamp", SIGNAL_LAMP, 1, ".D./DLD/.D.", { { 'D', WIRE }, { 'L', LAMP } }, 0, false },
+		{ "note_block", NOTE_BLOCK, 1, "PPP/PDP/PPP", { { 'P', PLANKS }, { 'D', WIRE } }, 0, false },
+		{ "daylight_sensor", DAYLIGHT_SENSOR, 1, "GGG/KKK/PPP", { { 'G', GLASS }, { 'K', I_CRYSTAL }, { 'P', PLANKS } }, 0, false },
+		{ "glue_block", GLUE_BLOCK, 1, "RRR/RRR/RRR", { { 'R', I_RESIN } }, 0, false },
+		{ "resin_from_glue", I_RESIN, 9, "G", { { 'G', GLUE_BLOCK } }, 0, true },
+		{ "tnt", TNT, 1, "CSC/SCS/CSC", { { 'C', I_COAL }, { 'S', SAND } }, 0, false },
 	};
 	for (auto &r : R) {
 		// la taille de la forme, ce qu'elle prend en tout, où elle se fait

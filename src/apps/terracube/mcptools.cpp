@@ -14,6 +14,7 @@
 #include <archivekit_abi.h>
 #include "json.h"
 #include "mcp.h"
+#include "sim.h"
 #include "render.h"
 
 namespace tc {
@@ -217,15 +218,29 @@ std::string t_get_block (const Args &a)
 {
 	int x = a.integer ("x"), y = a.integer ("y"), z = a.integer ("z");
 	int b = g.world.getLoaded (x, y, z);
-	return JO ().num ("id", b).str ("block", info (b).name).end ();
+	JO o;
+	o.num ("id", b).str ("block", info (b).name);
+	if (isActive (b)) o.num ("state", g.world.meta (x, y, z)).num ("power", sim::powerAt (x, y, z));
+	return o.end ();
 }
 
 std::string t_set_block (const Args &a)
 {
 	int x = a.integer ("x"), y = a.integer ("y"), z = a.integer ("z"), b = a.block ("block");
-	if (!g.world.set (x, y, z, b)) fail ("outside the world (y from 0 to 127)");
+	int st = 0;
+	if (a.has ("state")) st = stateOf (a.text ("state"));
+	if (!g.world.set (x, y, z, b, st)) fail ("outside the world (y from 0 to 127)");
 	g.edited = true;
 	return JO ().boo ("ok", true).end ();
+}
+
+std::string t_use_block (const Args &a)
+{
+	int x = a.integer ("x"), y = a.integer ("y"), z = a.integer ("z");
+	bool ok = sim::use (x, y, z, 0);
+	if (ok) g.edited = true;
+	int b = g.world.get (x, y, z);
+	return JO ().boo ("used", ok).str ("block", info (b).name).num ("state", g.world.meta (x, y, z)).end ();
 }
 
 std::string t_set_blocks (const Args &a)
@@ -240,19 +255,20 @@ std::string t_set_blocks (const Args &a)
 		Args e { json_at (l, i) };
 		try {
 			int x, y, z;
-			if (e.o && e.o->kind == JSON_ARR) {	// ([x, y, z, bloc] accepté aussi)
-				if (json_len (e.o) != 4) fail ("[x, y, z, block] expected");
+			if (e.o && e.o->kind == JSON_ARR) {	// ([x, y, z, bloc] accepté aussi, et [x, y, z, bloc, état])
+				int len = json_len (e.o);
+				if (len != 4 && len != 5) fail ("[x, y, z, block] or [x, y, z, block, state] expected");
 				x = (int) floor (strtod (json_text (json_at (e.o, 0)), nullptr));
 				y = (int) floor (strtod (json_text (json_at (e.o, 1)), nullptr));
 				z = (int) floor (strtod (json_text (json_at (e.o, 2)), nullptr));
 				int b = blockByName (json_text (json_at (e.o, 3)));
 				if (b < 0) fail (std::string ("unknown block: ") + json_text (json_at (e.o, 3)));
-				if (g.world.set (x, y, z, b)) done++;
+				if (g.world.set (x, y, z, b, len == 5 ? stateOf (json_text (json_at (e.o, 4))) : 0)) done++;
 				else bad++;
 				continue;
 			}
 			x = e.integer ("x"), y = e.integer ("y"), z = e.integer ("z");
-			if (g.world.set (x, y, z, e.block ("block"))) done++;
+			if (g.world.set (x, y, z, e.block ("block"), e.has ("state") ? stateOf (e.text ("state")) : 0)) done++;
 			else bad++;
 		} catch (const ToolErr &x) {
 			bad++;
@@ -537,11 +553,15 @@ const ToolDef TOOLS[] = {
 	  t_get_heightmap, true },
 	{ "list_block_types", "All block types: id, name, solid, transparent. Blocks can be given by id or name everywhere.",
 	  S ({ "type" : "object", "properties" : {} }), t_list_blocks, true },
-	{ "set_block", "Place one block (block: name such as \"stone\" or id; \"air\" removes).",
+	{ "set_block", "Place one block (block: name such as \"stone\" or id; \"air\" removes). state: for circuit parts, a direction (east, west, up, down, south, north) and \"+on\", or a number: a torch, lever or button gets the direction of the block it hangs on; a repeater or comparator its output; a piston where it pushes; an observer where it looks. Water and lava start flowing; circuits update at once.",
 	  S ({ "type" : "object", "properties" : { "x" : { "type" : "integer" }, "y" : { "type" : "integer" }, "z" : { "type" : "integer" },
-		  "block" : { "type" : ["string", "integer"] } }, "required" : ["x", "y", "z", "block"] }),
+		  "block" : { "type" : ["string", "integer"] }, "state" : { "type" : ["string", "integer"] } }, "required" : ["x", "y", "z", "block"] }),
 	  t_set_block, false },
-	{ "set_blocks", "Place many blocks at once (200000 at most): blocks = [{x, y, z, block}, ...] or [[x, y, z, block], ...]. Use it to build structures.",
+	{ "use_block", "Right-click a block as the player would: flip a lever, press a button, change a repeater delay or comparator mode, tune a note block, switch a daylight sensor. Returns whether it did something.",
+	  S ({ "type" : "object", "properties" : { "x" : { "type" : "integer" }, "y" : { "type" : "integer" }, "z" : { "type" : "integer" } },
+		  "required" : ["x", "y", "z"] }),
+	  t_use_block, false },
+	{ "set_blocks", "Place many blocks at once (200000 at most): blocks = [{x, y, z, block, state?}, ...] or [[x, y, z, block, state?], ...]. Use it to build structures and whole circuits (state as in set_block).",
 	  S ({ "type" : "object", "properties" : { "blocks" : { "type" : "array", "items" : {} } }, "required" : ["blocks"] }),
 	  t_set_blocks, false },
 	{ "fill", "Fill the box from [x, y, z] to [x, y, z] (both included, 1000000 blocks at most) with one block; hollow:true keeps only the shell; \"air\" clears.",
