@@ -6,3 +6,4 @@ keywords = cao cad 3d pièce modélisation solide congé step opencascade fusion
 help = Clic : choisir une face ou une arête ; dans le panneau Corps, un corps (l'œil le montre ou le cache). Échap : ne rien choisir.
 help = Bouton droit glissé : tourner la vue ; bouton du milieu : la déplacer ; molette : zoomer vers le pointeur. Le cube de vue : un clic sur une face pour la vue type.
 help = Affichage : vues de face, de dessus, de droite, isométrique (Alt+1, 2, 3, 0), Ajuster (F6), arêtes et grille.
+opens    = forge

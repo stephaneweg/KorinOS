@@ -106,8 +106,11 @@ struct Snap {
 	std::vector<std::pair<std::string, std::string>> params;
 };
 std::vector<Snap> g_undo, g_redo;
+bool g_dirty;				// changé depuis l'ouverture ou le dernier enregistrement
+std::string g_path;			// le fichier du document ("" : pas encore enregistré)
 void pushUndo ()
 {
+	g_dirty = true;
 	g_undo.push_back ({ g_doc.feats, g_doc.bar, g_doc.params });
 	if (g_undo.size () > 100) g_undo.erase (g_undo.begin ());
 	g_redo.clear ();
@@ -2491,6 +2494,7 @@ void undo (bool redo)
 	auto &from = redo ? g_redo : g_undo, &to = redo ? g_undo : g_redo;
 	if (from.empty ()) return;
 	to.push_back ({ g_doc.feats, g_doc.bar, g_doc.params });
+	g_dirty = true;
 	g_doc.feats = from.back ().feats;
 	g_doc.bar = from.back ().bar;
 	g_doc.params = from.back ().params;
@@ -2500,6 +2504,137 @@ void undo (bool redo)
 	rebuild ();
 	refreshAll ();
 	status (TR (redo ? "Rétabli." : "Annulé."));
+}
+
+// ---- les fichiers ----------------------------------------------------------------------------------------------
+//
+// Un document .forge : l'historique en JSON (docfile.cpp). Nouveau, Ouvrir, Enregistrer, Enregistrer sous ; avant de
+// quitter ou de remplacer un document changé, la question d'enregistrer.
+
+void docLabels ()
+{
+	ui_w_set_text (w_doc, (long) g_doc.name.c_str ());
+	std::string sub = g_path.empty () ? std::string (TR ("Pas enregistré · mm")) : g_path.substr (g_path.find_last_of ('/') + 1) + " · mm";
+	if (g_dirty) sub = "● " + sub;
+	ui_w_set_text (w_docsub, (long) sub.c_str ());
+	ui_w_draw (w_doc);
+	ui_w_draw (w_docsub);
+}
+
+// un document neuf dans la fenêtre : la commande, l'esquisse, l'historique d'annulation et les choix repartent de zéro
+void docInstall (const Doc &d, const std::string &path)
+{
+	if (g_sm.on) skLeave (false);
+	if (g_cmd.tool != T_NONE) cmdEnd ();
+	g_doc = d;
+	g_path = path;
+	g_dirty = false;
+	g_undo.clear (), g_redo.clear ();
+	g_sels.clear ();
+	g_hidden.clear ();
+	g_selStep = -1;
+	rebuild ();
+	g_view.fit (g_doc);
+	refreshAll ();
+	docLabels ();
+}
+
+bool docSaveAs ();
+bool docSaveTo (const std::string &path)
+{
+	std::string err = docSave (g_doc, path);
+	if (!err.empty ()) {
+		std::string m = std::string (TR ("Le document n'a pas été enregistré : ")) + TR (err.c_str ()) + ".";
+		ui_message ((long) TR ("Enregistrer"), (long) m.c_str (), UM_OK);
+		ui_view_dirty (w_tl);
+		ui_w_draw (0);
+		return false;
+	}
+	g_path = path;
+	g_dirty = false;
+	docLabels ();
+	status ((std::string (TR ("Enregistré : ")) + path).c_str ());
+	return true;
+}
+
+bool docSaveCmd () { return g_path.empty () ? docSaveAs () : docSaveTo (g_path); }
+
+bool docSaveAs ()
+{
+	char path[1024];
+	std::string name = g_doc.name.empty () ? std::string (TR ("Sans titre")) : g_doc.name;
+	name += ".forge";
+	std::string dir = g_path.empty () ? std::string ("HOME:/") : g_path.substr (0, g_path.find_last_of ('/') + 1);
+	ui_file_filter ((long) "*.forge");
+	long ok = ui_file_save ((long) dir.c_str (), (long) name.c_str (), (long) path, (long) sizeof path);
+	ui_file_filter (0);
+	ui_view_dirty (w_tl);
+	ui_w_draw (0);
+	if (ok != 1 || !path[0]) return false;
+	std::string p = path;
+	if (p.size () < 6 || p.compare (p.size () - 6, 6, ".forge")) p += ".forge";
+	std::string base = p.substr (p.find_last_of ('/') + 1);
+	g_doc.name = base.substr (0, base.size () - 6);	// (le nom du document : celui du fichier)
+	return docSaveTo (p);
+}
+
+// un document changé : l'enregistrer ? -> faux si l'utilisateur annule (rien ne se fait alors)
+bool docKeepChanges ()
+{
+	if (!g_dirty) return true;
+	char m[300];
+	snprintf (m, sizeof m, TR ("Enregistrer les modifications de « %s » ?"), g_doc.name.c_str ());
+	long r = ui_message ((long) TR ("Forge"), (long) m, UM_YESNOCANCEL);
+	ui_view_dirty (w_tl);
+	ui_w_draw (0);
+	if (r == 1) return docSaveCmd ();
+	return r == 2;		// (Non : sans enregistrer ; Annuler : rien)
+}
+
+void docNew ()
+{
+	if (!docKeepChanges ()) return;
+	Doc d;
+	d.name = TR ("Sans titre");
+	docInstall (d, "");
+	status (TR ("Nouveau document : B une boîte, S une esquisse."));
+}
+
+bool docOpenPath (const std::string &path)
+{
+	Doc d;
+	std::string err = docLoad (d, path);
+	if (!err.empty ()) {
+		std::string m = path + " : " + TR (err.c_str ()) + ".";
+		ui_message ((long) TR ("Ouvrir"), (long) m.c_str (), UM_OK);
+		ui_view_dirty (w_tl);
+		ui_w_draw (0);
+		return false;
+	}
+	if (d.name.empty ()) {
+		std::string base = path.substr (path.find_last_of ('/') + 1);
+		d.name = base.size () > 6 ? base.substr (0, base.size () - 6) : base;
+	}
+	docInstall (d, path);
+	int err2 = 0;
+	for (auto &f : g_doc.feats) err2 += !f.error.empty ();
+	char s[200];
+	snprintf (s, sizeof s, TR ("%s : %d étapes, %d en erreur."), g_doc.name.c_str (), (int) g_doc.feats.size (), err2);
+	status (s);
+	return true;
+}
+
+void docOpen ()
+{
+	if (!docKeepChanges ()) return;
+	char path[1024];
+	std::string dir = g_path.empty () ? std::string ("HOME:/") : g_path.substr (0, g_path.find_last_of ('/') + 1);
+	ui_file_filter ((long) "*.forge");
+	long ok = ui_file_open ((long) dir.c_str (), (long) path, (long) sizeof path);
+	ui_file_filter (0);
+	ui_view_dirty (w_tl);
+	ui_w_draw (0);
+	if (ok == 1 && path[0]) docOpenPath (path);
 }
 
 // ---- la mise en page --------------------------------------------------------------------------------------------
@@ -2583,7 +2718,8 @@ long onResize (long, long)
 // ---- les menus --------------------------------------------------------------------------------------------------
 
 const char MENUS[] =
-	"MFichier\n" "I13c\tPiloter par un agent (MCP)…\n" "-\n" "I9\tQuitter\tCtrl+Q\n"
+	"MFichier\n" "I1\tNouveau\tCtrl+N\n" "I2\tOuvrir…\tCtrl+O\n" "-\n" "I3\tEnregistrer\tCtrl+S\n" "I4\tEnregistrer sous…\tCtrl+Maj+S\n" "-\n"
+	"I13c\tPiloter par un agent (MCP)…\n" "-\n" "I9\tQuitter\tCtrl+Q\n"
 	"MÉdition\n" "I10\tAnnuler l'étape\tCtrl+Z\n" "I11\tRétablir l'étape\tCtrl+Y\n" "-\n" "I12\tSupprimer l'étape\n"
 	"MAffichage\n" "I20\tVue de face\tAlt+1\n" "I21\tVue de dessus\tAlt+2\n" "I22\tVue de droite\tAlt+3\n"
 	"I23\tVue isométrique\tAlt+0\n" "-\n" "I24\tAjuster\tF6\n" "-\n" "I25c\tArêtes\n" "I26c\tGrille\n" "-\n" "I45c\tAccrochage 1 mm\n" "I46c\tAccrochage 5 mm\n" "I47c\tAccrochage 10 mm\n"
@@ -2604,7 +2740,11 @@ void mcpMenu ();
 void command (int id)
 {
 	switch (id) {
-	case 9: g_quit = true; break;
+	case 9: if (docKeepChanges ()) g_quit = true; break;
+	case 1: docNew (); break;
+	case 2: docOpen (); break;
+	case 3: docSaveCmd (); break;
+	case 4: docSaveAs (); break;
 	case 13: mcpMenu (); break;
 	case 10: undo (false); break;
 	case 11: undo (true); break;
@@ -2746,7 +2886,7 @@ void buildWindow ()
 	palette ();
 	int h = (int) ui_metric (UMT_CTL);
 	w_doc = ui_label (0, 0, 10, 20, (long) g_doc.name.c_str (), ULB_BOLD);
-	w_docsub = ui_label (0, 0, 10, 16, (long) TR ("Exemple · mm"), ULB_DIM);
+	w_docsub = ui_label (0, 0, 10, 16, (long) TR ("Exemple · mm"), ULB_DIM);	// (puis le fichier : docLabels)
 	w_mode = ui_segmented (0, 0, 220, h, (long) TR ("Conception|Fabrication"));
 	ui_w_tip (w_mode, (long) TR ("Fabrication (G-code GRBL) : à une étape suivante"));
 	TB_H = h + 24;
@@ -2971,7 +3111,10 @@ void loop (double untilMs)
 			if (g_camDirty) cameraChanged ();
 			continue;
 		}
-		if (t == WEV_CLOSE) break;
+		if (t == WEV_CLOSE) {
+			if (untilMs || docKeepChanges ()) break;	// (un document changé : l'enregistrer d'abord ?)
+			continue;
+		}
 		if (t == WEV_MENU) {
 			command ((int) ui_ev_field (&ui, EV_CODE));
 			continue;
@@ -3358,6 +3501,41 @@ int selftest (double buildMs)
 	cmdKey (0x29, 0);
 	check ("combiner : Échap annule le choix, pas la commande", g_cmd.tool == T_COMBINE && g_cmd.pick == 0 && g_cmd.f.tools.empty (), "");
 	cmdKey (0x29, 0);
+	// le fichier : le document enregistré puis relu et rejoué donne la même matière
+	{
+		const char *tmp = "/tmp/forge-selftest.forge";
+		std::string e = docSave (g_doc, tmp);
+		Doc d2;
+		if (e.empty ()) e = docLoad (d2, tmp);
+		double v2 = 0;
+		if (e.empty ()) {
+			replay (d2, 0.2);
+			for (auto &bd : d2.bodies) v2 += bodyVolume (bd) / 1000;
+		}
+		snprintf (s, sizeof s, "%s%d étapes, %s -> %s", e.empty () ? "" : (e + " ; ").c_str (), (int) d2.feats.size (), cm3 (totalVolume ()).c_str (), cm3 (v2).c_str ());
+		check ("enregistré puis rouvert (.forge)", e.empty () && d2.feats.size () == g_doc.feats.size () && d2.bar == g_doc.bar && std::fabs (v2 - totalVolume ()) < 1e-3, s);
+		unlink (tmp);
+	}
+	// la suppression avec ce qui dépend : boîte, congé, boîte jointe ; la première supprimée -> la seconde seule, nouveau corps
+	{
+		Doc d;
+		Feature f;
+		f.kind = ST_BOX, f.name = "Boîte 1", f.op = OP_NEW, f.a = 20, f.b = 20, f.c = 10;
+		d.feats.push_back (f);
+		Feature fl;
+		fl.kind = ST_FILLET, fl.name = "Congé 1", fl.body = 0, fl.a = 2, fl.edges = { EdgeRef { { 10, 10, 5 }, { 0, 0, 1 } } };
+		d.feats.push_back (fl);
+		Feature g = f;
+		g.name = "Boîte 2", g.op = OP_JOIN, g.body = 0, g.frame.o[0] = 15, g.c = 5;
+		d.feats.push_back (g);
+		d.bar = 3;
+		Removal plan = planRemoval (d, 0);
+		applyRemoval (d, plan);
+		replay (d, 0.2);
+		snprintf (s, sizeof s, "%d supprimées, %d nouveau corps ; reste %d étape(s), %d corps", (int) plan.erased.size (), (int) plan.renewed.size (), (int) d.feats.size (), (int) d.bodies.size ());
+		check ("supprimer une étape et ce qui en dépend", plan.erased.size () == 2 && plan.renewed.size () == 1 && d.feats.size () == 1 && d.feats[0].op == OP_NEW
+		       && d.bodies.size () == 1 && std::fabs (bodyVolume (d.bodies[0]) - 20 * 20 * 5) < 0.5, s);
+	}
 	select (Pick ());
 	g_snap = 5;	// (le réglage d'origine)
 	printf ("forge : %s\n", fails ? "FAIL" : "PASS");
@@ -3371,11 +3549,12 @@ int main (int argc, char **argv)
 	bool test = argc > 1 && !strcmp (argv[1], "--selftest");
 	g_trace = getenv ("FORGE_TRACE") != nullptr;
 	int mcpPort = 0;
-	std::string mcpTok;
+	std::string mcpTok, openArg;
 	bool tokGiven = false;
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp (argv[i], "--mcp")) mcpPort = i + 1 < argc && isdigit ((unsigned char) argv[i + 1][0]) ? atoi (argv[++i]) : MCP_PORT;
 		else if (!strcmp (argv[i], "--mcp-token") && i + 1 < argc) mcpTok = argv[++i], tokGiven = true;
+		else if (argv[i][0] != '-' && !test) openArg = argv[i];	// (un document .forge, ouvert depuis Fichiers)
 	}
 	if (!uikit_open (&ui)) return 1;
 	{	// (sa table en dernier : elle l'emporte sur le dictionnaire commun, où Réseau, Annuler, Terminer… ont un autre sens)
@@ -3404,6 +3583,7 @@ int main (int argc, char **argv)
 	repaint ();
 	panelUpdate ();
 	hintIdle ();
+	if (!openArg.empty ()) docOpenPath (openArg);
 	if (mcpPort) mcpStart (mcpPort, tokGiven ? (mcpTok == "-" ? "" : mcpTok) : mcpToken (), true);
 	if (test) {
 		int r = selftest (t1 - t0);
