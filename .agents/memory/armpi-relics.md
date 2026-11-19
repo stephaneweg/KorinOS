@@ -1,6 +1,6 @@
 ---
 name: armpi-relics
-description: "Relics, jeu de plates-formes et d'exploration à la Rick Dangerous (19/11/2026) : C sur gamefb, tuiles dessinées, 12 niveaux générés, banc d'essai sur l'hôte"
+description: "Relics, jeu de plates-formes et d'exploration à la Rick Dangerous (19/11/2026) : C sur gamefb, 5 mondes, 15 niveaux générés, sprites et tuiles des paquets achetés par l'utilisateur, banc d'essai sur l'hôte"
 metadata:
   node_type: memory
   type: project
@@ -25,3 +25,12 @@ platformer » comme inspiration, non repris) : des **tuiles** dessinées au trai
   s'arrête à « / non servi » (fatfs ne répond pas) ; à lancer sous QEMU ou sur le Pi chez l'utilisateur.
 - Intégré : listes de `tools/office/build.sh` et `tools/pc/apps.sh`, `[app.relics]` des deux packages*.ini, icône dans
   `tools/icons/art.py`. Pas publié (versions.ini : 1.0.0 par défaut).
+
+**Suite du 19/11 :** cinq mondes (jungle, désert « Les sables de Kharga » demandé par l'utilisateur avant le temple,
+pyramide, glace, volcan), 15 niveaux. Personnages : « Chibi Character Bundle » acheté par l'utilisateur (Google Drive),
+l'explorateur fait par `tools/relics/explorer.py` (morceaux + Spriter, `spriter.py`), ennemis par `sprites.sh` ;
+tuiles : tileset « forest » de l'utilisateur pour la jungle, les autres mondes DESSINÉS par `mktiles.py` dans son style
+(l'utilisateur ne veut pas de simple recoloration ; il a validé ces dessins ; le désert suit son image de référence :
+pavés bruns, sable lisse, figuiers de Barbarie, panneaux). Les paquets restent hors du dépôt : seuls les `.spr` et
+`.til` (data/sprites, data/tiles) y sont. L'utilisateur peut acheter d'autres tilesets : ils remplaceront les dessins
+de `mktiles.py` monde par monde.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# tools/relics/mklevels.py -- les douze niveaux de Relics (src/apps/relics/levels.h), dessines ici sur une grille de
+# tools/relics/mklevels.py -- les quinze niveaux de Relics (src/apps/relics/levels.h), dessines ici sur une grille de
 # cases avec quelques outils (salles, echelles, fosses), puis ecrits en texte dans levels.h. Le jeu ne lit rien : les
 # niveaux sont dans le programme. Apres un changement : ce script, puis le parcours de tools/relics/run.sh check,
 # qui dit si la sortie de chaque niveau est atteignable par la vraie physique de l'explorateur.
@@ -328,7 +328,108 @@ def l3():
 	return c
 
 
-# ===== Monde 2 : la pyramide de Sekhet ================================================================================
+# ===== Monde 2 : les sables de Kharga, puis le monde 3 : la pyramide de Sekhet ================================================================================
+
+@level(1, "L'oasis perdue")
+def d1():
+	c = C(170, 26, "#")
+	c.rect(0, 0, 169, 19, " ")
+	c.put(2, 19, "P")
+	c.rect(10, 18, 13, 19, "#")
+	c.put(11, 17, "$")
+	c.rect(18, 20, 20, 21, "~")
+	# une ile flottante de paves, son echelle
+	c.rect(24, 14, 31, 15, "#")
+	c.lad(23, 14, 19)
+	c.put(25, 13, "$$$")
+	c.put(34, 19, "g")
+	# la grande oasis : des planches
+	c.rect(40, 20, 48, 21, "~")
+	c.put(42, 18, "--")
+	c.put(46, 18, "--")
+	c.put(42, 17, "$")
+	c.put(44, 15, "b")
+	c.put(52, 19, "+")
+	# la mesa et sa grotte
+	c.rect(56, 12, 90, 19, "#")
+	c.room(58, 88, 14, 19)
+	c.rect(56, 15, 57, 18, ".")
+	c.put(62, 15, "i")
+	c.put(66, 18, "$")
+	c.put(70, 19, "t")
+	c.put(74, 15, "i")
+	c.put(80, 18, "s")
+	c.put(84, 15, "i")
+	c.put(89, 18, "<")
+	c.lad(86, 12, 18)
+	c.put(80, 11, "$")
+	c.put(88, 11, "d")
+	# les dunes, un rocher, une autre ile
+	c.rect(100, 18, 104, 19, "#")
+	c.put(102, 17, "a")
+	c.put(118, 19, "o")
+	c.rect(108, 14, 116, 15, "#")
+	c.lad(107, 14, 19)
+	c.put(110, 13, "$")
+	c.put(114, 13, "$")
+	c.put(112, 11, "b")
+	c.rect(124, 20, 126, 21, " ")
+	c.row(124, 126, 21, "^")
+	c.put(132, 19, "g")
+	c.put(140, 19, "+")
+	c.put(146, 19, "g")
+	c.put(152, 19, "$")
+	c.put(160, 19, "*")
+	c.put(165, 19, "E")
+	for x in (6, 37, 95, 136, 156):
+		c.fern(x, 19)
+	return c
+
+
+@level(1, "Le canyon des vents")
+def d2():
+	c = C(150, 36, "#")
+	c.rect(0, 0, 149, 8, " ")
+	c.rect(21, 0, 127, 30, " ")
+	c.put(2, 8, "P")
+	c.put(10, 8, "$")
+	c.lad(21, 9, 30)
+	# les corniches de gauche, un surplomb a stalactites
+	c.rect(26, 20, 40, 21, "#")
+	c.rect(30, 14, 44, 15, "#")
+	c.put(34, 16, "!")
+	c.put(38, 16, "!")
+	c.put(28, 19, "$")
+	c.put(36, 19, "a")
+	c.put(32, 19, "$")
+	# le fond du canyon : la riviere, un pont qui s'effondre, un pilier
+	c.put(40, 30, "+")
+	c.rect(50, 31, 52, 32, "~")
+	c.put(58, 30, "g")
+	c.lad(65, 24, 30)
+	c.rect(66, 24, 68, 30, "#")
+	c.put(68, 30, ">")
+	c.put(67, 23, "$")
+	c.put(72, 26, "b")
+	c.rect(80, 31, 83, 32, "~")
+	c.row(80, 83, 31, "C")
+	c.put(90, 30, "$")
+	c.put(95, 30, "s")
+	c.put(104, 28, "--")
+	c.put(104, 27, "$")
+	c.put(110, 24, "b")
+	# la falaise de droite : une longue echelle, un palier
+	c.lad(127, 9, 30)
+	c.put(120, 20, "-------")
+	c.put(123, 19, "+")
+	c.put(118, 22, "b")
+	c.put(134, 8, "g")
+	c.put(138, 8, "*")
+	c.put(145, 8, "E")
+	for x, y in ((6, 8), (30, 30), (100, 30), (142, 8)):
+		c.fern(x, y)
+	return c
+
 
 @level(1, "Les dunes de Sekhet")
 def l4():
@@ -386,7 +487,57 @@ def l4():
 	return c
 
 
-@level(1, "La galerie des pharaons")
+@level(2, "Le hall d'Anubis")
+def p1():
+	c = C(150, 30, "=")
+	c.room(1, 60, 4, 10)
+	c.put(3, 9, "P")
+	c.put(6, 5, "i")
+	c.put(10, 9, "$")
+	c.put(16, 10, "t")
+	c.put(20, 5, "i")
+	c.put(24, 9, "g")
+	c.rect(30, 10, 33, 12, ".")
+	c.row(30, 33, 12, "^")
+	c.row(30, 33, 10, "C")
+	c.put(36, 5, "i")
+	c.put(39, 8, "---")
+	c.put(40, 7, "$")
+	c.put(46, 9, "a")
+	c.put(50, 5, "i")
+	c.put(61, 9, "<")
+	c.lad(56, 10, 19)
+	c.room(20, 120, 15, 20)
+	c.put(24, 19, "d")
+	c.put(28, 16, "i")
+	c.put(30, 19, "$")
+	c.put(40, 19, "g")
+	c.put(44, 16, "i")
+	c.put(60, 19, "+")
+	c.put(64, 15, "M")
+	c.put(70, 15, "M")
+	c.put(76, 15, "M")
+	c.put(80, 16, "i")
+	c.put(84, 17, "b")
+	c.put(92, 19, "s")
+	c.put(96, 16, "i")
+	c.put(100, 19, "k")
+	c.put(106, 19, "^^")
+	c.col(112, 15, 19, "D")
+	c.lad(116, 10, 19)
+	c.room(100, 148, 4, 10)
+	c.put(104, 5, "i")
+	c.put(120, 9, "$")
+	c.put(124, 5, "i")
+	c.put(128, 9, "g")
+	c.put(132, 10, "t")
+	c.put(136, 5, "i")
+	c.put(140, 9, "*")
+	c.put(145, 9, "E")
+	return c
+
+
+@level(2, "La galerie des pharaons")
 def l5():
 	c = C(164, 32, "=")
 	# le couloir des pilons
@@ -466,7 +617,7 @@ def l5():
 	return c
 
 
-@level(1, "La chambre du scarabée")
+@level(2, "La chambre du scarabée")
 def l6():
 	c = C(172, 36, "=")
 	# la descente : trois rochers
@@ -531,9 +682,9 @@ def l6():
 	return c
 
 
-# ===== Monde 3 : la forteresse de glace ===============================================================================
+# ===== Monde 4 : la forteresse de glace ===============================================================================
 
-@level(2, "Le col des neiges")
+@level(3, "Le col des neiges")
 def l7():
 	c = C(176, 30, "#")
 	c.rect(0, 0, 175, 16, " ")
@@ -591,7 +742,7 @@ def l7():
 	return c
 
 
-@level(2, "Les remparts")
+@level(3, "Les remparts")
 def l8():
 	c = C(150, 38, "=")
 	c.rect(0, 0, 149, 7, " ")
@@ -660,7 +811,7 @@ def l8():
 	return c
 
 
-@level(2, "La salle du trône gelé")
+@level(3, "La salle du trône gelé")
 def l9():
 	c = C(160, 34, "#")
 	c.room(1, 50, 3, 9)
@@ -729,9 +880,9 @@ def l9():
 	return c
 
 
-# ===== Monde 4 : le volcan du docteur Krell ===========================================================================
+# ===== Monde 5 : le volcan du docteur Krell ===========================================================================
 
-@level(3, "Les coulées de lave")
+@level(4, "Les coulées de lave")
 def l10():
 	c = C(176, 30, "#")
 	c.rect(0, 0, 175, 18, " ")
@@ -787,7 +938,7 @@ def l10():
 	return c
 
 
-@level(3, "Le laboratoire")
+@level(4, "Le laboratoire")
 def l11():
 	c = C(164, 36, "=")
 	c.room(1, 60, 3, 9)
@@ -858,7 +1009,7 @@ def l11():
 	return c
 
 
-@level(3, "Le cœur du volcan")
+@level(4, "Le cœur du volcan")
 def l12():
 	c = C(190, 38, "#")
 	c.room(1, 62, 3, 9)
@@ -938,7 +1089,7 @@ def l12():
 
 def write():
 	out = []
-	out.append("/*\n * levels.h -- les douze niveaux de Relics (quatre mondes de trois), une ligne de texte par rangee de cases de"
+	out.append("/*\n * levels.h -- les quinze niveaux de Relics (cinq mondes de trois), une ligne de texte par rangee de cases de"
 		   "\n * 20 points. GENERE par tools/relics/mklevels.py : changer le script, pas ce fichier. Inclus par main.c.\n *\n"
 		   " *   ' ' le ciel (le decor du fond)      '.' le mur du fond          '#' la roche      '=' la brique\n"
 		   " *   '-' une planche (on passe dessous)   'H' une echelle             '^' 'v' des pointes (sol, plafond)\n"

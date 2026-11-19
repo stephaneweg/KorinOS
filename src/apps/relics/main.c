@@ -1,7 +1,7 @@
 /*
  * relics -- Relics, un jeu de plates-formes a defilement dans l'esprit des jeux d'exploration de la fin des annees 80 :
- * un explorateur traverse quatre mondes (la jungle, la pyramide, la forteresse de glace, le volcan), douze niveaux en
- * tout, entre pieges (pointes cachees, flechettes, rochers qui roulent, stalactites, pilons, jets de feu, sols qui
+ * un explorateur traverse cinq mondes (la jungle, le desert, la pyramide, la forteresse de glace, le volcan), quinze
+ * niveaux en tout, entre pieges (pointes cachees, flechettes, rochers qui roulent, stalactites, pilons, jets de feu, sols qui
  * s'effondrent) et ennemis (gardiens, tireurs, chauves-souris, araignees), avec un pistolet a six coups et des
  * batons de dynamite (les murs fissures cedent), des cles pour les portes, des points de passage et des tresors.
  *
@@ -33,7 +33,7 @@
 #define MAXW		240
 #define MAXH		64
 #define HUD_H		24
-#define NWORLD		4
+#define NWORLD		5			/* jungle, desert, pyramide, glace, volcan */
 
 #define H_W		12			/* la boite de l'explorateur */
 #define H_H		26
@@ -367,7 +367,7 @@ static const struct ga_txe s_tx[TX_N] = {
 	{ "Partie terminée", 32, 1, 0x00FFB0A0, 0x00E04030 },
 	{ "Espace ou A : continuer", 15, 1, 0x00FFFFFF, 0x00D8E0E8 },
 	{ "Victoire !", 40, 1, 0x00FFF0B0, 0x00F0A030 },
-	{ "Les douze reliques sont à l'abri. Bravo, explorateur !", 16, 0, 0x00F0E8D8, 0x00C8C0B0 },
+	{ "Les quinze reliques sont à l'abri. Bravo, explorateur !", 16, 0, 0x00F0E8D8, 0x00C8C0B0 },
 	{ "Point de passage", 15, 1, 0x00FFE8A0, 0x00F0B040 },
 	{ "Une clé !", 15, 1, 0x00FFE8A0, 0x00F0B040 },
 	{ "La porte s'ouvre", 15, 1, 0x00FFE8A0, 0x00F0B040 },
@@ -1582,7 +1582,7 @@ static void draw_bg (int world, int cx, int cy)
 	{
 		g_bg[world] = (uint32_t *) malloc (BG_W * BG_H * 4);
 		if (!g_bg[world]) { memset (gf_frame, 0, sizeof gf_frame); return; }
-		gen_bg (g_bg[world], world);
+		gen_bg (g_bg[world], g_look[world]);
 	}
 	const uint32_t *bg = g_bg[world];
 	int bx = ((cx * 35 / 100) % BG_W + BG_W) % BG_W;
@@ -2140,10 +2140,10 @@ static void gen_sprites (void)
 		g_sspider[w][0] = gen_spider (W->spider, 0);
 		g_sspider[w][1] = gen_spider (W->spider, 1);
 		g_sgem[w] = gen_gem (W->gem);
-		g_svase[w] = gen_vase (w == 2 ? 0x006080C0 : w == 3 ? 0x00805040 : 0x00B86038);
-		g_sexit[w] = gen_exit (w == 3 ? 0x00707880 : W->brick);
+		g_svase[w] = gen_vase (g_look[w] == 2 ? 0x006080C0 : g_look[w] == 3 ? 0x00805040 : 0x00B86038);
+		g_sexit[w] = gen_exit (g_look[w] == 3 ? 0x00707880 : W->brick);
 		for (int r = 0; r < 4; r++) g_sboulder[w][r] = gen_boulder (ga_mix (W->rock, 0x00908070, 100), (float) r * 1.5708f);
-		g_sstal[w] = gen_stalactite (w == 2 ? 0x00C0E0FF : W->rock);
+		g_sstal[w] = gen_stalactite (g_look[w] == 2 ? 0x00C0E0FF : W->rock);
 		g_scrush[w] = gen_crusher (W->metal);
 		sp_new (6, 6);
 		sp_disc (3, 3, 2.6f, W->shot);

@@ -619,9 +619,15 @@ struct world
 	uint32_t bat, spider, gem, shot;
 };
 
+/* le style des dessins de chaque monde (les tuiles et decors dessines par le programme, faute de tileset) :
+ * 0 jungle, 1 sable (le desert et la pyramide), 2 glace, 3 volcan */
+static const int g_look[NWORLD] = { 0, 1, 1, 2, 3 };
+
 static const struct world worlds[NWORLD] = {
 	{ "La jungle d'Ixtala", 0x0072745E, 0x0058A838, 0x002C3628, 0x009A9070, 0x008A5A30, 0x00906838, 0x002E86B8, 0x0060C8F0, 0x00788078, 0x0040802C, 0,
 	  { 0, 0x008C5A36, 0x0090A040, 0x00E8D040, 0x00604028, 0x00402818, 0, 0x00807060, LK_NATIVE }, 0x005A4438, 0x00402848, 0x0040E070, 0x00B08850 },
+	{ "Les sables de Kharga", 0x00A86A3C, 0x00F0D08C, 0x007A4A2C, 0x00D8B478, 0x00987048, 0x00A07848, 0x0030A0C8, 0x0090E0F0, 0x00908070, 0x00508030, 0,
+	  { 0, 0x00C08A60, 0x00D8C8A0, 0x00C04030, 0x00706048, 0x00503828, 0, 0x00807060, LK_SOLDIER }, 0x00705038, 0x00603018, 0x00FF60A0, 0x00D0D0D0 },
 	{ "La pyramide de Sekhet", 0x00C49C64, 0x00E8CC8A, 0x00604A30, 0x00D8B478, 0x00987048, 0x00A07848, 0x00B08448, 0x00D8B070, 0x00908070, 0x00884A20, 0,
 	  { 0, 0x00C8B890, 0x00D8CCA8, 0x0060FF80, 0x00B8A888, 0x00988868, 0, 0x00807060, LK_MUMMY }, 0x00806040, 0x00804020, 0x0040A0FF, 0x00E8C040 },
 	{ "La forteresse de glace", 0x008AA2BA, 0x00F4FAFF, 0x00283850, 0x00A4B0BE, 0x007890A8, 0x008898A8, 0x002878B8, 0x0090D8F8, 0x00A0B0C0, 0x00B8E4FF, 0,
@@ -785,7 +791,7 @@ static inline uint32_t hashu (int x, int y, int k)
 	return h ^ (h >> 16);
 }
 
-static uint32_t ink_of (int w) { static const uint32_t k[NWORLD] = { 0x00241A10, 0x00342010, 0x00182436, 0x00140A0A }; return k[w]; }
+static uint32_t ink_of (int w) { static const uint32_t k[4] = { 0x00241A10, 0x00342010, 0x00182436, 0x00140A0A }; return k[g_look[w]]; }
 
 /* un pave arrondi, son trait, sa face eclairee d'en haut */
 static void stone (float x0, float y0, float x1, float y1, float r, uint32_t c, uint32_t ink)
@@ -851,7 +857,7 @@ static void tile_cap (int w, uint32_t cap, uint32_t ink, int x0)
 		float cx = (float) i * 6.4f + 1, d = 6.0f + (float) (hashu (x0, i, 31) % 4);
 		sp_disc (cx, d - 3.0f, 2.8f, cap);
 	}
-	if (w == 0)
+	if (g_look[w] == 0)
 	{						/* des feuilles qui debordent */
 		for (int i = 0; i < 3; i++)
 		{
@@ -861,14 +867,14 @@ static void tile_cap (int w, uint32_t cap, uint32_t ink, int x0)
 			sp_cap (lx, ly - 3, lx, ly + 3, 0.4f, ga_shade (cap, 150));
 		}
 	}
-	else if (w == 2)
+	else if (g_look[w] == 2)
 	{						/* des gouttes de neige */
 		sp_ell (9, 7.5f, 2.2f, 3.2f, ink);
 		sp_ell (9, 7.0f, 1.3f, 2.4f, cap);
 		sp_ell (24, 6.5f, 1.8f, 2.6f, ink);
 		sp_ell (24, 6.0f, 1.0f, 1.8f, cap);
 	}
-	else if (w == 3)
+	else if (g_look[w] == 3)
 	{						/* des braises */
 		sp_disc (7, 2.0f, 1.0f, 0x00FFB040);
 		sp_disc (20, 3.0f, 0.8f, 0x00FFD060);
@@ -981,7 +987,7 @@ static void gen_brick (int w, const struct world *W, int mask, int motif, int de
 		sp_ell (m, m, 10, 6, cut);
 		sp_ell (m, m, 8.4f, 4.6f, ga_shade (c, 330));
 		sp_disc (m, m, 3.6f, ink);
-		sp_disc (m, m, 2.6f, w == 3 ? 0x00FF4020 : 0x0030A0E8);
+		sp_disc (m, m, 2.6f, g_look[w] == 3 ? 0x00FF4020 : 0x0030A0E8);
 		sp_disc (m - 1, m - 1, 0.9f, 0x00FFFFFF);
 	}
 	else if (motif == 4)
@@ -1003,7 +1009,7 @@ static void gen_brick (int w, const struct world *W, int mask, int motif, int de
 	}
 	if (kind == 4)
 		for (int i = 0; i < 4; i++) sp_box (3.0f + (float) i * 7.5f, 3.2f, 5.6f + (float) i * 7.5f, 5.2f, 0.6f, 0x00100808);
-	if ((mask & M_U) && kind != 4 && w != 1) tile_cap (w, W->cap, ink, motif * 5 + mask);
+	if ((mask & M_U) && kind != 4 && g_look[w] != 1) tile_cap (w, W->cap, ink, motif * 5 + mask);
 	tile_edges (mask & ~(M_D | M_L | M_R) ? mask : mask, ink, deep);
 }
 
@@ -1133,7 +1139,7 @@ static void gen_torch (int w, const struct world *W)
 static void gen_deco (int w, const struct world *W, int v)
 {
 	uint32_t ink = ink_of (w), c = W->deco;
-	if (w == 0)
+	if (g_look[w] == 0)
 	{
 		float x = 10.0f + (float) v * 4;
 		for (int i = 0; i < 8; i++)
@@ -1153,7 +1159,7 @@ static void gen_deco (int w, const struct world *W, int v)
 			sp_ell (xx + s * 4.5f, y, 3.0f, 1.6f, ga_shade (c, 300));
 		}
 	}
-	else if (w == 1)
+	else if (g_look[w] == 1)
 	{
 		uint32_t cut = ga_shade (W->back, 60), lit = ga_shade (W->back, 160);
 		float m = TP / 2;
@@ -1167,7 +1173,7 @@ static void gen_deco (int w, const struct world *W, int v)
 			else { sp_cap (m + o, 6 + o, m + o, 26 + o, 1.2f, col); sp_cap (m + o, 8 + o, m + 7 + o, 15 + o, 1.0f, col); sp_cap (m + o, 8 + o, m - 7 + o, 15 + o, 1.0f, col); }
 		}
 	}
-	else if (w == 2)
+	else if (g_look[w] == 2)
 	{
 		for (int i = 0; i < 4; i++)
 		{
@@ -1283,11 +1289,11 @@ static gf_sprite_t *gen_fern (int w)
 				if (pass == 0) sp_cap (x0, y0, x1, y1, r + 1.6f, ink);
 				else
 				{
-					sp_cap (x0, y0, x1, y1, r, ga_mix (col[w][0], col[w][1], (uint32_t) (t0 * 140)));
-					sp_cap (x0, y0, x1, y1, 0.6f, col[w][1]);
+					sp_cap (x0, y0, x1, y1, r, ga_mix (col[g_look[w]][0], col[g_look[w]][1], (uint32_t) (t0 * 140)));
+					sp_cap (x0, y0, x1, y1, 0.6f, col[g_look[w]][1]);
 				}
 			}
-			if (pass == 1 && w == 3) sp_disc (tx, ty, 2.0f, 0x00FF8030);
+			if (pass == 1 && g_look[w] == 3) sp_disc (tx, ty, 2.0f, 0x00FF8030);
 		}
 	sp_k = k;
 	return s;

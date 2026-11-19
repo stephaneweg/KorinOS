@@ -6,7 +6,7 @@
 #
 # Les tuiles et decors : FOREST=/chemin/forest-tileset/png (tools/relics/mktiles.py -> data/tiles/world<n>.til).
 # SPRITES : un sous-dossier par personnage, chaque archive du paquet extraite dans le sien (« Black Wizard »,
-# « Medieval Sergeant »...). <monde> : 0 jungle, 1 pyramide, 2 glace, 3 volcan. hero.spr : l'explorateur
+# « Medieval Sergeant »...). <monde> : 0 jungle, 1 desert, 2 pyramide, 3 glace, 4 volcan. hero.spr : l'explorateur
 # (tools/relics/explorer.py) ; foe<monde>.spr : le gardien qui marche ; shooter<monde>.spr : le tireur (sans lui,
 # le gardien sert aux deux). Sans fichier, le jeu garde ses personnages dessinés.
 set -eu
@@ -29,16 +29,20 @@ foe () {
 foe foe0 "Mayan Tribe Knight"
 foe foe0b "Inca Tribe"
 foe shooter0 "Medieval Masked Guy"
+# le desert : des pillards ; l'assassin lance des couteaux
+foe foe1 "Persian Warrior"
+foe foe1b "Evil Bald Guy"
+foe shooter1 "Assassin Guy"
 # la pyramide : Anubis et les momies ; le sorcier noir et la sentinelle lancent
-foe foe1 "Anubis"
-foe foe1b "Egyptian Mummy"
-foe shooter1 "Black Wizard"
-foe shooter1b "Egyptian Sentry"
+foe foe2 "Anubis"
+foe foe2b "Egyptian Mummy"
+foe shooter2 "Black Wizard"
+foe shooter2b "Egyptian Sentry"
 # la forteresse de glace : des chevaliers, un archer
-foe foe2 "Medieval Knight"
-foe foe2b "Heavy Armored Defender Knight"
-foe shooter2 "Archer Guy" "Shooting"
+foe foe3 "Medieval Knight"
+foe foe3b "Heavy Armored Defender Knight"
+foe shooter3 "Archer Guy" "Shooting"
 # le volcan du docteur Krell : chevalier squelette, diable masque ; le mage lance des sorts
-foe foe3 "Skull Knight"
-foe foe3b "Devil Masked Guy"
-foe shooter3 "Medieval Mage" "Throwing Spell"
+foe foe4 "Skull Knight"
+foe foe4b "Devil Masked Guy"
+foe shooter4 "Medieval Mage" "Throwing Spell"

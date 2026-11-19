@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """mktiles.py -- les tuiles, decors et fonds de Relics, un jeu par monde, dans le style du tileset « forest
 platformer » achete par l'utilisateur (trait sombre epais, aplats, reflets) : la jungle prend ce tileset tel quel ;
-la pyramide, la glace et le volcan ont leurs tuiles et leurs decors dessines ici (blocs de gres et congeres de sable,
-neige et glace, basalte veine de lave...). Le tileset reste hors du depot ; le jeu charge world<n>.til a la place de ses
+le desert, la pyramide, la glace et le volcan ont leurs tuiles et leurs decors dessines ici (paves bruns et sable
+lisse, figuiers de Barbarie et panneaux ; blocs de gres ; neige et glace ; basalte veine de lave...). Le tileset reste hors du depot ; le jeu charge world<n>.til a la place de ses
 tuiles dessinees (main.c, load_til) :
 
     python3 tools/relics/mktiles.py /chemin/forest-tileset/png src/apps/relics/data/tiles [--sheet planche.png]
@@ -114,8 +114,8 @@ BR1 = [(4, 4, 62, 58), (70, 4, 124, 58), (4, 66, 36, 124), (44, 66, 98, 124), (1
 BR2 = [(4, 4, 34, 58), (42, 4, 96, 58), (104, 4, 124, 58), (4, 66, 62, 124), (70, 66, 124, 124)]
 
 
-# ===== la pyramide ================================================================================================
-def desert(src):
+# ===== la pyramide (l'interieur du temple) ================================================================================================
+def temple(src):
     SAND, SAND2, STONE, DARK = 0xE2AE62, 0xF4D493, 0xD49A52, 0x6A4A2A
     R = {}
 
@@ -237,8 +237,123 @@ def desert(src):
         return p.out()
 
     pot = fit(load(src, "item/pot-2.png"), 22, 26)
-    R.update(deco1=cactus(), deco2=skull(), deco3=column(), deco4=pot, deco5=drybush(), deco6=sandrock(), deco7=cactus(),
+    R.update(deco1=column(), deco2=skull(), deco3=column(), deco4=pot, deco5=sandrock(), deco6=sandrock(), deco7=pot,
              deco8=skull(), big=cactus(True))
+    return R
+
+
+# ===== le desert (dehors, avant le temple) : paves bruns, sable lisse, figuiers de Barbarie, panneaux =================
+def sign(kind):
+    """un panneau de bois sur son piquet : fleche (droite, haut) ou tete de mort"""
+    p = Pen(110, 110)
+    W1, W2 = 0x9A6232, 0x7A4A22
+    p.rect((48, 50, 62, 108), W2, 3)
+    p.rect((8, 10, 102, 62), W1, 6)
+    p.line([(16, 24), (94, 24)], 0x7A4A22, 3)
+    p.line([(16, 44), (94, 44)], 0x7A4A22, 3)
+    for x, y in ((14, 16), (96, 16), (14, 56), (96, 56)):
+        p.ell((x - 2, y - 2, x + 2, y + 2), 0x4A2A12, ow=0)
+    W = 0xF4ECDC
+    if kind == "right":
+        p.poly([(26, 30), (64, 30), (64, 20), (88, 36), (64, 52), (64, 42), (26, 42)], W, ow=4)
+    elif kind == "up":
+        p.poly([(49, 52), (49, 32), (38, 32), (55, 14), (72, 32), (61, 32), (61, 52)], W, ow=4)
+    else:
+        p.ell((40, 18, 70, 44), W, ow=4)
+        p.ell((46, 26, 53, 33), 0x3A2A20, ow=0)
+        p.ell((57, 26, 64, 33), 0x3A2A20, ow=0)
+        p.line([(30, 46), (80, 56)], W, 6)
+        p.line([(30, 56), (80, 46)], W, 6)
+    return p.out()
+
+
+def pear(big=False):
+    """un figuier de Barbarie : des raquettes rondes, des epines, une fleur"""
+    s = 2.0 if big else 1.0
+    p = Pen(int(110 * s), int(110 * s))
+    G, G2, G3 = 0x74B048, 0x4E8A34, 0xA6D670
+    pads = [(55, 80, 26, 28), (30, 52, 18, 20), (78, 48, 20, 22), (52, 30, 15, 17), (92, 22, 12, 14)]
+    if not big:
+        pads = pads[:4]
+    for cx, cy, rx, ry in pads:
+        p.ell(((cx - rx) * s, (cy - ry) * s, (cx + rx) * s, (cy + ry) * s), G)
+    for cx, cy, rx, ry in pads:
+        p.ell(((cx - rx * 0.6) * s, (cy - ry * 0.75) * s, (cx + rx * 0.2) * s, (cy - ry * 0.1) * s), G3, ow=0)
+        for a in range(0, 360, 70):
+            r = math.radians(a + cx)
+            x, y = cx + math.cos(r) * rx * 0.6, cy + math.sin(r) * ry * 0.6
+            p.ell(((x - 1.6) * s, (y - 1.6) * s, (x + 1.6) * s, (y + 1.6) * s), G2, ow=0)
+    p.ell((48 * s, 9 * s, 58 * s, 19 * s), 0xF0607A, ow=4)
+    p.ell((51 * s, 12 * s, 55 * s, 16 * s), 0xFFD0D8, ow=0)
+    return p.out()
+
+
+def desert(src):
+    MORTAR, STONE, SAND, SAND2, BACK = 0xE6C489, 0xA8683C, 0xF2D9A0, 0xE3C07C, 0x6E4426
+    R = {}
+
+    def cob(lay, seed):
+        p = Pen(D, D)
+        p.d.rectangle([0, 0, D * SS, D * SS], fill=rgb(MORTAR))
+        rnd = random.Random(seed)
+        for i, b in enumerate(lay):			# des paves ronds, bruns, dans le mortier clair
+            x0, y0, x1, y1 = b
+            c = shade(rgb(STONE), rnd.uniform(0.9, 1.1))
+            p.rect((x0 + 3, y0 + 3, x1 - 3, y1 - 3), shade(c, 0.8), 16)
+            p.rect((x0 + 3, y0 + 3, x1 - 8, y1 - 9), c, 16, ow=0)
+            p.line([(x0 + 14, y0 + 10), (x1 - 22, y0 + 10)], shade(c, 1.25), 4)
+        return p
+
+    R["cobble"] = cob(L1, 51).out()
+    p = cob(L2, 52)
+    # le sable lisse du dessus, epais, son trait et sa lumiere
+    pts = [(0, 0), (D, 0), (D, 40)] + [(x, 40 + 3 * math.sin(x / 16.0)) for x in range(D, -1, -4)]
+    p.poly(pts, SAND)
+    p.poly([(0, 30), (D, 30), (D, 40)] + [(x, 40 + 3 * math.sin(x / 16.0)) for x in range(D, -1, -4)], SAND2, ow=0)
+    p.line([(6, 8), (D - 6, 8)], 0xFFF2D0, 4)
+    R["grass"] = p.out()
+    for k, lay in enumerate((L1, L2)):		# le canyon : des pierres sombres
+        p = Pen(D, D)
+        p.d.rectangle([0, 0, D * SS, D * SS], fill=rgb(0x4A2C18))
+        rnd = random.Random(60 + k)
+        for b in lay:
+            x0, y0, x1, y1 = b
+            c = shade(rgb(BACK), rnd.uniform(0.9, 1.1))
+            p.rect((x0 + 3, y0 + 3, x1 - 3, y1 - 3), c, 16, ow=4, ink=(52, 30, 16, 255))
+            p.line([(x0 + 14, y0 + 10), (x1 - 22, y0 + 10)], shade(c, 1.2), 4)
+        R["back_a" if k == 0 else "back_b"] = p.out()
+    for k in (0, 1):				# l'eau de l'oasis
+        p = Pen(D, D)
+        p.d.rectangle([0, 0, D * SS, D * SS], fill=rgb(0x2FA4C4))
+        for i in range(4):
+            p.line([(14 + i * 28, 36 + i * 22), (44 + i * 28, 36 + i * 22)], 0x6AD0E8, 5)
+        if k:
+            p.d.rectangle([0, 0, D * SS, 12 * SS], fill=(0, 0, 0, 0))
+            p.d.rectangle([0, 12 * SS, D * SS, 26 * SS], fill=rgb(0x9CE8F4))
+        R["wsurf" if k else "wmid"] = p.out()
+
+    def rocks():
+        p = Pen(100, 60)
+        p.ell((8, 22, 58, 58), 0xA8683C)
+        p.ell((44, 30, 92, 58), 0x94592F)
+        p.ell((18, 28, 36, 38), 0xC88A58, ow=0)
+        return p.out()
+
+    def bullskull():
+        p = Pen(120, 70)
+        B = 0xF2EADA
+        p.poly([(8, 20), (30, 30), (40, 22), (18, 8)], B, ow=5)
+        p.poly([(112, 20), (90, 30), (80, 22), (102, 8)], B, ow=5)
+        p.poly([(36, 22), (84, 22), (78, 52), (60, 66), (42, 52)], B)
+        p.ell((44, 30, 54, 40), 0x3A2A20, ow=0)
+        p.ell((66, 30, 76, 40), 0x3A2A20, ow=0)
+        p.ell((54, 50, 58, 56), 0x3A2A20, ow=0)
+        p.ell((62, 50, 66, 56), 0x3A2A20, ow=0)
+        return p.out()
+
+    chest = fit(load(src, "item/chest-gold-close.png"), 30, 26)
+    R.update(deco1=pear(), deco2=sign("right"), deco3=rocks(), deco4=sign("skull"), deco5=pear(), deco6=bullskull(),
+             deco7=sign("up"), deco8=chest, big=pear(True))
     return R
 
 
@@ -500,7 +615,25 @@ def background(src, world):
         band(bush, 330, 150, 0.85)
         band(bush2, 400, 80, 0.65)
         return bg
-    if world == 1:				# le desert : couchant, soleil, pyramides, dunes
+    if world == 1:				# le desert : ciel ocre, nuages en bandes, dunes en couches, pyramides au loin
+        bg = grad(W, H, [(238, 196, 104), (246, 214, 130), (250, 228, 160)])
+        d = ImageDraw.Draw(bg)
+        for i, (y, a) in enumerate(((60, 16), (110, 12), (150, 10))):	# les nuages : de longues bandes ondulees
+            pts = [(x, y + a * math.sin(x / W * 6.2832 * (2 + i) + i)) for x in range(0, W + 1, 8)]
+            d.line(pts, fill=(252, 236, 186, 255), width=14 - 3 * i, joint="curve")
+        bg.alpha_composite(hills(W, 300, 34, 3, 0xE9B46A, 11))
+        d = ImageDraw.Draw(bg)
+        for px_, h in ((210, 70), (300, 110), (760, 90)):
+            d.polygon([(px_ - h, 300), (px_, 300 - h), (px_ + h, 300)], fill=(226, 160, 92, 255))
+            d.polygon([(px_, 300 - h), (px_ + h, 300), (px_, 300)], fill=(200, 132, 72, 255))
+        bg.alpha_composite(hills(W, 340, 40, 2, 0xEFA650, 12))
+        dl = ImageDraw.Draw(bg)
+        for k in range(3):				# les lignes du vent sur les dunes
+            pts = [(x, 352 + k * 22 + 10 * math.sin(x / W * 6.2832 * 3 + k)) for x in range(0, W + 1, 8)]
+            dl.line(pts, fill=(214, 128, 52, 255), width=4, joint="curve")
+        bg.alpha_composite(hills(W, 420, 26, 3, 0xF4BE66, 13))
+        return bg
+    if world == 2:				# le temple : couchant, soleil, pyramides, dunes
         bg = grad(W, H, [(92, 52, 110), (232, 120, 96), (255, 196, 120), (255, 226, 160)])
         d = ImageDraw.Draw(bg)
         d.ellipse((690, 120, 790, 220), fill=(255, 236, 170, 255))
@@ -516,7 +649,7 @@ def background(src, world):
             d.rectangle((x - 10, 306, x - 4, 322), fill=(110, 120, 70, 255))
         bg.alpha_composite(hills(W, 410, 22, 4, 0xF0BE74, 3))
         return bg
-    if world == 2:				# la glace : montagnes enneigees, sapins
+    if world == 3:				# la glace : montagnes enneigees, sapins
         bg = grad(W, H, [(70, 120, 190), (150, 200, 240), (220, 240, 255)])
         d = ImageDraw.Draw(bg)
         d.ellipse((800, 60, 870, 130), fill=(255, 255, 235, 255))
@@ -558,7 +691,7 @@ def build(src, world):
         "logs": tile(load(src, "tile/bridge.png")),
         "ladder": tile(load(src, "tile/ladder.png")),
         "spikes": tile(load(src, "tile/spikes.png")),
-        "door": fit(load(src, "tile/cave-door-2.png" if world == 1 else "tile/cave-door.png"), 44, 78),
+        "door": fit(load(src, "tile/cave-door-2.png" if world in (1, 2) else "tile/cave-door.png"), 44, 78),
         "coin": fit(load(src, "item/coin.png"), 22, 22),
         "pot": fit(load(src, "item/pot-1.png"), 22, 26),
         "key": fit(load(src, "item/key-gold.png"), 18, 26),
@@ -577,7 +710,7 @@ def build(src, world):
              "deco7": fit(load(src, "tile/signboard.png"), 30, 30), "deco8": fit(load(src, "item/barrel.png"), 26, 30),
              "big": fit(load(src, "tile/big-fern.png"), 112, 72)}
     else:
-        w = {1: desert, 2: ice, 3: volcano}[world](src)
+        w = {1: desert, 2: temple, 3: ice, 4: volcano}[world](src)
     common.update(w)
     out = []
     for n in NAMES:
@@ -613,7 +746,7 @@ def main():
     src, out = sys.argv[1], sys.argv[2]
     os.makedirs(out, exist_ok=True)
     sheets = []
-    for w in range(4):
+    for w in range(5):
         ims = build(src, w)
         data = b"RTIL" + struct.pack("<HH", 2, len(ims)) + b"".join(runs(i) for i in ims)
         p = os.path.join(out, "world%d.til" % w)
@@ -622,7 +755,7 @@ def main():
         print("%s : %d images, %d octets" % (p, len(ims), len(data)))
         sheets.append(ims)
     if "--sheet" in sys.argv:
-        sh = Image.new("RGBA", (1024 + 560, 4 * 480), (128, 128, 136, 255))
+        sh = Image.new("RGBA", (1024 + 560, 5 * 480), (128, 128, 136, 255))
         for w, ims in enumerate(sheets):
             sh.alpha_composite(ims[-1], (0, w * 480))
             x, y = 1040, w * 480 + 8

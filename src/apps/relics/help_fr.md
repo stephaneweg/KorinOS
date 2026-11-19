@@ -1,6 +1,6 @@
 # Relics
 
-Un explorateur part à la recherche de douze reliques cachées dans quatre mondes : la jungle d'Ixtala, la pyramide de Sekhet, la forteresse de glace et le volcan du docteur Krell. Chaque niveau défile à mesure que vous avancez ; il faut atteindre la porte de sortie en évitant les pièges et les gardiens. Un seul contact suffit à perdre une vie : observez, avancez au bon moment.
+Un explorateur part à la recherche de quinze reliques cachées dans cinq mondes : la jungle d'Ixtala, les sables de Kharga, la pyramide de Sekhet, la forteresse de glace et le volcan du docteur Krell. Chaque niveau défile à mesure que vous avancez ; il faut atteindre la porte de sortie en évitant les pièges et les gardiens. Un seul contact suffit à perdre une vie : observez, avancez au bon moment.
 
 ## Au clavier
 

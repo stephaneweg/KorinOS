@@ -1,6 +1,6 @@
 # Relics
 
-An explorer sets out to find twelve relics hidden across four worlds: the Ixtala Jungle, the Pyramid of Sekhet, the Ice Fortress and Doctor Krell's Volcano. Each level scrolls as you move; reach the exit door while dodging traps and guards. A single touch costs a life: watch first, then move at the right moment.
+An explorer sets out to find fifteen relics hidden across five worlds: the Ixtala Jungle, the Sands of Kharga, the Pyramid of Sekhet, the Ice Fortress and Doctor Krell's Volcano. Each level scrolls as you move; reach the exit door while dodging traps and guards. A single touch costs a life: watch first, then move at the right moment.
 
 ## Keyboard
 
