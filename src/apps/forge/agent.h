@@ -51,4 +51,20 @@ std::string exportBodies (const std::vector<const Body *> &bodies, const std::st
 void insertFeature (Doc &d, int at, const Feature &f);
 void eraseFeature (Doc &d, int at);
 
+// le document dans un fichier .forge (docfile.cpp : l'historique en JSON ; les corps refaits par le rejeu) -> "" si
+// fait, sinon l'erreur (en français, à passer par la traduction)
+std::string docSave (const Doc &d, const std::string &path);
+std::string docLoad (Doc &d, const std::string &path);
+
+// ce que la suppression de l'étape « at » entraîne : les étapes qui ne tiennent plus (elles modifient un corps qu'elle
+// a créé, ou qu'une étape supprimée a créé ; elles extrudent son esquisse ou la répètent), celles qui perdent leur
+// jonction (une forme jointe à un corps disparu : elle devient un nouveau corps), et celles qui perdent un outil
+// (combiner). Rangs croissants ; « at » est dans erased.
+struct Removal {
+	std::vector<int> erased, renewed, trimmed;
+};
+Removal planRemoval (const Doc &d, int at);
+// la suppression faite : les étapes de « plan » retirées ou changées, les numéros de corps des autres recalés
+void applyRemoval (Doc &d, const Removal &plan);
+
 } // namespace forge

@@ -1038,6 +1038,7 @@ dependencies = [
  "librespot-core",
  "librespot-metadata",
  "librespot-playback",
+ "log",
  "tokio",
 ]
 

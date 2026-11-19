@@ -93,9 +93,10 @@ Pick sel0 () { return g_sels.empty () ? Pick () : g_sels[0]; }
 long w_doc, w_docsub, w_mode, w_bar, w_export, w_tl, w_status, w_stats;
 long p_title, p_sub, p_sec, p_name[8], p_val[8], p_state, p_hint;
 long w_op, b_ok, b_cancel, w_pmode, w_paxis, b_usemax;	// la commande en cours
+long b_ctarget, b_ctools, w_cop, c_keep;		// (combiner) cible, outils, type, conserver les outils
 long e_param, b_param;				// les paramètres nommés
 long e_val[3], b_apply, b_off, b_del, b_barhere;	// l'étape choisie
-enum { TB_SKETCH, TB_BOX, TB_CYL, TB_PUSH, TB_FILLET, TB_CHAMFER, TB_UNION, TB_CUT, TB_MEASURE, TB_N };
+enum { TB_SKETCH, TB_BOX, TB_CYL, TB_PUSH, TB_FILLET, TB_CHAMFER, TB_COMBINE, TB_MEASURE, TB_N };
 long tb[TB_N];
 
 // ---- annuler, rétablir ------------------------------------------------------------------------------------------
@@ -105,15 +106,18 @@ struct Snap {
 	std::vector<std::pair<std::string, std::string>> params;
 };
 std::vector<Snap> g_undo, g_redo;
+bool g_dirty;				// changé depuis l'ouverture ou le dernier enregistrement
+std::string g_path;			// le fichier du document ("" : pas encore enregistré)
 void pushUndo ()
 {
+	g_dirty = true;
 	g_undo.push_back ({ g_doc.feats, g_doc.bar, g_doc.params });
 	if (g_undo.size () > 100) g_undo.erase (g_undo.begin ());
 	g_redo.clear ();
 }
 
 // ---- la commande en cours ---------------------------------------------------------------------------------------
-enum Tool { T_NONE, T_BOX, T_CYL, T_PUSH, T_FILLET, T_CHAMFER, T_UNION, T_CUT, T_EXTRUDE, T_REVOLVE, T_HOLE, T_SHELL, T_PATTERN, T_MIRROR };
+enum Tool { T_NONE, T_BOX, T_CYL, T_PUSH, T_FILLET, T_CHAMFER, T_COMBINE, T_EXTRUDE, T_REVOLVE, T_HOLE, T_SHELL, T_PATTERN, T_MIRROR };
 struct Chip {
 	const char *label;
 	double val = 0;
@@ -134,11 +138,16 @@ struct Cmd {
 	Mesh ghost;
 	std::string err;
 	double maxR = 0;		// (congé refusé) le plus grand rayon qui passe
+	double corner[3] = { 0, 0, 0 };	// (boîte) le premier coin cliqué ; le coin opposé est de son côté sx, sy
+	int sx = 1, sy = 1;
+	int pick = 0;			// (combiner) le clic dans la vue choisit : 0 rien, 1 la cible, 2 les outils
+	int pickBody = -1;		// (combiner) la cible et les outils d'avant le bouton (Échap y revient)
+	std::vector<int> pickTools;
 } g_cmd;
 
 StepKind toolKind (Tool t)
 {
-	static const StepKind K[] = { ST_BOX, ST_BOX, ST_CYLINDER, ST_PUSH, ST_FILLET, ST_CHAMFER, ST_UNION, ST_CUT, ST_EXTRUDE, ST_REVOLVE, ST_HOLE, ST_SHELL, ST_PATTERN, ST_MIRROR };
+	static const StepKind K[] = { ST_BOX, ST_BOX, ST_CYLINDER, ST_PUSH, ST_FILLET, ST_CHAMFER, ST_COMBINE, ST_EXTRUDE, ST_REVOLVE, ST_HOLE, ST_SHELL, ST_PATTERN, ST_MIRROR };
 	return K[t];
 }
 bool repeatable (StepKind k) { return k == ST_BOX || k == ST_CYLINDER || k == ST_HOLE || k == ST_SLOT || k == ST_EXTRUDE || k == ST_REVOLVE; }
@@ -169,7 +178,7 @@ void skPanel ();
 
 const char *toolName (Tool t)
 {
-	static const char *const N[] = { "", "Boîte", "Cylindre", "Pousser/tirer", "Congé", "Chanfrein", "Union", "Soustraction", "Extrusion", "Révolution", "Perçage", "Coque", "Réseau", "Symétrie" };
+	static const char *const N[] = { "", "Boîte", "Cylindre", "Pousser/tirer", "Congé", "Chanfrein", "Combiner", "Extrusion", "Révolution", "Perçage", "Coque", "Réseau", "Symétrie" };
 	return N[t];
 }
 
@@ -230,7 +239,7 @@ void renderView ()
 	g_camDirty = false;
 	g_back.resize ((size_t) VW * VH);
 	g_view.ghost = g_cmd.tool != T_NONE && !g_cmd.ghost.pts.empty () ? &g_cmd.ghost : nullptr;
-	g_view.ghostCut = g_cmd.f.op == OP_CUT || ((g_cmd.tool == T_PUSH || g_cmd.tool == T_EXTRUDE) && g_cmd.f.a < 0);
+	g_view.ghostCut = (g_cmd.f.op == OP_CUT && g_cmd.tool != T_COMBINE) || ((g_cmd.tool == T_PUSH || g_cmd.tool == T_EXTRUDE) && g_cmd.f.a < 0);
 	skStrokes ();
 	g_view.render (g_back.data (), VW, g_doc, g_pal, g_sels, g_hot);
 	for (int y = 0; y < VH; y++) memcpy (pix + (size_t) y * (pitch / 4), g_back.data () + (size_t) y * VW, (size_t) VW * 4);
@@ -413,6 +422,11 @@ void panelUpdate ()
 	ui_w_show (w_pmode, false);
 	ui_w_show (w_paxis, false);
 	ui_w_show (b_usemax, false);
+	ui_w_show (b_ctarget, false);
+	ui_w_show (b_ctools, false);
+	ui_w_show (w_cop, false);
+	ui_w_show (c_keep, false);
+	ui_w_set_text (b_ok, (long) TR (g_cmd.tool == T_COMBINE ? "Confirmer" : "OK"));
 	ui_w_show (e_param, false);
 	ui_w_show (b_param, false);
 	ui_w_show (w_sktools, false);
@@ -428,15 +442,14 @@ void panelUpdate ()
 		return;
 	}
 	if (g_cmd.tool != T_NONE) {
-		static const char *const HINT[14][3] = {
+		static const char *const HINT[13][3] = {
 			{ "", "", "" },
-			{ "Clic : le centre de la base, sur une face ou sur le sol", "On s'éloigne pour la largeur et la profondeur ; clic", "On monte pour la hauteur ; clic ou Entrée" },
+			{ "Clic : un coin de la base, sur une face ou sur le sol", "Clic : le coin opposé (la diagonale)", "On monte pour la hauteur ; clic ou Entrée" },
 			{ "Clic : le centre de la base, sur une face ou sur le sol", "On s'éloigne pour le rayon ; clic", "On monte pour la hauteur ; clic ou Entrée" },
 			{ "Clic : la face plane à pousser ou à tirer", "Glisser pour la distance ; clic ou Entrée", "" },
 			{ "Clic : les arêtes (Maj : plusieurs) ; Entrée", "Tapez le rayon ; Entrée", "" },
 			{ "Clic : les arêtes (Maj : plusieurs) ; Entrée", "Tapez la distance ; Entrée", "" },
-			{ "Clic : le corps qui reste", "Clic : le corps à joindre", "" },
-			{ "Clic : le corps à garder", "Clic : le corps à retirer", "" },
+			{ "Cible ou Outils, puis les corps dans la vue", "Cible ou Outils, puis les corps dans la vue", "" },
 			{ "Une esquisse fermée : l'étape choisie dans la frise, ou la dernière", "Glisser le long de la normale, ou tapez la distance ; Entrée", "" },
 			{ "Une esquisse avec une ligne de construction (l'axe)", "Tapez l'angle ; Entrée", "" },
 			{ "Clic : l'emplacement, sur une face plane", "Maj+clic : un trou de plus ; le diamètre, la profondeur (0 : traversant) ; Entrée", "" },
@@ -456,6 +469,21 @@ void panelUpdate ()
 		if (g_cmd.tool == T_SHELL) rows.push_back ({ TR ("Faces ouvertes"), std::to_string (g_cmd.f.faces.size ()) });
 		if (g_cmd.tool == T_HOLE) rows.push_back ({ TR ("Trous"), std::to_string (g_cmd.f.pos.size () / 2) });
 		if (g_cmd.tool == T_PATTERN && g_cmd.f.ref >= 0) rows.push_back ({ TR ("Répète"), g_doc.feats[g_cmd.f.ref].name });
+		if (g_cmd.tool == T_COMBINE) {	// (les noms : à droite des boutons Cible et Outils)
+			auto bname = [] (int b) { return b >= 0 && b < (int) g_doc.bodies.size () ? g_doc.bodies[b].name : std::string ("?"); };
+			std::string tn;
+			for (int b : g_cmd.f.tools) tn += (tn.empty () ? "" : ", ") + bname (b);
+			rows.push_back ({ "", g_cmd.pick == 1 ? TR ("cliquez un corps…") : g_cmd.f.body >= 0 ? bname (g_cmd.f.body) : TR ("aucune") });
+			rows.push_back ({ "", g_cmd.pick == 2 ? (tn.empty () ? std::string (TR ("cliquez des corps…")) : tn + " …") : tn.empty () ? TR ("aucun") : tn });
+			ui_w_set_text (b_ctarget, (long) TR (g_cmd.pick == 1 ? "▸ Cible" : "Cible"));
+			ui_w_set_text (b_ctools, (long) TR (g_cmd.pick == 2 ? "▸ Outils" : "Outils"));
+			ui_w_show (b_ctarget, true);
+			ui_w_show (b_ctools, true);
+			ui_w_show (w_cop, true);
+			ui_w_set_value (w_cop, g_cmd.f.op == OP_CUT ? 1 : g_cmd.f.op == OP_INTERSECT ? 2 : 0);
+			ui_w_show (c_keep, true);
+			ui_w_set_value (c_keep, g_cmd.f.keep ? 1 : 0);
+		}
 		panelRows (rows);
 		if (g_cmd.tool == T_PATTERN) {
 			ui_w_show (w_pmode, true);
@@ -610,7 +638,7 @@ void cmdGhost ()
 {
 	g_cmd.ghost = Mesh ();
 	g_cmd.err.clear ();
-	if (g_cmd.tool == T_FILLET || g_cmd.tool == T_CHAMFER || g_cmd.tool == T_UNION || g_cmd.tool == T_CUT) return;
+	if (g_cmd.tool == T_FILLET || g_cmd.tool == T_CHAMFER || g_cmd.tool == T_COMBINE) return;
 	if (g_cmd.stage == 0) return;
 	TopoDS_Shape s = featureTool (g_doc, g_cmd.f);
 	if (s.IsNull ()) return;
@@ -637,7 +665,14 @@ void cmdApplyChips ()
 	Feature &f = g_cmd.f;
 	auto v = [&] (int i) { return i < (int) g_cmd.chips.size () ? g_cmd.chips[i].val : 0.0; };
 	switch (g_cmd.tool) {
-	case T_BOX: f.a = v (0), f.b = v (1), f.c = g_cmd.stage >= 2 ? v (2) : 1; break;
+	case T_BOX: {	// (le centre de la base : entre le premier coin et le coin opposé, aussi pour une taille tapée)
+		f.a = v (0), f.b = v (1), f.c = g_cmd.stage >= 2 ? v (2) : 1;
+		if (g_cmd.stage < 1) break;
+		const double *n = f.frame.n, *xa = f.frame.x;
+		double ya[3] = { n[1] * xa[2] - n[2] * xa[1], n[2] * xa[0] - n[0] * xa[2], n[0] * xa[1] - n[1] * xa[0] };
+		for (int k = 0; k < 3; k++) f.frame.o[k] = g_cmd.corner[k] + g_cmd.sx * f.a / 2 * xa[k] + g_cmd.sy * f.b / 2 * ya[k];
+		break;
+	}
 	case T_CYL: f.a = v (0) / 2, f.c = g_cmd.stage >= 2 ? v (1) : 1; break;
 	case T_PUSH: f.a = v (0); break;
 	case T_FILLET: case T_CHAMFER: f.a = v (0); break;
@@ -698,11 +733,17 @@ void cmdRefresh ()
 	g_cmd.maxR = 0;
 	Tool tt = g_cmd.tool;
 	bool ready = (tt == T_FILLET || tt == T_CHAMFER) ? !g_cmd.f.edges.empty () : tt == T_SHELL ? !g_cmd.f.faces.empty ()
-		: tt == T_PATTERN ? g_cmd.f.ref >= 0 : tt == T_MIRROR ? g_cmd.f.body >= 0 : false;
-	if ((tt == T_FILLET || tt == T_CHAMFER || tt == T_SHELL || tt == T_PATTERN || tt == T_MIRROR) && !ready) {
+		: tt == T_PATTERN ? g_cmd.f.ref >= 0 : tt == T_MIRROR ? g_cmd.f.body >= 0 : tt == T_COMBINE ? g_cmd.f.body >= 0 && !g_cmd.f.tools.empty () : false;
+	bool probed = tt == T_FILLET || tt == T_CHAMFER || tt == T_SHELL || tt == T_PATTERN || tt == T_MIRROR || tt == T_COMBINE;
+	if (tt == T_COMBINE) {		// (la cible et les outils : montrés choisis)
+		g_sels.clear ();
+		if (g_cmd.f.body >= 0) g_sels.push_back (Pick { g_cmd.f.body, -1, -1 });
+		for (int b : g_cmd.f.tools) g_sels.push_back (Pick { b, -1, -1 });
+	}
+	if (probed && !ready) {
 		g_cmd.ghost = Mesh ();
 		g_cmd.err.clear ();
-	} else if (tt == T_FILLET || tt == T_CHAMFER || tt == T_SHELL || tt == T_PATTERN || tt == T_MIRROR) {	// (l'aperçu : la vraie forme, calculée)
+	} else if (probed) {	// (l'aperçu : la vraie forme, calculée)
 		Doc probe = g_doc;
 		insertFeature (probe, probe.bar, g_cmd.f);
 		replay (probe, 0.2);
@@ -729,9 +770,9 @@ void cmdStart (Tool t)
 	Feature &f = g_cmd.f;
 	f.kind = toolKind (t);
 	f.name = featureName (g_doc, f.kind);
-	if (t <= T_CUT)
+	if (t <= T_COMBINE)
 		ui_w_set_value (tb[t == T_BOX ? TB_BOX : t == T_CYL ? TB_CYL : t == T_PUSH ? TB_PUSH : t == T_FILLET ? TB_FILLET : t == T_CHAMFER ? TB_CHAMFER
-			: t == T_UNION ? TB_UNION : TB_CUT], 1);
+			: TB_COMBINE], 1);
 	Pick k = sel0 ();
 	// ce qui est déjà choisi sert de départ : une face plane pour pousser/tirer, des arêtes pour un congé
 	if (t == T_PUSH && !k.none () && k.face >= 0 && faceRef (g_doc.bodies[k.body], k.face, f.face)) {
@@ -758,8 +799,12 @@ void cmdStart (Tool t)
 			for (int i = 0; i < 3; i++) g_cmd.chips[0].at[i] = e.mid[i];
 		}
 	}
-	if (t == T_UNION || t == T_CUT) {
-		if (!k.none () && k.face < 0 && k.edge < 0) f.body = k.body, g_cmd.stage = 1;
+	if (t == T_COMBINE) {	// (le corps choisi : la cible, puis les outils ; sinon la cible d'abord)
+		f.op = OP_JOIN;
+		g_cmd.stage = 1;
+		if (!k.none ()) f.body = k.body, g_cmd.pick = 2;
+		else g_cmd.pick = 1;
+		g_cmd.pickBody = f.body;
 	}
 	if (t == T_EXTRUDE || t == T_REVOLVE) {	// l'esquisse : l'étape choisie, sinon la dernière avant la barre
 		int ref = g_selStepWas >= 0 && g_selStepWas < (int) g_doc.feats.size () && g_doc.feats[g_selStepWas].kind == ST_SKETCH ? g_selStepWas : -1;
@@ -859,6 +904,10 @@ void cmdCommit ()
 	if (g_cmd.tool == T_HOLE && (f.body < 0 || f.pos.empty () || f.d1 <= 0)) return;
 	if ((g_cmd.tool == T_SHELL || g_cmd.tool == T_PATTERN || g_cmd.tool == T_MIRROR) && !g_cmd.err.empty ()) return;
 	if (g_cmd.tool == T_SHELL && f.faces.empty ()) return;
+	if (g_cmd.tool == T_COMBINE && (f.body < 0 || f.tools.empty () || !g_cmd.err.empty ())) {
+		status (TR (f.body < 0 ? "Combiner : choisissez la cible." : f.tools.empty () ? "Combiner : choisissez au moins un outil." : "Combiner : l'opération ne passe pas."));
+		return;
+	}
 	pushUndo ();
 	insertFeature (g_doc, g_doc.bar, f);
 	g_sels.clear ();
@@ -910,14 +959,16 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 	if (kind == 0) {		// déplacement : le geste en cours
 		if ((t == T_BOX || t == T_CYL) && g_cmd.stage == 1) {
 			double p[3];
-			if (!g_view.onPlane (x, y, f.frame.o, f.frame.n, p)) return true;
-			double d[3] = { p[0] - f.frame.o[0], p[1] - f.frame.o[1], p[2] - f.frame.o[2] };
+			const double *c0 = t == T_BOX ? g_cmd.corner : f.frame.o;	// (boîte : depuis le premier coin ; cylindre : depuis le centre)
+			if (!g_view.onPlane (x, y, c0, f.frame.n, p)) return true;
+			double d[3] = { p[0] - c0[0], p[1] - c0[1], p[2] - c0[2] };
 			const double *n = f.frame.n, *xa = f.frame.x;
 			double ya[3] = { n[1] * xa[2] - n[2] * xa[1], n[2] * xa[0] - n[0] * xa[2], n[0] * xa[1] - n[1] * xa[0] };
 			double lx = d[0] * xa[0] + d[1] * xa[1] + d[2] * xa[2], ly = d[0] * ya[0] + d[1] * ya[1] + d[2] * ya[2];
-			if (t == T_BOX) {
-				if (!g_cmd.chips[0].locked) g_cmd.chips[0].val = std::max (g_snap, snapv (2 * std::fabs (lx)));
-				if (!g_cmd.chips[1].locked) g_cmd.chips[1].val = std::max (g_snap, snapv (2 * std::fabs (ly)));
+			if (t == T_BOX) {	// (coin à coin : le coin opposé sous le pointeur)
+				g_cmd.sx = lx < 0 ? -1 : 1, g_cmd.sy = ly < 0 ? -1 : 1;
+				if (!g_cmd.chips[0].locked) g_cmd.chips[0].val = std::max (g_snap, snapv (std::fabs (lx)));
+				if (!g_cmd.chips[1].locked) g_cmd.chips[1].val = std::max (g_snap, snapv (std::fabs (ly)));
 			} else if (!g_cmd.chips[0].locked)
 				g_cmd.chips[0].val = std::max (g_snap, snapv (2 * sqrt (lx * lx + ly * ly)));
 			g_cmdDirty = true;
@@ -926,7 +977,12 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 		if ((t == T_BOX || t == T_CYL) && g_cmd.stage == 2) {
 			Chip &h = g_cmd.chips.back ();
 			if (!h.locked) {
-				double v = alongNormal (f.frame.o, f.frame.n, x, y);
+				// boîte : le long de l'arête verticale du coin opposé (le coin suit le pointeur) ; cylindre : de l'axe
+				double far[3];
+				const double *n = f.frame.n, *xa = f.frame.x;
+				double ya[3] = { n[1] * xa[2] - n[2] * xa[1], n[2] * xa[0] - n[0] * xa[2], n[0] * xa[1] - n[1] * xa[0] };
+				for (int k = 0; k < 3; k++) far[k] = t == T_BOX ? f.frame.o[k] + g_cmd.sx * f.a / 2 * xa[k] + g_cmd.sy * f.b / 2 * ya[k] : f.frame.o[k];
+				double v = alongNormal (far, f.frame.n, x, y);
 				h.val = v == 0 ? (h.val < 0 ? -1 : 1) : v;
 			}
 			g_cmdDirty = true;
@@ -956,6 +1012,7 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 	if (t == T_BOX || t == T_CYL) {
 		if (g_cmd.stage == 0) {
 			if (!basePoint (x, y, f.frame, g_cmd.target)) return true;
+			for (int k = 0; k < 3; k++) g_cmd.corner[k] = f.frame.o[k];
 			g_cmd.stage = 1;
 			Chip a, b;
 			a.label = t == T_BOX ? "Largeur" : "Diamètre";
@@ -1072,11 +1129,28 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 		return true;
 	}
 	if (t == T_PATTERN || t == T_MIRROR) return true;	// (les valeurs au panneau ; Entrée ou OK)
-	if (t == T_UNION || t == T_CUT) {
+	if (t == T_COMBINE) {	// le clic choisit selon le bouton pressé : la cible, ou un outil de plus (un outil recliqué s'en va)
 		Pick k = g_view.pick (g_doc, x, y);
 		if (k.none ()) return true;
-		if (g_cmd.stage == 0) f.body = k.body, g_cmd.stage = 1, g_sels = { Pick { k.body, -1, -1 } }, cmdRefresh ();
-		else if (k.body != f.body) f.tool = k.body, cmdCommit ();
+		auto &tl = f.tools;
+		auto in = std::find (tl.begin (), tl.end (), k.body);
+		if (g_cmd.pick == 1) {
+			f.body = k.body;
+			if (in != tl.end ()) tl.erase (in);
+			g_cmd.pick = tl.empty () ? 2 : 0;	// (puis les outils, s'il n'y en a pas encore)
+			g_cmd.pickBody = f.body, g_cmd.pickTools = tl;
+		} else if (g_cmd.pick == 2) {
+			if (k.body == f.body) {
+				status (TR ("La cible ne peut pas être aussi un outil."));
+				return true;
+			}
+			if (in != tl.end ()) tl.erase (in);
+			else tl.push_back (k.body);
+		} else {
+			status (TR ("Combiner : le bouton Cible ou Outils, puis les corps."));
+			return true;
+		}
+		cmdRefresh ();
 		return true;
 	}
 	return true;
@@ -1094,6 +1168,12 @@ void liveRefresh ()
 bool cmdKey (int code, int ch)
 {
 	if (g_cmd.tool == T_NONE) return false;
+	if (code == 0x29 && g_cmd.tool == T_COMBINE && g_cmd.pick) {	// Échap : le choix en cours annulé (la commande reste)
+		g_cmd.f.body = g_cmd.pickBody, g_cmd.f.tools = g_cmd.pickTools, g_cmd.pick = 0;
+		cmdRefresh ();
+		status (TR ("Choix annulé."));
+		return true;
+	}
 	if (code == 0x29) {	// Échap
 		cmdEnd ();
 		status (TR ("Commande annulée."));
@@ -1125,7 +1205,7 @@ bool cmdKey (int code, int ch)
 			g_cmd.active = (int) g_cmd.chips.size () - 1;
 			cmdRefresh ();
 		} else if (g_cmd.stage >= 1) {
-			if (t == T_FILLET || t == T_CHAMFER || t == T_SHELL || t == T_PATTERN || t == T_MIRROR) {	// (l'aperçu d'abord : refusée s'il ne passe pas)
+			if (t == T_FILLET || t == T_CHAMFER || t == T_SHELL || t == T_PATTERN || t == T_MIRROR || t == T_COMBINE) {	// (l'aperçu d'abord : refusée s'il ne passe pas)
 				cmdRefresh ();
 				if (!g_cmd.err.empty ()) {
 					status ((std::string (TR (toolName (t))) + " : " + g_cmd.err).c_str ());
@@ -1975,9 +2055,12 @@ void viewWheel (long steps)
 
 // ---- la frise ---------------------------------------------------------------------------------------------------
 
-const int CHIP_W = 100, CHIP_GAP = 6;
+// Une étape : une icône (son genre), le nom et le résumé en infobulle au survol. Clic : ses valeurs au panneau ;
+// clic droit : Modifier…, Supprimer (avec ce qui en dépend, après confirmation), Supprimer à partir d'ici.
+const int CHIP_W = 34, CHIP_GAP = 6, ICON = 20;
 int CHIP_X0 = 16;			// (moins quand la frise défile : la barre reste en vue)
 bool g_barDrag;
+int g_tlHover = -1;			// l'étape sous le pointeur (son infobulle est montrée)
 int barX (int bar) { return CHIP_X0 + bar * (CHIP_W + CHIP_GAP) - CHIP_GAP / 2 - 1; }
 void timelineScroll (int w)
 {
@@ -1985,6 +2068,151 @@ void timelineScroll (int w)
 	int room = w - 110;			// (à droite : le nombre d'étapes)
 	int need = 16 + (int) g_doc.feats.size () * (CHIP_W + CHIP_GAP) + 8;
 	if (need > room) CHIP_X0 = 16 - imin (need - room, imax (0, barX (g_doc.bar) + CHIP_W - room + 16));
+}
+
+// les icônes : des traits sur une grille de 24 (polylignes, arcs), lissés en ICON × ICON, une fois par genre
+struct IconLine { std::vector<double> p; };
+std::vector<IconLine> iconLines (const Feature &f)
+{
+	std::vector<IconLine> L;
+	auto line = [&] (std::initializer_list<double> v) { L.push_back ({ std::vector<double> (v) }); };
+	auto arc = [&] (double cx, double cy, double rx, double ry, double a0, double a1) {	// (degrés, y vers le bas)
+		IconLine l;
+		int n = imax (6, (int) (std::fabs (a1 - a0) / 10));
+		for (int k = 0; k <= n; k++) {
+			double a = (a0 + (a1 - a0) * k / n) * M_PI / 180;
+			l.p.push_back (cx + rx * cos (a)), l.p.push_back (cy + ry * sin (a));
+		}
+		L.push_back (l);
+	};
+	switch (f.kind) {
+	case ST_BOX:
+		line ({ 12, 3, 20, 7.5, 20, 16.5, 12, 21, 4, 16.5, 4, 7.5, 12, 3 });
+		line ({ 4, 7.5, 12, 12, 20, 7.5 });
+		line ({ 12, 12, 12, 21 });
+		break;
+	case ST_CYLINDER:
+		arc (12, 6, 7, 2.6, 0, 360);
+		line ({ 5, 6, 5, 18 });
+		line ({ 19, 6, 19, 18 });
+		arc (12, 18, 7, 2.6, 0, 180);
+		break;
+	case ST_SKETCH:
+		line ({ 4, 18, 16, 6, 19, 9, 7, 21, 4, 18 });
+		line ({ 4, 18, 3, 21.5, 7, 21 });
+		line ({ 14, 8, 17, 11 });
+		break;
+	case ST_EXTRUDE:
+		line ({ 4, 16, 20, 16, 20, 21, 4, 21, 4, 16 });
+		line ({ 12, 13, 12, 3 });
+		line ({ 8, 7, 12, 3, 16, 7 });
+		break;
+	case ST_PUSH:
+		line ({ 4, 16, 20, 16, 20, 21, 4, 21, 4, 16 });
+		line ({ 12, 2.5, 12, 12.5 });
+		line ({ 9, 5.5, 12, 2.5, 15, 5.5 });
+		line ({ 9, 9.5, 12, 12.5, 15, 9.5 });
+		break;
+	case ST_FILLET:
+		line ({ 5, 3, 5, 12 });
+		arc (12, 12, 7, 7, 180, 90);
+		line ({ 12, 19, 21, 19 });
+		break;
+	case ST_CHAMFER:
+		line ({ 5, 3, 5, 12, 12, 19, 21, 19 });
+		break;
+	case ST_COMBINE: case ST_CUT: {
+		Op o = f.kind == ST_CUT ? OP_CUT : f.op == OP_NEW ? OP_JOIN : f.op;
+		arc (9, 12, 6.5, 6.5, 0, 360);
+		arc (15, 12, 6.5, 6.5, 0, 360);
+		if (o == OP_CUT) line ({ 16, 12, 20, 12 });			// (la soustraction : un moins dans l'outil)
+		else if (o == OP_INTERSECT) line ({ 12, 8, 12, 16 });		// (l'intersection : la part commune)
+		else line ({ 3, 12, 21, 12 }), line ({ 12, 3.5, 12, 20.5 });	// (l'union : un plus)
+		break;
+	}
+	case ST_HOLE:
+		arc (12, 12, 8, 8, 0, 360);
+		arc (12, 12, 3.5, 3.5, 0, 360);
+		break;
+	case ST_SLOT:
+		line ({ 8, 7.5, 16, 7.5 });
+		line ({ 8, 16.5, 16, 16.5 });
+		arc (8, 12, 4.5, 4.5, 90, 270);
+		arc (16, 12, 4.5, 4.5, -90, 90);
+		break;
+	case ST_REVOLVE:
+		arc (12, 12, 8, 8, -60, 240);
+		line ({ 13, 3.5, 16, 5.1, 13.5, 8 });
+		line ({ 12, 9, 12, 15 });
+		break;
+	case ST_SHELL:
+		line ({ 4, 5, 4, 20, 20, 20, 20, 5 });
+		line ({ 8, 5, 8, 16, 16, 16, 16, 5 });
+		line ({ 4, 5, 8, 5 });
+		line ({ 16, 5, 20, 5 });
+		break;
+	case ST_PATTERN:
+		for (int k = 0; k < 3; k++) {
+			double x = 3 + k * 7;
+			line ({ x, 9, x + 4.5, 9, x + 4.5, 14.5, x, 14.5, x, 9 });
+		}
+		break;
+	case ST_MIRROR:
+		for (double y = 2; y < 22; y += 4) line ({ 12, y, 12, y + 2 });
+		line ({ 9.5, 6, 9.5, 18, 3, 18, 9.5, 6 });
+		line ({ 14.5, 6, 14.5, 18, 21, 18, 14.5, 6 });
+		break;
+	default:
+		arc (12, 12, 7, 7, 0, 360);
+		break;
+	}
+	return L;
+}
+
+// la couverture (0..255) de chaque pixel : la distance au trait le plus proche, un trait de 1,7 unité
+std::vector<uint8_t> iconMask (const Feature &f)
+{
+	std::vector<IconLine> L = iconLines (f);
+	std::vector<uint8_t> m ((size_t) ICON * ICON, 0);
+	const double u = 24.0 / ICON, hw = 0.85;
+	for (int py = 0; py < ICON; py++)
+		for (int px = 0; px < ICON; px++) {
+			double x = (px + 0.5) * u, y = (py + 0.5) * u, best = 1e9;
+			for (auto &l : L)
+				for (size_t k = 0; k + 3 < l.p.size (); k += 2) {
+					double ax = l.p[k], ay = l.p[k + 1], bx = l.p[k + 2], by = l.p[k + 3];
+					double dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+					double t = l2 > 0 ? ((x - ax) * dx + (y - ay) * dy) / l2 : 0;
+					t = t < 0 ? 0 : t > 1 ? 1 : t;
+					double ex = ax + t * dx - x, ey = ay + t * dy - y;
+					best = std::min (best, ex * ex + ey * ey);
+				}
+			double a = (hw - sqrt (best)) / u + 0.5;
+			m[(size_t) py * ICON + px] = (uint8_t) (a <= 0 ? 0 : a >= 1 ? 255 : a * 255);
+		}
+	return m;
+}
+
+// l'icône posée à (x, y) sur le fond bg : par rangées de pixels de même couverture
+void drawIcon (const Feature &f, int x, int y, unsigned bg, unsigned ink)
+{
+	static std::vector<std::pair<std::string, std::vector<uint8_t>>> cache;	// (le genre et, pour combiner, l'opération)
+	Op o = f.kind == ST_COMBINE ? (f.op == OP_NEW ? OP_JOIN : f.op) : OP_NEW;
+	std::string key = std::to_string ((int) f.kind) + "/" + std::to_string ((int) o);
+	const std::vector<uint8_t> *m = nullptr;
+	for (auto &c : cache) if (c.first == key) m = &c.second;
+	if (!m) {
+		cache.push_back ({ key, iconMask (f) });
+		m = &cache.back ().second;
+	}
+	for (int py = 0; py < ICON; py++)
+		for (int px = 0; px < ICON;) {
+			uint8_t a = (*m)[(size_t) py * ICON + px];
+			int run = 1;
+			while (px + run < ICON && (*m)[(size_t) py * ICON + px + run] == a) run++;
+			if (a) ui_fill (x + px, y + py, run, 1, (long) ui_mix (bg, ink, a == 255 ? 256 : a));
+			px += run;
+		}
 }
 
 void timelinePaint (long, long w, long h)
@@ -1996,14 +2224,15 @@ void timelinePaint (long, long w, long h)
 	for (size_t i = 0; i < g_doc.feats.size (); i++) {
 		const Feature &f = g_doc.feats[i];
 		int x = CHIP_X0 + (int) i * (CHIP_W + CHIP_GAP);
-		bool on = (int) i == g_selStep, after = (int) i >= g_doc.bar, bad = !f.error.empty ();
-		unsigned bg = on ? jet (TJ_ACCENT_LIGHT) : jet (TJ_SURFACE);
+		bool on = (int) i == g_selStep, after = (int) i >= g_doc.bar, bad = !f.error.empty (), hot = (int) i == g_tlHover;
+		unsigned bg = on ? jet (TJ_ACCENT_LIGHT) : hot ? (unsigned) ui_mix (jet (TJ_SURFACE), jet (TJ_ACCENT_LIGHT), 128) : jet (TJ_SURFACE);
 		unsigned ln = bad ? jet (TJ_DANGER) : on ? jet (TJ_ACCENT) : jet (TJ_LINE);
 		ui_rbox (x, y, CHIP_W, ch, 7, ln, ln);
 		ui_rbox (x + 1 + bad, y + 1 + bad, CHIP_W - 2 - 2 * bad, ch - 2 - 2 * bad, 6, bg, bg);
 		int tc = after || f.off ? TJ_TEXT3 : on ? TJ_ACCENT_DARK : TJ_TEXT1;
-		ui_text ((long) f.name.c_str (), x + 10, y + ch / 2 + 5, jet (tc), 12, (long) ui.font, CHIP_W - 20);
-		if (bad) ui_fill (x + CHIP_W - 12, y + 6, 6, 6, jet (TJ_DANGER));
+		drawIcon (f, x + (CHIP_W - ICON) / 2, y + (ch - ICON) / 2, bg, jet (tc));
+		if (f.off) ui_fill (x + 6, y + ch / 2, CHIP_W - 12, 1, jet (TJ_TEXT3));	// (désactivée : barrée)
+		if (bad) ui_fill (x + CHIP_W - 9, y + 4, 5, 5, jet (TJ_DANGER));
 	}
 	int bx = barX (g_doc.bar);
 	ui_fill (bx, 6, 3, (int) h - 12, jet (TJ_ACCENT));
@@ -2015,10 +2244,67 @@ void timelinePaint (long, long w, long h)
 	ui_text ((long) s, w - 16 - tw, h / 2 + 5, jet (TJ_TEXT3), 12, (long) ui.font, 0);
 }
 
-long timelineMouse (long, long kind, long x, long, long)
+int timelineAt (int x)
 {
-	if (g_cmd.tool != T_NONE) return 0;
-	if (kind == 1 && std::abs ((int) x - barX (g_doc.bar) - 1) <= 7) {	// la barre : glissée
+	if (x < CHIP_X0) return -1;
+	int i = (x - CHIP_X0) / (CHIP_W + CHIP_GAP);
+	if (i >= (int) g_doc.feats.size () || (x - CHIP_X0) % (CHIP_W + CHIP_GAP) >= CHIP_W) return -1;
+	return i;
+}
+
+void timelineTip (int i)
+{
+	if (i == g_tlHover) return;
+	g_tlHover = i;
+	ui_view_dirty (w_tl);
+	ui_view_flush ();
+	if (i < 0) {
+		ui_tip_at (0, 0, 0);
+		return;
+	}
+	const Feature &f = g_doc.feats[i];
+	std::string t = f.name + " · " + featureDetail (f);
+	if (f.off) t += TR (" · désactivée");
+	if (i >= g_doc.bar) t += TR (" · après la barre");
+	if (!f.error.empty ()) t += " · ⚠ " + f.error;
+	ui_tip_at (CHIP_X0 + i * (CHIP_W + CHIP_GAP), VY + VH - 26, (long) t.c_str ());
+}
+
+void stepDelete ();
+void stepDeleteFrom (int at);
+void stepEdit (int i);
+int g_tlMenu = -1;
+
+void timelineMenu ()
+{
+	int i = g_tlMenu;
+	g_tlMenu = -1;
+	if (i < 0 || i >= (int) g_doc.feats.size ()) return;
+	char t[256];
+	int n = 0;
+	for (const char *l : { "Modifier…", "Supprimer", "Supprimer à partir d'ici" }) {
+		const char *s = TR (l);
+		size_t k = strlen (s);
+		if (n + k + 2 > sizeof t) break;
+		memcpy (t + n, s, k + 1);
+		n += (int) k + 1;
+	}
+	t[n] = 0;
+	long r = ui_popup_local (ui_ev_field (&ui, EV_X), ui_ev_field (&ui, EV_Y), (long) t, 240);
+	if (r == 0) stepEdit (i);
+	else if (r == 1) stepDelete ();
+	else if (r == 2) stepDeleteFrom (i);
+}
+
+long timelineMouse (long, long kind, long x, long, long info)
+{
+	if (kind == 3) {		// (le pointeur sorti : plus d'infobulle)
+		timelineTip (-1);
+		return 0;
+	}
+	if (g_cmd.tool != T_NONE || g_sm.on) return 0;
+	if (kind == 0 && !g_barDrag) timelineTip (timelineAt ((int) x));
+	if (kind == 1 && std::abs ((int) x - barX (g_doc.bar) - 1) <= 7 && !((info >> 8) & 2)) {	// la barre : glissée
 		g_barDrag = true;
 		return 0;
 	}
@@ -2043,11 +2329,14 @@ long timelineMouse (long, long kind, long x, long, long)
 		return 0;
 	}
 	if (kind != 1) return 0;
-	int i = ((int) x - CHIP_X0) / (CHIP_W + CHIP_GAP);
-	if (x < CHIP_X0 || i >= (int) g_doc.feats.size ()) i = -1;
+	int i = timelineAt ((int) x);
 	g_selStep = i;
 	g_sels.clear ();
 	refreshAll ();
+	if (i >= 0 && ((info >> 8) & 2)) {	// clic droit : le menu de l'étape
+		timelineTip (-1);
+		g_tlMenu = i;	// (le menu s'ouvre après l'événement : timelineMenu, dans la boucle)
+	}
 	return 0;
 }
 
@@ -2123,14 +2412,81 @@ void paramSet (const char *text)
 	status ((name + (ex.empty () ? TR (" retiré.") : " = " + ex)).c_str ());
 }
 
+// l'étape choisie supprimée ; si d'autres en dépendent, la liste est demandée d'abord : elles partent avec elle, une
+// forme jointe à un corps disparu devient un nouveau corps, un outil disparu sort de Combiner
 void stepDelete ()
 {
 	if (g_selStep < 0 || g_selStep >= (int) g_doc.feats.size ()) return;
+	Removal plan = planRemoval (g_doc, g_selStep);
+	if (plan.erased.size () > 1 || !plan.renewed.empty () || !plan.trimmed.empty ()) {
+		char head[200];
+		snprintf (head, sizeof head, TR ("D'autres étapes dépendent de « %s » :"), g_doc.feats[g_selStep].name.c_str ());
+		std::string m = std::string (head) + "\n";
+		for (int j : plan.erased) if (j != g_selStep) m += "  · " + g_doc.feats[j].name + TR (" : supprimée") + "\n";
+		for (int j : plan.renewed) m += "  · " + g_doc.feats[j].name + TR (" : devient un nouveau corps") + "\n";
+		for (int j : plan.trimmed) m += "  · " + g_doc.feats[j].name + TR (" : perd un outil") + "\n";
+		m += TR ("Supprimer quand même ?");
+		long ok = ui_message ((long) TR ("Supprimer l'étape"), (long) m.c_str (), UM_OKCANCEL);
+		ui_view_dirty (w_tl);
+		ui_w_draw (0);
+		if (ok != 1) {
+			status (TR ("Suppression annulée."));
+			return;
+		}
+	}
 	pushUndo ();
-	eraseFeature (g_doc, g_selStep);
+	std::string name = g_doc.feats[g_selStep].name;
+	applyRemoval (g_doc, plan);
 	g_selStep = -1;
 	rebuild ();
 	refreshAll ();
+	char s[200];
+	snprintf (s, sizeof s, TR ("%s supprimée (%d étapes en tout). Ctrl+Z : annuler."), name.c_str (), (int) plan.erased.size ());
+	status (s);
+}
+
+// l'étape et toutes celles qui la suivent
+void stepDeleteFrom (int at)
+{
+	if (at < 0 || at >= (int) g_doc.feats.size ()) return;
+	int n = (int) g_doc.feats.size () - at;
+	if (n > 1) {
+		char m[240];
+		snprintf (m, sizeof m, TR ("Supprimer « %s » et les %d étapes qui la suivent ?"), g_doc.feats[at].name.c_str (), n - 1);
+		long ok = ui_message ((long) TR ("Supprimer à partir d'ici"), (long) m, UM_OKCANCEL);
+		ui_view_dirty (w_tl);
+		ui_w_draw (0);
+		if (ok != 1) {
+			status (TR ("Suppression annulée."));
+			return;
+		}
+	}
+	pushUndo ();
+	g_doc.feats.resize (at);
+	g_doc.bar = imin (g_doc.bar, at);
+	g_selStep = -1;
+	rebuild ();
+	refreshAll ();
+	char s[120];
+	snprintf (s, sizeof s, TR ("%d étapes supprimées. Ctrl+Z : annuler."), n);
+	status (s);
+}
+
+// « Modifier… » : une esquisse s'ouvre ; une autre étape montre ses valeurs au panneau, la première prête à taper
+void stepEdit (int i)
+{
+	if (i < 0 || i >= (int) g_doc.feats.size ()) return;
+	if (g_doc.feats[i].kind == ST_SKETCH) {
+		skEnter (i);
+		return;
+	}
+	g_selStep = i;
+	g_sels.clear ();
+	refreshAll ();
+	const char *names[3];
+	double vals[3];
+	if (featFields (g_doc.feats[i], names, vals) > 0) ui_w_focus (e_val[0]);
+	else status (TR ("Cette étape n'a pas de valeur à changer : supprimez-la et refaites-la."));
 }
 
 void undo (bool redo)
@@ -2138,6 +2494,7 @@ void undo (bool redo)
 	auto &from = redo ? g_redo : g_undo, &to = redo ? g_undo : g_redo;
 	if (from.empty ()) return;
 	to.push_back ({ g_doc.feats, g_doc.bar, g_doc.params });
+	g_dirty = true;
 	g_doc.feats = from.back ().feats;
 	g_doc.bar = from.back ().bar;
 	g_doc.params = from.back ().params;
@@ -2147,6 +2504,137 @@ void undo (bool redo)
 	rebuild ();
 	refreshAll ();
 	status (TR (redo ? "Rétabli." : "Annulé."));
+}
+
+// ---- les fichiers ----------------------------------------------------------------------------------------------
+//
+// Un document .forge : l'historique en JSON (docfile.cpp). Nouveau, Ouvrir, Enregistrer, Enregistrer sous ; avant de
+// quitter ou de remplacer un document changé, la question d'enregistrer.
+
+void docLabels ()
+{
+	ui_w_set_text (w_doc, (long) g_doc.name.c_str ());
+	std::string sub = g_path.empty () ? std::string (TR ("Pas enregistré · mm")) : g_path.substr (g_path.find_last_of ('/') + 1) + " · mm";
+	if (g_dirty) sub = "● " + sub;
+	ui_w_set_text (w_docsub, (long) sub.c_str ());
+	ui_w_draw (w_doc);
+	ui_w_draw (w_docsub);
+}
+
+// un document neuf dans la fenêtre : la commande, l'esquisse, l'historique d'annulation et les choix repartent de zéro
+void docInstall (const Doc &d, const std::string &path)
+{
+	if (g_sm.on) skLeave (false);
+	if (g_cmd.tool != T_NONE) cmdEnd ();
+	g_doc = d;
+	g_path = path;
+	g_dirty = false;
+	g_undo.clear (), g_redo.clear ();
+	g_sels.clear ();
+	g_hidden.clear ();
+	g_selStep = -1;
+	rebuild ();
+	g_view.fit (g_doc);
+	refreshAll ();
+	docLabels ();
+}
+
+bool docSaveAs ();
+bool docSaveTo (const std::string &path)
+{
+	std::string err = docSave (g_doc, path);
+	if (!err.empty ()) {
+		std::string m = std::string (TR ("Le document n'a pas été enregistré : ")) + TR (err.c_str ()) + ".";
+		ui_message ((long) TR ("Enregistrer"), (long) m.c_str (), UM_OK);
+		ui_view_dirty (w_tl);
+		ui_w_draw (0);
+		return false;
+	}
+	g_path = path;
+	g_dirty = false;
+	docLabels ();
+	status ((std::string (TR ("Enregistré : ")) + path).c_str ());
+	return true;
+}
+
+bool docSaveCmd () { return g_path.empty () ? docSaveAs () : docSaveTo (g_path); }
+
+bool docSaveAs ()
+{
+	char path[1024];
+	std::string name = g_doc.name.empty () ? std::string (TR ("Sans titre")) : g_doc.name;
+	name += ".forge";
+	std::string dir = g_path.empty () ? std::string ("HOME:/") : g_path.substr (0, g_path.find_last_of ('/') + 1);
+	ui_file_filter ((long) "*.forge");
+	long ok = ui_file_save ((long) dir.c_str (), (long) name.c_str (), (long) path, (long) sizeof path);
+	ui_file_filter (0);
+	ui_view_dirty (w_tl);
+	ui_w_draw (0);
+	if (ok != 1 || !path[0]) return false;
+	std::string p = path;
+	if (p.size () < 6 || p.compare (p.size () - 6, 6, ".forge")) p += ".forge";
+	std::string base = p.substr (p.find_last_of ('/') + 1);
+	g_doc.name = base.substr (0, base.size () - 6);	// (le nom du document : celui du fichier)
+	return docSaveTo (p);
+}
+
+// un document changé : l'enregistrer ? -> faux si l'utilisateur annule (rien ne se fait alors)
+bool docKeepChanges ()
+{
+	if (!g_dirty) return true;
+	char m[300];
+	snprintf (m, sizeof m, TR ("Enregistrer les modifications de « %s » ?"), g_doc.name.c_str ());
+	long r = ui_message ((long) TR ("Forge"), (long) m, UM_YESNOCANCEL);
+	ui_view_dirty (w_tl);
+	ui_w_draw (0);
+	if (r == 1) return docSaveCmd ();
+	return r == 2;		// (Non : sans enregistrer ; Annuler : rien)
+}
+
+void docNew ()
+{
+	if (!docKeepChanges ()) return;
+	Doc d;
+	d.name = TR ("Sans titre");
+	docInstall (d, "");
+	status (TR ("Nouveau document : B une boîte, S une esquisse."));
+}
+
+bool docOpenPath (const std::string &path)
+{
+	Doc d;
+	std::string err = docLoad (d, path);
+	if (!err.empty ()) {
+		std::string m = path + " : " + TR (err.c_str ()) + ".";
+		ui_message ((long) TR ("Ouvrir"), (long) m.c_str (), UM_OK);
+		ui_view_dirty (w_tl);
+		ui_w_draw (0);
+		return false;
+	}
+	if (d.name.empty ()) {
+		std::string base = path.substr (path.find_last_of ('/') + 1);
+		d.name = base.size () > 6 ? base.substr (0, base.size () - 6) : base;
+	}
+	docInstall (d, path);
+	int err2 = 0;
+	for (auto &f : g_doc.feats) err2 += !f.error.empty ();
+	char s[200];
+	snprintf (s, sizeof s, TR ("%s : %d étapes, %d en erreur."), g_doc.name.c_str (), (int) g_doc.feats.size (), err2);
+	status (s);
+	return true;
+}
+
+void docOpen ()
+{
+	if (!docKeepChanges ()) return;
+	char path[1024];
+	std::string dir = g_path.empty () ? std::string ("HOME:/") : g_path.substr (0, g_path.find_last_of ('/') + 1);
+	ui_file_filter ((long) "*.forge");
+	long ok = ui_file_open ((long) dir.c_str (), (long) path, (long) sizeof path);
+	ui_file_filter (0);
+	ui_view_dirty (w_tl);
+	ui_w_draw (0);
+	if (ok == 1 && path[0]) docOpenPath (path);
 }
 
 // ---- la mise en page --------------------------------------------------------------------------------------------
@@ -2176,6 +2664,10 @@ void relayout ()
 	ui_w_move (w_pmode, px, by - h - 8, pw, h);
 	ui_w_move (w_paxis, px, by - 2 * h - 16, pw, h);
 	ui_w_move (b_usemax, px, by - h - 8, pw, h);
+	ui_w_move (b_ctarget, px, y + 88, pw / 2 - 8, h);	// (combiner : sur les deux premières lignes, le nom à droite)
+	ui_w_move (b_ctools, px, y + 88 + 32, pw / 2 - 8, h);
+	ui_w_move (w_cop, px, y + 92 + 2 * 32 + 6, pw, h);
+	ui_w_move (c_keep, px, y + 92 + 3 * 32 + 12, pw, 24);
 	ui_w_move (e_param, px, by + h + 12, pw - 96, h);
 	ui_w_move (b_param, px + pw - 88, by + h + 12, 88, h);
 	ui_w_move (b_ok, px + pw - 2 * 104 - 8, by + h + 12, 104, h);
@@ -2226,12 +2718,13 @@ long onResize (long, long)
 // ---- les menus --------------------------------------------------------------------------------------------------
 
 const char MENUS[] =
-	"MFichier\n" "I13c\tPiloter par un agent (MCP)…\n" "-\n" "I9\tQuitter\tCtrl+Q\n"
+	"MFichier\n" "I1\tNouveau\tCtrl+N\n" "I2\tOuvrir…\tCtrl+O\n" "-\n" "I3\tEnregistrer\tCtrl+S\n" "I4\tEnregistrer sous…\tCtrl+Maj+S\n" "-\n"
+	"I13c\tPiloter par un agent (MCP)…\n" "-\n" "I9\tQuitter\tCtrl+Q\n"
 	"MÉdition\n" "I10\tAnnuler l'étape\tCtrl+Z\n" "I11\tRétablir l'étape\tCtrl+Y\n" "-\n" "I12\tSupprimer l'étape\n"
 	"MAffichage\n" "I20\tVue de face\tAlt+1\n" "I21\tVue de dessus\tAlt+2\n" "I22\tVue de droite\tAlt+3\n"
 	"I23\tVue isométrique\tAlt+0\n" "-\n" "I24\tAjuster\tF6\n" "-\n" "I25c\tArêtes\n" "I26c\tGrille\n" "-\n" "I45c\tAccrochage 1 mm\n" "I46c\tAccrochage 5 mm\n" "I47c\tAccrochage 10 mm\n"
 	"MCréer\n" "I37\tEsquisse (S)\n" "I38\tExtrusion (E)\n" "I39\tRévolution\n" "I41\tPerçage (H)\n" "-\n" "I30\tBoîte (B)\n" "I31\tCylindre\n" "-\n" "I32\tPousser/tirer (Q)\n"
-	"MModifier\n" "I33\tCongé (F ; double-clic : la chaîne)\n" "I34\tChanfrein (Maj+F)\n" "-\n" "I35\tUnion\n" "I36\tSoustraction\n" "-\n" "I42\tCoque\n" "I43\tRéseau\n" "I44\tSymétrie\n"
+	"MModifier\n" "I33\tCongé (F ; double-clic : la chaîne)\n" "I34\tChanfrein (Maj+F)\n" "-\n" "I35\tCombiner\n" "-\n" "I42\tCoque\n" "I43\tRéseau\n" "I44\tSymétrie\n"
 	"MAide\n" "I40\tNaviguer dans la vue\n";
 
 void setSnap (double v)
@@ -2247,7 +2740,11 @@ void mcpMenu ();
 void command (int id)
 {
 	switch (id) {
-	case 9: g_quit = true; break;
+	case 9: if (docKeepChanges ()) g_quit = true; break;
+	case 1: docNew (); break;
+	case 2: docOpen (); break;
+	case 3: docSaveCmd (); break;
+	case 4: docSaveAs (); break;
 	case 13: mcpMenu (); break;
 	case 10: undo (false); break;
 	case 11: undo (true); break;
@@ -2264,8 +2761,7 @@ void command (int id)
 	case 32: cmdStart (T_PUSH); break;
 	case 33: cmdStart (T_FILLET); break;
 	case 34: cmdStart (T_CHAMFER); break;
-	case 35: cmdStart (T_UNION); break;
-	case 36: cmdStart (T_CUT); break;
+	case 35: cmdStart (T_COMBINE); break;
 	case 37: if (!g_sm.on) skEnter (-1); break;
 	case 38: cmdStart (T_EXTRUDE); break;
 	case 39: cmdStart (T_REVOLVE); break;
@@ -2292,7 +2788,7 @@ void control (long w, long code)
 				return;
 			}
 	if (code == UN_ACTIVATE || code == UN_CHANGE) {
-		static const int MAP[TB_N] = { 37, 30, 31, 32, 33, 34, 35, 36, -1 };
+		static const int MAP[TB_N] = { 37, 30, 31, 32, 33, 34, 35, -1 };
 		for (int i = 0; i < TB_N; i++)
 			if (w == tb[i] && MAP[i] >= 0) {
 				if (g_sm.on) {
@@ -2322,6 +2818,28 @@ void control (long w, long code)
 	}
 	if (w == b_usemax && code == UN_ACTIVATE && g_cmd.maxR > 0 && !g_cmd.chips.empty ()) {
 		g_cmd.chips[0].val = g_cmd.maxR, g_cmd.chips[0].locked = true, g_cmd.chips[0].text.clear ();
+		cmdRefresh ();
+		return;
+	}
+	if (g_cmd.tool == T_COMBINE && (w == b_ctarget || w == b_ctools) && code == UN_ACTIVATE) {	// le choix dans la vue : la cible ou les outils
+		int want = w == b_ctarget ? 1 : 2;
+		if (g_cmd.pick == want) g_cmd.pick = 0;	// (le bouton repressé : le choix fini)
+		else {
+			if (!g_cmd.pick) g_cmd.pickBody = g_cmd.f.body, g_cmd.pickTools = g_cmd.f.tools;
+			g_cmd.pick = want;
+		}
+		cmdRefresh ();
+		status (TR (g_cmd.pick == 1 ? "Cliquez le corps cible (Échap : annuler le choix)." : g_cmd.pick == 2 ? "Cliquez les corps outils ; un outil recliqué s'en va (Échap : annuler le choix)." : "Confirmer applique l'opération."));
+		return;
+	}
+	if (w == w_cop && code == UN_CHANGE) {
+		long v = ui_w_get_value (w_cop);
+		g_cmd.f.op = v == 1 ? OP_CUT : v == 2 ? OP_INTERSECT : OP_JOIN;
+		cmdRefresh ();
+		return;
+	}
+	if (w == c_keep && (code == UN_CHANGE || code == UN_ACTIVATE)) {
+		g_cmd.f.keep = ui_w_get_value (c_keep) != 0;
 		cmdRefresh ();
 		return;
 	}
@@ -2368,15 +2886,15 @@ void buildWindow ()
 	palette ();
 	int h = (int) ui_metric (UMT_CTL);
 	w_doc = ui_label (0, 0, 10, 20, (long) g_doc.name.c_str (), ULB_BOLD);
-	w_docsub = ui_label (0, 0, 10, 16, (long) TR ("Exemple · mm"), ULB_DIM);
+	w_docsub = ui_label (0, 0, 10, 16, (long) TR ("Exemple · mm"), ULB_DIM);	// (puis le fichier : docLabels)
 	w_mode = ui_segmented (0, 0, 220, h, (long) TR ("Conception|Fabrication"));
 	ui_w_tip (w_mode, (long) TR ("Fabrication (G-code GRBL) : à une étape suivante"));
 	TB_H = h + 24;
 	w_bar = ui_toolbar (408, (TB_H - h) / 2, imax (100, (int) ui.w - 408 - 96 - 128), 0);	// (à sa place ; ui_w_move de la barre emmène ses boutons)
-	static const char *const TOOLS[TB_N] = { "Esquisse", "Boîte", "Cylindre", "Pousser", "|Congé", "Chanfrein", "|Union", "Soustraire", "|Mesurer" };
-	static const char *const TIPS[TB_N] = { "Esquisse (S) sur la face choisie ou le plan XY : lignes, rectangles, cercles, arcs, contraintes (PlaneGCS) ; E l'extrude", "Boîte (B) : clic au centre, on s'éloigne, clic, on monte, clic",
+	static const char *const TOOLS[TB_N] = { "Esquisse", "Boîte", "Cylindre", "Pousser", "|Congé", "Chanfrein", "|Combiner", "|Mesurer" };
+	static const char *const TIPS[TB_N] = { "Esquisse (S) sur la face choisie ou le plan XY : lignes, rectangles, cercles, arcs, contraintes (PlaneGCS) ; E l'extrude", "Boîte (B) : clic à un coin, clic au coin opposé, on monte, clic",
 		"Cylindre : clic au centre, on s'éloigne pour le rayon, clic, on monte, clic", "Pousser/tirer (Q) une face plane", "Congé (F) sur les arêtes choisies",
-		"Chanfrein (Maj+F) sur les arêtes choisies", "Union : deux corps n'en font plus qu'un", "Soustraction : un corps retiré d'un autre", "Mesurer : à une étape suivante" };
+		"Chanfrein (Maj+F) sur les arêtes choisies", "Combiner : une cible et des outils, en union, soustraction ou intersection", "Mesurer : à une étape suivante" };
 	for (int i = 0; i < TB_N; i++) {
 		const char *t = TOOLS[i];
 		bool sep = t[0] == '|';
@@ -2401,6 +2919,12 @@ void buildWindow ()
 	w_pmode = ui_segmented (0, 0, 10, h, (long) TR ("Linéaire|Circulaire"));
 	w_paxis = ui_segmented (0, 0, 10, h, (long) TR ("Axe X|Axe Y|Axe Z"));
 	b_usemax = ui_pushbutton (0, 0, 10, h, (long) "", 0);
+	b_ctarget = ui_pushbutton (0, 0, 10, h, (long) TR ("Cible"), 0);
+	ui_w_tip (b_ctarget, (long) TR ("Puis cliquez le corps cible dans la vue"));
+	b_ctools = ui_pushbutton (0, 0, 10, h, (long) TR ("Outils"), 0);
+	ui_w_tip (b_ctools, (long) TR ("Puis cliquez un ou plusieurs corps outils dans la vue"));
+	w_cop = ui_segmented (0, 0, 10, h, (long) TR ("Union|Soustraction|Intersection"));
+	c_keep = ui_checkbox (0, 0, 10, 24, (long) TR ("Conserver les outils"), 0);
 	e_param = ui_textbox (0, 0, 10, h, 0);
 	ui_w_tip (e_param, (long) TR ("nom = formule (« épaisseur = 4 », « largeur = épaisseur * 10 ») ; « nom = » le retire"));
 	b_param = ui_pushbutton (0, 0, 10, h, (long) TR ("Définir"), 0);
@@ -2587,7 +3111,10 @@ void loop (double untilMs)
 			if (g_camDirty) cameraChanged ();
 			continue;
 		}
-		if (t == WEV_CLOSE) break;
+		if (t == WEV_CLOSE) {
+			if (untilMs || docKeepChanges ()) break;	// (un document changé : l'enregistrer d'abord ?)
+			continue;
+		}
 		if (t == WEV_MENU) {
 			command ((int) ui_ev_field (&ui, EV_CODE));
 			continue;
@@ -2614,6 +3141,7 @@ void loop (double untilMs)
 		long code = 0, taken = 0;
 		long w = uikit_w_event (&code, &taken);
 		if (code) control (w, code);
+		if (g_tlMenu >= 0) timelineMenu ();
 		// la vue n'a pas de widget : sa souris est lue brute (aussi hors d'elle pendant un glisser)
 		int ex = ui_ev_field (&ui, EV_X) - VX, ey = ui_ev_field (&ui, EV_Y) - VY;
 		bool inView = ex >= 0 && ey >= 0 && ex < VW && ey < VH;
@@ -2693,6 +3221,7 @@ void moveTo (const double p[3])
 	double sx, sy;
 	g_view.toScreen (p, sx, sy);
 	viewMouse (0, (int) sx, (int) sy, 0, false);
+	if (g_cmdDirty) g_cmdDirty = false, cmdRefresh ();	// (comme la boucle quand plus rien n'attend)
 }
 void type (const char *s)
 {
@@ -2709,7 +3238,7 @@ int selftest (double buildMs)
 	check ("historique de l'exemple rejoué (8 étapes)", in.solidOk && b.mesh.nfaces == 24 && std::fabs (totalVolume () - 63.99) < 0.01, s);
 	snprintf (s, sizeof s, "%d × %d px en %.0f ms", VW, VH, g_view.lastMs);
 	check ("rendu de la vue", g_view.lastMs > 0, s);
-	// une boîte au geste, posée sur la plaque : clic au centre, on s'éloigne (20 × 10), clic, on monte (5), clic
+	// une boîte au geste, posée sur la plaque : clic à un coin, clic au coin opposé (20 × 10), on monte (5), clic
 	g_view.standard (6);
 	g_view.fit (g_doc);
 	cameraChanged ();
@@ -2721,17 +3250,17 @@ int selftest (double buildMs)
 	moveTo (q1);
 	snprintf (s, sizeof s, "base (%s, %s, %s), %s × %s", fmtNum (g_cmd.f.frame.o[0]).c_str (), fmtNum (g_cmd.f.frame.o[1]).c_str (), fmtNum (g_cmd.f.frame.o[2]).c_str (),
 		  fmtNum (g_cmd.chips[0].val).c_str (), g_cmd.chips.size () > 1 ? fmtNum (g_cmd.chips[1].val).c_str () : "?");
-	check ("accrochage 5 mm : base (45, 10, 8), 25 × 15", g_cmd.f.frame.o[0] == 45 && g_cmd.f.frame.o[1] == 10 && g_cmd.f.frame.o[2] == 8
-	       && g_cmd.chips.size () > 1 && g_cmd.chips[0].val == 25 && g_cmd.chips[1].val == 15, s);
+	check ("accrochage 5 mm : coin (45, 10, 8), 10 × 5, centre (50, 12,5)", g_cmd.corner[0] == 45 && g_cmd.corner[1] == 10 && g_cmd.corner[2] == 8
+	       && g_cmd.chips.size () > 1 && g_cmd.chips[0].val == 10 && g_cmd.chips[1].val == 5 && g_cmd.f.frame.o[0] == 50 && g_cmd.f.frame.o[1] == 12.5, s);
 	cmdKey (0x29, 0);
 	g_snap = 1;	// (la suite : les valeurs au mm)
 	double v0 = totalVolume ();
 	cmdStart (T_BOX);
-	double c[3] = { 45, 12, 8 }, e[3] = { 55, 17, 8 };
+	double c[3] = { 35, 7, 8 }, e[3] = { 55, 17, 8 };	// (coin à coin : 20 × 10, centrée en (45, 12))
 	clickAt (c);
 	moveTo (e);
 	clickAt (e);
-	double up[3] = { 45, 12, 14 };	// (6 mm au-dessus du centre de la base)
+	double up[3] = { 55, 17, 14 };	// (6 mm au-dessus du coin opposé : le coin suit le pointeur)
 	moveTo (up);
 	double hg = g_cmd.chips.empty () ? 0 : g_cmd.chips.back ().val;
 	snprintf (s, sizeof s, "hauteur %s mm", fmtNum (hg).c_str ());
@@ -2944,6 +3473,69 @@ int selftest (double buildMs)
 	cmdKey (0x28, 0);
 	snprintf (s, sizeof s, "%s : %s ; %s -> %s", g_doc.feats.back ().name.c_str (), featureDetail (g_doc.feats.back ()).c_str (), cm3 (vAll).c_str (), cm3 (totalVolume ()).c_str ());
 	check ("symétrie du corps (nouveau corps)", g_doc.feats.back ().kind == ST_MIRROR && std::fabs (totalVolume () - vAll - bodyVolume (g_doc.bodies[bx]) / 1000) < 0.001, s);
+	// combiner : une barre de 10 × 4 × 40 à travers le bord de la boîte, soustraite en gardant l'outil (-400 mm³)
+	{
+		Feature f;
+		f.kind = ST_BOX, f.name = featureName (g_doc, ST_BOX), f.op = OP_NEW;
+		f.frame.o[0] = 200, f.frame.o[1] = 8, f.a = 10, f.b = 4, f.c = 40;
+		pushUndo ();
+		insertFeature (g_doc, g_doc.bar, f);
+		rebuild ();
+		refreshAll ();
+	}
+	int tbody = (int) g_doc.bodies.size () - 1;
+	double vT = bodyVolume (g_doc.bodies[bx]);
+	select (Pick { bx, -1, -1 });
+	cmdStart (T_COMBINE);
+	bool pickTools = g_cmd.pick == 2 && g_cmd.f.body == bx;
+	g_cmd.f.tools = { tbody };
+	g_cmd.f.op = OP_CUT, g_cmd.f.keep = true;
+	cmdKey (0x28, 0);
+	double cutV = vT - bodyVolume (g_doc.bodies[bx]);
+	snprintf (s, sizeof s, "%s : %s ; -%s mm³ (attendu 400), outil %s", g_doc.feats.back ().name.c_str (), featureDetail (g_doc.feats.back ()).c_str (), fmtNum (cutV).c_str (),
+		  g_doc.bodies[tbody].shape.IsNull () ? "consommé" : "gardé");
+	check ("combiner : soustraction, outil conservé", pickTools && g_doc.feats.back ().kind == ST_COMBINE && std::fabs (cutV - 400) < 0.5 && !g_doc.bodies[tbody].shape.IsNull (), s);
+	undo (false);
+	cmdStart (T_COMBINE);	// Échap pendant le choix des outils : le choix annulé, la commande reste
+	g_cmd.f.body = bx, g_cmd.pick = 2, g_cmd.pickBody = bx, g_cmd.pickTools.clear (), g_cmd.f.tools = { tbody };
+	cmdKey (0x29, 0);
+	check ("combiner : Échap annule le choix, pas la commande", g_cmd.tool == T_COMBINE && g_cmd.pick == 0 && g_cmd.f.tools.empty (), "");
+	cmdKey (0x29, 0);
+	// le fichier : le document enregistré puis relu et rejoué donne la même matière
+	{
+		const char *tmp = "/tmp/forge-selftest.forge";
+		std::string e = docSave (g_doc, tmp);
+		Doc d2;
+		if (e.empty ()) e = docLoad (d2, tmp);
+		double v2 = 0;
+		if (e.empty ()) {
+			replay (d2, 0.2);
+			for (auto &bd : d2.bodies) v2 += bodyVolume (bd) / 1000;
+		}
+		snprintf (s, sizeof s, "%s%d étapes, %s -> %s", e.empty () ? "" : (e + " ; ").c_str (), (int) d2.feats.size (), cm3 (totalVolume ()).c_str (), cm3 (v2).c_str ());
+		check ("enregistré puis rouvert (.forge)", e.empty () && d2.feats.size () == g_doc.feats.size () && d2.bar == g_doc.bar && std::fabs (v2 - totalVolume ()) < 1e-3, s);
+		unlink (tmp);
+	}
+	// la suppression avec ce qui dépend : boîte, congé, boîte jointe ; la première supprimée -> la seconde seule, nouveau corps
+	{
+		Doc d;
+		Feature f;
+		f.kind = ST_BOX, f.name = "Boîte 1", f.op = OP_NEW, f.a = 20, f.b = 20, f.c = 10;
+		d.feats.push_back (f);
+		Feature fl;
+		fl.kind = ST_FILLET, fl.name = "Congé 1", fl.body = 0, fl.a = 2, fl.edges = { EdgeRef { { 10, 10, 5 }, { 0, 0, 1 } } };
+		d.feats.push_back (fl);
+		Feature g = f;
+		g.name = "Boîte 2", g.op = OP_JOIN, g.body = 0, g.frame.o[0] = 15, g.c = 5;
+		d.feats.push_back (g);
+		d.bar = 3;
+		Removal plan = planRemoval (d, 0);
+		applyRemoval (d, plan);
+		replay (d, 0.2);
+		snprintf (s, sizeof s, "%d supprimées, %d nouveau corps ; reste %d étape(s), %d corps", (int) plan.erased.size (), (int) plan.renewed.size (), (int) d.feats.size (), (int) d.bodies.size ());
+		check ("supprimer une étape et ce qui en dépend", plan.erased.size () == 2 && plan.renewed.size () == 1 && d.feats.size () == 1 && d.feats[0].op == OP_NEW
+		       && d.bodies.size () == 1 && std::fabs (bodyVolume (d.bodies[0]) - 20 * 20 * 5) < 0.5, s);
+	}
 	select (Pick ());
 	g_snap = 5;	// (le réglage d'origine)
 	printf ("forge : %s\n", fails ? "FAIL" : "PASS");
@@ -2957,11 +3549,12 @@ int main (int argc, char **argv)
 	bool test = argc > 1 && !strcmp (argv[1], "--selftest");
 	g_trace = getenv ("FORGE_TRACE") != nullptr;
 	int mcpPort = 0;
-	std::string mcpTok;
+	std::string mcpTok, openArg;
 	bool tokGiven = false;
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp (argv[i], "--mcp")) mcpPort = i + 1 < argc && isdigit ((unsigned char) argv[i + 1][0]) ? atoi (argv[++i]) : MCP_PORT;
 		else if (!strcmp (argv[i], "--mcp-token") && i + 1 < argc) mcpTok = argv[++i], tokGiven = true;
+		else if (argv[i][0] != '-' && !test) openArg = argv[i];	// (un document .forge, ouvert depuis Fichiers)
 	}
 	if (!uikit_open (&ui)) return 1;
 	{	// (sa table en dernier : elle l'emporte sur le dictionnaire commun, où Réseau, Annuler, Terminer… ont un autre sens)
@@ -2990,6 +3583,7 @@ int main (int argc, char **argv)
 	repaint ();
 	panelUpdate ();
 	hintIdle ();
+	if (!openArg.empty ()) docOpenPath (openArg);
 	if (mcpPort) mcpStart (mcpPort, tokGiven ? (mcpTok == "-" ? "" : mcpTok) : mcpToken (), true);
 	if (test) {
 		int r = selftest (t1 - t0);

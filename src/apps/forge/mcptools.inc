@@ -149,7 +149,7 @@ struct Args {
 
 const char *kindName (StepKind k)
 {
-	static const char *const N[] = { "box", "cylinder", "sketch", "extrude", "fillet", "chamfer", "union", "cut", "hole", "push_pull", "slot",
+	static const char *const N[] = { "box", "cylinder", "sketch", "extrude", "fillet", "chamfer", "combine", "cut", "hole", "push_pull", "slot",
 					 "revolve", "shell", "pattern", "mirror" };
 	return k >= 0 && k < (int) (sizeof N / sizeof *N) ? N[k] : "?";
 }
@@ -254,10 +254,18 @@ std::string featureJson (int i, bool full)
 	const Feature &f = g_doc.feats[i];
 	JO o;
 	o.num ("index", i).str ("name", f.name).str ("kind", kindName (f.kind)).str ("detail", featureDetail (f));
-	if (f.kind != ST_SKETCH && f.kind != ST_FILLET && f.kind != ST_CHAMFER && f.kind != ST_SHELL && f.kind != ST_PUSH && f.kind != ST_UNION && f.kind != ST_CUT)
+	if (f.kind != ST_SKETCH && f.kind != ST_FILLET && f.kind != ST_CHAMFER && f.kind != ST_SHELL && f.kind != ST_PUSH && f.kind != ST_COMBINE && f.kind != ST_CUT)
 		o.str ("operation", opKey (f.op));
+	if (f.kind == ST_COMBINE || f.kind == ST_CUT) {
+		Op co = f.kind == ST_CUT ? OP_CUT : f.op == OP_NEW ? OP_JOIN : f.op;
+		o.str ("operation", co == OP_CUT ? "cut" : co == OP_INTERSECT ? "intersect" : "union").boo ("keep_tools", f.keep);
+	}
 	if (f.body >= 0) o.num ("target_body", f.body);
-	if (f.tool >= 0) o.num ("tool_body", f.tool);
+	if (!f.tools.empty ()) {
+		JA tb;
+		for (int b : f.tools) tb.add (std::to_string (b));
+		o.raw ("tool_bodies", tb.end ());
+	}
 	if (f.ref >= 0) o.num ("uses_feature", f.ref);
 	o.boo ("rolled_back", i >= g_doc.bar).boo ("suppressed", f.off);
 	if (!f.error.empty ()) o.str ("error", f.error);
@@ -658,13 +666,19 @@ std::string t_boolean (const Args &a)
 	agentTakes ();
 	Feature f;
 	std::string op = a.str ("operation", "", true);
-	if (op == "union" || op == "join") f.kind = ST_UNION;
-	else if (op == "cut" || op == "subtract") f.kind = ST_CUT;
-	else fail ("operation must be union or cut");
+	f.kind = ST_COMBINE;
+	if (op == "union" || op == "join") f.op = OP_JOIN;
+	else if (op == "cut" || op == "subtract") f.op = OP_CUT;
+	else if (op == "intersect" || op == "intersection" || op == "common") f.op = OP_INTERSECT;
+	else fail ("operation must be union, cut or intersect");
 	f.body = liveBody (a.integer ("target_body", -1, true));
-	f.tool = liveBody (a.integer ("tool_body", -1, true));
-	if (f.body == f.tool) fail ("target_body and tool_body are the same");
-	f.op = f.kind == ST_UNION ? OP_JOIN : OP_CUT;
+	if (a.has ("tool_bodies"))
+		for (int b : a.ints ("tool_bodies")) f.tools.push_back (liveBody (b));
+	if (a.has ("tool_body")) f.tools.push_back (liveBody (a.integer ("tool_body", -1, true)));
+	if (f.tools.empty ()) fail ("give tool_body or tool_bodies");
+	for (int b : f.tools)
+		if (b == f.body) fail ("target_body is also a tool body");
+	f.keep = a.boolean ("keep_tools", false);
 	f.name = a.str ("name");
 	return commitFeature (f, op.c_str ());
 }
@@ -1222,9 +1236,11 @@ const ToolDef TOOLS[] = {
 		  "normal" : { "type" : "array", "items" : { "type" : "number" } }, "join" : { "type" : "boolean" }, "name" : { "type" : "string" } },
 		  "required" : ["body"] }),
 	  t_mirror, false },
-	{ "boolean", "Combine two bodies: union fuses tool_body into target_body; cut removes tool_body from target_body. The tool body is consumed.",
-	  S ({ "type" : "object", "properties" : { "operation" : { "type" : "string", "enum" : ["union", "cut"] }, "target_body" : { "type" : "integer" },
-		  "tool_body" : { "type" : "integer" }, "name" : { "type" : "string" } }, "required" : ["operation", "target_body", "tool_body"] }),
+	{ "boolean", "Combine bodies (one Combine step): union fuses the tool bodies into target_body, cut removes them from it, intersect keeps only "
+	  "what target_body shares with them. Give tool_body or tool_bodies. The tool bodies are consumed unless keep_tools is true.",
+	  S ({ "type" : "object", "properties" : { "operation" : { "type" : "string", "enum" : ["union", "cut", "intersect"] }, "target_body" : { "type" : "integer" },
+		  "tool_body" : { "type" : "integer" }, "tool_bodies" : { "type" : "array", "items" : { "type" : "integer" } },
+		  "keep_tools" : { "type" : "boolean" }, "name" : { "type" : "string" } }, "required" : ["operation", "target_body"] }),
 	  t_boolean, false },
 	{ "create_sketch",
 	  "Create a 2D sketch solved by PlaneGCS, on plane xy / xz / yz (offset along its normal, or origin) or on_face {body, face}. Sketch "

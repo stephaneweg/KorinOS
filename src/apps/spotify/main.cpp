@@ -40,7 +40,7 @@ static unsigned tok (int t) { return s_tk[t / 4] & 0xFFFFFF; }
 
 // ---- les titres ------------------------------------------------------------------------------------------------------
 
-struct Track { std::string uri, name, artist, album; int ms = 0; };
+struct Track { std::string uri, name, artist, album; int ms = 0; int kind = 0; std::string id; };	// kind : 0 titre, 1 album, 2 playlist (recherche)
 struct Playlist { std::string id, name; };
 
 static std::vector<Track> g_tracks;
@@ -110,10 +110,35 @@ static void *job_main (void *a)
 			const json::Value &r = d.root ();
 			const json::Value &items = !r["tracks"].isNull () ? r["tracks"]["items"] : r["items"];
 			for (const json::Value *it = items.first (); it; it = it->next)
-				parse_track (!(*it)["track"].isNull () ? (*it)["track"] : *it, j->tracks);
+				parse_track (!(*it)["item"].isNull () ? (*it)["item"] : !(*it)["track"].isNull () ? (*it)["track"] : *it, j->tracks);
+			// la recherche : ses albums et ses playlists après les titres (un double-clic les ouvre)
+			for (int k = 1; k <= 2; k++)
+				for (const json::Value *it = r[k == 1 ? "albums" : "playlists"]["items"].first (); it; it = it->next)
+				{
+					const json::Value &a = *it;
+					if (a.isNull () || !a["id"].asStr ()[0]) continue;
+					Track t;
+					t.kind = k;
+					t.id = a["id"].asStr ();
+					t.name = a["name"].asStr ();
+					if (k == 1)
+						for (const json::Value *ar = a["artists"].first (); ar; ar = ar->next)
+						{
+							if (!t.artist.empty ()) t.artist += ", ";
+							t.artist += (*ar)["name"].asStr ();
+						}
+					else t.artist = a["owner"]["display_name"].asStr ();
+					j->tracks.push_back (t);
+				}
 		}
 	}
 	else if (j->code == 401) j->err = "jeton refusé";
+	else if (j->code > 0)
+	{					// (le message de Spotify : {"error": {"status", "message"}})
+		json::Doc d;
+		if (d.parse (body.data (), (unsigned long) body.size ()))
+			j->err = std::to_string (j->code) + " : " + d.root ()["error"]["message"].asStr ();
+	}
 	__atomic_store_n (&j->done, 1, __ATOMIC_RELEASE);
 	return 0;
 }
@@ -129,6 +154,7 @@ static bool job_finished (Job &j)
 // la connexion de librespot (quelques secondes) : un fil à part
 static pthread_t g_loginTh;
 static bool g_loginBusy, g_loggedIn;
+static std::string g_playerErr;			// le dernier refus de librespot (ks_error)
 static volatile int g_loginDone, g_loginRc;
 static std::string g_loginToken;
 static void *login_main (void *)
@@ -175,6 +201,7 @@ static struct ks_status g_st;
 static uint32_t g_lastEnded, g_lastUnavail;
 static int g_source;					// 1 titres aimés, 2 recherche, 100 + n : la playlist n
 static std::string g_query, g_pendingUrl;
+static std::string g_openId, g_openName;		// l'album (3) ou la playlist (4) ouvert depuis la recherche
 static int g_pendingKind;
 static bool g_authWait;					// une connexion par le navigateur est en cours
 
@@ -198,8 +225,10 @@ static void list_fill ()
 	for (size_t i = 0; i < g_tracks.size (); i++)
 	{
 		const Track &t = g_tracks[i];
-		snprintf (dur, sizeof dur, "%d:%02d", t.ms / 60000, t.ms / 1000 % 60);
-		snprintf (row, sizeof row, "%s\t%s\t%s\t%s", t.name.c_str (), t.artist.c_str (), t.album.c_str (), dur);
+		if (t.kind) dur[0] = 0;
+		else snprintf (dur, sizeof dur, "%d:%02d", t.ms / 60000, t.ms / 1000 % 60);
+		const char *third = t.kind == 1 ? TR ("Album") : t.kind == 2 ? TR ("Playlist") : t.album.c_str ();
+		snprintf (row, sizeof row, "%s\t%s\t%s\t%s", t.name.c_str (), t.artist.c_str (), third, dur);
 		ui_list_add (g_list_w, (long) row, (long) i);
 	}
 	ui_w_draw (g_list_w);			// (la liste arrive du fil : sans cela elle reste blanche jusqu'au survol)
@@ -225,9 +254,11 @@ static void start_list (int kind, const std::string &url)
 static void load_source ()
 {
 	if (g_source == 1) start_list (J_TRACKS, API "/me/tracks?limit=50");
-	else if (g_source == 2) start_list (J_TRACKS, API "/search?type=track&limit=50&q=" + urlenc (g_query));
+	else if (g_source == 2) start_list (J_TRACKS, API "/search?type=track,album,playlist&limit=5&q=" + urlenc (g_query));	// (5 de chaque)
+	else if (g_source == 3) start_list (J_TRACKS, API "/albums/" + g_openId + "/tracks?limit=50");	// (un album de la recherche)
+	else if (g_source == 4) start_list (J_TRACKS, API "/playlists/" + g_openId + "/items?limit=50");	// (une playlist de la recherche)
 	else if (g_source >= 100 && g_source - 100 < (int) g_playlists.size ())
-		start_list (J_TRACKS, API "/playlists/" + g_playlists[g_source - 100].id + "/tracks?limit=100");
+		start_list (J_TRACKS, API "/playlists/" + g_playlists[g_source - 100].id + "/items?limit=50");	// (février 2026 : /tracks retiré par Spotify)
 }
 
 static void side_fill ()
@@ -239,10 +270,27 @@ static void side_fill ()
 	for (size_t i = 0; i < g_playlists.size (); i++) ui_list_add (g_side, (long) g_playlists[i].name.c_str (), (long) (100 + i));
 }
 
+static void login_player ();
+
 static void play_index (int i)
 {
 	if (i < 0 || i >= (int) g_tracks.size ()) return;
-	if (!g_loggedIn) { status (TR ("La connexion au lecteur n'est pas encore faite.")); return; }
+	if (g_tracks[i].kind)
+	{					// un album ou une playlist de la recherche : ses titres
+		g_openId = g_tracks[i].id;
+		g_openName = g_tracks[i].kind == 1 ? g_tracks[i].name : "";
+		g_source = g_tracks[i].kind == 1 ? 3 : 4;
+		load_source ();
+		return;
+	}
+	if (!g_loggedIn)
+	{
+		if (g_loginBusy) { status (TR ("Connexion au lecteur de Spotify…")); return; }
+		std::string e = g_playerErr;	// (l'échec d'avant, que « 21 titres » a pu recouvrir) ; puis un nouvel essai
+		login_player ();
+		if (!e.empty ()) status ((std::string (TR ("Le lecteur de Spotify refuse la connexion (Premium ?) : ")) + e).c_str ());
+		return;
+	}
 	g_cur = i;
 	g_playing = g_tracks[i];
 	ui_w_set_value (g_list_w, i);
@@ -516,6 +564,7 @@ static void poll_all ()
 		{
 			char e[200];
 			ks_error (e, sizeof e);
+			g_playerErr = e;
 			status ((std::string (TR ("Le lecteur de Spotify refuse la connexion (Premium ?) : ")) + e).c_str ());
 		}
 	}
@@ -539,6 +588,8 @@ static void poll_all ()
 		else
 		{
 			g_tracks = g_list.tracks;
+			if (g_source == 3)		// (les titres d'un album ne disent pas son nom)
+				for (Track &t : g_tracks) if (t.album.empty ()) t.album = g_openName;
 			g_cur = -1;
 			list_fill ();
 			char t[80];

@@ -416,15 +416,19 @@ int replay (Doc &d, double deflection)
 				b->shape = r;
 				break;
 			}
-			case ST_UNION:
-			case ST_CUT: {
+			case ST_COMBINE:
+			case ST_CUT: {		// (la cible et les outils, l'un après l'autre ; les outils consommés, sauf « conserver »)
 				Body *b = target (d, rank, f.body);
-				Body *t = target (d, rank, f.tool);
-				if (b == t) throw Fail { "le même corps deux fois" };
+				if (f.tools.empty ()) throw Fail { "aucun corps outil" };
 				Feature g = f;
-				g.op = f.kind == ST_UNION ? OP_JOIN : OP_CUT;
-				applyOp (d, rank, g, i, t->shape);
-				t->shape = TopoDS_Shape ();	// (l'outil est consommé)
+				g.op = f.kind == ST_CUT ? OP_CUT : f.op == OP_NEW ? OP_JOIN : f.op;
+				for (int ti : f.tools) {
+					Body *t = target (d, rank, ti);
+					if (b == t) throw Fail { "la cible est aussi un outil" };
+					TopoDS_Shape ts = t->shape;
+					applyOp (d, rank, g, i, ts);
+					if (!f.keep) t->shape = TopoDS_Shape ();
+				}
 				break;
 			}
 			case ST_SHELL: {
@@ -545,15 +549,20 @@ std::string featureDetail (const Feature &f)
 	case ST_SHELL: return trUi ("épaisseur ") + fmtNum (f.a) + " · " + std::to_string (f.faces.size ()) + (f.faces.size () > 1 ? trUi (" faces ouvertes") : trUi (" face ouverte"));
 	case ST_PATTERN: return std::to_string (f.count) + trUi (" exemplaires · ") + (f.mode == 0 ? trUi ("pas ") + fmtNum (f.a) + " mm" : fmtNum (f.a) + "°");
 	case ST_MIRROR: return std::string (trUi ("symétrie · ")) + (f.op == OP_JOIN ? trUi ("jointe") : trUi ("nouveau corps"));
-	case ST_UNION: return trUi ("deux corps joints");
-	case ST_CUT: return trUi ("un corps retiré d'un autre");
+	case ST_COMBINE:
+	case ST_CUT: {
+		Op o = f.kind == ST_CUT ? OP_CUT : f.op == OP_NEW ? OP_JOIN : f.op;
+		const char *k = o == OP_CUT ? trUi ("soustraction") : o == OP_INTERSECT ? trUi ("intersection") : trUi ("union");
+		return std::string (k) + " · " + std::to_string (f.tools.size ()) + (f.tools.size () > 1 ? trUi (" outils") : trUi (" outil"))
+			+ (f.keep ? trUi (" conservés") : "");
+	}
 	default: return "";
 	}
 }
 
 std::string featureName (const Doc &d, StepKind k)
 {
-	static const char *const N[] = { "Boîte", "Cylindre", "Esquisse", "Extrusion", "Congé", "Chanfrein", "Union", "Soustraction", "Perçage", "Pousser/tirer", "Oblong", "Révolution",
+	static const char *const N[] = { "Boîte", "Cylindre", "Esquisse", "Extrusion", "Congé", "Chanfrein", "Combiner", "Soustraction", "Perçage", "Pousser/tirer", "Oblong", "Révolution",
 		"Coque", "Réseau", "Symétrie" };
 	int n = 1;
 	for (auto &f : d.feats) n += f.kind == k;
