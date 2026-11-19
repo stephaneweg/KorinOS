@@ -117,6 +117,25 @@ Les objets qui ne sont pas des blocs (scripts, MCP, console) : `stick` 100, `coa
 `gold_ingot` 103, `crystal` 104, `wood_pickaxe` 105 à `crystal_pickaxe` 108, `wood_axe` 109 à `crystal_axe` 112,
 `wood_shovel` 113 à `crystal_shovel` 116. Créatif et survie ont chacun leur barre ; passer de l'un à l'autre la garde.
 
+## 2 quater. Le son
+
+Tout est synthétisé par le jeu (`audio.cpp`), sans aucun fichier : un thread calcule le son et le donne à AudioKit
+(un flux PCM s16 stéréo 44,1 kHz), environ 1 % d'un cœur.
+
+* **La musique d'ambiance**, générative : une tonalité tirée de la graine du monde ; une gamme et un tempo qui
+  suivent la situation (le jour en majeur, la nuit en dorien, la pluie en mineur, l'orage en phrygien, le désert
+  en hijaz, la neige en lydien, la grotte grave et lente, sous l'eau étouffée) ; des accords enchaînés au hasard
+  guidé (des nappes), une mélodie en marche aléatoire (corde pincée le jour, cloches la nuit et dans la neige,
+  marimba sourd dans les grottes), une basse, un écho stéréo ; des passages pleins, clairsemés et des silences.
+  Casser et poser des blocs l'animent un peu.
+* **L'ambiance** : la pluie, le vent (en altitude, sous l'orage, dans la neige), les oiseaux le jour, les grillons la
+  nuit, les gouttes dans les grottes, le tonnerre un peu après l'éclair.
+* **Les effets**, selon la matière du bloc (pierre, bois, terre, sable, verre, feuilles, laine, neige, métal) :
+  casser, les coups de la pioche, poser, les pas, le saut, la chute, plonger dans l'eau, fabriquer, ramasser, un
+  outil qui casse, les clics du panneau.
+* Menu **Son** (musique, effets, musique plus ou moins fort) ou la console : `music on|off|<0..100>`,
+  `sound on|off|<0..100>` ; gardé dans `terracube.ini`.
+
 ## 2 ter. La console de commandes
 
 T (ou / ou ²) ouvre la console, semi-transparente, en bas de la vue ; le `/` du début est facultatif ; un texte qui n'est pas une
@@ -130,6 +149,7 @@ commande part en message. La même console sert aux scripts (`game.command(…)`
 | `tp <x> <y> <z>` (`~` : relatif au joueur) · `tp spawn` · `spawn` | se déplacer |
 | `give <objet> [n]` · `clear` · `inv` | l'inventaire (survie) |
 | `recipes [mot]` · `craft <recette> [fois]` | les recettes, fabriquer (survie) |
+| `music on\|off\|<0..100>` · `sound on\|off\|<0..100>` | la musique, les effets sonores |
 | `fly` · `distance <2..16>` · `seed` · `save` · `info` · `say <texte>` · `help` | divers |
 | une ligne du protocole (`world.setBlocks(0,60,0,9,60,9,glass)`) | exécutée, sa réponse affichée |
 
@@ -169,7 +189,7 @@ que tout soit fait). 16 connexions au plus.
 | `player.getInventory()` | `case:objet:nombre\|…` (survie ; les cases 0 à 8 sont la barre) |
 | `player.give(objet[,n])` | — (survie) |
 | `player.craft(recette[,fois])` | les fois faites, ou `error: …` (survie) |
-| `game.info()` | `TerraCube 1.1.2,<monde>,<graine>` |
+| `game.info()` | `TerraCube 1.2.0,<monde>,<graine>` |
 | `ping()` | `pong` |
 
 ### Python
@@ -259,6 +279,7 @@ essayé sur le ZBook (GPU Intel).
 | `textures.cpp` | l'atlas de 16 × 16 tuiles, dessiné au départ |
 | `player.h`, `player.cpp` | marche, saut, nage, vol, collisions |
 | `api.cpp` | protocole des scripts et son serveur (un thread par connexion, une file vidée par la boucle) |
+| `audio.h`, `audio.cpp` | le son : musique générative, ambiance, effets, synthétisés dans un thread sur un flux d'AudioKit |
 | `items.h`, `items.cpp` | objets, inventaire, minage (dureté, outils, ce qui tombe), recettes à forme et leur reconnaissance dans une grille |
 | `console.cpp` | la console de commandes |
 | `mcp.h`, `mcp.cpp`, `mcptools.cpp` | transport MCP (repris de Forge) et outils |

@@ -27,6 +27,12 @@ proche cuit le minerai, le sable, l'argile. Sans pioche, la pierre ne donne rien
 **T** (ou **/**) ouvre la console : `time 18`, `weather rain`, `weather storm`, `mode survival`, `give log 10`,
 `recipes`, `craft wood_pickaxe`, `tp ~ ~10 ~`, `help`… Entrée exécute, Échap ferme.
 
+## Le son
+
+Une musique d'ambiance composée par le jeu au fil de la partie, qui change avec le jour, la nuit, la météo, les
+grottes et les biomes, et des effets sonores (blocs, pas, eau, fabrication). Menu **Son**, ou `music off` et
+`sound 50` dans la console.
+
 ## Les mondes
 
 Partie > Nouveau monde : un nom et une graine (la même graine donne le même monde). Le monde est sauvé à la
