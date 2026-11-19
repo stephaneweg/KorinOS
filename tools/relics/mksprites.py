@@ -4,12 +4,14 @@
 # les images choisies, recadrees ensemble, reduites a la hauteur du jeu, en alpha premultiplie.
 #
 #   python3 tools/relics/mksprites.py SORTIE.spr --height 58 \
-#           --walk "Dossier/Walking" 8  --shoot "Dossier/Throwing" 3  [--hurt "Dossier/Hurt" 1]
+#           --walk "Dossier/Walking" 8  --shoot "Dossier/Throwing" 3  [--die "Dossier/Dying" 6]
 #
-# --walk DOSSIER N : N images de la marche, prises a intervalles reguliers ; --shoot : la pose de tir (N images).
+# --walk DOSSIER N : N images de la marche, prises a intervalles reguliers ; --shoot : la pose de tir (N images) ;
+# --die : la mort (jouee quand il est abattu). Les images d'origine (achetees par l'utilisateur) restent hors du depot :
+# seul le .spr, a la taille du jeu, va dans src/apps/relics/data/sprites (tools/relics/sprites.sh le refait).
 # --height : la hauteur du personnage a l'ecran (points ; un gardien fait 42 points de boite, ~58 dessine).
 # Format .spr (petit-boutiste) : 'RSPR', u16 version 1, u16 n images, u16 l, u16 h, u16 ancre x, u16 ancre y (les
-# pieds), u8 nombre d'images de marche, u8 de tir, u16 0 ; puis n x l x h mots 0xAARRGGBB premultiplies.
+# pieds), u8 nombre d'images de marche, u8 de tir, u8 de mort, u8 0 ; puis n x l x h mots 0xAARRGGBB premultiplies.
 import glob
 import os
 import struct
@@ -31,13 +33,13 @@ def main():
     out = a[0]
     height = int(a[a.index("--height") + 1]) if "--height" in a else 58
     groups = []
-    for key in ("--walk", "--shoot"):
+    for key in ("--walk", "--shoot", "--die"):
         if key in a:
             i = a.index(key)
             groups.append(frames(a[i + 1], int(a[i + 2])))
         else:
             groups.append([])
-    files = groups[0] + groups[1]
+    files = groups[0] + groups[1] + groups[2]
     ims = [Image.open(f).convert("RGBA") for f in files]
     # la boite commune, et les pieds : le bas de la marche
     box = None
@@ -64,7 +66,7 @@ def main():
             r, g, b, al = px[i], px[i + 1], px[i + 2], px[i + 3]
             data += struct.pack("<I", (al << 24) | ((r * al // 255) << 16) | ((g * al // 255) << 8) | (b * al // 255))
     with open(out, "wb") as o:
-        o.write(b"RSPR" + struct.pack("<HHHHHHBBH", 1, len(ims), w, h, ax, ay, len(groups[0]), len(groups[1]), 0) + data)
+        o.write(b"RSPR" + struct.pack("<HHHHHHBBBB", 1, len(ims), w, h, ax, ay, len(groups[0]), len(groups[1]), len(groups[2]), 0) + data)
     print("%s : %d images %dx%d, pieds en %d,%d, %d octets" % (out, len(ims), w, h, ax, ay, 20 + len(data)))
 
 

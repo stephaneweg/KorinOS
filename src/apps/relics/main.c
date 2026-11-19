@@ -150,7 +150,7 @@ static int clear_row (float x0, float x1, float y)
 
 /* ---- les entites ------------------------------------------------------------------------------------------ */
 enum { E_NONE, E_WALKER, E_SHOOTER, E_BAT, E_SPIDER, E_SHOT, E_DART, E_BOULDER, E_ROCK, E_CRUSHER, E_FLAME, E_SPIKES, E_DARTER,
-       E_ITEM, E_CHECK, E_EXIT, E_BULLET, E_DYN, E_CRUMB, E_FERN };
+       E_ITEM, E_CHECK, E_EXIT, E_BULLET, E_DYN, E_CRUMB, E_FERN, E_CORPSE };
 enum { IT_COIN, IT_GEM, IT_VASE, IT_RELIC, IT_AMMO, IT_DYN, IT_KEY, IT_LIFE };
 
 struct ent
@@ -165,11 +165,11 @@ static int g_ne;
 static struct ent *ent_new (int type, float x, float y, float w, float h)
 {
 	struct ent *e = 0;
-	int fly = type == E_BULLET || type == E_SHOT || type == E_DART || type == E_DYN;
+	int fly = type == E_BULLET || type == E_SHOT || type == E_DART || type == E_DYN || type == E_CORPSE;
 	for (int i = 0; fly && i < g_ne; i++)		/* (une place libre parmi ce qui vole) */
 	{
 		int t = g_e[i].type;
-		if (!g_e[i].on && (t == E_BULLET || t == E_SHOT || t == E_DART || t == E_DYN)) { e = &g_e[i]; break; }
+		if (!g_e[i].on && (t == E_BULLET || t == E_SHOT || t == E_DART || t == E_DYN || t == E_CORPSE)) { e = &g_e[i]; break; }
 	}
 	if (!e)
 	{
@@ -239,8 +239,8 @@ static gf_sprite_t *g_hheart, *g_hbul, *g_hdyn, *g_hkey, *g_hcoin;	/* (les petit
 static gf_sprite_t *g_tfg[MAXH][MAXW], *g_tbg[MAXH][MAXW];
 
 /* un personnage en images (tools/relics/mksprites.py) : s'il est la, il remplace le dessine */
-struct sset { int nw, ns, w, h, ax, ay; gf_sprite_t *f[2][32]; };
-static struct sset *g_cfoe[NWORLD];
+struct sset { int nw, ns, nd, w, h, ax, ay; gf_sprite_t *f[2][32]; };
+static struct sset *g_cfoe[NWORLD], *g_cshoot[NWORLD];	/* foe<monde>.spr, shooter<monde>.spr */
 static const char *g_sprdir = "/apps/relics.app/sprites";
 
 static struct sset *load_spr (const char *name)
@@ -254,10 +254,10 @@ static struct sset *load_spr (const char *name)
 	if (read (fd, hd, 20) == 20 && !memcmp (hd, "RSPR", 4))
 	{
 		int n = hd[6] | hd[7] << 8, w = hd[8] | hd[9] << 8, h = hd[10] | hd[11] << 8;
-		if (n > 0 && n <= 32 && w > 0 && h > 0 && w <= 256 && h <= 256 && hd[16] + hd[17] == n && hd[16])
+		if (n > 0 && n <= 32 && w > 0 && h > 0 && w <= 256 && h <= 256 && hd[16] + hd[17] + hd[18] == n && hd[16])
 		{
 			ss = (struct sset *) calloc (1, sizeof *ss);
-			ss->nw = hd[16]; ss->ns = hd[17]; ss->w = w; ss->h = h;
+			ss->nw = hd[16]; ss->ns = hd[17]; ss->nd = hd[18]; ss->w = w; ss->h = h;
 			ss->ax = hd[12] | hd[13] << 8; ss->ay = hd[14] | hd[15] << 8;
 			for (int i = 0; i < n && ss; i++)
 			{
@@ -633,7 +633,7 @@ static void reset_actors (void)
 		struct ent *e = &g_e[i];
 		switch (e->type)
 		{
-		case E_SHOT: case E_DART: case E_BULLET: case E_DYN: e->on = 0; break;
+		case E_SHOT: case E_DART: case E_BULLET: case E_DYN: case E_CORPSE: e->on = 0; break;
 		case E_WALKER: case E_SHOOTER: case E_BAT: case E_SPIDER:
 			if (e->on) { e->x = e->x0; e->y = e->y0; e->vx = e->vy = 0; e->st = 0; }
 			break;
@@ -738,9 +738,21 @@ static void flash (float x, float y)
 		if (!g_fx[i].life) { g_fx[i].life = 18; g_fx[i].x = x; g_fx[i].y = y; return; }
 }
 
+static const struct sset *foe_set (int type) { return type == E_SHOOTER && g_cshoot[g_world] ? g_cshoot[g_world] : g_cfoe[g_world]; }
+
 static void kill_foe (struct ent *e)
 {
 	e->on = 0;
+	const struct sset *ss = (e->type == E_WALKER || e->type == E_SHOOTER) ? foe_set (e->type) : 0;
+	if (ss && ss->nd)
+	{						/* sa mort en images, puis il s'efface */
+		struct ent *c = ent_new (E_CORPSE, e->x, e->y, e->w, e->h);
+		if (c) { c->kind = e->type; c->dir = e->dir; }
+		burst (e->x + e->w / 2, e->y + e->h / 2, 0x00FFF0C0, 8, 220, 10, 2, 0);
+		add_score (e->type == E_SHOOTER ? 200 : 100);
+		snd_kill ();
+		return;
+	}
 	burst (e->x + e->w / 2, e->y + e->h / 2, worlds[g_world].foe.shirt, 22, 160, 22, 2, 12);
 	burst (e->x + e->w / 2, e->y + e->h / 2, 0x00FFF0C0, 8, 220, 10, 2, 0);
 	add_score (e->type == E_SHOOTER ? 200 : 100);
@@ -1285,6 +1297,9 @@ static void world_step (void)
 				}
 			}
 			break;
+		case E_CORPSE:
+			if (++e->t > 110) e->on = 0;
+			break;
 		case E_CRUMB:
 			if (e->st == 1)
 			{
@@ -1542,7 +1557,7 @@ static void draw_tile_fx (void)
 static void draw_foe (const struct ent *e)
 {
 	int d = e->dir < 0;
-	const struct sset *ss = g_cfoe[g_world];
+	const struct sset *ss = e->type == E_SHOOTER && g_cshoot[g_world] ? g_cshoot[g_world] : g_cfoe[g_world];
 	if (ss)
 	{
 		int i;
@@ -1628,6 +1643,17 @@ static void draw_ents (int pass)
 		switch (e->type)
 		{
 		case E_WALKER: case E_SHOOTER: draw_foe (e); break;
+		case E_CORPSE:
+		{
+			const struct sset *ss = foe_set (e->kind);
+			if (!ss || !ss->nd) break;
+			int d = e->dir < 0, i = e->t / 5;
+			if (i >= ss->nd) i = ss->nd - 1;
+			if (e->t > 80 && (e->t & 4)) break;		/* (il clignote, puis s'en va) */
+			long ax = d ? ss->w - ss->ax : ss->ax;
+			ga_ablit (SX (e->x + e->w / 2) - ax, SY (e->y + e->h) - ss->ay, ss->f[d][ss->nw + ss->ns + i]);
+			break;
+		}
 		case E_BAT: blit_w (e->x - 5, e->y - 3, g_sbat[g_world][(g_tick >> 3) & 1]); break;
 		case E_SPIDER:
 		{
@@ -2037,6 +2063,8 @@ static void gen_sprites (void)
 		char n[32];
 		snprintf (n, sizeof n, "foe%d.spr", w);
 		g_cfoe[w] = load_spr (n);
+		snprintf (n, sizeof n, "shooter%d.spr", w);
+		g_cshoot[w] = load_spr (n);
 	}
 	sp_k = 1;						/* (le bandeau, le titre : a leur taille) */
 	g_hheart = gen_heart ();
