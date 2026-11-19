@@ -2,7 +2,8 @@
 # test_cdm_pc.sh -- l'essai de bout en bout de l'hôte du module Widevine DANS Korin, sous QEMU PC avec le
 # réseau (docs/etude/WIDEVINE.md, étape 3), dans WSL :
 #
-#   WIDEVINE_SO=…/libwidevinecdm.so sh tools/linux/test_cdm_pc.sh
+#   WIDEVINE_SO=…/libwidevinecdm.so sh tools/linux/test_cdm_pc.sh            (cdmtest : le module appelé directement)
+#   WIDEVINE_SO=…/libwidevinecdm.so ESSAI=ipctest sh tools/linux/test_cdm_pc.sh (ipctest : par cdmhost, comme Jet)
 #
 # 1. le noyau (avec la capture de syscall et l'arène haute), construit à part dans build/pc/linux/kbuild ;
 # 2. un arbre minimal (build/pc/linux/qroot) : etc, sbin, sys/svc et les petits kits de build/pc/sysroot,
@@ -38,13 +39,13 @@ mkdir -p "$Q/bin"
 	echo "# essai de l'hôte Widevine (tools/linux/test_cdm_pc.sh)"
 	echo "/sys/svc/vterm"
 	echo "/sys/svc/netd"
-	echo "/widevine/cdmtest"
+	echo "/widevine/${ESSAI:-cdmtest}"
 } >"$Q/etc/services.txt"
 echo "/widevine" >>"$Q/etc/exec.txt"	# (dossier d'exécutables, docs/FICHIERS.md)
 cp "$SO" "$Q/widevine/libwidevinecdm.so"
 cp "$OUT/media/angel-one-144p.mp4" "$Q/widevine/video.mp4"
 cp "$OUT/media/angel-one-aac.mp4" "$Q/widevine/audio.mp4"
-cp "$OUT/cdmtest" "$Q/widevine/cdmtest"
+cp "$OUT/cdmtest" "$OUT/cdmhost" "$OUT/ipctest" "$Q/widevine/"
 du -sh "$Q"
 
 IMG=$OUT/qdisk.img
@@ -57,8 +58,8 @@ python3 -I tools/pc/mkkorindisk.py "$IMG" --no-windows --cfg 'default = korin\nt
 python3 -I tools/pc/qemu_nvme.py "$IMG" --boot-disk --snapshot --vars "$VARS" --log "$LOG" --wait 5 \
 	--qemu "-device qemu-xhci,id=xn -netdev user,id=n0 -device usb-net,bus=xn.0,netdev=n0" \
 	--step "sleep:${WAIT:-150}" --shot "$OUT/cdm_qemu.png" >/dev/null 2>&1 || true
-grep -aE "cdmtest|hôte :|\[ok\]|\[ÉCHEC\]|liblinux" "$LOG" | awk '!seen[$0]++' || echo "(rien de cdmtest dans le journal : $LOG)"
+grep -aE "cdmtest|ipctest|cdmhost|hôte :|\[ok\]|\[ÉCHEC\]|liblinux" "$LOG" | awk '!seen[$0]++' || echo "(rien de cdmtest dans le journal : $LOG)"
 if [ -z "${KEEP:-}" ]; then
 	rm -rf "$Q" "$IMG" "$VARS"
 fi
-grep -aq "cdmtest : RÉUSSI" "$LOG"
+grep -aq "${ESSAI:-cdmtest} : RÉUSSI" "$LOG"

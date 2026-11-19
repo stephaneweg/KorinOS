@@ -387,7 +387,9 @@ test (`cwip-shaka-proxy.appspot.com/no_auth`) ; seul le premier Mo de chaque fic
 * audio : **188 échantillons chiffrés sur 188 rendus en clair** ; sous Linux, les 564 trames AAC se décodent par
   libavcodec sans erreur ;
 * **empreintes identiques** des sorties entre Linux et Korin (vidéo `fabf757bb7928937`, audio
-  `85bba6b1d46b3472`) : dans Korin, les mêmes octets déchiffrés et les mêmes images ;
+  `85bba6b1d46b3472`) : dans Korin, les mêmes octets déchiffrés et les mêmes images. (Cette empreinte vidéo
+  laissait de côté les images rendues à la fin, par des entrées vides ; leur nombre dépend du décodeur du
+  module, d'une exécution à l'autre. Depuis le 20/11, elle couvre les 300 images : `967a04bdc5ec8b46`, stable.)
 * dans Korin : 1058 `syscall` directs du module capturés et traduits ; réseau par `netd` (carte USB de QEMU,
   DHCP, DNS, NTP), TLS par OpenSSL avec le paquet de certificats `/etc/ca-bundle`.
 
@@ -398,6 +400,62 @@ service, sortie copiée dans le journal du noyau).
 
 Reste : le serveur IPC de `cdmhost` et le client de Jet (étapes 4 et 5), l'essai sur le ZBook, les licences
 persistantes (le manifeste n'en a pas), les flux `cbcs` (motif) et VP9/AV1.
+
+## 10. `cdmhost` et son client (20/11/2026)
+
+* `src/sys/cdmhost/cdmhost.cpp` : le process de l'hôte, lancé par le client avec deux sockets (`--control FD
+  --media FD --module CHEMIN [--storage DOSSIER]`) ; un seul thread : le module est appelé et ses rappels servis
+  (`CdmHost::pump`) entre deux messages ; la fin du contrôle l'arrête. Le module se charge par `module.cpp`
+  (`liblinux` dans Korin, `dlopen` sous Linux).
+* `proto.h`, `proto.cpp` : le protocole (§ 3.3) : messages tramés (longueur, type, champs), le contrôle pour les
+  sessions et les événements, le média pour les requêtes synchrones des fils de décodage (`CDM_DECRYPT` pour
+  l'audio, `CDM_INIT_VIDEO`, `CDM_DECODE_VIDEO` qui rend une image I420). Les échantillons et les images vont dans
+  les messages ; la mémoire partagée viendra si le débit le demande.
+* `cdmclient.h`, `cdmclient.cpp` : le client (pour Jet) : `socketpair`, `fork` et `exec` de cdmhost (Korin garde
+  les descripteurs sans `FD_CLOEXEC` à l'`exec`), les requêtes, les événements ; le média sous un verrou.
+* `ipctest.cpp` (`sh tools/linux/ipctest.sh MODULE`) : le scénario de `cdmtest` par cdmhost. **Sous Linux :
+  licence, 188 échantillons audio sur 188, 300 images, mêmes empreintes que `cdmtest`** (audio
+  `85bba6b1d46b3472`, vidéo `967a04bdc5ec8b46`). Dans Korin : `ESSAI=ipctest sh tools/linux/test_cdm_pc.sh`.
+
+## 11. Étape 4 (19-20/11/2026) : EME Clear Key dans Jet
+
+**La bibliothèque média de Jet (`av`, d'Onyx : `src/extra/onyx-libs/av`, pas suivie)** reçoit le chiffrement
+commun par un correctif suivi, `tools/webkit/av-patches/0001-cenc.patch`, que `tools/webkit/glue.sh` applique une
+fois (noté dans `src/extra/onyx-libs/.korin-patches`), comme `fetch.sh` pour WebKit :
+* `av_mp4.c` : une entrée `encv`/`enca` est relue comme son format d'origine (`sinf`/`frma`), la piste garde
+  `encrypted`, son KID et son schéma (`tenc`, `schm`) ; les boîtes `pssh` du `moov` sont gardées entières
+  (`av_demux_init_data` : les données d'initialisation « cenc » d'EME) ; le `senc` de chaque fragment donne à chaque
+  paquet son `struct av_crypt` (IV, sous-échantillons, motif). Un fragment sans `senc` est en clair (le début en
+  clair des flux).
+* `av_store.c` : le chiffrement suit chaque trame dans le magasin de MSE (copié à la sortie, libéré au retrait) ;
+  une piste chiffrée compte dans les plages tamponnées.
+* `av_player.c` : `av_player_set_decryptor` : le déchiffreur de l'hôte est appelé par les fils audio et vidéo
+  avant le décodage ; tant qu'il rend `AV_AGAIN` (pas encore de clé), le fil attend sur ce paquet.
+* `av_crypt.c` (nouveau) : AES-128 maison (la bibliothèque n'a pas d'autre dépendance), `av_decrypt` : `cenc`
+  (CTR, un flux de clé continu sur les parties chiffrées des sous-échantillons), `cens`, `cbcs` (CBC à motif, IV
+  repris à chaque sous-échantillon), `cbc1`.
+* **Essai natif** (`sh tools/linux/avcenc_test.sh`) : vecteur de FIPS-197 ; sur le flux Clear Key public « Angel
+  One » de Shaka (clé publique), 2438 paquets audio et 1300 vidéo chiffrés déchiffrés par `av`, puis décodés par
+  libavcodec : **2814 trames AAC et 1500 images H.264, 0 erreur**.
+* Garde : `av_packet` et `av_track` ont des champs de plus ; `build-jet.sh` refuse de lier si `av.h` est plus
+  récent que `libWebCore.a` (WebKit d'abord), et refait `libonyxav.a` quand les sources d'`av` ont changé.
+
+**WebKit** (correctif `0008-eme-clearkey.patch`, essayé à part avant d'aller dans `tools/webkit/patches`) :
+* `OptionsOnyx.cmake` : `ENABLE_ENCRYPTED_MEDIA` avec le moteur ;
+* `CDMOnyx.h`, `CDMOnyx.cpp` (nouveaux) : la fabrique du CDM Clear Key de WebKit (`CDMFactoryClearKey`,
+  générique) enregistrée pour Onyx, et `CDMProxyOnyx`, le côté déchiffreur d'une instance : les fils de décodage
+  lui demandent la clé d'un KID (`copyKey`) et lui disent qu'ils attendent (`waitingforkey`) ;
+* `MediaPlayerPrivateOnyx` : `cdmInstanceAttached`/`Detached`, `attemptToDecryptWithInstance`, `waitingForKey`,
+  `encryptedInitializationData` (l'événement `encrypted` de l'élément), et le déchiffreur passé à `av` :
+  `av_decrypt` avec la clé de la session ;
+* `MediaSourcePrivateOnyx` : chaque `MediaSampleOnyx` garde son `av_crypt` à travers les `TrackBuffer` de WebCore
+  jusqu'à la file du lecteur ; un segment d'initialisation chiffré signale ses `pssh` au lecteur.
+* Construction à part (copies `webkit-eme`, `webkit-gl-eme`, construction `webcore-eme` ; `tools/mesa/build-webkit.sh`
+  prend `WK_BASE`, `WK_GL`, `WK_BUILD` ; `build-jet.sh` prend `JET_OUT`), pour ne pas toucher au Jet des autres
+  sessions.
+* Essai dans Jet : `tools/webkit/tests/eme-clearkey.html` (MSE + EME Clear Key, la licence JSON faite par la page,
+  résultats dans la console) et `tools/linux/test_eme_jet.sh` (disque d'essai, page servie par WSL sur
+  `10.0.2.2:8642`, Jet lancé par telnet, console des pages dans le journal du noyau par `/etc/web-console`).
 
 ## Sources (19/11/2026)
 

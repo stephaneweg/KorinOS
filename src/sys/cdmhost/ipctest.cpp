@@ -5,6 +5,7 @@
 //
 //   ipctest CDMHOST MODULE.so VIDEO.mp4 URL_DE_LICENCE AUDIO.mp4 [--storage DOSSIER]
 #include <poll.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,11 +18,36 @@
 #include "content_decryption_module.h"
 #include "net.h"
 
+#if !defined(__linux__)
+#include <armpi/syscall.h>
+#include <unistd.h>
+
+#include "korin_sys_nr.h"
+#endif
+
 static int s_fails;
+
+// la sortie ; dans Korin, aussi dans le journal du noyau (l'essai sous QEMU, lancé comme un service)
+static void say (const char *fmt, ...) __attribute__ ((format (printf, 1, 2)));
+static void say (const char *fmt, ...)
+{
+	char b[1024];
+	va_list ap;
+	va_start (ap, fmt);
+	int n = vsnprintf (b, sizeof b, fmt, ap);
+	va_end (ap);
+	if (n > (int) sizeof b - 1)
+		n = sizeof b - 1;
+	fwrite (b, 1, (size_t) n, stdout);
+	fflush (stdout);
+#if !defined(__linux__)
+	armpi_syscall (SYS_PRINT, (long) b, n, 0, 0, 0, 0);
+#endif
+}
 
 static void check (bool ok, const char *what)
 {
-	printf ("  [%s] %s\n", ok ? "ok" : "ÉCHEC", what);
+	say ("  [%s] %s\n", ok ? "ok" : "ÉCHEC", what);
 	fflush (stdout);
 	if (!ok)
 		s_fails++;
@@ -98,11 +124,31 @@ static void events (CdmHostClient &h, int ms, F handle)
 	}
 }
 
+static int run (int argc, char **argv);
+
 int main (int argc, char **argv)
+{
+#if !defined(__linux__)
+	if (argc == 1)
+	{
+		// sans argument (lancé comme un service par init2, essai sous QEMU) : le dossier /widevine ; à la fin,
+		// il reste (un service qui s'arrête serait relancé)
+		static char *def[] = { argv[0], (char *) "/widevine/cdmhost", (char *) "/widevine/libwidevinecdm.so",
+				       (char *) "/widevine/video.mp4", (char *) "https://cwip-shaka-proxy.appspot.com/no_auth",
+				       (char *) "/widevine/audio.mp4", (char *) "--storage", (char *) "/widevine/storage", nullptr };
+		run (8, def);
+		for (;;)
+			pause ();
+	}
+#endif
+	return run (argc, argv);
+}
+
+static int run (int argc, char **argv)
 {
 	if (argc < 6)
 	{
-		printf ("ipctest CDMHOST MODULE.so VIDEO.mp4 URL_DE_LICENCE AUDIO.mp4 [--storage DOSSIER]\n");
+		say ("ipctest CDMHOST MODULE.so VIDEO.mp4 URL_DE_LICENCE AUDIO.mp4 [--storage DOSSIER]\n");
 		return 2;
 	}
 	std::string storage = argc > 7 && !strcmp (argv[6], "--storage") ? argv[7] : "/tmp/ipctest-storage";
@@ -141,7 +187,7 @@ int main (int argc, char **argv)
 		}
 		return !request.empty ();
 	});
-	printf ("ipctest : session %s, requête de licence de %zu octets\n", session.c_str (), request.size ());
+	say ("ipctest : session %s, requête de licence de %zu octets\n", session.c_str (), request.size ());
 	check (!session.empty () && !request.empty (), "CREATE_SESSION : session et requête de licence");
 
 	std::vector<uint8_t> resp;
@@ -164,7 +210,7 @@ int main (int argc, char **argv)
 		}
 		return usable > 0;
 	});
-	printf ("ipctest : %d clés utilisables\n", usable);
+	say ("ipctest : %d clés utilisables\n", usable);
 	check (usable > 0, "UPDATE_SESSION : clés utilisables");
 
 	// l'audio : Decrypt par le socket du média
@@ -183,7 +229,7 @@ int main (int argc, char **argv)
 		}
 		aenc += s.encrypted;
 	}
-	printf ("ipctest : audio : %d échantillons chiffrés sur %d rendus en clair, empreinte %016llx\n", aok, aenc,
+	say ("ipctest : audio : %d échantillons chiffrés sur %d rendus en clair, empreinte %016llx\n", aok, aenc,
 		(unsigned long long) adigest);
 	check (aenc > 0 && aok == aenc, "DECRYPT : l'audio chiffré rendu en clair");
 
@@ -195,7 +241,7 @@ int main (int argc, char **argv)
 	int images = 0, errors = 0;
 	auto take = [&] (const CdmFrame &f) {
 		if (!images)
-			printf ("ipctest : première image %ux%u, format %u, pas %u/%u/%u, décalages %u/%u/%u, %zu octets\n", f.width, f.height,
+			say ("ipctest : première image %ux%u, format %u, pas %u/%u/%u, décalages %u/%u/%u, %zu octets\n", f.width, f.height,
 				f.format, f.stride[0], f.stride[1], f.stride[2], f.offset[0], f.offset[1], f.offset[2], f.pixels.size ());
 		images++;
 		uint64_t one = 0xcbf29ce484222325ULL;
@@ -210,7 +256,7 @@ int main (int argc, char **argv)
 				}
 		}
 		if (getenv ("IPCTEST_FRAMES"))
-			printf ("image %d t=%lld %016llx\n", images, (long long) f.timestamp, (unsigned long long) one);
+			say ("image %d t=%lld %016llx\n", images, (long long) f.timestamp, (unsigned long long) one);
 	};
 	for (size_t i = 0; vst == cdm::kSuccess && i < vs.size (); i++)
 	{
@@ -233,12 +279,12 @@ int main (int argc, char **argv)
 			break;
 		take (f);
 	}
-	printf ("ipctest : vidéo : %d images sur %zu échantillons, %d erreurs, empreinte %016llx\n", images, vs.size (), errors,
+	say ("ipctest : vidéo : %d images sur %zu échantillons, %d erreurs, empreinte %016llx\n", images, vs.size (), errors,
 		(unsigned long long) vdigest);
 	check (vst == cdm::kSuccess && images == (int) vs.size () && !errors, "DECODE_VIDEO : chaque échantillon décodé par le module");
 
 	host->close_session (3, session);
 	host.reset ();	// (la fin du contrôle arrête cdmhost)
-	printf ("ipctest : %s (%d échec(s))\n", s_fails ? "ÉCHEC" : "RÉUSSI", s_fails);
+	say ("ipctest : %s (%d échec(s))\n", s_fails ? "ÉCHEC" : "RÉUSSI", s_fails);
 	return s_fails ? 1 : 0;
 }
