@@ -117,9 +117,39 @@ struct Core {
     spirc: Mutex<Option<Spirc>>,
 }
 
+// ---- le journal : les messages de librespot (et les nôtres) dans /tmp/korinspot.log, pour savoir où il bloque ---------
+
+struct FileLog;
+
+impl log::Log for FileLog {
+    fn enabled(&self, m: &log::Metadata) -> bool {
+        m.level() <= log::Level::Debug
+            && (m.target().starts_with("librespot") || m.target().starts_with("korinspot"))
+    }
+    fn log(&self, r: &log::Record) {
+        if !self.enabled(r.metadata()) {
+            return;
+        }
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/korinspot.log") {
+            let t = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0);
+            let _ = writeln!(f, "{} {} {} : {}", t, r.level(), r.target(), r.args());
+        }
+    }
+    fn flush(&self) {}
+}
+
+static FILE_LOG: FileLog = FileLog;
+
 fn core() -> Option<&'static Core> {
     static C: OnceLock<Option<Core>> = OnceLock::new();
     C.get_or_init(|| {
+        if log::set_logger(&FILE_LOG).is_ok() {
+            log::set_max_level(log::LevelFilter::Debug);
+        }
         tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .enable_all()
@@ -202,17 +232,29 @@ pub unsafe extern "C" fn ks_login(token: *const c_char) -> c_int {
     };
     let token = token.to_string();
     *c.token.lock().unwrap() = token.clone();
+    log::info!(target: "korinspot", "connexion : début");
     let r = c.rt.block_on(async move {
         let session = Session::new(SessionConfig::default(), None);
-        session.connect(Credentials::with_access_token(token), false).await.map(|_| session)
+        // (sans délai, un blocage du réseau laissait l'app sur « Connexion au lecteur de Spotify… » pour toujours)
+        match tokio::time::timeout(
+            Duration::from_secs(30),
+            session.connect(Credentials::with_access_token(token), false),
+        )
+        .await
+        {
+            Ok(r) => r.map(|_| session).map_err(|e| e.to_string()),
+            Err(_) => Err("pas de réponse en 30 s (journal : /tmp/korinspot.log)".to_string()),
+        }
     });
     let session = match r {
         Ok(s) => s,
         Err(e) => {
+            log::warn!(target: "korinspot", "connexion : échec : {}", e);
             set_error(e);
             return -1;
         }
     };
+    log::info!(target: "korinspot", "connexion : faite");
     let _g = c.rt.enter();
     let p = pcm().clone();
     let mixer: Arc<dyn Mixer> = match SoftMixer::open(MixerConfig::default()) {

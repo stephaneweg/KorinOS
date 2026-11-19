@@ -271,9 +271,27 @@ static const char *role(const struct acc *a)
 static long field_y, go_x, eye_x, foot_y, pow_x, row0; /* (zones cliquables, posées au dessin) */
 
 /* le champ du mot de passe, ou le bouton « Ouvrir la session » d'un compte sans mot de passe */
+static int power_ask; /* 1 : Redémarrer et Éteindre à la place du champ (le bouton d'alimentation cliqué) */
+static long field_x, field_w;
+
 static void field(long x, long y, long w)
 {
 	field_y = y;
+	field_x = x;
+	field_w = w;
+	if (power_ask) { /* deux boutons : Redémarrer, Éteindre (Échap ou le bouton d'alimentation : annuler) */
+		long bw = (w - 8) / 2;
+		const char *t[2] = {TR("Redémarrer"), TR("Éteindre")};
+		for (int i = 0; i < 2; i++) {
+			long bx = x + i * (bw + 8);
+			u32 c = tok(i ? TJ_DANGER : TJ_LINE_STRONG);
+			ui_rbox(bx, y, bw, FIELD, 8, c, c);
+			long tw = ui_text_width((long)t[i], 14, (long)ui.font_b);
+			ui_text((long)t[i], bx + (bw - tw) / 2, y + 21, tok(i ? TJ_ACCENT_INK : TJ_TEXT1), 14, (long)ui.font_b, 0);
+		}
+		go_x = eye_x = -1000;
+		return;
+	}
 	if (!accs[sel].haspw) {
 		ui_rbox(x, y, w, FIELD, 8, tok(TJ_ACCENT), tok(TJ_ACCENT));
 		const char *t = TR("Ouvrir la session");
@@ -405,24 +423,10 @@ static int submit(void)
 	return 0;
 }
 
-static void power_menu(void)
+/* r : 0 Redémarrer, 1 Éteindre (les deux boutons que la carte montre à la place du champ : power_ask ; plus
+   de ui_popup ici, où login tombait sur une faute, -11) */
+static void power_do(long r)
 {
-	/* les libellés de ui_popup : chaînes à la suite, chacune finie par un 0, puis une vide (avec « \n », UIKit
-	   lisait au-delà de la chaîne et login tombait : le bureau s'ouvrait sans mot de passe) */
-	char labels[160], *o = labels;
-	const char *items[] = {TR("Redémarrer"), TR("Éteindre")};
-	for (int i = 0; i < 2; i++) {
-		size_t n = str_len(items[i]);
-		if (n > 70)
-			n = 70;
-		memcpy(o, items[i], n);
-		o += n;
-		*o++ = 0;
-	}
-	*o = 0;
-	long r = ui_popup(wx + pow_x - 190, wy + foot_y + 28, (long)labels, 220);
-	if (r < 0)
-		return;
 	long chn = korin_sys2(SYS_SVC_OPEN, "init2", 1000);
 	if (chn < 0)
 		return;
@@ -495,10 +499,13 @@ int main(int argc, char **argv)
 			if (EVF(EV_KIND) == 0)
 				continue;
 			long code = EVF(EV_CODE);
+			if (power_ask && code != HID_ESC)
+				continue; /* (Redémarrer, Éteindre montrés : seul Échap compte) */
 			if (code == HID_ENTER || code == HID_KPENTER) {
 				if (submit())
 					return ouvrir(&accs[sel]);
 			} else if (code == HID_ESC) {
+				power_ask = 0;
 				memset(pw, 0, sizeof pw);
 				pwlen = 0;
 				err = 0;
@@ -526,7 +533,13 @@ int main(int argc, char **argv)
 			}
 			if (kind != 1)
 				continue;
-			if (my >= field_y && my < field_y + FIELD) {
+			if (power_ask && my >= field_y && my < field_y + FIELD && mx >= field_x && mx < field_x + field_w) {
+				power_ask = 0;
+				draw();
+				power_do(mx >= field_x + field_w / 2); /* (à gauche Redémarrer, à droite Éteindre) */
+			} else if (power_ask && !(my >= foot_y && my < foot_y + 28 && mx >= pow_x)) {
+				continue;
+			} else if (my >= field_y && my < field_y + FIELD) {
 				if (mx >= go_x && (mx < go_x + 26 || !accs[sel].haspw)) {
 					if (submit())
 						return ouvrir(&accs[sel]);
@@ -535,7 +548,8 @@ int main(int argc, char **argv)
 					draw();
 				}
 			} else if (my >= foot_y && my < foot_y + 28 && mx >= pow_x) {
-				power_menu();
+				power_ask = !power_ask;
+				draw();
 			} else if (nacc > 1 && my >= row0) { /* une ligne de compte */
 				long yy = row0;
 				for (int i = 0; i < nacc; i++) {
