@@ -99,6 +99,30 @@
 
   <section>
     <div class="wrap">
+      <h2>Files on the network</h2>
+      <p class="intro">Network shares and Google Drive appear in the file tree under <code>/net</code>, like any other
+        volume. Any program can open them, from <code>cp</code> in the Terminal to Files or Letters. On the PC, share
+        passwords go to the system keyvault; for Drive, Korin keeps only an encrypted sign-in token.</p>
+      <div class="grid">
+        <div class="card"><div class="k">Client</div><h3>Windows shares (SMB)</h3><p>In Files, <b>Volume › Connect to
+          server…</b> (Ctrl+K) takes <code>\\host\share</code> or <code>smb://host/share</code> and a user name. The share is
+          mounted in <code>/net</code> and comes back at every start. SMB 2 and 3, with signing and SMB3
+          encryption.</p><p><span class="st qemu">QEMU</span></p></div>
+        <div class="card"><div class="k">Server</div><h3>Sharing your folders</h3><p><code>smbd</code> shares folders
+          with Windows, macOS and Linux (<code>\\korin\Korin</code>). Its pane in <b>Settings</b> starts it,
+          lists the shared folders, read-only or not, and the account Windows asks for.</p>
+          <p><span class="st qemu">QEMU</span> used from the Windows 11 Explorer</p></div>
+        <div class="card"><div class="k">Cloud</div><h3>Google Drive</h3><p>In Files, <b>Volume › Connect to Google
+          Drive…</b>: sign in to Google in Jet once, and the Drive is mounted in <code>/net</code>. Files are read as a
+          stream with read-ahead, written back to Drive on close, and deletions go to the Drive trash. Google
+          Docs, Sheets and Slides are hidden for now.</p><p><span class="st hw">hardware</span> ZBook, against the real
+          Google Drive</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
       <h2>Apps</h2>
       <p class="intro">Most apps are written for Korin on UIKit and follow the desktop theme. Some are ports, such as
         WebKit, Godot or MuPDF. A few apps only exist on one kind of machine; that is noted.</p>
@@ -108,7 +132,7 @@
           <li><b>Mail</b>, <b>IRC</b>, <b>Telegram</b></li>
           <li><b>Courier</b>: HTTP client for testing APIs</li>
           <li><b>WebStudio</b>: website editor with live preview (PC)</li>
-          <li>Web server, SMB file sharing, Google sign-in (OAuth)</li>
+          <li>Web server (<code>webd</code>), Google sign-in (OAuth)</li>
         </ul></div>
         <div class="card"><h3>Office</h3><ul>
           <li><b>Letters</b>: word processor, RTF, DOCX, ODT</li>

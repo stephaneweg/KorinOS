@@ -102,6 +102,31 @@
 
   <section>
     <div class="wrap">
+      <h2>Fichiers en réseau</h2>
+      <p class="intro">Les partages réseau et Google Drive apparaissent dans l'arbre de fichiers, sous
+        <code>/net</code>, comme un autre volume. Tous les programmes y ont accès, de <code>cp</code> dans le
+        Terminal à Fichiers ou Letters. Sur le PC, les mots de passe des partages vont dans le coffre du système ; pour Drive, Korin
+        ne garde qu'un jeton de connexion chiffré.</p>
+      <div class="grid">
+        <div class="card"><div class="k">Client</div><h3>Partages Windows (SMB)</h3><p>Dans Fichiers, <b>Volume › Se
+          connecter à un serveur…</b> (Ctrl+K) prend <code>\\hôte\partage</code> ou <code>smb://hôte/partage</code> et un
+          nom d'utilisateur. Le partage est monté dans <code>/net</code> et revient à chaque démarrage. SMB 2 et 3,
+          avec signature et chiffrement de SMB3.</p><p><span class="st qemu">QEMU</span></p></div>
+        <div class="card"><div class="k">Serveur</div><h3>Partager ses dossiers</h3><p><code>smbd</code> partage des
+          dossiers vers Windows, macOS et Linux (<code>\\korin\Korin</code>). <b>Réglages › Partage de fichiers</b> le
+          démarre, liste les dossiers partagés, en lecture seule ou non, et le compte que Windows demande.</p>
+          <p><span class="st qemu">QEMU</span> utilisé depuis l'Explorateur de Windows 11</p></div>
+        <div class="card"><div class="k">Nuage</div><h3>Google Drive</h3><p>Dans Fichiers, <b>Volume › Se connecter à
+          Google Drive…</b> : on se connecte une fois à Google dans Jet, et le Drive est monté dans <code>/net</code>.
+          Les fichiers se lisent en flux avec lecture anticipée, sont renvoyés à Drive à la fermeture, et ce qu'on
+          efface va dans la corbeille de Drive. Les Google Docs, Sheets et Slides sont cachés pour l'instant.</p>
+          <p><span class="st hw">matériel</span> ZBook, avec le vrai Google Drive</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
       <h2>Les apps</h2>
       <p class="intro">La plupart des apps sont écrites pour Korin sur UIKit et suivent le thème du bureau. D'autres
         sont des ports, comme WebKit, Godot ou MuPDF. Quelques apps n'existent que sur une sorte de machine : c'est
@@ -112,7 +137,7 @@
           <li><b>Mail</b>, <b>IRC</b>, <b>Telegram</b></li>
           <li><b>Courier</b> : client HTTP pour essayer des API</li>
           <li><b>WebStudio</b> : éditeur de sites avec aperçu en direct (PC)</li>
-          <li>Serveur web, partage de fichiers SMB, connexion Google (OAuth)</li>
+          <li>Serveur web (<code>webd</code>), connexion Google (OAuth)</li>
         </ul></div>
         <div class="card"><h3>Bureautique</h3><ul>
           <li><b>Letters</b> : traitement de texte, RTF, DOCX, ODT</li>
