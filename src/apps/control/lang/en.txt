@@ -222,8 +222,9 @@ Enregistré. = Saved.
 # Theme
 Thème = Theme
 Thème du bureau = Desktop Theme
-Certaines applications ouvertes ne le = Some open applications will only take it
-prendront qu'à leur relance. = when they restart.
+Certaines applications = Some open applications
+ouvertes ne le prendront = will only take it
+qu'à leur relance. = when they restart.
 Aperçu = Preview
 Thème appliqué. = Theme applied.
 Couleur d'accent = Accent Color

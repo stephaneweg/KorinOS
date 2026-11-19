@@ -765,7 +765,12 @@ static int run (int argc, char **argv)
 	for (;;)
 	{
 		long t = ui_event (50);
-		if (t == WEV_CLOSE) break;
+		if (t == WEV_CLOSE)
+		{					// unsaved: the question (No: the changes are dropped, no recovery copy either)
+			if (!confirm ()) { focus_view (); continue; }
+			g_saved = g_doc.changes;
+			break;
+		}
 		if (t == WEV_MENU) { command (ui_ev_field (&ui, EV_CODE)); ui_view_dirty (g_status); }
 		else if (t == WEV_DROP) dropped ();
 		else if (t > 0)
@@ -787,7 +792,7 @@ static int run (int argc, char **argv)
 		ui_view_flush ();
 	}
 
-	// Closed with unsaved changes: the document kept for the next start.
+	// Still unsaved here (closing asks first, so this is a safety net): the document kept for the next start.
 	if (g_doc.cur != SY_BODY) doc_story (g_doc, SY_BODY);
 	if (changed_doc () && !(g_doc.n == 1 && g_doc.p[0]->len == 0))
 	{

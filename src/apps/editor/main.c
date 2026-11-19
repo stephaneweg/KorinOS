@@ -333,11 +333,33 @@ static void do_assemble (void)
 	msg = TR ("PiBuild ouvert");
 }
 
+/* avant de fermer : modifié, la question (Oui : enregistrer au chemin du champ, Non : perdre, Annuler : rester)
+ * -> 1 si on peut fermer */
+static int may_close (void)
+{
+	if (!modified)
+		return 1;
+	long r = ui_message ((long) TR ("\xC3\x89" "diteur"), (long) TR ("Enregistrer les modifications avant de fermer ?"), UM_YESNOCANCEL);
+	if (r == 2)				/* Non */
+		return 1;
+	if (r != 1)				/* Annuler, Échap */
+		return 0;
+	field_to_path ();
+	do_save ();
+	if (modified)				/* (l'échec : son message, la fenêtre reste) */
+		status ();
+	return !modified;
+}
+
 /* w = commande (menu ou raccourci) */
 static void on_command (int c)
 {
 	if (c == ID_CLOSE)
-		exit (0);
+	{
+		if (may_close ())
+			exit (0);
+		return;
+	}
 	msg = 0;				/* efface le message d'etat */
 	switch (c)
 	{
@@ -512,7 +534,11 @@ int main (int argc, char **argv)
 		if (t == 0)
 			continue;
 		if (t == WEV_CLOSE)
-			break;
+		{
+			if (may_close ())
+				break;
+			continue;
+		}
 		if (t == WEV_MENU)
 		{
 			on_command (ui_ev_field (&ui, EV_CODE));

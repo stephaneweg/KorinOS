@@ -114,6 +114,41 @@ static std::string urlenc (const std::string &s)
 	return o;
 }
 
+// les noms de l'API arrivent parfois avec des entités HTML (« Bessonn&amp;sa ») : &amp; &lt; &gt; &quot; &apos; &#N; &#xN;
+static void utf8_put (std::string &o, unsigned c)
+{
+	if (c < 0x80) o += (char) c;
+	else if (c < 0x800) { o += (char) (0xC0 | c >> 6); o += (char) (0x80 | (c & 63)); }
+	else if (c < 0x10000) { o += (char) (0xE0 | c >> 12); o += (char) (0x80 | (c >> 6 & 63)); o += (char) (0x80 | (c & 63)); }
+	else { o += (char) (0xF0 | c >> 18); o += (char) (0x80 | (c >> 12 & 63)); o += (char) (0x80 | (c >> 6 & 63)); o += (char) (0x80 | (c & 63)); }
+}
+
+static std::string unhtml (const char *s)
+{
+	static const struct { const char *n; char c; } NAMED[] = {
+		{ "amp", '&' }, { "lt", '<' }, { "gt", '>' }, { "quot", '"' }, { "apos", '\'' },
+	};
+	std::string o;
+	for (; *s; s++)
+	{
+		const char *e = *s == '&' ? strchr (s, ';') : 0;
+		if (!e || e - s > 10) { o += *s; continue; }
+		std::string n (s + 1, (size_t) (e - s - 1));
+		bool done = false;
+		if (n.size () > 1 && n[0] == '#')
+		{
+			unsigned long c = n[1] == 'x' || n[1] == 'X' ? strtoul (n.c_str () + 2, 0, 16) : strtoul (n.c_str () + 1, 0, 10);
+			if (c > 0 && c < 0x110000) { utf8_put (o, (unsigned) c); done = true; }
+		}
+		else
+			for (const auto &k : NAMED)
+				if (n == k.n) { o += k.c; done = true; break; }
+		if (done) s = e;
+		else o += *s;
+	}
+	return o;
+}
+
 // ---- les deux travaux en fond : une liste, un titre ---------------------------------------------------------------------
 
 struct Job
@@ -163,9 +198,9 @@ static void *job_main (void *a)
 				Track k;
 				const json::Value &v = *t;
 				k.id = v["id"].asStr ();
-				k.name = v["name"].asStr ();
-				k.artist = v["artist_name"].asStr ();
-				k.album = v["album_name"].asStr ();
+				k.name = unhtml (v["name"].asStr ());
+				k.artist = unhtml (v["artist_name"].asStr ());
+				k.album = unhtml (v["album_name"].asStr ());
 				k.audio = v["audio"].asStr ();
 				k.download = v["audiodownload"].asStr ();
 				k.canDownload = v["audiodownload_allowed"].asBool () && !k.download.empty ();
@@ -239,6 +274,8 @@ static void list_fill ()
 		snprintf (row, sizeof row, "%s\t%s\t%s\t%s", t.name.c_str (), t.artist.c_str (), t.album.c_str (), dur);
 		ui_list_add (g_list_w, (long) row, (long) i);
 	}
+	ui_w_draw (g_list_w);			// (la liste arrive du fil : sans cela elle reste blanche jusqu'au survol)
+	ui_update_all ();
 }
 
 // la liste de la source choisie (append : la suite, pour la radio)
