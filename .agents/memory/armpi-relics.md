@@ -61,3 +61,6 @@ booléens seulement (PEM, correspond à onyx.pub).
 - **1.1.1 (main c809b3c)** : `GF_DOUBLE` de gamefb.h (deux images dans la surface, ui_surface_source) contre les
   lignes qui se retracent au défilement (déchirure : Elegant lisait pendant l'écriture). Seul Relics l'active ; à
   confirmer sur la vraie machine (QEMU ne montre pas la déchirure).
+- Déchirure restante après 1.1.1 (vue par l'utilisateur sur le PC) : la copie d'Elegant vers le framebuffer GOP, sans
+  synchro (present_x86_64.c). Proposé : attendre le balayage (registre de ligne de l'Intel, opération de lecture dans
+  intelgpu) avant flush_rect. **L'utilisateur a dit non (19/11)** : ne pas le faire sans qu'il le redemande.
