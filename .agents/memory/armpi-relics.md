@@ -1,6 +1,6 @@
 ---
 name: armpi-relics
-description: "Relics (PC 1.1.0 publié), jeu de plates-formes et d'exploration à la Rick Dangerous (19/11/2026) : C sur gamefb, 7 mondes, 21 niveaux générés, musique par monde, sprites et tuiles des paquets achetés par l'utilisateur, banc d'essai sur l'hôte"
+description: "Relics (PC 1.1.1 publié), jeu de plates-formes et d'exploration à la Rick Dangerous (19/11/2026) : C sur gamefb, 7 mondes, 21 niveaux générés, musique par monde, sprites et tuiles des paquets achetés par l'utilisateur, banc d'essai sur l'hôte"
 metadata:
   node_type: memory
   type: project
@@ -58,3 +58,6 @@ booléens seulement (PEM, correspond à onyx.pub).
   (scratchpad pub_relics2.py : section remplacée, 1.0.0 retirée, index re-signé, checkrepo) ; main avait bougé
   (terracube) pendant la publication : refaite sur le nouvel index. Essayée avant dans Korin PC (QEMU) : titre, partie,
   pause, pas de plantage du thread de musique. Le Pi n'est toujours pas publié.
+- **1.1.1 (main c809b3c)** : `GF_DOUBLE` de gamefb.h (deux images dans la surface, ui_surface_source) contre les
+  lignes qui se retracent au défilement (déchirure : Elegant lisait pendant l'écriture). Seul Relics l'active ; à
+  confirmer sur la vraie machine (QEMU ne montre pas la déchirure).
