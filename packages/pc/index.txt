@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-19 15:51
+date = 2026-11-19 16:33
 abi = 626
 packages = 114
 board = pc
@@ -81,6 +81,21 @@ required = 0
 restart = 0
 content = 6323dec095198f6fcdfe6ccaefdf3869d1ebb7d001f4a2a8e871aed0e0d56207
 arch = any
+
+[terracube]
+title = TerraCube
+version = 1.1.0
+category = Jeux
+author = Korin OS
+summary = Bac à sable de blocs en 3D par le GPU, modes créatif et survie, fabrication sur une grille, météo, console, pilotable par Python, BASIC ou un agent IA (MCP)
+size = 655816
+installed = 1483573
+sha256 = 920feecfd09e7b2e704ce730b72b1d62cc59bd134baf21cc23f3ad7e75e0fd7b
+file = pkgs/terracube-1.1.0.opk
+needs = abi >= 626
+required = 0
+restart = 0
+content = 4257b693fb1e09bc17fdb094d25d3bd302e14206e125e808a08457047aab994d
 
 [pkgman]
 title = Logiciels
@@ -649,18 +664,18 @@ content = e6369709297bf0a54e239033bae2c28313f0aa6195924cc6626808b82350f612
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.58
+version = 2026.11.59
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 32060823
-installed = 96474262
-sha256 = a4d5974ecb1474362f776c32b5fa3342700c813870b73a830faf76ff9828315e
-file = pkgs/pc-2026.11.58.opk
+size = 32061041
+installed = 96474678
+sha256 = 93a4ed6b0138de5f95a37cb6321ff751e57a65dd3daf57f8d12ac3d078a6c91b
+file = pkgs/pc-2026.11.59.opk
 needs = 
 required = 1
 restart = 1
-content = f644dad2260c4ea68bc9377a18803241f9e3bb2ff3044022889bd12fc320a25a
+content = 36366cf028478f69f6c86bc2f64fc78feea1b4a23667f5f7bfa4b5cf322c176a
 
 [2048]
 title = 2048
@@ -934,18 +949,18 @@ content = 792079d68767402d32b6552f4362830db0203ba1d457e4f365b9fd448337a48c
 
 [forge]
 title = Forge
-version = 1.3.4
+version = 1.3.5
 category = Création
 author = Korin OS
 summary = La CAO de Korin : solides exacts d'OpenCASCADE, formes au geste, pousser/tirer, congés sur toute arête, historique modifiable, pilotable par un agent (MCP)
-size = 12824154
-installed = 31722183
-sha256 = 468b490700e5a30d803e993777ae60b21dc2c36b32fb998950b1254c1f0e06cc
-file = pkgs/forge-1.3.4.opk
+size = 12874660
+installed = 31824805
+sha256 = 130aaa3a2e6405bae68df88ec244e1809022e062c1ca40f936cc72f7783752af
+file = pkgs/forge-1.3.5.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = fcedae3b44a603cce847aa2f32785e606fac9c84696259f1016b0aa120019188
+content = 68b337ca2e504816ccb28bff5dfbdfe75fd7551c217c520f4dc88fcc1e5ea9bd
 
 [freecell]
 title = FreeCell
@@ -1579,18 +1594,18 @@ content = bcc565a5cb90bc0a6168ccb2abf71fd8086c6e49a0b226a39dbe0bd687842b5f
 
 [spotify]
 title = Spotify
-version = 1.0.2
+version = 1.0.3
 category = Multimédia
 author = Korin OS
 summary = Spotify (compte Premium) : titres aimés, playlists, recherche, joués par librespot
-size = 4172993
-installed = 9913526
-sha256 = e7ee671304f0a1ec1d2765a7e1ac52440c5367470dbe2a112ddc17d29d13ec17
-file = pkgs/spotify-1.0.2.opk
+size = 4176026
+installed = 9921750
+sha256 = fc96fc61f42cdb25b1afcb3e632fe507e458ef1793c7851ce2b3bd7cb3a419d3
+file = pkgs/spotify-1.0.3.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 0c42a33290ab78f22c324bf4e796fd856a14c26ee5ff5bf6fe01e233db48886e
+content = 8326b86b4080b334cfae6bbe85e83118bd1262bc035eab5a3556193e0b964b1b
 
 [studio]
 title = Studio
@@ -1711,18 +1726,3 @@ needs = abi >= 626
 required = 0
 restart = 0
 content = 65b7348a488c5b8ec86aed20cb76355a92b2db56c7e8ac616ec39b32268ad863
-
-[terracube]
-title = TerraCube
-version = 1.1.0
-category = Jeux
-author = Korin OS
-summary = Bac à sable de blocs en 3D par le GPU, modes créatif et survie, fabrication sur une grille, météo, console, pilotable par Python, BASIC ou un agent IA (MCP)
-size = 655816
-installed = 1483573
-sha256 = 920feecfd09e7b2e704ce730b72b1d62cc59bd134baf21cc23f3ad7e75e0fd7b
-file = pkgs/terracube-1.1.0.opk
-needs = abi >= 626
-required = 0
-restart = 0
-content = 4257b693fb1e09bc17fdb094d25d3bd302e14206e125e808a08457047aab994d
