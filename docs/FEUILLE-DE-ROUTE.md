@@ -830,3 +830,8 @@ But : les fondations pour faire tourner Claude Code (puis Node.js) et les progra
 - [x] **Toute la RAM** : fait le 29/10/2026 (memmap.asm, pmm.asm, zones basse et haute, voir plus haut).
 - [ ] Application **Journal** (le journal du noyau en direct).
 - [ ] Idée seulement : personnalités (serveur exec) — par exemple des binaires Linux.
+
+- [ ] **Bureautique, trois apps de plus** (demandé le 19/11, docs/BUREAUTIQUE.md « À venir ») : **diagrammes** comme
+      Visio (formes, connecteurs, gabarits, vsdx) ; **base de données** comme Access sur **SQLite** (concepteurs de
+      tables, de requêtes avec jointures, de formulaires ; vues, états) ; **carnet de notes** comme OneNote (pages
+      libres : texte, images collées, fichiers joints, URL ouvertes dans Jet).
