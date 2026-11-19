@@ -34,3 +34,12 @@ tuiles : tileset « forest » de l'utilisateur pour la jungle, les autres mondes
 pavés bruns, sable lisse, figuiers de Barbarie, panneaux). Les paquets restent hors du dépôt : seuls les `.spr` et
 `.til` (data/sprites, data/tiles) y sont. L'utilisateur peut acheter d'autres tilesets : ils remplaceront les dessins
 de `mktiles.py` monde par monde.
+
+**Publié pour le PC le 19/11** (main e8e0700, demande de l'utilisateur) : relics 1.0.0 dans packages/pc (115 paquets),
+publication partielle (scratchpad pub_relics.py : mkrepo.plan sur build/pc/sysroot, write_opk, section ajoutée,
+index re-signé, checkrepo ; versions.ini [pc] relics = 1.0.0). Le code de Relics n'est pas encore dans main (branche
+claude/gifted-maxwell-bhyryb). Le Pi n'est pas publié. Essayé avant dans Korin PC (QEMU q35, NVMe d'essai, sysroot
+minimal : tools/pc/build.sh, sysroot.sh, sysroot_apps.sh, mkkorindisk) : lanceur, titre, partie, tir, dynamite.
+Pièges vus là : lire les fichiers d'un bloc (chaque read est un aller-retour IPC) ; retenir les frappes brèves.
+Dans cet environnement du cloud, la clé de signature est la variable **ONYX_PKG_KEY** (pas OnyxPkgKey) ; vérifiée par
+booléens seulement (PEM, correspond à onyx.pub).
