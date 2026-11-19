@@ -80,6 +80,9 @@ void dk_init(void)
 #define WEX_NOHANG 1
 #define WR_NONE 0
 #endif
+#ifndef WR_EXITED
+#define WR_EXITED 1 /* (sortie : le code de sortie, < 0 : -signal) */
+#endif
 static long login_pid;          /* > 0 : /sys/login tourne */
 static int voronoy_early;       /* le fond à facettes lancé avant login (pas relancé par la session) */
 static long voronoy_pid;        /* (son pid : arrêté si la session ne le veut pas, session.off) */
@@ -123,6 +126,11 @@ void session_poll(void)
 		return;
 	login_pid = 0;
 	login_done = 1;
+	/* login arrêté par SIGTERM ou SIGKILL (sortie -15, -9) : l'extinction ou le redémarrage en cours (init2
+	   prévient tous les programmes, Éteindre de l'écran de connexion compris) ; pas de session. Tombé
+	   autrement : le compte par défaut, comme avant. */
+	if (r == WR_EXITED && (out == -15 || out == -9))
+		return;
 	session_default();
 	session_run_file(sess_file, sess_def);
 }
