@@ -155,5 +155,6 @@ WS_OP_DRAG_IMAGE	= 39		; a id, b x | y << 16 | largeur << 32 | hauteur << 48 (co
 ; la couche « dessus » (WF_TOP, sur tous les espaces) ou en revient. Avec WS_OP_WIN_PLACE (sa place) et
 ; WS_OP_RESIZE (sa taille), une app fait d'elle-meme une carte en bas a droite de l'ecran, au-dessus des autres.
 WS_OP_WIN_TOP		= 40		; a id, b 1 dessus / 0 comme les autres -> 0 ; E_INVAL : fenetre du fond
+WS_OP_SESSION_END	= 41		; (init2 seul, uid 0) la session est fermee : l'ecran de connexion revient -> 0, E_PERM
 WS_DRAG_IMG_W		= 256		; (Elegant coupe le rectangle a cette taille)
 WS_DRAG_IMG_H		= 160

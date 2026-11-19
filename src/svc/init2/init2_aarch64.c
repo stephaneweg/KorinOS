@@ -39,3 +39,10 @@ int plat_text_console(void)
 void plat_shell_lost(void)
 {
 }
+
+/* fermer la session : pas d'écran de connexion sur le Pi */
+long plat_logout(long uid)
+{
+	(void)uid;
+	return E_NOSYS;
+}

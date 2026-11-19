@@ -562,6 +562,46 @@ static int same_line(const char *a, const char *b)
 	return na == nb && !memcmp(a, b, na);
 }
 
+/* INIT_OP_LOGOUT : fermer la session (le dialogue d'extinction, docs/DESIGN-CONNEXION.md §3.4) ; l'appelant est du
+ * compte de la session, ou d'uid 0. La réponse d'abord (l'appelant est de ceux qu'on arrête), puis ses process
+ * (plat_logout), /tmp/session.ini effacé, /tmp/login.manual posé (l'écran de connexion se montre, même avec la
+ * connexion automatique), startup.txt réarmé, et Elegant prévenu (WS_OP_SESSION_END) : il relance /sys/login */
+#define WS_OP_SESSION_END 41 /* (src/inc/ws_ext.inc) */
+static int startup_attendu;
+
+static void logout_request(long req)
+{
+	long uid = user_session_uid();
+	long who = korin_sys1(SYS_PROC_UID, (long)M32(msg, 44));
+	long r = uid <= 0 ? E_NOENT : who != 0 && who != uid ? E_PERM : 0;
+	say("init2 : fermeture de la session demandée par le pid ");
+	say_dec((long)M32(msg, 44));
+	say(" -> ");
+	say_dec(r);
+	say("\n");
+	M64(msg, 0) = (u64)r;
+	M32(msg, 40) = 0;
+	korin_sys2(SYS_SVC_REPLY, req, msg);
+	if (r)
+		return;
+	if (plat_logout(uid) < 0)
+		return;
+	sys_unlink("/tmp/session.ini");
+	long fd = sys_open("/tmp/login.manual", O_WRITE | O_CREATE | O_TRUNC);
+	if (fd >= 0)
+		sys_close(fd);
+	startup_attendu = 1;
+	long ws = korin_sys2(SYS_SVC_OPEN, "ws", 2000);
+	if (ws < 0) {
+		say("init2 : Elegant ne répond pas : pas d'écran de connexion\n");
+		return;
+	}
+	memset(msg, 0, 64);
+	M64(msg, 0) = WS_OP_SESSION_END;
+	M32(msg, 40) = 0;
+	korin_sys2(SYS_SVC_CALL, ws, msg);
+}
+
 /* INIT_OP_SVC_STOP, INIT_OP_SVC_START (le volet Démarrage de Réglages) : données = la ligne de services.txt ;
  * l'appelant doit être en uid 0 (Réglages élevé ; le Pi, sans comptes : E_NOSYS, permis) ;
  * « init2 : svc_stop par 12 control : /sys/svc/telnetd -> 0 » */
@@ -624,6 +664,9 @@ static void requete(long req)
 	else if (op == INIT_OP_REBOOT) {
 		sauver_heure();
 		reboot_request(req); /* (ne revient pas si tout va bien ; la réponse est déjà partie) */
+		return;
+	} else if (op == INIT_OP_LOGOUT) {
+		logout_request(req); /* (la réponse est déjà partie) */
 		return;
 	} else if (op == INIT_OP_LAUNCH)
 		r = launch_request();
@@ -716,8 +759,6 @@ static void precharger(void)
 /* startup.txt (personnel, sinon /etc ; sans : rien, Bienvenue n'est plus lancé d'office, 16/11), sous le
  * compte de la session, une fois qu'elle est ouverte : /tmp/session.ini écrit par l'écran de connexion
  * (/sys/login, lancé par Elegant ; docs/DESIGN-CONNEXION.md) ; sans /sys/login (le Pi) : tout de suite */
-static int startup_attendu;
-
 static void startup_si_ouverte(void)
 {
 	long st[2];

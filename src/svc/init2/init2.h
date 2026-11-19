@@ -25,4 +25,8 @@ int plat_text_console(void);
  * Pi, rien (comme l'asm) ; PC, la console texte en secours */
 void plat_shell_lost(void);
 
+/* fermer la session (INIT_OP_LOGOUT, après la réponse) : les process de l'uid uid (> 0) prévenus (SIGTERM),
+ * puis arrêtés de force au bout de 3 s -> 0 ; Pi : E_NOSYS (pas d'écran de connexion) */
+long plat_logout(long uid);
+
 #endif

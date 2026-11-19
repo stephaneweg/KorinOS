@@ -142,7 +142,10 @@ void session_start(const char *file, const char *defaults)
 	if (!login_done && !login_pid && sys_stat("/sys/login", st) >= 0) {
 		sess_file = file;
 		sess_def = defaults;
-		if (sys_stat("/sys/voronoy", st) >= 0) /* le fond à facettes sous la carte (DESIGN-CONNEXION §4) */
+		u64 pe[8]; /* le fond à facettes sous la carte (DESIGN-CONNEXION §4), s'il ne tourne pas déjà (une
+			      session fermée : il est d'uid 0, il est resté) */
+		int fond = voronoy_pid > 0 && korin_sys2(SYS_PROC_INFO, voronoy_pid, (long)pe) == 0 && pe[7] != 3;
+		if (!fond && sys_stat("/sys/voronoy", st) >= 0)
 			voronoy_early = (voronoy_pid = ksys(SYS_SPAWN, (long)"/sys/voronoy", 0, 0, 0, 0, 0)) > 0;
 		login_pid = ksys(SYS_SPAWN, (long)"/sys/login", 0, 0, 0, 0, 0);
 		if (login_pid > 0)
@@ -154,8 +157,24 @@ void session_start(const char *file, const char *defaults)
 		sess_def = defaults;
 		return;
 	}
+	sess_file = file;
+	sess_def = defaults;
 	login_done = 1;
 	session_run_file(file, defaults);
+}
+
+/* WS_OP_SESSION_END (init2 seul : INIT_OP_LOGOUT, la session fermée, ses process arrêtés) : l'écran de
+ * connexion revient (/tmp/login.manual : sans la connexion automatique) -> 0, E_PERM, E_INVAL (pas de login) */
+long req_session_end(void)
+{
+	long st[2];
+	if (korin_sys1(SYS_PROC_UID, (long)M32(msg, WM_PID)) != 0)
+		return E_PERM;
+	if (!sess_file || login_pid > 0 || sys_stat("/sys/login", st) < 0)
+		return E_INVAL;
+	login_done = 0;
+	session_start(sess_file, sess_def);
+	return 0;
 }
 
 /* les programmes à ne pas lancer (volet Démarrage de Réglages, docs/DEMARRAGE.md) : les désactivés

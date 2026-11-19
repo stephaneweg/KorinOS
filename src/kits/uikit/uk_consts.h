@@ -276,6 +276,7 @@
 #define WS_OP_SCREEN_MODES 32
 #define WS_OP_WIN_PLACE 33
 #define WS_OP_WIN_TOP 40
+#define WS_OP_SESSION_END 41
 #define WSM_W 0
 #define WSM_H 2
 #define WSM_FLAGS 4

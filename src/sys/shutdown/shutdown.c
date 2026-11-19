@@ -17,7 +17,7 @@
 
 static struct krt_ui ui;
 static long scr[4];
-static long w_note, w_restart, w_off, w_cancel;
+static long w_note, w_restart, w_off, w_cancel, w_logout;
 static u8 wlist[WL_PER_MSG * WL_SIZE];
 static u64 msg[MSG_SIZE / 8];
 
@@ -28,6 +28,9 @@ static const char s_note[] = "Les documents ouverts ne sont pas enregistr\xC3\xA
 static const char s_restart[] = "Red\xC3\xA9marrer";
 static const char s_off[] = "\xC3\x89teindre";
 static const char s_cancel[] = "Annuler";
+static const char s_logout[] = "Fermer la session";
+static const char s_logging_out[] = "Fermeture de la session...";
+static const char s_logout_failed[] = "La session n'a pas pu \xC3\xAAtre ferm\xC3\xA9" "e (init2).";
 static const char s_restarting[] = "Red\xC3\xA9marrage...";
 static const char s_shutting[] = "Extinction...";
 #ifdef __x86_64__
@@ -66,6 +69,24 @@ static void finish(long flags, const char *text)
 			sys_sleep(5000); /* (la machine s'arrête pendant ce temps) */
 	}
 	ui_w_set_text(w_note, (long)lang_tr(s_failed));
+	draw();
+}
+
+/* Fermer la session (INIT_OP_LOGOUT d'init2) : ses programmes s'arrêtent, celui-ci compris, puis l'écran de
+ * connexion revient ; ne revient que si init2 a refusé */
+static void logout(void)
+{
+	ui_w_set_text(w_note, (long)lang_tr(s_logging_out));
+	draw();
+	long ch = korin_sys2(SYS_SVC_OPEN, "init2", 1000);
+	if (ch >= 0) {
+		msg[0] = INIT_OP_LOGOUT;
+		msg[1] = 0;
+		*(u32 *)((u8 *)msg + MSG_LEN) = 0;
+		if (korin_sys2(SYS_SVC_CALL, ch, msg) >= 0 && msg[0] == 0)
+			sys_sleep(5000); /* (init2 arrête la session, ce programme compris) */
+	}
+	ui_w_set_text(w_note, (long)lang_tr(s_logout_failed));
 	draw();
 }
 
@@ -121,6 +142,10 @@ int main(int argc, char **argv)
 	w_restart = ui_pushbutton(W - 3 * BTN_PAS, H - 44, BTN_W, BTN_H, (long)lang_tr(s_restart), 0);
 	w_off = ui_pushbutton(W - 2 * BTN_PAS, H - 44, BTN_W, BTN_H, (long)lang_tr(s_off), UB_DEFAULT);
 	w_cancel = ui_pushbutton(W - 1 * BTN_PAS, H - 44, BTN_W, BTN_H, (long)lang_tr(s_cancel), 0);
+	long st[2]; /* (un écran de connexion, une session ouverte par lui : le PC avec des comptes) */
+	w_logout = 0;
+	if (korin_sys0(SYS_GETUID) > 0 && sys_stat("/sys/login", st) >= 0 && sys_stat("/tmp/session.ini", st) >= 0)
+		w_logout = ui_pushbutton(12, H - 44, W - 3 * BTN_PAS - 24, BTN_H, (long)lang_tr(s_logout), 0);
 	draw();
 	for (;;) {
 		long ev = ui_event(1000);
@@ -134,7 +159,9 @@ int main(int argc, char **argv)
 		if (r.r1 == UN_ACTIVATE) {
 			if (r.r0 == w_cancel)
 				return 0;
-			if (r.r0 == w_restart)
+			if (w_logout && r.r0 == w_logout)
+				logout();
+			else if (r.r0 == w_restart)
 				finish(0, s_restarting);
 			else if (r.r0 == w_off)
 				finish(INIT_REBOOT_HALT, s_shutting);

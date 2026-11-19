@@ -106,6 +106,7 @@ void dk_tick(void);
 /* fichier de la session, programmes sans lui (chaînes à la suite, puis une vide) */
 void session_start(const char *file, const char *defaults);
 void session_poll(void); /* desktop.c : la fin de /sys/login, à chaque tour */
+long req_session_end(void); /* desktop.c : WS_OP_SESSION_END (init2, la session fermée) : l'écran de connexion */
 void session_run(char *line);
 
 /* ---- shell.c (shell.inc, et src/svc/inc/buspub.inc) */

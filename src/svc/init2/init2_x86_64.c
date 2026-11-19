@@ -86,6 +86,52 @@ static long each_proc(long sig, const char *name)
 	return left;
 }
 
+/* les process de l'uid uid : sig > 0, ce signal ; sig < 0, SYS_KILL ; -> combien en restent */
+static long each_uid(long uid, long sig)
+{
+	long me = korin_sys0(SYS_GETPID), left = 0, from = 0;
+	for (;;) {
+		long n = korin_sys3(SYS_PROCLIST_FROM, procs, PROCS, from);
+		if (n <= 0)
+			break;
+		for (long k = 0; k < n; k++) {
+			u8 *e = procs + k * 64;
+			long pid = (long)M32(e, 0);
+			from = (long)(M64(e, 0) & 0xFFFF);
+			if (pid <= 0 || pid == me || M64(e, 56) == 3 || korin_sys1(SYS_PROC_UID, pid) != uid)
+				continue; /* (pas les fins de vie : elles attendent leur père) */
+			left++;
+			if (sig > 0)
+				korin_sys3(SYS_SIG_SEND, pid, 0, sig);
+			else if (sig < 0)
+				korin_sys1(SYS_KILL, pid);
+		}
+		if (n < PROCS)
+			break;
+		from++;
+	}
+	return left;
+}
+
+long plat_logout(long uid)
+{
+	if (uid <= 0)
+		return E_INVAL;
+	long n = each_uid(uid, SIG_TERM);
+	say("init2 : fermeture de la session : ");
+	say_dec(n);
+	say(" process prévenus (SIGTERM)\n");
+	for (long t = 0; t < TERM_MS && each_uid(uid, 0); t += 100)
+		sys_sleep(100);
+	n = each_uid(uid, -1);
+	if (n) {
+		say("init2 : fermeture de la session : ");
+		say_dec(n);
+		say(" process arrêtés de force\n");
+	}
+	return 0;
+}
+
 /* attend (ms au plus) que plus aucun process ne réponde à each_proc(0, name) -> 1 si c'est fait */
 static int wait_gone(const char *name, long ms)
 {

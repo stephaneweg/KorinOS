@@ -204,6 +204,7 @@ static int ouvrir(const struct acc *a)
 		sys_write(fd, line, (u64)(o - line));
 		sys_close(fd);
 	}
+	sys_unlink("/tmp/login.manual"); /* (la prochaine fois, la connexion automatique de nouveau) */
 	return 0;
 }
 
@@ -444,12 +445,18 @@ int main(int argc, char **argv)
 	auth_call(AUTH_FORGET, "", 0);
 	if (!nacc)
 		return 0; /* (pas de compte : la session par défaut, comme avant le multi-utilisateur) */
+	/* une session fermée (init2, INIT_OP_LOGOUT) : l'écran se montre, sans la connexion automatique
+	   (DESIGN-CONNEXION §3.4) */
+	long st[2];
+	int manuel = sys_stat("/tmp/login.manual", st) >= 0;
 	for (int i = 0; i < nacc; i++) {
-		if (autologin[0] && str_eq(accs[i].name, autologin))
+		if (!manuel && autologin[0] && str_eq(accs[i].name, autologin))
 			return ouvrir(&accs[i]); /* connexion automatique */
 		accs[i].haspw = auth_call(AUTH_HASPW, accs[i].name, 0) == 1;
+		if (manuel && autologin[0] && str_eq(accs[i].name, autologin))
+			sel = i; /* (le compte de la connexion automatique, choisi) */
 	}
-	if (nacc == 1 && !accs[0].haspw)
+	if (nacc == 1 && !accs[0].haspw && !manuel)
 		return ouvrir(&accs[0]);
 	ui_init((long)&ui);
 	ui_screen((long)scr);

@@ -1291,6 +1291,7 @@ void req_handle(long n)
 	case WS_OP_SCREEN_MODES: r = req_screen_modes(); break;
 	case WS_OP_WIN_PLACE: r = req_win_place(); break;
 	case WS_OP_WIN_TOP: r = req_win_top(); break;
+	case WS_OP_SESSION_END: r = req_session_end(); break; /* (desktop.c) */
 	case WS_OP_DESK: r = req_desk(); break;
 	case WS_OP_WIN_DRAG: r = req_win_drag(); break;
 	case WS_OP_MINIMIZE: r = req_minimize(); break;
