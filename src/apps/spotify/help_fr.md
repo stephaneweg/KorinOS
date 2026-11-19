@@ -5,11 +5,15 @@ le client libre du protocole de Spotify. Il faut un compte **Premium** (un compt
 
 ## Se connecter (une fois)
 
-1. **Fichier > Se connecter à Spotify…**
-2. Jet s'ouvre sur la page de Spotify : connectez-vous et acceptez. La connexion se termine d'elle-même dans l'app.
+Deux connexions, comme ncspot : le **lecteur** se présente avec l'identifiant du client de bureau de Spotify (le seul
+qu'il accepte), et les **listes et la recherche** avec celui de votre app (Spotify limite très vite le client de
+bureau, partagé par tous : « 429 »).
 
-Pas d'app à créer sur developer.spotify.com : comme librespot, Korin se présente avec l'identifiant du client de
-bureau de Spotify, le seul que le lecteur accepte.
+1. Sur [developer.spotify.com](https://developer.spotify.com/dashboard), **Create app** ; dans **Redirect URIs**,
+   ajoutez exactement `http://127.0.0.1:8898/` (avec la barre finale) ; cochez **Web API** ; enregistrez ; copiez le
+   **Client ID**.
+2. **Fichier > Se connecter à Spotify…** : Jet s'ouvre, acceptez (le lecteur).
+3. L'app demande ensuite le Client ID de votre app : collez-le, puis acceptez de nouveau dans Jet (les listes).
 
 Korin garde la connexion (le service oauthd, dans le coffre à secrets) : les fois suivantes, rien à refaire.
 **Fichier > Se déconnecter** l'oublie.

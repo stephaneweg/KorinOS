@@ -25,7 +25,11 @@ using media::i64;
 using media::now_ms;
 
 #define TR(s)		((const char *) ui_tr ((long) (s)))
-#define ACCOUNT		"spotify/korin"		// (« spotify/moi » : l'ancien compte, au client_id de l'utilisateur, que le lecteur refuse)
+// deux connexions, comme ncspot : le lecteur (librespot) n'accepte que le jeton du client de bureau de Spotify, mais
+// l'API web limite très vite ce client partagé par tous (429) ; les listes et la recherche passent donc par l'app de
+// l'utilisateur (son Client ID, developer.spotify.com, retour http://127.0.0.1:8898/)
+#define PLAYER_ACCOUNT	"spotify/korin"
+#define API_ACCOUNT	"spotify/moi"
 #define CLIENT_ID	"65b708073fc0480ea92a077233ca87bd"	// le client de bureau de Spotify (celui de librespot)
 #define PORT		8898
 #define SCOPES		"streaming user-read-email user-read-private playlist-read-private playlist-read-collaborative user-library-read"
@@ -205,13 +209,14 @@ static std::string g_query, g_pendingUrl;
 static std::string g_openId, g_openName;		// l'album (3) ou la playlist (4) ouvert depuis la recherche
 static int g_pendingKind;
 static bool g_authWait;					// une connexion par le navigateur est en cours
+static const char *g_authAcc = PLAYER_ACCOUNT;		// (son compte)
 
 static void status (const char *s) { ui_w_set_text (g_status, (long) s); }
 
-static bool fresh_token ()
+static bool fresh_token (const char *acc = API_ACCOUNT)
 {
 	static char t[4096];
-	long n = oauth_token ((long) ACCOUNT, (long) t, sizeof t - 1);
+	long n = oauth_token ((long) acc, (long) t, sizeof t - 1);
 	if (n <= 0) return false;
 	t[n] = 0;
 	g_token = t;
@@ -319,23 +324,44 @@ static void toggle_play ()
 
 static void login_player ()
 {
-	if (g_loginBusy || !fresh_token ()) return;
+	if (g_loginBusy || !fresh_token (PLAYER_ACCOUNT)) return;
 	g_loginToken = g_token;
 	g_loginDone = 0;
 	g_loginBusy = pthread_create (&g_loginTh, 0, login_main, 0) == 0;
 	status (TR ("Connexion au lecteur de Spotify…"));
 }
 
-// la première fois : le client_id, puis l'accord dans le navigateur
+static void connected ();
+
+// les deux connexions, l'une après l'autre (chaque accord dans Jet relance celle qui manque) : d'abord le lecteur
+// (le client de bureau de Spotify, comme librespot : le point d'accès refuse, INVALID_CREDENTIALS, le jeton d'un autre
+// client_id), puis les listes (le Client ID de l'app de l'utilisateur)
 static void connect_account ()
 {
-	// le client de bureau de Spotify, comme librespot, ncspot et spotify_player : le point d'accès du lecteur refuse
-	// (INVALID_CREDENTIALS) un jeton fait pour un autre client_id, celui d'une app de developer.spotify.com
-	std::string cfg = std::string ("provider = custom\nclient_id = " CLIENT_ID
-		"\nauth_url = https://accounts.spotify.com/authorize\ntoken_url = https://accounts.spotify.com/api/token\nredirect_path = /login\nscope = " SCOPES "\n");
-	if (oauth_setup ((long) ACCOUNT, (long) cfg.c_str ()) != 0) { status (TR ("oauthd refuse le compte.")); return; }
+	std::string cfg;
+	if (oauth_status ((long) PLAYER_ACCOUNT) < 1)
+	{
+		g_authAcc = PLAYER_ACCOUNT;
+		cfg = "provider = custom\nclient_id = " CLIENT_ID
+			"\nauth_url = https://accounts.spotify.com/authorize\ntoken_url = https://accounts.spotify.com/api/token\nredirect_path = /login\nscope = " SCOPES "\n";
+	}
+	else if (oauth_status ((long) API_ACCOUNT) < 1)
+	{
+		char cid[128] = "";
+		if (!ui_ask ((long) TR ("Se connecter à Spotify"),
+			     (long) TR ("Pour les listes et la recherche : le Client ID de votre app Spotify (developer.spotify.com ; adresse de retour : http://127.0.0.1:8898/) :"),
+			     (long) cid, sizeof cid))
+			return;
+		media::tidy (cid);
+		if (!cid[0]) return;
+		g_authAcc = API_ACCOUNT;
+		cfg = std::string ("provider = custom\nclient_id = ") + cid +
+			"\nauth_url = https://accounts.spotify.com/authorize\ntoken_url = https://accounts.spotify.com/api/token\nscope = " SCOPES "\n";
+	}
+	else { connected (); return; }
+	if (oauth_setup ((long) g_authAcc, (long) cfg.c_str ()) != 0) { status (TR ("oauthd refuse le compte.")); return; }
 	static char url[2048];
-	long n = oauth_browser_begin ((long) ACCOUNT, PORT, (long) url, sizeof url - 1);
+	long n = oauth_browser_begin ((long) g_authAcc, PORT, (long) url, sizeof url - 1);
 	if (n <= 0) { status (TR ("oauthd ne peut pas ouvrir la connexion (port 8898 pris ?).")); return; }
 	url[n] = 0;
 	char *argv[] = { (char *) "/apps/jet.app/main", url, 0 };
@@ -517,7 +543,8 @@ static void command (long id)
 	case M_CONNECT: connect_account (); break;
 	case M_FORGET:
 		ks_stop ();
-		oauth_forget ((long) ACCOUNT);
+		oauth_forget ((long) PLAYER_ACCOUNT);
+		oauth_forget ((long) API_ACCOUNT);
 		g_loggedIn = false;
 		g_tracks.clear ();
 		g_playlists.clear ();
@@ -546,8 +573,8 @@ static void poll_all ()
 		if (now_ms () - last > 1000)
 		{
 			last = now_ms ();
-			long r = oauth_browser_poll ((long) ACCOUNT);
-			if (r == 0) { g_authWait = false; status (TR ("Connecté.")); connected (); }
+			long r = oauth_browser_poll ((long) g_authAcc);
+			if (r == 0) { g_authWait = false; status (TR ("Connecté.")); connect_account (); }	// (la suivante, ou connected)
 			else if (r != E_AGAIN) { g_authWait = false; status (TR ("La connexion a échoué.")); }
 		}
 	}
@@ -643,7 +670,7 @@ int main (int, char **)
 	side_fill ();
 	on_resize (ui.w, ui.h);
 	pthread_create (&g_audioTh, 0, audio_main, 0);
-	if (oauth_status ((long) ACCOUNT) >= 1) connected ();
+	if (oauth_status ((long) PLAYER_ACCOUNT) >= 1 && oauth_status ((long) API_ACCOUNT) >= 1) connected ();
 	else status (TR ("Fichier, Se connecter à Spotify… (il faut un compte Premium)"));
 
 	i64 lastPaint = 0;
