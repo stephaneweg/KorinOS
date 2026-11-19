@@ -132,3 +132,4 @@
 - [Widevine dans Jet](armpi-widevine.md) — au plan le 18/11, après la couche Linux : Netflix, Disney+, Spotify web ; docs/etude/WIDEVINE.md, rien de fait
 - [Suivi du plan](armpi-suivi-plan.md) — artefact « Plan Korin OS » (18/11), base items à tenir à jour par ArtifactData quand un chantier bouge
 - [ImageKit](armpi-imagekit.md) — au plan le 18/11 : traducteurs d'images, document à calques canonique, UIKit s'appuie dessus ; docs/etude/IMAGEKIT.md
+- [TerraCube](armpi-terracube.md) — 19/11 : bac à sable de blocs sur GlKit (PC), scripts Python/BASIC port 4730, MCP 7312 ; QEMU seulement
