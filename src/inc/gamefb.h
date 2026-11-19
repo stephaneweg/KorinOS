@@ -59,6 +59,11 @@ static long gf_hrow_y[2];
 static int gf_smooth;
 #endif
 static uint32_t gf_frame[GF_W * GF_H] __attribute__ ((aligned (16)));
+/* GF_DOUBLE : deux images dans le tampon de la surface ; on ecrit dans celle qu'Elegant ne lit pas, puis on la lui
+ * montre (ui_surface_source) : sans cela, il compose parfois pendant que l'image s'ecrit, et l'on voit les lignes
+ * se retracer (la moitie du haut deja a l'image suivante) au defilement (docs/DESIGN-ELEGANT.md 17, « Dechirure ») */
+static int gf_dbl;				/* 1 : deux images (sinon une : trop grande, ou pas de GF_DOUBLE) */
+static int gf_back;				/* l'image ou l'on ecrit, 0 ou 1 */
 
 static inline void gp_draw (void);			/* (gamepause.h) */
 
@@ -105,19 +110,40 @@ static inline void gf_layout (void)
 	gf_dw[1] = dh;
 	gf_dw[2] = (W - dw) >> 1;
 	gf_dw[3] = (H - dh) >> 1;
+#ifdef GF_DOUBLE
+	/* une surface de deux images de haut, ramenee a une : le tampon reste (ui_surface_move le garde s'il suffit) */
+	if (gf_sf)
+		ui_surface_free (gf_sf);
+	gf_sf = 0;
+	gf_dbl = 0;
+	gf_back = 0;
+	if (2 * H <= 4096 && (gf_sf = ui_surface (0, 0, (long) W, (long) (2 * H), WS_SF_XRGB8888)) != 0)
+	{
+		if (ui_surface_move (gf_sf, 0, 0, (long) W, (long) H))
+			gf_dbl = 1;
+		else
+		{
+			ui_surface_free (gf_sf);
+			gf_sf = 0;
+		}
+	}
+	if (!gf_sf)
+		gf_sf = ui_surface (0, 0, (long) W, (long) H, WS_SF_XRGB8888);
+#else
 	if (gf_sf)
 		ui_surface_move (gf_sf, 0, 0, (long) W, (long) H);
 	else
 		gf_sf = ui_surface (0, 0, (long) W, (long) H, WS_SF_XRGB8888);
+#endif
 	long pitch, w, h;
 	uint32_t *p = gf_surface_pixels (gf_sf, &pitch, &w, &h);
 	if (p)						/* les bandes : en noir, ou en degrade */
 	{
-		for (long y = 0; y < h; y++)		/* GF_BAND_TOP -> GF_BAND_BOT si le jeu les definit */
+		for (long y = 0; y < h * (gf_dbl + 1); y++)	/* GF_BAND_TOP -> GF_BAND_BOT si le jeu les definit (les deux images) */
 		{
 			uint32_t *row = (uint32_t *) ((char *) p + y * pitch);
 #ifdef GF_BAND_TOP
-			uint32_t k = (uint32_t) (((unsigned long) y << 8) / (unsigned long) h), ik = 256 - k;
+			uint32_t k = (uint32_t) (((unsigned long) (y % h) << 8) / (unsigned long) h), ik = 256 - k;
 			uint32_t t = GF_BAND_TOP, b = GF_BAND_BOT;
 			uint32_t c = ((((t & 0xFF00FF) * ik + (b & 0xFF00FF) * k) >> 8) & 0xFF00FF)
 				| ((((t & 0xFF00) * ik + (b & 0xFF00) * k) >> 8) & 0xFF00);
@@ -183,6 +209,8 @@ static inline void gf_present (const uint32_t *src)
 	uint32_t *p = gf_surface_pixels (gf_sf, &pitch, &w, &h);
 	if (!p)
 		return;
+	if (gf_dbl)					/* (l'image qu'Elegant ne lit pas) */
+		p = (uint32_t *) ((char *) p + (long) gf_back * pitch * h);
 	unsigned long dw = gf_dw[0], dh = gf_dw[1];
 	char *d = (char *) p + gf_dw[3] * pitch + gf_dw[2] * 4;
 	if (dw == GF_W && dh == GF_H)
@@ -252,6 +280,16 @@ static inline void gf_present (const uint32_t *src)
 				for (unsigned long x = 0; x < dw; x++)
 					o[x] = s[gf_xmap[x]];
 			}
+		}
+	}
+	if (gf_dbl)					/* elle est finie : Elegant la prend, l'autre sera ecrite */
+	{
+		if (ui_surface_source (gf_sf, -1, pitch, (long) gf_back * pitch * h))
+			gf_back ^= 1;
+		else
+		{					/* (refusee : une seule image, comme sans GF_DOUBLE) */
+			gf_dbl = 0;
+			ui_surface_source (gf_sf, -1, 0, 0);
 		}
 	}
 	ui_surface_damage (gf_sf, (long) gf_dw[2], (long) gf_dw[3], (long) dw, (long) dh);

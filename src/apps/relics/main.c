@@ -24,6 +24,7 @@
 #define GF_BAND_TOP	0x00141210
 #define GF_BAND_BOT	0x00060504
 #define GF_SMOOTH			/* (gamefb.h : une echelle non entiere lissee ; les tuiles ne scintillent plus au defilement) */
+#define GF_DOUBLE			/* (gamefb.h : deux images, l'une s'ecrit pendant qu'Elegant montre l'autre : sans dechirure) */
 #include "../../inc/gamepause.h"
 #include <math.h>
 #include <stdio.h>
