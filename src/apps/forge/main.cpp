@@ -135,6 +135,8 @@ struct Cmd {
 	Mesh ghost;
 	std::string err;
 	double maxR = 0;		// (congé refusé) le plus grand rayon qui passe
+	double corner[3] = { 0, 0, 0 };	// (boîte) le premier coin cliqué ; le coin opposé est de son côté sx, sy
+	int sx = 1, sy = 1;
 	int pick = 0;			// (combiner) le clic dans la vue choisit : 0 rien, 1 la cible, 2 les outils
 	int pickBody = -1;		// (combiner) la cible et les outils d'avant le bouton (Échap y revient)
 	std::vector<int> pickTools;
@@ -439,7 +441,7 @@ void panelUpdate ()
 	if (g_cmd.tool != T_NONE) {
 		static const char *const HINT[13][3] = {
 			{ "", "", "" },
-			{ "Clic : le centre de la base, sur une face ou sur le sol", "On s'éloigne pour la largeur et la profondeur ; clic", "On monte pour la hauteur ; clic ou Entrée" },
+			{ "Clic : un coin de la base, sur une face ou sur le sol", "Clic : le coin opposé (la diagonale)", "On monte pour la hauteur ; clic ou Entrée" },
 			{ "Clic : le centre de la base, sur une face ou sur le sol", "On s'éloigne pour le rayon ; clic", "On monte pour la hauteur ; clic ou Entrée" },
 			{ "Clic : la face plane à pousser ou à tirer", "Glisser pour la distance ; clic ou Entrée", "" },
 			{ "Clic : les arêtes (Maj : plusieurs) ; Entrée", "Tapez le rayon ; Entrée", "" },
@@ -660,7 +662,14 @@ void cmdApplyChips ()
 	Feature &f = g_cmd.f;
 	auto v = [&] (int i) { return i < (int) g_cmd.chips.size () ? g_cmd.chips[i].val : 0.0; };
 	switch (g_cmd.tool) {
-	case T_BOX: f.a = v (0), f.b = v (1), f.c = g_cmd.stage >= 2 ? v (2) : 1; break;
+	case T_BOX: {	// (le centre de la base : entre le premier coin et le coin opposé, aussi pour une taille tapée)
+		f.a = v (0), f.b = v (1), f.c = g_cmd.stage >= 2 ? v (2) : 1;
+		if (g_cmd.stage < 1) break;
+		const double *n = f.frame.n, *xa = f.frame.x;
+		double ya[3] = { n[1] * xa[2] - n[2] * xa[1], n[2] * xa[0] - n[0] * xa[2], n[0] * xa[1] - n[1] * xa[0] };
+		for (int k = 0; k < 3; k++) f.frame.o[k] = g_cmd.corner[k] + g_cmd.sx * f.a / 2 * xa[k] + g_cmd.sy * f.b / 2 * ya[k];
+		break;
+	}
 	case T_CYL: f.a = v (0) / 2, f.c = g_cmd.stage >= 2 ? v (1) : 1; break;
 	case T_PUSH: f.a = v (0); break;
 	case T_FILLET: case T_CHAMFER: f.a = v (0); break;
@@ -947,14 +956,16 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 	if (kind == 0) {		// déplacement : le geste en cours
 		if ((t == T_BOX || t == T_CYL) && g_cmd.stage == 1) {
 			double p[3];
-			if (!g_view.onPlane (x, y, f.frame.o, f.frame.n, p)) return true;
-			double d[3] = { p[0] - f.frame.o[0], p[1] - f.frame.o[1], p[2] - f.frame.o[2] };
+			const double *c0 = t == T_BOX ? g_cmd.corner : f.frame.o;	// (boîte : depuis le premier coin ; cylindre : depuis le centre)
+			if (!g_view.onPlane (x, y, c0, f.frame.n, p)) return true;
+			double d[3] = { p[0] - c0[0], p[1] - c0[1], p[2] - c0[2] };
 			const double *n = f.frame.n, *xa = f.frame.x;
 			double ya[3] = { n[1] * xa[2] - n[2] * xa[1], n[2] * xa[0] - n[0] * xa[2], n[0] * xa[1] - n[1] * xa[0] };
 			double lx = d[0] * xa[0] + d[1] * xa[1] + d[2] * xa[2], ly = d[0] * ya[0] + d[1] * ya[1] + d[2] * ya[2];
-			if (t == T_BOX) {
-				if (!g_cmd.chips[0].locked) g_cmd.chips[0].val = std::max (g_snap, snapv (2 * std::fabs (lx)));
-				if (!g_cmd.chips[1].locked) g_cmd.chips[1].val = std::max (g_snap, snapv (2 * std::fabs (ly)));
+			if (t == T_BOX) {	// (coin à coin : le coin opposé sous le pointeur)
+				g_cmd.sx = lx < 0 ? -1 : 1, g_cmd.sy = ly < 0 ? -1 : 1;
+				if (!g_cmd.chips[0].locked) g_cmd.chips[0].val = std::max (g_snap, snapv (std::fabs (lx)));
+				if (!g_cmd.chips[1].locked) g_cmd.chips[1].val = std::max (g_snap, snapv (std::fabs (ly)));
 			} else if (!g_cmd.chips[0].locked)
 				g_cmd.chips[0].val = std::max (g_snap, snapv (2 * sqrt (lx * lx + ly * ly)));
 			g_cmdDirty = true;
@@ -963,7 +974,12 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 		if ((t == T_BOX || t == T_CYL) && g_cmd.stage == 2) {
 			Chip &h = g_cmd.chips.back ();
 			if (!h.locked) {
-				double v = alongNormal (f.frame.o, f.frame.n, x, y);
+				// boîte : le long de l'arête verticale du coin opposé (le coin suit le pointeur) ; cylindre : de l'axe
+				double far[3];
+				const double *n = f.frame.n, *xa = f.frame.x;
+				double ya[3] = { n[1] * xa[2] - n[2] * xa[1], n[2] * xa[0] - n[0] * xa[2], n[0] * xa[1] - n[1] * xa[0] };
+				for (int k = 0; k < 3; k++) far[k] = t == T_BOX ? f.frame.o[k] + g_cmd.sx * f.a / 2 * xa[k] + g_cmd.sy * f.b / 2 * ya[k] : f.frame.o[k];
+				double v = alongNormal (far, f.frame.n, x, y);
 				h.val = v == 0 ? (h.val < 0 ? -1 : 1) : v;
 			}
 			g_cmdDirty = true;
@@ -993,6 +1009,7 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 	if (t == T_BOX || t == T_CYL) {
 		if (g_cmd.stage == 0) {
 			if (!basePoint (x, y, f.frame, g_cmd.target)) return true;
+			for (int k = 0; k < 3; k++) g_cmd.corner[k] = f.frame.o[k];
 			g_cmd.stage = 1;
 			Chip a, b;
 			a.label = t == T_BOX ? "Largeur" : "Diamètre";
@@ -2459,7 +2476,7 @@ void buildWindow ()
 	TB_H = h + 24;
 	w_bar = ui_toolbar (408, (TB_H - h) / 2, imax (100, (int) ui.w - 408 - 96 - 128), 0);	// (à sa place ; ui_w_move de la barre emmène ses boutons)
 	static const char *const TOOLS[TB_N] = { "Esquisse", "Boîte", "Cylindre", "Pousser", "|Congé", "Chanfrein", "|Combiner", "|Mesurer" };
-	static const char *const TIPS[TB_N] = { "Esquisse (S) sur la face choisie ou le plan XY : lignes, rectangles, cercles, arcs, contraintes (PlaneGCS) ; E l'extrude", "Boîte (B) : clic au centre, on s'éloigne, clic, on monte, clic",
+	static const char *const TIPS[TB_N] = { "Esquisse (S) sur la face choisie ou le plan XY : lignes, rectangles, cercles, arcs, contraintes (PlaneGCS) ; E l'extrude", "Boîte (B) : clic à un coin, clic au coin opposé, on monte, clic",
 		"Cylindre : clic au centre, on s'éloigne pour le rayon, clic, on monte, clic", "Pousser/tirer (Q) une face plane", "Congé (F) sur les arêtes choisies",
 		"Chanfrein (Maj+F) sur les arêtes choisies", "Combiner : une cible et des outils, en union, soustraction ou intersection", "Mesurer : à une étape suivante" };
 	for (int i = 0; i < TB_N; i++) {
@@ -2784,6 +2801,7 @@ void moveTo (const double p[3])
 	double sx, sy;
 	g_view.toScreen (p, sx, sy);
 	viewMouse (0, (int) sx, (int) sy, 0, false);
+	if (g_cmdDirty) g_cmdDirty = false, cmdRefresh ();	// (comme la boucle quand plus rien n'attend)
 }
 void type (const char *s)
 {
@@ -2800,7 +2818,7 @@ int selftest (double buildMs)
 	check ("historique de l'exemple rejoué (8 étapes)", in.solidOk && b.mesh.nfaces == 24 && std::fabs (totalVolume () - 63.99) < 0.01, s);
 	snprintf (s, sizeof s, "%d × %d px en %.0f ms", VW, VH, g_view.lastMs);
 	check ("rendu de la vue", g_view.lastMs > 0, s);
-	// une boîte au geste, posée sur la plaque : clic au centre, on s'éloigne (20 × 10), clic, on monte (5), clic
+	// une boîte au geste, posée sur la plaque : clic à un coin, clic au coin opposé (20 × 10), on monte (5), clic
 	g_view.standard (6);
 	g_view.fit (g_doc);
 	cameraChanged ();
@@ -2812,17 +2830,17 @@ int selftest (double buildMs)
 	moveTo (q1);
 	snprintf (s, sizeof s, "base (%s, %s, %s), %s × %s", fmtNum (g_cmd.f.frame.o[0]).c_str (), fmtNum (g_cmd.f.frame.o[1]).c_str (), fmtNum (g_cmd.f.frame.o[2]).c_str (),
 		  fmtNum (g_cmd.chips[0].val).c_str (), g_cmd.chips.size () > 1 ? fmtNum (g_cmd.chips[1].val).c_str () : "?");
-	check ("accrochage 5 mm : base (45, 10, 8), 25 × 15", g_cmd.f.frame.o[0] == 45 && g_cmd.f.frame.o[1] == 10 && g_cmd.f.frame.o[2] == 8
-	       && g_cmd.chips.size () > 1 && g_cmd.chips[0].val == 25 && g_cmd.chips[1].val == 15, s);
+	check ("accrochage 5 mm : coin (45, 10, 8), 10 × 5, centre (50, 12,5)", g_cmd.corner[0] == 45 && g_cmd.corner[1] == 10 && g_cmd.corner[2] == 8
+	       && g_cmd.chips.size () > 1 && g_cmd.chips[0].val == 10 && g_cmd.chips[1].val == 5 && g_cmd.f.frame.o[0] == 50 && g_cmd.f.frame.o[1] == 12.5, s);
 	cmdKey (0x29, 0);
 	g_snap = 1;	// (la suite : les valeurs au mm)
 	double v0 = totalVolume ();
 	cmdStart (T_BOX);
-	double c[3] = { 45, 12, 8 }, e[3] = { 55, 17, 8 };
+	double c[3] = { 35, 7, 8 }, e[3] = { 55, 17, 8 };	// (coin à coin : 20 × 10, centrée en (45, 12))
 	clickAt (c);
 	moveTo (e);
 	clickAt (e);
-	double up[3] = { 45, 12, 14 };	// (6 mm au-dessus du centre de la base)
+	double up[3] = { 55, 17, 14 };	// (6 mm au-dessus du coin opposé : le coin suit le pointeur)
 	moveTo (up);
 	double hg = g_cmd.chips.empty () ? 0 : g_cmd.chips.back ().val;
 	snprintf (s, sizeof s, "hauteur %s mm", fmtNum (hg).c_str ());
@@ -3035,6 +3053,34 @@ int selftest (double buildMs)
 	cmdKey (0x28, 0);
 	snprintf (s, sizeof s, "%s : %s ; %s -> %s", g_doc.feats.back ().name.c_str (), featureDetail (g_doc.feats.back ()).c_str (), cm3 (vAll).c_str (), cm3 (totalVolume ()).c_str ());
 	check ("symétrie du corps (nouveau corps)", g_doc.feats.back ().kind == ST_MIRROR && std::fabs (totalVolume () - vAll - bodyVolume (g_doc.bodies[bx]) / 1000) < 0.001, s);
+	// combiner : une barre de 10 × 4 × 40 à travers le bord de la boîte, soustraite en gardant l'outil (-400 mm³)
+	{
+		Feature f;
+		f.kind = ST_BOX, f.name = featureName (g_doc, ST_BOX), f.op = OP_NEW;
+		f.frame.o[0] = 200, f.frame.o[1] = 8, f.a = 10, f.b = 4, f.c = 40;
+		pushUndo ();
+		insertFeature (g_doc, g_doc.bar, f);
+		rebuild ();
+		refreshAll ();
+	}
+	int tbody = (int) g_doc.bodies.size () - 1;
+	double vT = bodyVolume (g_doc.bodies[bx]);
+	select (Pick { bx, -1, -1 });
+	cmdStart (T_COMBINE);
+	bool pickTools = g_cmd.pick == 2 && g_cmd.f.body == bx;
+	g_cmd.f.tools = { tbody };
+	g_cmd.f.op = OP_CUT, g_cmd.f.keep = true;
+	cmdKey (0x28, 0);
+	double cutV = vT - bodyVolume (g_doc.bodies[bx]);
+	snprintf (s, sizeof s, "%s : %s ; -%s mm³ (attendu 400), outil %s", g_doc.feats.back ().name.c_str (), featureDetail (g_doc.feats.back ()).c_str (), fmtNum (cutV).c_str (),
+		  g_doc.bodies[tbody].shape.IsNull () ? "consommé" : "gardé");
+	check ("combiner : soustraction, outil conservé", pickTools && g_doc.feats.back ().kind == ST_COMBINE && std::fabs (cutV - 400) < 0.5 && !g_doc.bodies[tbody].shape.IsNull (), s);
+	undo (false);
+	cmdStart (T_COMBINE);	// Échap pendant le choix des outils : le choix annulé, la commande reste
+	g_cmd.f.body = bx, g_cmd.pick = 2, g_cmd.pickBody = bx, g_cmd.pickTools.clear (), g_cmd.f.tools = { tbody };
+	cmdKey (0x29, 0);
+	check ("combiner : Échap annule le choix, pas la commande", g_cmd.tool == T_COMBINE && g_cmd.pick == 0 && g_cmd.f.tools.empty (), "");
+	cmdKey (0x29, 0);
 	select (Pick ());
 	g_snap = 5;	// (le réglage d'origine)
 	printf ("forge : %s\n", fails ? "FAIL" : "PASS");

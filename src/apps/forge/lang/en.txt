@@ -368,3 +368,7 @@ union = union
  conservés = \ kept
 aucun corps outil = no tool body
 la cible est aussi un outil = the target is also a tool
+# Boîte coin à coin
+Clic : un coin de la base, sur une face ou sur le sol = Click: a corner of the base, on a face or on the ground
+Clic : le coin opposé (la diagonale) = Click: the opposite corner (the diagonal)
+Boîte (B) : clic à un coin, clic au coin opposé, on monte, clic = Box (B): click a corner, click the opposite corner, move up, click
