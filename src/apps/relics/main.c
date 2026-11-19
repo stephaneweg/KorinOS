@@ -1925,7 +1925,7 @@ static void draw_hero (void)
 		const struct sset *ss = g_chero;
 		const gf_sprite_t *f;
 		if (H->dead) f = spr_frame (ss, SG_DIE, g_timer / 6, d);
-		else if (H->climb) f = spr_frame (ss, SG_CLIMB, (int) H->walk & 1, d);
+		else if (H->climb) f = spr_frame (ss, SG_CLIMB, (int) (H->walk * 1.6f) % ss->n[SG_CLIMB], d);
 		else if (H->crouch) f = spr_frame (ss, SG_CROUCH, 0, d);
 		else if (!H->ground) f = spr_frame (ss, H->vy < 0 ? SG_JUMP : SG_FALL, 0, d);
 		else if (H->shoot) f = spr_frame (ss, SG_SHOOT, (12 - H->shoot) * ss->n[SG_SHOOT] / 12, d);

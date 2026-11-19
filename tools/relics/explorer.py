@@ -153,6 +153,111 @@ def add_pistol(hand):
     return out
 
 
+def back_climb(n=4):
+    """l'explorateur de dos sur l'echelle (le paquet n'a que des profils) : dessine ici dans le style des morceaux
+    (trait noir epais, aplats, une ombre), sur la toile de Scml.render (1100 x 1100, les pieds en 530, 822). n images :
+    la main gauche monte avec le pied droit, puis l'inverse."""
+    khaki, khaki_d, khaki_l = (169, 147, 105), (128, 110, 78), (196, 176, 134)
+    trou, trou_d, boot, boot_d = (141, 108, 85), (109, 87, 74), (84, 58, 40), (60, 42, 30)
+    belt, strap = (97, 79, 66), (110, 70, 38)
+    skin, skin_d = (239, 208, 172), (206, 170, 136)
+    buzz, hair, hair_l = (117, 105, 95), (70, 66, 62), (96, 91, 86)
+    brown, dark, light, band = (139, 90, 43), (104, 64, 28), (178, 124, 66), (52, 32, 20)
+    T = 12
+    out = []
+    for f in range(n):
+        ph = 2 * math.pi * f / n
+        up = math.cos(ph)              # 1 : la main gauche en haut, -1 : la droite
+        bob = -26 - 6 * abs(math.sin(ph))   # (sur l'echelle, le corps plus haut que debout : les jambes se voient ; il monte entre deux prises)
+
+        def draw(d, k, up=up, bob=bob):
+            def P(pts):
+                return [(x * k, (y + bob) * k) for x, y in pts]
+
+            def shape(pts, fill, w=T):
+                d.polygon(P(pts), fill=INK)
+                for i in range(len(pts)):
+                    d.line(P([pts[i], pts[(i + 1) % len(pts)]]), fill=INK, width=int(2 * w * k))
+                    a = pts[i]
+                    d.ellipse([(a[0] - w) * k, (a[1] + bob - w) * k, (a[0] + w) * k, (a[1] + bob + w) * k], fill=INK)
+                d.polygon(P(pts), fill=fill)
+
+            def ell(b, fill, w=T):
+                x0, y0, x1, y1 = b
+                d.ellipse([(x0 - w) * k, (y0 + bob - w) * k, (x1 + w) * k, (y1 + bob + w) * k], fill=INK)
+                d.ellipse([x0 * k, (y0 + bob) * k, x1 * k, (y1 + bob) * k], fill=fill)
+
+            def limb(a, b, wid, fill):
+                d.line(P([a, b]), fill=INK, width=int((wid + 2 * T) * k))
+                for q in (a, b):
+                    r = wid / 2 + T
+                    d.ellipse([(q[0] - r) * k, (q[1] + bob - r) * k, (q[0] + r) * k, (q[1] + bob + r) * k], fill=INK)
+                d.line(P([a, b]), fill=fill, width=int(wid * k))
+                for q in (a, b):
+                    r = wid / 2
+                    d.ellipse([(q[0] - r) * k, (q[1] + bob - r) * k, (q[0] + r) * k, (q[1] + bob + r) * k], fill=fill)
+
+            # les jambes : la droite plie quand la main gauche monte (le pied monte d'un barreau)
+            for side, x in ((-1, 496), (1, 564)):
+                lift = (max(0.0, up) if side > 0 else max(0.0, -up)) * 30
+                top, foot = 770, 822 - lift - bob
+                shape([(x - 30, top), (x + 30, top), (x + 27, foot - 30), (x - 27, foot - 30)], trou_d if side > 0 else trou)
+                shape([(x - 33, foot - 40), (x + 33, foot - 40), (x + 35, foot - 6), (x + 27, foot), (x - 27, foot), (x - 35, foot - 6)], boot)
+                d.polygon(P([(x - 29, foot - 18), (x + 29, foot - 18), (x + 29, foot - 8), (x - 29, foot - 8)]), fill=boot_d)
+            # les bras, derriere la tete (l'echelle est devant lui) : de l'epaule a la main
+            hands = []
+            for side, sx in ((-1, 452), (1, 608)):
+                hy = 536 - 62 * (up if side < 0 else -up)
+                hx = 530 + side * 172
+                limb((sx, 676), (hx, hy + 40), 58, khaki if side < 0 else khaki_d)
+                hands.append((hx, hy))
+            # le buste, de dos : la chemise, la sangle de la sacoche, la ceinture
+            body = [(438, 656), (622, 656), (632, 700), (622, 790), (438, 790), (428, 700)]
+            shape(body, khaki)
+            d.polygon(P([(560, 660), (622, 660), (630, 700), (620, 786), (580, 786)]), fill=khaki_d)
+            d.polygon(P([(446, 664), (470, 664), (462, 740), (440, 740)]), fill=khaki_l)
+            d.line(P([(530, 680), (530, 750)]), fill=INK, width=int(5 * k))
+            shape([(452, 660), (484, 660), (612, 760), (590, 776)], strap, 7)
+            shape([(432, 752), (628, 752), (630, 786), (430, 786)], belt, 8)
+            shape([(574, 744), (618, 744), (614, 800), (578, 800)], strap, 8)
+            # la tete, de dos : les oreilles, la nuque rasee, les cheveux courts au-dessus
+            for x0 in (330, 690):
+                ell((x0, 500, x0 + 40, 586), skin)
+                d.ellipse([(x0 + 12) * k, (516 + bob) * k, (x0 + 28) * k, (570 + bob) * k], fill=skin_d)
+            ell((352, 384, 708, 650), skin_d)
+            # (les cheveux : tout le crane, la ligne de la nuque en U ; la nuque rasee entre les deux)
+            d.ellipse([360 * k, (392 + bob) * k, 700 * k, (636 + bob) * k], fill=buzz)
+            d.ellipse([356 * k, (388 + bob) * k, 704 * k, (612 + bob) * k], fill=hair)
+            d.arc([392 * k, (420 + bob) * k, 560 * k, (560 + bob) * k], 190, 250, fill=hair_l, width=int(14 * k))
+            for x, y in ((450, 470), (520, 450), (600, 470), (480, 540), (580, 545)):
+                d.line(P([(x, y), (x + 10, y + 34)]), fill=hair_l, width=int(6 * k))
+            # les mains, sur les montants
+            for hx, hy in hands:
+                ell((hx - 34, hy - 30, hx + 34, hy + 34), skin)
+                for j in range(3):
+                    d.line(P([(hx - 22, hy - 12 + j * 14), (hx + 22, hy - 12 + j * 14)]), fill=skin_d, width=int(5 * k))
+            # le chapeau, de dos : le bord, la calotte creusee au milieu, le ruban
+            cx, w = 530, 300
+            top = 262
+            crown = [(cx - w * 0.42, top + w * 0.42), (cx - w * 0.36, top + w * 0.02), (cx - w * 0.16, top - w * 0.08),
+                     (cx, top + w * 0.02), (cx + w * 0.16, top - w * 0.08), (cx + w * 0.36, top + w * 0.02),
+                     (cx + w * 0.42, top + w * 0.42)]
+            ell((290, 360, 770, 432), dark)
+            d.ellipse([306 * k, (360 + bob) * k, 754 * k, (418 + bob) * k], fill=brown)
+            shape(crown, brown)
+            d.polygon(P([(cx + w * 0.06, top + w * 0.42), (cx + w * 0.16, top - w * 0.04), (cx + w * 0.34, top + w * 0.04),
+                         (cx + w * 0.40, top + w * 0.42)]), fill=dark)
+            d.polygon(P([(cx - w * 0.33, top + w * 0.20), (cx - w * 0.32, top + w * 0.05), (cx - w * 0.16, top - w * 0.03),
+                         (cx - w * 0.17, top + w * 0.14)]), fill=light)
+            by0, by1 = top + w * 0.27, top + w * 0.40
+            d.polygon(P([(cx - w * 0.41, by0), (cx + w * 0.41, by0), (cx + w * 0.42, by1), (cx - w * 0.42, by1)]), fill=band)
+            d.line(P([(cx - w * 0.41, by0), (cx + w * 0.41, by0)]), fill=INK, width=int(4 * k))
+            d.line(P([(cx, top + w * 0.02), (cx, top + w * 0.22)]), fill=INK, width=int(5 * k))
+            d.arc([290 * k, (360 + bob) * k, 770 * k, (432 + bob) * k], 20, 160, fill=INK, width=int(6 * k))
+        out.append(supersample(draw, (1100, 1100), 2))
+    return out
+
+
 def main():
     root, out = sys.argv[1], sys.argv[2]
     rig_dir, rig = parts(root, "Medieval Sergeant")
@@ -183,9 +288,8 @@ def main():
         "stand": frames("Idle", 4),
         "jump": [s.render("Jump Loop", 0)],
         "fall": [s.render("Falling Down", 0)],
-        # l'echelle : les bras en haut, une jambe pliee, en alternance (des poses faites ici sur les os du paquet)
-        "climb": [s.render("Idle", 0, poses={"bone_000": 110, "bone_002": 70, "bone_004": 20, "bone_005": -20}),
-                  s.render("Idle", 0, poses={"bone_000": 80, "bone_002": 100, "bone_004": -20, "bone_005": 20})],
+        # l'echelle : de dos, dessine ici (back_climb)
+        "climb": back_climb(4),
         # accroupi (pour poser la dynamite) : le buste descend, les jambes plient
         "crouch": [s.render("Idle", 0, poses={"bone_006": (0, 0, -40), "bone_004": (35, 0, 0), "bone_005": (-35, 0, 0)})],
     }
