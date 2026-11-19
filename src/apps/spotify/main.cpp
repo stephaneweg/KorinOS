@@ -564,6 +564,7 @@ int main (int, char **)
 {
 	if (!uikit_open (&ui)) return 1;
 	if (!netkit_kit_open ()) return 1;
+	if (!audiokit_kit_open ()) return 1;	// (ak_open du fil audio : sans le kit, un appel à 0)
 	s_tk = (const unsigned *) ui_tokens ();
 	long sw = 980, sh = 640, scr[4] = { 0, 0, 0, 0 };
 	if (ui_screen ((long) scr) >= 0 && scr[0] > 0)
