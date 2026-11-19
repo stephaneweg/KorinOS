@@ -770,6 +770,41 @@ void Renderer::drawHud (const Frame &f, const HudState &hud)
 		b.solid (cx - 24, cy, cx + 24, cy + 5, 0x000000, 160);
 		b.solid (cx - 23, cy + 1, cx - 23 + 46 * hud.mining, cy + 4, hud.accent, 255);
 	}
+	if (hud.craft) {	// le panneau de la fabrication à la place de la barre
+		b.v.clear ();
+		const CraftDraw &d = *hud.craft;
+		b.solid (0, 0, W, H, 0x000000, 110);
+		b.solid ((float) d.x - 2, (float) d.y - 2, (float) (d.x + d.w + 2), (float) (d.y + d.h + 2), hud.line, 255);
+		b.solid ((float) d.x, (float) d.y, (float) (d.x + d.w), (float) (d.y + d.h), hud.panel, 245);
+		std::vector<Num> cn;
+		for (auto &c : d.cells) {
+			if (d.book) break;
+			float x = (float) c.x, y = (float) c.y, s = (float) c.size;
+			if (c.result || c.selected) b.solid (x - 2, y - 2, x + s + 2, y + s + 2, hud.accent, 255);
+			b.solid (x, y, x + s, y + s, c.hover ? hud.hoverCol : hud.sunken, 255);
+			b.solid (x, y, x + s, y + 1, hud.line, 255);	// (un liseré en haut et à gauche : la case est creusée)
+			b.solid (x, y, x + 1, y + s, hud.line, 255);
+			if (c.item > 0) blockIcon (b, c.item, x + s * 0.5f, y + s * 0.5f, s * 0.72f);
+			if (c.item > 0 && c.count > 1) cn.push_back ({ c.count, x + s - 3, y + s - 16 });
+			if (c.item > 0 && c.wear >= 0) {
+				float k = 1.0f - c.wear;
+				b.solid (x + 5, y + s - 6, x + s - 5, y + s - 3, 0x000000, 200);
+				b.solid (x + 5, y + s - 6, x + 5 + (s - 10) * k, y + s - 4, k > 0.5f ? hud.good : k > 0.2f ? hud.warn : hud.bad, 255);
+			}
+		}
+		for (auto &a : d.arrows) {
+			if (d.book) break;
+			float x = (float) a.x, y = (float) a.y, l = (float) a.len;
+			b.solid (x, y - 2, x + l - 6, y + 2, hud.text, 255);
+			for (int k = 0; k < 7; k++) b.solid (x + l - 8 + k, y - 7 + k, x + l - 7 + k, y + 7 - k, hud.text, 255);	// (la pointe)
+		}
+		for (auto &n : cn) number (b, n.n, n.x, n.y, 15);
+		if (d.cursorItem > 0 && !d.book) {	// ce que tient la souris, sous elle
+			float s = 44;
+			blockIcon (b, d.cursorItem, (float) d.mx, (float) d.my, s * 0.8f);
+			if (d.cursorCount > 1) number (b, d.cursorCount, d.mx + s * 0.5f - 3, d.my + s * 0.5f - 16, 15);
+		}
+	}
 	glDisable (GL_DEPTH_TEST);
 	glDisable (GL_CULL_FACE);
 	glEnable (GL_BLEND);
@@ -792,7 +827,7 @@ void Renderer::drawHud (const Frame &f, const HudState &hud)
 	};
 	flush (b);
 	// le viseur : la couleur inverse de ce qui est dessous
-	if (hud.crosshair) {
+	if (hud.crosshair && !hud.craft) {
 		HudBatch c;
 		float cx = floorf (W * 0.5f), cy = floorf (H * 0.5f);
 		c.solid (cx - 10, cy - 1, cx + 10, cy + 1, 0xffffff, 255);

@@ -487,6 +487,35 @@ void fullscreen ()
 
 // ---- l'affichage par-dessus la vue (UIKit, aux couleurs du thème) ---------------------------------------------------
 
+struct CraftUI {
+	bool open = false;
+	int n = 2;			// 2 ou 3
+	bool furnace = false;
+	Stack grid[9], fin, cursor;	// la grille, l'entrée du four, ce que tient la souris
+	int mx = -100, my = -100;	// la souris dans la vue
+	unsigned buttons;
+	int dragFrom = -1;		// la case d'où vient ce que tient la souris pendant un glisser (-1 : aucun, -2 : le résultat)
+	bool dragOne;			// (bouton droit : un seul objet)
+	std::string msg;
+	int ox, oy;			// le coin du panneau dans la vue
+	bool book = false;		// le livre des recettes, à la place des cases
+	int bookScroll = 0;
+} C_;
+
+const int CELL = 44, GAP = 4, STEP = CELL + GAP, PAD = 16;
+const int PW = PAD * 2 + 9 * STEP - GAP;		// (la largeur de l'inventaire)
+const int TOP = 40;					// la grille
+const int INV_Y = TOP + 3 * STEP + 36;			// le sac
+const int BAR_Y = INV_Y + 3 * STEP + 8;			// la barre
+const int PH = BAR_Y + CELL + PAD;
+
+int slotAt (int x, int y);
+Stack *slotStack (int id);
+const Recipe *gridRecipe ();
+const Recipe *furnaceRecipe ();
+int resultY ();
+std::string craftTipText ();
+
 struct Zone {
 	int x, y, w, h;
 };
@@ -518,6 +547,64 @@ void panel (int x, int y, int w, int h)
 	ui_rbox (x, y, w, h, 8, jet (TJ_LINE), jet (TJ_LINE));
 	ui_rbox (x + 1, y + 1, w - 2, h - 2, 7, jet (TJ_SURFACE), jet (TJ_SURFACE));
 	g_zones.push_back ({ x, y, w, h });
+}
+
+// les textes du panneau de fabrication : posés par UIKit par-dessus la vue, sur un fond transparent qui a la couleur du
+// panneau (les bords des lettres s'y mélangent : ils restent nets sur le panneau dessiné par le GPU)
+void craftText (const std::string &t, int x, int base, unsigned col, int size, long font, bool clear = true)
+{
+	long w = ui_text_width ((long) t.c_str (), size, font);
+	int y = base - size - 2, h = size + 8;
+	if (clear) ui_fill (x - 2, y, (int) w + 4, h, 0xFF000000u | jet (TJ_SURFACE));
+	ui_text ((long) t.c_str (), x, base, col, size, font, 0);
+	g_zones.push_back ({ x - 2, y, (int) w + 4, h });
+}
+
+void craftTexts ()
+{
+	long f = (long) ui.font, fb = (long) ui.font_b;
+	int x0 = C_.ox + PAD;
+	if (C_.book) {	// le livre des recettes, à la place des cases
+		ui_fill (C_.ox, C_.oy, PW, PH, 0xFF000000u | jet (TJ_SURFACE));
+		g_zones.push_back ({ C_.ox, C_.oy, PW, PH });
+		ui_text ((long) TR ("Livre des recettes"), x0, C_.oy + 28, jet (TJ_TEXT1), 15, fb, 0);
+		ui_text ((long) TR ("molette : faire défiler · clic ou R : refermer"), x0 + 170, C_.oy + 28, jet (TJ_TEXT3), 12, f, 0);
+		std::vector<std::string> lines;
+		for (auto &r : recipes ())
+			if (r.station != ST_FURNACE)
+				lines.push_back (std::string (r.outN > 1 ? std::to_string (r.outN) + " × " : "") + itemInfo (r.out).label +
+						 (r.station == ST_WORKBENCH ? TR (" (établi)") : "") + " : " + recipeText (r));
+		lines.push_back (TR ("Au four : minerai → lingot, sable → verre, pavé → pierre, argile → briques, tronc → charbon"));
+		const int LH = 17, rows = (PH - 56) / LH;
+		C_.bookScroll = std::max (0, std::min (C_.bookScroll, (int) lines.size () - rows));
+		for (int i = 0; i < rows && C_.bookScroll + i < (int) lines.size (); i++)
+			ui_text_fit ((long) lines[(size_t) (C_.bookScroll + i)].c_str (), x0, C_.oy + 54 + i * LH, jet (TJ_TEXT2), 12, f, PW - 2 * PAD);
+		return;
+	}
+	craftText (C_.n == 3 ? TR ("Fabrication · établi") : TR ("Fabrication · à la main"), x0, C_.oy + 28, jet (TJ_TEXT1), 14, fb);
+	std::string hint = TR ("R : recettes");
+	craftText (hint, C_.ox + PW - PAD - (int) ui_text_width ((long) hint.c_str (), 12, f), C_.oy + 28, jet (TJ_TEXT3), 12, f);
+	if (C_.furnace) craftText (std::string (TR ("Four · chauffe ")) + std::to_string ((int) g.fuel), C_.ox + PW - PAD - 2 * CELL - 60, C_.oy + TOP + STEP - 10,
+				   jet (TJ_TEXT2), 12, f);
+	if (const Recipe *r = gridRecipe ())
+		craftText (itemInfo (r->out).label, C_.ox + PAD + C_.n * STEP + 52 - 8, resultY () + CELL + 18, jet (TJ_ACCENT), 12, f);
+	craftText (TR ("Inventaire"), x0, C_.oy + INV_Y - 10, jet (TJ_TEXT1), 14, fb);
+	// sous le panneau, le dernier message, sur un fond à demi transparent
+	if (!C_.msg.empty ()) {
+		long w = std::min ((long) PW, ui_text_width ((long) C_.msg.c_str (), 12, f) + 20);
+		int x = C_.ox + (PW - (int) w) / 2, y = C_.oy + PH + 8;
+		ui_fill (x, y, (int) w, 24, 0x50000000u | jet (TJ_SURFACE));
+		ui_text_fit ((long) C_.msg.c_str (), x + 10, y + 17, jet (TJ_TEXT1), 12, f, (int) w - 20);
+		g_zones.push_back ({ x, y, (int) w, 24 });
+	}
+	// le nom de l'objet survolé
+	std::string tip = craftTipText ();
+	if (!tip.empty ()) {
+		long w = ui_text_width ((long) tip.c_str (), 12, f) + 14;
+		int x = std::min (C_.mx + 14, (int) ui.w - (int) w - 4), y = C_.my - 30;
+		panel (x, y, (int) w, 22);
+		ui_text ((long) tip.c_str (), x + 7, y + 16, jet (TJ_TEXT1), 12, f, 0);
+	}
 }
 
 void drawOverlay (bool force)
@@ -558,6 +645,11 @@ void drawOverlay (bool force)
 	for (auto &s : lines) key += "\n" + s;
 	key += "\x01";
 	for (auto &s : chat) key += "\n" + s;
+	if (C_.open) {
+		key += "\x03" + std::to_string (C_.mx) + "," + std::to_string (C_.my) + C_.msg + (C_.book ? "B" : "") + std::to_string (C_.bookScroll) +
+		       std::to_string (C_.n) + std::to_string ((int) g.fuel) + (gridRecipe () ? gridRecipe ()->name : "") + (C_.cursor.empty () ? "" : "c");
+		for (auto &st : g.inv.s) key += (char) ('A' + (st.item & 31));
+	}
 	if (g_console) {
 		key += "\x02" + g_cin + std::to_string (g.console.size ());
 		key += ((long) (t / 530)) % 2 ? "|" : " ";	// (le curseur clignote)
@@ -587,27 +679,33 @@ void drawOverlay (bool force)
 		for (size_t i = 0; i < chat.size (); i++) ui_text_fit ((long) chat[i].c_str (), 24, y + 6 + LH * (int) i + 14, jet (TJ_TEXT1), SZ, font, w);
 	}
 	if (g_console) {
-		// la console : ses dernières lignes, puis la ligne tapée
+		// la console, semi-transparente : un fond où l'octet haut de chaque pixel est sa transparence (Elegant mélange la
+		// vue du jeu dessous) ; le texte, lui, est opaque
 		const int N = 12;
 		int pw = std::min (W - 24, 900), ph = (N + 1) * LH + 22;
 		int x = 12, y = H - 78 - ph;
-		panel (x, y, pw, ph);
+		// (un fond sombre et un texte clair, quel que soit le thème : ses propres jetons, inversés en thème clair)
+		bool dark = g_jet[TJ_DARK / 4] != 0;
+		unsigned bg = dark ? jet (TJ_SURFACE) : jet (TJ_TEXT1), fg = dark ? jet (TJ_TEXT1) : jet (TJ_SURFACE), fg2 = dark ? jet (TJ_TEXT2) : jet (TJ_SUNKEN);
+		ui_fill (x, y, pw, ph, 0x58000000u | bg);
+		g_zones.push_back ({ x, y, pw, ph });
 		size_t first = g.console.size () > (size_t) N ? g.console.size () - N : 0;
 		long mono = ui_font_get (UFN_MONO);
 		for (size_t i = first; i < g.console.size (); i++)
 			ui_text_fit ((long) g.console[i].c_str (), x + 12, y + 8 + LH * (int) (i - first) + 14,
-				     g.console[i].rfind ("> ", 0) == 0 ? jet (TJ_TEXT1) : jet (TJ_TEXT2), SZ, mono, pw - 24);
+				     g.console[i].rfind ("> ", 0) == 0 ? fg : fg2, SZ, mono, pw - 24);
 		int ly = y + ph - LH - 6;
-		ui_fill (x + 8, ly - 2, pw - 16, LH + 2, jet (TJ_SUNKEN));
+		ui_fill (x + 8, ly - 2, pw - 16, LH + 2, 0x30000000u | bg);
 		std::string in = "> " + g_cin + (((long) (t / 530)) % 2 ? "▏" : " ");
-		ui_text_fit ((long) in.c_str (), x + 12, ly + 13, jet (TJ_ACCENT), SZ, mono, pw - 24);
+		ui_text_fit ((long) in.c_str (), x + 12, ly + 13, fg, SZ, mono, pw - 24);
 	}
+	if (C_.open) craftTexts ();
 	if (flash) {
 		int w = (int) ui_text_width ((long) g_flash.c_str (), SZ, (long) ui.font_b) + 24;
 		panel ((W - w) / 2, H - 112, w, 28);
 		ui_text ((long) g_flash.c_str (), (W - w) / 2 + 12, H - 112 + 19, jet (TJ_TEXT1), SZ, (long) ui.font_b, 0);
 	}
-	if (!g_locked && !g_selftest && !g_console) {
+	if (!g_locked && !g_selftest && !g_console && !C_.open) {
 		const char *a = TR ("Cliquez dans la vue pour jouer");
 		const char *b = g.mode == MODE_SURVIVAL ? TR ("ZQSD : marcher · Espace : sauter · clic tenu : casser · I : inventaire et fabrication · T : console · Échap : la souris")
 							: TR ("ZQSD ou flèches : marcher · Espace : sauter · F : voler · B : blocs · T : console · Échap : la souris");
@@ -775,113 +873,46 @@ void chooseBlock ()
 	}
 }
 
-// ---- l'inventaire et la table de fabrication (mode survie) : une vue d'UIKit dessinée ici -------------------------
+// ---- l'inventaire et la table de fabrication (mode survie), dessinés dans la vue du jeu ---------------------------
 //
-// En haut, la grille : 2 × 2 à la main, 3 × 3 à l'établi ; la recette que forment les objets posés (leur agencement
-// compte) donne son résultat dans la case à droite. Le four, s'il y en a un près : une case d'entrée, le combustible
-// pris dans l'inventaire, une case de résultat. En bas, l'inventaire (le sac, puis la barre).
-// À la souris : clic gauche, prendre ou poser toute la pile (ou échanger) ; clic droit, prendre la moitié, ou poser
-// un seul objet ; sur le résultat : le prendre (Maj : fabriquer le plus possible, dans l'inventaire). En fermant, ce
-// qui reste dans la grille et sous la souris revient dans l'inventaire.
+// Par-dessus la vue (assombrie), un panneau dessiné par le GPU (render.cpp, CraftDraw) : en haut la table, une grille
+// 2 × 2 à la main ou 3 × 3 à l'établi, et son résultat ; le four à droite s'il y en a un près ; en bas l'inventaire,
+// le sac puis la barre. Les textes (titres, nom de l'objet survolé) sont posés par UIKit sur un fond transparent
+// (drawOverlay). La souris est rendue au joueur pendant ce temps.
+// Le glisser-déposer : appuyer sur une case prend sa pile (bouton droit : un seul objet), la lâcher sur une autre la
+// pose ; lâchée ailleurs, elle revient. Un clic sans glisser garde l'objet sous la souris, un second clic le pose.
+// Sur le résultat : le prendre (Maj : le plus possible, dans l'inventaire). 1 à 9 sur une case : vers cette case de la
+// barre. R : le livre des recettes. Échap, I ou E : fermer ; ce qui reste dans la grille revient dans l'inventaire.
 
-struct CraftUI {
-	long d, view, book;
-	int n;			// 2 ou 3
-	bool furnace;
-	Stack grid[9], fin, cursor;	// la grille, l'entrée du four, ce que tient la souris
-	int mx = -100, my = -100;	// la souris dans la vue
-	unsigned buttons;
-	int dragFrom = -1;		// la case d'où vient ce que tient la souris pendant un glisser (-1 : aucun, -2 : le résultat)
-	bool dragOne;			// (bouton droit : un seul objet)
-	std::string msg;
-	std::vector<long> icons;	// une image par objet (ui_image_decode), faite au premier besoin
-	std::vector<uint8_t> atlas;
-} C_;
-
-const int CELL = 46, GAP = 6, VW = 840, VH = 330;
-const int GX = 24 + 9 * (CELL + GAP) + 34;	// (la grille, à droite de l'inventaire)
-
-// une icône de 32 × 32 en BMP (BGRA, de haut en bas), décodée par UIKit ; un pixel transparent a l'alpha 1
-// (l'alpha 0 d'un BMP veut dire opaque)
-long iconOf (int item)
+void craftPlace ()
 {
-	if (C_.atlas.empty ()) {
-		C_.atlas.resize (256 * 256 * 4);
-		buildAtlas (C_.atlas.data ());
-	}
-	if ((int) C_.icons.size () <= item) C_.icons.resize ((size_t) item + 1, 0);
-	if (C_.icons[(size_t) item]) return C_.icons[(size_t) item];
-	const int S = 32;
-	uint32_t px[S * S];
-	auto tex = [&] (int tile, float u, float v, float k) -> uint32_t {
-		int tx = std::min (15, std::max (0, (int) (u * 16))), ty = std::min (15, std::max (0, (int) (v * 16)));
-		const uint8_t *p = &C_.atlas[(size_t) (((tile >> 4) * 16 + ty) * 256 + (tile & 15) * 16 + tx) * 4];
-		if (p[3] < 128) return 0x01000000;
-		return 0xFF000000u | (uint32_t) (p[0] * k) << 16 | (uint32_t) (p[1] * k) << 8 | (uint32_t) (p[2] * k);
-	};
-	bool cube = isBlockItem (item) && info (item).shape == SH_CUBE;
-	const BlockInfo &bi = info (cube ? item : 0);
-	for (int y = 0; y < S; y++)
-		for (int x = 0; x < S; x++) {
-			float fx = x + 0.5f, fy = y + 0.5f;
-			uint32_t c = 0x01000000;
-			if (!cube) {
-				c = tex (itemInfo (item).tile, (fx - 2) / 28, (fy - 2) / 28, 1.0f);
-				if (fx < 2 || fy < 2 || fx > 30 || fy > 30) c = 0x01000000;
-			} else {
-				// un cube de trois quarts : le dessus, la face gauche, la face droite (des parallélogrammes)
-				const float cx = 16, cy = 16, h = 14, q = 7;
-				auto inside = [&] (float ox, float oy, float e1x, float e1y, float e2x, float e2y, float &u, float &v) {
-					float det = e1x * e2y - e1y * e2x, px2 = fx - ox, py2 = fy - oy;
-					u = (px2 * e2y - py2 * e2x) / det, v = (e1x * py2 - e1y * px2) / det;
-					return u >= 0 && u < 1 && v >= 0 && v < 1;
-				};
-				float u, v;
-				if (inside (cx - h, cy - q - 1, h, -q, h, q, u, v)) c = tex (bi.top, u, v, 1.0f);
-				else if (inside (cx - h, cy - q - 1, h, q, 0, h, u, v)) c = tex (bi.side, u, v, 0.78f);
-				else if (inside (cx, cy - 1, h, -q, 0, h, u, v)) c = tex (bi.side, u, v, 0.6f);
-			}
-			px[y * S + x] = c;
-		}
-	std::vector<uint8_t> bmp (54 + S * S * 4, 0);
-	auto w32 = [&] (int o, uint32_t v) { memcpy (&bmp[(size_t) o], &v, 4); };
-	bmp[0] = 'B', bmp[1] = 'M';
-	w32 (2, (uint32_t) bmp.size ());
-	w32 (10, 54);
-	w32 (14, 40);
-	w32 (18, S);
-	w32 (22, (uint32_t) -S);	// (de haut en bas)
-	bmp[26] = 1, bmp[28] = 32;
-	memcpy (&bmp[54], px, sizeof px);	// (0xAARRGGBB petit-boutiste : B, G, R, A)
-	long img = ui_image_decode ((long) bmp.data (), (long) bmp.size ());
-	C_.icons[(size_t) item] = img;
-	return img;
+	C_.ox = std::max (8, (g_view.w - PW) / 2);
+	C_.oy = std::max (8, (g_view.h - PH) / 2 - 16);
 }
 
-// les cases de la vue : 0-8 la grille, 9 le résultat, 10 l'entrée du four, 11 son résultat, 20-55 l'inventaire
-// (20-46 le sac, 47-55 la barre : cases 9-35 puis 0-8 de l'inventaire)
+// les cases : 0-8 la grille, 9 le résultat, 10 l'entrée du four, 11 son résultat, 20-55 l'inventaire
+// (20-46 le sac, 47-55 la barre : cases 9-35 puis 0-8 de l'inventaire) ; en coordonnées de la vue
 struct Slot {
 	int id, x, y;
 };
 
+int resultY () { return C_.oy + TOP + (C_.n * STEP - GAP - CELL) / 2; }
+
 std::vector<Slot> craftSlots ()
 {
 	std::vector<Slot> v;
-	// à gauche, l'inventaire : le sac (3 rangées), puis la barre
-	for (int r = 0; r < 3; r++)
-		for (int c = 0; c < 9; c++) v.push_back ({ 20 + r * 9 + c, 24 + c * (CELL + GAP), 46 + r * (CELL + GAP) });
-	for (int c = 0; c < 9; c++) v.push_back ({ 47 + c, 24 + c * (CELL + GAP), 46 + 3 * (CELL + GAP) + 10 });
-	// à droite, la grille et son résultat ; le four dessous
-	int gy = 46;
+	int x0 = C_.ox + PAD, y0 = C_.oy + TOP;
 	for (int r = 0; r < C_.n; r++)
-		for (int c = 0; c < C_.n; c++) v.push_back ({ r * C_.n + c, GX + c * (CELL + GAP), gy + r * (CELL + GAP) });
-	int gh = C_.n * (CELL + GAP) - GAP;
-	v.push_back ({ 9, GX + C_.n * (CELL + GAP) + 44, gy + (gh - CELL) / 2 });
+		for (int c = 0; c < C_.n; c++) v.push_back ({ r * C_.n + c, x0 + c * STEP, y0 + r * STEP });
+	v.push_back ({ 9, x0 + C_.n * STEP + 52, resultY () });
 	if (C_.furnace) {
-		int fy = 46 + 3 * (CELL + GAP) + 10;
-		v.push_back ({ 10, GX, fy });
-		v.push_back ({ 11, GX + CELL + 64, fy });
+		int fy = C_.oy + TOP + STEP;
+		v.push_back ({ 10, C_.ox + PW - PAD - 2 * CELL - 60, fy });
+		v.push_back ({ 11, C_.ox + PW - PAD - CELL, fy });
 	}
+	for (int r = 0; r < 3; r++)
+		for (int c = 0; c < 9; c++) v.push_back ({ 20 + r * 9 + c, x0 + c * STEP, C_.oy + INV_Y + r * STEP });
+	for (int c = 0; c < 9; c++) v.push_back ({ 47 + c, x0 + c * STEP, C_.oy + BAR_Y });
 	return v;
 }
 
@@ -909,70 +940,49 @@ const Recipe *furnaceRecipe ()
 	return nullptr;
 }
 
-void drawStack (const Stack &s, int x, int y)
+std::string craftTipText ()
 {
-	if (s.empty ()) return;
-	long img = iconOf (s.item);
-	if (img) ui_image_draw (img, x + (CELL - 32) / 2, y + (CELL - 32) / 2, 32, 32);
-	if (s.count > 1) {
-		std::string t = std::to_string (s.count);
-		long w = ui_text_width ((long) t.c_str (), 12, (long) ui.font_b);
-		ui_text ((long) t.c_str (), x + CELL - 4 - w, y + CELL - 4, jet (TJ_TEXT1), 12, (long) ui.font_b, 0);
-	}
-	ItemInfo ii = itemInfo (s.item);
-	if (ii.durability) {
-		float k = 1.0f - (float) s.dur / ii.durability;
-		ui_fill (x + 6, y + CELL - 7, CELL - 12, 3, jet (TJ_LINE));
-		ui_fill (x + 6, y + CELL - 7, (int) ((CELL - 12) * k), 3, k > 0.5f ? jet (TJ_SUCCESS) : k > 0.2f ? jet (TJ_WARNING) : jet (TJ_DANGER));
-	}
+	if (!C_.cursor.empty () || C_.book) return "";
+	Stack *p = slotStack (slotAt (C_.mx, C_.my));
+	if (!p || p->empty ()) return "";
+	ItemInfo ii = itemInfo (p->item);
+	std::string t = ii.label;
+	if (ii.durability) t += " · " + std::to_string (ii.durability - p->dur) + TR (" coups");
+	return t;
 }
 
-void craftPaint (long, long w, long h)
+// ce que le GPU dessine (render.cpp)
+void craftDraw (CraftDraw &d)
 {
-	ui_fill (0, 0, w, h, jet (TJ_FACE));
-	long fb = (long) ui.font_b, f = (long) ui.font;
-	ui_text ((long) TR ("Inventaire"), 24, 28, jet (TJ_TEXT1), 14, fb, 0);
-	ui_text ((long) (C_.n == 3 ? TR ("Établi : grille 3 × 3") : TR ("À la main : grille 2 × 2")), GX, 28, jet (TJ_TEXT1), 14, fb, 0);
-	if (C_.n == 2) ui_text ((long) TR ("(un établi proche : 3 × 3)"), GX, 46 + 2 * (CELL + GAP) + 16, jet (TJ_TEXT3), 12, f, 0);
+	d.x = C_.ox, d.y = C_.oy, d.w = PW, d.h = PH;
+	d.book = C_.book;
 	const Recipe *r = gridRecipe (), *fr = furnaceRecipe ();
 	for (auto &sl : craftSlots ()) {
-		bool hot = C_.mx >= sl.x && C_.mx < sl.x + CELL && C_.my >= sl.y && C_.my < sl.y + CELL;
-		bool result = sl.id == 9 || sl.id == 11;
-		unsigned bg = hot ? jet (TJ_HOVER) : result ? jet (TJ_SURFACE) : jet (TJ_SUNKEN);
-		ui_rbox (sl.x, sl.y, CELL, CELL, 6, result ? jet (TJ_ACCENT) : jet (TJ_LINE), result ? jet (TJ_ACCENT) : jet (TJ_LINE));
-		ui_rbox (sl.x + 1, sl.y + 1, CELL - 2, CELL - 2, 5, bg, bg);
-		if (sl.id >= 47 && sl.id - 47 == g.selected) ui_frame (sl.x + 3, sl.y + 3, CELL - 6, CELL - 6, jet (TJ_ACCENT));
+		CraftDraw::Cell c;
+		c.x = sl.x, c.y = sl.y, c.size = CELL;
 		Stack s;
 		if (sl.id == 9 && r) s.item = r->out, s.count = r->outN;
 		else if (sl.id == 11 && fr) s.item = fr->out, s.count = fr->outN;
 		else if (Stack *p = slotStack (sl.id)) s = *p;
-		drawStack (s, sl.x, sl.y);
-		if (sl.id == 9) ui_text ((long) "→", sl.x - 32, sl.y + 30, jet (TJ_TEXT2), 22, f, 0);
-		if (sl.id == 11) {
-			ui_text ((long) "→", sl.x - 42, sl.y + 30, jet (TJ_TEXT2), 22, f, 0);
-			std::string four = std::string (TR ("Four")) + TR (" · chauffe ") + std::to_string ((int) g.fuel);
-			ui_text ((long) four.c_str (), GX, sl.y - 6, jet (TJ_TEXT1), 13, fb, 0);
-		}
+		c.item = s.empty () ? 0 : s.item;
+		c.count = s.count;
+		int dur = c.item ? itemInfo (c.item).durability : 0;
+		c.wear = dur ? (float) s.dur / dur : -1;
+		c.hover = C_.mx >= sl.x && C_.mx < sl.x + CELL && C_.my >= sl.y && C_.my < sl.y + CELL;
+		c.result = sl.id == 9 || sl.id == 11;
+		c.selected = sl.id >= 47 && sl.id - 47 == g.selected;
+		d.cells.push_back (c);
 	}
-	if (r) {
-		std::string t = std::string ("= ") + itemInfo (r->out).label;
-		ui_text ((long) t.c_str (), GX + C_.n * (CELL + GAP) + 44, 46 + (C_.n * (CELL + GAP) - GAP - CELL) / 2 + CELL + 18, jet (TJ_ACCENT), 12, f, 0);
+	// les flèches : la grille vers son résultat, l'entrée du four vers le sien
+	int gx = C_.ox + PAD + C_.n * STEP - GAP;
+	d.arrows.push_back ({ gx + 12, resultY () + CELL / 2, 52 - 24 - GAP });
+	if (C_.furnace) d.arrows.push_back ({ C_.ox + PW - PAD - CELL - 60 + 10, C_.oy + TOP + STEP + CELL / 2, 40 });
+	if (!C_.cursor.empty ()) {
+		d.cursorItem = C_.cursor.item, d.cursorCount = C_.cursor.count;
+		int dur = itemInfo (C_.cursor.item).durability;
+		d.cursorWear = dur ? (float) C_.cursor.dur / dur : -1;
+		d.mx = C_.mx, d.my = C_.my;
 	}
-	if (!C_.msg.empty ()) ui_text_fit ((long) C_.msg.c_str (), 24, VH - 8, jet (TJ_TEXT2), 12, f, VW - 48);
-	// ce que tient la souris, sous elle
-	if (!C_.cursor.empty () && C_.mx > -50) drawStack (C_.cursor, C_.mx - CELL / 2, C_.my - CELL / 2);
-	// l'objet survolé : son nom
-	for (auto &sl : craftSlots ())
-		if (C_.cursor.empty () && C_.mx >= sl.x && C_.mx < sl.x + CELL && C_.my >= sl.y && C_.my < sl.y + CELL)
-			if (Stack *p = slotStack (sl.id))
-				if (!p->empty ()) {
-					std::string t = itemInfo (p->item).label;
-					long tw = ui_text_width ((long) t.c_str (), 12, f) + 12;
-					int tx = std::min ((int) (VW - tw - 4), C_.mx + 12), ty = C_.my - 26;
-					ui_rbox (tx, ty, (int) tw, 20, 5, jet (TJ_LINE), jet (TJ_LINE));
-					ui_rbox (tx + 1, ty + 1, (int) tw - 2, 18, 4, jet (TJ_SURFACE), jet (TJ_SURFACE));
-					ui_text ((long) t.c_str (), tx + 6, ty + 15, jet (TJ_TEXT1), 12, f, 0);
-				}
 }
 
 // prendre le résultat de la grille une fois -> faux s'il n'y a rien ou plus de place sous la souris
@@ -1068,18 +1078,18 @@ void returnCursor ()
 	if (!C_.cursor.empty () && g.inv.add (C_.cursor.item, C_.cursor.count) == 0) C_.cursor = Stack ();
 }
 
-// Le glisser-déposer : appuyer sur une case prend sa pile (bouton droit : un seul objet), la lâcher sur une autre
-// case l'y pose (tout ; bouton droit : un seul) ; lâchée ailleurs, elle revient. Un clic sans glisser garde l'objet
-// sous la souris : un second clic le pose (clic droit : un seul). Sur le résultat : le prendre (Maj : le plus possible).
-long craftMouse (long v, long kind, long x, long y, long infos)
+// la souris dans le panneau : kind 0 déplacement, 1 appui, 2 relâché ; infos = boutons << 8 | modificateurs << 16
+long craftMouse (long, long kind, long x, long y, long infos)
 {
 	C_.mx = (int) x, C_.my = (int) y;
-	if (kind == 3) C_.mx = C_.my = -100;
 	unsigned b = (unsigned) (infos >> 8) & 0xFF, mods = (unsigned) (infos >> 16);
 	unsigned pressed = kind == 1 ? b & ~C_.buttons : 0;
 	C_.buttons = b;
-	if (v) ui_view_dirty (v);
-	int id = kind == 3 ? -1 : slotAt ((int) x, (int) y);
+	if (C_.book) {
+		if (pressed) C_.book = false;	// (un clic referme le livre)
+		return 0;
+	}
+	int id = slotAt ((int) x, (int) y);
 	if (kind == 2 && C_.dragFrom != -1) {	// (lâché ; -2 : le résultat)
 		int from = C_.dragFrom;
 		C_.dragFrom = -1;
@@ -1132,30 +1142,45 @@ long craftMouse (long v, long kind, long x, long y, long infos)
 	return 0;
 }
 
-long craftKey (long, long code, long, long) { return code == KEY_ESC ? -1 : 0; }
-
-long craftTick (long) { ui_view_flush (); return 0; }
-
-long craftFn (long d, long w, long code)
+void craftClose ()
 {
-	(void) d;
-	if (code == UN_ACTIVATE && w == C_.book) {
-		std::string t;
-		for (auto &r : recipes ()) {
-			if (r.station == ST_FURNACE) continue;
-			t += std::string (r.outN > 1 ? std::to_string (r.outN) + " × " : "") + itemInfo (r.out).label + (r.station == ST_WORKBENCH ? TR (" (établi)") : "") + "  " + recipeText (r) + "\n";
-		}
-		t += TR ("\nAu four : minerai de fer ou d'or → lingot, sable → verre, pavé → pierre, argile → briques, tronc → charbon.");
-		ui_message ((long) TR ("Livre des recettes"), (long) t.c_str (), UM_OK);
+	if (!C_.open) return;
+	C_.open = false;
+	C_.book = false;
+	// ce qui reste dans la grille, le four et sous la souris revient dans l'inventaire
+	int lost = 0;
+	for (auto &s : C_.grid)
+		if (!s.empty ()) lost += g.inv.add (s.item, s.count), s = Stack ();
+	if (!C_.fin.empty ()) lost += g.inv.add (C_.fin.item, C_.fin.count), C_.fin = Stack ();
+	if (!C_.cursor.empty ()) lost += g.inv.add (C_.cursor.item, C_.cursor.count), C_.cursor = Stack ();
+	C_.dragFrom = -1;
+	if (lost) gamePost (TR ("Inventaire plein : des objets sont perdus"));
+	selectSlot (g.selected);
+	drawOverlay (true);
+	lock ();
+}
+
+// une touche pendant que le panneau est ouvert
+void craftKey (int code)
+{
+	if (code == KEY_ESC || code == 0x0C || code == 0x08 || code == 0x05) craftClose ();	// Échap, I, E, B
+	else if (code == 0x15) C_.book = !C_.book, C_.bookScroll = 0;			// R : le livre des recettes
+	else if (code >= 0x1E && code <= 0x26) {	// 1 à 9 sur une case : vers cette case de la barre
+		int id = slotAt (C_.mx, C_.my);
+		Stack *s = slotStack (id);
+		int k = code - 0x1E;
+		if (s && s != &g.inv.s[k]) std::swap (*s, g.inv.s[k]);
 	}
-	return 0;
 }
 
 void inventoryWindow (bool workbench)
 {
-	unlock ();
 	if (!survival ()) {
 		chooseBlock ();
+		return;
+	}
+	if (C_.open) {
+		craftClose ();
 		return;
 	}
 	bool wb, fu;
@@ -1164,27 +1189,15 @@ void inventoryWindow (bool workbench)
 	C_.furnace = fu;
 	for (auto &s : C_.grid) s = Stack ();
 	C_.fin = C_.cursor = Stack ();
-	C_.msg = TR ("Glissez les objets de l'inventaire vers la grille (bouton droit : un seul) · Maj + clic sur le résultat : le plus possible");
+	C_.msg = TR ("Glissez les objets vers la grille (bouton droit : un seul) · Maj + clic sur le résultat : le plus possible · R : recettes");
 	C_.buttons = 0;
 	C_.dragFrom = -1;
-	const int WW = VW + 32, WH = VH + 100;
-	C_.d = ui_dialog_begin (WW, WH, (long) TR ("Inventaire et fabrication"));
-	C_.view = ui_view (16, 36, VW, VH, 0);
-	ui_view_on (C_.view, (long) craftPaint, (long) craftMouse, (long) craftKey, 0);
-	C_.book = ui_pushbutton (16, WH - 46, 200, 30, (long) TR ("Livre des recettes"), UB_GHOST);
-	ui_dialog_button (C_.d, 0, (long) TR ("Fermer"), 0, UB_DEFAULT, WW - 12);
-	ui_dialog_cancel (C_.d, 0);
-	ui_dialog_timer (C_.d, (long) craftTick, 40);
-	ui_dialog_run (C_.d, (long) craftFn, 0);
-	ui_dialog_end (C_.d);
-	// ce qui reste dans la grille, le four et sous la souris revient dans l'inventaire
-	int lost = 0;
-	for (auto &s : C_.grid)
-		if (!s.empty ()) lost += g.inv.add (s.item, s.count), s = Stack ();
-	if (!C_.fin.empty ()) lost += g.inv.add (C_.fin.item, C_.fin.count), C_.fin = Stack ();
-	if (!C_.cursor.empty ()) lost += g.inv.add (C_.cursor.item, C_.cursor.count), C_.cursor = Stack ();
-	if (lost) gamePost (TR ("Inventaire plein : des objets sont perdus"));
-	selectSlot (g.selected);
+	C_.book = false;
+	C_.open = true;
+	craftPlace ();
+	unlock ();		// (la souris au joueur)
+	g_buttons = 0;
+	drawOverlay (true);
 }
 
 // ---- la console de commandes (T, / ou ²) ------------------------------------------------------------------------
@@ -1425,9 +1438,22 @@ void handleEvent (long t)
 			if (kind) consoleKey (code, ch);
 			return;
 		}
+		if (C_.open) {
+			if (kind) {
+				if (mods & UI_MOD_CTRL) {
+					long mid = ui_menu_key (0);
+					if (mid >= 0) command (mid);
+				} else craftKey (code);
+			}
+			return;
+		}
 		long id = kind && (mods & UI_MOD_CTRL) ? ui_menu_key (0) : -1;
 		g_keys[code] = kind != 0;
 		if (kind) keyDown (code, mods, id, ch);
+		return;
+	}
+	if (t == WEV_WHEEL && C_.open) {
+		if (C_.book) C_.bookScroll -= (int) ui_ev_field (&ui, EV_Y) * 3;
 		return;
 	}
 	if (t == WEV_WHEEL) {
@@ -1443,6 +1469,11 @@ void handleEvent (long t)
 			return;
 		}
 		unsigned b = (unsigned) ui_ev_field (&ui, EV_CODE) & 7;
+		if (C_.open) {	// (le panneau de fabrication a la souris)
+			long mods = (long) ui_ev_field (&ui, EV_MODS);
+			craftMouse (0, kind, (long) (int) ui_ev_field (&ui, EV_X), (long) (int) ui_ev_field (&ui, EV_Y), (long) b << 8 | mods << 16);
+			return;
+		}
 		if (kind == 1 && !g_locked) {
 			// (les 32 px du haut déplacent la fenêtre ; ailleurs, un clic prend la souris)
 			if (g_console) consoleClose ();
@@ -1612,6 +1643,16 @@ void renderTo (int w, int h, const Camera &cam, bool hotbar = true)
 	hud.panelLine = jet (TJ_SUNKEN);
 	hud.accent = jet (TJ_ACCENT);
 	hud.text = jet (TJ_TEXT1);
+	hud.sunken = jet (TJ_SUNKEN);
+	hud.line = jet (TJ_LINE);
+	hud.hoverCol = jet (TJ_HOVER);
+	static CraftDraw cd;
+	if (C_.open && hotbar) {
+		cd = CraftDraw ();
+		craftDraw (cd);
+		hud.craft = &cd;
+		hud.crosshair = false;
+	}
 	hud.good = jet (TJ_SUCCESS);
 	hud.warn = jet (TJ_WARNING);
 	hud.bad = jet (TJ_DANGER);
@@ -1792,6 +1833,7 @@ static void selftest ()
 		con ("give planks 8");
 		con ("give stick 4");
 		C_.n = 3, C_.furnace = false;
+		craftPlace ();
 		for (auto &st : C_.grid) st = Stack ();
 		C_.cursor = C_.fin = Stack ();
 		C_.buttons = 0;
@@ -1844,10 +1886,24 @@ static void selftest ()
 		click (49, 1);					// posée en barre 3
 		check (g.inv.s[2].item == I_WOOD_PICKAXE && g.inv.count (PLANKS) == 5 && g.inv.count (I_STICK) == 2, "table : la pioche dans l'inventaire, le reste aussi");
 		C_.n = 2;
+		craftPlace ();
 		click (47, 1), click (0, 2), click (2, 2), click (47, 1);	// deux planches en colonne -> bâtons
 		rr = gridRecipe ();
 		check (rr && !strcmp (rr->name, "stick"), "table 2 × 2 : deux planches l'une sur l'autre donnent des bâtons");
 		for (auto &st : C_.grid) st = Stack ();
+		// le panneau ouvert dans le jeu : le livre des recettes (R), ses textes, la fermeture
+		C_.n = 3;
+		craftPlace ();
+		C_.open = true;
+		craftKey (0x15);
+		drawOverlay (true);
+		check (C_.book && !g_zones.empty (), "table : R ouvre le livre des recettes");
+		craftKey (0x15);
+		g.inv.s[8].item = PLANKS, g.inv.s[8].count = 1;
+		C_.grid[4] = g.inv.s[8], g.inv.s[8] = Stack ();
+		int before = g.inv.count (PLANKS);
+		craftClose ();
+		check (!C_.open && !C_.book && g.inv.count (PLANKS) == before + 1, "table : fermée, la grille revient dans l'inventaire");
 	}
 	con ("mode creative");
 	check (g.mode == MODE_CREATIVE, "console : mode creative");

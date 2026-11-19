@@ -23,9 +23,10 @@ repris d'un jeu existant), doc `docs/TERRACUBE.md`.
 - 19/11 (suite) : eau animée par les shaders ; **mode survie** (minage au temps près selon l'outil, ramassage,
   inventaire 36 cases, outils bois/pierre/fer/cristal avec usure, établi et four), puis à la demande de
   l'utilisateur une **table de fabrication à grille** (2 × 2 à la main, 3 × 3 à l'établi, recettes à forme,
-  déplaçables et retournables, `matchGrid` dans `items.cpp` ; vue dessinée dans un dialogue, icônes en BMP depuis
-  l'atlas avec alpha 1 pour le transparent : l'alpha 0 d'un BMP est opaque pour UIKit ; `ui_dialog_timer` pour
-  redessiner la vue, la boucle des dialogues ne le fait pas), **console de commandes** (T, / ou ² : time, weather, mode, tp, give, craft… : `console.cpp`, aussi
+  déplaçables et retournables, `matchGrid` dans `items.cpp` ; d'abord un dialogue UIKit, puis à la demande de l'utilisateur **dessiné dans le jeu** par le GPU
+  (CraftDraw), table en haut, inventaire en bas, glisser-déposer ; textes par UIKit sur fond transparent ; console
+  semi-transparente : l'octet haut d'un pixel de ui_fill est sa transparence par-dessus une surface, ui_text écrit
+  opaque (0) ; pour un BMP décodé par UIKit, l'alpha 0 est opaque), **console de commandes** (T, / ou ² : time, weather, mode, tp, give, craft… : `console.cpp`, aussi
   `game.command` et l'outil MCP `run_command`), **météo** (pluie/neige/orage, gouttes dans le vertex shader,
   cachées sous les toits par une carte des hauteurs 64 × 64). Version 1.1.0.
 

@@ -15,10 +15,11 @@ Un monde sans fin fait de blocs : explorez-le, creusez, construisez.
 ## Le mode survie
 
 Partie > Mode survie, ou la commande `mode survival`. Les blocs se cassent en tenant le clic gauche et se ramassent ;
-poser un bloc en consomme un. **I** ouvre l'inventaire (à gauche) et la **table de fabrication** (à droite) : on
-glisse les matières de l'inventaire sur la grille (2 × 2 à la main, 3 × 3 près d'un établi ; bouton droit : un seul
+poser un bloc en consomme un. **I** ouvre, dans le jeu, la **table de fabrication** (en haut) et l'inventaire (en
+bas) : on glisse les matières de l'inventaire sur la grille (2 × 2 à la main, 3 × 3 près d'un établi ; bouton droit : un seul
 objet) et leur agencement décide de ce qui est fait : trois planches en haut et deux bâtons au milieu en dessous font
-une pioche. On glisse ensuite le résultat dans l'inventaire ; Maj + clic sur le résultat en fait le plus possible. Le bouton **Livre des recettes** montre toutes les formes. Un four
+une pioche. On glisse ensuite le résultat dans l'inventaire ; Maj + clic sur le résultat en fait le plus possible.
+**R** montre le livre des recettes ; Échap ou I referme. Le bouton **Livre des recettes** montre toutes les formes. Un four
 proche cuit le minerai, le sable, l'argile. Sans pioche, la pierre ne donne rien.
 
 ## La console

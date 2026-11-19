@@ -78,14 +78,16 @@ Ligne de commande : `terracube [--world nom] [--seed n] [--distance n] [--no-api
   la pierre ne donne rien ; le fer demande une pioche en pierre ; l'or et le cristal une pioche en fer.
 * Ce qui tombe : la pierre donne des pavés, l'herbe de la terre, le charbon du charbon, le cristal du cristal, les
   feuilles parfois un bâton ; le verre et la glace rien.
-* **La fabrication** (I, ou clic droit sur un établi) : à gauche l'inventaire, à droite une **grille** où l'on
-  pose les matières, **2 × 2 à la main, 3 × 3 à l'établi** (posé à moins de 4 blocs). Ce qui sort dépend des
-  objets **et de leur agencement** : la forme peut être posée n'importe où dans la grille, et retournée de gauche à
-  droite. On **glisse-dépose** les objets de l'inventaire vers la grille (bouton gauche : toute la pile ; bouton
-  droit : un seul objet), et le résultat vers l'inventaire ; lâché ailleurs, l'objet revient. Un clic sans glisser
-  prend l'objet, un second clic le pose (clic droit : un seul). **Maj + clic** sur le résultat en fabrique le plus
-  possible ; Maj + clic dans l'inventaire passe un objet du sac à la barre et inversement. En fermant, ce qui reste
-  dans la grille revient dans l'inventaire. Le bouton **Livre des recettes** montre toutes les formes.
+* **La fabrication** (I, ou clic droit sur un établi) : un panneau **dessiné dans le jeu**, par-dessus la vue
+  assombrie (pas une fenêtre) : en haut la table, une **grille 2 × 2 à la main, 3 × 3 à l'établi** (posé à moins de 4
+  blocs) et son résultat, le four à droite s'il y en a un près ; en bas l'inventaire (le sac, puis la barre). Ce qui
+  sort dépend des objets **et de leur agencement** : la forme peut être posée n'importe où dans la grille, et
+  retournée de gauche à droite. On **glisse-dépose** les objets de l'inventaire vers la grille (bouton gauche : toute
+  la pile ; bouton droit : un seul objet), et le résultat vers l'inventaire ; lâché ailleurs, l'objet revient. Un
+  clic sans glisser prend l'objet, un second clic le pose. **Maj + clic** sur le résultat en fabrique le plus
+  possible ; Maj + clic dans l'inventaire passe un objet du sac à la barre et inversement ; **1 à 9** sur une case
+  l'échange avec cette case de la barre. **R** ouvre le livre des recettes (la molette le fait défiler). Échap, I
+  ou E ferme ; ce qui reste dans la grille revient dans l'inventaire.
 * **Le four** (posé à moins de 4 blocs) a sa place dans la même fenêtre : une case d'entrée, une case de résultat ;
   il brûle un combustible pris dans l'inventaire, un point de chauffe par objet cuit : charbon 8, tronc 4, planches
   2, bâton 1.
@@ -117,7 +119,7 @@ Les objets qui ne sont pas des blocs (scripts, MCP, console) : `stick` 100, `coa
 
 ## 2 ter. La console de commandes
 
-T (ou / ou ²) ouvre la console en bas de la vue ; le `/` du début est facultatif ; un texte qui n'est pas une
+T (ou / ou ²) ouvre la console, semi-transparente, en bas de la vue ; le `/` du début est facultatif ; un texte qui n'est pas une
 commande part en message. La même console sert aux scripts (`game.command(…)`) et à l'agent (`run_command`).
 
 | Commande | Effet |
@@ -250,10 +252,10 @@ essayé sur le ZBook (GPU Intel).
 
 | Fichier | Rôle |
 |---|---|
-| `main.cpp` | fenêtre, boucle, entrées, affichage tête haute par UIKit (`ui_surface_overlay`), la table de fabrication (vue dessinée, icônes en BMP faites depuis l'atlas), la console, menus, mondes, jeton du MCP, `--selftest` |
+| `main.cpp` | fenêtre, boucle, entrées, textes par-dessus la vue par UIKit (`ui_surface_overlay` ; l'octet haut d'un pixel est sa transparence : console à demi transparente, textes du panneau sur fond transparent), le panneau de fabrication (ses cases, le glisser-déposer), la console, menus, mondes, jeton du MCP, `--selftest` |
 | `world.h`, `world.cpp` | tronçons, génération (bruit de gradient, biomes, grottes, minerais, arbres), sauvegarde, lancer de rayon |
 | `mesh.cpp` | maillage : faces visibles, occlusion ambiante, lumière du ciel lissée, eau, plantes en croix |
-| `render.h`, `render.cpp` | OpenGL ES 3 : shaders, ciel et soleil, pluie et neige (gouttes faites par le vertex shader, cachées sous les toits par une carte des hauteurs), tronçons (tronc de vue), eau animée (vagues de la surface dans le vertex shader, texture qui glisse et reflets dans le fragment shader), contour visé, barre de blocs |
+| `render.h`, `render.cpp` | OpenGL ES 3 : le panneau de fabrication (`CraftDraw`), shaders, ciel et soleil, pluie et neige (gouttes faites par le vertex shader, cachées sous les toits par une carte des hauteurs), tronçons (tronc de vue), eau animée (vagues de la surface dans le vertex shader, texture qui glisse et reflets dans le fragment shader), contour visé, barre de blocs |
 | `textures.cpp` | l'atlas de 16 × 16 tuiles, dessiné au départ |
 | `player.h`, `player.cpp` | marche, saut, nage, vol, collisions |
 | `api.cpp` | protocole des scripts et son serveur (un thread par connexion, une file vidée par la boucle) |

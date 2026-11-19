@@ -22,6 +22,25 @@ struct Camera {
 	float fov = 70.0f;
 };
 
+// le panneau de l'inventaire et de la fabrication (mode survie), en pixels de la vue (main.cpp, craftDraw)
+struct CraftDraw {
+	struct Cell {
+		int x, y, size;
+		int item, count;
+		float wear;			// (-1 : pas un outil)
+		bool hover, result, selected;
+	};
+	struct Arrow {
+		int x, y, len;			// le départ (milieu de la hampe), la longueur
+	};
+	int x, y, w, h;			// le panneau
+	bool book = false;		// (le livre des recettes : le panneau seul, les textes par UIKit)
+	std::vector<Cell> cells;
+	std::vector<Arrow> arrows;
+	int cursorItem = 0, cursorCount = 0, mx = 0, my = 0;
+	float cursorWear = -1;
+};
+
 struct HudState {
 	int slots[9];			// des objets (items.h) : un bloc, ou une matière, un outil
 	int counts[9];			// (-1 : pas de nombre : mode créatif)
@@ -31,6 +50,8 @@ struct HudState {
 	bool underwater;
 	bool crosshair;
 	bool hotbar = true;
+	const CraftDraw *craft = nullptr;	// (le panneau ouvert : pas de barre ni de viseur)
+	unsigned sunken = 0, line = 0, hoverCol = 0;
 	unsigned panel, panelLine, accent, text, good, warn, bad;	// jetons du thème (0xRRGGBB)
 };
 
