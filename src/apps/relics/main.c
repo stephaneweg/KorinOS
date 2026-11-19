@@ -221,6 +221,22 @@ static int g_sim, g_simdead;			/* (tools/relics : l'explorateur seul, sans effet
 #define IN_DYN		64
 #define IN_OK		128
 static unsigned g_in, g_inprev, g_edge;
+static unsigned g_latch;				/* les touches appuyees depuis le dernier pas (une frappe breve compte) */
+
+/* une touche (code HID) -> ses bits d'entree */
+static unsigned key_bits (unsigned k)
+{
+	unsigned b = 0;
+	if (k == 0x50) b |= IN_L;
+	if (k == 0x4F) b |= IN_R;
+	if (k == 0x52) b |= IN_U;
+	if (k == 0x51) b |= IN_D;
+	if (k == 0x2C) b |= IN_JUMP | IN_OK;
+	if (k == 0x28 || k == 0x58) b |= IN_OK;
+	if (k == 0xE0 || k == 0xE4 || k == 0x1B || k == 0x09) b |= IN_FIRE;
+	if (k == 0x07 || k == 0x06) b |= IN_DYN;
+	return b;
+}
 
 /* les lueurs d'une explosion */
 static struct { int life; float x, y; } g_fx[8];
@@ -248,15 +264,69 @@ static const char *g_sprdir = "/apps/relics.app/sprites";
 static char *g_bank0;
 static unsigned long bank_left (void) { return g_bank0 ? BANK - (unsigned long) (ga_bp - g_bank0) : 0; }
 
+/* un fichier entier en memoire, lu par gros morceaux (sous Korin, chaque read est un aller-retour vers le service de
+ * fichiers : jamais de petites lectures) -> ses octets (a liberer), *n sa taille ; 0 : absent */
+static unsigned char *slurp (const char *path, long *n)
+{
+	int fd = open (path, O_RDONLY);
+	if (fd < 0) return 0;
+	long cap = 1 << 18, len = 0, r;
+	unsigned char *b = (unsigned char *) malloc ((size_t) cap);
+	while (b && (r = read (fd, b + len, (size_t) (cap - len))) > 0)
+	{
+		len += r;
+		if (len == cap)
+		{
+			unsigned char *nb = (unsigned char *) realloc (b, (size_t) (cap *= 2));
+			if (!nb) { free (b); b = 0; }
+			else b = nb;
+		}
+	}
+	close (fd);
+	*n = len;
+	return b;
+}
+
+/* une lecture dans le fichier en memoire : n octets, ou 0 s'il n'y en a plus */
+struct cur { const unsigned char *p, *end; };
+static const unsigned char *take (struct cur *c, long n)
+{
+	if (c->end - c->p < n) return 0;
+	const unsigned char *r = c->p;
+	c->p += n;
+	return r;
+}
+
+/* une image compressee par plages (u32 nombre, puis u16 longueur, u32 valeur) -> dans s (w x h) ; 0 : abimee */
+static int unpack (struct cur *c, gf_sprite_t *s, long total)
+{
+	const unsigned char *nb = take (c, 4);
+	if (!nb) return 0;
+	long nr = nb[0] | nb[1] << 8 | nb[2] << 16 | (long) nb[3] << 24, at = 0;
+	for (long k = 0; k < nr; k++)
+	{
+		const unsigned char *run = take (c, 6);
+		if (!run) return 0;
+		long len = run[0] | run[1] << 8;
+		uint32_t v = (uint32_t) run[2] | (uint32_t) run[3] << 8 | (uint32_t) run[4] << 16 | (uint32_t) run[5] << 24;
+		if (at + len > total) return 0;
+		for (long q = 0; q < len; q++) s[2 + at + q] = v;
+		at += len;
+	}
+	return at == total;
+}
+
 static struct sset *load_spr (const char *name)
 {
 	char p[300];
 	snprintf (p, sizeof p, "%s/%s", g_sprdir, name);
-	int fd = open (p, O_RDONLY);
-	if (fd < 0) return 0;
-	unsigned char hd[24];
+	long size;
+	unsigned char *file = slurp (p, &size);
+	if (!file) return 0;
+	struct cur c = { file, file + size };
+	const unsigned char *hd = take (&c, 24);
 	struct sset *ss = 0;
-	if (read (fd, hd, 24) == 24 && !memcmp (hd, "RSPR", 4) && hd[4] == 3)
+	if (hd && !memcmp (hd, "RSPR", 4) && hd[4] == 3)
 	{
 		int n = hd[6] | hd[7] << 8, w = hd[8] | hd[9] << 8, h = hd[10] | hd[11] << 8, sum = 0;
 		for (int g = 0; g < SG_N; g++) sum += hd[16 + g];
@@ -270,26 +340,13 @@ static struct sset *load_spr (const char *name)
 			for (int i = 0; i < n && ss; i++)
 			{
 				gf_sprite_t *s = ga_new ((unsigned long) w, (unsigned long) h);
-				unsigned char nb[4], run[6];
-				long at = 0, total = (long) w * h, nr;
-				if (read (fd, nb, 4) != 4) { free (ss); ss = 0; break; }
-				nr = nb[0] | nb[1] << 8 | nb[2] << 16 | (long) nb[3] << 24;
-				for (long k = 0; k < nr; k++)		/* les plages : longueur, valeur */
-				{
-					if (read (fd, run, 6) != 6) { at = -1; break; }
-					long len = run[0] | run[1] << 8;
-					uint32_t v = (uint32_t) run[2] | (uint32_t) run[3] << 8 | (uint32_t) run[4] << 16 | (uint32_t) run[5] << 24;
-					if (at + len > total) { at = -1; break; }
-					for (long q = 0; q < len; q++) s[2 + at + q] = v;
-					at += len;
-				}
-				if (at != total) { free (ss); ss = 0; break; }
+				if (!unpack (&c, s, (long) w * h)) { free (ss); ss = 0; break; }
 				ss->f[0][i] = s;
 				ss->f[1][i] = sp_mirror (s, 0);
 			}
 		}
 	}
-	close (fd);
+	free (file);
 	return ss;
 }
 
@@ -306,32 +363,24 @@ static int load_til (int w)
 {
 	char p[300];
 	snprintf (p, sizeof p, "%s/world%d.til", g_tildir, w);
-	int fd = open (p, O_RDONLY);
-	if (fd < 0) return 0;
-	unsigned char hd[8];
-	int ok = read (fd, hd, 8) == 8 && !memcmp (hd, "RTIL", 4) && hd[4] == 2 && (hd[6] | hd[7] << 8) == ET_N;
+	long size;
+	unsigned char *file = slurp (p, &size);
+	if (!file) return 0;
+	struct cur c = { file, file + size };
+	const unsigned char *hd = take (&c, 8);
+	int ok = hd && !memcmp (hd, "RTIL", 4) && hd[4] == 2 && (hd[6] | hd[7] << 8) == ET_N;
 	gf_sprite_t *im[ET_N];
 	for (int i = 0; i < ET_N && ok; i++)
 	{
-		unsigned char ih[8], run[6];
-		if (read (fd, ih, 8) != 8) { ok = 0; break; }
-		long w0 = ih[0] | ih[1] << 8, h0 = ih[2] | ih[3] << 8, nr = ih[4] | ih[5] << 8 | ih[6] << 16 | (long) ih[7] << 24;
+		const unsigned char *ih = take (&c, 4);
+		if (!ih) { ok = 0; break; }
+		long w0 = ih[0] | ih[1] << 8, h0 = ih[2] | ih[3] << 8;
 		if (w0 <= 0 || h0 <= 0 || w0 > 1024 || h0 > 512 || bank_left () < (unsigned long) (w0 * h0 * 4) + (4u << 20)) { ok = 0; break; }
 		gf_sprite_t *s = ga_new ((unsigned long) w0, (unsigned long) h0);
-		long at = 0, total = w0 * h0;
-		for (long k = 0; k < nr; k++)
-		{
-			if (read (fd, run, 6) != 6) { at = -1; break; }
-			long len = run[0] | run[1] << 8;
-			uint32_t v = (uint32_t) run[2] | (uint32_t) run[3] << 8 | (uint32_t) run[4] << 16 | (uint32_t) run[5] << 24;
-			if (at + len > total) { at = -1; break; }
-			for (long q = 0; q < len; q++) s[2 + at + q] = v;
-			at += len;
-		}
-		if (at != total) { ok = 0; break; }
+		if (!unpack (&c, s, w0 * h0)) { ok = 0; break; }
 		im[i] = s;
 	}
-	close (fd);
+	free (file);
 	if (!ok) return 0;
 	for (int i = 0; i < ET_N; i++) g_til[w][i] = im[i];
 	if (im[ET_BG][0] == BG_W && im[ET_BG][1] == BG_H) g_bg[w] = im[ET_BG] + 2;	/* (le fond, tout opaque) */
@@ -1477,6 +1526,8 @@ static void read_input (void)
 	if (k[0xE0] || k[0xE4] || k[0x1B] || k[0x09] || (p & (PAD_B | PAD_X))) b |= IN_FIRE;
 	if (k[0x07] || k[0x06] || (p & PAD_Y)) b |= IN_DYN;
 	if (k[0x2C] || k[0x28] || k[0x58] || (p & PAD_A)) b |= IN_OK;
+	b |= g_latch;
+	g_latch = 0;
 	g_inprev = g_in;
 	g_in = b;
 	g_edge = b & ~g_inprev;
@@ -2073,15 +2124,28 @@ static void do_menu (long id)
 	else if (id == ID_SOUND) toggle_sound ();
 }
 
-static void on_pad (void) { }
+/* les boutons qui viennent d'etre appuyes (manette, ou lettres a b x y du clavier) : retenus jusqu'au pas suivant */
+static void on_pad (void)
+{
+	unsigned long n = gp_new;
+	if (n & PAD_A) g_latch |= IN_JUMP | IN_OK;
+	if (n & (PAD_B | PAD_X)) g_latch |= IN_FIRE;
+	if (n & PAD_Y) g_latch |= IN_DYN;
+	if (n & PAD_LEFT) g_latch |= IN_L;
+	if (n & PAD_RIGHT) g_latch |= IN_R;
+	if (n & PAD_UP) g_latch |= IN_U;
+	if (n & PAD_DOWN) g_latch |= IN_D;
+}
 
 static void on_event (long t)
 {
 	if (gp_event (t)) return;
-	if (t == WEV_MENU) do_menu ((uint32_t) GF_EV (EV_CODE));
+	if (t == WEV_PAD) on_pad ();
+	else if (t == WEV_MENU) do_menu ((uint32_t) GF_EV (EV_CODE));
 	else if (t == WEV_KEY)
 	{
 		if (!GF_EV (EV_KIND)) return;
+		g_latch |= key_bits ((uint32_t) GF_EV (EV_CODE));
 		long id = ui_menu_key (0);
 		if (id >= 0) { do_menu (id); return; }
 		unsigned ch = (uint32_t) GF_EV (EV_CHAR) | 0x20;
