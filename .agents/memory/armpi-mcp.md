@@ -28,6 +28,11 @@ Le 15/11/2026, l'utilisateur a demandé une étude d'un serveur MCP sur Korin, p
 - Le client MCP est déjà écrit dans la session de la CAO (Forge piloté par MCP, branche claude/cao-occt-367ad4,
   pas encore commité le 15/11) : le reprendre, ne pas en faire un second. Voir [[armpi-cao]].
 
+- Idée du 19/11 (étude § 6.6) : le MCP parle à **tous les kits, services et Elegant**, pour que l'agent **montre**
+  lui-même (« affiche-moi ceci ») : fenêtres à la volée décrites par l'agent (contrôles UIKit, événements renvoyés à
+  l'agent), vues prêtes (tableau, image, graphique, formulaire), sans lancer ni créer d'app ; « garde-la » en fait
+  une vraie app (korin-app).
+
 **Why:** l'agent ne voit pas l'écran, ne peut pas essayer les apps qu'il écrit, et lit mal le matériel.
 **How to apply:** avant de coder, relire l'étude et ses questions ouvertes (§ 8). Voir [[armpi-claude-acp]],
 [[armpi-agent-ia-korin]].

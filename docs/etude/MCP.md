@@ -342,6 +342,26 @@ réservés aux programmes de `/sys`. Plutôt qu'un seul serveur tout-puissant :
 
 La façade ne passe `korin-mcp-sys` dans `mcpServers` que si l'utilisateur l'a demandé pour la séance.
 
+### 6.6 Montrer sans écrire d'app (idée du 19/11)
+
+L'utilisateur veut dire à l'agent « affiche-moi ceci », « montre-moi cela », et que l'agent le **montre lui-même**,
+sans lancer ni créer d'app. Le MCP parle alors directement au système :
+
+- **Tous les kits, les services et Elegant** sont joignables par le MCP, pas seulement la capture et les entrées :
+  UIKit, MediaKit, DocumentKit, NetKit… (les fonctions des kits déjà prévues au § 3, `kit_call`), les services
+  (`svc_call` sur leurs ops), et Elegant (fenêtres, menus, notifications, bureau).
+- **Des fenêtres à la volée** : l'agent décrit une fenêtre (titre, taille, contrôles : textes, listes, boutons,
+  champs, images, graphiques) et le serveur la crée par UIKit, dans un process à lui. Les événements (clic, saisie,
+  choix dans une liste) remontent à l'agent comme des notifications MCP, qui peut répondre en changeant la fenêtre.
+- **Des vues prêtes** : un tableau, une image, un graphique, un texte riche, un formulaire de quelques champs, la
+  carte d'un fichier ; l'agent n'écrit que les données.
+- **Rien de permanent** : la fenêtre vit tant que la séance ; « garde-la » devient alors une vraie app (le skill
+  `korin-app` reprend la description).
+
+À trancher : un process-hôte des fenêtres par séance, ou par fenêtre ; le format de description (JSON proche de
+l'arbre des widgets, `WS_OP_UI_TREE` du § 3, pour qu'une même forme serve à lire une app et à en montrer une) ; ce
+que l'agent peut faire sans accord (montrer : oui ; agir sur le système par un service : accord, comme § 6.5).
+
 ## 7. Étapes
 
 1. **Client MCP dans claude-acp** (§ 4.1), essayé avec `mcp_test_server.py`. **En cours dans le chantier de la CAO**
