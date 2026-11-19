@@ -656,7 +656,7 @@ static void parse_level (int n)
 					e->t = (int) (hashu (tx, ty, 5) % 300);
 				}
 				break;
-			case 'o': e = ent_new (E_BOULDER, X + 1, B - 18, 18, 18); break;
+			case 'o': e = ent_new (E_BOULDER, X + 1, B - 38, 38, 38); break;	/* (2 cases : sa case et celle de droite, celle du dessus) */
 			case '!': e = ent_new (E_ROCK, X + 3, Y, 14, 18); break;
 			case 'M':
 				e = ent_new (E_CRUSHER, X - 2, Y, 24, 26);
@@ -782,7 +782,10 @@ static void reset_actors (void)
 			if (e->on) { e->x = e->px = e->x0; e->y = e->py = e->y0; e->vx = e->vy = 0; e->st = 0; }
 			break;
 		case E_SPIKES: e->st = 0; e->t = 0; break;
-		case E_BOULDER: if (e->on && e->st) e->on = 0; break;
+		case E_BOULDER:						/* (il revient : la fuite se rejoue) */
+			e->on = 1; e->st = 0; e->a = 0;
+			e->x = e->px = e->x0; e->y = e->py = e->y0; e->vx = e->vy = 0;
+			break;
 		case E_ROCK: if (e->on && e->st) e->on = 0; break;
 		}
 	}
@@ -1349,7 +1352,7 @@ static void world_step (void)
 			if (e->st == 0)
 			{
 				float bcx = e->x + e->w / 2, bcy = e->y + e->h / 2;
-				if (!g_h.dead && fabsf (hcx - bcx) < 7 * TS && fabsf (hcy - bcy) < 3 * TS && clear_row (bcx, hcx, bcy))
+				if (!g_h.dead && g_h.ground && fabsf (hcx - bcx) < 7 * TS && fabsf (hcy - bcy) < 3 * TS && clear_row (bcx, hcx, bcy))
 				{
 					e->st = 1;
 					e->dir = hcx > bcx ? 1 : -1;
@@ -1358,14 +1361,16 @@ static void world_step (void)
 				}
 				break;
 			}
-			e->vx += 0.05f * (float) e->dir;
-			if (fabsf (e->vx) > 1.65f) e->vx = 1.65f * (float) e->dir;
+			/* (presque aussi vite que l'explorateur : qui hesite est rattrape) */
+			e->vx += 0.065f * (float) e->dir;
+			if (fabsf (e->vx) > 1.75f) e->vx = 1.75f * (float) e->dir;
 			e->vy += GRAV;
+			if (e->vy > 1.5f) e->vx *= 0.8f;			/* (dans le vide : il tombe droit, au fond d'une fosse) */
 			{
-				float ovx = e->vx;
+				float ovx = e->vx, ovy = e->vy;
 				int r = move_box (&e->x, &e->y, e->w, e->h, &e->vx, &e->vy, 1);
-				e->a += ovx / 9;
-				if ((r & MV_WALL) || e->y > (float) g_ih + 40 || tile_pt (e->x + e->w / 2, e->y + e->h) == T_LIQUID)
+				e->a += ovx / 19;
+				if ((r & MV_WALL) || ((r & MV_GROUND) && ovy > 4.0f) || e->y > (float) g_ih + 40 || tile_pt (e->x + e->w / 2, e->y + e->h) == T_LIQUID)
 				{
 					e->on = 0;
 					burst (e->x + e->w / 2, e->y + e->h / 2, worlds[g_world].rock, 26, 220, 30, 3, 14);

@@ -145,6 +145,7 @@ static void init_all (void)
 }
 
 /* les entrees du script, pas a pas */
+static int h_trace;
 static void run_script (const char *s)
 {
 	while (*s)
@@ -171,7 +172,12 @@ static void run_script (const char *s)
 		int n = atoi (s);
 		while (*s >= '0' && *s <= '9') s++;
 		if (!n) n = 1;
-		for (int i = 0; i < n; i++) step ();
+		for (int i = 0; i < n; i++)
+		{
+			step ();
+			if (h_trace && g_tick % 8 == 0)
+				printf ("t %4u etat %d x %7.1f y %6.1f vx %5.2f vy %5.2f sol %d mort %d\n", (unsigned) g_tick, g_state, g_h.x, g_h.y, g_h.vx, g_h.vy, g_h.ground, g_h.dead);
+		}
 		(void) keys;
 	}
 	memset (gf_held, 0, sizeof gf_held);
@@ -404,6 +410,22 @@ int main (int argc, char **argv)
 				printf ("x %6.1f y %6.1f vx %5.2f vy %5.2f g %d c %d %s\n", g_h.x, g_h.y, g_h.vx, g_h.vy, g_h.ground, g_h.climb, g_simdead ? "MORT" : "");
 			}
 		}
+		return 0;
+	}
+	if (argc >= 6 && !strcmp (argv[1], "chase"))
+	{						/* chase n tx ty script : une fuite devant un rocher, avec tout le jeu */
+		new_game (atoi (argv[2]));
+		set_state (GS_PLAY);
+		g_h.x = (float) (atoi (argv[3]) * TS + 4);
+		g_h.y = (float) ((atoi (argv[4]) + 1) * TS - H_H);
+		camera_snap ();
+		int lives = g_lives;
+		h_trace = getenv ("RELICS_TRACE") != 0;
+		run_script (argv[5]);
+		for (int i = 0; i < g_ne; i++)
+			if (g_e[i].type == E_BOULDER)
+				printf ("rocher %d : %s x %.0f (depart %.0f)\n", i, g_e[i].on ? (g_e[i].st ? "roule" : "au repos") : "ecrase", g_e[i].x, g_e[i].x0);
+		printf ("explorateur x %.0f (case %d) : %s\n", g_h.x, (int) (g_h.x / TS), g_lives < lives || g_h.dead ? "MORT" : "vivant");
 		return 0;
 	}
 	if (argc >= 5 && !strcmp (argv[1], "deep"))

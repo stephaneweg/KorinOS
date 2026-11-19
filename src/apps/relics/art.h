@@ -542,16 +542,20 @@ static gf_sprite_t *gen_exit (uint32_t stone)
 
 static gf_sprite_t *gen_boulder (uint32_t c, float rot)
 {
-	gf_sprite_t *s = sp_new (20, 20);
-	sp_disc_g (10.0f, 10.0f, 9.2f, ga_shade (c, 330), ga_shade (c, 150));
-	for (int i = 0; i < 3; i++)
+	/* deux cases de haut : on ne le saute pas dans un couloir */
+	gf_sprite_t *s = sp_new (40, 40);
+	sp_disc_g (20.0f, 20.0f, 19.0f, ga_shade (c, 330), ga_shade (c, 140));
+	for (int i = 0; i < 4; i++)
 	{
-		float a = rot + (float) i * 2.1f;
-		sp_cap (10.0f + cosf (a) * 2.0f, 10.0f + sinf (a) * 2.0f, 10.0f + cosf (a + 0.5f) * 7.4f, 10.0f + sinf (a + 0.5f) * 7.4f, 0.55f, ga_shade (c, 120));
-		sp_disc (10.0f + cosf (a + 1.2f) * 5.0f, 10.0f + sinf (a + 1.2f) * 5.0f, 1.3f, ga_shade (c, 200));
+		float a = rot + (float) i * 1.5708f;
+		sp_cap (20.0f + cosf (a) * 3.0f, 20.0f + sinf (a) * 3.0f, 20.0f + cosf (a + 0.5f) * 15.5f, 20.0f + sinf (a + 0.5f) * 15.5f, 0.9f, ga_shade (c, 110));
+		sp_cap (20.0f + cosf (a + 0.5f) * 9.0f, 20.0f + sinf (a + 0.5f) * 9.0f, 20.0f + cosf (a + 0.95f) * 13.0f, 20.0f + sinf (a + 0.95f) * 13.0f, 0.7f, ga_shade (c, 120));
+		sp_disc (20.0f + cosf (a + 1.1f) * 11.0f, 20.0f + sinf (a + 1.1f) * 11.0f, 2.4f, ga_shade (c, 200));
+		sp_disc (20.0f + cosf (a + 1.1f) * 11.0f + 0.6f, 20.0f + sinf (a + 1.1f) * 11.0f + 0.6f, 1.4f, ga_shade (c, 130));
 	}
-	sp_disc (7.0f, 6.6f, 2.0f, ga_shade (c, 380));
-	sp_outline (0x00100808, 0.85f);
+	sp_disc (13.0f, 12.0f, 4.0f, ga_shade (c, 370));
+	sp_disc (11.5f, 10.5f, 1.8f, ga_shade (c, 430));
+	sp_outline (0x00100808, 1.1f);
 	return s;
 }
 

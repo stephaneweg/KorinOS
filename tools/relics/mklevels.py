@@ -19,8 +19,16 @@ class C:
 	"""Une grille de cases, pleine au depart."""
 
 	def __init__(s, w, h, fill="#"):
-		s.w, s.h = w, h
+		s.w, s.h, s.fill = w, h, fill
 		s.g = [[fill] * w for _ in range(h)]
+
+	def grow(s, w, h, fill=None):
+		"""Plus grande (a droite, en bas), pleine."""
+		fill = fill or s.fill
+		for r in s.g:
+			r += [fill] * (w - s.w)
+		s.g += [[fill] * w for _ in range(h - s.h)]
+		s.w, s.h = w, h
 
 	def rect(s, x0, y0, x1, y1, ch):
 		for y in range(max(0, y0), min(s.h, y1 + 1)):
@@ -58,6 +66,33 @@ class C:
 
 	def rows(s):
 		return ["".join(r) for r in s.g]
+
+
+def escape(c, x, up, d=1, run=14, pit=2):
+	"""La fuite devant le rocher, comme dans le jeu d'origine. Le sol ou l'on marche (la rangee up) finit par un trou
+	en colonne x, contre un mur ; on tombe dans un couloir de 2 cases de haut, ou l'on ne peut pas sauter, et le
+	rocher, au repos 3 cases derriere, part aussitot. Il faut courir (d : 1 vers la droite, -1 vers la gauche) sur run
+	cases, sauter une fosse a pointes de pit cases (le plafond s'ouvre au-dessus) ou le rocher tombe et s'ecrase, et la sortie
+	est au bout. La grille doit avoir la place (C.grow) : 5 + 4 rangees sous up, run + pit + 11 colonnes."""
+	f = up + 5						# le sol du couloir (rangees f-2, f-1)
+
+	def cols(a, b):						# les colonnes x + a*d .. x + b*d
+		return min(x + a * d, x + b * d), max(x + a * d, x + b * d)
+	c.rect(x + d, up - 4, x + d, up, c.g[up + 1][x])	# le mur : on ne saute pas le trou
+	c.rect(x, up + 1, x, f - 3, ".")			# le trou
+	a, b = cols(-4, run)
+	c.rect(a, f - 2, b, f - 1, ".")				# le couloir
+	a, b = cols(-4, -3)
+	c.put(a, f - 1, "o")
+	a, b = cols(run - 3, run + pit + 1)
+	c.rect(a, f - 5, b, f - 1, ".")				# le plafond s'ouvre : on peut sauter
+	a, b = cols(run + 1, run + pit)
+	c.rect(a, f, b, f + 2, ".")				# la fosse
+	c.row(a, b, f + 3, "^")
+	a, b = cols(run + pit + 1, run + pit + 10)
+	c.rect(a, f - 4, b, f - 1, ".")				# la salle de la sortie
+	c.put(x + (run + pit + 4) * d, f - 3, "i")
+	c.put(x + (run + pit + 7) * d, f - 1, "E")
 
 
 LEVELS = []
@@ -214,7 +249,8 @@ def l2():
 	c.put(112, 22, "p")
 	c.put(108, 23, "i")
 	c.put(106, 27, "*")
-	c.put(102, 27, "E")
+	c.grow(160, 38)
+	escape(c, 100, 27, -1)
 	c.put(99, 27, ">")
 	c.fern(10, 8)
 	c.fern(33, 18)
@@ -380,7 +416,9 @@ def d1():
 	c.put(146, 19, "g")
 	c.put(152, 19, "$")
 	c.put(160, 19, "*")
-	c.put(165, 19, "E")
+	c.grow(200, 30)
+	c.rect(167, 0, 199, 19, "#")
+	escape(c, 166, 19)
 	for x in (6, 37, 95, 136, 156):
 		c.fern(x, 19)
 	return c
@@ -533,7 +571,8 @@ def p1():
 	c.put(132, 10, "t")
 	c.put(136, 5, "i")
 	c.put(140, 9, "*")
-	c.put(145, 9, "E")
+	c.grow(180, 30, "=")
+	escape(c, 147, 9)
 	return c
 
 
@@ -735,7 +774,8 @@ def l7():
 	c.put(160, 13, "!")
 	c.put(166, 14, "i")
 	c.put(168, 18, "*")
-	c.put(172, 18, "E")
+	c.grow(206, 30, "=")
+	escape(c, 173, 18)
 	c.fern(7, 19)
 	c.fern(48, 16)
 	c.fern(66, 18)
@@ -931,7 +971,8 @@ def l10():
 	c.put(156, 18, "s")
 	c.put(162, 18, "*")
 	c.put(166, 14, "i")
-	c.put(170, 18, "E")
+	c.grow(206, 30, "=")
+	escape(c, 173, 18)
 	c.fern(12, 18)
 	c.fern(56, 18)
 	c.fern(90, 18)
