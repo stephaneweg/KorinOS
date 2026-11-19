@@ -238,10 +238,15 @@ static gf_sprite_t *g_sarrow[2], *g_sfern[NWORLD];
 static gf_sprite_t *g_hheart, *g_hbul, *g_hdyn, *g_hkey, *g_hcoin;	/* (les petites, du bandeau) */
 static gf_sprite_t *g_tfg[MAXH][MAXW], *g_tbg[MAXH][MAXW];
 
-/* un personnage en images (tools/relics/mksprites.py) : s'il est la, il remplace le dessine */
-struct sset { int nw, ns, nd, w, h, ax, ay; gf_sprite_t *f[2][32]; };
-static struct sset *g_cfoe[NWORLD], *g_cshoot[NWORLD];	/* foe<monde>.spr, shooter<monde>.spr */
+/* un personnage en images (tools/relics/mksprites.py, explorer.py) : s'il est la, il remplace le dessine. Les poses
+ * par groupes : marche, tir, mort, debout, saut, chute, echelle, accroupi. */
+enum { SG_WALK, SG_SHOOT, SG_DIE, SG_STAND, SG_JUMP, SG_FALL, SG_CLIMB, SG_CROUCH, SG_N };
+struct sset { int n[SG_N], o[SG_N], w, h, ax, ay; gf_sprite_t *f[2][64]; };
+static struct sset *g_cfoe[NWORLD][2], *g_cshoot[NWORLD][2], *g_chero;	/* foe<monde>[b].spr, shooter<monde>[b].spr, hero.spr */
 static const char *g_sprdir = "/apps/relics.app/sprites";
+#define BANK		(48u << 20)		/* la reserve des images (ga_init) : tuiles, sprites dessines et charges */
+static char *g_bank0;
+static unsigned long bank_left (void) { return g_bank0 ? BANK - (unsigned long) (ga_bp - g_bank0) : 0; }
 
 static struct sset *load_spr (const char *name)
 {
@@ -249,22 +254,36 @@ static struct sset *load_spr (const char *name)
 	snprintf (p, sizeof p, "%s/%s", g_sprdir, name);
 	int fd = open (p, O_RDONLY);
 	if (fd < 0) return 0;
-	unsigned char hd[20];
+	unsigned char hd[24];
 	struct sset *ss = 0;
-	if (read (fd, hd, 20) == 20 && !memcmp (hd, "RSPR", 4))
+	if (read (fd, hd, 24) == 24 && !memcmp (hd, "RSPR", 4) && hd[4] == 3)
 	{
-		int n = hd[6] | hd[7] << 8, w = hd[8] | hd[9] << 8, h = hd[10] | hd[11] << 8;
-		if (n > 0 && n <= 32 && w > 0 && h > 0 && w <= 256 && h <= 256 && hd[16] + hd[17] + hd[18] == n && hd[16])
+		int n = hd[6] | hd[7] << 8, w = hd[8] | hd[9] << 8, h = hd[10] | hd[11] << 8, sum = 0;
+		for (int g = 0; g < SG_N; g++) sum += hd[16 + g];
+		if (n > 0 && n <= 64 && sum == n && hd[16] && w > 0 && h > 0 && w <= 256 && h <= 256
+		    && bank_left () > (unsigned long) n * 2 * (8 + (unsigned long) w * h * 4) + (4u << 20))	/* (de la place, tuiles comprises) */
 		{
 			ss = (struct sset *) calloc (1, sizeof *ss);
-			ss->nw = hd[16]; ss->ns = hd[17]; ss->nd = hd[18]; ss->w = w; ss->h = h;
+			for (int g = 0, o = 0; g < SG_N; g++) { ss->n[g] = hd[16 + g]; ss->o[g] = o; o += ss->n[g]; }
+			ss->w = w; ss->h = h;
 			ss->ax = hd[12] | hd[13] << 8; ss->ay = hd[14] | hd[15] << 8;
 			for (int i = 0; i < n && ss; i++)
 			{
 				gf_sprite_t *s = ga_new ((unsigned long) w, (unsigned long) h);
-				long want = (long) w * h * 4, got = 0, r;
-				while (got < want && (r = read (fd, (char *) (s + 2) + got, (size_t) (want - got))) > 0) got += r;
-				if (got < want) { free (ss); ss = 0; break; }
+				unsigned char nb[4], run[6];
+				long at = 0, total = (long) w * h, nr;
+				if (read (fd, nb, 4) != 4) { free (ss); ss = 0; break; }
+				nr = nb[0] | nb[1] << 8 | nb[2] << 16 | (long) nb[3] << 24;
+				for (long k = 0; k < nr; k++)		/* les plages : longueur, valeur */
+				{
+					if (read (fd, run, 6) != 6) { at = -1; break; }
+					long len = run[0] | run[1] << 8;
+					uint32_t v = (uint32_t) run[2] | (uint32_t) run[3] << 8 | (uint32_t) run[4] << 16 | (uint32_t) run[5] << 24;
+					if (at + len > total) { at = -1; break; }
+					for (long q = 0; q < len; q++) s[2 + at + q] = v;
+					at += len;
+				}
+				if (at != total) { free (ss); ss = 0; break; }
 				ss->f[0][i] = s;
 				ss->f[1][i] = sp_mirror (s, 0);
 			}
@@ -272,7 +291,23 @@ static struct sset *load_spr (const char *name)
 	}
 	close (fd);
 	return ss;
-}	/* la tuile de chaque case, son fond */
+}
+
+/* le jeu d'images d'un ennemi : le tireur a le sien s'il existe, sinon celui du gardien ; v : sa variante (b) */
+static const struct sset *foe_set (int type, int v)
+{
+	struct sset *const *t = type == E_SHOOTER && g_cshoot[g_world][0] ? g_cshoot[g_world] : g_cfoe[g_world];
+	return v && t[1] ? t[1] : t[0];
+}
+
+/* l'image i du groupe g (bornee ; un groupe vide prend la marche) */
+static const gf_sprite_t *spr_frame (const struct sset *ss, int g, int i, int left)
+{
+	if (!ss->n[g]) { g = SG_WALK; i = 0; }
+	if (i < 0) i = 0;
+	if (i >= ss->n[g]) i = ss->n[g] - 1;
+	return ss->f[left][ss->o[g] + i];
+}
 static gf_sprite_t *g_dig[10], *g_digb[10], *g_slash;
 
 /* les textes */
@@ -486,7 +521,7 @@ static void parse_level (int n)
 				break;
 			case 'g': case 's':
 				e = ent_new (c == 'g' ? E_WALKER : E_SHOOTER, X + (TS - H_W) / 2, B - H_H, H_W, H_H);
-				if (e) e->dir = (hashu (tx, ty, 3) & 1) ? 1 : -1;
+				if (e) { e->dir = (hashu (tx, ty, 3) & 1) ? 1 : -1; e->kind = (int) (hashu (tx, ty, 12) & 1); }	/* (kind : la variante) */
 				break;
 			case 'b':
 				e = ent_new (E_BAT, X + 2, Y + 5, 16, 10);
@@ -738,16 +773,15 @@ static void flash (float x, float y)
 		if (!g_fx[i].life) { g_fx[i].life = 18; g_fx[i].x = x; g_fx[i].y = y; return; }
 }
 
-static const struct sset *foe_set (int type) { return type == E_SHOOTER && g_cshoot[g_world] ? g_cshoot[g_world] : g_cfoe[g_world]; }
 
 static void kill_foe (struct ent *e)
 {
 	e->on = 0;
-	const struct sset *ss = (e->type == E_WALKER || e->type == E_SHOOTER) ? foe_set (e->type) : 0;
-	if (ss && ss->nd)
+	const struct sset *ss = (e->type == E_WALKER || e->type == E_SHOOTER) ? foe_set (e->type, e->kind) : 0;
+	if (ss && ss->n[SG_DIE])
 	{						/* sa mort en images, puis il s'efface */
 		struct ent *c = ent_new (E_CORPSE, e->x, e->y, e->w, e->h);
-		if (c) { c->kind = e->type; c->dir = e->dir; }
+		if (c) { c->kind = e->type; c->dir = e->dir; c->st = e->kind; }
 		burst (e->x + e->w / 2, e->y + e->h / 2, 0x00FFF0C0, 8, 220, 10, 2, 0);
 		add_score (e->type == E_SHOOTER ? 200 : 100);
 		snd_kill ();
@@ -1557,14 +1591,14 @@ static void draw_tile_fx (void)
 static void draw_foe (const struct ent *e)
 {
 	int d = e->dir < 0;
-	const struct sset *ss = e->type == E_SHOOTER && g_cshoot[g_world] ? g_cshoot[g_world] : g_cfoe[g_world];
+	const struct sset *ss = foe_set (e->type, e->kind);
 	if (ss)
 	{
-		int i;
-		if (e->type == E_SHOOTER && ss->ns && (e->t || e->vx == 0)) i = ss->nw + (e->t ? (16 - e->t) * ss->ns / 17 : 0);
-		else i = (int) (e->a * 2) % ss->nw;
+		const gf_sprite_t *f;
+		if (e->type == E_SHOOTER && ss->n[SG_SHOOT] && (e->t || e->vx == 0)) f = spr_frame (ss, SG_SHOOT, e->t ? (16 - e->t) * ss->n[SG_SHOOT] / 17 : 0, d);
+		else f = spr_frame (ss, SG_WALK, (int) (e->a * 2) % ss->n[SG_WALK], d);
 		long ax = d ? ss->w - ss->ax : ss->ax;
-		ga_ablit (SX (e->x + e->w / 2) - ax, SY (e->y + e->h) - ss->ay, ss->f[d][i]);
+		ga_ablit (SX (e->x + e->w / 2) - ax, SY (e->y + e->h) - ss->ay, f);
 		return;
 	}
 	const gf_sprite_t *s;
@@ -1645,13 +1679,12 @@ static void draw_ents (int pass)
 		case E_WALKER: case E_SHOOTER: draw_foe (e); break;
 		case E_CORPSE:
 		{
-			const struct sset *ss = foe_set (e->kind);
-			if (!ss || !ss->nd) break;
-			int d = e->dir < 0, i = e->t / 5;
-			if (i >= ss->nd) i = ss->nd - 1;
+			const struct sset *ss = foe_set (e->kind, e->st);
+			if (!ss || !ss->n[SG_DIE]) break;
+			int d = e->dir < 0;
 			if (e->t > 80 && (e->t & 4)) break;		/* (il clignote, puis s'en va) */
 			long ax = d ? ss->w - ss->ax : ss->ax;
-			ga_ablit (SX (e->x + e->w / 2) - ax, SY (e->y + e->h) - ss->ay, ss->f[d][ss->nw + ss->ns + i]);
+			ga_ablit (SX (e->x + e->w / 2) - ax, SY (e->y + e->h) - ss->ay, spr_frame (ss, SG_DIE, e->t / 5, d));
 			break;
 		}
 		case E_BAT: blit_w (e->x - 5, e->y - 3, g_sbat[g_world][(g_tick >> 3) & 1]); break;
@@ -1721,6 +1754,21 @@ static void draw_hero (void)
 	else if (H->shoot) s = g_hero[d][HF_SHOOT];
 	else if (fabsf (H->vx) > 0.2f) s = g_hero[d][HF_WALK0 + ((int) H->walk & 3)];
 	else s = g_hero[d][HF_STAND];
+	if (g_chero)
+	{						/* l'explorateur en images */
+		const struct sset *ss = g_chero;
+		const gf_sprite_t *f;
+		if (H->dead) f = spr_frame (ss, SG_DIE, g_timer / 6, d);
+		else if (H->climb) f = spr_frame (ss, SG_CLIMB, (int) H->walk & 1, d);
+		else if (H->crouch) f = spr_frame (ss, SG_CROUCH, 0, d);
+		else if (!H->ground) f = spr_frame (ss, H->vy < 0 ? SG_JUMP : SG_FALL, 0, d);
+		else if (H->shoot) f = spr_frame (ss, SG_SHOOT, (12 - H->shoot) * ss->n[SG_SHOOT] / 12, d);
+		else if (fabsf (H->vx) > 0.2f) f = spr_frame (ss, SG_WALK, (int) (H->walk * 2) % ss->n[SG_WALK], d);
+		else f = spr_frame (ss, SG_STAND, (int) (g_tick / 10) % (ss->n[SG_STAND] ? ss->n[SG_STAND] : 1), d);
+		long ax = d ? ss->w - ss->ax : ss->ax;
+		ga_ablit (SX (H->x + H_W / 2) - ax, SY (H->y + H_H) - ss->ay, f);
+		return;
+	}
 	if (H->dead) { blit_w (H->x - SPOX, H->y - SPOY, s); return; }
 	blit_fig (H->x, H_W, H->y + H_H, s);
 }
@@ -1889,8 +1937,16 @@ static void draw_title (void)
 		}
 		if ((g_tick & 3) == 0) ga_part (bx + 10 + (long) gf_below (50), GY - 2, -(long) gf_below (60000), -(long) gf_below (60000), 0x00908070, 20, 3, 6000);
 	}
-	int f = (int) (g_tick / 6) & 3;
-	ga_ablit (330, GY - (long) g_hero[0][HF_WALK0 + f][1], g_hero[0][HF_WALK0 + f]);
+	if (g_chero)
+	{
+		const gf_sprite_t *f = spr_frame (g_chero, SG_WALK, (int) (g_tick / 4) % g_chero->n[SG_WALK], 0);
+		ga_ablit (350 - g_chero->ax, GY - g_chero->ay + 1, f);
+	}
+	else
+	{
+		int f = (int) (g_tick / 6) & 3;
+		ga_ablit (330, GY - (long) g_hero[0][HF_WALK0 + f][1], g_hero[0][HF_WALK0 + f]);
+	}
 	g_cx = g_cy = 0;
 	draw_parts (1);
 	/* le titre */
@@ -2061,11 +2117,15 @@ static void gen_sprites (void)
 	for (int w = 0; w < NWORLD; w++)			/* les personnages en images, s'il y en a */
 	{
 		char n[32];
-		snprintf (n, sizeof n, "foe%d.spr", w);
-		g_cfoe[w] = load_spr (n);
-		snprintf (n, sizeof n, "shooter%d.spr", w);
-		g_cshoot[w] = load_spr (n);
+		for (int v = 0; v < 2; v++)
+		{
+			snprintf (n, sizeof n, "foe%d%s.spr", w, v ? "b" : "");
+			g_cfoe[w][v] = load_spr (n);
+			snprintf (n, sizeof n, "shooter%d%s.spr", w, v ? "b" : "");
+			g_cshoot[w][v] = load_spr (n);
+		}
 	}
+	g_chero = load_spr ("hero.spr");
 	sp_k = 1;						/* (le bandeau, le titre : a leur taille) */
 	g_hheart = gen_heart ();
 	g_hbul = gen_bullet_icon ();
@@ -2105,8 +2165,9 @@ int main (void)
 	ui_menu ((long) s_menus);
 	ui_menu_state (ID_SOUND, UMS_CHECKED);
 	gs_open ();
-	if (!ga_init (14u << 20))
+	if (!ga_init (BANK))
 		return 0;
+	g_bank0 = ga_bp;
 	gen_sprites ();
 	load_progress ();
 	gp_init (game_pause, game_resume, game_new, GF_W - 32, 0, on_pad);

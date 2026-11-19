@@ -131,7 +131,8 @@ static void init_all (void)
 	if (getenv ("RELICS_SPRITES")) g_sprdir = getenv ("RELICS_SPRITES");
 	gf_open ("Relics");
 	gs_open ();
-	ga_init (14u << 20);
+	ga_init (BANK);
+	g_bank0 = ga_bp;
 	gen_sprites ();
 	gp_init (game_pause, game_resume, game_new, GF_W - 32, 0, on_pad);
 	ui_canvas_begin (gf_cv);
