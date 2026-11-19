@@ -43,6 +43,7 @@ struct mtrack {
 #define SC_HIJAZ	{ 0, 1, 4, 5, 7, 8, 10 }	/* phrygien dominant */
 #define SC_PHRYG	{ 0, 1, 3, 5, 7, 8, 10 }	/* phrygien */
 #define SC_MIN		{ 0, 2, 3, 5, 7, 8, 10 }	/* mineur naturel */
+#define SC_MAJ		{ 0, 2, 4, 5, 7, 9, 11 }	/* majeur */
 
 static const struct mtrack mu_tracks[] = {
 	/* 0 le titre : la mineur, cordes et cuivres */
@@ -109,8 +110,16 @@ static const struct mtrack mu_tracks[] = {
 	  { "X...X...X...X...", "....x.......x...", "x.x.x.x.x.x.x.x.", "..xx..xx..xx..xx" },
 	  "l--lo---" "q-p-o---" "n--np---" "r-q-p---" "q--qm---" "o-n-m---" "l--lp---" "n-m-l---"
 	  "r---m---" "o-m-k---" "q---l---" "o-l-j---" "m-o-q-o-" "p-r-p-n-" "o-------" "l-j-l-o-" },
+	/* 8 le generique de fin : do majeur, triomphal, cordes, cuivres et choeur */
+	{ 120, 48, SC_MAJ, { 33, 48, 61, 52 }, { 100, 80, 96, 56 }, { -2, 1, 2, 1 }, { 36, 38, 42, 0 },
+	  "0453043453045340",
+	  "R.r.R.r.R.r.R.or",
+	  { "1358535813585358", "8531853185318531" },
+	  { "X...x...X...x...", "....X.......X...", "x.x.x.x.x.x.x.x.", "................" },
+	  "l--lo---" "n-p-n-l-" "m--mo-q-" "o---m---" "j-l-o-q-" "p---n---" "m-o-m-k-" "l-------"
+	  "q---o---" "o-m-k-m-" "l---q---" "p-n-l---" "m-o-q-o-" "r-q-o-m-" "p-n-p-r-" "o-------" },
 };
-enum { MU_TITLE = 0, MU_NTRACK = sizeof mu_tracks / sizeof mu_tracks[0] };
+enum { MU_TITLE = 0, MU_END = 8, MU_NTRACK = sizeof mu_tracks / sizeof mu_tracks[0] };
 
 /* ce que le jeu veut (ecrit par lui, lu par le thread) */
 static volatile int mu_want = -1;		/* la piste, -1 : rien */

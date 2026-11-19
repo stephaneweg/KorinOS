@@ -193,7 +193,7 @@ static struct ent *ent_new (int type, float x, float y, float w, float h)
 }
 
 /* ---- l'etat du jeu ------------------------------------------------------------------------------------------ */
-enum { GS_TITLE, GS_INTRO, GS_PLAY, GS_DEAD, GS_CLEAR, GS_OVER, GS_WIN, GS_PAUSE };
+enum { GS_TITLE, GS_INTRO, GS_PLAY, GS_DEAD, GS_CLEAR, GS_OVER, GS_WIN, GS_END, GS_PAUSE };	/* (GS_END : le generique de fin) */
 
 struct hero
 {
@@ -801,6 +801,7 @@ static void music_sync (void)
 {
 	int s = g_state == GS_PAUSE ? g_prev : g_state, n = -1, add = 0;
 	if (s == GS_TITLE) n = MU_TITLE;
+	else if (s == GS_END) n = MU_END;
 	else if (s == GS_INTRO || s == GS_PLAY || s == GS_DEAD)
 	{
 		n = 1 + levels[g_level].world;
@@ -809,6 +810,9 @@ static void music_sync (void)
 	mu_play (n, add);
 	mu_hold (gs_mute || g_state == GS_PAUSE);
 }
+
+static int end_len (void);
+static void end_done (void);
 
 static void set_state (int s)
 {
@@ -1624,9 +1628,17 @@ static void step (void)
 		g_timer++;
 		if (g_timer > 50 && (g_edge & (IN_OK | IN_FIRE))) start_level (g_level + 1);
 		break;
-	case GS_OVER: case GS_WIN:
+	case GS_OVER:
 		g_timer++;
 		if (g_timer > 50 && (g_edge & (IN_OK | IN_FIRE))) goto_title ();
+		break;
+	case GS_WIN:						/* (le panneau reste au moins 2 s : on ne le saute pas en courant) */
+		g_timer++;
+		if (g_timer > 120 && (g_edge & (IN_OK | IN_FIRE))) set_state (GS_END);
+		break;
+	case GS_END:						/* le generique : passe au bout, ou d'une touche apres 3 s */
+		g_timer++;
+		if ((g_timer > 180 && (g_edge & (IN_OK | IN_FIRE))) || g_timer > end_len () + 600) end_done ();
 		break;
 	}
 	ga_parts_step ();
@@ -2075,7 +2087,7 @@ static void draw_play (void)
 		ga_show (g_tx[TX_BONUS], GF_W / 2 + 90, ty);
 		ga_num (g_bonus, GF_W / 2 + 130, ty - 2, g_digb, 4);
 		ty += 34;
-		if (g_timer > 50 && (g_timer & 32)) ga_show (g_tx[TX_CONT], GF_W / 2, ty);
+		if (g_timer > (g_state == GS_WIN ? 120 : 50) && (g_timer & 32)) ga_show (g_tx[TX_CONT], GF_W / 2, ty);
 	}
 	else if (g_state == GS_OVER)
 	{
@@ -2164,9 +2176,119 @@ static void draw_title (void)
 	ga_ablit_c (GF_W / 2, GY + 48, g_tx[TX_HELP3]);
 }
 
+/* ---- le generique de fin ------------------------------------------------------------------------------------ */
+/* Les lignes montent sur la jungle du debut, ou l'explorateur rentre en marchant ; a la fin, le merci reste au milieu.
+ * Une ligne : un texte, un monde (dans l'ordre du voyage), le score, ou un blanc. */
+enum { CR_TEXT, CR_WORLD, CR_SCORE, CR_GAP };
+static const struct ga_txe s_crt[] = {
+	{ "RELICS", 56, 1, 0x00FFF0B0, 0x00E08820 },
+	{ "Les reliques perdues", 18, 0, 0x00F0E0C0, 0x00C8B490 },
+	{ "Les vingt et une reliques ont rejoint le musée.", 16, 0, 0x00F0E8D8, 0x00C8C0B0 },
+	{ "Le docteur Krell cherche un autre volcan.", 16, 0, 0x00F0E8D8, 0x00C8C0B0 },
+	{ "Le voyage", 22, 1, 0x00FFE8A0, 0x00F0B040 },
+	{ "Score final", 22, 1, 0x00FFE8A0, 0x00F0B040 },
+	{ "Un jeu pour Korin OS", 22, 1, 0x00FFE8A0, 0x00F0B040 },
+	{ "Programme, niveaux, décors et musique : Korin OS", 15, 0, 0x00E8E0D0, 0x00C0B8A8 },
+	{ "Personnages : Chibi Character Bundle", 15, 0, 0x00E8E0D0, 0x00C0B8A8 },
+	{ "Tuiles de la jungle : Forest Platformer", 15, 0, 0x00E8E0D0, 0x00C0B8A8 },
+	{ "Le son : AudioKit et son synthétiseur", 15, 0, 0x00E8E0D0, 0x00C0B8A8 },
+	{ "Merci d'avoir joué !", 30, 1, 0x00FFF0B0, 0x00F0A030 },
+};
+enum { CRT_N = sizeof s_crt / sizeof s_crt[0] };
+static gf_sprite_t *g_crt[CRT_N];
+static const struct { unsigned char kind, arg; } s_crl[] = {
+	{ CR_TEXT, 0 }, { CR_TEXT, 1 }, { CR_GAP, 40 }, { CR_TEXT, 2 }, { CR_TEXT, 3 }, { CR_GAP, 50 },
+	{ CR_TEXT, 4 }, { CR_WORLD, 0 }, { CR_WORLD, 1 }, { CR_WORLD, 2 }, { CR_WORLD, 3 }, { CR_WORLD, 5 }, { CR_WORLD, 6 },
+	{ CR_WORLD, 4 }, { CR_GAP, 50 }, { CR_TEXT, 5 }, { CR_SCORE, 0 }, { CR_GAP, 60 },
+	{ CR_TEXT, 6 }, { CR_TEXT, 7 }, { CR_TEXT, 8 }, { CR_TEXT, 9 }, { CR_TEXT, 10 }, { CR_GAP, 90 }, { CR_TEXT, 11 },
+};
+enum { CRL_N = sizeof s_crl / sizeof s_crl[0] };
+
+static long cr_height (int i)
+{
+	switch (s_crl[i].kind)
+	{
+	case CR_TEXT: return (long) g_crt[s_crl[i].arg][1] + 8;
+	case CR_WORLD: return (long) g_tworld[s_crl[i].arg][1] + 6;
+	case CR_SCORE: return (long) g_digb[0][1] + 8;
+	default: return s_crl[i].arg;
+	}
+}
+
+/* les pas que dure le defile (la derniere ligne arrive au milieu de l'ecran) */
+#define CR_SPEED	0.6f
+static int end_len (void)
+{
+	long h = 0;
+	for (int i = 0; i < CRL_N - 1; i++) h += cr_height (i);
+	return (int) ((float) (h + GF_H / 2) / CR_SPEED);
+}
+
+/* la fin du generique : l'ecran titre, au premier niveau (le jeu est fini ; le progres reste) */
+static void end_done (void)
+{
+	goto_title ();
+	g_sel = 0;
+}
+
+static void draw_end (void)
+{
+	const int GY = 384 - 2 * TP;
+	g_cx = (int) (g_tick * 2);
+	g_cy = 0;
+	draw_bg (0, g_cx / 2, 40);
+	for (int i = -1; i <= GF_W / TP + 1; i++)
+	{
+		int tx = i + g_cx / TP;
+		long x = (long) i * TP - g_cx % TP;
+		ga_ablit (x, GY, tile_get (0, TK_ROCK, M_U | ((hashu (tx, 0, 1) & 1) << 4)));
+		ga_ablit (x, GY + TP, tile_get (0, TK_ROCK, ((hashu (tx, 1, 1) & 1) << 4) | 32));
+	}
+	g_cx = g_cy = 0;
+	gf_dst = gf_frame;
+	ga_panel (0, 0, GF_W, GY + 2, 1, 0x00100C08, 0x00181008, 140, 0);	/* (le fond assombri : les lignes se lisent) */
+	const long HX = GF_W - 86;				/* l'explorateur rentre, a droite, la relique au-dessus de lui */
+	if (g_chero)
+	{
+		const gf_sprite_t *f = spr_frame (g_chero, SG_WALK, (int) (g_tick / 4) % g_chero->n[SG_WALK], 0);
+		ga_ablit (HX - g_chero->ax, GY - g_chero->ay + 1, f);
+	}
+	if (g_srelic)
+	{
+		long bob = (long) (sinf ((float) g_tick * 0.08f) * 3);
+		long rx = HX - (long) (g_srelic[0] >> 1), ry = GY - 96 + bob;
+		gf_glow (HX - (long) (g_lt_relic[0] >> 1), ry + 14 - (long) (g_lt_relic[1] >> 1), g_lt_relic);
+		ga_ablit (rx, ry, g_srelic);
+		if ((g_tick % 40) < 4) ga_part (HX - 10 + (long) gf_below (20), ry + 6, 0, -20000, 0x00FFE070, 16, 2, 0);
+	}
+	draw_parts (1);
+	gf_dst = gf_frame;
+	/* les lignes, montees de CR_SPEED par pas ; la derniere s'arrete au milieu */
+	float sc = (float) g_timer * CR_SPEED;
+	long last = 0;
+	for (int i = 0; i < CRL_N - 1; i++) last += cr_height (i);
+	if (sc > (float) (last + GF_H / 2 - 40)) sc = (float) (last + GF_H / 2 - 40);
+	long y = GY - 10 - (long) sc;
+	for (int i = 0; i < CRL_N; i++)
+	{
+		long h = cr_height (i);
+		if (y > -h && y < GY - 14)
+			switch (s_crl[i].kind)
+			{
+			case CR_TEXT: ga_show (g_crt[s_crl[i].arg], GF_W / 2, y); break;
+			case CR_WORLD: ga_show (g_tworld[s_crl[i].arg], GF_W / 2, y); break;
+			case CR_SCORE: ga_num (g_score, GF_W / 2, y, g_digb, 1 | 4); break;
+			default: break;
+			}
+		y += h;
+	}
+	if (g_timer > 180 && (g_timer & 32)) ga_ablit_c (GF_W / 2, GY + 30, g_tx[TX_CONT]);
+}
+
 static void draw (void)
 {
 	if (g_state == GS_TITLE) draw_title ();
+	else if (g_state == GS_END) draw_end ();
 	else draw_play ();
 }
 
@@ -2247,11 +2369,13 @@ static void on_event (long t)
 			else if (my > 160 && my < 200 && mx > GF_W / 2 + 160) { if (g_sel < g_unlocked) g_sel++; }
 			else new_game (g_sel);
 		}
-		else if ((g_state == GS_CLEAR || g_state == GS_OVER || g_state == GS_WIN) && g_timer > 50)
+		else if ((g_state == GS_CLEAR || g_state == GS_OVER) && g_timer > 50)
 		{
 			if (g_state == GS_CLEAR) start_level (g_level + 1);
 			else goto_title ();
 		}
+		else if (g_state == GS_WIN && g_timer > 120) set_state (GS_END);
+		else if (g_state == GS_END && g_timer > 180) end_done ();
 	}
 }
 
@@ -2365,6 +2489,7 @@ static void gen_texts (void)
 {
 	char b[160];
 	ga_texts (s_tx, g_tx, TX_N);
+	ga_texts (s_crt, g_crt, CRT_N);
 	ga_digits (g_dig, 15, (long) ui.font_b, 0x00FFFFFF, 0x00D8D0C0);
 	ga_digits (g_digb, 18, (long) ui.font_b, 0x00FFF0C0, 0x00F0B040);
 	g_slash = ga_text ("/", 18, (long) ui.font_b, 0x00C8C0B0, 0x00A09888);

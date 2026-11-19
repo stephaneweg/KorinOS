@@ -378,6 +378,7 @@ int main (int argc, char **argv)
 			else if (!strcmp (st, "clear")) g_state = GS_CLEAR;
 			else if (!strcmp (st, "over")) g_state = GS_OVER;
 			else if (!strcmp (st, "win")) g_state = GS_WIN;
+			else if (!strncmp (st, "end", 3)) { g_state = GS_END; g_timer = atoi (st + 3); g_tick = (unsigned long) g_timer; }
 			else if (!strcmp (st, "toast")) { toast (TX_CHECK); g_toast_t = 60; }
 			else if (!strcmp (st, "pause")) { gp_open (); }
 		}
