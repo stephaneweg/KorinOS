@@ -134,6 +134,28 @@ void session_poll(void)
 	long st[2];
 	if (sys_stat("/tmp/login.halt", st) >= 0) /* (Éteindre ou Redémarrer choisi dans login : marque posée) */
 		return;
+	/* tombé sur une faute (sortie < 0) sans avoir ouvert de session : l'écran de connexion revient, pas le
+	   bureau sans mot de passe ; le code de sortie dans /tmp/login.exit (pour chercher la faute) */
+	if (r == WR_EXITED && out < 0 && sys_stat("/tmp/session.ini", st) < 0) {
+		static int relaunched;
+		char line[24], *o = line + sizeof line;
+		u64 v = (u64)-out;
+		*--o = '\n';
+		do
+			*--o = (char)('0' + v % 10);
+		while ((v /= 10));
+		*--o = '-';
+		long fd = sys_open("/tmp/login.exit", O_WRITE | O_CREATE | O_TRUNC);
+		if (fd >= 0) {
+			sys_write(fd, o, (u64)(line + sizeof line - o));
+			sys_close(fd);
+		}
+		if (relaunched++ < 5) {
+			login_done = 0;
+			session_start(sess_file, sess_def);
+		}
+		return;
+	}
 	session_default();
 	session_run_file(sess_file, sess_def);
 }
