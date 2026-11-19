@@ -208,7 +208,7 @@ def back_climb(n=4):
             hands = []
             for side, sx in ((-1, 452), (1, 608)):
                 hy = 536 - 62 * (up if side < 0 else -up)
-                hx = 530 + side * 172
+                hx = 530 + side * 150
                 limb((sx, 676), (hx, hy + 40), 58, khaki if side < 0 else khaki_d)
                 hands.append((hx, hy))
             # le buste, de dos : la chemise, la sangle de la sacoche, la ceinture
@@ -220,6 +220,11 @@ def back_climb(n=4):
             shape([(452, 660), (484, 660), (612, 760), (590, 776)], strap, 7)
             shape([(432, 752), (628, 752), (630, 786), (430, 786)], belt, 8)
             shape([(574, 744), (618, 744), (614, 800), (578, 800)], strap, 8)
+            # les mains, sur les montants : derriere la tete (l'echelle est devant lui)
+            for hx, hy in hands:
+                ell((hx - 34, hy - 30, hx + 34, hy + 34), skin)
+                for j in range(3):
+                    d.line(P([(hx - 22, hy - 12 + j * 14), (hx + 22, hy - 12 + j * 14)]), fill=skin_d, width=int(5 * k))
             # la tete, de dos : les oreilles, la nuque rasee, les cheveux courts au-dessus
             for x0 in (330, 690):
                 ell((x0, 500, x0 + 40, 586), skin)
@@ -231,11 +236,6 @@ def back_climb(n=4):
             d.arc([392 * k, (420 + bob) * k, 560 * k, (560 + bob) * k], 190, 250, fill=hair_l, width=int(14 * k))
             for x, y in ((450, 470), (520, 450), (600, 470), (480, 540), (580, 545)):
                 d.line(P([(x, y), (x + 10, y + 34)]), fill=hair_l, width=int(6 * k))
-            # les mains, sur les montants
-            for hx, hy in hands:
-                ell((hx - 34, hy - 30, hx + 34, hy + 34), skin)
-                for j in range(3):
-                    d.line(P([(hx - 22, hy - 12 + j * 14), (hx + 22, hy - 12 + j * 14)]), fill=skin_d, width=int(5 * k))
             # le chapeau, de dos : le bord, la calotte creusee au milieu, le ruban
             cx, w = 530, 300
             top = 262
