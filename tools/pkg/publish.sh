@@ -102,9 +102,17 @@ $PY tools/pkg/checkrepo.py "$REPO/$OUT" $SD/etc/pkg/onyx.pub
 # ---- les gros paquets (release = 1) : dans la Release « packages », avant l'index qui les nomme ----
 if [ $PUSH = 1 ] && ls "$REL"/*.opk >/dev/null 2>&1; then
 	gh release view packages -R stephaneweg/KorinOS >/dev/null 2>&1 || 		gh release create packages -R stephaneweg/KorinOS --title "Paquets" --notes "Les gros paquets de Korin OS (packages.ini : release = 1), nommés par l'index signé de packages/." >/dev/null
-	DEJA=$(gh release view packages -R stephaneweg/KorinOS --json assets -q '.assets[].name')
+	# (nom et empreinte : une archive refaite sans changer de version garde son nom ; une autre empreinte la remplace,
+	#  sinon l'index signe nomme un fichier que pkg refuse : « archive differente de l'index »)
+	DEJA=$(gh release view packages -R stephaneweg/KorinOS --json assets -q '.assets[] | .name + " " + (.digest // "")')
 	for f in "$REL"/*.opk; do
-		echo "$DEJA" | grep -qx "$(basename "$f")" || gh release upload packages -R stephaneweg/KorinOS "$f"
+		n=$(basename "$f")
+		d=$(echo "$DEJA" | grep "^$n " | cut -d' ' -f2)
+		if [ -z "$d" ] && ! echo "$DEJA" | grep -q "^$n "; then
+			gh release upload packages -R stephaneweg/KorinOS "$f"
+		elif [ "$d" != "sha256:$(sha256sum "$f" | cut -c1-64)" ]; then
+			gh release upload packages -R stephaneweg/KorinOS "$f" --clobber
+		fi
 	done
 	echo "publish : gros paquets dans la Release packages"
 fi
