@@ -76,6 +76,7 @@ const char *HELP[] = {
 	"  tp <x> <y> <z> | tp spawn  -- se déplacer (~ : relatif au joueur)",
 	"  give <objet> [nombre] · clear · inv  -- l'inventaire (survie)",
 	"  recipes [mot] · craft <recette> [fois]  -- la fabrication (survie)",
+	"  music on|off|<0..100> · sound on|off|<0..100>  -- la musique, les effets sonores",
 	"  fly · distance <2..16> · seed · save · info · say <texte>",
 	"  et toute ligne du protocole des scripts : world.setBlocks(0,60,0,9,60,9,glass)",
 };
@@ -212,6 +213,16 @@ std::vector<std::string> consoleExec (const std::string &input)
 			int done = craft (*r, std::max (1, n), g.inv, g.fuel, wb, fu, err);
 			say ("fabriqué : " + std::to_string (done * r->outN) + " × " + itemInfo (r->out).label + (err.empty () ? "" : " (" + err + ")"));
 		}
+	} else if (is (c, { "music", "musique", "sound", "son", "sfx" })) {
+		bool mus = is (c, { "music", "musique" });
+		bool &on = mus ? g.musicOn : g.sfxOn;
+		float &vol = mus ? g.musicVol : g.sfxVol;
+		std::string a = w.size () > 1 ? w[1] : "";
+		if (is (a, { "on", "1", "oui" })) on = true;
+		else if (is (a, { "off", "0", "non" })) on = false;
+		else if (number (a, v)) vol = (float) std::max (0.0, std::min (100.0, v)) / 100.0f, on = vol > 0;
+		gameAudioChanged ();
+		say (std::string (mus ? "musique : " : "effets sonores : ") + (on ? "oui" : "non") + ", volume " + std::to_string ((int) (vol * 100 + 0.5f)));
 	} else if (is (c, { "fly", "voler" })) {
 		if (g.mode == MODE_SURVIVAL) say ("fly : seulement en mode créatif");
 		else {

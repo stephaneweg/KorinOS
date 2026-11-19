@@ -37,4 +37,8 @@ repris d'un jeu existant), doc `docs/TERRACUBE.md`.
   `armgl_window` + `ui_surface_overlay` pour le chemin de Cosmo Zoom (rendu hors écran, glReadPixels, textes dans
   l'image, recopie d'un coup, ui_update_all), à confirmer sur le ZBook.
 
+- 1.2.0 (19/11) : son synthétisé dans le jeu (`audio.cpp`, thread + flux AudioKit, ≈ 1 % d'un cœur) : musique
+  générative selon la situation, ambiance, effets par matière. Essai sans son réel : moteur compilé sur l'hôte avec un
+  faux AudioKit qui écrit un WAV (scratchpad/snd), niveaux et spectrogramme vérifiés ; pas encore écouté sur le ZBook.
+
 **How to apply:** les numéros de blocs ne bougent jamais (ajout à la fin de `blocks.h`, de `terracube.py`, de la doc) ; de même les objets (100+, `items.h`).

@@ -38,6 +38,7 @@
 #include <armgl.h>
 #include <GLES3/gl3.h>
 #include "glview.h"
+#include "audio.h"
 #include "game.h"
 #include "items.h"
 #include "mcp.h"
@@ -84,6 +85,10 @@ std::string g_cin;		// ce qui est tapé
 std::vector<std::string> g_hist;
 int g_histPos;
 float g_mineProg = -1;		// survie : le bloc en train d'être cassé (0 à 1)
+double g_hitAt;			// (le son de la pioche, quatre fois par seconde)
+float g_activity;		// (casser et poser animent la musique)
+float g_stepDist;		// (les pas : la distance marchée depuis le dernier)
+double g_thunderAt, g_lastLightning;
 int g_mineX, g_mineY = -999, g_mineZ;
 double g_flashT;
 double g_fps;
@@ -161,7 +166,8 @@ void saveConf ()
 	mkdirsTo ("HOME:/terracube/worlds");
 	FILE *f = fopen (CONF, "w");
 	if (!f) return;
-	fprintf (f, "# TerraCube\nworld = %s\ndistance = %d\napi = %d\n", g.world.name.c_str (), g.distance, apiRunning () ? 1 : 0);
+	fprintf (f, "# TerraCube\nworld = %s\ndistance = %d\napi = %d\nmusic = %d\nmusicvol = %d\nsound = %d\nsoundvol = %d\n", g.world.name.c_str (),
+		 g.distance, apiRunning () ? 1 : 0, g.musicOn ? 1 : 0, (int) (g.musicVol * 100 + 0.5f), g.sfxOn ? 1 : 0, (int) (g.sfxVol * 100 + 0.5f));
 	fclose (f);
 }
 
@@ -756,6 +762,15 @@ bool survival () { return g.mode == MODE_SURVIVAL; }
 int slotItem (int i) { return survival () ? (g.inv.s[i].empty () ? 0 : g.inv.s[i].item) : g.hotbar[i]; }
 
 // ce qui tombe d'un bloc cassé, dans l'inventaire ; l'outil s'use
+// gauche (-1) ou droite (1) d'un bloc vu du joueur, pour le son
+float panOf (int x, int z)
+{
+	double dx = x + 0.5 - g.pl.x, dz = z + 0.5 - g.pl.z, d = sqrt (dx * dx + dz * dz);
+	if (d < 0.5) return 0;
+	double yaw = g.pl.yaw * M_PI / 180.0;
+	return (float) ((dx * cos (yaw) + dz * sin (yaw)) / d * 0.7);
+}
+
 void collect (int b)
 {
 	Stack &held = g.inv.s[g.selected];
@@ -764,11 +779,13 @@ void collect (int b)
 	Mining m = mining (b);
 	if (harvest && m.drop && (m.chance >= 1 || rand () % 1000 < (int) (m.chance * 1000))) {
 		if (g.inv.add (m.drop, m.dropN) > 0) gamePost (TR ("Inventaire plein : l'objet est perdu"));
+		else audio::play (audio::S_PICKUP, 0, 0.7f);
 	} else if (!harvest && m.tier > 0)
 		gamePost (std::string (info (b).label) + TR (" : il faut une meilleure pioche pour le ramasser"));
 	ItemInfo ti = itemInfo (held.empty () ? 0 : held.item);
 	if (!held.empty () && ti.durability && ++held.dur >= ti.durability) {
 		gamePost (std::string (ti.label) + TR (" s'est cassé"));
+		audio::play (audio::S_TOOLBREAK);
 		held = Stack ();
 	}
 }
@@ -777,6 +794,8 @@ void doBreak ()
 {
 	int b = g_target.block;
 	event (1, g_target, b);
+	audio::play (audio::S_BREAK, audio::materialOf (b), 1.0f, panOf (g_target.x, g_target.z));
+	g_activity = std::min (1.0f, g_activity + 0.12f);
 	g.world.set (g_target.x, g_target.y, g_target.z, AIR);
 	if (survival ()) collect (b);
 	// une plante sur le bloc cassé tombe avec lui
@@ -824,6 +843,8 @@ void placeBlock ()
 	Hit h = g_target;
 	h.x = x, h.y = y, h.z = z;
 	event (2, h, b);
+	audio::play (audio::S_PLACE, audio::materialOf (b), 1.0f, panOf (x, z));
+	g_activity = std::min (1.0f, g_activity + 0.12f);
 	g.edited = true;
 }
 
@@ -1011,6 +1032,7 @@ bool takeGrid (bool toInventory)
 		if (!C_.grid[i].empty () && --C_.grid[i].count <= 0) C_.grid[i] = Stack ();
 	g.edited = true;
 	C_.msg = std::string (TR ("Fabriqué : ")) + std::to_string (r->outN) + " × " + itemInfo (r->out).label;
+	audio::play (audio::S_CRAFT);
 	return true;
 }
 
@@ -1043,6 +1065,7 @@ bool takeFurnace (bool toInventory)
 	g.fuel -= 1;
 	if (--C_.fin.count <= 0) C_.fin = Stack ();
 	C_.msg = std::string (TR ("Cuit : ")) + itemInfo (r->out).label;
+	audio::play (audio::S_CRAFT, 0, 0.7f);
 	g.edited = true;
 	return true;
 }
@@ -1131,6 +1154,7 @@ long craftMouse (long, long kind, long x, long y, long infos)
 	}
 	if (!C_.cursor.empty ()) {	// (un objet déjà sous la souris : le poser)
 		dropOn (s, !left);
+		audio::play (audio::S_CLICK);
 		return 0;
 	}
 	if (s->empty ()) return 0;
@@ -1143,6 +1167,7 @@ long craftMouse (long, long kind, long x, long y, long infos)
 		if (--s->count <= 0) *s = Stack ();
 	}
 	C_.dragFrom = id;
+	audio::play (audio::S_CLICK);
 	return 0;
 }
 
@@ -1332,6 +1357,7 @@ const char *MENU =
 	"MPartie\nI1\tNouveau monde…\tCtrl+N\nI2\tOuvrir un monde…\tCtrl+O\nI3\tSauver\tCtrl+S\n-\nI5\tMode survie\n"
 	"I6\tInventaire et fabrication\tI\nI7\tConsole de commandes\tT\n-\nI4\tPlein écran\tF9\n"
 	"MAffichage\nI11\tDistance courte\nI12\tDistance moyenne\nI13\tDistance longue\n-\nI14\tVoler\tF\nI15\tLe temps passe\nI16\tInfos détaillées\tF3\n"
+	"MSon\nI30\tMusique\nI31\tEffets sonores\n-\nI32\tMusique plus fort\nI33\tMusique moins fort\n"
 	"MPilotage\nI20\tScripts (Python, BASIC) sur le port 4730\nI21\tPiloter par un agent IA (MCP)…\n-\nI22\tOù sont les exemples ?\n";
 
 bool command (long id)
@@ -1364,6 +1390,10 @@ bool command (long id)
 		g_showDebug = !g_showDebug;
 		ui_menu_state (16, g_showDebug ? UMS_CHECKED : 0);
 		break;
+	case 30: g.musicOn = !g.musicOn, gameAudioChanged (); break;
+	case 31: g.sfxOn = !g.sfxOn, gameAudioChanged (); break;
+	case 32: g.musicVol = std::min (1.0f, g.musicVol + 0.1f), g.musicOn = true, gameAudioChanged (); break;
+	case 33: g.musicVol = std::max (0.0f, g.musicVol - 0.1f), gameAudioChanged (); break;
 	case 20: apiMenu (); break;
 	case 21: mcpMenu (); break;
 	case 22:
@@ -1563,7 +1593,20 @@ void frame (double dt)
 		in.sprint = k (0xE0) || k (0xE4) || k (0x15);	// Ctrl ou R
 	}
 	if (survival ()) g.pl.fly = false;
+	bool wasGround = g.pl.onGround, wasWater = g.pl.inWater;
+	double vy0 = g.pl.vy, px0 = g.pl.x, pz0 = g.pl.z;
 	playerStep (g.world, g.pl, in, dt);
+	{	// les sons du corps : pas, saut, chute, l'eau
+		int under = g.world.get ((int) floor (g.pl.x), (int) floor (g.pl.y - 0.2), (int) floor (g.pl.z));
+		if (g.pl.onGround && !g.pl.fly && !g.pl.inWater) {
+			g_stepDist += (float) sqrt ((g.pl.x - px0) * (g.pl.x - px0) + (g.pl.z - pz0) * (g.pl.z - pz0));
+			if (g_stepDist > 1.7f) g_stepDist = 0, audio::play (audio::S_STEP, audio::materialOf (under), 1.0f, ((rand () & 1) ? 0.15f : -0.15f));
+		}
+		if (wasGround && !g.pl.onGround && g.pl.vy > 5 && !g.pl.fly) audio::play (audio::S_JUMP, audio::materialOf (under));
+		if (!wasGround && g.pl.onGround && vy0 < -7) audio::play (audio::S_LAND, audio::materialOf (under), (float) std::min (1.0, -vy0 / 20.0));
+		if (!wasWater && g.pl.inWater && vy0 < -3) audio::play (audio::S_SPLASH, 0, (float) std::min (1.0, -vy0 / 12.0));
+	}
+	g_activity *= (float) exp (-dt / 25.0);
 	if (g.timeRuns) g.hour = fmodf (g.hour + (float) dt * 24.0f / 1200.0f, 24.0f);	// une journée : 20 minutes
 	weatherStep (dt);
 	// le bloc visé ; les clics tenus se répètent
@@ -1580,6 +1623,7 @@ void frame (double dt)
 		}
 		float need = on ? mineTime (g_target.block, slotItem (g.selected), nullptr) : -1;
 		if (on && need >= 0) {
+			if (t > g_hitAt) g_hitAt = t + 250, audio::play (audio::S_HIT, audio::materialOf (g_target.block), 1.0f, panOf (g_target.x, g_target.z));
 			g_mineProg += (float) (dt / std::max (0.05f, need));
 			if (g_mineProg >= 1) {
 				doBreak ();
@@ -1591,6 +1635,9 @@ void frame (double dt)
 			g_mineY = -999;
 		}
 	} else if (g_locked && (g_buttons & 1) && t > g_breakAt) breakBlock (), g_breakAt = t + 250;
+	// le tonnerre, un peu après l'éclair (la distance de l'orage)
+	if (g.lightning != g_lastLightning) g_lastLightning = g.lightning, g_thunderAt = t + 300 + rand () % 1800;
+	if (g_thunderAt > 0 && t >= g_thunderAt) g_thunderAt = 0, audio::play (audio::S_THUNDER, 0, 1.0f, (rand () % 200 - 100) / 150.0f);
 	if (g_locked && (g_buttons & 2) && t > g_placeAt) placeBlock (), g_placeAt = t + 250;
 }
 
@@ -1601,6 +1648,34 @@ float daylight (float hour, float *sunAngle)
 	float s = sinf (a);
 	float d = s * 2.5f + 0.35f;
 	return d < 0 ? 0 : d > 1 ? 1 : d;
+}
+
+// la situation, pour la musique et l'ambiance (audio.h)
+void soundMood ()
+{
+	audio::Mood m;
+	m.daylight = daylight (g.hour, nullptr);
+	m.rain = g.weather != W_CLEAR || g.weatherLevel > 0.01f ? g.weatherLevel : 0;
+	m.storm = g.weather == W_STORM ? g.weatherLevel : 0;
+	int x = (int) floor (g.pl.x), z = (int) floor (g.pl.z), ey = (int) floor (g.pl.y + Player::EYE);
+	int top = g.world.get (x, g.world.height (x, z), z);
+	m.snowing = g.weather == W_SNOW || top == SNOW || top == ICE || top == PINE_LEAVES || ey > SEA + 52;
+	m.biome = top == SAND || top == CACTUS ? audio::BI_DESERT : m.snowing && g.weather != W_SNOW ? audio::BI_SNOW : top == SNOW || top == ICE ? audio::BI_SNOW : audio::BI_TEMPERATE;
+	// sous terre : un bloc opaque (pas des feuilles) au-dessus, et assez de terre entre le ciel et l'œil
+	int rock = -1;
+	for (int y = std::min (CH - 1, ey + 40); y > ey; y--) {
+		int b = g.world.get (x, y, z);
+		if (isOpaque (b)) {
+			rock = y;
+			break;
+		}
+	}
+	m.cave = rock < 0 ? 0 : std::max (0.0f, std::min (1.0f, (g.world.height (x, z) - ey - 3) / 10.0f));
+	m.underwater = g.world.get (x, ey, z) == WATER;
+	m.altitude = std::max (0.0f, std::min (1.0f, (ey - 75) / 40.0f));
+	m.activity = g_activity;
+	m.seed = g.world.seed;
+	audio::setMood (m);
 }
 
 void renderTo (int w, int h, const Camera &cam, bool hotbar = true)
@@ -1681,6 +1756,15 @@ void freeChunks ()
 }
 
 } // namespace
+
+void gameAudioChanged ()
+{
+	audio::setMusic (g.musicOn, g.musicVol);
+	audio::setSfx (g.sfxOn, g.sfxVol);
+	ui_menu_state (30, g.musicOn ? UMS_CHECKED : 0);
+	ui_menu_state (31, g.sfxOn ? UMS_CHECKED : 0);
+	saveConf ();
+}
 
 void gameSetMode (int mode)
 {
@@ -1937,6 +2021,11 @@ static void selftest ()
 	}
 	con ("mode creative");
 	check (g.mode == MODE_CREATIVE, "console : mode creative");
+	con ("music 35");
+	con ("sound off");
+	check (g.musicOn && fabsf (g.musicVol - 0.35f) < 0.01f && !g.sfxOn, "console : music 35, sound off");
+	con ("sound on");
+	printf ("terracube : son %s\n", audio::running () ? "en marche (AudioKit)" : "absent");
 	con ("time 11");
 	// sauvegarde et relecture d'un tronçon
 	std::string err;
@@ -2018,6 +2107,10 @@ int main (int argc, char **argv)
 		if (p.first == "world") last = p.second;
 		else if (p.first == "distance" && dist < 0) dist = atoi (p.second.c_str ());
 		else if (p.first == "api" && p.second == "0" && api) api = g_selftest;
+		else if (p.first == "music") g.musicOn = p.second != "0";
+		else if (p.first == "sound") g.sfxOn = p.second != "0";
+		else if (p.first == "musicvol") g.musicVol = std::max (0, std::min (100, atoi (p.second.c_str ()))) / 100.0f;
+		else if (p.first == "soundvol") g.sfxVol = std::max (0, std::min (100, atoi (p.second.c_str ()))) / 100.0f;
 	}
 	if (dist < 0) dist = g_mode == ARMGL_SOFT ? 4 : 8;	// (le processeur : moins loin)
 	if (g_selftest && dist > 4) dist = 4;
@@ -2057,6 +2150,8 @@ int main (int argc, char **argv)
 	ui_fill (0, 0, ui.w, ui.h, jet (TJ_FACE));
 	setDistance (g.distance);
 	openWorld (worldName, seed, seedGiven);
+	if (audio::start ()) gameAudioChanged ();
+	else fprintf (stderr, "terracube : pas de son (AudioKit ou sa sortie absents)\n");
 	if (api) {
 		if (apiStart (API_PORT, apiAny, err)) ui_menu_state (20, UMS_CHECKED);
 		else fprintf (stderr, "terracube : scripts : %s\n", err.c_str ());
@@ -2085,6 +2180,7 @@ int main (int argc, char **argv)
 		apiPump (8);
 		mcp::poll ([] (const std::string &in) { return mcpHandle (in); });
 		frame (dt);
+		soundMood ();
 		R.updateMeshes (g.world, playerCamera (), g.distance, g_selftest ? 400 : 6);
 		freeChunks ();
 		renderTo (g_view.w, g_view.h, playerCamera ());
@@ -2121,5 +2217,6 @@ int main (int argc, char **argv)
 	saveConf ();
 	apiStop ();
 	mcp::stop ();
+	audio::stop ();
 	return g_selftest ? (g_fails ? 1 : 0) : 0;
 }

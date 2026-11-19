@@ -14,7 +14,7 @@
 
 namespace tc {
 
-const char *const VERSION = "1.1.2";
+const char *const VERSION = "1.2.0";
 const int API_PORT = 4730;	// le protocole des scripts (Python, BASIC)
 const int MCP_PORT = 7312;	// le MCP (Forge a 7311)
 
@@ -67,6 +67,9 @@ struct Game {
 	double weatherNext = 0;		// (s de jeu avant le prochain changement)
 	double lightning = 0;		// (ms : l'éclair en cours, sous l'orage)
 	std::deque<std::string> console;	// les lignes de la console (commandes et réponses)
+	// le son (audio.h)
+	bool musicOn = true, sfxOn = true;
+	float musicVol = 0.6f, sfxVol = 0.8f;
 };
 
 extern Game g;
@@ -96,6 +99,7 @@ std::string blockList ();
 
 // main.cpp, suite
 void gameSetMode (int mode);
+void gameAudioChanged ();	// (après un changement de g.musicOn, g.musicVol, g.sfxOn, g.sfxVol)
 void gameSetWeather (int w, double seconds);	// seconds <= 0 : jusqu'au prochain changement du cycle
 int gameHeldItem ();				// l'objet en main (créatif : le bloc de la case)
 bool gameStations (bool &workbench, bool &furnace);	// un établi, un four à moins de 4 blocs du joueur
