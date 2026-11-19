@@ -14,7 +14,7 @@ programme C, avec des arguments sans limite de longueur.
 | `rm` | `-f`, `-r` |
 | `mkdir` | `-p` |
 | `chmod` | `755`, `+x`, `a-x`, `u=rwx,go=r` : seul `x` compte (l'index des exécutables de vfs, [FICHIERS.md](FICHIERS.md)) |
-| `rmdir`, `touch` (`-c`), `basename` (suffixe), `dirname`, `pwd`, `sleep`, `echo` (`-n`), `true`, `false`, `test` | |
+| `rmdir`, `touch` (`-c`), `basename` (suffixe), `dirname`, `pwd`, `sleep`, `echo` (`-n`), `true`, `false`, `test`, `clear` | |
 | `head`, `tail` | `-n N`, `-N` |
 | `wc` | `-l`, `-w`, `-c` |
 | `tee` | `-a` |

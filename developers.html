@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Developers · Korin OS</title>
+<meta name="description" content="Write apps for Korin OS in C, C++, C#, Rust, BASIC or assembly: GCC inside the OS, the kits, the POSIX layer, packages.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="fr" href="fr/developpement.html">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="index.html"><span class="diamond"></span>Korin OS</a>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="features.html">Features</a>
+      <a href="developers.html" aria-current="page">Developers</a>
+      <a href="technical.html">Technical</a>
+      <a href="download.html">Download</a>
+      <a href="https://github.com/stephaneweg/KorinOS">GitHub</a>
+    </nav>
+    <a class="lang" href="fr/developpement.html" hreflang="fr" lang="fr">FR</a>
+  </div>
+</header>
+
+<main>
+  <div class="wrap page-head">
+    <h1>Developers</h1>
+    <p>Korin apps can be written in C, C++, C#, Rust, BASIC or assembly. Most toolchains run inside Korin itself, so
+      you can write, build and run a program without leaving the system.</p>
+  </div>
+
+  <section>
+    <div class="wrap">
+      <h2>Languages and toolchains</h2>
+      <p class="intro">Tools installed under <code>/devtools</code> by their packages. “In Korin” means the compiler
+        itself runs on Korin; “cross” means it runs on another computer and produces Korin programs.</p>
+      <div class="table"><table>
+        <thead><tr><th>Language</th><th>Tools</th><th>Where it runs</th></tr></thead>
+        <tbody>
+          <tr><td>C, C++</td><td>GCC 14.2 and binutils 2.43, newlib, libposix, libstdc++</td><td>In Korin, and cross from Linux/WSL</td></tr>
+          <tr><td>C#</td><td>.NET 10 (CoreCLR with its JIT, the Roslyn compiler), Avalonia 12.1, WinForms; <b>Studio</b> IDE</td><td>In Korin</td></tr>
+          <tr><td>Rust</td><td>Targets <code>x86_64-unknown-korin</code> and <code>aarch64-unknown-korin</code>: std, threads, files, network, <code>cdylib</code></td><td>Cross only, from Linux/WSL</td></tr>
+          <tr><td>Python</td><td>CPython 3.14 with OpenSSL, SQLite, zlib, pip; Rust extension modules (pyo3)</td><td>In Korin</td></tr>
+          <tr><td>BASIC</td><td>FreeBASIC (<code>fbc</code>, GCC as back end); QBasic and QBStudio</td><td>In Korin</td></tr>
+          <tr><td>Assembly</td><td>FASM on PC, FASMARM on the Pi</td><td>In Korin</td></tr>
+          <tr><td>Games</td><td>Godot 4.7.2 editor; export from Godot on Windows with the Korin template</td><td>In Korin (PC)</td></tr>
+        </tbody>
+      </table></div>
+      <p style="margin-top:18px">Also in the system: <code>bash</code>, <code>git</code>, <code>rg</code> (ripgrep),
+        <code>pibuild</code> to build a program from a source folder, and the <b>Claude</b> and <b>Vibe</b> coding
+        agents, which read and change files in a working folder and ask before running commands.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>The kits</h2>
+      <p class="intro">Kits are the shared libraries of Korin (<code>.so</code>). An app calls them directly; each kit
+        keeps a stable table of entry points so that old apps keep working. The C API guide ships with the system, in
+        the Help app.</p>
+      <div class="grid">
+        <div class="card"><h3>UIKit</h3><p>Windows, events, widgets, TrueType text, the theme tokens (Givre, Onyx
+          Noir), file dialogs, “Open with”, elevation requests.</p></div>
+        <div class="card"><h3>AppKit</h3><p>Process runtime, files, launching programs, <code>fork</code> and
+          <code>exec</code>.</p></div>
+        <div class="card"><h3>NetKit</h3><p>Sockets, DNS, Wi-Fi and the system's OAuth sign-in.</p></div>
+        <div class="card"><h3>AudioKit</h3><p>PCM streams, capture, formats, routed through the system mixer.</p></div>
+        <div class="card"><h3>MediaKit</h3><p>WebM, Matroska and MP4 with VP8, VP9 and AV1 (built on FFmpeg).</p></div>
+        <div class="card"><h3>GlKit and VkKit</h3><p>OpenGL ES 3.0 through Mesa; Vulkan through Mesa's anv driver on
+          Intel graphics (PC).</p></div>
+        <div class="card"><h3>DocumentKit, ArchiveKit</h3><p>Office formats, XML and CSV; deflate, ZIP, tar and
+          gzip.</p></div>
+        <div class="card"><h3>PrinterKit, BusKit</h3><p>Printing to PDF or IPP printers; the system event bus (theme,
+          volumes, network, sound).</p></div>
+        <div class="card"><h3>EmuKit, GpioKit, GpuKit</h3><p>The base of the emulators; the Pi's 40-pin header, I2C and
+          SPI; the Pi's V3D GPU.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap split">
+      <div>
+        <h2>The POSIX layer</h2>
+        <p class="intro">newlib plus Korin's own <code>libposix</code>. It exists to port apps and libraries, not to
+          be certified: what a port needs gets added.</p>
+        <ul>
+          <li>Threads, signals, <code>fork</code> with copy-on-write, <code>exec</code>, pipes</li>
+          <li>Sockets (IPv4), <code>select</code>, <code>poll</code></li>
+          <li>Real <code>dlopen</code> for shared modules</li>
+          <li>Ported on top: bash, git, CPython, WebKit, Mesa, SDL 3, Skia, Open CASCADE, Godot, .NET, OpenSSL…</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Know the differences</h3>
+        <p>Korin is not Linux. There are no symbolic links, no <code>/proc</code> and no <code>/usr/bin/env</code>
+          (scripts start with <code>#!/bin/bash</code>). Networking is IPv4 only, time is UTC, a process can open 64
+          files. The commands in <code>/bin</code> are Korin's own and have fewer GNU options; <code>bash</code>,
+          <code>git</code> and <code>rg</code> are complete.</p>
+        <p>The file system is a single Unix-style tree: <code>/</code> is the system volume, other volumes are
+          mounted under <code>/media</code>, <code>/net</code> or <code>/tmp</code>, and <code>HOME:/</code> is the
+          home folder of the current user.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>A first program</h2>
+      <p class="intro">In the Terminal app, with the <code>gcc</code> package installed:</p>
+<pre><code>$ cat hello.c
+#include &lt;stdio.h&gt;
+int main(void) { printf("Hello from Korin\n"); return 0; }
+$ gcc hello.c -o hello
+$ ./hello
+Hello from Korin</code></pre>
+      <p>For a windowed app, include the UIKit header and link with the kit; the guide in Help, under “API”,
+        walks through windows, events and drawing. Projects can also be built on Windows or Linux with the cross
+        toolchains described in <a href="https://github.com/stephaneweg/KorinOS/blob/main/docs/CONSTRUIRE.md"><code>docs/CONSTRUIRE.md</code></a>.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Packaging and publishing</h2>
+      <div class="grid two">
+        <div class="card"><h3>Packages</h3><p>A package is an archive with its files and an <code>.ini</code>
+          description. <code>tools/pkg/mkrepo.py</code> builds the repository: <code>index.txt</code>, its ECDSA
+          P-256 signature <code>index.sig</code>, icons and archives. Large archives go to a GitHub Release.</p>
+          <p>Details: <a href="https://github.com/stephaneweg/KorinOS/blob/main/docs/PAQUETS.md"><code>docs/PAQUETS.md</code></a>.</p></div>
+        <div class="card"><h3>Documentation</h3><p>The design notes and references are in
+          <a href="https://github.com/stephaneweg/KorinOS/tree/main/docs"><code>docs/</code></a>, in French:
+          <code>KITS.md</code>, <code>ABI.md</code>, <code>POSIX.md</code>, <code>GCC.md</code>, <code>DOTNET.md</code>,
+          <code>RUST.md</code>, <code>GODOT.md</code>, <code>PYTHON.md</code>.</p>
+          <p>For AI agents, <code>AGENTS.md</code> and the skills in <code>.agents/skills/</code> describe each kit and
+            language.</p></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Korin OS · MIT license, with exceptions listed in
+      <a href="https://github.com/stephaneweg/KorinOS/blob/main/docs/LICENCES.md">LICENCES.md</a></span>
+    <span><a href="https://github.com/stephaneweg/KorinOS">Source on GitHub</a> · <a href="fr/developpement.html" hreflang="fr">Français</a></span>
+  </div>
+</footer>
+</body>
+</html>

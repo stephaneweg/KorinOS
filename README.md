@@ -2,47 +2,43 @@
 
 Anciennement ARMPI : les noms internes gardent ce nom. Pour tout reconstruire : [docs/CONSTRUIRE.md](docs/CONSTRUIRE.md). Licences : [docs/LICENCES.md](docs/LICENCES.md).
 
-Système d'exploitation **64 bits** pour **Raspberry Pi 4**, inspiré de MenuetOS, écrit
-entièrement en **assembleur AArch64 avec FASMARM**.
+Système d'exploitation de bureau **64 bits**, écrit depuis zéro, pour les **PC x86-64** (UEFI) et le
+**Raspberry Pi 4**. Ce n'est ni Linux ni un BSD : micronoyau, services, bureau et kits sont les siens ; des
+logiciels libres connus sont portés par-dessus. Né sur le Pi en assembleur AArch64 (FASMARM), il tourne aussi sur
+PC depuis novembre 2026 ; l'essentiel du système est depuis passé en C, commun aux deux machines.
 
-![Le bureau de Korin OS](assets/bureau.png)
+![Le bureau de Korin OS](assets/shots/fr/desktop.png)
 
-## Ce qui fonctionne (testé dans QEMU raspi4b)
+## Ce qu'il y a dedans
 
-* **Noyau** : EL2→EL1, MMU 4 Ko + caches, **SMP 4 cœurs**, ordonnanceur **préemptif**
-  (1 kHz, quantum 10 ms), threads, futex, IPI, **contexte FP/NEON** complet.
-* **Process isolés** : exécutables **ELF64**, un espace d'adressage + ASID par process, une
-  cinquantaine d'appels système groupés par domaine, process fautif tué sans arrêter le système,
-  arguments, `wait`, tubes.
-* **Stockage** : carte SD, cache de secteurs, **FAT32** et **exFAT** (lecture, écriture, noms
-  longs UTF-8), validés par des outils tiers (pyfatfs, fsck.exfat, noyau Linux).
-* **USB** (DWC2) : hub, clavier AZERTY/QWERTY, souris, tablette, réseau CDC-ECM, carte son,
-  **clés USB** (stockage de masse, partitions FAT32/exFAT montées en `/media/usb0`, `/media/usb1`).
-* **Réseau** : pile **TCP/IP** maison (ARP, IPv4, ICMP, UDP, DHCP, DNS, TCP client/serveur), sockets.
-* **Son** : mixeur 8 flux, sortie USB audio (440 Hz vérifié), enregistrement (API micro).
-* **Interface graphique** en espace utilisateur : **Elegant**, serveur graphique (fenêtres,
-  compositeur, barre des tâches, menu), **rastériseur TrueType maison** en assembleur.
-* **Auto-hébergement** : **FASMARM porté nativement en AArch64** ; sous ARMPI il réassemble le
-  noyau à l'identique, octet pour octet (`/bin/fasmarm`, `selfhost`).
-* **Suite logicielle** (`/apps`) : terminal (shell), éditeur, fichiers, navigateur web,
-  gestionnaire de tâches, calculatrice, horloge, dessin (BMP), piano, magnétophone, jeu Cibles, lecteur multimédia (WebM / MP4 : VP8, VP9,
-  AV1 par **MediaKit**, kit précompilé en C, [docs/MEDIAKIT.md](docs/MEDIAKIT.md)).
-* **Suite bureautique** ([docs/BUREAUTIQUE.md](docs/BUREAUTIQUE.md)) : Letters (RTF, DOCX, ODT), Spreadsheet (XLSX, ODS), Slides (PPTX,
-  ODP), Cardfile, en C++ sur UIKit, compilables sous ARMPI par `pibuild`.
+* **Micronoyau** : process isolés (ELF64, un espace d'adressage chacun), ordonnanceur préemptif **SMP** (les
+  4 cœurs du Pi, tous ceux du PC), threads, futex ; pilotes, systèmes de fichiers, réseau et serveur graphique
+  sont des process : un pilote qui tombe est relancé, pas le système ([docs/MICRO-NOYAU.md](docs/MICRO-NOYAU.md)).
+* **Un seul arbre de fichiers**, à la Unix : `/` (FAT32), `/media/usb0`…, `/tmp` en mémoire, `/net/…` pour les
+  partages ; `HOME:/` est le dossier de l'utilisateur ([docs/FICHIERS.md](docs/FICHIERS.md)).
+* **Matériel** : PC (développé sur un HP ZBook Fury 17 G8 : NVMe, USB, Wi-Fi Intel AX201, son HD Audio, GPU Intel
+  par Mesa, pavé tactile, batterie), Pi 4 (USB, Ethernet, Wi-Fi, son, GPU V3D par Mesa, broches GPIO).
+* **Elegant**, le bureau : serveur graphique composité, panneau, lanceur, quatre bureaux, widgets, thèmes Givre et
+  Onyx Noir ; écran de connexion, comptes, `sudo`.
+* **Kits** partagés par les apps (UIKit, NetKit, AudioKit, MediaKit, GlKit, VkKit…, [docs/KITS.md](docs/KITS.md)).
+* **POSIX** (newlib + `libposix`, [docs/POSIX.md](docs/POSIX.md)) assez pour porter bash, git, CPython, WebKit,
+  Godot, .NET et bien des bibliothèques ; **GCC 14.2 dans le système**, avec FASM, FreeBASIC, le SDK .NET, Python.
+* **Plus de cent paquets signés** ([docs/PAQUETS.md](docs/PAQUETS.md)) : le navigateur Jet (WebKit), la
+  bureautique (Letters, Spreadsheet, Slides : DOCX, XLSX, PPTX, OpenDocument), le courrier, la musique (Jamendo,
+  Spotify, Koton, FM Tracker), des jeux et émulateurs, la CAO Forge (OpenCASCADE), Godot 4.7, Avalonia.
+* Les apps s'écrivent en **assembleur, C, C++, C#, BASIC** ; les commandes de `/bin` sont en assembleur et en C.
 
-![Le lanceur d'applications](assets/lanceur.png)
+![Le lanceur d'applications](assets/shots/fr/launcher.png)
 
-## Écrit pour le vrai Raspberry Pi 4 mais non testable sous QEMU
+## Raspberry Pi 4 : réglages de la carte
 
-Ports USB-A (PCIe + xHCI VL805), Ethernet GENET, **WiFi CYW43455** (SDIO, WPA2), son PWM
-(jack) et HDMI, micro I2S, GPU V3D. Ces pilotes se désactivent proprement sous QEMU ; leur
-validation demande une carte réelle (voir les points à vérifier dans `docs/`).
-
-WiFi : firmware dans `/firmware/` (copié par `build.ps1`), connexion automatique si
-`/etc/wifi.txt` existe (modèle : `wifi.example.txt`), ou depuis le terminal :
-`wifi scan`, `wifi connecter SSID clé`, `wifi`, `wifi quitter`.
+Wi-Fi : firmware dans `/firmware/` (copié par `build.ps1`), connexion automatique si `/etc/wifi.txt` existe
+(modèle : `wifi.example.txt`), ou depuis le terminal : `wifi scan`, `wifi connecter SSID clé`, `wifi`,
+`wifi quitter` ; sur PC, le menu Wi-Fi du panneau ([docs/WIFI.md](docs/WIFI.md)).
 
 ## Construire et lancer
+
+Tout, dans l'ordre (Pi et PC, le C et le C++ dans WSL) : [docs/CONSTRUIRE.md](docs/CONSTRUIRE.md). Pour le Pi 4 :
 
 ```powershell
 .\build.ps1          # applications + noyau + image SD (build\sd.img)

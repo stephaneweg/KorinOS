@@ -117,12 +117,21 @@ void win_outer(const struct win *w, long *x, long *y, long *wd, long *ht)
 	*ht += FRAME_TITLE_H + FRAME_BORDER;
 }
 
-/* fenêtre : marque son rectangle extérieur */
+static void glass_zone(const struct win *w, struct rect *z);
+
+/* fenêtre : marque son rectangle extérieur, et l'ombre d'une fenêtre de verre (hors de son
+ * rectangle : sans elle, l'ombre de la barre de menus et du panel restait après leur fermeture) */
 void dirty_window(struct win *w)
 {
 	long x, y, wd, ht;
 	win_outer(w, &x, &y, &wd, &ht);
 	dirty(x, y, wd, ht);
+	if (w->flags & WF_BLUR) {
+		struct rect z;
+		glass_zone(w, &z);
+		if (z.x1 > z.x0 && z.y1 > z.y0)
+			dirty(z.x0, z.y0, z.x1 - z.x0, z.y1 - z.y0);
+	}
 }
 
 /* fenêtre -> couche : 0 fond, 1 normale, 2 dessus, 3 plein écran (WF_TOP sans cadre, en 0,0, de

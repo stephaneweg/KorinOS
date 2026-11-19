@@ -131,6 +131,9 @@ void session_poll(void)
 	   autrement : le compte par défaut, comme avant. */
 	if (r == WR_EXITED && (out == -15 || out == -9))
 		return;
+	long st[2];
+	if (sys_stat("/tmp/login.halt", st) >= 0) /* (Éteindre ou Redémarrer choisi dans login : marque posée) */
+		return;
 	session_default();
 	session_run_file(sess_file, sess_def);
 }

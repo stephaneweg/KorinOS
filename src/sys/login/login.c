@@ -205,6 +205,7 @@ static int ouvrir(const struct acc *a)
 		sys_close(fd);
 	}
 	sys_unlink("/tmp/login.manual"); /* (la prochaine fois, la connexion automatique de nouveau) */
+	sys_unlink("/tmp/login.halt");   /* (un arrêt demandé qui n'a pas eu lieu : la session s'ouvre quand même) */
 	return 0;
 }
 
@@ -412,6 +413,10 @@ static void power_menu(void)
 	long chn = korin_sys2(SYS_SVC_OPEN, "init2", 1000);
 	if (chn < 0)
 		return;
+	/* la marque de l'arrêt : Elegant n'ouvre pas la session quand login tombe ensuite (session_poll) */
+	long fd = sys_open("/tmp/login.halt", O_WRITE | O_CREATE | O_TRUNC);
+	if (fd >= 0)
+		sys_close(fd);
 	memset(msg, 0, MSG_SIZE);
 	M64(msg, 0) = 3; /* INIT_OP_REBOOT : a bit 1 = arrêt */
 	M64(msg, 8) = r == 1 ? 2 : 0;

@@ -38,8 +38,8 @@ struct Body {
 
 // ---- l'historique ------------------------------------------------------------------------------------------------
 
-enum StepKind { ST_BOX, ST_CYLINDER, ST_SKETCH, ST_EXTRUDE, ST_FILLET, ST_CHAMFER, ST_UNION, ST_CUT, ST_HOLE, ST_PUSH, ST_SLOT, ST_REVOLVE,
-	ST_SHELL, ST_PATTERN, ST_MIRROR };
+enum StepKind { ST_BOX, ST_CYLINDER, ST_SKETCH, ST_EXTRUDE, ST_FILLET, ST_CHAMFER, ST_COMBINE, ST_CUT, ST_HOLE, ST_PUSH, ST_SLOT, ST_REVOLVE,
+	ST_SHELL, ST_PATTERN, ST_MIRROR };	// (ST_CUT : l'ancienne soustraction, rejouée comme Combiner)
 enum Op { OP_NEW, OP_JOIN, OP_CUT, OP_INTERSECT };
 
 // un repère : origine, normale (Z), direction X
@@ -89,7 +89,8 @@ struct Feature {
 	std::string name;
 	Op op = OP_NEW;			// ce que la forme fait au corps visé
 	int body = -1;			// le corps visé (rang de création ; -1 : un nouveau corps)
-	int tool = -1;			// (union, soustraction) le corps outil
+	std::vector<int> tools;		// (combiner) les corps outils
+	bool keep = false;		// (combiner) les outils restent
 	Frame frame;			// boîte, cylindre, perçage, oblong : le plan de base et son centre
 	double a = 0, b = 0, c = 0;	// boîte : largeur, profondeur, hauteur (signée) ; cylindre : rayon, -, hauteur ;
 					// congé, chanfrein : rayon ; pousser/tirer : distance (signée) ; oblong : longueur, largeur
@@ -125,6 +126,8 @@ std::string featureDetail (const Feature &f);
 // le nom par défaut d'une nouvelle opération de ce genre (« Boîte 3 »)
 std::string featureName (const Doc &d, StepKind k);
 const char *opName (Op o);
+// un texte de l'interface dans la langue du système (main.cpp : ui_tr ; la clé est le texte français)
+const char *trUi (const char *s);
 
 // l'équerre de 3DForge en huit opérations (plaque, congé R 8, paroi jointe, congé R 12, raccord R 6, trou Ø 22,
 // deux lamages, oblong)

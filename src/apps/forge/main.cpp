@@ -57,6 +57,7 @@
 using namespace forge;
 
 #define TR(s) ((const char *) ui_tr ((long) (s)))
+const char *forge::trUi (const char *s) { return TR (s); }
 
 namespace {
 
@@ -92,9 +93,10 @@ Pick sel0 () { return g_sels.empty () ? Pick () : g_sels[0]; }
 long w_doc, w_docsub, w_mode, w_bar, w_export, w_tl, w_status, w_stats;
 long p_title, p_sub, p_sec, p_name[8], p_val[8], p_state, p_hint;
 long w_op, b_ok, b_cancel, w_pmode, w_paxis, b_usemax;	// la commande en cours
+long b_ctarget, b_ctools, w_cop, c_keep;		// (combiner) cible, outils, type, conserver les outils
 long e_param, b_param;				// les paramètres nommés
 long e_val[3], b_apply, b_off, b_del, b_barhere;	// l'étape choisie
-enum { TB_SKETCH, TB_BOX, TB_CYL, TB_PUSH, TB_FILLET, TB_CHAMFER, TB_UNION, TB_CUT, TB_MEASURE, TB_N };
+enum { TB_SKETCH, TB_BOX, TB_CYL, TB_PUSH, TB_FILLET, TB_CHAMFER, TB_COMBINE, TB_MEASURE, TB_N };
 long tb[TB_N];
 
 // ---- annuler, rétablir ------------------------------------------------------------------------------------------
@@ -112,7 +114,7 @@ void pushUndo ()
 }
 
 // ---- la commande en cours ---------------------------------------------------------------------------------------
-enum Tool { T_NONE, T_BOX, T_CYL, T_PUSH, T_FILLET, T_CHAMFER, T_UNION, T_CUT, T_EXTRUDE, T_REVOLVE, T_HOLE, T_SHELL, T_PATTERN, T_MIRROR };
+enum Tool { T_NONE, T_BOX, T_CYL, T_PUSH, T_FILLET, T_CHAMFER, T_COMBINE, T_EXTRUDE, T_REVOLVE, T_HOLE, T_SHELL, T_PATTERN, T_MIRROR };
 struct Chip {
 	const char *label;
 	double val = 0;
@@ -133,11 +135,14 @@ struct Cmd {
 	Mesh ghost;
 	std::string err;
 	double maxR = 0;		// (congé refusé) le plus grand rayon qui passe
+	int pick = 0;			// (combiner) le clic dans la vue choisit : 0 rien, 1 la cible, 2 les outils
+	int pickBody = -1;		// (combiner) la cible et les outils d'avant le bouton (Échap y revient)
+	std::vector<int> pickTools;
 } g_cmd;
 
 StepKind toolKind (Tool t)
 {
-	static const StepKind K[] = { ST_BOX, ST_BOX, ST_CYLINDER, ST_PUSH, ST_FILLET, ST_CHAMFER, ST_UNION, ST_CUT, ST_EXTRUDE, ST_REVOLVE, ST_HOLE, ST_SHELL, ST_PATTERN, ST_MIRROR };
+	static const StepKind K[] = { ST_BOX, ST_BOX, ST_CYLINDER, ST_PUSH, ST_FILLET, ST_CHAMFER, ST_COMBINE, ST_EXTRUDE, ST_REVOLVE, ST_HOLE, ST_SHELL, ST_PATTERN, ST_MIRROR };
 	return K[t];
 }
 bool repeatable (StepKind k) { return k == ST_BOX || k == ST_CYLINDER || k == ST_HOLE || k == ST_SLOT || k == ST_EXTRUDE || k == ST_REVOLVE; }
@@ -168,7 +173,7 @@ void skPanel ();
 
 const char *toolName (Tool t)
 {
-	static const char *const N[] = { "", "Boîte", "Cylindre", "Pousser/tirer", "Congé", "Chanfrein", "Union", "Soustraction", "Extrusion", "Révolution", "Perçage", "Coque", "Réseau", "Symétrie" };
+	static const char *const N[] = { "", "Boîte", "Cylindre", "Pousser/tirer", "Congé", "Chanfrein", "Combiner", "Extrusion", "Révolution", "Perçage", "Coque", "Réseau", "Symétrie" };
 	return N[t];
 }
 
@@ -229,7 +234,7 @@ void renderView ()
 	g_camDirty = false;
 	g_back.resize ((size_t) VW * VH);
 	g_view.ghost = g_cmd.tool != T_NONE && !g_cmd.ghost.pts.empty () ? &g_cmd.ghost : nullptr;
-	g_view.ghostCut = g_cmd.f.op == OP_CUT || ((g_cmd.tool == T_PUSH || g_cmd.tool == T_EXTRUDE) && g_cmd.f.a < 0);
+	g_view.ghostCut = (g_cmd.f.op == OP_CUT && g_cmd.tool != T_COMBINE) || ((g_cmd.tool == T_PUSH || g_cmd.tool == T_EXTRUDE) && g_cmd.f.a < 0);
 	skStrokes ();
 	g_view.render (g_back.data (), VW, g_doc, g_pal, g_sels, g_hot);
 	for (int y = 0; y < VH; y++) memcpy (pix + (size_t) y * (pitch / 4), g_back.data () + (size_t) y * VW, (size_t) VW * 4);
@@ -237,7 +242,7 @@ void renderView ()
 	char s[160];
 	int tris = 0;
 	for (auto &b : g_doc.bodies) tris += (int) b.mesh.triFace.size ();
-	snprintf (s, sizeof s, "%s%d triangles   ·   rendu %.0f ms   ·   Accrochage %s mm   ·   mm", mcp::running () ? "Agent (MCP)   ·   " : "", tris, g_view.lastMs,
+	snprintf (s, sizeof s, TR ("%s%d triangles   ·   rendu %.0f ms   ·   Accrochage %s mm   ·   mm"), mcp::running () ? "Agent (MCP)   ·   " : "", tris, g_view.lastMs,
 		  fmtNum (g_snap).c_str ());
 	ui_w_set_text (w_stats, (long) s);
 }
@@ -370,7 +375,7 @@ void panelRows (const std::vector<std::pair<std::string, std::string>> &rows, in
 {
 	for (int i = 0; i < 8; i++) {
 		bool on = i < (int) rows.size ();
-		ui_w_set_text (p_name[i], (long) (on ? rows[i].first.c_str () : ""));
+		ui_w_set_text (p_name[i], (long) (on ? TR (rows[i].first.c_str ()) : ""));
 		ui_w_set_text (p_val[i], (long) (on && i >= skipVal ? rows[i].second.c_str () : ""));
 	}
 }
@@ -412,6 +417,11 @@ void panelUpdate ()
 	ui_w_show (w_pmode, false);
 	ui_w_show (w_paxis, false);
 	ui_w_show (b_usemax, false);
+	ui_w_show (b_ctarget, false);
+	ui_w_show (b_ctools, false);
+	ui_w_show (w_cop, false);
+	ui_w_show (c_keep, false);
+	ui_w_set_text (b_ok, (long) TR (g_cmd.tool == T_COMBINE ? "Confirmer" : "OK"));
 	ui_w_show (e_param, false);
 	ui_w_show (b_param, false);
 	ui_w_show (w_sktools, false);
@@ -427,15 +437,14 @@ void panelUpdate ()
 		return;
 	}
 	if (g_cmd.tool != T_NONE) {
-		static const char *const HINT[14][3] = {
+		static const char *const HINT[13][3] = {
 			{ "", "", "" },
 			{ "Clic : le centre de la base, sur une face ou sur le sol", "On s'éloigne pour la largeur et la profondeur ; clic", "On monte pour la hauteur ; clic ou Entrée" },
 			{ "Clic : le centre de la base, sur une face ou sur le sol", "On s'éloigne pour le rayon ; clic", "On monte pour la hauteur ; clic ou Entrée" },
 			{ "Clic : la face plane à pousser ou à tirer", "Glisser pour la distance ; clic ou Entrée", "" },
 			{ "Clic : les arêtes (Maj : plusieurs) ; Entrée", "Tapez le rayon ; Entrée", "" },
 			{ "Clic : les arêtes (Maj : plusieurs) ; Entrée", "Tapez la distance ; Entrée", "" },
-			{ "Clic : le corps qui reste", "Clic : le corps à joindre", "" },
-			{ "Clic : le corps à garder", "Clic : le corps à retirer", "" },
+			{ "Cible, puis Outils : leur bouton, puis les corps dans la vue (Échap : annule le choix)", "Cible, puis Outils : leur bouton, puis les corps dans la vue (Échap : annule le choix)", "" },
 			{ "Une esquisse fermée : l'étape choisie dans la frise, ou la dernière", "Glisser le long de la normale, ou tapez la distance ; Entrée", "" },
 			{ "Une esquisse avec une ligne de construction (l'axe)", "Tapez l'angle ; Entrée", "" },
 			{ "Clic : l'emplacement, sur une face plane", "Maj+clic : un trou de plus ; le diamètre, la profondeur (0 : traversant) ; Entrée", "" },
@@ -447,7 +456,7 @@ void panelUpdate ()
 		ui_w_set_text (p_sub, (long) TR (HINT[g_cmd.tool][imin (g_cmd.stage, 2)]));
 		ui_w_set_text (p_sec, (long) TR ("Valeurs"));
 		std::vector<std::pair<std::string, std::string>> rows;
-		for (auto &c : g_cmd.chips) rows.push_back ({ TR (c.label), (c.text.empty () ? fmtNum (c.val) : c.text) + " mm" + (c.locked ? "  (tenue)" : "") });
+		for (auto &c : g_cmd.chips) rows.push_back ({ TR (c.label), (c.text.empty () ? fmtNum (c.val) : c.text) + " mm" + (c.locked ? TR ("  (tenue)") : "") });
 		bool hasOp = g_cmd.tool == T_BOX || g_cmd.tool == T_CYL || g_cmd.tool == T_EXTRUDE || g_cmd.tool == T_REVOLVE;
 		static const char *const OPS[4] = { "nouveau", "joindre", "enlever", "intersection" };
 		if (hasOp) rows.push_back ({ TR ("Opération"), std::string (TR (OPS[g_cmd.f.op])) + (g_cmd.opAuto ? TR (" · auto") : "") });
@@ -455,6 +464,21 @@ void panelUpdate ()
 		if (g_cmd.tool == T_SHELL) rows.push_back ({ TR ("Faces ouvertes"), std::to_string (g_cmd.f.faces.size ()) });
 		if (g_cmd.tool == T_HOLE) rows.push_back ({ TR ("Trous"), std::to_string (g_cmd.f.pos.size () / 2) });
 		if (g_cmd.tool == T_PATTERN && g_cmd.f.ref >= 0) rows.push_back ({ TR ("Répète"), g_doc.feats[g_cmd.f.ref].name });
+		if (g_cmd.tool == T_COMBINE) {	// (les noms : à droite des boutons Cible et Outils)
+			auto bname = [] (int b) { return b >= 0 && b < (int) g_doc.bodies.size () ? g_doc.bodies[b].name : std::string ("?"); };
+			std::string tn;
+			for (int b : g_cmd.f.tools) tn += (tn.empty () ? "" : ", ") + bname (b);
+			rows.push_back ({ "", g_cmd.pick == 1 ? TR ("cliquez un corps…") : g_cmd.f.body >= 0 ? bname (g_cmd.f.body) : TR ("aucune") });
+			rows.push_back ({ "", g_cmd.pick == 2 ? (tn.empty () ? std::string (TR ("cliquez des corps…")) : tn + " …") : tn.empty () ? TR ("aucun") : tn });
+			ui_w_set_text (b_ctarget, (long) TR (g_cmd.pick == 1 ? "▸ Cible" : "Cible"));
+			ui_w_set_text (b_ctools, (long) TR (g_cmd.pick == 2 ? "▸ Outils" : "Outils"));
+			ui_w_show (b_ctarget, true);
+			ui_w_show (b_ctools, true);
+			ui_w_show (w_cop, true);
+			ui_w_set_value (w_cop, g_cmd.f.op == OP_CUT ? 1 : g_cmd.f.op == OP_INTERSECT ? 2 : 0);
+			ui_w_show (c_keep, true);
+			ui_w_set_value (c_keep, g_cmd.f.keep ? 1 : 0);
+		}
 		panelRows (rows);
 		if (g_cmd.tool == T_PATTERN) {
 			ui_w_show (w_pmode, true);
@@ -528,7 +552,7 @@ void panelUpdate ()
 		if (k.face >= 0) faceInfo (b, k.face, in);
 		else if (k.edge >= 0) edgeInfo (b, k.edge, in);
 		else bodyInfo (b, in);
-		if (g_sels.size () > 1) in.title = std::to_string (g_sels.size ()) + (k.edge >= 0 ? " arêtes" : " faces"), in.sub = b.name;
+		if (g_sels.size () > 1) in.title = std::to_string (g_sels.size ()) + (k.edge >= 0 ? TR (" arêtes") : TR (" faces")), in.sub = b.name;
 		ui_w_set_text (p_title, (long) in.title.c_str ());
 		ui_w_set_text (p_sub, (long) in.sub.c_str ());
 		ui_w_set_text (p_sec, (long) TR ("Mesures"));
@@ -609,7 +633,7 @@ void cmdGhost ()
 {
 	g_cmd.ghost = Mesh ();
 	g_cmd.err.clear ();
-	if (g_cmd.tool == T_FILLET || g_cmd.tool == T_CHAMFER || g_cmd.tool == T_UNION || g_cmd.tool == T_CUT) return;
+	if (g_cmd.tool == T_FILLET || g_cmd.tool == T_CHAMFER || g_cmd.tool == T_COMBINE) return;
 	if (g_cmd.stage == 0) return;
 	TopoDS_Shape s = featureTool (g_doc, g_cmd.f);
 	if (s.IsNull ()) return;
@@ -697,11 +721,17 @@ void cmdRefresh ()
 	g_cmd.maxR = 0;
 	Tool tt = g_cmd.tool;
 	bool ready = (tt == T_FILLET || tt == T_CHAMFER) ? !g_cmd.f.edges.empty () : tt == T_SHELL ? !g_cmd.f.faces.empty ()
-		: tt == T_PATTERN ? g_cmd.f.ref >= 0 : tt == T_MIRROR ? g_cmd.f.body >= 0 : false;
-	if ((tt == T_FILLET || tt == T_CHAMFER || tt == T_SHELL || tt == T_PATTERN || tt == T_MIRROR) && !ready) {
+		: tt == T_PATTERN ? g_cmd.f.ref >= 0 : tt == T_MIRROR ? g_cmd.f.body >= 0 : tt == T_COMBINE ? g_cmd.f.body >= 0 && !g_cmd.f.tools.empty () : false;
+	bool probed = tt == T_FILLET || tt == T_CHAMFER || tt == T_SHELL || tt == T_PATTERN || tt == T_MIRROR || tt == T_COMBINE;
+	if (tt == T_COMBINE) {		// (la cible et les outils : montrés choisis)
+		g_sels.clear ();
+		if (g_cmd.f.body >= 0) g_sels.push_back (Pick { g_cmd.f.body, -1, -1 });
+		for (int b : g_cmd.f.tools) g_sels.push_back (Pick { b, -1, -1 });
+	}
+	if (probed && !ready) {
 		g_cmd.ghost = Mesh ();
 		g_cmd.err.clear ();
-	} else if (tt == T_FILLET || tt == T_CHAMFER || tt == T_SHELL || tt == T_PATTERN || tt == T_MIRROR) {	// (l'aperçu : la vraie forme, calculée)
+	} else if (probed) {	// (l'aperçu : la vraie forme, calculée)
 		Doc probe = g_doc;
 		insertFeature (probe, probe.bar, g_cmd.f);
 		replay (probe, 0.2);
@@ -728,9 +758,9 @@ void cmdStart (Tool t)
 	Feature &f = g_cmd.f;
 	f.kind = toolKind (t);
 	f.name = featureName (g_doc, f.kind);
-	if (t <= T_CUT)
+	if (t <= T_COMBINE)
 		ui_w_set_value (tb[t == T_BOX ? TB_BOX : t == T_CYL ? TB_CYL : t == T_PUSH ? TB_PUSH : t == T_FILLET ? TB_FILLET : t == T_CHAMFER ? TB_CHAMFER
-			: t == T_UNION ? TB_UNION : TB_CUT], 1);
+			: TB_COMBINE], 1);
 	Pick k = sel0 ();
 	// ce qui est déjà choisi sert de départ : une face plane pour pousser/tirer, des arêtes pour un congé
 	if (t == T_PUSH && !k.none () && k.face >= 0 && faceRef (g_doc.bodies[k.body], k.face, f.face)) {
@@ -757,8 +787,12 @@ void cmdStart (Tool t)
 			for (int i = 0; i < 3; i++) g_cmd.chips[0].at[i] = e.mid[i];
 		}
 	}
-	if (t == T_UNION || t == T_CUT) {
-		if (!k.none () && k.face < 0 && k.edge < 0) f.body = k.body, g_cmd.stage = 1;
+	if (t == T_COMBINE) {	// (le corps choisi : la cible, puis les outils ; sinon la cible d'abord)
+		f.op = OP_JOIN;
+		g_cmd.stage = 1;
+		if (!k.none ()) f.body = k.body, g_cmd.pick = 2;
+		else g_cmd.pick = 1;
+		g_cmd.pickBody = f.body;
 	}
 	if (t == T_EXTRUDE || t == T_REVOLVE) {	// l'esquisse : l'étape choisie, sinon la dernière avant la barre
 		int ref = g_selStepWas >= 0 && g_selStepWas < (int) g_doc.feats.size () && g_doc.feats[g_selStepWas].kind == ST_SKETCH ? g_selStepWas : -1;
@@ -772,7 +806,7 @@ void cmdStart (Tool t)
 		std::string err;
 		if (skFaces (g_doc.feats[ref].sk, err).IsNull ()) {
 			g_cmd = Cmd ();
-			status ((std::string (TR ("L'esquisse n'a ")) + err + ".").c_str ());
+			status (TR (("L'esquisse n'a " + err + ".").c_str ()));
 			return;
 		}
 		double o[3], d[3];
@@ -858,6 +892,10 @@ void cmdCommit ()
 	if (g_cmd.tool == T_HOLE && (f.body < 0 || f.pos.empty () || f.d1 <= 0)) return;
 	if ((g_cmd.tool == T_SHELL || g_cmd.tool == T_PATTERN || g_cmd.tool == T_MIRROR) && !g_cmd.err.empty ()) return;
 	if (g_cmd.tool == T_SHELL && f.faces.empty ()) return;
+	if (g_cmd.tool == T_COMBINE && (f.body < 0 || f.tools.empty () || !g_cmd.err.empty ())) {
+		status (TR (f.body < 0 ? "Combiner : choisissez la cible." : f.tools.empty () ? "Combiner : choisissez au moins un outil." : "Combiner : l'opération ne passe pas."));
+		return;
+	}
 	pushUndo ();
 	insertFeature (g_doc, g_doc.bar, f);
 	g_sels.clear ();
@@ -1071,11 +1109,28 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 		return true;
 	}
 	if (t == T_PATTERN || t == T_MIRROR) return true;	// (les valeurs au panneau ; Entrée ou OK)
-	if (t == T_UNION || t == T_CUT) {
+	if (t == T_COMBINE) {	// le clic choisit selon le bouton pressé : la cible, ou un outil de plus (un outil recliqué s'en va)
 		Pick k = g_view.pick (g_doc, x, y);
 		if (k.none ()) return true;
-		if (g_cmd.stage == 0) f.body = k.body, g_cmd.stage = 1, g_sels = { Pick { k.body, -1, -1 } }, cmdRefresh ();
-		else if (k.body != f.body) f.tool = k.body, cmdCommit ();
+		auto &tl = f.tools;
+		auto in = std::find (tl.begin (), tl.end (), k.body);
+		if (g_cmd.pick == 1) {
+			f.body = k.body;
+			if (in != tl.end ()) tl.erase (in);
+			g_cmd.pick = tl.empty () ? 2 : 0;	// (puis les outils, s'il n'y en a pas encore)
+			g_cmd.pickBody = f.body, g_cmd.pickTools = tl;
+		} else if (g_cmd.pick == 2) {
+			if (k.body == f.body) {
+				status (TR ("La cible ne peut pas être aussi un outil."));
+				return true;
+			}
+			if (in != tl.end ()) tl.erase (in);
+			else tl.push_back (k.body);
+		} else {
+			status (TR ("Combiner : le bouton Cible ou Outils, puis les corps."));
+			return true;
+		}
+		cmdRefresh ();
 		return true;
 	}
 	return true;
@@ -1093,6 +1148,12 @@ void liveRefresh ()
 bool cmdKey (int code, int ch)
 {
 	if (g_cmd.tool == T_NONE) return false;
+	if (code == 0x29 && g_cmd.tool == T_COMBINE && g_cmd.pick) {	// Échap : le choix en cours annulé (la commande reste)
+		g_cmd.f.body = g_cmd.pickBody, g_cmd.f.tools = g_cmd.pickTools, g_cmd.pick = 0;
+		cmdRefresh ();
+		status (TR ("Choix annulé."));
+		return true;
+	}
 	if (code == 0x29) {	// Échap
 		cmdEnd ();
 		status (TR ("Commande annulée."));
@@ -1124,7 +1185,7 @@ bool cmdKey (int code, int ch)
 			g_cmd.active = (int) g_cmd.chips.size () - 1;
 			cmdRefresh ();
 		} else if (g_cmd.stage >= 1) {
-			if (t == T_FILLET || t == T_CHAMFER || t == T_SHELL || t == T_PATTERN || t == T_MIRROR) {	// (l'aperçu d'abord : refusée s'il ne passe pas)
+			if (t == T_FILLET || t == T_CHAMFER || t == T_SHELL || t == T_PATTERN || t == T_MIRROR || t == T_COMBINE) {	// (l'aperçu d'abord : refusée s'il ne passe pas)
 				cmdRefresh ();
 				if (!g_cmd.err.empty ()) {
 					status ((std::string (TR (toolName (t))) + " : " + g_cmd.err).c_str ());
@@ -1812,7 +1873,7 @@ void skPanel ()
 	std::string title = g_sm.edit >= 0 ? g_doc.feats[g_sm.edit].name : featureName (g_doc, ST_SKETCH);
 	ui_w_set_text (p_title, (long) title.c_str ());
 	const double *n = s.plane.n;
-	std::string pl = std::fabs (n[2]) > 0.999 && s.body < 0 ? "plan XY" : s.body >= 0 ? "sur une face" : "plan";
+	std::string pl = std::fabs (n[2]) > 0.999 && s.body < 0 ? TR ("plan XY") : s.body >= 0 ? TR ("sur une face") : TR ("plan");
 	std::string state;
 	if (!g_sm.message.empty ()) state = "⚠ " + g_sm.message;
 	else if (s.geos.empty ()) state = TR ("Dessinez : L ligne, R rectangle, C cercle, A arc.");
@@ -2008,7 +2069,7 @@ void timelinePaint (long, long w, long h)
 	ui_fill (bx, 6, 3, (int) h - 12, jet (TJ_ACCENT));
 	ui_fill (bx - 4, 3, 11, 5, jet (TJ_ACCENT));
 	char s[64];
-	snprintf (s, sizeof s, "%d étapes", (int) g_doc.feats.size ());
+	snprintf (s, sizeof s, TR ("%d étapes"), (int) g_doc.feats.size ());
 	long tw = ui_text_width ((long) s, 12, (long) ui.font);
 	ui_fill (w - 104, 1, 104, h - 1, jet (TJ_FACE));
 	ui_text ((long) s, w - 16 - tw, h / 2 + 5, jet (TJ_TEXT3), 12, (long) ui.font, 0);
@@ -2175,6 +2236,10 @@ void relayout ()
 	ui_w_move (w_pmode, px, by - h - 8, pw, h);
 	ui_w_move (w_paxis, px, by - 2 * h - 16, pw, h);
 	ui_w_move (b_usemax, px, by - h - 8, pw, h);
+	ui_w_move (b_ctarget, px, y + 88, pw / 2 - 8, h);	// (combiner : sur les deux premières lignes, le nom à droite)
+	ui_w_move (b_ctools, px, y + 88 + 32, pw / 2 - 8, h);
+	ui_w_move (w_cop, px, y + 92 + 2 * 32 + 6, pw, h);
+	ui_w_move (c_keep, px, y + 92 + 3 * 32 + 12, pw, 24);
 	ui_w_move (e_param, px, by + h + 12, pw - 96, h);
 	ui_w_move (b_param, px + pw - 88, by + h + 12, 88, h);
 	ui_w_move (b_ok, px + pw - 2 * 104 - 8, by + h + 12, 104, h);
@@ -2226,11 +2291,11 @@ long onResize (long, long)
 
 const char MENUS[] =
 	"MFichier\n" "I13c\tPiloter par un agent (MCP)…\n" "-\n" "I9\tQuitter\tCtrl+Q\n"
-	"MÉdition\n" "I10\tAnnuler\tCtrl+Z\n" "I11\tRétablir\tCtrl+Y\n" "-\n" "I12\tSupprimer l'étape\n"
+	"MÉdition\n" "I10\tAnnuler l'étape\tCtrl+Z\n" "I11\tRétablir l'étape\tCtrl+Y\n" "-\n" "I12\tSupprimer l'étape\n"
 	"MAffichage\n" "I20\tVue de face\tAlt+1\n" "I21\tVue de dessus\tAlt+2\n" "I22\tVue de droite\tAlt+3\n"
 	"I23\tVue isométrique\tAlt+0\n" "-\n" "I24\tAjuster\tF6\n" "-\n" "I25c\tArêtes\n" "I26c\tGrille\n" "-\n" "I45c\tAccrochage 1 mm\n" "I46c\tAccrochage 5 mm\n" "I47c\tAccrochage 10 mm\n"
 	"MCréer\n" "I37\tEsquisse (S)\n" "I38\tExtrusion (E)\n" "I39\tRévolution\n" "I41\tPerçage (H)\n" "-\n" "I30\tBoîte (B)\n" "I31\tCylindre\n" "-\n" "I32\tPousser/tirer (Q)\n"
-	"MModifier\n" "I33\tCongé (F ; double-clic : la chaîne)\n" "I34\tChanfrein (Maj+F)\n" "-\n" "I35\tUnion\n" "I36\tSoustraction\n" "-\n" "I42\tCoque\n" "I43\tRéseau\n" "I44\tSymétrie\n"
+	"MModifier\n" "I33\tCongé (F ; double-clic : la chaîne)\n" "I34\tChanfrein (Maj+F)\n" "-\n" "I35\tCombiner\n" "-\n" "I42\tCoque\n" "I43\tRéseau\n" "I44\tSymétrie\n"
 	"MAide\n" "I40\tNaviguer dans la vue\n";
 
 void setSnap (double v)
@@ -2263,8 +2328,7 @@ void command (int id)
 	case 32: cmdStart (T_PUSH); break;
 	case 33: cmdStart (T_FILLET); break;
 	case 34: cmdStart (T_CHAMFER); break;
-	case 35: cmdStart (T_UNION); break;
-	case 36: cmdStart (T_CUT); break;
+	case 35: cmdStart (T_COMBINE); break;
 	case 37: if (!g_sm.on) skEnter (-1); break;
 	case 38: cmdStart (T_EXTRUDE); break;
 	case 39: cmdStart (T_REVOLVE); break;
@@ -2291,7 +2355,7 @@ void control (long w, long code)
 				return;
 			}
 	if (code == UN_ACTIVATE || code == UN_CHANGE) {
-		static const int MAP[TB_N] = { 37, 30, 31, 32, 33, 34, 35, 36, -1 };
+		static const int MAP[TB_N] = { 37, 30, 31, 32, 33, 34, 35, -1 };
 		for (int i = 0; i < TB_N; i++)
 			if (w == tb[i] && MAP[i] >= 0) {
 				if (g_sm.on) {
@@ -2321,6 +2385,28 @@ void control (long w, long code)
 	}
 	if (w == b_usemax && code == UN_ACTIVATE && g_cmd.maxR > 0 && !g_cmd.chips.empty ()) {
 		g_cmd.chips[0].val = g_cmd.maxR, g_cmd.chips[0].locked = true, g_cmd.chips[0].text.clear ();
+		cmdRefresh ();
+		return;
+	}
+	if (g_cmd.tool == T_COMBINE && (w == b_ctarget || w == b_ctools) && code == UN_ACTIVATE) {	// le choix dans la vue : la cible ou les outils
+		int want = w == b_ctarget ? 1 : 2;
+		if (g_cmd.pick == want) g_cmd.pick = 0;	// (le bouton repressé : le choix fini)
+		else {
+			if (!g_cmd.pick) g_cmd.pickBody = g_cmd.f.body, g_cmd.pickTools = g_cmd.f.tools;
+			g_cmd.pick = want;
+		}
+		cmdRefresh ();
+		status (TR (g_cmd.pick == 1 ? "Cliquez le corps cible (Échap : annuler le choix)." : g_cmd.pick == 2 ? "Cliquez les corps outils ; un outil recliqué s'en va (Échap : annuler le choix)." : "Confirmer applique l'opération."));
+		return;
+	}
+	if (w == w_cop && code == UN_CHANGE) {
+		long v = ui_w_get_value (w_cop);
+		g_cmd.f.op = v == 1 ? OP_CUT : v == 2 ? OP_INTERSECT : OP_JOIN;
+		cmdRefresh ();
+		return;
+	}
+	if (w == c_keep && (code == UN_CHANGE || code == UN_ACTIVATE)) {
+		g_cmd.f.keep = ui_w_get_value (c_keep) != 0;
 		cmdRefresh ();
 		return;
 	}
@@ -2372,10 +2458,10 @@ void buildWindow ()
 	ui_w_tip (w_mode, (long) TR ("Fabrication (G-code GRBL) : à une étape suivante"));
 	TB_H = h + 24;
 	w_bar = ui_toolbar (408, (TB_H - h) / 2, imax (100, (int) ui.w - 408 - 96 - 128), 0);	// (à sa place ; ui_w_move de la barre emmène ses boutons)
-	static const char *const TOOLS[TB_N] = { "Esquisse", "Boîte", "Cylindre", "Pousser", "|Congé", "Chanfrein", "|Union", "Soustraire", "|Mesurer" };
+	static const char *const TOOLS[TB_N] = { "Esquisse", "Boîte", "Cylindre", "Pousser", "|Congé", "Chanfrein", "|Combiner", "|Mesurer" };
 	static const char *const TIPS[TB_N] = { "Esquisse (S) sur la face choisie ou le plan XY : lignes, rectangles, cercles, arcs, contraintes (PlaneGCS) ; E l'extrude", "Boîte (B) : clic au centre, on s'éloigne, clic, on monte, clic",
 		"Cylindre : clic au centre, on s'éloigne pour le rayon, clic, on monte, clic", "Pousser/tirer (Q) une face plane", "Congé (F) sur les arêtes choisies",
-		"Chanfrein (Maj+F) sur les arêtes choisies", "Union : deux corps n'en font plus qu'un", "Soustraction : un corps retiré d'un autre", "Mesurer : à une étape suivante" };
+		"Chanfrein (Maj+F) sur les arêtes choisies", "Combiner : une cible et des outils, en union, soustraction ou intersection", "Mesurer : à une étape suivante" };
 	for (int i = 0; i < TB_N; i++) {
 		const char *t = TOOLS[i];
 		bool sep = t[0] == '|';
@@ -2400,6 +2486,12 @@ void buildWindow ()
 	w_pmode = ui_segmented (0, 0, 10, h, (long) TR ("Linéaire|Circulaire"));
 	w_paxis = ui_segmented (0, 0, 10, h, (long) TR ("Axe X|Axe Y|Axe Z"));
 	b_usemax = ui_pushbutton (0, 0, 10, h, (long) "", 0);
+	b_ctarget = ui_pushbutton (0, 0, 10, h, (long) TR ("Cible"), 0);
+	ui_w_tip (b_ctarget, (long) TR ("Puis cliquez le corps cible dans la vue"));
+	b_ctools = ui_pushbutton (0, 0, 10, h, (long) TR ("Outils"), 0);
+	ui_w_tip (b_ctools, (long) TR ("Puis cliquez un ou plusieurs corps outils dans la vue"));
+	w_cop = ui_segmented (0, 0, 10, h, (long) TR ("Union|Soustraction|Intersection"));
+	c_keep = ui_checkbox (0, 0, 10, 24, (long) TR ("Conserver les outils"), 0);
 	e_param = ui_textbox (0, 0, 10, h, 0);
 	ui_w_tip (e_param, (long) TR ("nom = formule (« épaisseur = 4 », « largeur = épaisseur * 10 ») ; « nom = » le retire"));
 	b_param = ui_pushbutton (0, 0, 10, h, (long) TR ("Définir"), 0);
@@ -2963,6 +3055,11 @@ int main (int argc, char **argv)
 		else if (!strcmp (argv[i], "--mcp-token") && i + 1 < argc) mcpTok = argv[++i], tokGiven = true;
 	}
 	if (!uikit_open (&ui)) return 1;
+	{	// (sa table en dernier : elle l'emporte sur le dictionnaire commun, où Réseau, Annuler, Terminer… ont un autre sens)
+		char lang[80];
+		snprintf (lang, sizeof lang, "/apps/forge.app/lang/%s.txt", (const char *) ui_lang ());
+		ui_tr_load ((long) lang);
+	}
 	g_ark = archivekit_kit_open () != 0;
 	sampleDoc (g_doc);
 	double t0 = nowMs ();

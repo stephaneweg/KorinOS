@@ -388,6 +388,7 @@ build_one () { # nom
 	# (l'aide de l'app et ses images, comme build.ps1 sur le Pi : le menu Aide de menubar, help.app)
 	for f in help_*.md; do [ ! -f "$f" ] || cp "$f" "$D/"; done
 	[ ! -d help ] || cp -r help "$D/"
+	[ "$app" != forge ] || cp -r lang "$D/"	# (Forge charge sa table : tools/lang/merge.py la saute)
 	[ "$app" != arabesque ] || [ ! -d presets ] || { mkdir -p "$OUT/sdroot/home/public/arabesque"; cp presets/*.arb "$OUT/sdroot/home/public/arabesque/"; }
 	# (FM Tracker : instruments et mots dans l'app, morceaux d'exemple dans /home/public/music/fms, comme build.ps1)
 	if [ "$app" = fmtracker ]; then
