@@ -1,9 +1,9 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-19 15:44
+date = 2026-11-19 15:51
 abi = 626
-packages = 113
+packages = 114
 board = pc
 
 [avdemo]
@@ -1711,3 +1711,18 @@ needs = abi >= 626
 required = 0
 restart = 0
 content = 65b7348a488c5b8ec86aed20cb76355a92b2db56c7e8ac616ec39b32268ad863
+
+[terracube]
+title = TerraCube
+version = 1.1.0
+category = Jeux
+author = Korin OS
+summary = Bac à sable de blocs en 3D par le GPU, modes créatif et survie, fabrication sur une grille, météo, console, pilotable par Python, BASIC ou un agent IA (MCP)
+size = 655816
+installed = 1483573
+sha256 = 920feecfd09e7b2e704ce730b72b1d62cc59bd134baf21cc23f3ad7e75e0fd7b
+file = pkgs/terracube-1.1.0.opk
+needs = abi >= 626
+required = 0
+restart = 0
+content = 4257b693fb1e09bc17fdb094d25d3bd302e14206e125e808a08457047aab994d
