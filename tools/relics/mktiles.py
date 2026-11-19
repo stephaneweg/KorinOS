@@ -621,11 +621,12 @@ def background(src, world):
         for i, (y, a) in enumerate(((60, 16), (110, 12), (150, 10))):	# les nuages : de longues bandes ondulees
             pts = [(x, y + a * math.sin(x / W * 6.2832 * (2 + i) + i)) for x in range(0, W + 1, 8)]
             d.line(pts, fill=(252, 236, 186, 255), width=14 - 3 * i, joint="curve")
-        bg.alpha_composite(hills(W, 300, 34, 3, 0xE9B46A, 11))
         d = ImageDraw.Draw(bg)
-        for px_, h in ((210, 70), (300, 110), (760, 90)):
-            d.polygon([(px_ - h, 300), (px_, 300 - h), (px_ + h, 300)], fill=(226, 160, 92, 255))
-            d.polygon([(px_, 300 - h), (px_ + h, 300), (px_, 300)], fill=(200, 132, 72, 255))
+        for px_, h in ((210, 70), (300, 110), (760, 90)):	# (jusqu'en bas, derriere les dunes : le pied toujours cache)
+            e = h + (H - 300)
+            d.polygon([(px_ - e, H), (px_, 300 - h), (px_ + e, H)], fill=(226, 160, 92, 255))
+            d.polygon([(px_, 300 - h), (px_ + e, H), (px_, H)], fill=(200, 132, 72, 255))
+        bg.alpha_composite(hills(W, 300, 34, 3, 0xE9B46A, 11))
         bg.alpha_composite(hills(W, 340, 40, 2, 0xEFA650, 12))
         dl = ImageDraw.Draw(bg)
         for k in range(3):				# les lignes du vent sur les dunes
@@ -637,11 +638,12 @@ def background(src, world):
         bg = grad(W, H, [(92, 52, 110), (232, 120, 96), (255, 196, 120), (255, 226, 160)])
         d = ImageDraw.Draw(bg)
         d.ellipse((690, 120, 790, 220), fill=(255, 236, 170, 255))
-        bg.alpha_composite(hills(W, 300, 30, 2, 0xD8946A, 1))
-        for px_, h in ((180, 120), (300, 170), (840, 110)):
+        for px_, h in ((180, 120), (300, 170), (840, 110)):	# (jusqu'en bas, derriere les dunes : le pied toujours cache)
             d = ImageDraw.Draw(bg)
-            d.polygon([(px_ - h, 312), (px_, 312 - h), (px_ + h, 312)], fill=(214, 140, 92, 255))
-            d.polygon([(px_, 312 - h), (px_ + h, 312), (px_, 312)], fill=(180, 108, 72, 255))
+            e = h + (H - 312)
+            d.polygon([(px_ - e, H), (px_, 312 - h), (px_ + e, H)], fill=(214, 140, 92, 255))
+            d.polygon([(px_, 312 - h), (px_ + e, H), (px_, H)], fill=(180, 108, 72, 255))
+        bg.alpha_composite(hills(W, 300, 30, 2, 0xD8946A, 1))
         bg.alpha_composite(hills(W, 345, 26, 3, 0xE6A860, 2))
         for x in range(60, W, 170):			# des cactus au loin
             d.rectangle((x, 300, x + 8, 350), fill=(110, 120, 70, 255))
