@@ -14,8 +14,6 @@ import time
 import tomllib
 import uuid
 
-import anthropic
-
 from . import __version__
 from . import mcp as M
 from . import tools as T
@@ -40,10 +38,16 @@ FALLBACK_BETA = "server-side-fallback-2026-07-01"
 COMPACT_BETA = "compact-2026-01-12"
 
 
+# le dossier de l'agent : sa variable d'environnement et son nom sous $HOME (oai_acp, l'agent compatible OpenAI,
+# reprend ce module avec les siens : MAI_ACP_HOME, .mai-acp)
+HOME_ENV = "CLAUDE_ACP_HOME"
+HOME_DIR = ".claude-acp"
+
+
 def home():
-    h = os.environ.get("CLAUDE_ACP_HOME")
+    h = os.environ.get(HOME_ENV)
     if not h:
-        h = os.path.join(os.environ.get("HOME") or "/", ".claude-acp")
+        h = os.path.join(os.environ.get("HOME") or "/", HOME_DIR)
     return h
 
 
@@ -180,9 +184,9 @@ def project_notes(cwd):
     return list(reversed(found))
 
 
-def system_prompt(cwd, skill_desc):
+def system_prompt(cwd, skill_desc, base=None):
     """Deux blocs : le fixe (le même pour toutes les séances, en cache) et celui de la séance."""
-    fixed = BASE % {"version": __version__}
+    fixed = base if base is not None else BASE % {"version": __version__}
     agents = os.path.join(home(), "AGENTS.md")
     if os.path.isfile(agents):
         with open(agents, encoding="utf-8", errors="replace") as f:
@@ -247,10 +251,14 @@ class Session:
         if text:
             self.update({"sessionUpdate": kind, "content": {"type": "text", "text": text}})
 
+    def models(self):
+        """Les modèles offerts : [(id, nom)]."""
+        return [(m[0], m[1]) for m in MODELS]
+
     def config_options(self):
         return [{
             "id": "model", "name": "Modèle", "type": "select", "currentValue": self.model,
-            "options": [{"value": m[0], "name": m[1]} for m in MODELS],
+            "options": [{"value": i, "name": n} for i, n in self.models()],
         }]
 
     def modes(self):
@@ -267,7 +275,7 @@ class Session:
         self.update({"sessionUpdate": "current_mode_update", "currentModeId": mode})
 
     def set_model(self, model):
-        if model not in MODEL_IDS:
+        if model not in [m[0] for m in self.models()]:
             raise ValueError("modèle inconnu : %s" % model)
         self.model = model
         self.save()
@@ -336,6 +344,7 @@ class Session:
 
     def request(self):
         """Une requête en flux ; le texte et la pensée partent vers la façade au fil de l'eau."""
+        import anthropic
         tries = 0
         while True:
             tries += 1
@@ -603,7 +612,7 @@ class Session:
         s = cls(server, sid, cwd or data["cwd"], cfg)
         s.messages = data["messages"]
         s.title = data.get("title", "")
-        s.model = data.get("model", s.model) if data.get("model") in MODEL_IDS else s.model
+        s.model = data["model"] if data.get("model") in [m[0] for m in s.models()] else s.model
         s.mode = data.get("mode", "ask")
         s.created = data.get("created", s.created)
         s.updated = data.get("updated", s.updated)

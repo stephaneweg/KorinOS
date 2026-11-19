@@ -17,6 +17,10 @@ NO_KEY = -32002
 
 
 class Server:
+    # (oai_acp, l'agent compatible OpenAI, reprend ce serveur avec sa séance et son nom)
+    SESSION = A.Session
+    INFO = {"name": "claude-acp", "title": "Claude", "version": __version__}
+
     def __init__(self):
         self.conn = Connection()
         self.cfg = A.load_config()
@@ -48,14 +52,14 @@ class Server:
                 "agentCapabilities": {"loadSession": True,
                                       "promptCapabilities": {"image": False, "audio": False, "embeddedContext": False}},
                 "authMethods": [],
-                "agentInfo": {"name": "claude-acp", "title": "Claude", "version": __version__},
+                "agentInfo": dict(self.INFO),
             }
         if method == "authenticate":
             raise RpcError(-32601, "pas de connexion par navigateur : la clé d'API est dans %s/.env" % A.home())
         if method == "session/new":
             self.need_key()
             cwd = p.get("cwd") or os.getcwd()
-            s = A.Session(self, A.new_id(), cwd, self.cfg, p.get("mcpServers"))
+            s = self.SESSION(self, A.new_id(), cwd, self.cfg, p.get("mcpServers"))
             self.sessions[s.id] = s
             A.log("séance %s dans %s, modèle %s" % (s.id, cwd, s.model))
             return s.opened()
@@ -67,7 +71,7 @@ class Server:
             if "/" in sid or "\\" in sid or not sid:
                 raise RpcError(-32602, "identifiant de séance invalide")
             try:
-                s = A.Session.load(self, sid, p.get("cwd"), self.cfg)
+                s = self.SESSION.load(self, sid, p.get("cwd"), self.cfg)
             except FileNotFoundError:
                 raise RpcError(-32602, "séance introuvable : %s" % sid)
             self.sessions[s.id] = s
