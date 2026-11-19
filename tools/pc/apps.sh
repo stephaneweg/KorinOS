@@ -31,7 +31,7 @@ ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab 
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
 screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu gcemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
 recorder targets bubbles arkanoid pkgman pkg pkgd webd smbd smbfs oauthd keyvault gdrivefs webstudio koton llm vibe claude forge
-2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris installer weather asteroids parkingjam jamendo spotify"
+2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris installer weather asteroids parkingjam jamendo spotify terracube"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
 : > "$OUT/status.new"
@@ -310,6 +310,9 @@ build_one () { # nom
 		EXTRA="-L$OCL -L$CAO/planegcs/lib -Wl,--start-group $TK -lplanegcs -Wl,--end-group" ;;
 	cosmozoom)	# (GpuKit par GlKit sur le PC : gk_gl_attach)
 		glkit_extra gk || return 0 ;;
+	terracube)	# (le bac à sable de blocs : OpenGL ES 3 par GlKit, le GPU Intel ou softpipe ; json.c de libacp : le MCP)
+		FLAGS="$FLAGS -I$ROOT/src/lib/acp"
+		glkit_extra || return 0 ;;
 	gcemu)	# (le Gekko et son recompilateur x86-64 d'Onyx, gc/gc_jit_x64.cpp ; le GX par GlKit : le GPU Intel, sinon
 		# softpipe ; gx_asm.asm reste au Pi)
 		FLAGS="$FLAGS -O3 -w -ffp-contract=off"
@@ -338,7 +341,7 @@ build_one () { # nom
 	{
 		echo 'all:'
 		{ find . -name '*.c' -o -name '*.cpp' | sed 's#^\./##' | grep -v '^data/' | grep -v '^applet/'
-		  case $app in vibe|claude) ls "$ROOT"/src/lib/acp/*.c ;; forge) echo "$ROOT/src/lib/acp/json.c" ;; esac; } | while read -r f; do
+		  case $app in vibe|claude) ls "$ROOT"/src/lib/acp/*.c ;; forge|terracube) echo "$ROOT/src/lib/acp/json.c" ;; esac; } | while read -r f; do
 			# (une source hors du dossier de l'app : son .o sous son seul nom)
 			case $f in /*) o=$O/$(echo "$f" | sed 's#.*/##; s/\.[a-z]*$//').o ;; *) o=$O/$(echo "$f" | sed 's/\.[a-z]*$//').o ;; esac
 			echo "all: $o"

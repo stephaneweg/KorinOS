@@ -1067,6 +1067,27 @@ def cosmozoom(ic):
     ic.pop()
 
 
+@icon('terracube', 0x86CDF5, 0x3B86D6)
+def terracube(ic):
+    # un bloc d'herbe vu de trois quarts, dans le ciel
+    if not ic.small:
+        ic.fill(ic.ell(24, 22, 11, 4), 0xFFFFFF, .7)
+        ic.fill(ic.ell(78, 15, 8, 3), 0xFFFFFF, .55)
+    t, l, r, b = (50, 17), (16, 36), (84, 36), (50, 55)
+    ic.raised(ic.soften(ic.poly([t, r, (84, 70), (50, 89), (16, 70), l]), .5), 0x5E4128, sh=True)
+    ic.fill(ic.poly([l, b, (50, 89), (16, 70)]), Grad(0xA8764A, 0x7A5232, 90))
+    ic.fill(ic.poly([b, r, (84, 70), (50, 89)]), Grad(0x8C603A, 0x5E4128, 90))
+    # l'herbe qui déborde sur les côtés, en dents
+    ic.fill(ic.poly([l, b, (50, 62), (44, 60), (40, 64), (33, 54), (27, 56), (22, 47), (16, 46)]), 0x58A83A)
+    ic.fill(ic.poly([b, r, (84, 46), (79, 49), (74, 46), (68, 55), (62, 52), (56, 60), (50, 62)]), 0x4A9030)
+    ic.fill(ic.poly([t, r, b, l]), Grad(0x9BE36A, 0x5DB040, 100))
+    if not ic.small:
+        for x, y, c in ((26, 62, 0x6E4A2C), (36, 72, 0x6E4A2C), (64, 70, 0x4F3520), (73, 60, 0x4F3520), (42, 80, 0x8F6440)):
+            ic.fill(ic.rr(x - 2.2, y - 2.2, 4.4, 4.4, .6), c, .9)
+        for x, y in ((40, 33), (55, 27), (60, 40), (47, 44)):
+            ic.fill(ic.rr(x - 2, y - 1.4, 4, 2.8, .6), 0x7CC855, .9)
+
+
 @icon('critters', 0x7CCBF5, 0x3C9CE0)
 def critters(ic):
     ic.fill(ic.ell(32, 30, 14, 5), 0xFFFFFF, .6)
