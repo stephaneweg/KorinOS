@@ -36,8 +36,66 @@ long ui_surface (long x, long y, long w, long h, long f) { (void) x; (void) y; (
 long ui_surface_pixels (long sf) { (void) sf; uikit__ret[1] = ui.w * 4; uikit__ret[2] = ui.w; uikit__ret[3] = ui.h; return (long) h_surf; }
 long ui_tokens (void) { static unsigned t[64]; t[TJ_ACCENT / 4] = 0x3C8CE4; return (long) t; }
 long ui_tr (long s) { return s; }
-static long h_chars (const char *s) { long n = 0; for (; *s; s++) if (((unsigned char) *s & 0xC0) != 0x80) n++; return n; }
-long ui_text_width (long s, long px, long f) { (void) f; return h_chars ((const char *) s) * px * 56 / 100; }
+/* le texte : FreeType et les polices de Korin (Inter, comme UIKit), pour des images fideles */
+#include <ft2build.h>
+#include FT_FREETYPE_H
+static FT_Library h_ft;
+static FT_Face h_face[2];
+static FT_Face face_of (long f)
+{
+	if (!h_ft)
+	{
+		const char *dir = getenv ("RELICS_FONTS") ? getenv ("RELICS_FONTS") : "sdcard/fonts";
+		char p[512];
+		FT_Init_FreeType (&h_ft);
+		snprintf (p, sizeof p, "%s/Inter-Regular.ttf", dir);
+		if (FT_New_Face (h_ft, p, 0, &h_face[0])) fprintf (stderr, "police absente : %s\n", p);
+		snprintf (p, sizeof p, "%s/Inter-SemiBold.ttf", dir);
+		if (FT_New_Face (h_ft, p, 0, &h_face[1])) h_face[1] = h_face[0];
+	}
+	return h_face[f == (long) ui.font_b ? 1 : 0];
+}
+static unsigned utf8_next (const unsigned char **ps)
+{
+	const unsigned char *p = *ps;
+	unsigned c = *p++;
+	if (c >= 0xF0) { c = (c & 7) << 18 | (p[0] & 63u) << 12 | (p[1] & 63u) << 6 | (p[2] & 63u); p += 3; }
+	else if (c >= 0xE0) { c = (c & 15) << 12 | (p[0] & 63u) << 6 | (p[1] & 63u); p += 2; }
+	else if (c >= 0xC0) { c = (c & 31) << 6 | (p[0] & 63u); p += 1; }
+	*ps = p;
+	return c;
+}
+/* texte -> sa largeur ; draw : dessine dans la cible, la base a (x, base) */
+static long h_text (const char *s, long x, long base, long c, long px, long f, int draw)
+{
+	FT_Face face = face_of (f);
+	if (!face) return 0;
+	FT_Set_Pixel_Sizes (face, 0, (FT_UInt) px);
+	long pen = 0;
+	for (const unsigned char *p = (const unsigned char *) s; *p; )
+	{
+		unsigned ch = utf8_next (&p);
+		if (FT_Load_Char (face, ch, draw ? FT_LOAD_RENDER : FT_LOAD_DEFAULT)) continue;
+		FT_GlyphSlot g = face->glyph;
+		if (draw && h_target)
+		{
+			FT_Bitmap *bm = &g->bitmap;
+			long gx = x + pen + g->bitmap_left, gy = base - g->bitmap_top;
+			for (unsigned r = 0; r < bm->rows; r++)
+				for (unsigned q = 0; q < bm->width; q++)
+				{
+					long X = gx + q, Y = gy + r;
+					unsigned a = bm->buffer[r * bm->pitch + q];
+					if (!a || X < 0 || Y < 0 || X >= h_cw || Y >= h_ch) continue;
+					uint32_t *d = h_target + Y * h_cw + X;
+					*d = ga_mix (*d, (uint32_t) c, a + (a >> 7));
+				}
+		}
+		pen += g->advance.x >> 6;
+	}
+	return pen;
+}
+long ui_text_width (long s, long px, long f) { return h_text ((const char *) s, 0, 0, 0, px, f, 0); }
 long ui_fill (long x, long y, long w, long h, long c)
 {
 	if (!h_target) return 0;
@@ -46,20 +104,10 @@ long ui_fill (long x, long y, long w, long h, long c)
 			if (i >= 0 && j >= 0 && i < h_cw && j < h_ch) h_target[j * h_cw + i] = (uint32_t) c;
 	return 0;
 }
-/* le texte : un pave par lettre, a la hauteur des capitales */
 long ui_text (long s, long x, long base, long c, long px, long f, long fl)
 {
-	(void) f; (void) fl;
-	if (!h_target) return 0;
-	const char *p = (const char *) s;
-	long cw = px * 56 / 100;
-	for (; *p; p++)
-	{
-		if (((unsigned char) *p & 0xC0) == 0x80) continue;
-		if (*p != ' ')
-			ui_fill (x + 1, base - px * 7 / 10, cw - 2 > 1 ? cw - 2 : 1, px * 7 / 10, c);
-		x += cw;
-	}
+	(void) fl;
+	h_text ((const char *) s, x, base, c, px, f, 1);
 	return 0;
 }
 
@@ -311,6 +359,17 @@ int main (int argc, char **argv)
 		}
 		if (argc >= 5) run_script (argv[4]);
 		else for (int i = 0; i < 30; i++) step ();
+		const char *st = getenv ("RELICS_STATE");	/* intro, clear, over, win, toast, pause : l'ecran a voir */
+		if (st)
+		{
+			g_treas = 5; g_bonus = 3550; g_score = 12340; g_timer = 64;
+			if (!strcmp (st, "intro")) { g_state = GS_INTRO; g_timer = 10; }
+			else if (!strcmp (st, "clear")) g_state = GS_CLEAR;
+			else if (!strcmp (st, "over")) g_state = GS_OVER;
+			else if (!strcmp (st, "win")) g_state = GS_WIN;
+			else if (!strcmp (st, "toast")) { toast (TX_CHECK); g_toast_t = 60; }
+			else if (!strcmp (st, "pause")) { gp_open (); }
+		}
 		draw ();
 		gp_draw ();
 		write_ppm (argv[3]);

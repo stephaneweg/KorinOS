@@ -237,7 +237,7 @@ static gf_sprite_t *g_lt_torch, *g_lt_small, *g_lt_big, *g_lt_relic, *g_lt_exit,
 static gf_sprite_t *g_sarrow[2], *g_sfern[NWORLD];
 static gf_sprite_t *g_hheart, *g_hbul, *g_hdyn, *g_hkey, *g_hcoin;	/* (les petites, du bandeau) */
 static gf_sprite_t *g_tfg[MAXH][MAXW], *g_tbg[MAXH][MAXW];	/* la tuile de chaque case, son fond */
-static gf_sprite_t *g_dig[10], *g_digb[10];
+static gf_sprite_t *g_dig[10], *g_digb[10], *g_slash;
 
 /* les textes */
 enum { TX_LOGO, TX_SUB, TX_PLAY, TX_CHOOSE, TX_HELP1, TX_HELP2, TX_HELP3, TX_BEST, TX_CLEAR, TX_TREAS, TX_BONUS, TX_OVER,
@@ -1756,7 +1756,7 @@ static void draw_play (void)
 		else { ga_show (g_tx[TX_CLEAR], GF_W / 2, ty); ty += 50; }
 		ga_show (g_tx[TX_TREAS], GF_W / 2 - 110, ty);
 		ga_num ((unsigned long) g_treas, GF_W / 2 - 40, ty - 2, g_digb, 4);
-		ga_ablit (GF_W / 2 - 22, ty + 2, g_hcoin);
+		ga_ablit (GF_W / 2 - 16, ty - 2, g_slash);
 		ga_num ((unsigned long) g_ntreas, GF_W / 2 + 4, ty - 2, g_digb, 4);
 		ga_show (g_tx[TX_BONUS], GF_W / 2 + 90, ty);
 		ga_num (g_bonus, GF_W / 2 + 130, ty - 2, g_digb, 4);
@@ -1836,7 +1836,7 @@ static void draw_title (void)
 	ga_num (g_best, GF_W - 128, 4, g_dig, 4);
 	ga_show (g_tx[TX_CHOOSE], GF_W / 2, 214);
 	gf_dst = gf_frame;
-	ga_panel (0, GY + 6, GF_W, GF_H - GY - 6, 0, 0, 0, 120, 0);
+	ga_panel (0, GY + 6, GF_W, GF_H - GY - 6, 0, 0x00100C08, 0x00080604, 190, 0);
 	ga_ablit_c (GF_W / 2, GY + 12, g_tx[TX_HELP1]);
 	ga_ablit_c (GF_W / 2, GY + 30, g_tx[TX_HELP2]);
 	ga_ablit_c (GF_W / 2, GY + 48, g_tx[TX_HELP3]);
@@ -2005,6 +2005,7 @@ static void gen_texts (void)
 	ga_texts (s_tx, g_tx, TX_N);
 	ga_digits (g_dig, 15, (long) ui.font_b, 0x00FFFFFF, 0x00D8D0C0);
 	ga_digits (g_digb, 18, (long) ui.font_b, 0x00FFF0C0, 0x00F0B040);
+	g_slash = ga_text ("/", 18, (long) ui.font_b, 0x00C8C0B0, 0x00A09888);
 	for (int w = 0; w < NWORLD; w++)
 		g_tworld[w] = ga_text (worlds[w].name, 15, (long) ui.font, 0x00E8D8B0, 0x00C0A878);
 	for (int i = 0; i < NLEVELS && i < 32; i++)

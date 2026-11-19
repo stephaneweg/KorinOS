@@ -4,7 +4,8 @@
 #   sh tools/relics/run.sh check [n]                 la sortie de chaque niveau est-elle atteignable ?
 #   sh tools/relics/run.sh shot n out.png [script]   une image du niveau n (n = -1 : le titre) ; script : host.c
 #
-# Le GCC de l'hote suffit (et python3 pour les en-tetes des kits, PIL pour le .png).
+# Le GCC de l'hote, FreeType (libfreetype-dev : le texte, avec les polices Inter de sdcard/fonts), python3 pour les
+# en-tetes des kits et PIL pour le .png.
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 B=$ROOT/build/relics-host
@@ -27,12 +28,12 @@ static inline long armpi_syscall (long n, long a, long b, long c, long d, long e
 EOF
 	python3 -I "$ROOT/tools/relics/mkstubs.py" "$B/stubs.c" "$B/inc/uikit_abi.h" "$B/inc/audiokit_abi.h"
 fi
-gcc -O2 -g -Wall -Wno-unused-function -Wno-unused-variable -I"$B/inc" -o "$B/host" "$ROOT/tools/relics/host.c" "$B/stubs.c" -lm
+gcc -O2 -g -Wall -Wno-unused-function -Wno-unused-variable -I"$B/inc" -I/usr/include/freetype2 -o "$B/host" "$ROOT/tools/relics/host.c" "$B/stubs.c" -lfreetype -lm
 case ${1:-check} in
 shot)
 	out=$3
-	"$B/host" shot "$2" "$B/shot.ppm" "${4:-}"
+	RELICS_FONTS=${RELICS_FONTS:-$ROOT/sdcard/fonts} "$B/host" shot "$2" "$B/shot.ppm" "${4:-}"
 	python3 -c "from PIL import Image; Image.open('$B/shot.ppm').save('$out')"
 	;;
-*)	"$B/host" "$@" ;;
+*)	RELICS_FONTS=${RELICS_FONTS:-$ROOT/sdcard/fonts} "$B/host" "$@" ;;
 esac

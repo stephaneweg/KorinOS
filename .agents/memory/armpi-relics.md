@@ -18,7 +18,7 @@ platformer » comme inspiration, non repris) : des **tuiles** dessinées au trai
 
 **How to apply:**
 - Niveaux : `tools/relics/mklevels.py` génère `levels.h` (ne pas éditer levels.h) ; légende en tête de levels.h.
-- Vérifier : `sh tools/relics/run.sh check` (parcours en largeur par la vraie physique : sortie et objets atteignables),
+- Vérifier (le texte des images : FreeType et les polices Inter de sdcard/fonts, pas des pavés) : `sh tools/relics/run.sh check` (parcours en largeur par la vraie physique : sortie et objets atteignables),
   `shot n out.png "R30 J40"` (image ; `RELICS_AT=tx,ty`), `fuzz` (12 niveaux au hasard). Contraintes : marche de
   2 cases, trou de 3 cases, 4 cases au-dessus du sol pour un saut entier.
 - Pas essayé dans Korin : sous QEMU raspi4b dans le cloud (4 cœurs), même la carte d'origine de `carte_linux.py`
