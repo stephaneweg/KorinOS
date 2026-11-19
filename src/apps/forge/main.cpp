@@ -2052,9 +2052,12 @@ void viewWheel (long steps)
 
 // ---- la frise ---------------------------------------------------------------------------------------------------
 
-const int CHIP_W = 100, CHIP_GAP = 6;
+// Une étape : une icône (son genre), le nom et le résumé en infobulle au survol. Clic : ses valeurs au panneau ;
+// clic droit : Modifier…, Supprimer (avec ce qui en dépend, après confirmation), Supprimer à partir d'ici.
+const int CHIP_W = 34, CHIP_GAP = 6, ICON = 20;
 int CHIP_X0 = 16;			// (moins quand la frise défile : la barre reste en vue)
 bool g_barDrag;
+int g_tlHover = -1;			// l'étape sous le pointeur (son infobulle est montrée)
 int barX (int bar) { return CHIP_X0 + bar * (CHIP_W + CHIP_GAP) - CHIP_GAP / 2 - 1; }
 void timelineScroll (int w)
 {
@@ -2062,6 +2065,151 @@ void timelineScroll (int w)
 	int room = w - 110;			// (à droite : le nombre d'étapes)
 	int need = 16 + (int) g_doc.feats.size () * (CHIP_W + CHIP_GAP) + 8;
 	if (need > room) CHIP_X0 = 16 - imin (need - room, imax (0, barX (g_doc.bar) + CHIP_W - room + 16));
+}
+
+// les icônes : des traits sur une grille de 24 (polylignes, arcs), lissés en ICON × ICON, une fois par genre
+struct IconLine { std::vector<double> p; };
+std::vector<IconLine> iconLines (const Feature &f)
+{
+	std::vector<IconLine> L;
+	auto line = [&] (std::initializer_list<double> v) { L.push_back ({ std::vector<double> (v) }); };
+	auto arc = [&] (double cx, double cy, double rx, double ry, double a0, double a1) {	// (degrés, y vers le bas)
+		IconLine l;
+		int n = imax (6, (int) (std::fabs (a1 - a0) / 10));
+		for (int k = 0; k <= n; k++) {
+			double a = (a0 + (a1 - a0) * k / n) * M_PI / 180;
+			l.p.push_back (cx + rx * cos (a)), l.p.push_back (cy + ry * sin (a));
+		}
+		L.push_back (l);
+	};
+	switch (f.kind) {
+	case ST_BOX:
+		line ({ 12, 3, 20, 7.5, 20, 16.5, 12, 21, 4, 16.5, 4, 7.5, 12, 3 });
+		line ({ 4, 7.5, 12, 12, 20, 7.5 });
+		line ({ 12, 12, 12, 21 });
+		break;
+	case ST_CYLINDER:
+		arc (12, 6, 7, 2.6, 0, 360);
+		line ({ 5, 6, 5, 18 });
+		line ({ 19, 6, 19, 18 });
+		arc (12, 18, 7, 2.6, 0, 180);
+		break;
+	case ST_SKETCH:
+		line ({ 4, 18, 16, 6, 19, 9, 7, 21, 4, 18 });
+		line ({ 4, 18, 3, 21.5, 7, 21 });
+		line ({ 14, 8, 17, 11 });
+		break;
+	case ST_EXTRUDE:
+		line ({ 4, 16, 20, 16, 20, 21, 4, 21, 4, 16 });
+		line ({ 12, 13, 12, 3 });
+		line ({ 8, 7, 12, 3, 16, 7 });
+		break;
+	case ST_PUSH:
+		line ({ 4, 16, 20, 16, 20, 21, 4, 21, 4, 16 });
+		line ({ 12, 2.5, 12, 12.5 });
+		line ({ 9, 5.5, 12, 2.5, 15, 5.5 });
+		line ({ 9, 9.5, 12, 12.5, 15, 9.5 });
+		break;
+	case ST_FILLET:
+		line ({ 5, 3, 5, 12 });
+		arc (12, 12, 7, 7, 180, 90);
+		line ({ 12, 19, 21, 19 });
+		break;
+	case ST_CHAMFER:
+		line ({ 5, 3, 5, 12, 12, 19, 21, 19 });
+		break;
+	case ST_COMBINE: case ST_CUT: {
+		Op o = f.kind == ST_CUT ? OP_CUT : f.op == OP_NEW ? OP_JOIN : f.op;
+		arc (9, 12, 6.5, 6.5, 0, 360);
+		arc (15, 12, 6.5, 6.5, 0, 360);
+		if (o == OP_CUT) line ({ 16, 12, 20, 12 });			// (la soustraction : un moins dans l'outil)
+		else if (o == OP_INTERSECT) line ({ 12, 8, 12, 16 });		// (l'intersection : la part commune)
+		else line ({ 3, 12, 21, 12 }), line ({ 12, 3.5, 12, 20.5 });	// (l'union : un plus)
+		break;
+	}
+	case ST_HOLE:
+		arc (12, 12, 8, 8, 0, 360);
+		arc (12, 12, 3.5, 3.5, 0, 360);
+		break;
+	case ST_SLOT:
+		line ({ 8, 7.5, 16, 7.5 });
+		line ({ 8, 16.5, 16, 16.5 });
+		arc (8, 12, 4.5, 4.5, 90, 270);
+		arc (16, 12, 4.5, 4.5, -90, 90);
+		break;
+	case ST_REVOLVE:
+		arc (12, 12, 8, 8, -60, 240);
+		line ({ 13, 3.5, 16, 5.1, 13.5, 8 });
+		line ({ 12, 9, 12, 15 });
+		break;
+	case ST_SHELL:
+		line ({ 4, 5, 4, 20, 20, 20, 20, 5 });
+		line ({ 8, 5, 8, 16, 16, 16, 16, 5 });
+		line ({ 4, 5, 8, 5 });
+		line ({ 16, 5, 20, 5 });
+		break;
+	case ST_PATTERN:
+		for (int k = 0; k < 3; k++) {
+			double x = 3 + k * 7;
+			line ({ x, 9, x + 4.5, 9, x + 4.5, 14.5, x, 14.5, x, 9 });
+		}
+		break;
+	case ST_MIRROR:
+		for (double y = 2; y < 22; y += 4) line ({ 12, y, 12, y + 2 });
+		line ({ 9.5, 6, 9.5, 18, 3, 18, 9.5, 6 });
+		line ({ 14.5, 6, 14.5, 18, 21, 18, 14.5, 6 });
+		break;
+	default:
+		arc (12, 12, 7, 7, 0, 360);
+		break;
+	}
+	return L;
+}
+
+// la couverture (0..255) de chaque pixel : la distance au trait le plus proche, un trait de 1,7 unité
+std::vector<uint8_t> iconMask (const Feature &f)
+{
+	std::vector<IconLine> L = iconLines (f);
+	std::vector<uint8_t> m ((size_t) ICON * ICON, 0);
+	const double u = 24.0 / ICON, hw = 0.85;
+	for (int py = 0; py < ICON; py++)
+		for (int px = 0; px < ICON; px++) {
+			double x = (px + 0.5) * u, y = (py + 0.5) * u, best = 1e9;
+			for (auto &l : L)
+				for (size_t k = 0; k + 3 < l.p.size (); k += 2) {
+					double ax = l.p[k], ay = l.p[k + 1], bx = l.p[k + 2], by = l.p[k + 3];
+					double dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+					double t = l2 > 0 ? ((x - ax) * dx + (y - ay) * dy) / l2 : 0;
+					t = t < 0 ? 0 : t > 1 ? 1 : t;
+					double ex = ax + t * dx - x, ey = ay + t * dy - y;
+					best = std::min (best, ex * ex + ey * ey);
+				}
+			double a = (hw - sqrt (best)) / u + 0.5;
+			m[(size_t) py * ICON + px] = (uint8_t) (a <= 0 ? 0 : a >= 1 ? 255 : a * 255);
+		}
+	return m;
+}
+
+// l'icône posée à (x, y) sur le fond bg : par rangées de pixels de même couverture
+void drawIcon (const Feature &f, int x, int y, unsigned bg, unsigned ink)
+{
+	static std::vector<std::pair<std::string, std::vector<uint8_t>>> cache;	// (le genre et, pour combiner, l'opération)
+	Op o = f.kind == ST_COMBINE ? (f.op == OP_NEW ? OP_JOIN : f.op) : OP_NEW;
+	std::string key = std::to_string ((int) f.kind) + "/" + std::to_string ((int) o);
+	const std::vector<uint8_t> *m = nullptr;
+	for (auto &c : cache) if (c.first == key) m = &c.second;
+	if (!m) {
+		cache.push_back ({ key, iconMask (f) });
+		m = &cache.back ().second;
+	}
+	for (int py = 0; py < ICON; py++)
+		for (int px = 0; px < ICON;) {
+			uint8_t a = (*m)[(size_t) py * ICON + px];
+			int run = 1;
+			while (px + run < ICON && (*m)[(size_t) py * ICON + px + run] == a) run++;
+			if (a) ui_fill (x + px, y + py, run, 1, (long) ui_mix (bg, ink, a == 255 ? 256 : a));
+			px += run;
+		}
 }
 
 void timelinePaint (long, long w, long h)
@@ -2073,14 +2221,15 @@ void timelinePaint (long, long w, long h)
 	for (size_t i = 0; i < g_doc.feats.size (); i++) {
 		const Feature &f = g_doc.feats[i];
 		int x = CHIP_X0 + (int) i * (CHIP_W + CHIP_GAP);
-		bool on = (int) i == g_selStep, after = (int) i >= g_doc.bar, bad = !f.error.empty ();
-		unsigned bg = on ? jet (TJ_ACCENT_LIGHT) : jet (TJ_SURFACE);
+		bool on = (int) i == g_selStep, after = (int) i >= g_doc.bar, bad = !f.error.empty (), hot = (int) i == g_tlHover;
+		unsigned bg = on ? jet (TJ_ACCENT_LIGHT) : hot ? (unsigned) ui_mix (jet (TJ_SURFACE), jet (TJ_ACCENT_LIGHT), 128) : jet (TJ_SURFACE);
 		unsigned ln = bad ? jet (TJ_DANGER) : on ? jet (TJ_ACCENT) : jet (TJ_LINE);
 		ui_rbox (x, y, CHIP_W, ch, 7, ln, ln);
 		ui_rbox (x + 1 + bad, y + 1 + bad, CHIP_W - 2 - 2 * bad, ch - 2 - 2 * bad, 6, bg, bg);
 		int tc = after || f.off ? TJ_TEXT3 : on ? TJ_ACCENT_DARK : TJ_TEXT1;
-		ui_text ((long) f.name.c_str (), x + 10, y + ch / 2 + 5, jet (tc), 12, (long) ui.font, CHIP_W - 20);
-		if (bad) ui_fill (x + CHIP_W - 12, y + 6, 6, 6, jet (TJ_DANGER));
+		drawIcon (f, x + (CHIP_W - ICON) / 2, y + (ch - ICON) / 2, bg, jet (tc));
+		if (f.off) ui_fill (x + 6, y + ch / 2, CHIP_W - 12, 1, jet (TJ_TEXT3));	// (désactivée : barrée)
+		if (bad) ui_fill (x + CHIP_W - 9, y + 4, 5, 5, jet (TJ_DANGER));
 	}
 	int bx = barX (g_doc.bar);
 	ui_fill (bx, 6, 3, (int) h - 12, jet (TJ_ACCENT));
@@ -2092,10 +2241,67 @@ void timelinePaint (long, long w, long h)
 	ui_text ((long) s, w - 16 - tw, h / 2 + 5, jet (TJ_TEXT3), 12, (long) ui.font, 0);
 }
 
-long timelineMouse (long, long kind, long x, long, long)
+int timelineAt (int x)
 {
-	if (g_cmd.tool != T_NONE) return 0;
-	if (kind == 1 && std::abs ((int) x - barX (g_doc.bar) - 1) <= 7) {	// la barre : glissée
+	if (x < CHIP_X0) return -1;
+	int i = (x - CHIP_X0) / (CHIP_W + CHIP_GAP);
+	if (i >= (int) g_doc.feats.size () || (x - CHIP_X0) % (CHIP_W + CHIP_GAP) >= CHIP_W) return -1;
+	return i;
+}
+
+void timelineTip (int i)
+{
+	if (i == g_tlHover) return;
+	g_tlHover = i;
+	ui_view_dirty (w_tl);
+	ui_view_flush ();
+	if (i < 0) {
+		ui_tip_at (0, 0, 0);
+		return;
+	}
+	const Feature &f = g_doc.feats[i];
+	std::string t = f.name + " · " + featureDetail (f);
+	if (f.off) t += TR (" · désactivée");
+	if (i >= g_doc.bar) t += TR (" · après la barre");
+	if (!f.error.empty ()) t += " · ⚠ " + f.error;
+	ui_tip_at (CHIP_X0 + i * (CHIP_W + CHIP_GAP), VY + VH - 26, (long) t.c_str ());
+}
+
+void stepDelete ();
+void stepDeleteFrom (int at);
+void stepEdit (int i);
+int g_tlMenu = -1;
+
+void timelineMenu ()
+{
+	int i = g_tlMenu;
+	g_tlMenu = -1;
+	if (i < 0 || i >= (int) g_doc.feats.size ()) return;
+	char t[256];
+	int n = 0;
+	for (const char *l : { "Modifier…", "Supprimer", "Supprimer à partir d'ici" }) {
+		const char *s = TR (l);
+		size_t k = strlen (s);
+		if (n + k + 2 > sizeof t) break;
+		memcpy (t + n, s, k + 1);
+		n += (int) k + 1;
+	}
+	t[n] = 0;
+	long r = ui_popup_local (ui_ev_field (&ui, EV_X), ui_ev_field (&ui, EV_Y), (long) t, 240);
+	if (r == 0) stepEdit (i);
+	else if (r == 1) stepDelete ();
+	else if (r == 2) stepDeleteFrom (i);
+}
+
+long timelineMouse (long, long kind, long x, long, long info)
+{
+	if (kind == 3) {		// (le pointeur sorti : plus d'infobulle)
+		timelineTip (-1);
+		return 0;
+	}
+	if (g_cmd.tool != T_NONE || g_sm.on) return 0;
+	if (kind == 0 && !g_barDrag) timelineTip (timelineAt ((int) x));
+	if (kind == 1 && std::abs ((int) x - barX (g_doc.bar) - 1) <= 7 && !((info >> 8) & 2)) {	// la barre : glissée
 		g_barDrag = true;
 		return 0;
 	}
@@ -2120,11 +2326,14 @@ long timelineMouse (long, long kind, long x, long, long)
 		return 0;
 	}
 	if (kind != 1) return 0;
-	int i = ((int) x - CHIP_X0) / (CHIP_W + CHIP_GAP);
-	if (x < CHIP_X0 || i >= (int) g_doc.feats.size ()) i = -1;
+	int i = timelineAt ((int) x);
 	g_selStep = i;
 	g_sels.clear ();
 	refreshAll ();
+	if (i >= 0 && ((info >> 8) & 2)) {	// clic droit : le menu de l'étape
+		timelineTip (-1);
+		g_tlMenu = i;	// (le menu s'ouvre après l'événement : timelineMenu, dans la boucle)
+	}
 	return 0;
 }
 
@@ -2200,14 +2409,81 @@ void paramSet (const char *text)
 	status ((name + (ex.empty () ? TR (" retiré.") : " = " + ex)).c_str ());
 }
 
+// l'étape choisie supprimée ; si d'autres en dépendent, la liste est demandée d'abord : elles partent avec elle, une
+// forme jointe à un corps disparu devient un nouveau corps, un outil disparu sort de Combiner
 void stepDelete ()
 {
 	if (g_selStep < 0 || g_selStep >= (int) g_doc.feats.size ()) return;
+	Removal plan = planRemoval (g_doc, g_selStep);
+	if (plan.erased.size () > 1 || !plan.renewed.empty () || !plan.trimmed.empty ()) {
+		char head[200];
+		snprintf (head, sizeof head, TR ("D'autres étapes dépendent de « %s » :"), g_doc.feats[g_selStep].name.c_str ());
+		std::string m = std::string (head) + "\n";
+		for (int j : plan.erased) if (j != g_selStep) m += "  · " + g_doc.feats[j].name + TR (" : supprimée") + "\n";
+		for (int j : plan.renewed) m += "  · " + g_doc.feats[j].name + TR (" : devient un nouveau corps") + "\n";
+		for (int j : plan.trimmed) m += "  · " + g_doc.feats[j].name + TR (" : perd un outil") + "\n";
+		m += TR ("Supprimer quand même ?");
+		long ok = ui_message ((long) TR ("Supprimer l'étape"), (long) m.c_str (), UM_OKCANCEL);
+		ui_view_dirty (w_tl);
+		ui_w_draw (0);
+		if (ok != 1) {
+			status (TR ("Suppression annulée."));
+			return;
+		}
+	}
 	pushUndo ();
-	eraseFeature (g_doc, g_selStep);
+	std::string name = g_doc.feats[g_selStep].name;
+	applyRemoval (g_doc, plan);
 	g_selStep = -1;
 	rebuild ();
 	refreshAll ();
+	char s[200];
+	snprintf (s, sizeof s, TR ("%s supprimée (%d étapes en tout). Ctrl+Z : annuler."), name.c_str (), (int) plan.erased.size ());
+	status (s);
+}
+
+// l'étape et toutes celles qui la suivent
+void stepDeleteFrom (int at)
+{
+	if (at < 0 || at >= (int) g_doc.feats.size ()) return;
+	int n = (int) g_doc.feats.size () - at;
+	if (n > 1) {
+		char m[240];
+		snprintf (m, sizeof m, TR ("Supprimer « %s » et les %d étapes qui la suivent ?"), g_doc.feats[at].name.c_str (), n - 1);
+		long ok = ui_message ((long) TR ("Supprimer à partir d'ici"), (long) m, UM_OKCANCEL);
+		ui_view_dirty (w_tl);
+		ui_w_draw (0);
+		if (ok != 1) {
+			status (TR ("Suppression annulée."));
+			return;
+		}
+	}
+	pushUndo ();
+	g_doc.feats.resize (at);
+	g_doc.bar = imin (g_doc.bar, at);
+	g_selStep = -1;
+	rebuild ();
+	refreshAll ();
+	char s[120];
+	snprintf (s, sizeof s, TR ("%d étapes supprimées. Ctrl+Z : annuler."), n);
+	status (s);
+}
+
+// « Modifier… » : une esquisse s'ouvre ; une autre étape montre ses valeurs au panneau, la première prête à taper
+void stepEdit (int i)
+{
+	if (i < 0 || i >= (int) g_doc.feats.size ()) return;
+	if (g_doc.feats[i].kind == ST_SKETCH) {
+		skEnter (i);
+		return;
+	}
+	g_selStep = i;
+	g_sels.clear ();
+	refreshAll ();
+	const char *names[3];
+	double vals[3];
+	if (featFields (g_doc.feats[i], names, vals) > 0) ui_w_focus (e_val[0]);
+	else status (TR ("Cette étape n'a pas de valeur à changer : supprimez-la et refaites-la."));
 }
 
 void undo (bool redo)
@@ -2722,6 +2998,7 @@ void loop (double untilMs)
 		long code = 0, taken = 0;
 		long w = uikit_w_event (&code, &taken);
 		if (code) control (w, code);
+		if (g_tlMenu >= 0) timelineMenu ();
 		// la vue n'a pas de widget : sa souris est lue brute (aussi hors d'elle pendant un glisser)
 		int ex = ui_ev_field (&ui, EV_X) - VX, ey = ui_ev_field (&ui, EV_Y) - VY;
 		bool inView = ex >= 0 && ey >= 0 && ex < VW && ey < VH;

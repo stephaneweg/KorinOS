@@ -3,6 +3,7 @@
 // MIT License -- Copyright (c) 2026 Stéphane Wegener.
 #include "agent.h"
 
+#include <algorithm>
 #include <cmath>
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepAdaptor_Surface.hxx>
@@ -207,6 +208,111 @@ void eraseFeature (Doc &d, int at)
 		if (g.ref == at) g.ref = -1;		// (son esquisse ou son étape répétée n'est plus : elle passera en erreur)
 		else if (g.ref > at) g.ref--;
 	if (d.bar > at) d.bar--;
+}
+
+// les corps créés par chaque étape, toutes jouées (même désactivées ou après la barre) : rang de création -> étape
+static std::vector<int> creatorsOf (const Doc &d)
+{
+	Doc p;
+	p.feats = d.feats;
+	p.params = d.params;
+	for (auto &f : p.feats) f.off = false;
+	p.bar = (int) p.feats.size ();
+	replay (p, 2.0);
+	return p.bodyOf;
+}
+
+Removal planRemoval (const Doc &d, int at)
+{
+	Removal r;
+	if (at < 0 || at >= (int) d.feats.size ()) return r;
+	std::vector<int> made = creatorsOf (d);
+	std::vector<char> dead (made.size (), 0), gone (d.feats.size (), 0);
+	auto kill = [&] (int j) {
+		gone[j] = 1;
+		r.erased.push_back (j);
+		for (size_t b = 0; b < made.size (); b++)
+			if (made[b] == j) dead[b] = 1;
+	};
+	auto isDead = [&] (int b) { return b >= 0 && b < (int) dead.size () && dead[b]; };
+	kill (at);
+	for (int j = at + 1; j < (int) d.feats.size (); j++) {
+		const Feature &f = d.feats[j];
+		bool refGone = f.ref >= 0 && f.ref < (int) gone.size () && gone[f.ref];
+		bool bodyDead = isDead (f.body);
+		switch (f.kind) {
+		case ST_SKETCH: break;		// (son plan reste ; seule l'opération choisie pour l'extrusion changera)
+		case ST_EXTRUDE: case ST_REVOLVE:
+			if (refGone) kill (j);
+			else if (bodyDead && f.op != OP_NEW) r.renewed.push_back (j);
+			break;
+		case ST_BOX: case ST_CYLINDER:
+			if (bodyDead && f.op != OP_NEW) r.renewed.push_back (j);
+			break;
+		case ST_PATTERN:
+			if (refGone) kill (j);
+			break;
+		case ST_COMBINE: case ST_CUT: {
+			int left = 0, lost = 0;
+			for (int t : f.tools) (isDead (t) ? lost : left)++;
+			if (bodyDead || left == 0) kill (j);
+			else if (lost) r.trimmed.push_back (j);
+			break;
+		}
+		default:			// (congé, chanfrein, pousser/tirer, perçage, oblong, coque, symétrie)
+			if (bodyDead) kill (j);
+			break;
+		}
+	}
+	return r;
+}
+
+void applyRemoval (Doc &d, const Removal &plan)
+{
+	if (plan.erased.empty ()) return;
+	std::vector<int> made = creatorsOf (d);
+	auto has = [] (const std::vector<int> &v, int j) { return std::find (v.begin (), v.end (), j) != v.end (); };
+	std::vector<char> dead (made.size (), 0);
+	for (size_t b = 0; b < made.size (); b++) dead[b] = has (plan.erased, made[b]);
+	std::vector<int> newIdx (d.feats.size (), -1);
+	Doc n;
+	n.name = d.name;
+	n.params = d.params;
+	for (int j = 0; j < (int) d.feats.size (); j++) {
+		if (has (plan.erased, j)) continue;
+		Feature f = d.feats[j];
+		if (has (plan.renewed, j)) f.op = OP_NEW, f.body = -1;
+		if (f.kind == ST_COMBINE || f.kind == ST_CUT) {
+			std::vector<int> keep;
+			for (int t : f.tools) if (t < 0 || t >= (int) dead.size () || !dead[t]) keep.push_back (t);
+			f.tools = keep;
+		}
+		if (f.kind == ST_SKETCH && f.sk.body >= 0 && f.sk.body < (int) dead.size () && dead[f.sk.body]) f.sk.body = -1;
+		newIdx[j] = (int) n.feats.size ();
+		if (j < d.bar) n.bar++;
+		n.feats.push_back (f);
+	}
+	for (auto &f : n.feats)
+		if (f.ref >= 0) f.ref = f.ref < (int) newIdx.size () ? newIdx[f.ref] : -1;
+	// les corps : le k-ième corps d'une étape gardée garde son rang parmi les corps qu'elle crée maintenant
+	std::vector<int> made2 = creatorsOf (n);
+	std::vector<int> rank (made.size (), -1);
+	for (size_t b = 0; b < made.size (); b++) {
+		int c = made[b];
+		if (c < 0 || c >= (int) newIdx.size () || newIdx[c] < 0) continue;
+		int k = 0;
+		for (size_t e = 0; e < b; e++) k += made[e] == c;
+		for (size_t e = 0; e < made2.size (); e++)
+			if (made2[e] == newIdx[c] && k-- == 0) { rank[b] = (int) e; break; }
+	}
+	auto remap = [&] (int b) { return b >= 0 && b < (int) rank.size () ? rank[b] : -1; };
+	for (auto &f : n.feats) {
+		if (f.body >= 0) f.body = remap (f.body);
+		for (auto &t : f.tools) t = remap (t);
+		if (f.sk.body >= 0) f.sk.body = remap (f.sk.body);
+	}
+	d.feats = n.feats;
+	d.bar = n.bar;
 }
 
 } // namespace forge

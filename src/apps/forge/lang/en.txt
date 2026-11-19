@@ -372,3 +372,17 @@ la cible est aussi un outil = the target is also a tool
 Clic : un coin de la base, sur une face ou sur le sol = Click: a corner of the base, on a face or on the ground
 Clic : le coin opposé (la diagonale) = Click: the opposite corner (the diagonal)
 Boîte (B) : clic à un coin, clic au coin opposé, on monte, clic = Box (B): click a corner, click the opposite corner, move up, click
+# Frise : icônes, infobulles, clic droit, suppression avec ce qui dépend
+ · après la barre = \ · after the bar
+Modifier… = Edit…
+Supprimer à partir d'ici = Delete from here
+D'autres étapes dépendent de « %s » : = Other steps depend on "%s":
+ : supprimée = : deleted
+ : devient un nouveau corps = : becomes a new body
+ : perd un outil = : loses a tool
+Supprimer quand même ? = Delete anyway?
+Suppression annulée. = Deletion cancelled.
+%s supprimée (%d étapes en tout). Ctrl+Z : annuler. = %s deleted (%d steps in all). Ctrl+Z: undo.
+Supprimer « %s » et les %d étapes qui la suivent ? = Delete "%s" and the %d steps after it?
+%d étapes supprimées. Ctrl+Z : annuler. = %d steps deleted. Ctrl+Z: undo.
+Cette étape n'a pas de valeur à changer : supprimez-la et refaites-la. = This step has no value to change: delete it and redo it.
