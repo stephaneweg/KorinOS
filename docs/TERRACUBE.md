@@ -169,7 +169,7 @@ que tout soit fait). 16 connexions au plus.
 | `player.getInventory()` | `case:objet:nombre\|…` (survie ; les cases 0 à 8 sont la barre) |
 | `player.give(objet[,n])` | — (survie) |
 | `player.craft(recette[,fois])` | les fois faites, ou `error: …` (survie) |
-| `game.info()` | `TerraCube 1.1.0,<monde>,<graine>` |
+| `game.info()` | `TerraCube 1.1.1,<monde>,<graine>` |
 | `ping()` | `pong` |
 
 ### Python

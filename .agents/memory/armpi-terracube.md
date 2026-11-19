@@ -30,4 +30,9 @@ repris d'un jeu existant), doc `docs/TERRACUBE.md`.
   `game.command` et l'outil MCP `run_command`), **météo** (pluie/neige/orage, gouttes dans le vertex shader,
   cachées sous les toits par une carte des hauteurs 64 × 64). Version 1.1.0.
 
+- Pièges vus par l'utilisateur sur le ZBook (19/11, 1.1.1) : pointeur verrouillé (`ui_pointer_lock`), Elegant n'envoie
+  QUE des WEV_M_REL, boutons dans EV_CODE (pas d'appui ni de relâché) : sinon le bouton du clic d'entrée reste « tenu »
+  et tout ce qu'on vise se casse ; scintillement des textes par-dessus la vue : dessiner dans un tampon à part
+  (détourner `ui.surf`, comme `ui_canvas_begin`) puis recopier les zones finies.
+
 **How to apply:** les numéros de blocs ne bougent jamais (ajout à la fin de `blocks.h`, de `terracube.py`, de la doc) ; de même les objets (100+, `items.h`).

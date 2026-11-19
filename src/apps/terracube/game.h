@@ -14,7 +14,7 @@
 
 namespace tc {
 
-const char *const VERSION = "1.1.0";
+const char *const VERSION = "1.1.1";
 const int API_PORT = 4730;	// le protocole des scripts (Python, BASIC)
 const int MCP_PORT = 7312;	// le MCP (Forge a 7311)
 

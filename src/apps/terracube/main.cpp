@@ -544,6 +544,7 @@ std::string hourText ()
 
 void panel (int x, int y, int w, int h)
 {
+	ui_fill (x, y, w, h, 0xFF000000u | jet (TJ_SURFACE));	// (autour des coins arrondis : transparent)
 	ui_rbox (x, y, w, h, 8, jet (TJ_LINE), jet (TJ_LINE));
 	ui_rbox (x + 1, y + 1, w - 2, h - 2, 7, jet (TJ_SURFACE), jet (TJ_SURFACE));
 	g_zones.push_back ({ x, y, w, h });
@@ -646,7 +647,8 @@ void drawOverlay (bool force)
 	key += "\x01";
 	for (auto &s : chat) key += "\n" + s;
 	if (C_.open) {
-		key += "\x03" + std::to_string (C_.mx) + "," + std::to_string (C_.my) + C_.msg + (C_.book ? "B" : "") + std::to_string (C_.bookScroll) +
+		std::string tip = craftTipText ();
+		key += "\x03" + tip + (tip.empty () ? std::string () : std::to_string (C_.mx / 6) + "," + std::to_string (C_.my / 6)) + C_.msg + (C_.book ? "B" : "") + std::to_string (C_.bookScroll) +
 		       std::to_string (C_.n) + std::to_string ((int) g.fuel) + (gridRecipe () ? gridRecipe ()->name : "") + (C_.cursor.empty () ? "" : "c");
 		for (auto &st : g.inv.s) key += (char) ('A' + (st.item & 31));
 	}
@@ -658,6 +660,13 @@ void drawOverlay (bool force)
 	g_overlayKey = key;
 	g_prevZones = g_zones;
 	g_zones.clear ();
+	// tout se dessine dans un tampon à part (UIKit dessine dans ui.surf : on le détourne, comme ui_canvas_begin),
+	// puis les zones finies sont recopiées d'un coup dans la fenêtre : Elegant, qui compose à tout moment, ne voit
+	// jamais un fond sans son texte (le scintillement)
+	static std::vector<uint32_t> back;
+	uint32_t *front = ui.surf;
+	back.assign ((size_t) (ui.w * ui.h), 0xFF000000u | jet (TJ_SURFACE));
+	ui.surf = back.data ();
 	int W = (int) ui.w, H = (int) ui.h;
 	long font = (long) ui.font;
 	const int LH = 19, SZ = 13;
@@ -716,6 +725,11 @@ void drawOverlay (bool force)
 		panel (x, y, pw, ph);
 		ui_text ((long) a, (W - wa) / 2, y + 28, jet (TJ_ACCENT), 16, (long) ui.font_b, 0);
 		ui_text_fit ((long) b, std::max (x + 12, (W - wb) / 2), y + 52, jet (TJ_TEXT2), SZ, font, pw - 24);
+	}
+	ui.surf = front;
+	for (auto &z : g_zones) {
+		int x0 = std::max (0, z.x), y0 = std::max (0, z.y), x1 = std::min ((int) ui.w, z.x + z.w), y1 = std::min ((int) ui.h, z.y + z.h);
+		for (int y = y0; y < y1; y++) memcpy (front + (size_t) y * ui.w + x0, back.data () + (size_t) y * ui.w + x0, (size_t) (x1 - x0) * 4);
 	}
 	for (auto &z : g_zones) ui_update (z.x, z.y, z.w, z.h);
 	std::vector<uint16_t> rr;
@@ -1408,6 +1422,18 @@ void keyDown (int code, int mods, long id, unsigned ch)
 	else if (code == 0x14) pickBlock ();			// Q (A en AZERTY) : prendre ce bloc
 }
 
+// les boutons de la souris pendant que le jeu la tient : un bouton qui vient d'être enfoncé agit une fois, ceux qui
+// restent enfoncés se répètent (frame) ; g_buttons suit l'état reçu, y compris quand ils sont relâchés
+void mouseButtons (unsigned b)
+{
+	unsigned pressed = b & ~g_buttons;
+	g_buttons = b;
+	double t0 = nowMs ();
+	if (pressed & 1) breakBlock (), g_breakAt = t0 + 300;
+	if (pressed & 2) placeBlock (), g_placeAt = t0 + 300;
+	if (pressed & 4) pickBlock ();
+}
+
 void handleEvent (long t)
 {
 	if (t == WEV_MENU) {
@@ -1463,9 +1489,10 @@ void handleEvent (long t)
 	}
 	if (t == WEV_MOUSE) {
 		int kind = (int) ui_ev_field (&ui, EV_KIND);
-		if (kind == 3) {	// WEV_M_REL : le déplacement, souris prise
+		if (kind == 3) {	// WEV_M_REL : la souris prise ; le déplacement et l'état des boutons (pas d'appui ni de relâché à part)
 			g_mdx += (float) (int) (uint32_t) ui_ev_field (&ui, EV_X);
 			g_mdy += (float) (int) (uint32_t) ui_ev_field (&ui, EV_Y);
+			if (g_locked && !C_.open) mouseButtons ((unsigned) ui_ev_field (&ui, EV_CODE) & 7);
 			return;
 		}
 		unsigned b = (unsigned) ui_ev_field (&ui, EV_CODE) & 7;
@@ -1481,13 +1508,7 @@ void handleEvent (long t)
 			g_buttons = b;
 			return;
 		}
-		if (!g_locked) return;
-		unsigned pressed = b & ~g_buttons;
-		g_buttons = b;
-		double t0 = nowMs ();
-		if (pressed & 1) breakBlock (), g_breakAt = t0 + 300;
-		if (pressed & 2) placeBlock (), g_placeAt = t0 + 300;
-		if (pressed & 4) pickBlock ();
+		if (g_locked) mouseButtons (b);
 	}
 }
 
