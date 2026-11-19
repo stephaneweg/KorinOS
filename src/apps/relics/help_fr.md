@@ -1,6 +1,6 @@
 # Relics
 
-Un explorateur part à la recherche de quinze reliques cachées dans cinq mondes : la jungle d'Ixtala, les sables de Kharga, la pyramide de Sekhet, la forteresse de glace et le volcan du docteur Krell. Chaque niveau défile à mesure que vous avancez ; il faut atteindre la porte de sortie en évitant les pièges et les gardiens. Un seul contact suffit à perdre une vie : observez, avancez au bon moment.
+Un explorateur part à la recherche de vingt et une reliques cachées dans sept mondes : la jungle d'Ixtala, les sables de Kharga, la pyramide de Sekhet, la forteresse de glace, le bois des Ombres, la vallée de la Mort et le volcan du docteur Krell. Chaque niveau défile à mesure que vous avancez ; il faut atteindre la porte de sortie en évitant les pièges et les gardiens. Un seul contact suffit à perdre une vie : observez, avancez au bon moment.
 
 ## Au clavier
 
@@ -21,10 +21,10 @@ La croix pour marcher et grimper, **A** pour sauter, **B** ou **X** pour tirer, 
 
 ## Les pièges
 
-- **Pointes** au sol ou au plafond, **eau**, **sables mouvants** et **lave** : mortels.
+- **Pointes** au sol ou au plafond, **eau**, **sables mouvants**, **bave** et **lave** : mortels.
 - **Pointes cachées** : de fines fentes dans le sol. Elles jaillissent un instant après votre passage : ne vous y arrêtez pas.
 - **Fléchettes** : une tête sculptée dans le mur tire quand vous êtes dans sa ligne. Sautez par-dessus.
-- **Rochers** : ils se mettent à rouler vers vous. Sautez par-dessus ou fuyez.
+- **Rochers** : deux cases de haut, ils se mettent à rouler vers vous. Dans une grande salle, sautez par-dessus ; dans un couloir bas, on ne peut que fuir : courez sans vous arrêter et sautez la fosse au bout, le rocher y tombera.
 - **Stalactites** : elles tremblent puis tombent quand vous passez dessous.
 - **Pilons** : des blocs hérissés qui s'abattent régulièrement ; passez quand ils remontent.
 - **Jets de feu** : un filet de fumée les annonce.

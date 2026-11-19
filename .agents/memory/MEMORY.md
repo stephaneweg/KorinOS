@@ -132,4 +132,4 @@
 - [Widevine dans Jet](armpi-widevine.md) — au plan le 18/11, après la couche Linux : Netflix, Disney+, Spotify web ; docs/etude/WIDEVINE.md, rien de fait
 - [Suivi du plan](armpi-suivi-plan.md) — artefact « Plan Korin OS » (18/11), base items à tenir à jour par ArtifactData quand un chantier bouge
 - [ImageKit](armpi-imagekit.md) — au plan le 18/11 : traducteurs d'images, document à calques canonique, UIKit s'appuie dessus ; docs/etude/IMAGEKIT.md
-- [Relics](armpi-relics.md) — jeu à la Rick Dangerous en C sur gamefb (19/11) : tuiles dessinées, 12 niveaux de tools/relics/mklevels.py, vérifiés par tools/relics/run.sh ; pas encore lancé dans Korin
+- [Relics](armpi-relics.md) — jeu à la Rick Dangerous en C sur gamefb (19/11) : 7 mondes, 21 niveaux de tools/relics/mklevels.py vérifiés par run.sh, musique (music.h), fuites devant le rocher ; PC 1.0.0 publié

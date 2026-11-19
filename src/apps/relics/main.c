@@ -1,6 +1,7 @@
 /*
  * relics -- Relics, un jeu de plates-formes a defilement dans l'esprit des jeux d'exploration de la fin des annees 80 :
- * un explorateur traverse cinq mondes (la jungle, le desert, la pyramide, la forteresse de glace, le volcan), quinze
+ * un explorateur traverse sept mondes (la jungle, le desert, la pyramide, la forteresse de glace, la foret hantee, la
+ * vallee de la mort, le volcan), vingt et un
  * niveaux en tout, entre pieges (pointes cachees, flechettes, rochers qui roulent, stalactites, pilons, jets de feu, sols qui
  * s'effondrent) et ennemis (gardiens, tireurs, chauves-souris, araignees), avec un pistolet a six coups et des
  * batons de dynamite (les murs fissures cedent), des cles pour les portes, des points de passage et des tresors.
@@ -35,7 +36,7 @@
 #define MAXW		240
 #define MAXH		64
 #define HUD_H		24
-#define NWORLD		5			/* jungle, desert, pyramide, glace, volcan */
+#define NWORLD		7			/* jungle, desert, pyramide, glace, volcan, foret hantee, vallee de la mort */
 
 #define H_W		12			/* la boite de l'explorateur */
 #define H_H		26
@@ -265,7 +266,7 @@ enum { SG_WALK, SG_SHOOT, SG_DIE, SG_STAND, SG_JUMP, SG_FALL, SG_CLIMB, SG_CROUC
 struct sset { int n[SG_N], o[SG_N], w, h, ax, ay; gf_sprite_t *f[2][64]; };
 static struct sset *g_cfoe[NWORLD][2], *g_cshoot[NWORLD][2], *g_chero;	/* foe<monde>[b].spr, shooter<monde>[b].spr, hero.spr */
 static const char *g_sprdir = "/apps/relics.app/sprites";
-#define BANK		(48u << 20)		/* la reserve des images (ga_init) : tuiles, sprites dessines et charges */
+#define BANK		(64u << 20)		/* la reserve des images (ga_init) : tuiles, sprites dessines et charges */
 static char *g_bank0;
 static unsigned long bank_left (void) { return g_bank0 ? BANK - (unsigned long) (ga_bp - g_bank0) : 0; }
 
@@ -421,7 +422,7 @@ static const struct ga_txe s_tx[TX_N] = {
 	{ "Partie terminée", 32, 1, 0x00FFB0A0, 0x00E04030 },
 	{ "Espace ou A : continuer", 15, 1, 0x00FFFFFF, 0x00D8E0E8 },
 	{ "Victoire !", 40, 1, 0x00FFF0B0, 0x00F0A030 },
-	{ "Les quinze reliques sont à l'abri. Bravo, explorateur !", 16, 0, 0x00F0E8D8, 0x00C8C0B0 },
+	{ "Les vingt et une reliques sont à l'abri. Bravo, explorateur !", 16, 0, 0x00F0E8D8, 0x00C8C0B0 },
 	{ "Point de passage", 15, 1, 0x00FFE8A0, 0x00F0B040 },
 	{ "Une clé !", 15, 1, 0x00FFE8A0, 0x00F0B040 },
 	{ "La porte s'ouvre", 15, 1, 0x00FFE8A0, 0x00F0B040 },
@@ -2372,7 +2373,7 @@ static void gen_texts (void)
 	{
 		g_tname[i] = ga_text (levels[i].name, 13, (long) ui.font_b, 0x00F0E8D8, 0x00C8C0B0);
 		g_tnameb[i] = ga_text (levels[i].name, 26, (long) ui.font_b, 0x00FFFFFF, 0x00E8D8C0);
-		snprintf (b, sizeof b, "%s %d - %d", gf_tr ("Niveau"), levels[i].world + 1, i % 3 + 1);
+		snprintf (b, sizeof b, "%s %d - %d", gf_tr ("Niveau"), i / 3 + 1, i % 3 + 1);	/* (l'ordre du voyage : le volcan est le dernier) */
 		g_tnum[i] = ga_text (b, 14, (long) ui.font, 0x00D0C8B8, 0x00A8A090);
 	}
 }

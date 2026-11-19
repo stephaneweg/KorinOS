@@ -6,7 +6,7 @@
 #
 # Les tuiles et decors : FOREST=/chemin/forest-tileset/png (tools/relics/mktiles.py -> data/tiles/world<n>.til).
 # SPRITES : un sous-dossier par personnage, chaque archive du paquet extraite dans le sien (« Black Wizard »,
-# « Medieval Sergeant »...). <monde> : 0 jungle, 1 desert, 2 pyramide, 3 glace, 4 volcan. hero.spr : l'explorateur
+# « Medieval Sergeant »...). <monde> : 0 jungle, 1 desert, 2 pyramide, 3 glace, 4 volcan, 5 foret hantee, 6 vallee de la mort. hero.spr : l'explorateur
 # (tools/relics/explorer.py) ; foe<monde>.spr : le gardien qui marche ; shooter<monde>.spr : le tireur (sans lui,
 # le gardien sert aux deux). Sans fichier, le jeu garde ses personnages dessinés.
 set -eu
@@ -46,3 +46,11 @@ foe shooter3 "Archer Guy" "Shooting"
 foe foe4 "Skull Knight"
 foe foe4b "Devil Masked Guy"
 foe shooter4 "Medieval Mage" "Throwing Spell"
+# le bois des Ombres : la tete de citrouille, le vampire ; la sorciere encapuchonnee lance
+foe foe5 "Pumpkin Head Guy"
+foe foe5b "Vampire"
+foe shooter5 "Medieval Hooded Girl"
+# la vallee de la Mort : des brigands ; le guerrier indien lance ses lances
+foe foe6 "Barbarian Warrior"
+foe foe6b "Medieval Thug"
+foe shooter6 "Indian Tribe Knight"

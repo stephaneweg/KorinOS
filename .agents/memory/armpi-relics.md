@@ -1,10 +1,10 @@
 ---
 name: armpi-relics
-description: "Relics, jeu de plates-formes et d'exploration à la Rick Dangerous (19/11/2026) : C sur gamefb, 5 mondes, 15 niveaux générés, sprites et tuiles des paquets achetés par l'utilisateur, banc d'essai sur l'hôte"
+description: "Relics, jeu de plates-formes et d'exploration à la Rick Dangerous (19/11/2026) : C sur gamefb, 7 mondes, 21 niveaux générés, musique par monde, sprites et tuiles des paquets achetés par l'utilisateur, banc d'essai sur l'hôte"
 metadata:
   node_type: memory
   type: project
-  modified: 2026-11-19T16:45:00.000Z
+  modified: 2026-11-19T21:40:00.000Z
 ---
 
 Demandé le 19/11 : « un superbe jeu en side scrolling, comme Rick Dangerous, une dizaine de niveaux, pièges, ennemis ».
@@ -43,3 +43,14 @@ minimal : tools/pc/build.sh, sysroot.sh, sysroot_apps.sh, mkkorindisk) : lanceur
 Pièges vus là : lire les fichiers d'un bloc (chaque read est un aller-retour IPC) ; retenir les frappes brèves.
 Dans cet environnement du cloud, la clé de signature est la variable **ONYX_PKG_KEY** (pas OnyxPkgKey) ; vérifiée par
 booléens seulement (PEM, correspond à onyx.pub).
+
+**Ajouts du soir (19/11, demandés par l'utilisateur)** :
+- Musique de fond « tendue, qui presse » : `music.h` (thread, synthé General MIDI d'AudioKit), une piste par monde +
+  titre (piste = 1 + monde) ; `tools/relics/music.c` écrit les pistes en .mid (écoute : fluidsynth sur l'hôte).
+- Échelle vue de dos (explorer.py `back_climb`, 4 images, mains derrière la tête : demandé ainsi).
+- Rochers de 2 cases ; `escape()` de mklevels.py = fuite à la Rick (couloir de 2 cases, fosse de 2 où il tombe) dans
+  un niveau par monde ; le rocher revient après une chute. `run.sh chase n tx ty script` rejoue une fuite.
+- Mondes 5 « Le bois des Ombres » (forêt hantée) et 6 « La vallée de la Mort », d'après une capture de l'utilisateur ;
+  dans l'ordre du voyage avant le volcan (niveaux 13-18) ; « Niveau x - y » vient du rang, pas du monde. Tuiles et fonds
+  dessinés dans mktiles.py (`spooky`, `valley`), ennemis : Pumpkin Head Guy, Vampire, Hooded Girl ; Barbarian, Thug,
+  Indian Tribe Knight. BANK 64 Mo (33 pris au départ).

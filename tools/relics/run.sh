@@ -32,8 +32,8 @@ gcc -O2 -g -Wall -Wno-unused-function -Wno-unused-variable -I"$B/inc" -I/usr/inc
 case ${1:-check} in
 shot)
 	out=$3
-	RELICS_FONTS=${RELICS_FONTS:-$ROOT/sdcard/fonts} "$B/host" shot "$2" "$B/shot.ppm" "${4:-}"
+	(cd "$B" && RELICS_FONTS=${RELICS_FONTS:-$ROOT/sdcard/fonts} "$B/host" shot "$2" "$B/shot.ppm" "${4:-}")
 	python3 -c "from PIL import Image; Image.open('$B/shot.ppm').save('$out')"
 	;;
-*)	RELICS_FONTS=${RELICS_FONTS:-$ROOT/sdcard/fonts} "$B/host" "$@" ;;
+*)	cd "$B" && RELICS_FONTS=${RELICS_FONTS:-$ROOT/sdcard/fonts} "$B/host" "$@" ;;	# (dans build : HOME:/relics y est ecrit)
 esac

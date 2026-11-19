@@ -1,6 +1,6 @@
 # Relics
 
-An explorer sets out to find fifteen relics hidden across five worlds: the Ixtala Jungle, the Sands of Kharga, the Pyramid of Sekhet, the Ice Fortress and Doctor Krell's Volcano. Each level scrolls as you move; reach the exit door while dodging traps and guards. A single touch costs a life: watch first, then move at the right moment.
+An explorer sets out to find twenty-one relics hidden across seven worlds: the Ixtala Jungle, the Sands of Kharga, the Pyramid of Sekhet, the Ice Fortress, the Wood of Shadows, Death Valley and Doctor Krell's Volcano. Each level scrolls as you move; reach the exit door while dodging traps and guards. A single touch costs a life: watch first, then move at the right moment.
 
 ## Keyboard
 
@@ -21,10 +21,10 @@ The d-pad to walk and climb, **A** to jump, **B** or **X** to fire, **Y** for dy
 
 ## Traps
 
-- **Spikes** on the floor or the ceiling, **water**, **quicksand** and **lava**: deadly.
+- **Spikes** on the floor or the ceiling, **water**, **quicksand**, **slime** and **lava**: deadly.
 - **Hidden spikes**: thin slots in the floor. They shoot up a moment after you step on them: don't stop there.
 - **Darts**: a carved head in the wall fires when you are in its line. Jump over them.
-- **Boulders**: they start rolling towards you. Jump over them or run.
+- **Boulders**: two tiles high, they start rolling towards you. In a big hall, jump over them; in a low corridor you can only run: keep going and jump the pit at the end, the boulder will fall into it.
 - **Stalactites**: they shake, then fall when you walk under them.
 - **Crushers**: spiked blocks that slam down at regular intervals; go through while they rise.
 - **Fire jets**: a wisp of smoke warns of them.

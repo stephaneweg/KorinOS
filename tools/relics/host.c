@@ -136,6 +136,7 @@ static void init_all (void)
 	g_bank0 = ga_bp;
 	gen_sprites ();
 	use_tiles ();
+	if (getenv ("RELICS_BANK")) fprintf (stderr, "reserve des images : %lu Mo pris, %lu Mo libres\n", (unsigned long) (ga_bp - g_bank0) >> 20, bank_left () >> 20);
 	gp_init (game_pause, game_resume, game_new, GF_W - 32, 0, on_pad);
 	ui_canvas_begin (gf_cv);
 	gen_texts ();

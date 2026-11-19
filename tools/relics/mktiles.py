@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """mktiles.py -- les tuiles, decors et fonds de Relics, un jeu par monde, dans le style du tileset « forest
 platformer » achete par l'utilisateur (trait sombre epais, aplats, reflets) : la jungle prend ce tileset tel quel ;
-le desert, la pyramide, la glace et le volcan ont leurs tuiles et leurs decors dessines ici (paves bruns et sable
-lisse, figuiers de Barbarie et panneaux ; blocs de gres ; neige et glace ; basalte veine de lave...). Le tileset reste hors du depot ; le jeu charge world<n>.til a la place de ses
+le desert, la pyramide, la glace, le volcan, la foret hantee et la vallee de la mort ont leurs tuiles et leurs decors
+dessines ici (paves bruns et sable lisse, figuiers de Barbarie et panneaux ; blocs de gres ; neige et glace ; basalte
+veine de lave ; pierres violettes, mousse et citrouilles ; roche brune fendue de lave, mesas...). Le tileset reste hors du depot ; le jeu charge world<n>.til a la place de ses
 tuiles dessinees (main.c, load_til) :
 
-    python3 tools/relics/mktiles.py /chemin/forest-tileset/png src/apps/relics/data/tiles [--sheet planche.png]
+    python3 tools/relics/mktiles.py /chemin/forest-tileset/png src/apps/relics/data/tiles [0,5,6] [--sheet planche.png]
 
 Format world<n>.til (petit-boutiste) : 'RTIL', u16 version 2, u16 nombre d'images ; puis chaque image : u16 l, u16 h,
 u32 nombre de plages, les plages (u16 longueur, u32 valeur 0xAARRGGBB premultipliee). L'ordre : NAMES (l'enum ET_* de
@@ -549,6 +550,256 @@ def volcano(src):
     return R
 
 
+# ===== la foret hantee ============================================================================================
+def spooky(src):
+    STONE, MORT, MOSS, MOSS2, SLIME, SLIME2 = 0x6C5C8A, 0x261A38, 0x4A3168, 0x7A55A0, 0x7CD43A, 0xC8F57A
+    R = {}
+
+    def cob(lay, seed, glow=True):
+        p = Pen(D, D)
+        p.d.rectangle([0, 0, D * SS, D * SS], fill=rgb(MORT))
+        stones(p, lay, rgb(STONE), seed)
+        if glow:					# une mousse verte qui luit sur une pierre
+            rnd = random.Random(seed)
+            b = lay[rnd.randrange(len(lay))]
+            x, y = b[0] + 10, b[3] - 18
+            p.ell((x, y, x + 16, y + 9), SLIME, ow=0)
+            p.ell((x + 3, y + 2, x + 9, y + 5), SLIME2, ow=0)
+        return p
+
+    R["cobble"] = cob(L1, 71).out()
+    p = cob(L2, 72, False)
+    # la mousse violette du dessus, epaisse, et des coulures de bave verte
+    pts = [(0, 0), (D, 0), (D, 26)]
+    for x in range(D, -1, -4):
+        drip = 14 if 22 < x < 32 else 9 if 80 < x < 88 else 0
+        drip = drip * math.sin((x % 10) / 10 * math.pi) if drip else 0
+        pts.append((x, 26 + 4 * math.sin(x / 7.0) + drip))
+    p.poly(pts, MOSS)
+    p.poly([(0, 0), (D, 0), (D, 12)] + [(x, 12 + 3 * math.sin(x / 6.0)) for x in range(D, -1, -4)], MOSS2, ow=0)
+    for x in (26, 84):
+        p.ell((x - 4, 34, x + 6, 44), SLIME, ow=3)
+    for x in (12, 58, 104):				# des brins d'herbe morte
+        p.line([(x, 4), (x - 4, -6)], MOSS2, 4)
+        p.line([(x + 6, 4), (x + 9, -4)], MOSS2, 4)
+    R["grass"] = p.out()
+    for k, lay in enumerate((BR1, BR2)):		# la crypte : des briques violettes, fendues
+        p = Pen(D, D)
+        p.d.rectangle([0, 0, D * SS, D * SS], fill=rgb(0x150E22))
+        for i, b in enumerate(lay):
+            x0, y0, x1, y1 = b
+            c = shade(rgb(0x3A2C52), random.Random(80 + k * 7 + i).uniform(0.85, 1.1))
+            p.rect(b, c, 6, ow=4, ink=(16, 10, 26, 255))
+            p.line([(x0 + 8, y0 + 7), (x1 - 12, y0 + 7)], shade(c, 1.3), 4)
+            if (i + k) % 3 == 0:
+                p.line([(x0 + 20, y0 + 12), (x0 + 30, y0 + 26), (x0 + 24, y0 + 38)], shade(c, 0.55), 3)
+        R["back_a" if k == 0 else "back_b"] = p.out()
+    for k in (0, 1):				# la bave verte qui bouillonne
+        p = Pen(D, D)
+        p.d.rectangle([0, 0, D * SS, D * SS], fill=rgb(0x3E9A2A))
+        for i in range(5):
+            x, y = (i * 43) % 104 + 8, 22 + i * 21
+            p.ell((x, y, x + 14, y + 14), 0x62C23C, ow=0)
+            p.ell((x + 3, y + 3, x + 7, y + 7), SLIME2, ow=0)
+        if k:
+            p.d.rectangle([0, 0, D * SS, 10 * SS], fill=(0, 0, 0, 0))
+            pts = [(0, 12)] + [(x, 12 + 4 * math.sin(x / 9.0)) for x in range(0, D + 1, 8)] + [(D, 26), (0, 26)]
+            p.poly(pts, SLIME, ow=0)
+            p.ell((64, 2, 82, 18), SLIME2, ow=4, ink=(40, 110, 30, 255))	# une bulle
+        R["wsurf" if k else "wmid"] = p.out()
+
+    def pumpkin(face=True, s=1.0):
+        p = Pen(int(100 * s), int(90 * s))
+        O, O2, O3 = 0xF08A1E, 0xC85E10, 0xFFB850
+        p.rect((46 * s, 2 * s, 56 * s, 22 * s), 0x4E6A2A, 3 * s)
+        for x0, x1 in ((6, 52), (48, 94), (26, 74)):
+            p.ell((x0 * s, 16 * s, x1 * s, 86 * s), O if x0 == 26 else O2)
+        p.ell((34 * s, 22 * s, 48 * s, 40 * s), O3, ow=0)
+        if face:
+            G = 0xFFE860
+            p.poly([(28 * s, 46 * s), (40 * s, 36 * s), (42 * s, 50 * s)], G, ow=3)
+            p.poly([(72 * s, 46 * s), (60 * s, 36 * s), (58 * s, 50 * s)], G, ow=3)
+            p.poly([(26 * s, 60 * s), (74 * s, 60 * s), (66 * s, 74 * s), (56 * s, 68 * s), (50 * s, 76 * s), (44 * s, 68 * s), (34 * s, 74 * s)], G, ow=3)
+        return p.out()
+
+    def grave(cross=False):
+        p = Pen(80, 110)
+        G, G2 = 0x7A7890, 0x9C9AB0
+        if cross:
+            p.rect((32, 6, 48, 104), G, 3)
+            p.rect((12, 28, 68, 44), G, 3)
+            p.line([(36, 12), (36, 98)], G2, 4)
+        else:
+            p.poly([(10, 106), (10, 34), (18, 14), (40, 4), (62, 14), (70, 34), (70, 106)], G)
+            p.line([(18, 34), (24, 20), (40, 12)], G2, 5)
+            p.line([(26, 48), (54, 48)], 0x4E4C62, 5)
+            p.line([(26, 62), (54, 62)], 0x4E4C62, 5)
+            p.line([(48, 72), (40, 86), (46, 96)], 0x4E4C62, 3)
+        p.ell((4, 96, 76, 110), MOSS, ow=4)
+        return p.out()
+
+    def shrooms():
+        p = Pen(100, 80)
+        for x, h, r in ((26, 40, 20), (64, 56, 24), (86, 28, 12)):
+            p.rect((x - 5, 78 - h, x + 5, 78), 0xE8DCC8, 3)
+            p.d.pieslice([(x - r) * SS, (78 - h - r) * SS, (x + r) * SS, (78 - h + r) * SS], 180, 360, fill=INK)
+            p.d.pieslice([(x - r + 4) * SS, (78 - h - r + 4) * SS, (x + r - 4) * SS, (78 - h + r - 4) * SS], 180, 360, fill=rgb(0x9A4AC8))
+            p.ell((x - r * 0.5, 78 - h - r * 0.6, x - r * 0.2, 78 - h - r * 0.3), SLIME2, ow=0)
+            p.ell((x + r * 0.2, 78 - h - r * 0.45, x + r * 0.5, 78 - h - r * 0.15), SLIME2, ow=0)
+        return p.out()
+
+    def fence():
+        p = Pen(120, 80)
+        p.rect((4, 34, 116, 44), 0x4A3C52, 2)
+        p.rect((4, 58, 116, 68), 0x4A3C52, 2)
+        for i, x in enumerate((12, 40, 68, 96)):
+            h = 10 if i % 2 else 2
+            p.poly([(x, 78), (x, 14 + h), (x + 7, 4 + h), (x + 14, 14 + h), (x + 14, 78)], 0x5E4E68)
+        return p.out()
+
+    def lantern():
+        p = Pen(70, 120)
+        p.rect((30, 30, 40, 118), 0x2E2236, 2)
+        p.line([(35, 30), (58, 22)], 0x2E2236, 6)
+        p.rect((46, 24, 66, 52), 0x2E2236, 4)
+        p.rect((50, 30, 62, 48), 0xFFD860, 3, ow=0)
+        p.ell((52, 34, 58, 42), 0xFFF4C0, ow=0)
+        return p.out()
+
+    def deadtree(big=False):
+        s = 2.4 if big else 1.0
+        p = Pen(int(110 * s), int(128 * s))
+        B, B2 = 0x2A1E34, 0x4A3A58
+        branches = [((55, 126), (50, 92)), ((50, 92), (58, 62)), ((58, 62), (48, 40)), ((58, 62), (86, 46)), ((86, 46), (100, 50)),
+                    ((48, 40), (24, 30)), ((24, 30), (12, 38)), ((48, 40), (56, 14)), ((56, 14), (70, 8)), ((50, 92), (28, 78))]
+        for (a, b) in branches:
+            w = 14 if a[1] > 100 else 10 if a[1] > 60 else 6
+            p.line([(a[0] * s, a[1] * s), (b[0] * s, b[1] * s)], 0x0E0814, (w + 6) * s)
+        for (a, b) in branches:
+            w = 14 if a[1] > 100 else 10 if a[1] > 60 else 6
+            p.line([(a[0] * s, a[1] * s), (b[0] * s, b[1] * s)], B2, w * s)
+        if big:					# du feuillage violet en touffes, comme sur la capture
+            for x, y, r in ((24, 28, 16), (56, 12, 18), (86, 44, 16), (40, 40, 12), (100, 50, 10), (70, 26, 12)):
+                p.ell(((x - r) * s, (y - r * 0.7) * s, (x + r) * s, (y + r * 0.7) * s), 0x8A3CA8)
+                p.ell(((x - r * 0.6) * s, (y - r * 0.6) * s, (x + r * 0.1) * s, (y - r * 0.1) * s), 0xB86AD4, ow=0)
+        return p.out()
+
+    R.update(deco1=pumpkin(), deco2=grave(), deco3=shrooms(), deco4=fence(), deco5=pumpkin(False), deco6=lantern(),
+             deco7=grave(True), deco8=deadtree(), big=deadtree(True))
+    return R
+
+
+# ===== la vallee de la mort =======================================================================================
+def valley(src):
+    ROCK, ROCK2, EARTH, EARTH2, LAVA, LAVA2 = 0x4A3024, 0x5E4030, 0xB07A44, 0xD09A5C, 0xFF8A1E, 0xFFD24A
+    R = {}
+
+    def cob(lay, seed):
+        p = Pen(D, D)
+        p.d.rectangle([0, 0, D * SS, D * SS], fill=rgb(0xE8661A))		# entre les pierres : un fil de lave qui luit
+        rnd = random.Random(seed)
+        for i, b in enumerate(lay):
+            x0, y0, x1, y1 = b
+            c = shade(rgb(ROCK), rnd.uniform(0.85, 1.05))
+            p.rect((x0 + 1, y0 + 1, x1 - 1, y1 - 1), c, 12, ow=4, ink=(40, 22, 14, 255))
+            p.rect((x0 + 3, y0 + 3, x1 - 7, y1 - 9), shade(rgb(ROCK2), rnd.uniform(0.9, 1.05)), 12, ow=0)
+            p.line([(x0 + 12, y0 + 9), (x1 - 20, y0 + 9)], 0x8E6A4E, 4)
+        return p
+
+    R["cobble"] = cob(L1, 91).out()
+    p = cob(L2, 92)
+    # la croute de terre cuite du dessus, ses couches et ses cailloux
+    pts = [(0, 0), (D, 0), (D, 30)] + [(x, 30 + 3 * math.sin(x / 11.0) + (4 if x % 46 < 12 else 0)) for x in range(D, -1, -4)]
+    p.poly(pts, EARTH)
+    p.poly([(0, 0), (D, 0), (D, 10)] + [(x, 10 + 2 * math.sin(x / 9.0)) for x in range(D, -1, -4)], EARTH2, ow=0)
+    p.line([(4, 20), (D - 4, 21)], 0x8E5A30, 3)
+    for x in (18, 70, 108):
+        p.ell((x, 14, x + 9, 20), 0x7A4E2E, ow=0)
+    R["grass"] = p.out()
+    for k in (0, 1):				# la paroi du canyon : des strates rouges
+        p = Pen(D, D)
+        cols = (0x6A3A28, 0x7E4A30, 0x5A3020, 0x744230)
+        for i in range(4):
+            y0 = i * 32
+            p.d.rectangle([0, y0 * SS, D * SS, (y0 + 32) * SS], fill=rgb(cols[(i + k) % 4]))
+            p.line([(0, y0 + 1), (D, y0 + 1)], 0x3A1E14, 3)
+            p.line([(6 + k * 30, y0 + 9), (60 + k * 30, y0 + 9)], 0x9A5E3E, 3)
+        for x, y in ((20 + k * 40, 50), (90 - k * 30, 100)):
+            p.line([(x, y), (x + 8, y + 12), (x + 4, y + 22)], 0x3A1E14, 3)
+        R["back_a" if k == 0 else "back_b"] = p.out()
+    for k in (0, 1):				# la lave
+        p = Pen(D, D)
+        p.d.rectangle([0, 0, D * SS, D * SS], fill=rgb(0xF06A14))
+        for i in range(5):
+            x, y = (i * 47) % 100 + 8, 20 + i * 21
+            p.ell((x, y, x + 20, y + 10), LAVA2, ow=0)
+            p.ell((x + 50, y + 4, x + 64, y + 12), 0xC8400E, ow=0)
+        if k:
+            p.d.rectangle([0, 0, D * SS, 10 * SS], fill=(0, 0, 0, 0))
+            pts = [(0, 10)] + [(x, 10 + 4 * math.sin(x / 8.0)) for x in range(0, D + 1, 8)] + [(D, 24), (0, 24)]
+            p.poly(pts, LAVA2, ow=0)
+        R["wsurf" if k else "wmid"] = p.out()
+
+    def bullskull():
+        p = Pen(120, 70)
+        B = 0xF2EADA
+        p.poly([(8, 20), (30, 30), (40, 22), (18, 8)], B, ow=5)
+        p.poly([(112, 20), (90, 30), (80, 22), (102, 8)], B, ow=5)
+        p.poly([(36, 22), (84, 22), (78, 52), (60, 66), (42, 52)], B)
+        for b in ((44, 30, 54, 40), (66, 30, 76, 40), (54, 50, 58, 56), (62, 50, 66, 56)):
+            p.ell(b, 0x3A2A20, ow=0)
+        return p.out()
+
+    def rocks():
+        p = Pen(100, 60)
+        p.ell((8, 22, 58, 58), 0x7E5236)
+        p.ell((44, 30, 92, 58), 0x6A4430)
+        p.ell((18, 28, 36, 38), 0xA8784E, ow=0)
+        p.line([(56, 40), (66, 52)], LAVA, 4)
+        return p.out()
+
+    def tumbleweed():
+        p = Pen(80, 70)
+        p.ell((6, 6, 74, 66), (0, 0, 0, 0), ow=0)
+        for a in range(0, 360, 24):
+            r = math.radians(a)
+            p.line([(40, 36), (40 + 30 * math.cos(r), 36 + 28 * math.sin(r))], 0x8A6A3A, 4)
+        p.d.ellipse([10 * SS, 8 * SS, 70 * SS, 64 * SS], outline=rgb(0x6A4A26), width=5 * SS)
+        p.d.ellipse([20 * SS, 16 * SS, 60 * SS, 56 * SS], outline=rgb(0xA88450), width=4 * SS)
+        return p.out()
+
+    def bones():
+        p = Pen(110, 50)
+        B = 0xEDE2CC
+        for (x0, y0, x1, y1) in ((12, 34, 70, 20), (40, 42, 100, 38)):
+            p.line([(x0, y0), (x1, y1)], INK, 14)
+            for x, y in ((x0, y0), (x1, y1)):
+                p.ell((x - 8, y - 8, x + 8, y + 8), B, ow=4)
+            p.line([(x0, y0), (x1, y1)], B, 8)
+        return p.out()
+
+    def deadtree(big=False):
+        s = 2.4 if big else 1.0
+        p = Pen(int(110 * s), int(128 * s))
+        B2 = 0x6E4A30
+        branches = [((55, 126), (52, 80)), ((52, 80), (30, 52)), ((30, 52), (16, 46)), ((52, 80), (74, 50)), ((74, 50), (96, 40)),
+                    ((74, 50), (70, 24)), ((30, 52), (34, 26)), ((52, 80), (52, 50))]
+        for (a, b) in branches:
+            w = 14 if a[1] > 100 else 9 if a[1] > 60 else 6
+            p.line([(a[0] * s, a[1] * s), (b[0] * s, b[1] * s)], 0x1E120A, (w + 6) * s)
+        for (a, b) in branches:
+            w = 14 if a[1] > 100 else 9 if a[1] > 60 else 6
+            p.line([(a[0] * s, a[1] * s), (b[0] * s, b[1] * s)], B2, w * s)
+            p.line([((a[0] - 1.5) * s, a[1] * s), ((b[0] - 1.5) * s, b[1] * s)], 0x9A6E48, max(1, w * 0.3) * s)
+        return p.out()
+
+    barrel = fit(load(src, "item/barrel.png"), 26, 30)
+    crate = fit(load(src, "item/crate.png"), 30, 30)
+    R.update(deco1=barrel, deco2=sign("right"), deco3=bullskull(), deco4=rocks(), deco5=tumbleweed(), deco6=crate,
+             deco7=sign("skull"), deco8=bones(), big=deadtree(True))
+    return R
+
+
 # ===== les fonds ==================================================================================================
 def grad(W, H, stops):
     im = Image.new("RGBA", (W, H))
@@ -668,6 +919,80 @@ def background(src, world):
             d.polygon([(x, 380), (x + 21, 380 - h), (x + 42, 380)], fill=(60, 110, 120, 255))
         bg.alpha_composite(hills(W, 400, 16, 4, 0xEEF6FF, 6))
         return bg
+    if world == 5:				# la foret hantee : nuit violette, pleine lune, nuages, arbres tordus, tombes
+        bg = grad(W, H, [(24, 14, 44), (52, 30, 80), (92, 56, 120)])
+        d = ImageDraw.Draw(bg)
+        rnd = random.Random(5)
+        for _ in range(90):				# les etoiles
+            x, y = rnd.randrange(W), rnd.randrange(260)
+            r = rnd.choice((1, 1, 2))
+            d.ellipse((x - r, y - r, x + r, y + r), fill=(255, 240, 210, 255))
+        halo = Image.new("RGBA", (W, H))
+        hd = ImageDraw.Draw(halo)
+        for r in range(150, 70, -8):
+            hd.ellipse((760 - r, 120 - r, 760 + r, 120 + r), fill=(240, 220, 170, int(22 * (150 - r) / 80)))
+        bg.alpha_composite(halo)
+        d = ImageDraw.Draw(bg)
+        d.ellipse((700, 60, 820, 180), fill=(246, 236, 180, 255))
+        for x, y, r in ((730, 92, 12), (782, 124, 16), (752, 150, 8), (796, 84, 7)):
+            d.ellipse((x - r, y - r, x + r, y + r), fill=(222, 206, 150, 255))
+        for i, (y, col) in enumerate(((130, (150, 80, 160)), (200, (120, 62, 140)))):	# des nuages violets, en longues bandes
+            for x0 in range(-100 + i * 140, W + 100, 330):
+                for dx, dy, rx, ry in ((0, 0, 70, 18), (50, -12, 50, 20), (100, 2, 60, 16), (-40, 6, 40, 12)):
+                    for xx in (x0 + dx, x0 + dx - W, x0 + dx + W):
+                        d.ellipse((xx - rx, y + dy - ry, xx + rx, y + dy + ry), fill=col + (255,))
+        bg.alpha_composite(hills(W, 330, 40, 2, 0x3A2656, 51))
+        d = ImageDraw.Draw(bg)
+
+        def tree(x, base, h, col):			# un arbre tordu, sans feuilles
+            pts = [(x, base), (x - 4, base - h * 0.4), (x + 6, base - h * 0.7), (x - 2, base - h)]
+            d.line(pts, fill=col, width=10, joint="curve")
+            d.line([(x - 4, base - h * 0.45), (x - 34, base - h * 0.7), (x - 46, base - h * 0.64)], fill=col, width=6, joint="curve")
+            d.line([(x + 5, base - h * 0.7), (x + 36, base - h * 0.86), (x + 44, base - h * 0.8)], fill=col, width=5, joint="curve")
+            d.line([(x - 2, base - h), (x + 14, base - h * 1.12)], fill=col, width=4)
+        for i, x in enumerate(range(70, W, 240)):
+            tree(x, 360, 120 + (i % 3) * 30, (36, 22, 52, 255))
+        bg.alpha_composite(hills(W, 385, 22, 3, 0x241834, 52))
+        d = ImageDraw.Draw(bg)
+        for x in range(30, W, 150):				# des tombes et une grille au loin
+            d.rounded_rectangle((x, 380, x + 18, 404), radius=7, fill=(28, 18, 40, 255))
+            d.rectangle((x + 60, 388, x + 64, 404), fill=(28, 18, 40, 255))
+            d.rectangle((x + 54, 392, x + 70, 396), fill=(28, 18, 40, 255))
+        fog = Image.new("RGBA", (W, H))
+        fd = ImageDraw.Draw(fog)
+        for k in range(14):
+            fd.rectangle((0, 400 + k * 3, W, 403 + k * 3), fill=(170, 140, 200, 6 + k * 3))
+        bg.alpha_composite(fog)
+        bg.alpha_composite(hills(W, 450, 14, 4, 0x1A1028, 53))
+        return bg
+    if world == 6:				# la vallee de la mort : couchant ocre, mesas, aiguilles, lave au fond
+        bg = grad(W, H, [(214, 104, 44), (240, 150, 64), (252, 206, 120), (255, 226, 160)])
+        d = ImageDraw.Draw(bg)
+        d.ellipse((150, 200, 250, 300), fill=(255, 240, 190, 255))
+
+        def mesa(x, top, w, col, cap):
+            for xx in (x, x - W, x + W):
+                d.polygon([(xx - w - 40, H), (xx - w, top + 12), (xx - w + 8, top), (xx + w - 8, top), (xx + w, top + 12), (xx + w + 40, H)], fill=col)
+                d.rectangle((xx - w + 4, top, xx + w - 4, top + 8), fill=cap)
+                for k in range(1, 4):			# les strates
+                    y = top + 26 * k
+                    hw = w + 40 * (y - top - 12) / (H - top - 12) - 3
+                    d.line([(xx - hw, y), (xx + hw, y)], fill=tuple(max(0, v - 18) for v in col[:3]) + (255,), width=3)
+        for x, top, w in ((120, 230, 90), (430, 200, 120), (720, 245, 70), (900, 215, 100)):
+            mesa(x, top, w, (196, 112, 64, 255), (226, 150, 90, 255))
+        for x, h in ((300, 150), (330, 110), (600, 130), (980, 120)):	# des aiguilles de roche
+            for xx in (x, x - W, x + W):
+                d.polygon([(xx - 16, 380), (xx - 9, 380 - h), (xx + 9, 380 - h + 6), (xx + 16, 380)], fill=(168, 90, 52, 255))
+        for x, top, w in ((260, 285, 110), (620, 300, 140), (980, 280, 90)):
+            mesa(x, top, w, (150, 78, 44, 255), (186, 108, 64, 255))
+        bg.alpha_composite(hills(W, 400, 20, 3, 0x6E3A22, 61))
+        d = ImageDraw.Draw(bg)
+        for x in range(0, W, 128):				# des fissures de lave dans la plaine
+            d.line([(x + 10, 430), (x + 40, 420), (x + 70, 432), (x + 110, 424)], fill=(255, 130, 30, 255), width=3)
+        bg.alpha_composite(hills(W, 452, 10, 4, 0x4A2416, 62))
+        d = ImageDraw.Draw(bg)
+        d.rectangle((0, 466, W, H), fill=(255, 120, 30, 255))
+        return bg
     # le volcan : nuit rouge, volcans, coulees
     bg = grad(W, H, [(26, 10, 30), (80, 20, 36), (170, 50, 30)])
     d = ImageDraw.Draw(bg)
@@ -712,7 +1037,7 @@ def build(src, world):
              "deco7": fit(load(src, "tile/signboard.png"), 30, 30), "deco8": fit(load(src, "item/barrel.png"), 26, 30),
              "big": fit(load(src, "tile/big-fern.png"), 112, 72)}
     else:
-        w = {1: desert, 2: temple, 3: ice, 4: volcano}[world](src)
+        w = {1: desert, 2: temple, 3: ice, 4: volcano, 5: spooky, 6: valley}[world](src)
     common.update(w)
     out = []
     for n in NAMES:
@@ -748,7 +1073,8 @@ def main():
     src, out = sys.argv[1], sys.argv[2]
     os.makedirs(out, exist_ok=True)
     sheets = []
-    for w in range(5):
+    worlds = [int(a) for a in sys.argv[3].split(",")] if len(sys.argv) > 3 and not sys.argv[3].startswith("-") else range(7)
+    for w in worlds:
         ims = build(src, w)
         data = b"RTIL" + struct.pack("<HH", 2, len(ims)) + b"".join(runs(i) for i in ims)
         p = os.path.join(out, "world%d.til" % w)
@@ -757,7 +1083,7 @@ def main():
         print("%s : %d images, %d octets" % (p, len(ims), len(data)))
         sheets.append(ims)
     if "--sheet" in sys.argv:
-        sh = Image.new("RGBA", (1024 + 560, 5 * 480), (128, 128, 136, 255))
+        sh = Image.new("RGBA", (1024 + 560, len(sheets) * 480), (128, 128, 136, 255))
         for w, ims in enumerate(sheets):
             sh.alpha_composite(ims[-1], (0, w * 480))
             x, y = 1040, w * 480 + 8

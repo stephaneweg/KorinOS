@@ -1,6 +1,6 @@
 /*
  * music.h -- la musique de Relics : une piste par monde et une pour le titre, tendues et pressantes (mineur
- * harmonique, hijaz, phrygien ; ostinato en doubles croches, basse qui pousse, batterie, un theme au cuivre ou au
+ * harmonique ou naturel, hijaz, phrygien ; ostinato en doubles croches, basse qui pousse, batterie, un theme au cuivre ou au
  * hautbois), jouees sur le synthetiseur General MIDI d'AudioKit (la SoundFont du systeme, sinon sa banque FM).
  *
  * Un thread a lui fait tout : il charge le synthe (la fenetre n'attend pas la SoundFont), compte les pas au point
@@ -42,6 +42,7 @@ struct mtrack {
 #define SC_HMIN		{ 0, 2, 3, 5, 7, 8, 11 }	/* mineur harmonique */
 #define SC_HIJAZ	{ 0, 1, 4, 5, 7, 8, 10 }	/* phrygien dominant */
 #define SC_PHRYG	{ 0, 1, 3, 5, 7, 8, 10 }	/* phrygien */
+#define SC_MIN		{ 0, 2, 3, 5, 7, 8, 10 }	/* mineur naturel */
 
 static const struct mtrack mu_tracks[] = {
 	/* 0 le titre : la mineur, cordes et cuivres */
@@ -92,6 +93,22 @@ static const struct mtrack mu_tracks[] = {
 	  { "X.xxX.xxX.xxX.xx", "....X.......X...", "x.x.x.x.x.x.x.x.", "................" },
 	  "h-i-j-l-" "l---j-h-" "i-i-k-m-" "m---k-i-" "o-o-q-o-" "q-p-o---" "n---l-j-" "k---i---"
 	  "r---o-m-" "o-p-o-m-" "p---n-k-" "n-m-k---" "p---m-k-" "m-n-p---" "q---n-l-" "p-o-m-k-" },
+	/* 6 le bois des Ombres : mi mineur harmonique, clavecin, orgue, choeur, la septieme diminuee */
+	{ 150, 52, SC_HMIN, { 32, 6, 19, 52 }, { 100, 84, 78, 54 }, { -2, 0, 1, 1 }, { 36, 38, 42, 76 },
+	  "0066554433005644",
+	  "R..rR..rR..rR.o.",
+	  { "1.3.5.3.8.5.3.5.", "8531853185318531" },
+	  { "X.....x.X.....x.", "....X.......X...", "x.x.x.x.x.x.x.x.", "..x...x...x...x." },
+	  "l-o-l-j-" "h---g-h-" "n-p-r-p-" "n---k-i-" "m-o-q-o-" "m---j-h-" "l-n-p-n-" "l---g---"
+	  "r---o-m-" "k-m-o-r-" "q---o-l-" "o-n-o-l-" "q-o-m-j-" "r-p-n-k-" "p-n-l-g-" "l-------" },
+	/* 7 la vallee de la Mort : re mineur, guitare, trompette du far west, galop */
+	{ 160, 50, SC_MIN, { 33, 24, 56, 48 }, { 100, 92, 88, 46 }, { -2, 0, 1, 0 }, { 36, 37, 42, 64 },
+	  "0066554433005600",
+	  "R..rR..rR..rR.o.",
+	  { "1.1.5.1.8.1.5.1.", "1515151513131313" },
+	  { "X...X...X...X...", "....x.......x...", "x.x.x.x.x.x.x.x.", "..xx..xx..xx..xx" },
+	  "l--lo---" "q-p-o---" "n--np---" "r-q-p---" "q--qm---" "o-n-m---" "l--lp---" "n-m-l---"
+	  "r---m---" "o-m-k---" "q---l---" "o-l-j---" "m-o-q-o-" "p-r-p-n-" "o-------" "l-j-l-o-" },
 };
 enum { MU_TITLE = 0, MU_NTRACK = sizeof mu_tracks / sizeof mu_tracks[0] };
 

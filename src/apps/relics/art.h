@@ -624,8 +624,8 @@ struct world
 };
 
 /* le style des dessins de chaque monde (les tuiles et decors dessines par le programme, faute de tileset) :
- * 0 jungle, 1 sable (le desert et la pyramide), 2 glace, 3 volcan */
-static const int g_look[NWORLD] = { 0, 1, 1, 2, 3 };
+ * 0 jungle, 1 sable (le desert et la pyramide), 2 glace (et la foret hantee), 3 volcan (et la vallee de la mort) */
+static const int g_look[NWORLD] = { 0, 1, 1, 2, 3, 2, 3 };
 
 static const struct world worlds[NWORLD] = {
 	{ "La jungle d'Ixtala", 0x0072745E, 0x0058A838, 0x002C3628, 0x009A9070, 0x008A5A30, 0x00906838, 0x002E86B8, 0x0060C8F0, 0x00788078, 0x0040802C, 0,
@@ -638,6 +638,10 @@ static const struct world worlds[NWORLD] = {
 	  { 0, 0x00E8C4A0, 0x00566C88, 0x00C04040, 0x00404C5C, 0x00283038, 0, 0x00404448, LK_SOLDIER }, 0x00C8D8E8, 0x00305070, 0x00FF6090, 0x00C0C8D0 },
 	{ "Le volcan du docteur Krell", 0x00584846, 0x00C05028, 0x00261E22, 0x00707C88, 0x00606A74, 0x00808890, 0x00FF6A1A, 0x00FFD050, 0x00808A94, 0x00C04020, 1,
 	  { 0, 0x00A0A8B0, 0x0098A2AC, 0x00FF3020, 0x00606870, 0x00404850, 0, 0x00606870, LK_ROBOT }, 0x00803020, 0x00505860, 0x00FFB020, 0x0060E8FF },
+	{ "Le bois des Ombres", 0x006C5C8A, 0x007A55A0, 0x002A2040, 0x005A4A70, 0x006A4A3A, 0x008A6A48, 0x003E9A2A, 0x00C8F57A, 0x008A8AA0, 0x009A4AC8, 0,
+	  { 0, 0x00D8D0C0, 0x00503870, 0x0080FF60, 0x00302840, 0x00201828, 0, 0x00403050, LK_SOLDIER }, 0x003A2A48, 0x002A1A30, 0x007CD43A, 0x00B070FF },
+	{ "La vallée de la Mort", 0x0072503A, 0x00B07A44, 0x005A3020, 0x009A6A44, 0x008A5A30, 0x00906838, 0x00FF8A1E, 0x00FFD24A, 0x00908070, 0x00C06030, 1,
+	  { 0, 0x00C08A60, 0x00A05030, 0x00E8D040, 0x00604028, 0x00402818, 0, 0x00807060, LK_NATIVE }, 0x006A4030, 0x005A3020, 0x00FF6040, 0x00E0C080 },
 };
 
 /* ---- les decors du fond : 1024 x 480, sans couture --------------------------------------------------------- */
