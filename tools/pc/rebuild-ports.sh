@@ -45,7 +45,7 @@ CMD[rust]="SKIP_TESTS=1 bash tools/rust/build.sh"
 CMD[spotify]="bash tools/spotify/build.sh && sh tools/pc/apps.sh spotify"; NEED[spotify]="rust openssl"
 CMD[sitepackages]="sh tools/python/site-packages.sh";      NEED[sitepackages]="python rust"
 CMD[agent]="sh tools/agent/build.sh"
-CMD[claude]="bash tools/claude/build.sh";                  NEED[claude]="python"
+CMD[claude]="bash tools/claude/build.sh && bash tools/oai/build.sh"; NEED[claude]="python"	# (et mai-acp)
 CMD[dotnetsetup]="sh tools/dotnet/setup.sh";               NEED[dotnetsetup]="webkitdeps"
 CMD[dotnet]="sh tools/dotnet/build.sh";                    NEED[dotnet]="dotnetsetup"
 CMD[dotnetstage]="sh tools/dotnet/stage.sh";               NEED[dotnetstage]="dotnet"

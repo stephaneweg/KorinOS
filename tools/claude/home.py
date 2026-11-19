@@ -1,6 +1,8 @@
 """Le dossier de claude-acp sous Korin (/.claude-acp) : ce qu'il faut à l'agent pour connaître le système.
 
-    python -I tools/claude/home.py <racine de la carte>      (tools/claude/build.sh : build/python/sdroot ; une carte : E:\\)
+    python -I tools/claude/home.py <racine de la carte> [dossier]
+        (tools/claude/build.sh : build/python/sdroot ; une carte : E:\\ ; dossier : .claude-acp par défaut, .mai-acp
+        pour mai-acp, tools/oai/build.sh : le même AGENTS.md et les mêmes compétences)
 
 Pose dans <racine>/.claude-acp :
   AGENTS.md          les consignes sur Korin, dans le prompt système de chaque séance (tools/claude/home/AGENTS.md)
@@ -15,9 +17,9 @@ import shutil
 import sys
 
 root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if len(sys.argv) != 2:
+if len(sys.argv) not in (2, 3):
     sys.exit(__doc__)
-home = os.path.join(sys.argv[1], ".claude-acp")
+home = os.path.join(sys.argv[1], sys.argv[2] if len(sys.argv) == 3 else ".claude-acp")
 skills = os.path.join(home, "skills")
 shutil.rmtree(skills, ignore_errors=True)
 os.makedirs(skills)

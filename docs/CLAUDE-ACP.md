@@ -10,6 +10,9 @@ C'est le pendant de Vibe ([PYTHON-PORT.md](PYTHON-PORT.md)) avec Claude : un pro
 changement. Il est payé à l'usage, par la clé d'API (console.anthropic.com), pas par l'abonnement : l'abonnement
 reste pour le vrai Claude Code, par la couche Linux ([etude/LINUX-COMPAT.md](etude/LINUX-COMPAT.md)).
 
+Son code sert aussi à `mai-acp`, l'agent sur une API compatible OpenAI, avec les modèles MAI de Microsoft
+([MAI-ACP.md](MAI-ACP.md)) : `oai_acp` en reprend la séance, les outils, MCP et le serveur.
+
 ## S'en servir
 
 ```
