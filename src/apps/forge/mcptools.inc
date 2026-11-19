@@ -966,7 +966,7 @@ std::string t_new_document (const Args &a)
 	g_doc.feats.clear ();
 	g_doc.params.clear ();
 	g_doc.bar = 0;
-	g_doc.name = a.str ("name", "Sans titre");
+	g_doc.name = a.str ("name", TR ("Sans titre"));
 	ui_w_set_text (w_doc, (long) g_doc.name.c_str ());
 	rebuild ();
 	refreshAll ();

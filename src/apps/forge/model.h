@@ -125,6 +125,8 @@ std::string featureDetail (const Feature &f);
 // le nom par défaut d'une nouvelle opération de ce genre (« Boîte 3 »)
 std::string featureName (const Doc &d, StepKind k);
 const char *opName (Op o);
+// un texte de l'interface dans la langue du système (main.cpp : ui_tr ; la clé est le texte français)
+const char *trUi (const char *s);
 
 // l'équerre de 3DForge en huit opérations (plaque, congé R 8, paroi jointe, congé R 12, raccord R 6, trou Ø 22,
 // deux lamages, oblong)

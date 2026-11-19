@@ -144,7 +144,7 @@ void faceInfo (const Body &b, int face, Info &out)
 	out.rows.push_back ({ "Aire", fmt ("%.1f mm²", g.Mass ()) });
 	switch (a.GetType ()) {
 	case GeomAbs_Plane: {
-		out.title = "Face plane";
+		out.title = trUi ("Face plane");
 		gp_Dir n = a.Plane ().Axis ().Direction ();
 		if (f.Orientation () == TopAbs_REVERSED) n.Reverse ();
 		const char *axn[3] = { "X", "Y", "Z" };
@@ -161,12 +161,12 @@ void faceInfo (const Body &b, int face, Info &out)
 		break;
 	}
 	case GeomAbs_Cylinder:
-		out.title = "Face cylindrique";
+		out.title = trUi ("Face cylindrique");
 		out.rows.push_back ({ "Diamètre", fmt ("%.2f mm", 2 * a.Cylinder ().Radius ()) });
 		break;
-	case GeomAbs_Cone: out.title = "Face conique"; break;
-	case GeomAbs_Sphere: out.title = "Face sphérique"; break;
-	case GeomAbs_Torus: out.title = "Face torique"; break;
+	case GeomAbs_Cone: out.title = trUi ("Face conique"); break;
+	case GeomAbs_Sphere: out.title = trUi ("Face sphérique"); break;
+	case GeomAbs_Torus: out.title = trUi ("Face torique"); break;
 	default: out.title = "Face"; break;
 	}
 	out.rows.push_back ({ "Taille", fmt ("%.1f × %.1f × %.1f mm", x1 - x0, y1 - y0, z1 - z0) });
@@ -181,16 +181,16 @@ void edgeInfo (const Body &b, int edge, Info &out)
 	BRepAdaptor_Curve c (e);
 	GProp_GProps g;
 	BRepGProp::LinearProperties (e, g);
-	out.sub = b.name + " · arête " + std::to_string (edge + 1);
+	out.sub = b.name + trUi (" · arête ") + std::to_string (edge + 1);
 	switch (c.GetType ()) {
-	case GeomAbs_Line: out.title = "Arête droite"; break;
+	case GeomAbs_Line: out.title = trUi ("Arête droite"); break;
 	case GeomAbs_Circle:
-		out.title = "Arête circulaire";
+		out.title = trUi ("Arête circulaire");
 		out.rows.push_back ({ "Diamètre", fmt ("%.2f mm", 2 * c.Circle ().Radius ()) });
 		break;
-	case GeomAbs_Ellipse: out.title = "Arête elliptique"; break;
-	case GeomAbs_BSplineCurve: out.title = "Arête B-spline"; break;
-	default: out.title = "Arête"; break;
+	case GeomAbs_Ellipse: out.title = trUi ("Arête elliptique"); break;
+	case GeomAbs_BSplineCurve: out.title = trUi ("Arête B-spline"); break;
+	default: out.title = trUi ("Arête"); break;
 	}
 	out.rows.insert (out.rows.begin (), { "Longueur", fmt ("%.2f mm", g.Mass ()) });
 }
@@ -217,7 +217,7 @@ void bodyInfo (const Body &b, Info &out)
 	int solids = 0;
 	for (TopExp_Explorer x (b.shape, TopAbs_SOLID); x.More (); x.Next ()) solids++;
 	out.solidOk = solids == 1 && BRepCheck_Analyzer (b.shape).IsValid ();
-	out.sub = "Corps · " + std::to_string (b.mesh.nfaces) + " faces, " + std::to_string (b.mesh.nedges) + " arêtes";
+	out.sub = trUi ("Corps · ") + std::to_string (b.mesh.nfaces) + " faces, " + std::to_string (b.mesh.nedges) + trUi (" arêtes");
 	out.rows.push_back ({ "Taille", fmt ("%.1f × %.1f × %.1f mm", x1 - x0, y1 - y0, z1 - z0) });
 	out.rows.push_back ({ "Volume", fmt ("%.2f cm³", v.Mass () / 1000) });
 	out.rows.push_back ({ "Surface", fmt ("%.1f cm²", s.Mass () / 100) });

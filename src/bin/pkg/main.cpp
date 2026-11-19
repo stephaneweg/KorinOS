@@ -292,8 +292,8 @@ static int cmd_ui_list (void)
 		if (*m.part_of (in.name)) continue;
 		Row &r = rows[n++];
 		cpy (r.name, in.name, sizeof r.name);
-		cpy (r.title, in.ini.get ("package", "title", in.name), sizeof r.title);
-		cpy (r.summary, in.ini.get ("package", "summary"), sizeof r.summary);
+		cpy (r.title, TR (in.ini.get ("package", "title", in.name)), sizeof r.title);	// (traduits : lang/en.txt)
+		cpy (r.summary, TR (in.ini.get ("package", "summary")), sizeof r.summary);
 		cpy (r.category, in.ini.get ("package", "category"), sizeof r.category);
 		cpy (r.inst, in.version (), sizeof r.inst); cpy (r.mode, in.mode (), sizeof r.mode);
 		r.isInst = true; r.required = in.required (); r.staged = m.staged (in.name);
@@ -306,8 +306,8 @@ static int cmd_ui_list (void)
 		Row *r = 0;
 		for (int k = 0; k < n; k++) if (eq (rows[k].name, p.name)) r = &rows[k];
 		if (!r) { r = &rows[n++]; cpy (r->name, p.name, sizeof r->name); cpy (r->mode, "manual", sizeof r->mode); }
-		cpy (r->title, p.title, sizeof r->title);
-		if (p.summary[0]) cpy (r->summary, p.summary, sizeof r->summary);
+		cpy (r->title, TR (p.title), sizeof r->title);
+		if (p.summary[0]) cpy (r->summary, TR (p.summary), sizeof r->summary);
 		cpy (r->category, p.category, sizeof r->category);
 		cpy (r->avail, p.version, sizeof r->avail);
 		r->size = p.size; r->installed = p.installed; r->restart = p.restart; r->required = p.required || r->required;
