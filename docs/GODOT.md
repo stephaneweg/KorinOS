@@ -18,7 +18,7 @@ essayé sur le ZBook ni sur le Pi**, ni l'export depuis Godot sous Windows.
 | Version | Godot **4.7.2-stable** (commit `ed1daf0b`), sources hors du dépôt (`~/korin-godot/src`, `tools/godot/fetch.sh`) |
 | Plateforme | `platform/korin`, gardée dans le dépôt (`tools/godot/platform/korin`) et copiée dans l'arbre de Godot par `build.sh` |
 | Retouches des sources | une seule, `tools/godot/korin.patch` : `_S`, nom d'une variable de manifold (CSG), est une macro de `ctype.h` dans newlib |
-| Rendu | **Compatibility** seulement : OpenGL ES 3.0 par armgl (GlKit et Mesa iris sur le PC, v3d sur le Pi). Pas de Vulkan (Forward+ et Mobile absents) |
+| Rendu | **Forward+** et **Mobile** par Vulkan sur le PC (VkKit : anv de Mesa sur le GPU Intel, `/lib/vkkit.so`, [etude/VULKAN.md](etude/VULKAN.md), depuis le 16/11, godot 4.7.2-2) ; **Compatibility** par OpenGL ES 3.0 (armgl : GlKit et Mesa iris sur le PC, v3d sur le Pi). Sans VkKit (le Pi, un GPU sans pilote Vulkan), un projet Forward+ ou Mobile passe en Compatibility |
 | Chargement de GL | GLAD de Godot, par `eglGetProcAddress` (avec `EGL_STATIC`), que `korin_ui.c` fait passer à `armgl_proc` ; aucun autre appel EGL |
 | Fenêtres | une seule fenêtre d'UIKit, cadre et couleurs du thème ; les fenêtres secondaires de l'éditeur (dialogues) sont dessinées dedans, comme Godot le fait sur le web et Android (`FEATURE_SUBWINDOWS` absent) |
 | Boutons du cadre | le chrome de Korin dessine réduire, agrandir, fermer en haut à droite du contenu : `FEATURE_EXTEND_TO_TITLE` et `window_get_safe_title_margins` (`FRAME_CAP_W` + 8, `FRAME_CAP_H`) font que l'éditeur leur laisse la place (réglage `expand_to_title`, actif par défaut) |
