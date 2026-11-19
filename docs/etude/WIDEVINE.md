@@ -40,7 +40,8 @@ En-tête public `content_decryption_module.h` (dépôt `chromium/cdm`, copié pa
 
 * **Exports C** du module : `InitializeCdmModule_4` (`CDM_MODULE_VERSION` 4), `DeinitializeCdmModule`,
   `CreateCdmInstance (cdm_interface_version, key_system, key_system_size, GetCdmHostFunc, user_data)`,
-  `GetCdmVersion`. Sous Windows et macOS, en plus, `VerifyCdmHost_0` (vérification des binaires de l'hôte).
+  `GetCdmVersion`, et `VerifyCdmHost_0` (vérification des binaires de l'hôte ; exporté **aussi** par le module de
+  Linux, relevé du 19/11, § 2.5).
 * **Interfaces C++** (classes à méthodes virtuelles, ABI Itanium : la même pour g++ de Korin et le clang de
   Google) : `ContentDecryptionModule_10`, `_11` et `_12` ; côté hôte, `Host_10`, `Host_11`, `Host_12`. Firefox et
   Chrome stables parlent `_10`/`_11` ; `_12` (statuts de clés `KeyStatus_2`) est la plus récente.
@@ -77,6 +78,37 @@ En-tête public `content_decryption_module.h` (dépôt `chromium/cdm`, copié pa
 | **Asahi Linux** (aarch64) | module tiré d'une image de récupération de ChromeOS ; glibc patchée (celle de ChromeOS diffère), segments ELF réalignés pour des pages de 16 Ko, symboles `__aarch64_ldadd4_acq_rel` manquants recâblés par la GOT ; Netflix avec un user agent de ChromeOS, 720p |
 | **WebKitGTK / WPE** | EME par `CDMProxyThunder` (OpenCDM de Thunder/RDK), qui encapsule le module ; pas d'hôte CDM de Chromium dans WebKit |
 | **OpenWV** | réimplémentation libre du module (même interface), mais il faut l'identité d'un appareil (`.wvd`) extraite ailleurs : **écarté** (conditions, et rien de légitime à mettre dedans) |
+
+### 2.5 Le module réel, mesuré le 19/11 (4.10.3050.0)
+
+Obtenu comme Firefox : le serveur de Mozilla (Balrog, `aus5.mozilla.org`, plateforme `Linux_x86_64-gcc3`) donne
+désormais **le composant de Chrome lui-même**, chez Google (`edgedl.me.gvt1.com/edgedl/release2/chrome_component/…
+oimompecagnajdejgnnjijobebaeigek_4.10.3050.0_linux_….crx3`, 21 685 984 octets, SHA-512 vérifiée). L'ancienne
+adresse `dl.google.com/widevine-cdm/versions.txt` rend **404** : elle est morte. Le `.crx3` est un en-tête `Cr24`
+suivi d'un zip (`_platform_specific/linux_x64/libwidevinecdm.so`, 21,7 Mo ; `manifest.json` ; `LICENSE`).
+Copie de développement dans `build/pc/linux/widevine/` (jamais dans le dépôt ni un paquet).
+
+* **Manifeste** : `x-cdm-module-versions` 4, `x-cdm-interface-versions` **10**, `x-cdm-host-versions` **10**
+  (donc `ContentDecryptionModule_10` et `Host_10` seulement) ; codecs `vp8, vp09, avc1, av01` ; schémas `cenc` et
+  `cbcs` ; pas de licence persistante. Le manifeste cite aussi une plateforme `linux/arm64`
+  (`_platform_specific/linux_arm64/`), absente de cette archive : piste pour le Pi, à vérifier.
+* **`linuxhost --check`** : 81,6 Mo en mémoire (dont ~60 Mo de `.bss`), `BIND_NOW` ; `NEEDED` libdl, libpthread,
+  libm, libgcc_s, libc, ld-linux ; versions de symboles jusqu'à **GLIBC_2.17** seulement (base ancienne : bon
+  signe). **177 imports, 108 non servis** par la compatibilité du jalon 1 : threads (`pthread_create`, `_join`,
+  `cond_*`, `rwlock_*`, `attr_*`, `sem_*`, `pthread_setname_np`, `getaffinity_np`, `__register_atfork`), fichiers
+  (`open64`, `fopen64`, `pread64`, `creat64`, `__xstat64`, `fgets`, `getc`…), locales et caractères larges de
+  libstdc++ (`newlocale`, `uselocale`, `strtod_l`, `mbrtowc`, `catopen`…), temps (`localtime_r`, `gmtime_r`,
+  `mktime`, `timegm`), maths (`exp`, `log`, `floor`…), système (`getauxval`, `prctl`, `uname`, `getrlimit64`,
+  `sched_getaffinity`, `setpriority`, `sched_setscheduler`, `madvise`), `dlsym`/`dlclose`, `_setjmp`/`longjmp`,
+  déroulement C++ (`_Unwind_*`), `__libc_stack_end`, `__tls_get_addr`.
+* **TLS** : un segment `PT_TLS` de 0xB1 octets (aligné à 64), 2 relocations, accès par `__tls_get_addr`.
+* **Appels système directs : 791 instructions `syscall`** dans le code (désassemblage), au milieu de code
+  **obscurci** : le numéro est calculé juste avant (`mov %r13,%rax ; syscall`), jamais une constante lisible. C'est
+  la protection du module contre l'interception de glibc. **Conséquence : la personnalité Linux du noyau est
+  obligatoire**, quelle que soit la décision sur glibc (§ 3.2).
+* Lesquels de ces appels sortent vraiment, et avec quels numéros, se mesure en exécutant le module avec un piège
+  sur les `syscall` venus de sa plage d'adresses (seccomp `SECCOMP_RET_TRAP` sur Linux, ou la personnalité de
+  Korin elle-même). Pas encore fait : à décider avec l'utilisateur (§ 6).
 
 ## 3. Architecture dans Korin
 
@@ -127,9 +159,13 @@ En-tête public `content_decryption_module.h` (dépôt `chromium/cdm`, copié pa
 | Fidélité | risque de différences fines de comportement | maximale |
 | Distribution | rien à livrer de tiers | une glibc à livrer (LGPL, faisable) |
 
-**Recommandation** : la compatibilité, parce que le module est fait pour un bac à sable et demande peu ; on
-bascule vers la vraie glibc seulement si `--check` révèle un appétit trop grand ou des `syscall` directs nombreux.
-La décision revient à l'utilisateur.
+**Décision de l'utilisateur (19/11) : la compatibilité.** Le relevé du module réel (§ 2.5) la confirme : 177
+imports, une glibc de base 2.17. Il montre aussi 791 `syscall` directs : la personnalité Linux du noyau est à
+faire de toute façon, mais pour les seuls appels du module (ceux de la compatibilité restent des appels de Korin).
+Forme prévue (décision du 13/11, `armpi-linux-compat`) : un drapeau de personnalité par process ; une instruction
+`syscall` dont l'adresse est dans une plage déclarée Linux (le module) n'est pas servie comme un appel de Korin
+mais renvoyée à `liblinux` (comme `SECCOMP_RET_TRAP` ou *Syscall User Dispatch* de Linux), qui la traduit par
+`linux_syscall` et reprend le module avec le résultat dans `rax`.
 
 ### 3.3 `cdmhost` et le protocole avec Jet
 
@@ -189,25 +225,32 @@ distribué à d'autres ne l'active jamais d'office.
 | # | Étape | Fini quand | Estimation |
 |---|---|---|---|
 | 1 | **liblinux + linuxhost** (chargeur, glibc de compatibilité, appels de Linux) | un `.so` de Linux appelé dans Korin | **fait le 19/11** |
-| 2 | Module réel : téléchargement de développement, `linuxhost --check`, compléments de glibc, TLS du module, `libgcc_s` | `InitializeCdmModule_4` et `CreateCdmInstance` passent | 2 à 4 jours |
+| 2a | Module réel : téléchargement de développement et `linuxhost --check` | la liste de ce qui manque | **fait le 19/11** (§ 2.5) |
+| 2b | Personnalité Linux du noyau du PC (renvoi des `syscall` de la plage du module à `liblinux`) | un `syscall` direct d'un module d'essai traduit | 1 à 2 jours |
+| 2c | Les 108 imports, TLS du module (`__tls_get_addr`), `_Unwind_*`, threads | `InitializeCdmModule_4` et `CreateCdmInstance` passent | 3 à 5 jours |
 | 3 | `cdmhost` : `Host_10/11` en C++, essai hors de Jet sur un serveur de licences de test public | une licence de démonstration obtenue, un échantillon déchiffré | 2 à 3 jours |
 | 4 | EME ClearKey dans Jet (WebKit, MSE chiffré, CENC) | un flux ClearKey de démonstration joue | 3 à 5 jours |
 | 5 | EME Widevine dans Jet par `cdmhost` (audio) | le lecteur web de Spotify joue un titre | 2 à 3 jours |
 | 6 | Vidéo, user agent, codecs | Netflix et Disney+ jouent (720p) | 2 à 4 jours |
 | 7 | Case des réglages, téléchargement chez Google, mise à jour | de la case à la lecture sans manipulation | 1 à 2 jours |
 
-Un jour = une session de travail soutenue. Total : **trois à cinq semaines**, l'inconnue principale étant
-l'étape 2 (ce que le module demande vraiment).
+Un jour = une session de travail soutenue. Total : **quatre à six semaines** ; l'inconnue principale reste ce
+que les `syscall` obscurcis du module demandent (§ 2.5).
 
-## 6. Décisions qui reviennent à l'utilisateur
+## 6. Décisions
 
-1. **glibc de compatibilité ou vraie glibc** (§ 3.2). Recommandé : compatibilité (déjà en place).
-2. **D'où Jet prend le module** : (a) comme Firefox, URL et empreinte données par Balrog de Mozilla, téléchargement
-   chez Google ; (b) comme Chrome, le serveur de mise à jour de composants de Google ; (c) l'utilisateur pose
-   lui-même l'archive. Recommandé : (b), le canal officiel de Google pour Linux, avec (c) en secours.
-3. **Téléchargement de développement** : pour l'étape 2, une copie du module de Google (archive de ~10 Mo) dans
-   `build/` (jamais dans le dépôt ni dans un paquet), pour mesurer ce qu'il demande.
-4. **ClearKey d'abord dans Jet** (§ 3.4). Recommandé.
+Prises par l'utilisateur le 19/11 :
+
+1. **glibc de compatibilité** (§ 3.2), pas la vraie glibc.
+2. **Le module vient du canal de Google** : le serveur de mise à jour de composants de Chrome (composant
+   `oimompecagnajdejgnnjijobebaeigek`, `.crx3`), avec en secours l'archive posée à la main. (Constat du 19/11 : la
+   voie de Firefox mène au même `.crx3` de Google.)
+3. **Téléchargement de développement** accepté : fait (§ 2.5).
+4. **ClearKey d'abord dans Jet** (§ 3.4).
+
+En attente : **exécuter le module avec un piège sur ses `syscall` directs** pour savoir lesquels il fait (sonde
+native sous Linux avec seccomp, ou directement la personnalité de Korin, étape 2b). L'essai sous Linux a été
+refusé par le contrôle des permissions de la session : à trancher par l'utilisateur.
 
 ## 7. Jalon 1 (19/11/2026) : ce qui est fait
 
