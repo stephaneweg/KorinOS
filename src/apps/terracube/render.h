@@ -23,12 +23,15 @@ struct Camera {
 };
 
 struct HudState {
-	int slots[9];
+	int slots[9];			// des objets (items.h) : un bloc, ou une matière, un outil
+	int counts[9];			// (-1 : pas de nombre : mode créatif)
+	float wear[9];			// usure d'un outil, 0 neuf à 1 cassé (-1 : pas un outil)
+	float mining = -1;		// le bloc en train d'être cassé : 0 à 1 (-1 : rien)
 	int selected;
 	bool underwater;
 	bool crosshair;
 	bool hotbar = true;
-	unsigned panel, panelLine, accent, text;	// jetons du thème (0xRRGGBB)
+	unsigned panel, panelLine, accent, text, good, warn, bad;	// jetons du thème (0xRRGGBB)
 };
 
 struct Frame {
@@ -38,7 +41,15 @@ struct Frame {
 	int distance;		// en tronçons
 	bool hasTarget;
 	Hit target;
+	// la météo
+	int precip = 0;			// 0 rien, 1 pluie, 2 neige
+	float precipLevel = 0;		// 0 à 1
+	float gloom = 0;		// le ciel gris (0 à 1)
+	float flash = 0;		// un éclair (0 à 1)
+	const uint8_t *heights = nullptr;	// 64 × 64 : y + 1 du plus haut bloc opaque (ou feuilles) autour de l'œil
 };
+
+const int HMAP = 64;			// (la case de l'œil est la colonne 32, 32)
 
 class Renderer {
 public:
@@ -50,7 +61,8 @@ public:
 	const char *rendererName () const { return name.c_str (); }
 	long drawnChunks = 0, drawnQuads = 0;
 private:
-	unsigned progWorld = 0, progSky = 0, progHud = 0, progLine = 0;
+	unsigned progWorld = 0, progSky = 0, progHud = 0, progLine = 0, progRain = 0, hmapTex = 0;
+	int rU[8];
 	unsigned tex = 0, vao = 0, ibo = 0, hudVbo = 0, lineVbo = 0;
 	int iboQuads = 0;
 	std::string name;
@@ -63,6 +75,7 @@ private:
 	void upload (Mesh &m, const std::vector<Vertex> &v);
 	void drawHud (const Frame &f, const HudState &hud);
 	void drawSelection (const Camera &cam, const Hit &h, const float *vp);
+	void drawPrecip (const Camera &cam, const Frame &f, const float *vp);
 };
 
 // matrices (colonnes d'abord, comme GL)

@@ -2,7 +2,9 @@
 
 TerraCube (`src/apps/terracube`, `/apps/terracube.app`) est un jeu de construction en blocs pour Korin PC : un
 monde sans bord fait de blocs d'un mètre, généré à partir d'une graine (prairies, forêts, déserts, neige, montagnes,
-mer, grottes, minerais), qu'on parcourt à la première personne, qu'on creuse et où l'on construit. Le rendu passe par
+mer, grottes, minerais), qu'on parcourt à la première personne, qu'on creuse et où l'on construit. Deux modes : créatif
+(tous les blocs, tout de suite, le vol) et survie (on mine, on ramasse, on fabrique ses outils, § 2 bis). Une console
+de commandes règle l'heure, la météo (pluie, neige, orage), le mode, etc. (§ 2 ter). Le rendu passe par
 OpenGL ES 3.0 (GlKit : Mesa iris sur le GPU Intel, softpipe sur le processeur sans lui). Tout le contenu est dessiné
 par le programme (aucune image) ; aucun nom, ni dessin, ni niveau n'est repris d'un autre jeu.
 
@@ -20,20 +22,23 @@ En option, deux façons de le piloter de l'extérieur, qui passent par la même 
 | clic dans la vue | la souris passe au jeu ; Échap la rend |
 | ZQSD (WASD) ou flèches, souris | marcher, regarder |
 | Espace / Maj / Ctrl (ou R) | sauter (en vol : monter) / s'accroupir, ne pas tomber du bord (en vol : descendre) / courir |
-| clic gauche / droit / milieu | casser / poser le bloc choisi / prendre le bloc visé |
+| clic gauche / droit / milieu | casser (survie : tenir) / poser le bloc choisi / prendre le bloc visé |
 | 1 à 9, molette | la case de la barre |
-| B | la liste des blocs, pour la case choisie |
+| B | créatif : la liste des blocs, pour la case choisie ; survie : l'inventaire |
+| I ou C | survie : inventaire et fabrication (aussi : clic droit sur un établi ou un four ; Maj + clic droit pose contre eux) |
 | A (Q en QWERTY) | prendre le bloc visé dans la case |
 | E | « toucher » le bloc visé (un évènement pour les scripts) |
 | F | voler ou non |
-| T | un message, ou une commande : `/tp x y z`, `/time 18`, `/fly`, `/seed`, `/spawn`, ou une ligne du protocole (`/world.setBlocks(0,60,0,9,60,9,glass)`) |
+| T, / ou ² | la console de commandes (§ 2 ter) ; Entrée exécute, ↑ ↓ l'historique, Échap ferme |
 | F3, F9 | infos détaillées, plein écran |
 
-Menus : **Partie** (nouveau monde avec nom et graine, ouvrir, sauver, plein écran), **Affichage** (distance de
+Menus : **Partie** (nouveau monde avec nom, graine et mode, ouvrir, sauver, mode survie, inventaire, console, plein
+écran), **Affichage** (distance de
 vue, vol, temps qui passe, infos), **Pilotage** (serveur des scripts, agent IA, où sont les exemples).
 
 Une journée dure 20 minutes. Le monde est sauvé à la fermeture, toutes les minutes s'il a changé, et par Ctrl+S :
-`HOME:/terracube/worlds/<nom>/` (`world.ini` : graine, joueur, heure, barre ; un fichier `c.<cx>.<cz>.chk` par
+`HOME:/terracube/worlds/<nom>/` (`world.ini` : graine, joueur, heure, barre, mode, météo, inventaire, chauffe du
+four ; un fichier `c.<cx>.<cz>.chk` par
 tronçon changé, en plages). `HOME:/terracube/terracube.ini` garde le dernier monde et la distance de vue.
 
 Ligne de commande : `terracube [--world nom] [--seed n] [--distance n] [--no-api] [--api-any] [--mcp [port]]
@@ -60,6 +65,74 @@ Ligne de commande : `terracube [--world nom] [--seed n] [--distance n] [--no-api
 | 7 | water | 17 | coal_ore | 27 | wool_orange | 37 | pine_leaves |
 | 8 | sand | 18 | iron_ore | 28 | wool_yellow | 38 | cactus |
 | 9 | gravel | 19 | gold_ore | 29 | wool_green | 39 | bookshelf |
+| | | | | | | 40 | workbench |
+| | | | | | | 41 | furnace |
+
+## 2 bis. Le mode survie
+
+* Les blocs se cassent **en tenant le clic** : le temps dépend du bloc et de l'outil en main (une barre sous le
+  viseur). Ce qui tombe va dans l'**inventaire** (36 cases, les 9 premières sont la barre, avec leur nombre). Poser
+  un bloc en consomme un. Pas de vol.
+* Les outils : **pioche** (pierre, minerais, briques), **hache** (bois), **pelle** (terre, sable, gravier, neige), en
+  bois, pierre, fer ou cristal (de plus en plus rapides et solides ; leur usure est sous leur icône). Sans pioche,
+  la pierre ne donne rien ; le fer demande une pioche en pierre ; l'or et le cristal une pioche en fer.
+* Ce qui tombe : la pierre donne des pavés, l'herbe de la terre, le charbon du charbon, le cristal du cristal, les
+  feuilles parfois un bâton ; le verre et la glace rien.
+* **La fabrication** (I, ou clic droit sur un établi) : à gauche l'inventaire, à droite une **grille** où l'on
+  pose les matières, **2 × 2 à la main, 3 × 3 à l'établi** (posé à moins de 4 blocs). Ce qui sort dépend des
+  objets **et de leur agencement** : la forme peut être posée n'importe où dans la grille, et retournée de gauche à
+  droite. On **glisse-dépose** les objets de l'inventaire vers la grille (bouton gauche : toute la pile ; bouton
+  droit : un seul objet), et le résultat vers l'inventaire ; lâché ailleurs, l'objet revient. Un clic sans glisser
+  prend l'objet, un second clic le pose (clic droit : un seul). **Maj + clic** sur le résultat en fabrique le plus
+  possible ; Maj + clic dans l'inventaire passe un objet du sac à la barre et inversement. En fermant, ce qui reste
+  dans la grille revient dans l'inventaire. Le bouton **Livre des recettes** montre toutes les formes.
+* **Le four** (posé à moins de 4 blocs) a sa place dans la même fenêtre : une case d'entrée, une case de résultat ;
+  il brûle un combustible pris dans l'inventaire, un point de chauffe par objet cuit : charbon 8, tronc 4, planches
+  2, bâton 1.
+
+Les formes (une ligne par rangée, `·` : une case vide ; les recettes de `items.cpp`) :
+
+| Fait | Forme | Grille |
+|---|---|---|
+| 4 planches | un tronc, n'importe où | 2 × 2 |
+| 4 bâtons | `P` / `P` (deux planches l'une sur l'autre) | 2 × 2 |
+| établi | `PP` / `PP` | 2 × 2 |
+| pioche | `MMM` / `·S·` / `·S·` (M : planches, pavés, lingots de fer ou cristaux ; S : bâton) | 3 × 3 |
+| hache | `MM` / `MS` / `·S` (ou retournée) | 3 × 3 |
+| pelle | `M` / `S` / `S` | 3 × 3 |
+| four | `CCC` / `C·C` / `CCC` (pavés) | 3 × 3 |
+| 2 lampes | `·G·` / `GKG` / `·I·` (verre, charbon, lingot de fer) | 3 × 3 |
+| 4 pierres taillées · 2 grès · laine blanche | `SS` / `SS` en pierre · en sable · en hautes herbes | 2 × 2 |
+| bibliothèque | `PPP` / `KKK` / `PPP` (planches, charbon) | 3 × 3 |
+| bloc d'or | 9 lingots d'or | 3 × 3 |
+| laines de couleur | sans forme : laine blanche + fleur rouge (ou jaune), + charbon, + 2 feuilles ; rouge + jaune → 2 orange ; 4 blanches + cristal → 4 bleues ; rouge + bleue → 2 violettes | 2 × 2 ou 3 × 3 |
+| au four | minerai de fer ou d'or → lingot, sable → verre, pavé → pierre, argile → briques, tronc → charbon | four |
+
+La console (`craft <recette>`), les scripts (`player.craft`) et l'agent (`craft`) fabriquent directement depuis
+l'inventaire, sans poser la forme (la même recette, les mêmes ingrédients, l'établi ou le four à côté).
+
+Les objets qui ne sont pas des blocs (scripts, MCP, console) : `stick` 100, `coal` 101, `iron_ingot` 102,
+`gold_ingot` 103, `crystal` 104, `wood_pickaxe` 105 à `crystal_pickaxe` 108, `wood_axe` 109 à `crystal_axe` 112,
+`wood_shovel` 113 à `crystal_shovel` 116. Créatif et survie ont chacun leur barre ; passer de l'un à l'autre la garde.
+
+## 2 ter. La console de commandes
+
+T (ou / ou ²) ouvre la console en bas de la vue ; le `/` du début est facultatif ; un texte qui n'est pas une
+commande part en message. La même console sert aux scripts (`game.command(…)`) et à l'agent (`run_command`).
+
+| Commande | Effet |
+|---|---|
+| `time <heure>` · `time 18:30` · `time day\|noon\|sunset\|night\|midnight` · `time stop\|run` · `time` | l'heure (0 à 24), arrêter ou relancer le temps |
+| `weather clear\|rain\|snow\|storm [secondes]` · `weather cycle on\|off` · `weather` | la météo ; sans le cycle, elle reste ; avec une durée, elle revient ensuite (au beau sans le cycle) |
+| `mode creative\|survival` (aussi `gamemode`, `c`, `s`) | le mode de jeu |
+| `tp <x> <y> <z>` (`~` : relatif au joueur) · `tp spawn` · `spawn` | se déplacer |
+| `give <objet> [n]` · `clear` · `inv` | l'inventaire (survie) |
+| `recipes [mot]` · `craft <recette> [fois]` | les recettes, fabriquer (survie) |
+| `fly` · `distance <2..16>` · `seed` · `save` · `info` · `say <texte>` · `help` | divers |
+| une ligne du protocole (`world.setBlocks(0,60,0,9,60,9,glass)`) | exécutée, sa réponse affichée |
+
+La météo : pluie (neige là où il fait froid : sol de neige ou de glace, pins, altitude), neige, orage (ciel plus
+sombre, éclairs). Elle ne tombe pas sous un toit ni sous les arbres. Par défaut elle change d'elle-même.
 
 ## 3. Le protocole des scripts (port 4730)
 
@@ -88,13 +161,21 @@ que tout soit fait). 16 connexions au plus.
 | `chat.post(texte)` | — (le texte jusqu'à la dernière parenthèse, virgules comprises) |
 | `events.blocks()` | `genre,x,y,z,face,bloc\|…` : 1 cassé, 2 posé, 3 touché (E) ; face 0 +x, 1 −x, 2 +y, 3 −y, 4 +z, 5 −z ; la liste est vidée |
 | `events.clear()` | — |
-| `game.info()` | `TerraCube 1.0.0,<monde>,<graine>` |
+| `game.getMode()` / `game.setMode(creative\|survival)` | le mode / — |
+| `world.getWeather()` / `world.setWeather(clear\|rain\|snow\|storm[,secondes])` | la météo / — |
+| `game.command(ligne)` | une commande de la console : ses lignes, séparées par ` \| ` |
+| `player.getInventory()` | `case:objet:nombre\|…` (survie ; les cases 0 à 8 sont la barre) |
+| `player.give(objet[,n])` | — (survie) |
+| `player.craft(recette[,fois])` | les fois faites, ou `error: …` (survie) |
+| `game.info()` | `TerraCube 1.1.0,<monde>,<graine>` |
 | `ping()` | `pong` |
 
 ### Python
 
 `/apps/terracube.app/python/terracube.py`, sans dépendance (exemples dans `python/examples` : `house.py`,
-`pyramid.py`, `rainbow.py`, `golden_touch.py` (les évènements), `snake_walk.py` (suivre le joueur)) :
+`pyramid.py`, `rainbow.py`, `golden_touch.py` (les évènements), `snake_walk.py` (suivre le joueur),
+`survival_kit.py` (le mode survie : outils fabriqués par le script)) ; aussi `mode()`, `set_mode()`, `weather()`,
+`set_weather()`, `command()`, `inventory()`, `give()`, `craft()` :
 
 ```python
 import sys; sys.path.insert(0, "/apps/terracube.app/python")
@@ -143,6 +224,8 @@ de Forge (`mcp.cpp`).
 | `set_time` | l'heure et si le temps passe |
 | `screenshot` | une image PNG de la vue du joueur, ou d'un autre point de vue (`eye` + `look_at` ou yaw/pitch) sans bouger le joueur |
 | `get_events` | les blocs cassés, posés, touchés depuis le dernier appel |
+| `run_command` | une commande de la console (heure, météo, mode, tp, give, craft…) et sa réponse |
+| `get_inventory`, `list_recipes`, `craft` | l'inventaire du mode survie, les recettes (formes de la grille, et combien sont possibles), fabriquer |
 | `save_world` | sauver |
 
 ## 5. Construire et essayer
@@ -167,12 +250,14 @@ essayé sur le ZBook (GPU Intel).
 
 | Fichier | Rôle |
 |---|---|
-| `main.cpp` | fenêtre, boucle, entrées, affichage tête haute par UIKit (`ui_surface_overlay`), menus, mondes, jeton du MCP, `--selftest` |
+| `main.cpp` | fenêtre, boucle, entrées, affichage tête haute par UIKit (`ui_surface_overlay`), la table de fabrication (vue dessinée, icônes en BMP faites depuis l'atlas), la console, menus, mondes, jeton du MCP, `--selftest` |
 | `world.h`, `world.cpp` | tronçons, génération (bruit de gradient, biomes, grottes, minerais, arbres), sauvegarde, lancer de rayon |
 | `mesh.cpp` | maillage : faces visibles, occlusion ambiante, lumière du ciel lissée, eau, plantes en croix |
-| `render.h`, `render.cpp` | OpenGL ES 3 : shaders, ciel et soleil, tronçons (tronc de vue), eau animée (vagues de la surface dans le vertex shader, texture qui glisse et reflets dans le fragment shader), contour visé, barre de blocs |
+| `render.h`, `render.cpp` | OpenGL ES 3 : shaders, ciel et soleil, pluie et neige (gouttes faites par le vertex shader, cachées sous les toits par une carte des hauteurs), tronçons (tronc de vue), eau animée (vagues de la surface dans le vertex shader, texture qui glisse et reflets dans le fragment shader), contour visé, barre de blocs |
 | `textures.cpp` | l'atlas de 16 × 16 tuiles, dessiné au départ |
 | `player.h`, `player.cpp` | marche, saut, nage, vol, collisions |
 | `api.cpp` | protocole des scripts et son serveur (un thread par connexion, une file vidée par la boucle) |
+| `items.h`, `items.cpp` | objets, inventaire, minage (dureté, outils, ce qui tombe), recettes à forme et leur reconnaissance dans une grille |
+| `console.cpp` | la console de commandes |
 | `mcp.h`, `mcp.cpp`, `mcptools.cpp` | transport MCP (repris de Forge) et outils |
 | `data/python`, `data/basic` | module Python et exemples ; exemples BASIC |

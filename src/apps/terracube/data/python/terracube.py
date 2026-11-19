@@ -22,7 +22,7 @@ import math
 import os
 import socket
 
-__all__ = ["TerraCube", "Block", "Vec3", "BlockEvent", "TerraCubeError"]
+__all__ = ["TerraCube", "Block", "Item", "Vec3", "BlockEvent", "TerraCubeError"]
 
 
 class TerraCubeError(RuntimeError):
@@ -91,6 +91,8 @@ class Block:
     PINE_LEAVES = 37
     CACTUS = 38
     BOOKSHELF = 39
+    WORKBENCH = 40
+    FURNACE = 41
 
     @classmethod
     def name_of(cls, n):
@@ -98,6 +100,27 @@ class Block:
             if v == n and k.isupper():
                 return k.lower()
         return str(n)
+
+
+class Item:
+    """Les objets du mode survie qui ne sont pas des blocs (items.h ; les blocs sont aussi des objets)."""
+    STICK = 100
+    COAL = 101
+    IRON_INGOT = 102
+    GOLD_INGOT = 103
+    CRYSTAL = 104
+    WOOD_PICKAXE = 105
+    STONE_PICKAXE = 106
+    IRON_PICKAXE = 107
+    CRYSTAL_PICKAXE = 108
+    WOOD_AXE = 109
+    STONE_AXE = 110
+    IRON_AXE = 111
+    CRYSTAL_AXE = 112
+    WOOD_SHOVEL = 113
+    STONE_SHOVEL = 114
+    IRON_SHOVEL = 115
+    CRYSTAL_SHOVEL = 116
 
 
 class BlockEvent:
@@ -264,6 +287,43 @@ class TerraCube:
 
     def info(self):
         return self.ask("game.info")
+
+    # -- le mode, la météo, la console
+    def mode(self):
+        """« creative » ou « survival »."""
+        return self.ask("game.getMode")
+
+    def set_mode(self, mode):
+        self.send("game.setMode", mode)
+
+    def weather(self):
+        """« clear », « rain », « snow » ou « storm »."""
+        return self.ask("world.getWeather")
+
+    def set_weather(self, weather, seconds=0):
+        self.send("world.setWeather", weather, seconds)
+
+    def command(self, line):
+        """Une commande de la console du jeu (« time 18 », « weather rain », « mode survival », « help »…) -> ses lignes."""
+        t = self.ask("game.command", line.replace("\n", " "))
+        return t.split(" | ") if t else []
+
+    # -- le mode survie
+    def inventory(self):
+        """{case: (objet, nombre)} ; les cases 0 à 8 sont la barre."""
+        out = {}
+        t = self.ask("player.getInventory")
+        for item in t.split("|") if t else []:
+            slot, name, n = item.split(":")
+            out[int(slot)] = (name, int(n))
+        return out
+
+    def give(self, item, n=1):
+        self.send("player.give", item, n)
+
+    def craft(self, recipe, times=1):
+        """Fabrique une recette (« planks », « wood_pickaxe »…) -> le nombre de fois faites."""
+        return int(self.ask("player.craft", recipe, times))
 
     # -- quelques formes
     def sphere(self, cx, cy, cz, r, block, hollow=False):

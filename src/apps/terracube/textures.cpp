@@ -108,6 +108,135 @@ void plant (int tile, unsigned stem, unsigned petal, bool flower)
 	put (tile, 7, 4, 0xf4e04a);
 }
 
+
+// les blocs du mode survie, les objets, les outils, les chiffres de la barre
+static void clearTile (int t)
+{
+	for (int y = 0; y < 16; y++)
+		for (int x = 0; x < 16; x++) put (t, x, y, 0, 0);
+}
+
+static void dot (int t, float fx, float fy, unsigned c)
+{
+	int x = (int) floorf (fx + 0.5f), y = (int) floorf (fy + 0.5f);
+	if (x >= 0 && x < 16 && y >= 0 && y < 16) put (t, x, y, c);
+}
+
+// un manche en diagonale, du bas à gauche vers le haut à droite
+static void handle (int t, int x0, int x1)
+{
+	for (int x = x0; x <= x1; x++) {
+		put (t, x, 15 - x - 1, x & 1 ? 0x7a5530 : 0x8f6a3e);
+		put (t, x + 1, 15 - x - 1, 0x4a321a);
+	}
+}
+
+static void toolTile (int t, int kind, unsigned mat)
+{
+	clearTile (t);
+	handle (t, 1, kind == 2 ? 10 : 9);
+	unsigned dk = shade (mat, -55), lt = shade (mat, 40);
+	if (kind == 1) {	// pioche : un fer courbe en travers du manche
+		for (float s = -6.5f; s <= 6.5f; s += 0.25f) {
+			float bx = 10.5f + s * 0.707f, by = 3.5f + s * 0.707f;
+			float c = s * s / 9.0f;
+			bx -= c * 0.707f, by += c * 0.707f;
+			dot (t, bx, by, mat);
+			dot (t, bx + 0.8f, by - 0.6f, s < 0 ? lt : dk);
+		}
+	} else if (kind == 2) {	// hache : une lame d'un côté
+		for (int y = 0; y < 16; y++)
+			for (int x = 0; x < 16; x++) {
+				float dx = x - 12.0f, dy = y - 5.0f;
+				if (dx * dx + dy * dy < 13.0f && x - y > 4) put (t, x, y, dx + dy < -1 ? lt : dx > 1.5f ? dk : mat);
+			}
+	} else {		// pelle : une lame ronde au bout
+		for (int y = 0; y < 16; y++)
+			for (int x = 0; x < 16; x++) {
+				float dx = x - 12.0f, dy = y - 3.5f;
+				if (dx * dx + dy * dy < 9.5f) put (t, x, y, dx + dy < -1.5f ? lt : dx + dy > 1.5f ? dk : mat);
+			}
+	}
+}
+
+static void extraTiles (uint8_t *)
+{
+	// établi : des planches, une grille d'outils dessus
+	for (int y = 0; y < 16; y++)
+		for (int x = 0; x < 16; x++) {
+			bool frame = x == 0 || y == 0 || x == 15 || y == 15;
+			bool grid = (x == 5 || x == 10 || y == 5 || y == 10) && !frame;
+			put (T_WORKBENCH_TOP, x, y, frame ? 0x6a4a28 : grid ? 0x7a5a32 : shade (0xb48a54, (int) (rnd (T_WORKBENCH_TOP, x, y) * 14) - 7));
+			unsigned side;
+			if (y < 4) side = y == 3 ? 0x6a4a28 : shade (0xb48a54, (int) (rnd (T_WORKBENCH_SIDE, x, y) * 12) - 6);
+			else if (x < 3 || x > 12) side = shade (0x8a6238, (int) (rnd (T_WORKBENCH_SIDE, x, y) * 12) - 6);	// les pieds
+			else side = 0x3a2a18;
+			if (y >= 6 && y <= 10 && x >= 5 && x <= 10 && (x == 7 || y == 8)) side = 0xa9a9a9;	// une scie accrochée
+			put (T_WORKBENCH_SIDE, x, y, side);
+		}
+	// four : de la pierre, une bouche qui rougeoie
+	for (int y = 0; y < 16; y++)
+		for (int x = 0; x < 16; x++) {
+			unsigned st = shade (0x7c7c7c, (int) (rnd (T_FURNACE_SIDE, x, y) * 22) - 11 + ((x % 5 == 0 || y % 4 == 0) ? -16 : 0));
+			if (x >= 4 && x <= 11 && y >= 8 && y <= 13) {
+				float hot = (y - 8) / 5.0f;
+				st = y == 8 || x == 4 || x == 11 ? 0x2a2a2a : mixc (0x3a1a08, 0xff9a2a, hot * (0.6f + rnd (T_FURNACE_SIDE, x, y) * 0.4f));
+			}
+			put (T_FURNACE_SIDE, x, y, st);
+			put (T_FURNACE_TOP, x, y, shade (0x8a8a8a, (int) (rnd (T_FURNACE_TOP, x, y) * 16) - 8 + (x == 0 || y == 0 || x == 15 || y == 15 ? -24 : 0)));
+		}
+	// bâton, charbon, lingots, cristal
+	clearTile (T_STICK);
+	handle (T_STICK, 2, 12);
+	clearTile (T_COAL);
+	for (int y = 0; y < 16; y++)
+		for (int x = 0; x < 16; x++) {
+			float dx = x - 7.5f, dy = y - 8.0f;
+			if (dx * dx * 0.8f + dy * dy < 26) put (T_COAL, x, y, dx + dy < -4 ? 0x5a5a5a : shade (0x262626, (int) (rnd (T_COAL, x, y) * 20) - 10));
+		}
+	for (int k = 0; k < 2; k++) {
+		int t = k ? T_GOLD_INGOT : T_IRON_INGOT;
+		unsigned c = k ? 0xf2c832 : 0xd2d2d8;
+		clearTile (t);
+		for (int y = 5; y <= 11; y++)
+			for (int x = 1 + (11 - y) / 2; x <= 14 - (11 - y) / 2; x++)
+				put (t, x, y, y == 5 ? shade (c, 40) : y == 11 ? shade (c, -60) : x < 4 + (11 - y) / 2 ? shade (c, 20) : c);
+	}
+	clearTile (T_CRYSTAL);
+	for (int y = 0; y < 16; y++)
+		for (int x = 0; x < 16; x++) {
+			float d = fabsf (x - 7.5f) + fabsf (y - 7.5f) * 0.8f;
+			if (d < 6.5f) put (T_CRYSTAL, x, y, x < 8 && y < 8 ? 0xd8fffe : x >= 8 && y >= 8 ? 0x2a9ea0 : 0x5fe6e0);
+		}
+	static const unsigned MAT[4] = { 0xa07a48, 0x8a8a8a, 0xdcdce2, 0x5fe6e0 };
+	for (int m = 0; m < 4; m++) {
+		toolTile (T_PICK0 + m, 1, MAT[m]);
+		toolTile (T_AXE0 + m, 2, MAT[m]);
+		toolTile (T_SHOVEL0 + m, 3, MAT[m]);
+	}
+	// chiffres 3 × 5, grossis trois fois, bordés de noir (les nombres de la barre)
+	static const char *DIG[10] = { "111101101101111", "010110010010111", "111001111100111", "111001111001111", "101101111001001",
+				       "111100111001111", "111100111101111", "111001001001001", "111101111101111", "111101111001111" };
+	for (int d = 0; d < 10; d++) {
+		int t = T_DIGIT0 + d;
+		clearTile (t);
+		for (int pass = 0; pass < 2; pass++)
+			for (int r = 0; r < 5; r++)
+				for (int c = 0; c < 3; c++) {
+					if (DIG[d][r * 3 + c] != '1') continue;
+					for (int yy = 0; yy < 3; yy++)
+						for (int xx = 0; xx < 3; xx++) {
+							int x = 2 + c * 3 + xx, y = r * 3 + yy;
+							if (pass == 0) {
+								for (int oy = -1; oy <= 1; oy++)
+									for (int ox = -1; ox <= 1; ox++)
+										if (x + ox >= 0 && x + ox < 16 && y + oy >= 0 && y + oy < 16) put (t, x + ox, y + oy, 0x101010);
+							} else put (t, x, y, 0xffffff);
+						}
+				}
+	}
+}
+
 } // namespace
 
 void buildAtlas (uint8_t *px)
@@ -266,6 +395,7 @@ void buildAtlas (uint8_t *px)
 		}
 	for (int y = 0; y < 16; y++)
 		for (int x = 0; x < 16; x++) put (T_SELECT, x, y, 0xffffff);
+	extraTiles (px);
 }
 
 } // namespace tc

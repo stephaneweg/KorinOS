@@ -173,6 +173,7 @@ std::string pngOf (const std::vector<uint32_t> &px, int w, int h)
 std::string t_info (const Args &)
 {
 	return JO ().str ("game", "TerraCube").str ("version", VERSION).str ("world", g.world.name).num ("seed", g.world.seed)
+		.str ("mode", modeName (g.mode)).str ("weather", weatherName (g.weather)).boo ("weather_cycle", g.weatherCycle)
 		.num ("hour", g.hour).boo ("time_runs", g.timeRuns).num ("render_distance_chunks", g.distance)
 		.raw ("player", playerJson ())
 		.str ("coordinates", "x east, y up (0 bedrock .. 127 sky), z south; sea level y=48; yaw 0 faces north (-z), 90 east (+x)")
@@ -423,6 +424,66 @@ std::string t_screenshot (const Args &a)
 	return JO ().num ("width", w).num ("height", h).str ("note", from ? "rendered from the given eye position (the player did not move)" : "the player's view").end ();
 }
 
+std::string t_command (const Args &a)
+{
+	std::string c = a.text ("command");
+	if (c.empty ()) fail ("missing argument: command");
+	std::string out;
+	for (auto &l : consoleExec (c)) out += l + "\n";
+	return out.empty () ? "(done)" : out;
+}
+
+std::string t_inventory (const Args &)
+{
+	JA l;
+	for (int i = 0; i < Inventory::N; i++) {
+		const Stack &st = g.inv.s[i];
+		if (st.empty ()) continue;
+		ItemInfo ii = itemInfo (st.item);
+		JO o;
+		o.num ("slot", i).boo ("hotbar", i < 9).str ("item", ii.name).num ("count", st.count);
+		if (ii.durability) o.num ("uses_left", ii.durability - st.dur);
+		l.add (o.end ());
+	}
+	bool wb, fu;
+	gameStations (wb, fu);
+	return JO ().str ("mode", modeName (g.mode)).num ("selected_slot", g.selected).raw ("items", l.end ())
+		.boo ("workbench_near", wb).boo ("furnace_near", fu).num ("furnace_heat", g.fuel).end ();
+}
+
+std::string t_recipes (const Args &)
+{
+	JA l;
+	for (auto &r : recipes ()) {
+		JA in;
+		for (auto &i : r.in)
+			if (i.n > 0) in.add (JO ().str ("item", itemInfo (i.item).name).num ("count", i.n).end ());
+		static const char *ST[3] = { "hand", "workbench", "furnace" };
+		JO keys;
+		for (auto &k : r.keys)
+			if (k.c) keys.str (std::string (1, k.c).c_str (), itemInfo (k.item).name);
+		l.add (JO ().str ("recipe", r.name).str ("makes", itemInfo (r.out).name).num ("count", r.outN).raw ("needs", in.end ())
+			       .str ("shape", r.shapeless ? "" : r.shape).boo ("shapeless", r.shapeless).raw ("key", keys.end ())
+			       .str ("station", ST[r.station]).num ("craftable_now", craftable (r, g.inv)).end ());
+	}
+	return JO ().raw ("recipes", l.end ()).str ("note", "in the game the player lays items on a 2x2 (hand) or 3x3 (workbench) grid: shape rows are separated by '/', '.' is an empty cell, the shape can be placed anywhere and mirrored; craft does it directly from the inventory. Workbench/furnace recipes need one within 4 blocks; the furnace burns coal, logs, planks or sticks").end ();
+}
+
+std::string t_craft (const Args &a)
+{
+	const Recipe *r = recipeByName (a.text ("recipe").c_str ());
+	if (!r) fail ("unknown recipe (see list_recipes)");
+	if (g.mode != MODE_SURVIVAL) fail ("crafting is for survival mode (run_command \"mode survival\")");
+	bool wb, fu;
+	gameStations (wb, fu);
+	std::string err;
+	int n = craft (*r, std::max (1, a.integer ("times", 1)), g.inv, g.fuel, wb, fu, err);
+	JO o;
+	o.num ("crafted", n).str ("made", itemInfo (r->out).name).num ("count", n * r->outN);
+	if (!err.empty ()) o.str ("stopped_because", err);
+	return o.end ();
+}
+
 std::string t_save (const Args &)
 {
 	std::string err;
@@ -499,6 +560,18 @@ const ToolDef TOOLS[] = {
 	  t_screenshot, true },
 	{ "get_events", "Blocks the player broke, placed or touched (key E) since the last call; the list is then emptied.",
 	  S ({ "type" : "object", "properties" : {} }), t_events, false },
+	{ "run_command",
+	  "Run a game console command, as the player would type it: time <hour>|day|night|stop|run, weather clear|rain|snow|storm [seconds], "
+	  "weather cycle on|off, mode creative|survival, tp x y z, give <item> [n], clear, inv, recipes, craft <recipe> [n], fly, distance n, "
+	  "seed, save, info, help. Returns the console output.",
+	  S ({ "type" : "object", "properties" : { "command" : { "type" : "string" } }, "required" : ["command"] }), t_command, false },
+	{ "get_inventory", "Survival mode: the player's inventory (slots 0-8 are the hotbar), and whether a workbench / furnace is near.",
+	  S ({ "type" : "object", "properties" : {} }), t_inventory, true },
+	{ "list_recipes", "The crafting recipes (ingredients, station: hand, workbench or furnace) and how many times each can be made now.",
+	  S ({ "type" : "object", "properties" : {} }), t_recipes, true },
+	{ "craft", "Survival mode: craft a recipe (name from list_recipes) up to times times, from the player's inventory.",
+	  S ({ "type" : "object", "properties" : { "recipe" : { "type" : "string" }, "times" : { "type" : "integer" } }, "required" : ["recipe"] }),
+	  t_craft, false },
 	{ "save_world", "Save the world now (it is also saved when the game closes).",
 	  S ({ "type" : "object", "properties" : {} }), t_save, false },
 };
@@ -582,6 +655,7 @@ std::string mcpHandle (const std::string &in)
 			.raw ("capabilities", JO ().raw ("tools", JO ().boo ("listChanged", false).end ()).end ())
 			.raw ("serverInfo", JO ().str ("name", "terracube").str ("title", "TerraCube (Korin OS voxel sandbox)").str ("version", VERSION).end ())
 			.str ("instructions", "TerraCube is a voxel sandbox game: a world of 1-metre blocks, x east, y up (0..127, sea level 48), z south. "
+			      "Two modes: creative (every block, instant) and survival (blocks are mined and collected, items are crafted). "
 			      "Start with get_game_info; survey the ground with get_heightmap before building; build with fill and set_blocks "
 			      "(blocks by name, see list_block_types); check your work with screenshot (optionally from another eye position). "
 			      "The player sees every change live.")

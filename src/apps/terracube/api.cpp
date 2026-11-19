@@ -22,6 +22,12 @@
 //   chat.post(texte)
 //   events.blocks()                             -> « genre,x,y,z,face,bloc|… » (1 cassé, 2 posé, 3 touché) ; vidés
 //   events.clear()
+//   game.getMode() / game.setMode(creative|survival)
+//   world.getWeather() / world.setWeather(clear|rain|snow|storm[,secondes])
+//   game.command(ligne)                         -> une commande de la console (help…) : ses lignes, séparées par « | »
+//   player.getInventory()                       -> « case:objet:nombre|… » (survie ; objet : le nom anglais)
+//   player.give(objet[,nombre])                 (survie)
+//   player.craft(recette[,fois])                -> fois faites (survie ; la console : recipes)
 //   game.info() / ping()
 //
 // Chaque connexion a son thread ; ses commandes vont dans une file que la boucle du jeu vide entre deux images
@@ -155,7 +161,8 @@ std::string fmt (double v)
 
 const char *const REPLY[] = { "world.getBlock", "world.getBlocks", "world.getHeight", "world.getBlockTypes", "world.getTime",
 			      "player.getPos", "player.getTile", "player.getRotation", "player.getPitch", "player.getDirection",
-			      "events.blocks", "game.info", "ping", "world.getBlockWithData", "world.save" };
+			      "events.blocks", "game.info", "ping", "world.getBlockWithData", "world.save", "game.getMode", "world.getWeather",
+			      "game.command", "player.getInventory", "player.craft" };
 
 } // namespace
 
@@ -275,6 +282,53 @@ std::string apiExec (const std::string &line, bool &reply)
 		if (is ("events.clear")) {
 			g.events.clear ();
 			return "";
+		}
+		if (is ("game.getMode")) return modeName (g.mode);
+		if (is ("game.setMode")) {
+			if (a.empty ()) throw ArgErr { "missing mode" };
+			int m = !strcasecmp (a[0].c_str (), "survival") || a[0] == "1" ? MODE_SURVIVAL : !strcasecmp (a[0].c_str (), "creative") || a[0] == "0" ? MODE_CREATIVE : -1;
+			if (m < 0) throw ArgErr { "mode: creative or survival" };
+			gameSetMode (m);
+			return "";
+		}
+		if (is ("world.getWeather")) return weatherName (g.weather);
+		if (is ("world.setWeather")) {
+			int w = -1;
+			for (int i = 0; i < 4 && !a.empty (); i++)
+				if (!strcasecmp (a[0].c_str (), weatherName (i))) w = i;
+			if (w < 0) throw ArgErr { "weather: clear, rain, snow or storm" };
+			gameSetWeather (w, a.size () > 1 ? num (a, 1) : 0);
+			return "";
+		}
+		if (is ("game.command")) {
+			std::string out;
+			for (auto &l : consoleExec (raw)) out += (out.empty () ? "" : " | ") + l;
+			return out;
+		}
+		if (is ("player.getInventory")) {
+			std::string out;
+			for (int i = 0; i < Inventory::N; i++)
+				if (!g.inv.s[i].empty ())
+					out += (out.empty () ? "" : "|") + std::to_string (i) + ":" + itemInfo (g.inv.s[i].item).name + ":" + std::to_string (g.inv.s[i].count);
+			return out;
+		}
+		if (is ("player.give")) {
+			if (a.empty ()) throw ArgErr { "missing item" };
+			int it = itemByName (a[0].c_str ());
+			if (it < 0) throw ArgErr { "unknown item: " + a[0] };
+			if (g.mode != MODE_SURVIVAL) throw ArgErr { "player.give: survival mode only" };
+			g.inv.add (it, a.size () > 1 ? std::max (1, inum (a, 1)) : 1);
+			return "";
+		}
+		if (is ("player.craft")) {
+			const Recipe *r = a.empty () ? nullptr : recipeByName (a[0].c_str ());
+			if (!r) throw ArgErr { "unknown recipe (game.command(recipes))" };
+			if (g.mode != MODE_SURVIVAL) return "error: player.craft: survival mode only";
+			bool wb, fu;
+			gameStations (wb, fu);
+			std::string err;
+			int n = craft (*r, a.size () > 1 ? std::max (1, inum (a, 1)) : 1, g.inv, g.fuel, wb, fu, err);
+			return n || err.empty () ? std::to_string (n) : "error: " + err;
 		}
 		if (is ("game.info"))
 			return std::string ("TerraCube ") + VERSION + "," + g.world.name + "," + std::to_string (g.world.seed);

@@ -9,11 +9,12 @@
 #include <deque>
 #include <string>
 #include <vector>
+#include "items.h"
 #include "world.h"
 
 namespace tc {
 
-const char *const VERSION = "1.0.0";
+const char *const VERSION = "1.1.0";
 const int API_PORT = 4730;	// le protocole des scripts (Python, BASIC)
 const int MCP_PORT = 7312;	// le MCP (Forge a 7311)
 
@@ -37,6 +38,11 @@ struct BlockEvent {
 	int face;		// 0 +x, 1 -x, 2 +y, 3 -y, 4 +z, 5 -z
 };
 
+enum Mode { MODE_CREATIVE, MODE_SURVIVAL };
+enum Weather { W_CLEAR, W_RAIN, W_SNOW, W_STORM };
+const char *modeName (int m);		// « creative », « survival »
+const char *weatherName (int w);	// « clear », « rain », « snow », « storm »
+
 struct Game {
 	World world;
 	Player pl;
@@ -47,9 +53,20 @@ struct Game {
 	std::vector<BlockEvent> events;	// pour events.blocks() : les 256 derniers
 	long apiCommands = 0;		// commandes reçues des scripts
 	long agentCalls = 0;		// appels d'outils de l'agent
-	int hotbar[9];
+	int hotbar[9];			// la barre du mode créatif (des blocs)
 	int selected = 0;
 	bool edited = false;		// des changements à sauver
+	// mode survie
+	int mode = MODE_CREATIVE;
+	Inventory inv;			// les 9 premières cases sont la barre
+	float fuel = 0;			// les points de chauffe qui restent au four
+	// météo : weather est voulue, level suit (0 à 1) ; cycle : elle change d'elle-même
+	int weather = W_CLEAR;
+	float weatherLevel = 0;
+	bool weatherCycle = true;
+	double weatherNext = 0;		// (s de jeu avant le prochain changement)
+	double lightning = 0;		// (ms : l'éclair en cours, sous l'orage)
+	std::deque<std::string> console;	// les lignes de la console (commandes et réponses)
 };
 
 extern Game g;
@@ -76,6 +93,16 @@ void apiPump (double budgetMs);		// (boucle) exécute les commandes en attente
 // les opérations communes au protocole et au MCP (boucle) -> "" si réussi, sinon l'erreur
 std::string opFill (int x1, int y1, int z1, int x2, int y2, int z2, int block, long *count, bool hollow = false);
 std::string blockList ();
+
+// main.cpp, suite
+void gameSetMode (int mode);
+void gameSetWeather (int w, double seconds);	// seconds <= 0 : jusqu'au prochain changement du cycle
+int gameHeldItem ();				// l'objet en main (créatif : le bloc de la case)
+bool gameStations (bool &workbench, bool &furnace);	// un établi, un four à moins de 4 blocs du joueur
+
+// console.cpp : la console de commandes (touche T ou /) ; aussi pour les scripts (game.command) et l'agent
+// (run_command) -> les lignes de la réponse
+std::vector<std::string> consoleExec (const std::string &line);
 
 // mcptools.cpp
 std::string mcpHandle (const std::string &in);

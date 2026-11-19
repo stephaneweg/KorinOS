@@ -1,9 +1,10 @@
 # Manifeste de TerraCube, le bac à sable de blocs de Korin (src/apps/terracube/README.md)
 name     = TerraCube
 category = Jeux
-description = TerraCube, bac à sable de blocs en 3D par le GPU : explorer un monde sans fin, casser, poser, construire ; pilotable par Python, BASIC ou un agent IA (MCP).
+description = TerraCube, bac à sable de blocs en 3D par le GPU : explorer un monde sans fin, construire en mode créatif, miner et fabriquer ses outils en mode survie ; pilotable par Python, BASIC ou un agent IA (MCP).
 keywords = jeu cubes blocs voxel construire bac à sable 3d monde minage python basic mcp agent
 help = Cliquez dans la vue pour jouer (Échap rend la souris). ZQSD ou les flèches pour marcher, la souris pour regarder, Espace pour sauter, Maj pour s'accroupir, Ctrl pour courir.
 help = Clic gauche : casser ; clic droit : poser le bloc choisi ; 1 à 9 ou la molette : choisir ; B : la liste des blocs ; A : prendre le bloc visé ; F : voler (Espace monte, Maj descend).
-help = T : un message ou une commande (/tp x y z, /time 18, /world.setBlock(x,y,z,stone)) ; F3 : infos détaillées ; F9 : plein écran.
+help = Mode survie (Partie > Mode survie) : tenir le clic pour casser, I pour l'inventaire et la fabrication (établi, four, outils).
+help = T : la console de commandes (time 18, weather rain, mode survival, give, craft, help) ; F3 : infos détaillées ; F9 : plein écran.
 help = Pilotage : Python (import terracube) et BASIC sur le port 4730 ; un agent IA par Pilotage > Piloter par un agent IA (MCP, port 7312). Exemples dans /apps/terracube.app/python et /apps/terracube.app/basic.

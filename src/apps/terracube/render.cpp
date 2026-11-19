@@ -8,6 +8,8 @@
 #include <string.h>
 #include <time.h>
 #include <GLES3/gl3.h>
+#include <algorithm>
+#include "items.h"
 
 namespace tc {
 
@@ -220,6 +222,62 @@ out vec4 o;
 void main () { o = u_col; }
 )";
 
+// la pluie et la neige : des gouttes faites par le vertex shader seul (gl_VertexID, aucun tampon), six sommets par
+// goutte, dans une boîte de 48 × 32 × 48 blocs autour de l'œil, accrochées au monde (u_wrap : l'œil modulo la boîte) ;
+// une goutte sous le plus haut bloc de sa colonne (u_hmap, 64 × 64 autour de l'œil) n'est pas montrée : il ne pleut
+// pas sous un toit ni sous les arbres.
+static const char *VS_RAIN = R"(#version 300 es
+uniform mat4 u_vp;
+uniform vec3 u_eye;
+uniform vec3 u_wrap;
+uniform float u_time, u_kind, u_count;
+uniform highp sampler2D u_hmap;
+out float v_a;
+out vec2 v_q;
+float hash (float n) { return fract (sin (n) * 43758.5453); }
+void main () {
+	int id = gl_VertexID / 6, k = gl_VertexID - id * 6;
+	float f = float (id);
+	v_q = vec2 (k == 1 || k == 2 || k == 4 ? 1.0 : 0.0, k == 2 || k == 4 || k == 5 ? 1.0 : 0.0);
+	if (f >= u_count) { gl_Position = vec4 (2.0, 2.0, 2.0, 1.0); v_a = 0.0; return; }
+	vec3 h = vec3 (hash (f * 1.173 + 0.31), hash (f * 2.317 + 1.73), hash (f * 3.771 + 4.13));
+	float snow = u_kind > 1.5 ? 1.0 : 0.0;
+	float speed = mix (15.0 + h.z * 5.0, 1.3 + h.z * 0.9, snow);
+	vec3 c;
+	c.x = mod (h.x * 48.0 - u_wrap.x, 48.0) - 24.0;
+	c.z = mod (h.y * 48.0 - u_wrap.z, 48.0) - 24.0;
+	c.y = mod (h.z * 997.0 - u_time * speed - u_wrap.y, 32.0) - 14.0;
+	c.x += snow * sin (u_time * 1.1 + f) * 0.35;
+	c.z += snow * cos (u_time * 0.9 + f * 1.7) * 0.35;
+	ivec2 col = ivec2 (floor (u_eye.x + c.x), floor (u_eye.z + c.z)) + ivec2 (32);
+	float top = texelFetch (u_hmap, clamp (col, ivec2 (0), ivec2 (63)), 0).r * 255.0;
+	if (u_eye.y + c.y < top) { gl_Position = vec4 (2.0, 2.0, 2.0, 1.0); v_a = 0.0; return; }
+	vec2 hd = c.xz;
+	float l = length (hd);
+	vec3 right = l > 0.01 ? vec3 (-hd.y, 0.0, hd.x) / l : vec3 (1.0, 0.0, 0.0);
+	vec2 size = mix (vec2 (0.035, 0.75), vec2 (0.13, 0.13), snow);
+	vec3 p = c + right * (v_q.x - 0.5) * size.x + vec3 (0.0, (v_q.y - 0.5) * size.y, 0.0);
+	gl_Position = u_vp * vec4 (p, 1.0);
+	v_a = (1.0 - smoothstep (14.0, 24.0, l)) * mix (0.42, 0.9, snow);
+}
+)";
+
+static const char *FS_RAIN = R"(#version 300 es
+precision highp float;
+uniform float u_kind;
+in float v_a;
+in vec2 v_q;
+out vec4 o;
+void main () {
+	if (u_kind > 1.5) {
+		vec2 d = v_q - 0.5;
+		if (dot (d, d) > 0.25) discard;
+		o = vec4 (1.0, 1.0, 1.0, v_a);
+	} else
+		o = vec4 (0.72, 0.78, 0.9, v_a);
+}
+)";
+
 static unsigned compile (unsigned type, const char *src, std::string &err)
 {
 	unsigned s = glCreateShader (type);
@@ -265,7 +323,15 @@ bool Renderer::init (std::string &err)
 	progSky = progWorld ? program (VS_SKY, FS_SKY, err) : 0;
 	progHud = progSky ? program (VS_HUD, FS_HUD, err) : 0;
 	progLine = progHud ? program (VS_LINE, FS_LINE, err) : 0;
-	if (!progLine) return false;
+	progRain = progLine ? program (VS_RAIN, FS_RAIN, err) : 0;
+	if (!progRain) return false;
+	static const char *RU[8] = { "u_vp", "u_eye", "u_wrap", "u_time", "u_kind", "u_count", "u_hmap", 0 };
+	for (int i = 0; RU[i]; i++) rU[i] = glGetUniformLocation (progRain, RU[i]);
+	glGenTextures (1, &hmapTex);
+	glBindTexture (GL_TEXTURE_2D, hmapTex);
+	glTexImage2D (GL_TEXTURE_2D, 0, GL_R8, HMAP, HMAP, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
+	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	uVp = glGetUniformLocation (progWorld, "u_vp");
 	uOrigin = glGetUniformLocation (progWorld, "u_origin");
 	uCam = glGetUniformLocation (progWorld, "u_cam");
@@ -399,7 +465,19 @@ void Renderer::draw (World &w, const Camera &cam, const Frame &f, const HudState
 	mix3 (nightZen, dayZen, f.daylight, zen);
 	mix3 (nightHor, dayHor, f.daylight, hor);
 	float dusk = 1.0f - fabsf (f.daylight - 0.5f) * 2.0f;
-	if (dusk > 0) mix3 (hor, duskHor, dusk * 0.55f, hor);
+	if (dusk > 0) mix3 (hor, duskHor, dusk * 0.55f * (1.0f - f.gloom), hor);
+	// le temps gris (pluie, neige, orage), l'éclair
+	if (f.gloom > 0) {
+		float l = (zen[0] + zen[1] + zen[2]) / 3.0f * 0.9f + 0.03f, lh = (hor[0] + hor[1] + hor[2]) / 3.0f * 0.85f + 0.03f;
+		float gz[3] = { l, l, l * 1.05f }, gh[3] = { lh, lh, lh * 1.04f };
+		mix3 (zen, gz, f.gloom * 0.8f, zen);
+		mix3 (hor, gh, f.gloom * 0.8f, hor);
+	}
+	if (f.flash > 0) {
+		float wf[3] = { 0.85f, 0.88f, 1.0f };
+		mix3 (zen, wf, f.flash * 0.7f, zen);
+		mix3 (hor, wf, f.flash * 0.7f, hor);
+	}
 	float fog[3] = { hor[0], hor[1], hor[2] };
 	if (hud.underwater) fog[0] = 0.05f, fog[1] = 0.18f + 0.2f * f.daylight, fog[2] = 0.35f + 0.3f * f.daylight;
 
@@ -451,11 +529,11 @@ void Renderer::draw (World &w, const Camera &cam, const Frame &f, const HudState
 	double bx = floor (cam.x), bz = floor (cam.z);
 	float camLocal[3] = { (float) (cam.x - bx), (float) cam.y, (float) (cam.z - bz) };
 	glUniform3fv (uCam, 1, camLocal);
-	float fogEnd = (float) f.distance * CW - 4.0f, fogStart = fogEnd * (hud.underwater ? 0.0f : 0.62f);
+	float fogEnd = ((float) f.distance * CW - 4.0f) * (1.0f - 0.35f * f.gloom), fogStart = fogEnd * (hud.underwater ? 0.0f : 0.62f - 0.3f * f.gloom);
 	if (hud.underwater) fogEnd = 18.0f;
 	glUniform1f (uFog0, fogStart);
 	glUniform1f (uFog1, fogEnd);
-	glUniform1f (uDay, f.daylight);
+	glUniform1f (uDay, std::min (1.0f, f.daylight + f.flash * 0.6f));
 	glUniform3fv (uFogCol, 1, fog);
 	// (l'heure des vagues : les secondes, ramenées sous une heure pour la précision ; la case de l'œil modulo 2048)
 	struct timespec ts;
@@ -520,8 +598,44 @@ void Renderer::draw (World &w, const Camera &cam, const Frame &f, const HudState
 	glDepthMask (GL_TRUE);
 	glEnable (GL_CULL_FACE);
 
+	if (f.precip && f.precipLevel > 0.01f && !hud.underwater) drawPrecip (cam, f, vp);
 	if (f.hasTarget) drawSelection (cam, f.target, vp);
 	drawHud (f, hud);
+}
+
+void Renderer::drawPrecip (const Camera &cam, const Frame &f, const float *vp)
+{
+	if (f.heights) {
+		glBindTexture (GL_TEXTURE_2D, hmapTex);
+		glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
+		glTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, HMAP, HMAP, GL_RED, GL_UNSIGNED_BYTE, f.heights);
+	}
+	glUseProgram (progRain);
+	glDisableVertexAttribArray (0);
+	glDisableVertexAttribArray (1);
+	glDisableVertexAttribArray (2);
+	glActiveTexture (GL_TEXTURE0);
+	glBindTexture (GL_TEXTURE_2D, hmapTex);
+	glUniform1i (rU[6], 0);
+	glUniformMatrix4fv (rU[0], 1, GL_FALSE, vp);
+	double bx = floor (cam.x), bz = floor (cam.z);
+	glUniform3f (rU[1], (float) (cam.x - bx), (float) cam.y, (float) (cam.z - bz));
+	glUniform3f (rU[2], (float) (cam.x - floor (cam.x / 48.0) * 48.0), (float) (cam.y - floor (cam.y / 32.0) * 32.0), (float) (cam.z - floor (cam.z / 48.0) * 48.0));
+	struct timespec ts;
+	clock_gettime (CLOCK_MONOTONIC, &ts);
+	glUniform1f (rU[3], (float) fmod (ts.tv_sec + ts.tv_nsec / 1e9, 3600.0));
+	glUniform1f (rU[4], (float) f.precip);
+	const int MAXD = 5000;
+	float n = f.precipLevel * (f.precip == 2 ? 3500.0f : MAXD);
+	glUniform1f (rU[5], n);
+	glEnable (GL_BLEND);
+	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glDepthMask (GL_FALSE);
+	glDisable (GL_CULL_FACE);
+	glDrawArrays (GL_TRIANGLES, 0, (int) n * 6);
+	glDepthMask (GL_TRUE);
+	glEnable (GL_CULL_FACE);
+	glBindTexture (GL_TEXTURE_2D, tex);
 }
 
 void Renderer::drawSelection (const Camera &cam, const Hit &h, const float *vp)
@@ -586,14 +700,15 @@ struct HudBatch {
 	}
 };
 
-void blockIcon (HudBatch &b, int blk, float cx, float cy, float s)
+void blockIcon (HudBatch &b, int item, float cx, float cy, float s)
 {
-	const BlockInfo &bi = info (blk);
-	if (bi.shape == SH_CROSS || bi.shape == SH_NONE) {
-		float u0 = (bi.side & 15) * 256 + 1, v0 = (bi.side >> 4) * 256 + 1;
+	if (item >= 100 || info (item).shape == SH_CROSS || info (item).shape == SH_NONE) {
+		int t = itemInfo (item).tile;
+		float u0 = (t & 15) * 256 + 1, v0 = (t >> 4) * 256 + 1;
 		b.quad (cx - s * 0.5f, cy - s * 0.5f, cx + s * 0.5f, cy + s * 0.5f, u0, v0, u0 + 254, v0 + 254, 0xffffff, 255);
 		return;
 	}
+	const BlockInfo &bi = info (item);
 	// un cube vu de trois quarts : le dessus, la face gauche, la face droite
 	float h = s * 0.5f, q = s * 0.25f;
 	float top[4][2] = { { cx, cy - h }, { cx + h, cy - q }, { cx, cy }, { cx - h, cy - q } };
@@ -602,6 +717,20 @@ void blockIcon (HudBatch &b, int blk, float cx, float cy, float s)
 	b.poly (top, bi.top, 0xffffff);
 	b.poly (left, bi.side, 0xc0c0c0);
 	b.poly (right, bi.side, 0x9a9a9a);
+}
+
+// un nombre en chiffres de l'atlas, son bord droit en xr (le chiffre occupe les colonnes 1 à 11 de sa tuile)
+void number (HudBatch &b, int n, float xr, float y, float sz)
+{
+	std::string t = std::to_string (n);
+	float adv = sz * 0.62f;
+	float x = xr - sz * 12.0f / 16.0f - adv * (float) (t.size () - 1);
+	for (char c : t) {
+		int tile = T_DIGIT0 + (c - '0');
+		float u0 = (tile & 15) * 256 + 1, v0 = (tile >> 4) * 256 + 1;
+		b.quad (x, y, x + sz, y + sz, u0, v0, u0 + 254, v0 + 254, 0xffffff, 255);
+		x += adv;
+	}
 }
 
 } // namespace
@@ -614,6 +743,11 @@ void Renderer::drawHud (const Frame &f, const HudState &hud)
 	// la barre des blocs
 	float slot = 46, gap = 4, total = 9 * slot + 8 * gap;
 	float x0 = (W - total) * 0.5f, y0 = H - slot - 12;
+	struct Num {
+		int n;
+		float x, y;
+	};
+	std::vector<Num> nums;
 	if (hud.hotbar) b.solid (x0 - 6, y0 - 6, x0 + total + 6, y0 + slot + 6, hud.panel, 200);
 	for (int i = 0; i < 9 && hud.hotbar; i++) {
 		float x = x0 + i * (slot + gap);
@@ -621,6 +755,20 @@ void Renderer::drawHud (const Frame &f, const HudState &hud)
 		if (sel) b.solid (x - 3, y0 - 3, x + slot + 3, y0 + slot + 3, hud.accent, 255);
 		b.solid (x, y0, x + slot, y0 + slot, hud.panelLine, sel ? 255 : 160);
 		if (hud.slots[i] > 0) blockIcon (b, hud.slots[i], x + slot * 0.5f, y0 + slot * 0.5f, slot * 0.72f);
+		if (hud.slots[i] > 0 && hud.counts[i] > 1) nums.push_back ({ hud.counts[i], x + slot - 3, y0 + slot - 16 });
+		if (hud.slots[i] > 0 && hud.wear[i] >= 0) {	// l'usure d'un outil
+			float k = 1.0f - hud.wear[i];
+			b.solid (x + 5, y0 + slot - 6, x + slot - 5, y0 + slot - 3, 0x000000, 200);
+			b.solid (x + 5, y0 + slot - 6, x + 5 + (slot - 10) * k, y0 + slot - 4, k > 0.5f ? hud.good : k > 0.2f ? hud.warn : hud.bad, 255);
+		}
+	}
+	// les nombres, par-dessus toutes les cases
+	for (auto &n : nums) number (b, n.n, n.x, n.y, 15);
+	// le bloc en train d'être cassé
+	if (hud.mining >= 0) {
+		float cx = floorf (W * 0.5f), cy = floorf (H * 0.5f) + 18;
+		b.solid (cx - 24, cy, cx + 24, cy + 5, 0x000000, 160);
+		b.solid (cx - 23, cy + 1, cx - 23 + 46 * hud.mining, cy + 4, hud.accent, 255);
 	}
 	glDisable (GL_DEPTH_TEST);
 	glDisable (GL_CULL_FACE);

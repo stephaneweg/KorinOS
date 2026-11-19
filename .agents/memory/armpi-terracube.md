@@ -20,4 +20,13 @@ repris d'un jeu existant), doc `docs/TERRACUBE.md`.
 - Essayé sous QEMU q35 (softpipe) : `--selftest` 22/22, Python et MCP depuis l'hôte par hostfwd, les 3 .bas dans Korin. **Pas essayé sur le
   ZBook** (GPU Intel). Paquet `terracube = 1.0.0` ([pc] de versions.ini), pas publié.
 
-**How to apply:** les numéros de blocs ne bougent jamais (ajout à la fin de `blocks.h`, de `terracube.py`, de la doc).
+- 19/11 (suite) : eau animée par les shaders ; **mode survie** (minage au temps près selon l'outil, ramassage,
+  inventaire 36 cases, outils bois/pierre/fer/cristal avec usure, établi et four), puis à la demande de
+  l'utilisateur une **table de fabrication à grille** (2 × 2 à la main, 3 × 3 à l'établi, recettes à forme,
+  déplaçables et retournables, `matchGrid` dans `items.cpp` ; vue dessinée dans un dialogue, icônes en BMP depuis
+  l'atlas avec alpha 1 pour le transparent : l'alpha 0 d'un BMP est opaque pour UIKit ; `ui_dialog_timer` pour
+  redessiner la vue, la boucle des dialogues ne le fait pas), **console de commandes** (T, / ou ² : time, weather, mode, tp, give, craft… : `console.cpp`, aussi
+  `game.command` et l'outil MCP `run_command`), **météo** (pluie/neige/orage, gouttes dans le vertex shader,
+  cachées sous les toits par une carte des hauteurs 64 × 64). Version 1.1.0.
+
+**How to apply:** les numéros de blocs ne bougent jamais (ajout à la fin de `blocks.h`, de `terracube.py`, de la doc) ; de même les objets (100+, `items.h`).

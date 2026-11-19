@@ -39,6 +39,7 @@
 #include <GLES3/gl3.h>
 #include "glview.h"
 #include "game.h"
+#include "items.h"
 #include "mcp.h"
 #include "player.h"
 #include "render.h"
@@ -67,6 +68,13 @@ double g_breakAt, g_placeAt;	// répétition des clics tenus
 float g_mdx, g_mdy;
 bool g_showInfo = true, g_showDebug;
 std::string g_flash;		// le nom du bloc choisi, un instant
+bool g_console;			// la console de commandes est ouverte
+bool g_consoleWasLocked;
+std::string g_cin;		// ce qui est tapé
+std::vector<std::string> g_hist;
+int g_histPos;
+float g_mineProg = -1;		// survie : le bloc en train d'être cassé (0 à 1)
+int g_mineX, g_mineY = -999, g_mineZ;
 double g_flashT;
 double g_fps;
 Hit g_target;
@@ -158,7 +166,8 @@ bool saveWorldIni (std::string &err)
 	fprintf (f, "# TerraCube : un monde\nseed = %u\nx = %.3f\ny = %.3f\nz = %.3f\nyaw = %.2f\npitch = %.2f\nhour = %.3f\ntime = %d\nfly = %d\nhotbar =",
 		 g.world.seed, g.pl.x, g.pl.y, g.pl.z, g.pl.yaw, g.pl.pitch, g.hour, g.timeRuns ? 1 : 0, g.pl.fly ? 1 : 0);
 	for (int i = 0; i < 9; i++) fprintf (f, " %d", g.hotbar[i]);
-	fprintf (f, "\nselected = %d\n", g.selected);
+	fprintf (f, "\nselected = %d\nmode = %s\nweather = %s\nweathercycle = %d\nfuel = %.2f\ninventory = %s\n", g.selected, modeName (g.mode),
+		 weatherName (g.weather), g.weatherCycle ? 1 : 0, g.fuel, g.inv.save ().c_str ());
 	bool ok = !ferror (f);
 	fclose (f);
 	if (!ok) err = "write error";
@@ -198,6 +207,13 @@ void openWorld (const std::string &name, uint32_t seed, bool seedGiven)
 	g.selected = 0;
 	g.hour = 9;
 	g.timeRuns = true;
+	g.mode = MODE_CREATIVE;
+	g.inv.clear ();
+	g.fuel = 0;
+	g.weather = W_CLEAR;
+	g.weatherLevel = 0;
+	g.weatherCycle = true;
+	g.weatherNext = 0;
 	if (exists) {
 		for (auto &p : kv) {
 			const char *v = p.second.c_str ();
@@ -211,6 +227,13 @@ void openWorld (const std::string &name, uint32_t seed, bool seedGiven)
 			else if (p.first == "time") g.timeRuns = atoi (v) != 0;
 			else if (p.first == "fly") g.pl.fly = atoi (v) != 0;
 			else if (p.first == "selected") g.selected = atoi (v) % 9;
+			else if (p.first == "mode") g.mode = !strcmp (v, "survival") ? MODE_SURVIVAL : MODE_CREATIVE;
+			else if (p.first == "weather") {
+				for (int w = 0; w < 4; w++)
+					if (!strcmp (v, weatherName (w))) g.weather = w, g.weatherLevel = w ? 0.8f : 0;
+			} else if (p.first == "weathercycle") g.weatherCycle = atoi (v) != 0;
+			else if (p.first == "fuel") g.fuel = (float) atof (v);
+			else if (p.first == "inventory") g.inv.load (p.second);
 			else if (p.first == "hotbar") {
 				char *s = (char *) v;
 				for (int i = 0; i < 9; i++) {
@@ -235,9 +258,12 @@ void openWorld (const std::string &name, uint32_t seed, bool seedGiven)
 		std::string err;
 		saveWorldIni (err);
 	}
+	if (g.mode == MODE_SURVIVAL) g.pl.fly = false;
 	ui_menu_state (14, g.pl.fly ? UMS_CHECKED : 0);
 	ui_menu_state (15, g.timeRuns ? UMS_CHECKED : 0);
-	gamePost (std::string (exists ? TR ("Monde « ") : TR ("Nouveau monde « ")) + name + TR (" », graine ") + std::to_string (sd));
+	ui_menu_state (5, g.mode == MODE_SURVIVAL ? UMS_CHECKED : 0);
+	gamePost (std::string (exists ? TR ("Monde « ") : TR ("Nouveau monde « ")) + name + TR (" », graine ") + std::to_string (sd) +
+		  (g.mode == MODE_SURVIVAL ? TR (", mode survie") : TR (", mode créatif")));
 	saveConf ();
 }
 
@@ -501,7 +527,9 @@ void drawOverlay (bool force)
 	std::vector<std::string> lines, chat;
 	if (g_showInfo) {
 		char l[160];
-		snprintf (l, sizeof l, "%s · %s", g.world.name.c_str (), hourText ().c_str ());
+		static const char *WN[4] = { "", " · pluie", " · neige", " · orage" };
+		snprintf (l, sizeof l, "%s · %s · %s%s", g.world.name.c_str (), g.mode == MODE_SURVIVAL ? TR ("survie") : TR ("créatif"),
+			  hourText ().c_str (), TR (WN[g.weather & 3]));
 		lines.push_back (l);
 		snprintf (l, sizeof l, "x %d  y %d  z %d", (int) floor (g.pl.x), (int) floor (g.pl.y), (int) floor (g.pl.z));
 		lines.push_back (l);
@@ -523,13 +551,17 @@ void drawOverlay (bool force)
 		if (!pil.empty ()) lines.push_back (pil);
 	}
 	for (auto &c : g.chat)
-		if (t - c.t < 12000) chat.push_back (c.text);
+		if (t - c.t < 12000 && !g_console) chat.push_back (c.text);
 	while (chat.size () > 6) chat.erase (chat.begin ());
 	bool flash = !g_flash.empty () && t - g_flashT < 1500;
 	std::string key = std::to_string (ui.w) + "x" + std::to_string (ui.h) + (g_locked ? "L" : "U") + (flash ? g_flash : "");
 	for (auto &s : lines) key += "\n" + s;
 	key += "\x01";
 	for (auto &s : chat) key += "\n" + s;
+	if (g_console) {
+		key += "\x02" + g_cin + std::to_string (g.console.size ());
+		key += ((long) (t / 530)) % 2 ? "|" : " ";	// (le curseur clignote)
+	}
 	if (!force && key == g_overlayKey) return;
 	g_overlayKey = key;
 	g_prevZones = g_zones;
@@ -554,14 +586,31 @@ void drawOverlay (bool force)
 		panel (12, y, pw, ph);
 		for (size_t i = 0; i < chat.size (); i++) ui_text_fit ((long) chat[i].c_str (), 24, y + 6 + LH * (int) i + 14, jet (TJ_TEXT1), SZ, font, w);
 	}
+	if (g_console) {
+		// la console : ses dernières lignes, puis la ligne tapée
+		const int N = 12;
+		int pw = std::min (W - 24, 900), ph = (N + 1) * LH + 22;
+		int x = 12, y = H - 78 - ph;
+		panel (x, y, pw, ph);
+		size_t first = g.console.size () > (size_t) N ? g.console.size () - N : 0;
+		long mono = ui_font_get (UFN_MONO);
+		for (size_t i = first; i < g.console.size (); i++)
+			ui_text_fit ((long) g.console[i].c_str (), x + 12, y + 8 + LH * (int) (i - first) + 14,
+				     g.console[i].rfind ("> ", 0) == 0 ? jet (TJ_TEXT1) : jet (TJ_TEXT2), SZ, mono, pw - 24);
+		int ly = y + ph - LH - 6;
+		ui_fill (x + 8, ly - 2, pw - 16, LH + 2, jet (TJ_SUNKEN));
+		std::string in = "> " + g_cin + (((long) (t / 530)) % 2 ? "▏" : " ");
+		ui_text_fit ((long) in.c_str (), x + 12, ly + 13, jet (TJ_ACCENT), SZ, mono, pw - 24);
+	}
 	if (flash) {
 		int w = (int) ui_text_width ((long) g_flash.c_str (), SZ, (long) ui.font_b) + 24;
 		panel ((W - w) / 2, H - 112, w, 28);
 		ui_text ((long) g_flash.c_str (), (W - w) / 2 + 12, H - 112 + 19, jet (TJ_TEXT1), SZ, (long) ui.font_b, 0);
 	}
-	if (!g_locked && !g_selftest) {
+	if (!g_locked && !g_selftest && !g_console) {
 		const char *a = TR ("Cliquez dans la vue pour jouer");
-		const char *b = TR ("ZQSD ou flèches : marcher · Espace : sauter · F : voler · B : blocs · T : message · Échap : la souris");
+		const char *b = g.mode == MODE_SURVIVAL ? TR ("ZQSD : marcher · Espace : sauter · clic tenu : casser · I : inventaire et fabrication · T : console · Échap : la souris")
+							: TR ("ZQSD ou flèches : marcher · Espace : sauter · F : voler · B : blocs · T : console · Échap : la souris");
 		int wa = (int) ui_text_width ((long) a, 16, (long) ui.font_b), wb = (int) ui_text_width ((long) b, SZ, font);
 		int pw = std::max (wa, wb) + 40, ph = 70;
 		if (pw > W - 20) pw = W - 20;
@@ -599,21 +648,64 @@ void event (int kind, const Hit &h, int block)
 	if (g.events.size () > 256) g.events.erase (g.events.begin ());
 }
 
-void breakBlock ()
+bool survival () { return g.mode == MODE_SURVIVAL; }
+
+// l'objet d'une case de la barre (créatif : un bloc ; survie : la pile de l'inventaire)
+int slotItem (int i) { return survival () ? (g.inv.s[i].empty () ? 0 : g.inv.s[i].item) : g.hotbar[i]; }
+
+// ce qui tombe d'un bloc cassé, dans l'inventaire ; l'outil s'use
+void collect (int b)
 {
-	if (!g_target.hit || g_target.block == BEDROCK) return;
-	event (1, g_target, g_target.block);
+	Stack &held = g.inv.s[g.selected];
+	bool harvest;
+	mineTime (b, held.empty () ? 0 : held.item, &harvest);
+	Mining m = mining (b);
+	if (harvest && m.drop && (m.chance >= 1 || rand () % 1000 < (int) (m.chance * 1000))) {
+		if (g.inv.add (m.drop, m.dropN) > 0) gamePost (TR ("Inventaire plein : l'objet est perdu"));
+	} else if (!harvest && m.tier > 0)
+		gamePost (std::string (info (b).label) + TR (" : il faut une meilleure pioche pour le ramasser"));
+	ItemInfo ti = itemInfo (held.empty () ? 0 : held.item);
+	if (!held.empty () && ti.durability && ++held.dur >= ti.durability) {
+		gamePost (std::string (ti.label) + TR (" s'est cassé"));
+		held = Stack ();
+	}
+}
+
+void doBreak ()
+{
+	int b = g_target.block;
+	event (1, g_target, b);
 	g.world.set (g_target.x, g_target.y, g_target.z, AIR);
+	if (survival ()) collect (b);
 	// une plante sur le bloc cassé tombe avec lui
 	int up = g.world.get (g_target.x, g_target.y + 1, g_target.z);
-	if (info (up).shape == SH_CROSS) g.world.set (g_target.x, g_target.y + 1, g_target.z, AIR);
+	if (info (up).shape == SH_CROSS) {
+		g.world.set (g_target.x, g_target.y + 1, g_target.z, AIR);
+		if (survival () && mining (up).drop && g.inv.add (mining (up).drop, 1) > 0) gamePost (TR ("Inventaire plein : l'objet est perdu"));
+	}
 	g.edited = true;
 }
+
+// créatif : casser tout de suite (le mode survie casse peu à peu, dans frame)
+void breakBlock ()
+{
+	if (!g_target.hit || g_target.block == BEDROCK || survival ()) return;
+	doBreak ();
+}
+
+void inventoryWindow (bool workbench = false);
 
 void placeBlock ()
 {
 	if (!g_target.hit) return;
-	int b = g.hotbar[g.selected];
+	// survie : un clic droit sur un établi ou un four les ouvre (Maj : poser contre eux)
+	if (survival () && (g_target.block == WORKBENCH || g_target.block == FURNACE) && !(g_keys[0xE1] || g_keys[0xE5])) {
+		g_buttons = 0;
+		inventoryWindow (g_target.block == WORKBENCH);
+		return;
+	}
+	int b = slotItem (g.selected);
+	if (!isBlockItem (b)) return;
 	int x = g_target.nx, y = g_target.ny, z = g_target.nz;
 	// (une plante visée se remplace)
 	if (info (g_target.block).shape == SH_CROSS) x = g_target.x, y = g_target.y, z = g_target.z;
@@ -623,6 +715,10 @@ void placeBlock ()
 	if (isSolid (b) && playerInside (g.pl, x, y, z)) return;
 	if (info (b).shape == SH_CROSS && !isSolid (g.world.get (x, y - 1, z))) return;
 	g.world.set (x, y, z, b);
+	if (survival ()) {
+		Stack &st = g.inv.s[g.selected];
+		if (--st.count <= 0) st = Stack ();
+	}
 	Hit h = g_target;
 	h.x = x, h.y = y, h.z = z;
 	event (2, h, b);
@@ -632,11 +728,34 @@ void placeBlock ()
 void selectSlot (int i)
 {
 	g.selected = (i % 9 + 9) % 9;
-	g_flash = info (g.hotbar[g.selected]).label;
+	int it = slotItem (g.selected);
+	g_flash = it ? itemInfo (it).label : TR ("Main vide");
 	g_flashT = nowMs ();
 }
 
-// la liste des blocs, pour la case choisie (B)
+// le bloc visé dans la main : créatif, dans la case ; survie, la case qui en a (ou il y vient du sac)
+void pickBlock ()
+{
+	if (!g_target.hit) return;
+	int b = g_target.block;
+	if (b == BEDROCK || b == WATER) return;
+	if (!survival ()) {
+		g.hotbar[g.selected] = b;
+		selectSlot (g.selected);
+		return;
+	}
+	for (int i = 0; i < Inventory::N; i++)
+		if (!g.inv.s[i].empty () && g.inv.s[i].item == b) {
+			if (i < 9) selectSlot (i);
+			else {
+				std::swap (g.inv.s[i], g.inv.s[g.selected]);
+				selectSlot (g.selected);
+			}
+			return;
+		}
+}
+
+// la liste des blocs, pour la case choisie (B, mode créatif)
 void chooseBlock ()
 {
 	unlock ();
@@ -656,36 +775,483 @@ void chooseBlock ()
 	}
 }
 
-// T : un message, ou une commande (« /tp x y z », « /time 18 », « /seed », ou une ligne du protocole : « /world.getHeight(0,0) »)
-void chatPrompt ()
+// ---- l'inventaire et la table de fabrication (mode survie) : une vue d'UIKit dessinée ici -------------------------
+//
+// En haut, la grille : 2 × 2 à la main, 3 × 3 à l'établi ; la recette que forment les objets posés (leur agencement
+// compte) donne son résultat dans la case à droite. Le four, s'il y en a un près : une case d'entrée, le combustible
+// pris dans l'inventaire, une case de résultat. En bas, l'inventaire (le sac, puis la barre).
+// À la souris : clic gauche, prendre ou poser toute la pile (ou échanger) ; clic droit, prendre la moitié, ou poser
+// un seul objet ; sur le résultat : le prendre (Maj : fabriquer le plus possible, dans l'inventaire). En fermant, ce
+// qui reste dans la grille et sous la souris revient dans l'inventaire.
+
+struct CraftUI {
+	long d, view, book;
+	int n;			// 2 ou 3
+	bool furnace;
+	Stack grid[9], fin, cursor;	// la grille, l'entrée du four, ce que tient la souris
+	int mx = -100, my = -100;	// la souris dans la vue
+	unsigned buttons;
+	int dragFrom = -1;		// la case d'où vient ce que tient la souris pendant un glisser (-1 : aucun, -2 : le résultat)
+	bool dragOne;			// (bouton droit : un seul objet)
+	std::string msg;
+	std::vector<long> icons;	// une image par objet (ui_image_decode), faite au premier besoin
+	std::vector<uint8_t> atlas;
+} C_;
+
+const int CELL = 46, GAP = 6, VW = 840, VH = 330;
+const int GX = 24 + 9 * (CELL + GAP) + 34;	// (la grille, à droite de l'inventaire)
+
+// une icône de 32 × 32 en BMP (BGRA, de haut en bas), décodée par UIKit ; un pixel transparent a l'alpha 1
+// (l'alpha 0 d'un BMP veut dire opaque)
+long iconOf (int item)
+{
+	if (C_.atlas.empty ()) {
+		C_.atlas.resize (256 * 256 * 4);
+		buildAtlas (C_.atlas.data ());
+	}
+	if ((int) C_.icons.size () <= item) C_.icons.resize ((size_t) item + 1, 0);
+	if (C_.icons[(size_t) item]) return C_.icons[(size_t) item];
+	const int S = 32;
+	uint32_t px[S * S];
+	auto tex = [&] (int tile, float u, float v, float k) -> uint32_t {
+		int tx = std::min (15, std::max (0, (int) (u * 16))), ty = std::min (15, std::max (0, (int) (v * 16)));
+		const uint8_t *p = &C_.atlas[(size_t) (((tile >> 4) * 16 + ty) * 256 + (tile & 15) * 16 + tx) * 4];
+		if (p[3] < 128) return 0x01000000;
+		return 0xFF000000u | (uint32_t) (p[0] * k) << 16 | (uint32_t) (p[1] * k) << 8 | (uint32_t) (p[2] * k);
+	};
+	bool cube = isBlockItem (item) && info (item).shape == SH_CUBE;
+	const BlockInfo &bi = info (cube ? item : 0);
+	for (int y = 0; y < S; y++)
+		for (int x = 0; x < S; x++) {
+			float fx = x + 0.5f, fy = y + 0.5f;
+			uint32_t c = 0x01000000;
+			if (!cube) {
+				c = tex (itemInfo (item).tile, (fx - 2) / 28, (fy - 2) / 28, 1.0f);
+				if (fx < 2 || fy < 2 || fx > 30 || fy > 30) c = 0x01000000;
+			} else {
+				// un cube de trois quarts : le dessus, la face gauche, la face droite (des parallélogrammes)
+				const float cx = 16, cy = 16, h = 14, q = 7;
+				auto inside = [&] (float ox, float oy, float e1x, float e1y, float e2x, float e2y, float &u, float &v) {
+					float det = e1x * e2y - e1y * e2x, px2 = fx - ox, py2 = fy - oy;
+					u = (px2 * e2y - py2 * e2x) / det, v = (e1x * py2 - e1y * px2) / det;
+					return u >= 0 && u < 1 && v >= 0 && v < 1;
+				};
+				float u, v;
+				if (inside (cx - h, cy - q - 1, h, -q, h, q, u, v)) c = tex (bi.top, u, v, 1.0f);
+				else if (inside (cx - h, cy - q - 1, h, q, 0, h, u, v)) c = tex (bi.side, u, v, 0.78f);
+				else if (inside (cx, cy - 1, h, -q, 0, h, u, v)) c = tex (bi.side, u, v, 0.6f);
+			}
+			px[y * S + x] = c;
+		}
+	std::vector<uint8_t> bmp (54 + S * S * 4, 0);
+	auto w32 = [&] (int o, uint32_t v) { memcpy (&bmp[(size_t) o], &v, 4); };
+	bmp[0] = 'B', bmp[1] = 'M';
+	w32 (2, (uint32_t) bmp.size ());
+	w32 (10, 54);
+	w32 (14, 40);
+	w32 (18, S);
+	w32 (22, (uint32_t) -S);	// (de haut en bas)
+	bmp[26] = 1, bmp[28] = 32;
+	memcpy (&bmp[54], px, sizeof px);	// (0xAARRGGBB petit-boutiste : B, G, R, A)
+	long img = ui_image_decode ((long) bmp.data (), (long) bmp.size ());
+	C_.icons[(size_t) item] = img;
+	return img;
+}
+
+// les cases de la vue : 0-8 la grille, 9 le résultat, 10 l'entrée du four, 11 son résultat, 20-55 l'inventaire
+// (20-46 le sac, 47-55 la barre : cases 9-35 puis 0-8 de l'inventaire)
+struct Slot {
+	int id, x, y;
+};
+
+std::vector<Slot> craftSlots ()
+{
+	std::vector<Slot> v;
+	// à gauche, l'inventaire : le sac (3 rangées), puis la barre
+	for (int r = 0; r < 3; r++)
+		for (int c = 0; c < 9; c++) v.push_back ({ 20 + r * 9 + c, 24 + c * (CELL + GAP), 46 + r * (CELL + GAP) });
+	for (int c = 0; c < 9; c++) v.push_back ({ 47 + c, 24 + c * (CELL + GAP), 46 + 3 * (CELL + GAP) + 10 });
+	// à droite, la grille et son résultat ; le four dessous
+	int gy = 46;
+	for (int r = 0; r < C_.n; r++)
+		for (int c = 0; c < C_.n; c++) v.push_back ({ r * C_.n + c, GX + c * (CELL + GAP), gy + r * (CELL + GAP) });
+	int gh = C_.n * (CELL + GAP) - GAP;
+	v.push_back ({ 9, GX + C_.n * (CELL + GAP) + 44, gy + (gh - CELL) / 2 });
+	if (C_.furnace) {
+		int fy = 46 + 3 * (CELL + GAP) + 10;
+		v.push_back ({ 10, GX, fy });
+		v.push_back ({ 11, GX + CELL + 64, fy });
+	}
+	return v;
+}
+
+Stack *slotStack (int id)
+{
+	if (id >= 0 && id < 9) return &C_.grid[id];
+	if (id == 10) return &C_.fin;
+	if (id >= 20 && id < 47) return &g.inv.s[9 + id - 20];
+	if (id >= 47 && id < 56) return &g.inv.s[id - 47];
+	return nullptr;
+}
+
+const Recipe *gridRecipe ()
+{
+	int it[9] = { 0 };
+	for (int i = 0; i < C_.n * C_.n; i++) it[i] = C_.grid[i].empty () ? 0 : C_.grid[i].item;
+	return matchGrid (it, C_.n);
+}
+
+const Recipe *furnaceRecipe ()
+{
+	if (C_.fin.empty ()) return nullptr;
+	for (auto &r : recipes ())
+		if (r.station == ST_FURNACE && r.in[0].item == C_.fin.item) return &r;
+	return nullptr;
+}
+
+void drawStack (const Stack &s, int x, int y)
+{
+	if (s.empty ()) return;
+	long img = iconOf (s.item);
+	if (img) ui_image_draw (img, x + (CELL - 32) / 2, y + (CELL - 32) / 2, 32, 32);
+	if (s.count > 1) {
+		std::string t = std::to_string (s.count);
+		long w = ui_text_width ((long) t.c_str (), 12, (long) ui.font_b);
+		ui_text ((long) t.c_str (), x + CELL - 4 - w, y + CELL - 4, jet (TJ_TEXT1), 12, (long) ui.font_b, 0);
+	}
+	ItemInfo ii = itemInfo (s.item);
+	if (ii.durability) {
+		float k = 1.0f - (float) s.dur / ii.durability;
+		ui_fill (x + 6, y + CELL - 7, CELL - 12, 3, jet (TJ_LINE));
+		ui_fill (x + 6, y + CELL - 7, (int) ((CELL - 12) * k), 3, k > 0.5f ? jet (TJ_SUCCESS) : k > 0.2f ? jet (TJ_WARNING) : jet (TJ_DANGER));
+	}
+}
+
+void craftPaint (long, long w, long h)
+{
+	ui_fill (0, 0, w, h, jet (TJ_FACE));
+	long fb = (long) ui.font_b, f = (long) ui.font;
+	ui_text ((long) TR ("Inventaire"), 24, 28, jet (TJ_TEXT1), 14, fb, 0);
+	ui_text ((long) (C_.n == 3 ? TR ("Établi : grille 3 × 3") : TR ("À la main : grille 2 × 2")), GX, 28, jet (TJ_TEXT1), 14, fb, 0);
+	if (C_.n == 2) ui_text ((long) TR ("(un établi proche : 3 × 3)"), GX, 46 + 2 * (CELL + GAP) + 16, jet (TJ_TEXT3), 12, f, 0);
+	const Recipe *r = gridRecipe (), *fr = furnaceRecipe ();
+	for (auto &sl : craftSlots ()) {
+		bool hot = C_.mx >= sl.x && C_.mx < sl.x + CELL && C_.my >= sl.y && C_.my < sl.y + CELL;
+		bool result = sl.id == 9 || sl.id == 11;
+		unsigned bg = hot ? jet (TJ_HOVER) : result ? jet (TJ_SURFACE) : jet (TJ_SUNKEN);
+		ui_rbox (sl.x, sl.y, CELL, CELL, 6, result ? jet (TJ_ACCENT) : jet (TJ_LINE), result ? jet (TJ_ACCENT) : jet (TJ_LINE));
+		ui_rbox (sl.x + 1, sl.y + 1, CELL - 2, CELL - 2, 5, bg, bg);
+		if (sl.id >= 47 && sl.id - 47 == g.selected) ui_frame (sl.x + 3, sl.y + 3, CELL - 6, CELL - 6, jet (TJ_ACCENT));
+		Stack s;
+		if (sl.id == 9 && r) s.item = r->out, s.count = r->outN;
+		else if (sl.id == 11 && fr) s.item = fr->out, s.count = fr->outN;
+		else if (Stack *p = slotStack (sl.id)) s = *p;
+		drawStack (s, sl.x, sl.y);
+		if (sl.id == 9) ui_text ((long) "→", sl.x - 32, sl.y + 30, jet (TJ_TEXT2), 22, f, 0);
+		if (sl.id == 11) {
+			ui_text ((long) "→", sl.x - 42, sl.y + 30, jet (TJ_TEXT2), 22, f, 0);
+			std::string four = std::string (TR ("Four")) + TR (" · chauffe ") + std::to_string ((int) g.fuel);
+			ui_text ((long) four.c_str (), GX, sl.y - 6, jet (TJ_TEXT1), 13, fb, 0);
+		}
+	}
+	if (r) {
+		std::string t = std::string ("= ") + itemInfo (r->out).label;
+		ui_text ((long) t.c_str (), GX + C_.n * (CELL + GAP) + 44, 46 + (C_.n * (CELL + GAP) - GAP - CELL) / 2 + CELL + 18, jet (TJ_ACCENT), 12, f, 0);
+	}
+	if (!C_.msg.empty ()) ui_text_fit ((long) C_.msg.c_str (), 24, VH - 8, jet (TJ_TEXT2), 12, f, VW - 48);
+	// ce que tient la souris, sous elle
+	if (!C_.cursor.empty () && C_.mx > -50) drawStack (C_.cursor, C_.mx - CELL / 2, C_.my - CELL / 2);
+	// l'objet survolé : son nom
+	for (auto &sl : craftSlots ())
+		if (C_.cursor.empty () && C_.mx >= sl.x && C_.mx < sl.x + CELL && C_.my >= sl.y && C_.my < sl.y + CELL)
+			if (Stack *p = slotStack (sl.id))
+				if (!p->empty ()) {
+					std::string t = itemInfo (p->item).label;
+					long tw = ui_text_width ((long) t.c_str (), 12, f) + 12;
+					int tx = std::min ((int) (VW - tw - 4), C_.mx + 12), ty = C_.my - 26;
+					ui_rbox (tx, ty, (int) tw, 20, 5, jet (TJ_LINE), jet (TJ_LINE));
+					ui_rbox (tx + 1, ty + 1, (int) tw - 2, 18, 4, jet (TJ_SURFACE), jet (TJ_SURFACE));
+					ui_text ((long) t.c_str (), tx + 6, ty + 15, jet (TJ_TEXT1), 12, f, 0);
+				}
+}
+
+// prendre le résultat de la grille une fois -> faux s'il n'y a rien ou plus de place sous la souris
+bool takeGrid (bool toInventory)
+{
+	const Recipe *r = gridRecipe ();
+	if (!r) return false;
+	int mx = itemInfo (r->out).maxStack;
+	if (toInventory) {
+		Inventory t = g.inv;
+		if (t.add (r->out, r->outN) > 0) {
+			C_.msg = TR ("L'inventaire est plein");
+			return false;
+		}
+		g.inv = t;
+	} else {
+		if (!C_.cursor.empty () && (C_.cursor.item != r->out || C_.cursor.count + r->outN > mx)) return false;
+		if (C_.cursor.empty ()) C_.cursor = Stack (), C_.cursor.item = r->out;
+		C_.cursor.count += r->outN;
+	}
+	for (int i = 0; i < C_.n * C_.n; i++)
+		if (!C_.grid[i].empty () && --C_.grid[i].count <= 0) C_.grid[i] = Stack ();
+	g.edited = true;
+	C_.msg = std::string (TR ("Fabriqué : ")) + std::to_string (r->outN) + " × " + itemInfo (r->out).label;
+	return true;
+}
+
+// cuire l'entrée du four une fois (le combustible : le premier objet qui brûle dans l'inventaire)
+bool takeFurnace (bool toInventory)
+{
+	const Recipe *r = furnaceRecipe ();
+	if (!r) return false;
+	if (!toInventory && !C_.cursor.empty () && (C_.cursor.item != r->out || C_.cursor.count + r->outN > itemInfo (r->out).maxStack)) return false;
+	if (g.fuel < 1) {
+		int best = 0;
+		for (int f : { (int) I_COAL, (int) LOG, (int) PINE_LOG, (int) PLANKS, (int) I_STICK })
+			if (g.inv.count (f) > 0) {
+				best = f;
+				break;
+			}
+		if (!best) {
+			C_.msg = TR ("Le four n'a pas de combustible : du charbon, du bois, des planches ou des bâtons dans l'inventaire");
+			return false;
+		}
+		g.inv.take (best, 1);
+		g.fuel += fuelValue (best);
+	}
+	if (toInventory) {
+		if (g.inv.add (r->out, r->outN) > 0) return false;
+	} else {
+		if (C_.cursor.empty ()) C_.cursor = Stack (), C_.cursor.item = r->out;
+		C_.cursor.count += r->outN;
+	}
+	g.fuel -= 1;
+	if (--C_.fin.count <= 0) C_.fin = Stack ();
+	C_.msg = std::string (TR ("Cuit : ")) + itemInfo (r->out).label;
+	g.edited = true;
+	return true;
+}
+
+int slotAt (int x, int y)
+{
+	for (auto &sl : craftSlots ())
+		if (x >= sl.x && x < sl.x + CELL && y >= sl.y && y < sl.y + CELL) return sl.id;
+	return -1;
+}
+
+// poser ce que tient la souris sur une case (tout, ou un seul) ; une autre sorte d'objet : échange
+void dropOn (Stack *s, bool one)
+{
+	Stack &c = C_.cursor;
+	if (c.empty () || !s) return;
+	int mx = itemInfo (c.item).maxStack;
+	if (one) {
+		if (s->empty ()) *s = c, s->count = 0;
+		else if (s->item != c.item || s->count >= mx) return;
+		s->count++;
+		if (--c.count <= 0) c = Stack ();
+	} else if (s->empty ()) std::swap (c, *s);
+	else if (s->item == c.item) {
+		int k = std::min (c.count, mx - s->count);
+		s->count += k, c.count -= k;
+		if (c.count <= 0) c = Stack ();
+	} else std::swap (c, *s);
+}
+
+// ce que tient la souris revient d'où il vient (ou dans l'inventaire)
+void returnCursor ()
+{
+	if (C_.cursor.empty ()) return;
+	Stack *o = slotStack (C_.dragFrom);
+	if (o && (o->empty () || (o->item == C_.cursor.item && o->count + C_.cursor.count <= itemInfo (o->item).maxStack))) dropOn (o, false);
+	if (!C_.cursor.empty () && g.inv.add (C_.cursor.item, C_.cursor.count) == 0) C_.cursor = Stack ();
+}
+
+// Le glisser-déposer : appuyer sur une case prend sa pile (bouton droit : un seul objet), la lâcher sur une autre
+// case l'y pose (tout ; bouton droit : un seul) ; lâchée ailleurs, elle revient. Un clic sans glisser garde l'objet
+// sous la souris : un second clic le pose (clic droit : un seul). Sur le résultat : le prendre (Maj : le plus possible).
+long craftMouse (long v, long kind, long x, long y, long infos)
+{
+	C_.mx = (int) x, C_.my = (int) y;
+	if (kind == 3) C_.mx = C_.my = -100;
+	unsigned b = (unsigned) (infos >> 8) & 0xFF, mods = (unsigned) (infos >> 16);
+	unsigned pressed = kind == 1 ? b & ~C_.buttons : 0;
+	C_.buttons = b;
+	if (v) ui_view_dirty (v);
+	int id = kind == 3 ? -1 : slotAt ((int) x, (int) y);
+	if (kind == 2 && C_.dragFrom != -1) {	// (lâché ; -2 : le résultat)
+		int from = C_.dragFrom;
+		C_.dragFrom = -1;
+		if (id == from || (from == -2 && (id == 9 || id == 11))) return 0;	// (un simple clic : l'objet reste sous la souris)
+		if (id >= 0 && id != 9 && id != 11) {
+			dropOn (slotStack (id), C_.dragOne);
+			if (!C_.cursor.empty () && C_.dragOne) return 0;
+		}
+		C_.dragFrom = from;
+		returnCursor ();
+		C_.dragFrom = -1;
+		return 0;
+	}
+	if (!pressed || id < 0) return 0;
+	bool left = pressed & 1, shift = mods & UI_MOD_SHIFT;
+	C_.msg.clear ();
+	if (id == 9 || id == 11) {
+		bool (*take) (bool) = id == 9 ? takeGrid : takeFurnace;
+		if (shift) {
+			int k = 0;
+			while (k < 4096 && take (true)) k++;
+		} else if (take (false) && C_.dragFrom < 0) C_.dragFrom = -2, C_.dragOne = false;	// (le résultat se glisse aussi)
+		return 0;
+	}
+	Stack *s = slotStack (id);
+	if (!s) return 0;
+	if (shift && !s->empty () && id >= 20) {	// (Maj + clic dans l'inventaire : entre le sac et la barre)
+		bool bar = id >= 47;
+		for (int i = bar ? 9 : 0; i < (bar ? 36 : 9); i++)
+			if (g.inv.s[i].empty ()) {
+				g.inv.s[i] = *s, *s = Stack ();
+				break;
+			}
+		return 0;
+	}
+	if (!C_.cursor.empty ()) {	// (un objet déjà sous la souris : le poser)
+		dropOn (s, !left);
+		return 0;
+	}
+	if (s->empty ()) return 0;
+	// prendre : toute la pile, ou un seul objet (bouton droit), et glisser
+	C_.dragOne = !left;
+	C_.cursor = *s;
+	if (left) *s = Stack ();
+	else {
+		C_.cursor.count = 1;
+		if (--s->count <= 0) *s = Stack ();
+	}
+	C_.dragFrom = id;
+	return 0;
+}
+
+long craftKey (long, long code, long, long) { return code == KEY_ESC ? -1 : 0; }
+
+long craftTick (long) { ui_view_flush (); return 0; }
+
+long craftFn (long d, long w, long code)
+{
+	(void) d;
+	if (code == UN_ACTIVATE && w == C_.book) {
+		std::string t;
+		for (auto &r : recipes ()) {
+			if (r.station == ST_FURNACE) continue;
+			t += std::string (r.outN > 1 ? std::to_string (r.outN) + " × " : "") + itemInfo (r.out).label + (r.station == ST_WORKBENCH ? TR (" (établi)") : "") + "  " + recipeText (r) + "\n";
+		}
+		t += TR ("\nAu four : minerai de fer ou d'or → lingot, sable → verre, pavé → pierre, argile → briques, tronc → charbon.");
+		ui_message ((long) TR ("Livre des recettes"), (long) t.c_str (), UM_OK);
+	}
+	return 0;
+}
+
+void inventoryWindow (bool workbench)
 {
 	unlock ();
-	char buf[512] = "";
-	if (!ui_ask ((long) TR ("TerraCube"), (long) TR ("Message ou commande (/tp x y z, /time h, /fly, /seed, /world.setBlock(x,y,z,stone)…) :"), (long) buf, sizeof buf)) return;
-	std::string s = buf;
-	if (s.empty ()) return;
-	if (s[0] != '/') {
-		gamePost (s);
+	if (!survival ()) {
+		chooseBlock ();
 		return;
 	}
-	std::string c = s.substr (1);
-	double a, b, d;
-	if (sscanf (c.c_str (), "tp %lf %lf %lf", &a, &b, &d) == 3) gameTeleport (a, b, d);
-	else if (sscanf (c.c_str (), "time %lf", &a) == 1) g.hour = (float) fmod (fmod (a, 24) + 24, 24);
-	else if (c == "fly") g.pl.fly = !g.pl.fly, gameFlyChanged ();
-	else if (c == "seed") gamePost (std::string (TR ("Graine : ")) + std::to_string (g.world.seed));
-	else if (c == "spawn") spawnNear (0, 0);
-	else {
-		bool reply;
-		std::string out = apiExec (c, reply);
-		gamePost ("> " + c + (out.empty () ? "" : " : " + out.substr (0, 200)));
-	}
+	bool wb, fu;
+	gameStations (wb, fu);
+	C_.n = workbench || wb ? 3 : 2;
+	C_.furnace = fu;
+	for (auto &s : C_.grid) s = Stack ();
+	C_.fin = C_.cursor = Stack ();
+	C_.msg = TR ("Glissez les objets de l'inventaire vers la grille (bouton droit : un seul) · Maj + clic sur le résultat : le plus possible");
+	C_.buttons = 0;
+	C_.dragFrom = -1;
+	const int WW = VW + 32, WH = VH + 100;
+	C_.d = ui_dialog_begin (WW, WH, (long) TR ("Inventaire et fabrication"));
+	C_.view = ui_view (16, 36, VW, VH, 0);
+	ui_view_on (C_.view, (long) craftPaint, (long) craftMouse, (long) craftKey, 0);
+	C_.book = ui_pushbutton (16, WH - 46, 200, 30, (long) TR ("Livre des recettes"), UB_GHOST);
+	ui_dialog_button (C_.d, 0, (long) TR ("Fermer"), 0, UB_DEFAULT, WW - 12);
+	ui_dialog_cancel (C_.d, 0);
+	ui_dialog_timer (C_.d, (long) craftTick, 40);
+	ui_dialog_run (C_.d, (long) craftFn, 0);
+	ui_dialog_end (C_.d);
+	// ce qui reste dans la grille, le four et sous la souris revient dans l'inventaire
+	int lost = 0;
+	for (auto &s : C_.grid)
+		if (!s.empty ()) lost += g.inv.add (s.item, s.count), s = Stack ();
+	if (!C_.fin.empty ()) lost += g.inv.add (C_.fin.item, C_.fin.count), C_.fin = Stack ();
+	if (!C_.cursor.empty ()) lost += g.inv.add (C_.cursor.item, C_.cursor.count), C_.cursor = Stack ();
+	if (lost) gamePost (TR ("Inventaire plein : des objets sont perdus"));
+	selectSlot (g.selected);
+}
+
+// ---- la console de commandes (T, / ou ²) ------------------------------------------------------------------------
+
+void consoleOpen (const char *prefill)
+{
+	g_console = true;
+	g_cin = prefill;
+	g_histPos = (int) g_hist.size ();
+	g_consoleWasLocked = g_locked;
+	unlock ();
+	if (g.console.empty ()) g.console.push_back (TR ("Console : help pour la liste des commandes, Échap pour fermer."));
+	if (g_selftest) printf ("terracube : [console] ouverte\n"), fflush (stdout);
+	drawOverlay (true);
+}
+
+void consoleClose ()
+{
+	g_console = false;
+	if (g_selftest) printf ("terracube : [console] fermée\n"), fflush (stdout);
+	if (g_consoleWasLocked) lock ();
+}
+
+void consoleLog (const std::string &s)
+{
+	g.console.push_back (s);
+	while (g.console.size () > 200) g.console.pop_front ();
+}
+
+void consoleRun ()
+{
+	std::string line = g_cin;
+	g_cin.clear ();
+	if (line.empty ()) return;
+	if (g_hist.empty () || g_hist.back () != line) g_hist.push_back (line);
+	g_histPos = (int) g_hist.size ();
+	consoleLog ("> " + line);
+	auto out = consoleExec (line);
+	for (auto &l : out) consoleLog (l);
+	if (g_selftest) printf ("terracube : [console] > %s (%zu lignes)\n", line.c_str (), out.size ()), fflush (stdout);
+}
+
+void utf8Put (std::string &s, unsigned cp)
+{
+	if (cp < 0x80) s += (char) cp;
+	else if (cp < 0x800) s += (char) (0xC0 | cp >> 6), s += (char) (0x80 | (cp & 63));
+	else s += (char) (0xE0 | cp >> 12), s += (char) (0x80 | (cp >> 6 & 63)), s += (char) (0x80 | (cp & 63));
+}
+
+void consoleKey (int code, unsigned ch)
+{
+	if (code == KEY_ESC) consoleClose ();
+	else if (code == KEY_ENTER || code == 0x58) consoleRun ();	// (Entrée, Entrée du pavé)
+	else if (code == KEY_BACKSPACE) {
+		while (!g_cin.empty () && ((unsigned char) g_cin.back () & 0xC0) == 0x80) g_cin.pop_back ();
+		if (!g_cin.empty ()) g_cin.pop_back ();
+	} else if (code == KEY_UP && g_histPos > 0) g_cin = g_hist[(size_t) --g_histPos];
+	else if (code == KEY_DOWN) {
+		if (g_histPos + 1 < (int) g_hist.size ()) g_cin = g_hist[(size_t) ++g_histPos];
+		else g_histPos = (int) g_hist.size (), g_cin.clear ();
+	} else if (ch >= 32 && ch != 127 && g_cin.size () < 400) utf8Put (g_cin, ch);
 }
 
 void newWorldDialog ()
 {
 	unlock ();
-	long d = ui_dialog_begin (420, 200, (long) TR ("Nouveau monde"));
+	long d = ui_dialog_begin (420, 250, (long) TR ("Nouveau monde"));
 	ui_label (16, 44, 120, 24, (long) TR ("Nom"), 0);
 	long fName = ui_textbox (130, 40, 274, 30, 0);
 	char nm[64];
@@ -696,12 +1262,16 @@ void newWorldDialog ()
 	unsigned r = 0;
 	getentropy (&r, sizeof r);
 	ui_w_set_text (fSeed, (long) std::to_string (r % 1000000).c_str ());
+	ui_label (16, 132, 120, 24, (long) TR ("Mode"), 0);
+	long fMode = ui_segmented (130, 128, 274, 30, (long) TR ("Créatif|Survie"));
+	ui_w_set_value (fMode, g.mode == MODE_SURVIVAL ? 1 : 0);
 	long e = ui_dialog_button (d, 0, (long) TR ("Créer"), 1, UB_DEFAULT, 420 - 12);
 	ui_dialog_button (d, 1, (long) TR ("Annuler"), 0, 0, e);
 	ui_dialog_cancel (d, 0);
 	ui_w_focus (fName);
 	long res = ui_dialog_run (d, 0, 0);
 	std::string name = (const char *) ui_w_get_text (fName), seed = (const char *) ui_w_get_text (fSeed);
+	int mode = ui_w_get_value (fMode) == 1 ? MODE_SURVIVAL : MODE_CREATIVE;
 	ui_dialog_end (d);
 	if (res != 1) return;
 	// un nom de dossier sûr
@@ -717,6 +1287,7 @@ void newWorldDialog ()
 	else
 		for (char ch : seed) sd = sd * 31 + (unsigned char) ch;
 	gameNewWorld (n, sd);
+	gameSetMode (mode);
 }
 
 void openWorldDialog ()
@@ -744,7 +1315,8 @@ void setDistance (int d)
 }
 
 const char *MENU =
-	"MPartie\nI1\tNouveau monde…\tCtrl+N\nI2\tOuvrir un monde…\tCtrl+O\nI3\tSauver\tCtrl+S\n-\nI4\tPlein écran\tF9\n"
+	"MPartie\nI1\tNouveau monde…\tCtrl+N\nI2\tOuvrir un monde…\tCtrl+O\nI3\tSauver\tCtrl+S\n-\nI5\tMode survie\n"
+	"I6\tInventaire et fabrication\tI\nI7\tConsole de commandes\tT\n-\nI4\tPlein écran\tF9\n"
 	"MAffichage\nI11\tDistance courte\nI12\tDistance moyenne\nI13\tDistance longue\n-\nI14\tVoler\tF\nI15\tLe temps passe\nI16\tInfos détaillées\tF3\n"
 	"MPilotage\nI20\tScripts (Python, BASIC) sur le port 4730\nI21\tPiloter par un agent IA (MCP)…\n-\nI22\tOù sont les exemples ?\n";
 
@@ -759,11 +1331,15 @@ bool command (long id)
 		else gamePost (std::string (TR ("Sauvegarde impossible : ")) + err);
 		break;
 	case 4: fullscreen (); break;
+	case 5: gameSetMode (survival () ? MODE_CREATIVE : MODE_SURVIVAL); break;
+	case 6: inventoryWindow (); break;
+	case 7: consoleOpen (""); break;
 	case 11: setDistance (4); break;
 	case 12: setDistance (8); break;
 	case 13: setDistance (12); break;
 	case 14:
-		g.pl.fly = !g.pl.fly;
+		if (survival ()) gamePost (TR ("Le vol est réservé au mode créatif (console : mode creative)"));
+		else g.pl.fly = !g.pl.fly;
 		gameFlyChanged ();
 		break;
 	case 15:
@@ -790,9 +1366,7 @@ bool command (long id)
 	return true;
 }
 
-bool isKey (int code, int a, int b = -1) { return code == a || code == b; }
-
-void keyDown (int code, int mods, long id)
+void keyDown (int code, int mods, long id, unsigned ch)
 {
 	if (code == KEY_ESC) {
 		if (g_locked) unlock ();
@@ -811,15 +1385,14 @@ void keyDown (int code, int mods, long id)
 		if (id >= 0) command (id);
 		return;
 	}
-	if (code >= 0x1E && code <= 0x26) selectSlot (code - 0x1E);	// 1 à 9
+	if (ch == '/') consoleOpen ("/");				// / : la console, la commande commencée
+	else if (code == 0x17 || code == 0x35) consoleOpen ("");	// T, ² : la console
+	else if (code >= 0x1E && code <= 0x26) selectSlot (code - 0x1E);	// 1 à 9
 	else if (code == 0x09) command (14);			// F : voler
-	else if (code == 0x05) chooseBlock ();			// B : les blocs
-	else if (code == 0x17) chatPrompt ();			// T : un message
+	else if (code == 0x05) survival () ? inventoryWindow () : chooseBlock ();	// B : les blocs
+	else if (code == 0x0C || code == 0x06) inventoryWindow ();	// I, C : inventaire et fabrication
 	else if (code == 0x08 && g_target.hit) event (3, g_target, g_target.block);	// E : toucher (pour les scripts)
-	else if (code == 0x14 && g_target.hit) {		// Q (A en AZERTY) : prendre ce bloc dans la case
-		int b = g_target.block;
-		if (b != BEDROCK && b != WATER) g.hotbar[g.selected] = b, selectSlot (g.selected);
-	}
+	else if (code == 0x14) pickBlock ();			// Q (A en AZERTY) : prendre ce bloc
 }
 
 void handleEvent (long t)
@@ -847,9 +1420,14 @@ void handleEvent (long t)
 	}
 	if (t == WEV_KEY) {
 		int code = (int) ui_ev_field (&ui, EV_CODE) & 255, kind = (int) ui_ev_field (&ui, EV_KIND), mods = (int) ui_ev_field (&ui, EV_MODS);
+		unsigned ch = (unsigned) ui_ev_field (&ui, EV_CHAR);
+		if (g_console) {
+			if (kind) consoleKey (code, ch);
+			return;
+		}
 		long id = kind && (mods & UI_MOD_CTRL) ? ui_menu_key (0) : -1;
 		g_keys[code] = kind != 0;
-		if (kind) keyDown (code, mods, id);
+		if (kind) keyDown (code, mods, id, ch);
 		return;
 	}
 	if (t == WEV_WHEEL) {
@@ -867,7 +1445,8 @@ void handleEvent (long t)
 		unsigned b = (unsigned) ui_ev_field (&ui, EV_CODE) & 7;
 		if (kind == 1 && !g_locked) {
 			// (les 32 px du haut déplacent la fenêtre ; ailleurs, un clic prend la souris)
-			if (ui_ev_field (&ui, EV_Y) >= 32 || g_full) lock ();
+			if (g_console) consoleClose ();
+			else if (ui_ev_field (&ui, EV_Y) >= 32 || g_full) lock ();
 			g_buttons = b;
 			return;
 		}
@@ -877,7 +1456,7 @@ void handleEvent (long t)
 		double t0 = nowMs ();
 		if (pressed & 1) breakBlock (), g_breakAt = t0 + 300;
 		if (pressed & 2) placeBlock (), g_placeAt = t0 + 300;
-		if (pressed & 4 && g_target.hit && g_target.block != BEDROCK) g.hotbar[g.selected] = g_target.block, selectSlot (g.selected);
+		if (pressed & 4) pickBlock ();
 	}
 }
 
@@ -902,6 +1481,30 @@ void updateLoading (double budgetMs)
 	for (Chunk *c : far) g.world.unload (c);
 }
 
+// la météo : le niveau suit le temps voulu ; le cycle en choisit un autre de temps en temps ; les éclairs de l'orage
+double randRange (double a, double b) { return a + (b - a) * (rand () % 10000) / 10000.0; }
+
+void weatherStep (double dt)
+{
+	if (g.weatherNext > 0) {
+		g.weatherNext -= dt;
+		if (g.weatherNext <= 0) {
+			if (g.weatherCycle) {
+				int r = rand () % 100;
+				g.weather = r < 55 ? W_CLEAR : r < 80 ? W_RAIN : r < 88 ? W_SNOW : W_STORM;
+				g.weatherNext = g.weather == W_CLEAR ? randRange (300, 900) : randRange (120, 420);
+			} else {
+				g.weather = W_CLEAR;
+				g.weatherNext = 0;
+			}
+		}
+	} else if (g.weatherCycle)
+		g.weatherNext = randRange (300, 900);
+	float target = g.weather == W_CLEAR ? 0.0f : g.weather == W_STORM ? 1.0f : 0.8f;
+	g.weatherLevel += (target - g.weatherLevel) * (float) std::min (1.0, dt * 0.2);
+	if (g.weather == W_STORM && g.weatherLevel > 0.6f && rand () % 10000 < (int) (dt * 900)) g.lightning = nowMs ();
+}
+
 void frame (double dt)
 {
 	// la souris tourne la tête
@@ -921,14 +1524,35 @@ void frame (double dt)
 		in.sneak = k (0xE1) || k (0xE5);
 		in.sprint = k (0xE0) || k (0xE4) || k (0x15);	// Ctrl ou R
 	}
+	if (survival ()) g.pl.fly = false;
 	playerStep (g.world, g.pl, in, dt);
 	if (g.timeRuns) g.hour = fmodf (g.hour + (float) dt * 24.0f / 1200.0f, 24.0f);	// une journée : 20 minutes
+	weatherStep (dt);
 	// le bloc visé ; les clics tenus se répètent
 	float eye[3], dir[3];
 	eyeOf (eye, dir);
-	g_target = g.world.raycast (eye, dir, 6.0f);
+	g_target = g.world.raycast (eye, dir, survival () ? 5.0f : 6.0f);
 	double t = nowMs ();
-	if (g_locked && (g_buttons & 1) && t > g_breakAt) breakBlock (), g_breakAt = t + 250;
+	if (survival ()) {
+		// casser peu à peu : le temps dépend du bloc et de l'outil en main
+		bool on = g_locked && (g_buttons & 1) && g_target.hit;
+		if (on && (g_target.x != g_mineX || g_target.y != g_mineY || g_target.z != g_mineZ)) {
+			g_mineX = g_target.x, g_mineY = g_target.y, g_mineZ = g_target.z;
+			g_mineProg = 0;
+		}
+		float need = on ? mineTime (g_target.block, slotItem (g.selected), nullptr) : -1;
+		if (on && need >= 0) {
+			g_mineProg += (float) (dt / std::max (0.05f, need));
+			if (g_mineProg >= 1) {
+				doBreak ();
+				g_mineProg = -1;
+				g_mineY = -999;
+			}
+		} else {
+			g_mineProg = -1;
+			g_mineY = -999;
+		}
+	} else if (g_locked && (g_buttons & 1) && t > g_breakAt) breakBlock (), g_breakAt = t + 250;
 	if (g_locked && (g_buttons & 2) && t > g_placeAt) placeBlock (), g_placeAt = t + 250;
 }
 
@@ -949,8 +1573,36 @@ void renderTo (int w, int h, const Camera &cam, bool hotbar = true)
 	f.distance = g.distance;
 	f.hasTarget = g_target.hit && !g_selftest;
 	f.target = g_target;
+	// la météo : pluie, neige là où il fait froid (neige ou glace au sol, ou en altitude)
+	f.precipLevel = g.weatherLevel;
+	f.gloom = g.weatherLevel * (g.weather == W_STORM ? 1.0f : 0.7f);
+	f.daylight *= 1.0f - 0.45f * f.gloom;
+	double fl = nowMs () - g.lightning;
+	if (fl >= 0 && fl < 350) f.flash = (float) (1.0 - fl / 350.0) * ((int) (fl / 60) % 2 ? 0.5f : 1.0f);
+	static uint8_t hm[HMAP * HMAP];
+	if (g.weather != W_CLEAR || g.weatherLevel > 0.01f) {
+		int bx = (int) floor (cam.x), bz = (int) floor (cam.z);
+		int top = g.world.get (bx, g.world.height (bx, bz), bz);
+		bool cold = g.weather == W_SNOW || top == SNOW || top == ICE || top == PINE_LEAVES || cam.y > SEA + 52;
+		f.precip = cold ? 2 : 1;
+		for (int z = 0; z < HMAP; z++)
+			for (int x = 0; x < HMAP; x++) {
+				int wx = bx + x - HMAP / 2, wz = bz + z - HMAP / 2;
+				const Chunk *c = g.world.find (floorDiv (wx, CW), floorDiv (wz, CW));
+				int tp = c ? c->top[(wz - c->cz * CW) * CW + (wx - c->cx * CW)] + 1 : 0;
+				hm[z * HMAP + x] = (uint8_t) std::max (0, std::min (255, tp));
+			}
+		f.heights = hm;
+	}
 	HudState hud;
-	memcpy (hud.slots, g.hotbar, sizeof hud.slots);
+	for (int i = 0; i < 9; i++) {
+		hud.slots[i] = slotItem (i);
+		const Stack &st = g.inv.s[i];
+		hud.counts[i] = survival () && !st.empty () ? st.count : -1;
+		int dur = survival () && !st.empty () ? itemInfo (st.item).durability : 0;
+		hud.wear[i] = dur ? (float) st.dur / dur : -1;
+	}
+	hud.mining = g_mineProg;
 	hud.selected = g.selected;
 	int eb = g.world.get ((int) floor (cam.x), (int) floor (cam.y), (int) floor (cam.z));
 	hud.underwater = eb == WATER;
@@ -960,6 +1612,9 @@ void renderTo (int w, int h, const Camera &cam, bool hotbar = true)
 	hud.panelLine = jet (TJ_SUNKEN);
 	hud.accent = jet (TJ_ACCENT);
 	hud.text = jet (TJ_TEXT1);
+	hud.good = jet (TJ_SUCCESS);
+	hud.warn = jet (TJ_WARNING);
+	hud.bad = jet (TJ_DANGER);
 	R.draw (g.world, cam, f, hud);
 }
 
@@ -978,6 +1633,44 @@ void freeChunks ()
 }
 
 } // namespace
+
+void gameSetMode (int mode)
+{
+	if (mode != MODE_SURVIVAL) mode = MODE_CREATIVE;
+	if (mode == g.mode) return;
+	g.mode = mode;
+	if (mode == MODE_SURVIVAL) g.pl.fly = false;
+	g_mineProg = -1;
+	gameFlyChanged ();
+	ui_menu_state (5, mode == MODE_SURVIVAL ? UMS_CHECKED : 0);
+	gamePost (mode == MODE_SURVIVAL ? TR ("Mode survie : les blocs se ramassent ; I pour l'inventaire et la fabrication")
+					: TR ("Mode créatif : tous les blocs, B pour la liste ; F pour voler"));
+	selectSlot (g.selected);
+	g.edited = true;
+}
+
+void gameSetWeather (int w, double seconds)
+{
+	g.weather = w & 3;
+	g.weatherNext = seconds > 0 ? seconds : g.weatherCycle ? randRange (300, 900) : 0;
+	g.edited = true;
+}
+
+int gameHeldItem () { return slotItem (g.selected); }
+
+bool gameStations (bool &workbench, bool &furnace)
+{
+	workbench = furnace = false;
+	int px = (int) floor (g.pl.x), py = (int) floor (g.pl.y + 1), pz = (int) floor (g.pl.z);
+	for (int y = py - 4; y <= py + 4; y++)
+		for (int z = pz - 4; z <= pz + 4; z++)
+			for (int x = px - 4; x <= px + 4; x++) {
+				int b = g.world.get (x, y, z);
+				workbench |= b == WORKBENCH;
+				furnace |= b == FURNACE;
+			}
+	return workbench || furnace;
+}
 
 bool gameCapture (std::vector<uint32_t> &px, int &w, int &h, const double *eye, const float *yp)
 {
@@ -1063,6 +1756,102 @@ static void selftest ()
 	check (hm.find ("heights") != std::string::npos, "MCP : get_heightmap");
 	std::string sb = mcpHandle (R"({"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"set_blocks","arguments":{"blocks":[[20,95,20,"lamp"],{"x":21,"y":95,"z":20,"block":"glass"}]}}})");
 	check (sb.find ("\\\"placed\\\":2") != std::string::npos && g.world.get (20, 95, 20) == LAMP, "MCP : set_blocks");
+	// la console, le mode survie, la fabrication, le minage, la météo
+	auto con = [] (const char *c) { std::string o; for (auto &l : consoleExec (c)) o += l + "\n"; return o; };
+	con ("time 18:30");
+	check (fabsf (g.hour - 18.5f) < 0.01f, "console : time 18:30");
+	con ("/weather storm 60");
+	check (g.weather == W_STORM, "console : weather storm");
+	con ("mode survival");
+	check (g.mode == MODE_SURVIVAL && !g.pl.fly, "console : mode survival");
+	con ("clear");
+	con ("give log 3");
+	check (g.inv.count (LOG) == 3, "console : give log 3");
+	con ("craft planks 3");
+	check (g.inv.count (PLANKS) == 12 && g.inv.count (LOG) == 0, "fabrication : 3 troncs -> 12 planches");
+	con ("craft stick");
+	check (g.inv.count (I_STICK) == 4 && g.inv.count (PLANKS) == 10, "fabrication : 2 planches -> 4 bâtons");
+	std::string refused = con ("craft wood_pickaxe");
+	check (g.inv.count (I_WOOD_PICKAXE) == 0 && refused.find ("établi") != std::string::npos, "fabrication : la pioche demande un établi");
+	bool harv;
+	float bare = mineTime (STONE, 0, &harv);
+	check (!harv && bare > mineTime (STONE, I_WOOD_PICKAXE, nullptr), "minage : la pierre à la main est lente et ne tombe pas");
+	mineTime (IRON_ORE, I_WOOD_PICKAXE, &harv);
+	bool h2;
+	mineTime (IRON_ORE, I_STONE_PICKAXE, &h2);
+	check (!harv && h2, "minage : le fer demande une pioche en pierre");
+	check (apiExec ("game.getMode()", r) == "survival", "protocole : game.getMode");
+	check (apiExec ("player.getInventory()", r).find ("planks:10") != std::string::npos, "protocole : player.getInventory");
+	std::string cmd = mcpHandle (R"({"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"run_command","arguments":{"command":"weather clear"}}})");
+	check (g.weather == W_CLEAR && cmd.find ("clear") != std::string::npos, "MCP : run_command weather clear");
+	std::string rec = mcpHandle (R"({"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"list_recipes","arguments":{}}})");
+	check (rec.find ("wood_pickaxe") != std::string::npos, "MCP : list_recipes");
+	// la table de fabrication, à la souris (clics simulés sur les cases de la vue)
+	{
+		con ("clear");
+		con ("give planks 8");
+		con ("give stick 4");
+		C_.n = 3, C_.furnace = false;
+		for (auto &st : C_.grid) st = Stack ();
+		C_.cursor = C_.fin = Stack ();
+		C_.buttons = 0;
+		auto at = [] (int id, int &x, int &y) {
+			for (auto &sl : craftSlots ())
+				if (sl.id == id) x = sl.x + CELL / 2, y = sl.y + CELL / 2;
+		};
+		auto click = [&] (int id, int button) {
+			int x = 0, y = 0;
+			at (id, x, y);
+			craftMouse (0, 1, x, y, (long) button << 8);
+			craftMouse (0, 2, x, y, 0);
+		};
+		click (47, 1);					// les planches (barre 1)
+		click (0, 2), click (1, 2), click (2, 2);	// une sur chaque case du haut
+		click (47, 1);					// le reste revient
+		click (48, 1);					// les bâtons (barre 2)
+		click (4, 2), click (7, 2);			// au milieu, en dessous
+		click (48, 1);
+		const Recipe *rr = gridRecipe ();
+		check (rr && !strcmp (rr->name, "wood_pickaxe"), "table : la forme d'une pioche donne une pioche");
+		// glisser-déposer : une pile de la barre lâchée sur une case vide de la grille, puis ramenée
+		auto drag = [&] (int from, int to, int button) {
+			int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+			at (from, x0, y0), at (to, x1, y1);
+			craftMouse (0, 1, x0, y0, (long) button << 8);
+			craftMouse (0, 0, x1, y1, (long) button << 8);
+			craftMouse (0, 2, x1, y1, 0);
+		};
+		drag (47, 3, 1);
+		check (C_.grid[3].item == PLANKS && C_.grid[3].count == 5 && g.inv.s[0].empty () && C_.cursor.empty (), "table : glisser une pile de l'inventaire vers la grille");
+		drag (3, 47, 1);
+		drag (48, 6, 2);
+		check (C_.grid[6].count == 1 && g.inv.s[1].count == 1 && C_.cursor.empty (), "table : glisser un seul objet (bouton droit)");
+		drag (6, 48, 1);
+		check (g.inv.s[0].count == 5 && g.inv.s[1].count == 2 && gridRecipe () == rr, "table : tout revient à sa place");
+		{	// (le résultat glissé directement sur une case de la barre, puis remis dans la grille pour la suite)
+			int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+			at (9, x0, y0), at (50, x1, y1);
+			craftMouse (0, 1, x0, y0, 1 << 8);
+			craftMouse (0, 0, x1, y1, 1 << 8);
+			craftMouse (0, 2, x1, y1, 0);
+			check (g.inv.s[3].item == I_WOOD_PICKAXE && C_.cursor.empty () && !gridRecipe (), "table : glisser le résultat dans l'inventaire");
+			g.inv.s[3] = Stack ();
+			for (int i : { 0, 1, 2 }) C_.grid[i].item = PLANKS, C_.grid[i].count = 1;
+			for (int i : { 4, 7 }) C_.grid[i].item = I_STICK, C_.grid[i].count = 1;
+		}
+		click (9, 1);					// le résultat
+		check (C_.cursor.item == I_WOOD_PICKAXE && C_.grid[0].empty () && C_.grid[4].empty (), "table : la pioche prise, la grille consommée");
+		click (49, 1);					// posée en barre 3
+		check (g.inv.s[2].item == I_WOOD_PICKAXE && g.inv.count (PLANKS) == 5 && g.inv.count (I_STICK) == 2, "table : la pioche dans l'inventaire, le reste aussi");
+		C_.n = 2;
+		click (47, 1), click (0, 2), click (2, 2), click (47, 1);	// deux planches en colonne -> bâtons
+		rr = gridRecipe ();
+		check (rr && !strcmp (rr->name, "stick"), "table 2 × 2 : deux planches l'une sur l'autre donnent des bâtons");
+		for (auto &st : C_.grid) st = Stack ();
+	}
+	con ("mode creative");
+	check (g.mode == MODE_CREATIVE, "console : mode creative");
+	con ("time 11");
 	// sauvegarde et relecture d'un tronçon
 	std::string err;
 	check (gameSave (err), "sauvegarde du monde " + g.world.dir + (err.empty () ? "" : " : " + err));
