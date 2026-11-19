@@ -667,7 +667,7 @@ static void parse_level (int n)
 			case 'f': e = ent_new (E_FLAME, X, Y, TS, TS); if (e) e->t = (int) (hashu (tx, ty, 7) % 160); break;
 			case '<': case '>': e = ent_new (E_DARTER, X, Y, TS, TS); if (e) { e->dir = c == '>' ? 1 : -1; e->t = 30 + (int) (hashu (tx, ty, 8) % 60); } break;
 			case 'C': e = ent_new (E_CRUMB, X, Y, TS, TS); break;
-			case 'F': e = ent_new (E_FERN, X + 10 - 35, B - 42, 70, 45); break;
+			case 'F': e = ent_new (E_FERN, X + 10 - 35, B - 42, 70, 45); if (e) e->b = B; break;	/* (b : le dessus du sol) */
 			}
 			if (e) { e->tx = tx; e->ty = ty; }
 		}
@@ -1723,7 +1723,11 @@ static void draw_ents (int pass)
 		if (e->x + e->w + 60 < vx0 || e->x - 60 > vx0 + VW || e->y + e->h + 80 < vy0 || e->y - 80 > vy0 + VH) continue;
 		if (pass == 2)
 		{					/* devant tout : les fougeres */
-			if (e->type == E_FERN) blit_w (e->x, e->y, g_sfern[g_world]);
+			if (e->type == E_FERN)
+			{				/* le pied de la plante sur le dessus de la case, au milieu */
+				const gf_sprite_t *f = g_sfern[g_world];
+				ga_ablit (SX (e->x + e->w / 2) - (long) (f[0] >> 1), SY (e->b) - (long) f[1] + 1, f);
+			}
 			continue;
 		}
 		if (pass == 0)
