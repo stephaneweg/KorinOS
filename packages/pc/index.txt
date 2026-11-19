@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-19 21:00
+date = 2026-11-19 21:39
 abi = 626
 packages = 115
 board = pc
@@ -1609,18 +1609,18 @@ content = bcc565a5cb90bc0a6168ccb2abf71fd8086c6e49a0b226a39dbe0bd687842b5f
 
 [spotify]
 title = Spotify
-version = 1.0.5
+version = 1.0.6
 category = Multimédia
 author = Korin OS
 summary = Spotify (compte Premium) : titres aimés, playlists, recherche, joués par librespot
-size = 4245462
-installed = 10083690
-sha256 = a357b5e8b750488ced64b6bc3c020743355d52508bf6723e5924877fc68bf0c6
-file = pkgs/spotify-1.0.5.opk
+size = 4246147
+installed = 10084607
+sha256 = 5f85a511a4a36532a292aac451090d2bbf6f17ba4e4548ee2e6d0a93ed7c9608
+file = pkgs/spotify-1.0.6.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 3d791593c717c9acce42dad28abda032e182c4fa0439d89241eae87fe29a775e
+content = 90d776f2022bbbe12f33207c7170f10a1cfa6365b98b53e31e30e86fad6c893e
 
 [studio]
 title = Studio
