@@ -5,7 +5,8 @@
  * s'effondrent) et ennemis (gardiens, tireurs, chauves-souris, araignees), avec un pistolet a six coups et des
  * batons de dynamite (les murs fissures cedent), des cles pour les portes, des points de passage et des tresors.
  *
- * Sur le cadre des jeux en C (gamefb.h, gamedraw.h, gamepause.h, gamesound.h), comme Arkanoid et Bubbles : image
+ * Sur le cadre des jeux en C (gamefb.h, gamedraw.h, gamepause.h, gamesound.h), comme Arkanoid et Bubbles, avec une
+ * musique par monde (music.h, le synthetiseur General MIDI d'AudioKit dans un thread) : image
  * logique de 640 x 384, mise a l'echelle ; tout est genere par le programme (art.h), rien n'est lu ; les niveaux
  * sont dans levels.h (tools/relics/mklevels.py). Le monde est fait de tuiles de 32 points (une case : 20 unites de
  * jeu, grossies de ZK), dessinees au trait comme des tuiles de jeu et faites a la demande ; 20 x 12 cases se voient,
@@ -53,6 +54,7 @@ static int g_iw, g_ih;					/* la taille du monde, en unites */
 
 #include "art.h"
 #include "levels.h"
+#include "music.h"
 
 #define NLEVELS		((int) (sizeof levels / sizeof levels[0]))
 
@@ -788,12 +790,28 @@ static void reset_actors (void)
 	ga_parts_clear ();
 }
 
+/* la musique de l'etat : le titre, celle du monde en jeu (plus vite au 2e et 3e niveau), rien sur les panneaux
+ * (leurs fanfares sont aux voix FM) ; elle attend pendant la pause et le son coupe */
+static void music_sync (void)
+{
+	int s = g_state == GS_PAUSE ? g_prev : g_state, n = -1, add = 0;
+	if (s == GS_TITLE) n = MU_TITLE;
+	else if (s == GS_INTRO || s == GS_PLAY || s == GS_DEAD)
+	{
+		n = 1 + levels[g_level].world;
+		add = g_level % 3 * 5;
+	}
+	mu_play (n, add);
+	mu_hold (gs_mute || g_state == GS_PAUSE);
+}
+
 static void set_state (int s)
 {
 	g_state = s;
 	g_timer = 0;
 	gf_still = s == GS_PAUSE;
 	gf_redraw = 1;
+	music_sync ();
 }
 
 static void start_level (int n)
@@ -2156,6 +2174,7 @@ static long game_pause (void)
 	g_state = GS_PAUSE;
 	gf_still = 1;
 	gf_redraw = 1;
+	music_sync ();
 	return 1;
 }
 
@@ -2166,11 +2185,12 @@ static void game_resume (void)
 	gf_still = 0;
 	gf_redraw = 1;
 	g_in = g_inprev = 0;
+	music_sync ();
 }
 
 static void game_new (void) { gf_still = 0; restart_level (); }
 
-static void toggle_sound (void) { ui_menu_state (ID_SOUND, gs_toggle () ? UMS_CHECKED : 0); }
+static void toggle_sound (void) { ui_menu_state (ID_SOUND, gs_toggle () ? UMS_CHECKED : 0); music_sync (); }
 
 static void do_menu (long id)
 {
@@ -2360,6 +2380,7 @@ int main (void)
 	ui_menu ((long) s_menus);
 	ui_menu_state (ID_SOUND, UMS_CHECKED);
 	gs_open ();
+	mu_open ();
 	if (!ga_init (BANK))
 		return 0;
 	g_bank0 = ga_bp;
@@ -2372,6 +2393,7 @@ int main (void)
 	ui_canvas_end ();
 	goto_title ();
 	gf_run (on_event, step, draw);
+	mu_close ();
 	gs_close ();
 	return 0;
 }
