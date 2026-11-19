@@ -1,0 +1,8 @@
+# Manifeste de Relics, jeu de plates-formes et d'exploration
+name     = Relics
+category = Jeux
+description = Relics : un explorateur traverse douze niveaux à défilement dans quatre mondes (jungle, pyramide, forteresse de glace, volcan), entre pièges, gardiens, dynamite et trésors.
+keywords = jeu plates-formes aventure exploration explorateur temple pièges dynamite trésors relique arcade
+help = Plein écran. Gauche et Droite marchent, Haut et Bas grimpent aux échelles, Espace (ou Haut hors d'une échelle) saute ; X, Ctrl ou F tirent (six balles au départ) ; D, C ou Bas avec le tir posent un bâton de dynamite, qui fait sauter les murs fissurés, les ennemis... et l'explorateur s'il reste trop près.
+help = Bas avec Espace descend d'une planche. Les clés ouvrent les portes ; les torches sur piquet sont des points de passage ; la relique de chaque niveau et les trésors rapportent des points, une vie en plus tous les 15 000 points.
+help = Pause, Échap, P ou le bouton || : menu de pause (Reprendre, Recommencer le niveau, Quitter) ; S coupe le son. Manette : la croix, A saute, B ou X tire, Y pose la dynamite, Start ouvre le menu. Progrès et record : HOME:/relics/progress.txt.

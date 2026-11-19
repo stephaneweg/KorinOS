@@ -1200,6 +1200,25 @@ def asteroids(ic):
     ic.pop()
 
 
+@icon('relics', 0x3E9A5C, 0x17482E)
+def relics(ic):
+    # la relique de Relics : une statuette d'or sur son socle, sous l'arche d'un temple
+    if not ic.small:
+        arch = sub(add(ic.rr(20, 30, 60, 58, 3), ic.circ(50, 32, 30)), add(ic.rr(30, 36, 40, 54, 1), ic.circ(50, 38, 20)))
+        ic.fill(arch, Grad(0x8FA67E, 0x56704E, 100), .55)
+    ic.raised(ic.rr(30, 72, 40, 12, 3), Grad(0xC9B48A, 0x806A48, 100))
+    gold = Grad(0xFFE88E, 0xC9801A, 100)
+    body = add(ic.rr(37, 44, 26, 30, 8), ic.circ(50, 35, 12.5), ic.poly([(36, 30), (50, 13), (64, 30)]))
+    ic.raised(body, gold)
+    ic.fill(ic.line([(38, 50), (30, 60)], 6), gold)
+    ic.fill(ic.line([(62, 50), (70, 60)], 6), gold)
+    if not ic.small:
+        ic.fill(ic.circ(45, 35, 2.6), 0x1FA2DE)
+        ic.fill(ic.circ(55, 35, 2.6), 0x1FA2DE)
+        ic.fill(ic.circ(50, 57, 4.2), 0xD8283C)
+        ic.fill(ic.circ(42, 24, 2.2), 0xFFFFFF, .8)
+
+
 @icon('parkingjam', 0x6F7680, 0x40464F)
 def parkingjam(ic):
     # le parking vu de haut : des places, trois voitures, une qui sort
