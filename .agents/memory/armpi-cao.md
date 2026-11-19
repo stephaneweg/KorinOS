@@ -90,3 +90,12 @@ un **module d'export par machine** (.so, dlopen) écrit le fichier : Two Trees *
 Two Trees TTC 6040 : zone de travail 600 × 400 × 100 mm (confirmé le 18/11 ; la maquette g1 disait TTC 450).
 
 **18/11, CNC deux faces** : plusieurs mises en position ; chacune : origine parmi 27 points, X machine parmi ±X/±Y du projet, Z machine +Z ou −Z, Y déduit (Y = Z × X, jamais de miroir) ; exemple du violon (setup 1 X=+Y Z=+Z → Y=−X ; setup 2 X=+Y Z=−Z → Y=+X) ; l'origine suit le retournement (27 points lus dans le repère de la machine, donc de l'autre côté du projet au setup 2) ; origine par défaut : milieu de la face du dessus du brut (habitude de l'utilisateur) ; pas de pions dans Forge (l'utilisateur les pose lui-même avant l'usinage, sur l'axe médian en X). DESIGN-CAO.md §14 bis.
+
+**19/11, forge 1.3.5 (pas publié)** : demandes de l'utilisateur faites et essayées sous QEMU PC (autotest 28/28, captures) :
+Combiner (une seule opération comme Combine de Fusion : boutons Cible / Outils puis clics dans la vue, Échap annule le
+choix, Union / Soustraction / Intersection, « Conserver les outils », Confirmer ; ST_COMBINE, Feature::tools et keep ;
+ST_CUT gardé pour le rejeu ; MCP boolean : tool_bodies, keep_tools, intersect) ; boîte coin à coin, la hauteur suit
+l'arête du coin opposé ; frise en icônes dessinées dans l'app (iconLines), nom et résumé en infobulle, clic droit
+Modifier… / Supprimer / Supprimer à partir d'ici ; suppression avec dépendances (agent.cpp planRemoval/applyRemoval :
+une forme jointe à un corps disparu devient un nouveau corps) ; Fichier Nouveau / Ouvrir / Enregistrer (sous), format
+.forge = l'historique en JSON (docfile.cpp), rejoué à l'ouverture. Pas essayé sur le ZBook ni le Pi.
