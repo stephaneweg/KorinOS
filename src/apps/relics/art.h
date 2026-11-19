@@ -540,21 +540,55 @@ static gf_sprite_t *gen_exit (uint32_t stone)
 	return s;
 }
 
+/* le rocher, tourne de rot : un motif sans symetrie (fissures inegales, trous, une tache de lichen, un eclat clair) qui
+ * tourne avec lui, sous une lumiere fixe (en haut a gauche) ; vingt-quatre images font un tour (main.c) */
+#define BOULDER_N	24
 static gf_sprite_t *gen_boulder (uint32_t c, float rot)
 {
 	/* deux cases de haut : on ne le saute pas dans un couloir */
 	gf_sprite_t *s = sp_new (40, 40);
-	sp_disc_g (20.0f, 20.0f, 19.0f, ga_shade (c, 330), ga_shade (c, 140));
-	for (int i = 0; i < 4; i++)
+	sp_disc_g (20.0f, 20.0f, 19.0f, ga_shade (c, 330), ga_shade (c, 130));
+	float cr = cosf (rot), sr = sinf (rot);
+#define BX(x, y)	(20.0f + ((x) * cr - (y) * sr))
+#define BY(x, y)	(20.0f + ((x) * sr + (y) * cr))
+#define BL(y)		((uint32_t) (330 - (y) * 5.0f))		/* (la lumiere : plus sombre en bas) */
+	/* les fissures : trois lignes brisees, inegales */
+	static const float cracks[3][8] = {
+		{ -12, -6, -5, -3, 1, -6, 7, -2 },
+		{ 2, 4, 6, 9, 5, 14, 9, 15 },
+		{ -6, 6, -11, 10, -9, 13, -13, 12 },
+	};
+	for (int k = 0; k < 3; k++)
+		for (int j = 0; j < 3; j++)
+		{
+			float x0 = cracks[k][j * 2], y0 = cracks[k][j * 2 + 1], x1 = cracks[k][j * 2 + 2], y1 = cracks[k][j * 2 + 3];
+			float ym = BY (x0, y0);
+			sp_cap (BX (x0, y0), BY (x0, y0), BX (x1, y1), BY (x1, y1), 0.85f, ga_shade (c, BL (ym) * 40 / 100));
+			sp_cap (BX (x0, y0) + 0.6f, BY (x0, y0) + 0.7f, BX (x1, y1) + 0.6f, BY (x1, y1) + 0.7f, 0.4f, ga_shade (c, BL (ym) * 125 / 100));
+		}
+	/* des trous : une ombre et une levre claire */
+	static const float pits[5][3] = { { 8, -10, 2.6f }, { -9, 3, 2.0f }, { 11, 4, 1.7f }, { -2, 12, 2.2f }, { -13, -9, 1.5f } };
+	for (int k = 0; k < 5; k++)
 	{
-		float a = rot + (float) i * 1.5708f;
-		sp_cap (20.0f + cosf (a) * 3.0f, 20.0f + sinf (a) * 3.0f, 20.0f + cosf (a + 0.5f) * 15.5f, 20.0f + sinf (a + 0.5f) * 15.5f, 0.9f, ga_shade (c, 110));
-		sp_cap (20.0f + cosf (a + 0.5f) * 9.0f, 20.0f + sinf (a + 0.5f) * 9.0f, 20.0f + cosf (a + 0.95f) * 13.0f, 20.0f + sinf (a + 0.95f) * 13.0f, 0.7f, ga_shade (c, 120));
-		sp_disc (20.0f + cosf (a + 1.1f) * 11.0f, 20.0f + sinf (a + 1.1f) * 11.0f, 2.4f, ga_shade (c, 200));
-		sp_disc (20.0f + cosf (a + 1.1f) * 11.0f + 0.6f, 20.0f + sinf (a + 1.1f) * 11.0f + 0.6f, 1.4f, ga_shade (c, 130));
+		float x = BX (pits[k][0], pits[k][1]), y = BY (pits[k][0], pits[k][1]), r = pits[k][2];
+		sp_disc (x + 0.5f, y + 0.6f, r, ga_shade (c, BL (y) * 120 / 100));
+		sp_disc (x, y, r * 0.8f, ga_shade (c, BL (y) * 45 / 100));
 	}
-	sp_disc (13.0f, 12.0f, 4.0f, ga_shade (c, 370));
-	sp_disc (11.5f, 10.5f, 1.8f, ga_shade (c, 430));
+	/* une tache de lichen et un eclat clair (ce qu'on suit des yeux quand il roule) */
+	{
+		float x = BX (-4, -12), y = BY (-4, -12);
+		sp_ell (x, y, 4.2f, 3.0f, ga_shade (ga_mix (c, 0x0090A060, 150), BL (y)));
+		sp_disc (x + 1.4f, y - 0.6f, 1.6f, ga_shade (ga_mix (c, 0x00B8C880, 150), BL (y)));
+		x = BX (12, -4);
+		y = BY (12, -4);
+		sp_disc (x, y, 3.2f, ga_shade (c, BL (y) * 135 / 100));
+	}
+#undef BX
+#undef BY
+#undef BL
+	/* la lumiere fixe : un reflet en haut a gauche */
+	sp_disc (13.0f, 12.0f, 3.6f, ga_mix (ga_shade (c, 380), 0x00FFFFFF, 40));
+	sp_disc (11.8f, 10.8f, 1.6f, ga_mix (ga_shade (c, 440), 0x00FFFFFF, 80));
 	sp_outline (0x00100808, 1.1f);
 	return s;
 }

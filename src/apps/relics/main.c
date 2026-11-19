@@ -273,7 +273,7 @@ static uint32_t *g_bg[NWORLD];
 static gf_sprite_t *g_hero[2][HF_N], *g_hdead[2];
 static gf_sprite_t *g_foe[NWORLD][2][5];		/* marche 0..3, tir */
 static gf_sprite_t *g_sbat[NWORLD][2], *g_sspider[NWORLD][2], *g_sgem[NWORLD], *g_svase[NWORLD], *g_sexit[NWORLD];
-static gf_sprite_t *g_sboulder[NWORLD][4], *g_sstal[NWORLD], *g_scrush[NWORLD], *g_sshot[NWORLD];
+static gf_sprite_t *g_sboulder[NWORLD][BOULDER_N], *g_sstal[NWORLD], *g_scrush[NWORLD], *g_sshot[NWORLD];
 static gf_sprite_t *g_scoin, *g_srelic, *g_sammo, *g_sdyn[2], *g_skey, *g_sheart, *g_sbul, *g_scheck[2], *g_stspk, *g_sdart[2];
 static gf_sprite_t *g_storch[4], *g_sjet[4];
 static gf_sprite_t *g_lt_torch, *g_lt_small, *g_lt_big, *g_lt_relic, *g_lt_exit, *g_lt_lava, *g_lt_shot;
@@ -1449,6 +1449,8 @@ static void world_step (void)
 					break;
 				}
 				if ((g_tick & 15) == 0 && on_screen (e, 0)) g_shake = 2;
+				if ((r & MV_GROUND) && (g_tick & 3) == 0 && on_screen (e, 20))	/* (la poussiere qu'il souleve, derriere lui) */
+					ga_part ((long) (e->x + (e->dir > 0 ? 6.0f : e->w - 6.0f)), (long) (e->y + e->h - 2), (long) (-e->dir * (long) gf_below (40000)), -(long) gf_below (30000), worlds[g_world].rock, 22, 2, 4000);
 			}
 			if (hero_box_hit (e->x + 2, e->y + 2, e->w - 4, e->h - 2)) hero_die ();
 			for (int j = 0; j < g_ne; j++)
@@ -1963,7 +1965,7 @@ static void draw_ents (int pass)
 			if (e->t < 40 && (e->t & 4)) glow_w (e->x + 6, e->y + 4, g_lt_small);
 			break;
 		case E_BOULDER:
-			blit_w (e->x - 1, e->y - 1, g_sboulder[g_world][((int) floorf (e->a * 4 / 6.2832f) % 4 + 4) % 4]);
+			blit_w (e->x - 1, e->y - 1, g_sboulder[g_world][((int) floorf (e->a * BOULDER_N / 6.2832f) % BOULDER_N + BOULDER_N) % BOULDER_N]);	/* (il roule : e->a, l'angle) */
 			break;
 		case E_ROCK:
 			blit_w (e->x + (e->st == 1 ? (float) ((g_tick & 2) ? 1 : -1) : 0), e->y, g_sstal[g_world]);
@@ -2484,7 +2486,7 @@ static void gen_sprites (void)
 		g_sgem[w] = gen_gem (W->gem);
 		g_svase[w] = gen_vase (g_look[w] == 2 ? 0x006080C0 : g_look[w] == 3 ? 0x00805040 : 0x00B86038);
 		g_sexit[w] = gen_exit (g_look[w] == 3 ? 0x00707880 : W->brick);
-		for (int r = 0; r < 4; r++) g_sboulder[w][r] = gen_boulder (ga_mix (W->rock, 0x00908070, 100), (float) r * 1.5708f);
+		for (int r = 0; r < BOULDER_N; r++) g_sboulder[w][r] = gen_boulder (ga_mix (W->rock, 0x00908070, 100), (float) r * 6.2832f / BOULDER_N);
 		g_sstal[w] = gen_stalactite (g_look[w] == 2 ? 0x00C0E0FF : W->rock);
 		g_scrush[w] = gen_crusher (W->metal);
 		sp_new (6, 6);
