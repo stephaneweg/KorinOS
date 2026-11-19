@@ -30,3 +30,10 @@ Pas de worktree ni d'image de test superflus (consigne du 18/11). Voir [[armpi-b
   bureau » : une ligne dans `HOME:/etc/startup.txt`). Vaut pour Météo, et aussi pour **agenda** (Calendrier) et
   **stickies** (Notes) : les sortir de `src/sys` et de `/etc/session` (aujourd'hui sys/agenda, sys/stickies sur
   korinrt, dans les paquets calendar et notes). Compétence `korin-widget` à mettre à jour en même temps.
+
+**Fait le 18/11 au soir** : build world complet, 113 paquets PC publiés (pc 2026.11.54, Godot 4.7.2-2.5 avec Vulkan,
+gcc 1.0.12, make 1.0.2), Release à jour, main poussé ; clé `build/pc/installkey.img` (302 Mo, keyroot.py --repo
+packages/pc puis installkey.py build), pas essayée. Pièges vus : RELINK=1 de tools/gcc/build.sh efface `make` de
+build/pc/gccroot (refaire tools/gcc/make.sh) ; anv/VkKit sont maintenant dans l'étape mesa de rebuild-ports.sh (sans
+eux, Godot sans Vulkan et pc sans vkkit.so) ; l'installateur n'est que sur la clé (sysroot_apps.sh le retire) ;
+`mkrepo --drop NOM` retire un paquet que --keep-unbuilt garderait. Reste : widgets agenda et stickies (ci-dessus).
