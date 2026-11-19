@@ -407,7 +407,20 @@ static int submit(void)
 
 static void power_menu(void)
 {
-	long r = ui_popup(wx + pow_x - 190, wy + foot_y + 28, (long)TR("Redémarrer\nÉteindre"), 220);
+	/* les libellés de ui_popup : chaînes à la suite, chacune finie par un 0, puis une vide (avec « \n », UIKit
+	   lisait au-delà de la chaîne et login tombait : le bureau s'ouvrait sans mot de passe) */
+	char labels[160], *o = labels;
+	const char *items[] = {TR("Redémarrer"), TR("Éteindre")};
+	for (int i = 0; i < 2; i++) {
+		size_t n = str_len(items[i]);
+		if (n > 70)
+			n = 70;
+		memcpy(o, items[i], n);
+		o += n;
+		*o++ = 0;
+	}
+	*o = 0;
+	long r = ui_popup(wx + pow_x - 190, wy + foot_y + 28, (long)labels, 220);
 	if (r < 0)
 		return;
 	long chn = korin_sys2(SYS_SVC_OPEN, "init2", 1000);
