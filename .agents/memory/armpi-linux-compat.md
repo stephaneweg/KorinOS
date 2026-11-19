@@ -12,3 +12,8 @@ Forme validée en discussion : personnalité Linux par process ; le noyau renvoi
 **Why:** Claude Code n'existe plus qu'en binaire Linux sur une fourche interne de Bun ; l'extraction (voie A) est bloquée par les conditions ; le binaire officiel non modifié est la voie propre.
 
 **How to apply:** d'abord l'étude docs/etude/LINUX-COMPAT.md ; ordre : busybox statique → Alpine + apk → Node/Bun → Claude Code (xdg-open → Jet). Pièges : FS/TPIDR_EL0 à l'app, adresse de liblinux. Lire les conditions d'Anthropic ; couper la mise à jour automatique. Remplace la partie Claude Code de [[armpi-agent-ia-korin]] ; Vibe reste l'agent intégré ([[armpi-vibe-facade]]). Voir [[armpi-x86-pc]].
+
+**Précision de l'utilisateur (19/11)** : pas de « personnalité Linux » dans le noyau ; une **capture générique des
+syscall** : l'hôte du process déclare ce qu'il capture (plages d'adresses de l'instruction, numéros), le noyau les
+lui renvoie sans savoir quelle personnalité il imite (d'autres personnalités possibles). Voir docs/etude/WIDEVINE.md § 3.2,
+[[armpi-widevine]].

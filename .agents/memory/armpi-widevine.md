@@ -19,12 +19,17 @@ Décisions de l'utilisateur (19/11) : glibc de compatibilité ; module par le ca
 updater, .crx3), archive à la main en secours ; ClearKey d'abord dans Jet. Module 4.10.3050.0 téléchargé
 (build/pc/linux/widevine, SHA-512 de Mozilla vérifiée ; versions.txt de Google = 404) : interface et hôte 10
 seulement, 177 imports dont 108 non servis, TLS par __tls_get_addr, **791 syscall directs obscurcis** : la
-personnalité Linux du noyau est obligatoire (étape 2b). La sonde native seccomp qui exécute le module a été
-refusée par le contrôle des permissions : à faire trancher par l'utilisateur.
+personnalité Linux du noyau est obligatoire (étape 2b). Sonde sous Linux autorisée et faite (tools/linux/cdmprobe/run.sh) : avec un Host_10 minimal le module
+produit une vraie requête de licence (1702 octets) ; ses syscall directs = openat/read/close de /proc/self/maps
+(×11) et /proc/net/unix, rt_sigaction en lecture (SIGILL, SIGTRAP, SIGABRT). À fabriquer dans liblinux.
+
+**Décision de forme (19/11)** : le noyau ne connaît pas « Linux » ; il offre une **capture générique** : l'hôte
+déclare les syscall qu'il veut capturer (plages d'adresses de l'instruction, numéros), le noyau les lui renvoie
+(même thread, comme un signal) ; porte ouverte à d'autres personnalités. Étude § 3.2.
 
 Pièges : `linux` est une macro prédéfinie de gcc sous Linux (pas comme nom de champ) ; le canari de pile du code
 Linux (%fs:0x28) tombe dans le TCB de 64 octets de libposix, stable. Le module ne va jamais dans nos paquets.
 
-**How to apply:** suite = étapes 2 à 7 de docs/etude/WIDEVINE.md § 5 ; les `syscall` directs du module
-demanderaient la personnalité Linux du noyau, commune avec [[armpi-linux-compat]]. Voir [[armpi-webkit]],
+**How to apply:** suite = étapes 2 à 7 de docs/etude/WIDEVINE.md § 5 ; la capture générique des syscall dans le
+noyau sert aussi [[armpi-linux-compat]]. Voir [[armpi-webkit]],
 [[armpi-musique]].

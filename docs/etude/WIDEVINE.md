@@ -106,9 +106,28 @@ Copie de développement dans `build/pc/linux/widevine/` (jamais dans le dépôt 
   **obscurci** : le numéro est calculé juste avant (`mov %r13,%rax ; syscall`), jamais une constante lisible. C'est
   la protection du module contre l'interception de glibc. **Conséquence : la personnalité Linux du noyau est
   obligatoire**, quelle que soit la décision sur glibc (§ 3.2).
-* Lesquels de ces appels sortent vraiment, et avec quels numéros, se mesure en exécutant le module avec un piège
-  sur les `syscall` venus de sa plage d'adresses (seccomp `SECCOMP_RET_TRAP` sur Linux, ou la personnalité de
-  Korin elle-même). Pas encore fait : à décider avec l'utilisateur (§ 6).
+* **Sonde à l'exécution** (19/11, autorisée par l'utilisateur ; `tools/linux/cdmprobe`) : sous Linux (WSL), un
+  hôte `Host_10` minimal charge le module, un filtre seccomp piège (`SECCOMP_RET_TRAP`, SIGSYS) les seuls
+  `syscall` dont l'instruction est dans le module, le gestionnaire les note et les exécute. Parcours :
+  `InitializeCdmModule_4`, `CreateCdmInstance`, `Initialize`, `CreateSessionAndGenerateRequest` (PSSH de
+  Widevine), minuteries, `Destroy`. **Le module produit une vraie requête de licence (1702 octets)** : la capture
+  des `syscall` ne le dérange pas. Ses appels directs, au total 66 :
+
+  | Appel de Linux | Nombre | Ce qu'il fait |
+  |---|---|---|
+  | `openat` (257) | 12 | `/proc/self/maps` ×11, `/proc/net/unix` ×1 |
+  | `read` (0) | 37 | le contenu de ces fichiers, par 4 Ko |
+  | `close` (3) | 12 | |
+  | `rt_sigaction` (13), sans nouvelle action | 5 | lit les gestionnaires de SIGILL, SIGTRAP, SIGABRT |
+
+  Lecture : un contrôle d'intégrité (quelles bibliothèques sont chargées et comment ses propres segments sont
+  projetés), une recherche de sockets de débogage, et un contrôle des gestionnaires de signaux (anti-débogueur).
+  Hors de `InitializeCdmModule_4` et de `GetCdmVersion`, qui n'en font aucun. `UpdateSession` (licence reçue) et
+  `Decrypt` n'ont pas encore été parcourus (il faut une licence : étape 3).
+* **Conséquences pour Korin** : Korin n'a pas de `/proc`. `liblinux` devra **fabriquer** `/proc/self/maps` au
+  format de Linux, cohérent avec ce que le chargeur a projeté (segments du module `r--p`, `r-xp`, `rw-p` avec
+  son chemin, pile, autres projections), et un `/proc/net/unix` réduit à sa ligne d'en-tête ; `rt_sigaction` de
+  lecture répond avec la `struct sigaction` du noyau de Linux.
 
 ## 3. Architecture dans Korin
 
@@ -162,10 +181,22 @@ Copie de développement dans `build/pc/linux/widevine/` (jamais dans le dépôt 
 **Décision de l'utilisateur (19/11) : la compatibilité.** Le relevé du module réel (§ 2.5) la confirme : 177
 imports, une glibc de base 2.17. Il montre aussi 791 `syscall` directs : la personnalité Linux du noyau est à
 faire de toute façon, mais pour les seuls appels du module (ceux de la compatibilité restent des appels de Korin).
-Forme prévue (décision du 13/11, `armpi-linux-compat`) : un drapeau de personnalité par process ; une instruction
-`syscall` dont l'adresse est dans une plage déclarée Linux (le module) n'est pas servie comme un appel de Korin
-mais renvoyée à `liblinux` (comme `SECCOMP_RET_TRAP` ou *Syscall User Dispatch* de Linux), qui la traduit par
-`linux_syscall` et reprend le module avec le résultat dans `rax`.
+
+**Forme voulue par l'utilisateur (19/11) : une capture générique, sans « Linux » dans le noyau.** Le noyau ne sait
+pas quelle personnalité l'hôte imite ; il sait seulement que l'hôte (le code du process qui charge le module :
+`liblinux` dans `cdmhost`) veut **capturer** certains `syscall` :
+
+* l'hôte déclare ce qu'il capture : une ou plusieurs **plages d'adresses** de l'instruction `syscall` (le code du
+  module), et au besoin une liste de **numéros** ; plus une fonction de reprise et sa pile ;
+* un `syscall` qui correspond n'est pas servi comme un appel de Korin : le noyau sauve l'état du thread et le
+  **renvoie à l'hôte** (dans le même thread, comme un signal : registres, adresse de l'instruction, numéro) ;
+* l'hôte le sert à sa façon (`linux_syscall` pour Linux), met le résultat dans `rax` et reprend le code capturé ;
+  les appels de l'hôte lui-même, hors des plages, restent des appels de Korin ;
+* rien de propre à Linux : la même capture servira à d'autres personnalités (un autre système, un bac à sable,
+  un traceur). Sous Linux, l'équivalent est *Syscall User Dispatch* ou `SECCOMP_RET_TRAP` (ce que fait la sonde).
+
+Appel système à ajouter (nom provisoire `SYS_SYSCALL_CAPTURE`, à la fin de `src/inc/syscalls.inc`) : poser,
+retirer, lister les plages d'un process ; hérité par les threads, effacé par `exec`.
 
 ### 3.3 `cdmhost` et le protocole avec Jet
 
@@ -226,8 +257,8 @@ distribué à d'autres ne l'active jamais d'office.
 |---|---|---|---|
 | 1 | **liblinux + linuxhost** (chargeur, glibc de compatibilité, appels de Linux) | un `.so` de Linux appelé dans Korin | **fait le 19/11** |
 | 2a | Module réel : téléchargement de développement et `linuxhost --check` | la liste de ce qui manque | **fait le 19/11** (§ 2.5) |
-| 2b | Personnalité Linux du noyau du PC (renvoi des `syscall` de la plage du module à `liblinux`) | un `syscall` direct d'un module d'essai traduit | 1 à 2 jours |
-| 2c | Les 108 imports, TLS du module (`__tls_get_addr`), `_Unwind_*`, threads | `InitializeCdmModule_4` et `CreateCdmInstance` passent | 3 à 5 jours |
+| 2b | Capture générique des `syscall` dans le noyau du PC (§ 3.2) ; `liblinux` s'en sert | un `syscall` direct d'un module d'essai traduit | 1 à 2 jours |
+| 2c | Les 108 imports, TLS du module (`__tls_get_addr`), `_Unwind_*`, threads ; `/proc/self/maps` et `/proc/net/unix` fabriqués, `rt_sigaction` | dans Korin, la sonde va jusqu'à la requête de licence, comme sous Linux | 3 à 5 jours |
 | 3 | `cdmhost` : `Host_10/11` en C++, essai hors de Jet sur un serveur de licences de test public | une licence de démonstration obtenue, un échantillon déchiffré | 2 à 3 jours |
 | 4 | EME ClearKey dans Jet (WebKit, MSE chiffré, CENC) | un flux ClearKey de démonstration joue | 3 à 5 jours |
 | 5 | EME Widevine dans Jet par `cdmhost` (audio) | le lecteur web de Spotify joue un titre | 2 à 3 jours |
@@ -248,9 +279,9 @@ Prises par l'utilisateur le 19/11 :
 3. **Téléchargement de développement** accepté : fait (§ 2.5).
 4. **ClearKey d'abord dans Jet** (§ 3.4).
 
-En attente : **exécuter le module avec un piège sur ses `syscall` directs** pour savoir lesquels il fait (sonde
-native sous Linux avec seccomp, ou directement la personnalité de Korin, étape 2b). L'essai sous Linux a été
-refusé par le contrôle des permissions de la session : à trancher par l'utilisateur.
+5. **Sonde à l'exécution sous Linux** autorisée : faite (§ 2.5).
+6. **Capture générique dans le noyau** (§ 3.2) : le noyau transmet à l'hôte les `syscall` qu'il demande à
+   capturer, sans savoir quelle personnalité il imite.
 
 ## 7. Jalon 1 (19/11/2026) : ce qui est fait
 
