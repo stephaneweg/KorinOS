@@ -993,17 +993,157 @@ def background(src, world):
         d = ImageDraw.Draw(bg)
         d.rectangle((0, 466, W, H), fill=(255, 120, 30, 255))
         return bg
-    # le volcan : nuit rouge, volcans, coulees
-    bg = grad(W, H, [(26, 10, 30), (80, 20, 36), (170, 50, 30)])
+    # le volcan : nuit rouge, cendres, deux volcans aux flancs ravines, coulees sinueuses, panache eclaire par-dessous
+    return volcano_bg(W, H)
+
+
+def volcano_bg(W, H):
+    K = 2					# (dessine deux fois plus grand, puis reduit : des bords lisses)
+    bg = grad(W * K, H * K, [(22, 8, 26), (58, 16, 34), (128, 36, 34), (206, 82, 40)])
+    rnd = random.Random(44)
+
+    def soft(layer, r):
+        return layer.filter(ImageFilter.GaussianBlur(r * K))
+
+    def wrap(fn):				# (sans couture : dessine a x, x - W, x + W)
+        for o in (-W, 0, W):
+            fn(o)
+
+    # des nuages de cendre, en longues nappes
+    ash = Image.new("RGBA", bg.size)
+    da = ImageDraw.Draw(ash)
+    for y, col in ((70, (90, 40, 52, 150)), (130, (110, 46, 50, 120)), (190, (150, 64, 50, 90))):
+        for i in range(10):
+            x = rnd.uniform(0, W)
+            rx, ry = rnd.uniform(60, 140), rnd.uniform(10, 22)
+            wrap(lambda o: da.ellipse(((x + o - rx) * K, (y - ry) * K, (x + o + rx) * K, (y + ry) * K), fill=col))
+    bg.alpha_composite(soft(ash, 8))
+
+    def profile(cx, half, top, base, crater, seed):
+        """la silhouette : des flancs concaves (plus raides en haut), bosseles, un cratere aux levres inegales"""
+        r = random.Random(seed)
+        ph = [r.uniform(0, 6.28) for _ in range(4)]
+        pts = []
+        for i in range(-60, 61):
+            u = i / 60.0				# -1 .. 1
+            x = cx + u * half
+            a = abs(u)
+            if a < crater:				# le cratere : un creux entre deux levres
+                lip = top + 6 + (4 if u < 0 else 0)
+                y = lip + 5 * (1 - (a / crater) ** 2)
+            else:
+                t = (a - crater) / (1 - crater)
+                y = top + (base - top) * (1 - (1 - t) ** 1.8)
+                y += 9 * math.sin(u * 7 + ph[0]) * t + 4 * math.sin(u * 19 + ph[1]) * t + 2.5 * math.sin(u * 41 + ph[2])
+                if 0.45 < u < 0.7:			# un epaulement (un vieux cratere) sur le flanc droit
+                    y -= 22 * math.sin((u - 0.45) / 0.25 * math.pi) * t
+            pts.append((x, y))
+        return pts
+
+    def volcano(cx, half, top, base, crater, seed, body, light, dark, flows, glow):
+        pts = profile(cx, half, top, base, crater, seed)
+        mask = Image.new("L", bg.size, 0)
+        ImageDraw.Draw(mask).polygon([(x * K, y * K) for x, y in pts] + [((cx + half) * K, H * K), ((cx - half) * K, H * K)], fill=255)
+        # la roche : eclairee a gauche par la lueur, dans l'ombre a droite, en degrade (pas de pans)
+        row = Image.new("RGBA", (bg.width, 1))
+        rp = row.load()
+        for X in range(bg.width):
+            u = max(-1.0, min(1.0, (X / K - cx) / half))
+            if u < 0:
+                c = tuple(int(body[i] + (light[i] - body[i]) * (-u) ** 0.7) for i in range(3))
+            else:
+                c = tuple(int(body[i] + (dark[i] - body[i]) * u ** 0.7) for i in range(3))
+            rp[X, 0] = c + (255,)
+        lay = row.resize(bg.size)
+        d = ImageDraw.Draw(lay)
+        r = random.Random(seed + 1)
+        for k in range(14):			# les ravines : des traits courbes qui descendent du sommet
+            u0 = r.uniform(-1, 1)
+            x0 = cx + u0 * half * crater * 1.6
+            y0 = top + 18 + abs(u0) * 10
+            spread = u0 * r.uniform(0.5, 0.95)
+            path = []
+            for j in range(13):
+                t = j / 12.0
+                x = cx + (u0 * crater * 1.6 + spread * t) * half + 6 * math.sin(t * 6 + k)
+                path.append((x * K, (y0 + (base - y0) * t) * K))
+            col = tuple(int(v * (0.72 if u0 > 0 else 0.82)) for v in (body if abs(u0) < 0.3 else (light if u0 < 0 else dark))[:3]) + (255,)
+            d.line(path, fill=col, width=int(r.uniform(2, 4) * K), joint="curve")
+            d.line([(x + 2 * K, y) for x, y in path], fill=tuple(min(255, int(v * 1.25)) for v in col[:3]) + (120,), width=int(1 * K))
+        for _ in range(34):			# des ressauts de roche : une arete claire sur une ombre
+            x, y = r.uniform(cx - half * 0.75, cx + half * 0.75), r.uniform(top + 40, base - 10)
+            w = r.uniform(4, 10)
+            u = (x - cx) / half
+            d.line([((x - w) * K, (y + 2) * K), ((x + w) * K, (y + 1) * K)], fill=tuple(int(v * 0.78) for v in body[:3]) + (255,), width=int(3 * K))
+            d.line([((x - w) * K, y * K), ((x + w * 0.4) * K, (y - 1) * K)], fill=tuple(min(255, int(v * (1.3 if u < 0 else 1.1))) for v in body[:3]) + (200,), width=int(1.2 * K))
+        cut = Image.new("RGBA", bg.size)
+        cut.paste(lay, (0, 0), mask)
+        bg.alpha_composite(cut)
+        # la lueur du cratere, puis les coulees (un coeur jaune, un bord orange, une lueur floue)
+        gl = Image.new("RGBA", bg.size)
+        dg = ImageDraw.Draw(gl)
+        for rr, al in ((70, 60), (44, 110), (24, 170)):
+            dg.ellipse(((cx - rr * 1.4) * K, (top + 8 - rr * 0.6) * K, (cx + rr * 1.4) * K, (top + 8 + rr * 0.6) * K), fill=glow + (al,))
+        lava = Image.new("RGBA", bg.size)		# la bouche du cratere, vue un peu d'en haut : un ovale de lave
+        cw = half * crater * 0.95
+        dc = ImageDraw.Draw(lava)
+        dc.ellipse(((cx - cw) * K, (top + 3) * K, (cx + cw) * K, (top + 13) * K), fill=(150, 40, 20, 255))
+        dc.ellipse(((cx - cw * 0.85) * K, (top + 5) * K, (cx + cw * 0.85) * K, (top + 12) * K), fill=(255, 120, 30, 255))
+        dc.ellipse(((cx - cw * 0.5) * K, (top + 7) * K, (cx + cw * 0.4) * K, (top + 11) * K), fill=(255, 220, 110, 255))
+        dl = ImageDraw.Draw(lava)
+        for f, (u0, drift, length) in enumerate(flows):
+            x, y = cx + u0 * half * crater, top + 14
+            path = [(x, y)]
+            for j in range(1, 26):
+                t = j / 25.0
+                x = cx + (u0 * crater + drift * t ** 0.8) * half + 10 * math.sin(t * 8 + f * 2) * min(1.0, t * 4)
+                yy = top + (base - top) * (1 - (1 - min(1.0, abs(x - cx) / half)) ** 1.8)
+                y = max(y + 3, yy + 4, top + 14 + t * (base - top) * length)
+                path.append((x, y))
+                if t > length:
+                    break
+            for w, col in ((9, (255, 90, 20, 255)), (5, (255, 150, 40, 255)), (2, (255, 230, 120, 255))):
+                ww = w
+                for j in range(len(path) - 1):
+                    ww = max(1.0, w * (1 - j / len(path) * 0.6))
+                    dl.line([(path[j][0] * K, path[j][1] * K), (path[j + 1][0] * K, path[j + 1][1] * K)], fill=col, width=int(ww * K))
+            dg.line([(px * K, py * K) for px, py in path], fill=glow + (120,), width=int(22 * K), joint="curve")
+        bg.alpha_composite(soft(gl, 10))
+        bg.alpha_composite(lava)
+        return pts
+
+    # le volcan du fond, bleute et lointain
+    volcano(820, 230, 225, 430, 0.10, 3, (52, 26, 40, 255), (66, 32, 46, 255), (40, 20, 32, 255),
+            [(0.3, 0.25, 0.55)], (255, 110, 40))
+    # le grand volcan
+    volcano(330, 340, 168, 440, 0.12, 7, (46, 24, 30, 255), (70, 34, 38, 255), (32, 16, 22, 255),
+            [(-0.6, -0.35, 0.95), (0.4, 0.2, 0.7), (0.9, 0.55, 1.0)], (255, 120, 40))
+    # le panache : des boules de fumee qui montent et derivent, eclairees par-dessous
+    sm = Image.new("RGBA", bg.size)
+    ds = ImageDraw.Draw(sm)
+    for i in range(22):
+        t = i / 21.0
+        x, y, r = 330 + 110 * t * t + 16 * math.sin(i * 1.7), 160 - 130 * t, 22 + 46 * t
+        lit = (int(220 - 90 * t), int(100 - 10 * t), int(70 + 10 * t), int(250 - 60 * t))
+        ds.ellipse(((x - r) * K, (y - r * 0.8) * K, (x + r) * K, (y + r * 0.8) * K), fill=lit)
+        ds.ellipse(((x - r * 0.8) * K, (y - r * 0.95) * K, (x + r * 0.6) * K, (y + r * 0.15) * K), fill=(104, 78, 90, int(240 - 60 * t)))
+        ds.ellipse(((x - r * 0.5) * K, (y - r * 0.85) * K, (x + r * 0.1) * K, (y - r * 0.35) * K), fill=(140, 112, 122, int(200 - 60 * t)))
+    bg.alpha_composite(soft(sm, 4))
+    # des escarbilles
+    de = ImageDraw.Draw(bg)
+    for _ in range(70):
+        x, y = rnd.uniform(230, 450), rnd.uniform(60, 200)
+        de.ellipse(((x - 1.2) * K, (y - 1.2) * K, (x + 1.2) * K, (y + 1.2) * K), fill=(255, rnd.randint(150, 230), 80, 255))
+    bg = bg.resize((W, H), Image.LANCZOS)
+    # le premier plan : des crêtes noires dentelees, puis le lac de lave et sa lueur
+    bg.alpha_composite(hills(W, 410, 26, 4, 0x24141A, 7, jag=0.6))
+    glow = Image.new("RGBA", (W, H))
+    ImageDraw.Draw(glow).rectangle((0, 430, W, H), fill=(255, 110, 30, 120))
+    bg.alpha_composite(glow.filter(ImageFilter.GaussianBlur(10)))
     d = ImageDraw.Draw(bg)
-    for cx, w, h, col in ((260, 300, 230, (60, 30, 40)), (760, 260, 190, (70, 34, 44))):
-        d.polygon([(cx - w, 420), (cx - 40, 420 - h), (cx + 40, 420 - h), (cx + w, 420)], fill=col + (255,))
-        d.polygon([(cx - 40, 420 - h), (cx + 40, 420 - h), (cx + 10, 420 - h + 30)], fill=(255, 140, 40, 255))
-        d.line([(cx + 10, 420 - h + 28), (cx + 30, 420 - h + 90), (cx + 10, 420 - h + 150)], fill=(255, 110, 30, 255), width=8)
-        d.ellipse((cx - 60, 420 - h - 80, cx + 60, 420 - h - 10), fill=(110, 80, 80, 140))
-    bg.alpha_composite(hills(W, 400, 30, 4, 0x2E1A1E, 7, jag=0.5))
-    d = ImageDraw.Draw(bg)
-    d.rectangle((0, 440, W, H), fill=(255, 110, 30, 255))
+    d.rectangle((0, 446, W, H), fill=(255, 112, 30, 255))
+    for x in range(0, W, 64):
+        d.line([(x + 6, 452), (x + 30, 450), (x + 52, 454)], fill=(255, 200, 80, 255), width=3)
     return bg
 
 
