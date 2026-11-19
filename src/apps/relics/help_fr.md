@@ -15,6 +15,14 @@ Un explorateur part à la recherche de vingt et une reliques cachées dans sept 
 
 À l'écran titre, **Gauche** et **Droite** choisissent un niveau déjà atteint ; **Espace** ou **Entrée** lance la partie.
 
+## Les modes
+
+À l'écran titre, **Haut** et **Bas** changent de mode ; chacun a son record.
+
+- **Normal** : on choisit n'importe quel niveau déjà atteint, 5 vies, une vie en plus tous les 15 000 points.
+- **Classique**, comme à l'époque : toujours du premier niveau, 4 vies, une vie en plus tous les 20 000 points ; une partie perdue recommence tout, et recommencer un niveau coûte une vie.
+- **Hardcore** : comme le classique, avec 3 vies et aucune vie en plus ; les gardiens et les tireurs encaissent deux balles, marchent et tirent plus vite ; fléchettes, pilons, jets de feu, pointes cachées et stalactites sont plus vifs, et le rocher roule presque aussi vite que vous.
+
 ## À la manette
 
 La croix pour marcher et grimper, **A** pour sauter, **B** ou **X** pour tirer, **Y** pour la dynamite, **Start** pour le menu de pause.

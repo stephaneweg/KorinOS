@@ -72,3 +72,7 @@ Personnages : Chibi Character Bundle = Characters: Chibi Character Bundle
 Tuiles de la jungle : Forest Platformer = Jungle tiles: Forest Platformer
 Le son : AudioKit et son synthétiseur = Sound: AudioKit and its synthesizer
 Merci d'avoir joué ! = Thanks for playing!
+Mode normal : choix du niveau, 5 vies = Normal mode: choose the level, 5 lives
+Mode classique : du premier niveau, 4 vies = Classic mode: from the first level, 4 lives
+Mode hardcore : 3 vies, ennemis coriaces, pièges vifs = Hardcore mode: 3 lives, tough enemies, fast traps
+Haut, Bas : changer de mode = Up, Down: change mode

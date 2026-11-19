@@ -161,6 +161,7 @@ enum { IT_COIN, IT_GEM, IT_VASE, IT_RELIC, IT_AMMO, IT_DYN, IT_KEY, IT_LIFE };
 struct ent
 {
 	int type, on, kind, dir, st, t, tx, ty;
+	int hp, hit;				/* (gardiens et tireurs : les balles qu'il faut encore, l'eclair du coup) */
 	float x, y, vx, vy, w, h, x0, y0, a, b;
 	float px, py;				/* la position au pas d'avant (l'image est dessinee entre les deux) */
 };
@@ -206,7 +207,26 @@ static struct hero g_h;
 static int g_state, g_prev, g_timer;
 static unsigned long g_tick;
 static int g_level, g_sel, g_unlocked;
-static unsigned long g_score, g_best, g_nextlife;
+static unsigned long g_score, g_nextlife;
+/* les modes : normal (le choix du niveau, 5 vies), classique (comme a l'epoque : du premier niveau, 4 vies, une partie
+ * perdue recommence tout), hardcore (classique, 3 vies, pas de vie en plus, des ennemis a deux balles, tout plus vif) */
+enum { MODE_NORMAL, MODE_CLASSIC, MODE_HARD, MODE_N };
+struct diff
+{
+	int lives;
+	unsigned long life_every;			/* une vie en plus tous les tant de points (0 : jamais) */
+	int foe_hp, shoot_gap, dart_gap, crush_wait, trap_delay, stal_delay, flame_period, ammo_min, dyn_min;
+	float walk, walk2, shot_v, dart_v, boulder_max, boulder_acc, crush_up, fly;
+};
+static const struct diff s_diff[MODE_N] = {
+	{ 5, 15000, 1, 70, 95, 100, 16, 16, 170, 3, 2, 0.70f, 0.55f, 3.2f, 4.4f, 1.75f, 0.065f, 0.9f, 1.0f },
+	{ 4, 20000, 1, 70, 95, 100, 16, 16, 170, 3, 2, 0.70f, 0.55f, 3.2f, 4.4f, 1.75f, 0.065f, 0.9f, 1.0f },
+	{ 3, 0,     2, 45, 60,  65,  9,  9, 120, 2, 1, 0.95f, 0.72f, 4.2f, 5.8f, 1.82f, 0.080f, 1.3f, 1.4f },
+};
+static int g_mode;
+#define DF		(&s_diff[g_mode])
+static unsigned long g_bestm[MODE_N];			/* le record de chaque mode */
+#define g_best		g_bestm[g_mode]
 static int g_lives, g_ammo, g_dyns, g_keys;
 static int g_treas, g_ntreas;
 static unsigned long g_s_score;			/* au debut du niveau : pour le recommencer */
@@ -407,7 +427,7 @@ static gf_sprite_t *g_dig[10], *g_digb[10], *g_slash;
 /* les textes */
 enum { TX_LOGO, TX_SUB, TX_PLAY, TX_CHOOSE, TX_HELP1, TX_HELP2, TX_HELP3, TX_BEST, TX_CLEAR, TX_TREAS, TX_BONUS, TX_OVER,
        TX_CONT, TX_WIN, TX_WIN2, TX_CHECK, TX_KEY, TX_DOOR, TX_LOCK, TX_LIFE, TX_SCORE, TX_READY, TX_NOAMMO, TX_NODYN, TX_RELIC,
-       TX_FINAL, TX_N };
+       TX_FINAL, TX_MODE0, TX_MODE1, TX_MODE2, TX_MODEKEY, TX_N };
 static const struct ga_txe s_tx[TX_N] = {
 	{ "RELICS", 72, 1, 0x00FFF0B0, 0x00E08820 },
 	{ "Les reliques perdues", 18, 0, 0x00F0E0C0, 0x00C8B490 },
@@ -435,6 +455,10 @@ static const struct ga_txe s_tx[TX_N] = {
 	{ "Plus de dynamite", 15, 1, 0x00FFC0B0, 0x00F07050 },
 	{ "La relique !", 15, 1, 0x00FFF0A0, 0x00F0C030 },
 	{ "Dernier niveau", 13, 0, 0x00FFD0A0, 0x00E09050 },
+	{ "Mode normal : choix du niveau, 5 vies", 15, 1, 0x00E0F0FF, 0x00A8C8E8 },
+	{ "Mode classique : du premier niveau, 4 vies", 15, 1, 0x00FFE8A0, 0x00F0B040 },
+	{ "Mode hardcore : 3 vies, ennemis coriaces, pièges vifs", 15, 1, 0x00FFB0A0, 0x00F05030 },
+	{ "Haut, Bas : changer de mode", 12, 0, 0x00B0B8C4, 0x0098A0AC },
 };
 static gf_sprite_t *g_tx[TX_N];
 static gf_sprite_t *g_tname[32], *g_tnameb[32], *g_tworld[NWORLD], *g_tnum[32];
@@ -468,17 +492,20 @@ static void load_progress (void)
 	char b[64];
 	int fd = open (P_FILE, O_RDONLY);
 	g_unlocked = 0;
-	g_best = 0;
+	for (int m = 0; m < MODE_N; m++) g_bestm[m] = 0;
 	if (fd < 0) return;
 	long n = read (fd, b, sizeof b - 1);
 	close (fd);
 	if (n <= 0) return;
 	b[n] = 0;
-	unsigned long u = 0, s = 0;
-	if (sscanf (b, "%lu %lu", &u, &s) >= 1)
+	unsigned long u = 0, s = 0, m = 0, s1 = 0, s2 = 0;		/* (« niveau record mode record-classique record-hardcore ») */
+	if (sscanf (b, "%lu %lu %lu %lu %lu", &u, &s, &m, &s1, &s2) >= 1)
 	{
 		g_unlocked = u < (unsigned long) NLEVELS ? (int) u : NLEVELS - 1;
-		g_best = s;
+		g_bestm[0] = s;
+		g_bestm[1] = s1;
+		g_bestm[2] = s2;
+		g_mode = m < MODE_N ? (int) m : 0;
 	}
 }
 
@@ -487,7 +514,7 @@ static void save_progress (void)
 	char b[64];
 	mkdir ("HOME:", 0755);
 	mkdir (P_DIR, 0755);
-	int n = snprintf (b, sizeof b, "%d %lu\n", g_unlocked, g_best);
+	int n = snprintf (b, sizeof b, "%d %lu %d %lu %lu\n", g_unlocked, g_bestm[0], g_mode, g_bestm[1], g_bestm[2]);
 	int fd = open (P_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (fd < 0) return;
 	if (write (fd, b, (size_t) n) < 0) { }
@@ -497,9 +524,9 @@ static void save_progress (void)
 static void add_score (unsigned long n)
 {
 	g_score += n;
-	if (g_score >= g_nextlife)
+	if (DF->life_every && g_score >= g_nextlife)
 	{
-		g_nextlife += 15000;
+		g_nextlife += DF->life_every;
 		g_lives++;
 		toast (TX_LIFE);
 		gs_seq (gs_tab_win);
@@ -632,7 +659,7 @@ static void parse_level (int n)
 				break;
 			case 'g': case 's':
 				e = ent_new (c == 'g' ? E_WALKER : E_SHOOTER, X + (TS - H_W) / 2, B - H_H, H_W, H_H);
-				if (e) { e->dir = (hashu (tx, ty, 3) & 1) ? 1 : -1; e->kind = (int) (hashu (tx, ty, 12) & 1); }	/* (kind : la variante) */
+				if (e) { e->dir = (hashu (tx, ty, 3) & 1) ? 1 : -1; e->kind = (int) (hashu (tx, ty, 12) & 1); e->hp = DF->foe_hp; }	/* (kind : la variante) */
 				break;
 			case 'b':
 				e = ent_new (E_BAT, X + 2, Y + 5, 16, 10);
@@ -781,7 +808,7 @@ static void reset_actors (void)
 		{
 		case E_SHOT: case E_DART: case E_BULLET: case E_DYN: case E_CORPSE: e->on = 0; break;
 		case E_WALKER: case E_SHOOTER: case E_BAT: case E_SPIDER:
-			if (e->on) { e->x = e->px = e->x0; e->y = e->py = e->y0; e->vx = e->vy = 0; e->st = 0; }
+			if (e->on) { e->x = e->px = e->x0; e->y = e->py = e->y0; e->vx = e->vy = 0; e->st = 0; e->hp = DF->foe_hp; e->hit = 0; }
 			break;
 		case E_SPIKES: e->st = 0; e->t = 0; break;
 		case E_BOULDER:						/* (il revient : la fuite se rejoue) */
@@ -848,8 +875,9 @@ static void start_level (int n)
 static void new_game (int n)
 {
 	g_score = 0;
-	g_nextlife = 15000;
-	g_lives = 5;
+	g_nextlife = DF->life_every;
+	g_lives = DF->lives;
+	if (g_mode != MODE_NORMAL) n = 0;			/* (classique, hardcore : toujours du premier niveau) */
 	g_ammo = 6;
 	g_dyns = 6;
 	start_level (n);
@@ -863,10 +891,30 @@ static void restart_level (void)
 		return;
 	}
 	g_score = g_s_score;
-	g_lives = g_s_lives;
+	if (g_mode != MODE_NORMAL)
+	{						/* (classique, hardcore : recommencer coute une vie) */
+		g_lives = (g_lives < g_s_lives ? g_lives : g_s_lives) - 1;
+		if (g_lives <= 0)
+		{
+			save_progress ();
+			set_state (GS_OVER);
+			gs_seq (gs_tab_lose);
+			return;
+		}
+	}
+	else
+		g_lives = g_s_lives;
 	g_ammo = g_s_ammo;
 	g_dyns = g_s_dyns;
 	start_level (g_level);
+}
+
+/* le mode du titre (garde dans le fichier du progres) */
+static void set_mode (int m)
+{
+	g_mode = m;
+	snd_click ();
+	save_progress ();
 }
 
 static void goto_title (void)
@@ -949,6 +997,20 @@ static void kill_foe (struct ent *e)
 	burst (e->x + e->w / 2, e->y + e->h / 2, 0x00FFF0C0, 8, 220, 10, 2, 0);
 	add_score (e->type == E_SHOOTER ? 200 : 100);
 	snd_kill ();
+}
+
+/* une balle sur un ennemi : en hardcore, il en faut deux aux gardiens et aux tireurs (le premier coup les fait clignoter) */
+static void hurt_foe (struct ent *f)
+{
+	if ((f->type == E_WALKER || f->type == E_SHOOTER) && f->hp > 1)
+	{
+		f->hp--;
+		f->hit = 24;
+		burst (f->x + f->w / 2, f->y + f->h / 2, 0x00FFF0C0, 6, 180, 8, 2, 0);
+		gs_note (260, 60, AKW_SQUARE, 70);
+		return;
+	}
+	kill_foe (f);
 }
 
 static void hero_die (void);
@@ -1217,8 +1279,8 @@ static void dead_step (void)
 	reset_actors ();
 	place_hero ();
 	g_h.inv = 90;
-	if (g_ammo < 3) g_ammo = 3;
-	if (g_dyns < 2) g_dyns = 2;
+	if (g_ammo < DF->ammo_min) g_ammo = DF->ammo_min;
+	if (g_dyns < DF->dyn_min) g_dyns = DF->dyn_min;
 	camera_snap ();
 	set_state (GS_PLAY);
 }
@@ -1261,7 +1323,7 @@ static void shoot_at_hero (struct ent *e)
 {
 	struct ent *s = ent_new (E_SHOT, e->dir > 0 ? e->x + e->w + 2 : e->x - 8, e->y + 9, 6, 5);
 	if (!s) return;
-	s->vx = 3.2f * (float) e->dir;
+	s->vx = DF->shot_v * (float) e->dir;
 	s->t = 220;
 	gs_note (520, 40, AKW_TRIANGLE, 60);
 }
@@ -1282,7 +1344,8 @@ static void world_step (void)
 		{
 		case E_WALKER:
 			if (!on_screen (e, 200)) break;
-			foe_walk (e, 0.7f);
+			if (e->hit) e->hit--;
+			foe_walk (e, DF->walk);
 			if (hero_box_hit (e->x + 2, e->y + 3, e->w - 4, e->h - 3) && !g_h.inv) hero_die ();
 			break;
 		case E_SHOOTER:
@@ -1293,30 +1356,31 @@ static void world_step (void)
 				e->vx = 0;
 				e->vy += GRAV;
 				move_box (&e->x, &e->y, e->w, e->h, &e->vx, &e->vy, 1);
-				if (++e->st > 70) { e->st = 0; shoot_at_hero (e); e->t = 16; }
+				if (++e->st > DF->shoot_gap) { e->st = 0; shoot_at_hero (e); e->t = 16; }
 			}
 			else
 			{
 				e->st = 40;
-				foe_walk (e, 0.55f);
+				foe_walk (e, DF->walk2);
 			}
 			if (e->t) e->t--;
+			if (e->hit) e->hit--;
 			if (hero_box_hit (e->x + 2, e->y + 3, e->w - 4, e->h - 3) && !g_h.inv) hero_die ();
 			break;
 		case E_BAT:
 			e->t++;
 			{
-				float ph = (float) e->t * 0.018f;
+				float ph = (float) e->t * 0.018f * DF->fly;
 				float nx = e->x0 + sinf (ph) * (e->b - 6);
 				e->vx = nx - e->x;
 				e->x = nx;
-				e->y = e->y0 + sinf ((float) e->t * 0.09f) * 7;
+				e->y = e->y0 + sinf ((float) e->t * 0.09f * DF->fly) * 7;
 			}
 			if (hero_box_hit (e->x + 2, e->y + 1, e->w - 4, e->h - 2) && !g_h.inv) hero_die ();
 			break;
 		case E_SPIDER:
 			e->t++;
-			e->y = e->y0 + (0.5f - 0.5f * cosf ((float) e->t * 0.022f)) * (e->b - 4);
+			e->y = e->y0 + (0.5f - 0.5f * cosf ((float) e->t * 0.022f * DF->fly)) * (e->b - 4);
 			if (hero_box_hit (e->x + 1, e->y + 1, e->w - 2, e->h - 2) && !g_h.inv) hero_die ();
 			break;
 		case E_SHOT: case E_DART:
@@ -1341,7 +1405,7 @@ static void world_step (void)
 			{
 				struct ent *f = &g_e[j];
 				if (!f->on || (f->type != E_WALKER && f->type != E_SHOOTER && f->type != E_BAT && f->type != E_SPIDER)) continue;
-				if (ov (e->x, e->y - 2, e->w, e->h + 4, f->x, f->y, f->w, f->h)) { kill_foe (f); e->on = 0; break; }
+				if (ov (e->x, e->y - 2, e->w, e->h + 4, f->x, f->y, f->w, f->h)) { hurt_foe (f); e->on = 0; break; }
 			}
 			break;
 		case E_DYN:
@@ -1368,8 +1432,8 @@ static void world_step (void)
 				break;
 			}
 			/* (presque aussi vite que l'explorateur : qui hesite est rattrape) */
-			e->vx += 0.065f * (float) e->dir;
-			if (fabsf (e->vx) > 1.75f) e->vx = 1.75f * (float) e->dir;
+			e->vx += DF->boulder_acc * (float) e->dir;
+			if (fabsf (e->vx) > DF->boulder_max) e->vx = DF->boulder_max * (float) e->dir;
 			e->vy += GRAV;
 			if (e->vy > 1.5f) e->vx *= 0.8f;			/* (dans le vide : il tombe droit, au fond d'une fosse) */
 			{
@@ -1402,7 +1466,7 @@ static void world_step (void)
 					int ok = 1;
 					for (float y = e->y + e->h; y < g_h.y; y += 10)
 						if (solid_at ((int) floorf (rcx / TS), (int) floorf (y / TS))) { ok = 0; break; }
-					if (ok) { e->st = 1; e->t = 16; gs_note (240, 120, AKW_NOISE, 60); }
+					if (ok) { e->st = 1; e->t = DF->stal_delay; gs_note (240, 120, AKW_NOISE, 60); }
 				}
 				break;
 			}
@@ -1427,7 +1491,7 @@ static void world_step (void)
 			break;
 		case E_CRUSHER:
 			e->t++;
-			if (e->st == 0) { if (e->t > 100) { e->st = 1; e->vy = 0; } }
+			if (e->st == 0) { if (e->t > DF->crush_wait) { e->st = 1; e->vy = 0; } }
 			else if (e->st == 1)
 			{
 				e->vy += 0.7f;
@@ -1445,16 +1509,16 @@ static void world_step (void)
 			else if (e->st == 2) { if (e->t > 40) e->st = 3; }
 			else
 			{
-				e->y -= 0.9f;
+				e->y -= DF->crush_up;
 				if (e->y <= e->y0) { e->y = e->y0; e->st = 0; e->t = 0; }
 			}
 			if (hero_box_hit (e->x + 2, e->y, e->w - 4, e->h - 1)) hero_die ();
 			break;
 		case E_FLAME:
 		{
-			int p = (int) ((g_tick + (unsigned long) e->t) % 170);
-			e->st = p < 100 ? 0 : p < 124 ? 1 : 2;
-			if (p == 124 && on_screen (e, 0)) gs_note (160, 400, AKW_NOISE, 70);
+			int P = DF->flame_period, p = (int) ((g_tick + (unsigned long) e->t) % (unsigned long) P);
+			e->st = p < P - 70 ? 0 : p < P - 46 ? 1 : 2;		/* (le feu dure 46 pas ; l'attente raccourcit en hardcore) */
+			if (p == P - 46 && on_screen (e, 0)) gs_note (160, 400, AKW_NOISE, 70);
 			if (e->st == 2 && hero_box_hit (e->x + 4, e->y - 44, 12, 44)) hero_die ();
 			break;
 		}
@@ -1464,7 +1528,7 @@ static void world_step (void)
 				if (!g_h.dead && g_h.ground && g_h.x + H_W > e->x + 3 && g_h.x < e->x + TS - 3 && fabsf (g_h.y + H_H - e->y) < 2)
 				{
 					e->st = 1;
-					e->t = 16;
+					e->t = DF->trap_delay;
 					snd_click ();
 				}
 			}
@@ -1485,9 +1549,9 @@ static void world_step (void)
 				if (g_h.y < y0 + TS - 2 && g_h.y + H_H > y0 + 2 && dx > 0 && dx < 13 * TS && clear_row (front + (float) e->dir * 4, hcx, y0 + 9))
 				{
 					struct ent *d = ent_new (E_DART, e->dir > 0 ? front : front - 12, y0 + 8, 12, 4);
-					if (d) { d->vx = 4.4f * (float) e->dir; d->t = 300; }
+					if (d) { d->vx = DF->dart_v * (float) e->dir; d->t = 300; }
 					snd_dart ();
-					e->t = 95;
+					e->t = DF->dart_gap;
 				}
 			}
 			break;
@@ -1604,8 +1668,9 @@ static void step (void)
 	switch (g_state)
 	{
 	case GS_TITLE:
-		if (g_edge & IN_L) { if (g_sel > 0) { g_sel--; snd_click (); } }
-		if (g_edge & IN_R) { if (g_sel < g_unlocked) { g_sel++; snd_click (); } }
+		if (g_mode == MODE_NORMAL && (g_edge & IN_L)) { if (g_sel > 0) { g_sel--; snd_click (); } }
+		if (g_mode == MODE_NORMAL && (g_edge & IN_R)) { if (g_sel < g_unlocked) { g_sel++; snd_click (); } }
+		if (g_edge & (IN_U | IN_D)) set_mode ((g_mode + ((g_edge & IN_U) ? MODE_N - 1 : 1)) % MODE_N);
 		if (g_edge & (IN_OK | IN_FIRE)) new_game (g_sel);
 		break;
 	case GS_INTRO:
@@ -1765,6 +1830,7 @@ static void draw_tile_fx (void)
 
 static void draw_foe (const struct ent *e)
 {
+	if (e->hit && (e->hit & 4)) return;		/* (touche : il clignote) */
 	int d = e->dir < 0;
 	const struct sset *ss = foe_set (e->type, e->kind);
 	if (ss)
@@ -2101,7 +2167,8 @@ static void draw_play (void)
 
 static void draw_title (void)
 {
-	int w = levels[g_sel].world;
+	int sel = g_mode == MODE_NORMAL ? g_sel : 0;		/* (classique, hardcore : du premier niveau) */
+	int w = levels[sel].world;
 	const int GY = 384 - 2 * TP;				/* le haut du sol */
 	g_cx = (int) (g_tick * 2);
 	g_cy = 0;
@@ -2158,17 +2225,19 @@ static void draw_title (void)
 	/* le titre */
 	ga_show (g_tx[TX_LOGO], GF_W / 2, 16);
 	ga_show (g_tx[TX_SUB], GF_W / 2, 100);
-	panel (GF_W / 2, 128, 470, 112);
+	panel (GF_W / 2, 128, 470, 142);
 	ga_show (g_tworld[w], GF_W / 2, 134);
-	ga_show (g_tnameb[g_sel], GF_W / 2, 154);
-	ga_show (g_tnum[g_sel], GF_W / 2, 188);
-	if (g_sel > 0) ga_ablit (GF_W / 2 - 210, 160, g_sarrow[0]);
-	if (g_sel < g_unlocked) ga_ablit (GF_W / 2 + 194, 160, g_sarrow[1]);
-	if (g_tick & 32) ga_show (g_tx[TX_PLAY], GF_W / 2, 248);
+	ga_show (g_tnameb[sel], GF_W / 2, 154);
+	ga_show (g_tnum[sel], GF_W / 2, 188);
+	if (g_mode == MODE_NORMAL && g_sel > 0) ga_ablit (GF_W / 2 - 210, 160, g_sarrow[0]);
+	if (g_mode == MODE_NORMAL && g_sel < g_unlocked) ga_ablit (GF_W / 2 + 194, 160, g_sarrow[1]);
+	ga_show (g_tx[TX_MODE0 + g_mode], GF_W / 2, 226);
+	ga_show (g_tx[TX_MODEKEY], GF_W / 2, 248);
+	if (g_tick & 32) ga_show (g_tx[TX_PLAY], GF_W / 2, 280);
 	long bw = (long) g_tx[TX_BEST][0];
 	ga_ablit (GF_W - 140 - bw, 6, g_tx[TX_BEST]);
 	ga_num (g_best, GF_W - 128, 4, g_dig, 4);
-	ga_show (g_tx[TX_CHOOSE], GF_W / 2, 214);
+	if (g_mode == MODE_NORMAL) ga_show (g_tx[TX_CHOOSE], GF_W / 2, 206);
 	gf_dst = gf_frame;
 	ga_panel (0, GY + 6, GF_W, GF_H - GY - 6, 0, 0x00100C08, 0x00080604, 190, 0);
 	ga_ablit_c (GF_W / 2, GY + 12, g_tx[TX_HELP1]);
@@ -2365,8 +2434,9 @@ static void on_event (long t)
 		if (GF_EV (EV_KIND) != 1 || !(GF_EV (EV_CODE) & 1)) return;
 		if (g_state == GS_TITLE)
 		{
-			if (my > 160 && my < 200 && mx < GF_W / 2 - 160) { if (g_sel > 0) g_sel--; }
-			else if (my > 160 && my < 200 && mx > GF_W / 2 + 160) { if (g_sel < g_unlocked) g_sel++; }
+			if (my > 222 && my < 268) set_mode ((g_mode + 1) % MODE_N);
+			else if (g_mode == MODE_NORMAL && my > 160 && my < 200 && mx < GF_W / 2 - 160) { if (g_sel > 0) g_sel--; }
+			else if (g_mode == MODE_NORMAL && my > 160 && my < 200 && mx > GF_W / 2 + 160) { if (g_sel < g_unlocked) g_sel++; }
 			else new_game (g_sel);
 		}
 		else if ((g_state == GS_CLEAR || g_state == GS_OVER) && g_timer > 50)

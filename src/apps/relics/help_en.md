@@ -15,6 +15,14 @@ An explorer sets out to find twenty-one relics hidden across seven worlds: the I
 
 On the title screen, **Left** and **Right** pick a level you have already reached; **Space** or **Enter** starts the game.
 
+## Modes
+
+On the title screen, **Up** and **Down** change the mode; each one has its own best score.
+
+- **Normal**: pick any level already reached, 5 lives, an extra life every 15,000 points.
+- **Classic**, like back then: always from the first level, 4 lives, an extra life every 20,000 points; losing the game starts everything over, and restarting a level costs a life.
+- **Hardcore**: like classic, with 3 lives and no extra lives; guards and shooters take two bullets, walk and shoot faster; darts, crushers, fire jets, hidden spikes and stalactites are quicker, and the boulder rolls almost as fast as you.
+
 ## Gamepad
 
 The d-pad to walk and climb, **A** to jump, **B** or **X** to fire, **Y** for dynamite, **Start** for the pause menu.

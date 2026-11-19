@@ -136,6 +136,7 @@ static void init_all (void)
 	g_bank0 = ga_bp;
 	gen_sprites ();
 	use_tiles ();
+	if (getenv ("RELICS_MODE")) g_mode = atoi (getenv ("RELICS_MODE"));	/* 0 normal, 1 classique, 2 hardcore */
 	if (getenv ("RELICS_BANK")) fprintf (stderr, "reserve des images : %lu Mo pris, %lu Mo libres\n", (unsigned long) (ga_bp - g_bank0) >> 20, bank_left () >> 20);
 	gp_init (game_pause, game_resume, game_new, GF_W - 32, 0, on_pad);
 	ui_canvas_begin (gf_cv);
@@ -427,6 +428,9 @@ int main (int argc, char **argv)
 		for (int i = 0; i < g_ne; i++)
 			if (g_e[i].type == E_BOULDER)
 				printf ("rocher %d : %s x %.0f (depart %.0f)\n", i, g_e[i].on ? (g_e[i].st ? "roule" : "au repos") : "ecrase", g_e[i].x, g_e[i].x0);
+		for (int i = 0; i < g_ne; i++)
+			if ((g_e[i].type == E_WALKER || g_e[i].type == E_SHOOTER) && fabsf (g_e[i].x - g_h.x) < 12 * TS)
+				printf ("ennemi %d : %s, %d balle(s) encore\n", i, g_e[i].on ? "debout" : "abattu", g_e[i].hp);
 		printf ("explorateur x %.0f (case %d) : %s\n", g_h.x, (int) (g_h.x / TS), g_lives < lives || g_h.dead ? "MORT" : "vivant");
 		return 0;
 	}
