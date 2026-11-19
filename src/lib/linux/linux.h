@@ -56,8 +56,14 @@ void linux_missing (const char *name) __attribute__ ((noreturn));
 /* syscall.c : un appel système de Linux x86-64 ; rend la valeur du noyau Linux (< 0 : -errno de
    Linux), comme l'instruction syscall */
 long linux_syscall (long nr, long a, long b, long c, long d, long e, long f);
-/* syscall.c : errno de Korin (newlib) vers celui de Linux */
+/* syscall.c : errno de Korin (newlib) vers celui de Linux, et l'inverse */
 int linux_errno (int korin_errno);
+int linux_errno_korin (int linux_errno);
+
+/* elf.c : __tls_get_addr des modules ({numéro de module, décalage}) */
+void *linux_tls_get_addr (const uint64_t *ti);
+/* elf.c : /proc/self/maps au format de Linux (programme hôte, modules, pile) ; rend la longueur */
+size_t linux_maps (char *buf, size_t cap);
 
 /* nombre d'appels traduits, par numéro de Linux (diagnostic : linuxhost --stats) */
 extern unsigned long linux_syscall_count[512];

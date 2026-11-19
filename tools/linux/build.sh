@@ -31,14 +31,32 @@ mkdir -p "$OUT/gen"
 		"$ROOT/src/inc/syscalls.inc"
 } | tr -d '\r' >"$OUT/gen/korin_sys_nr.h"
 CFLAGS="-specs=$POSIX/lib/posix.specs -O2 -g0 -std=gnu11 -Wall -Wextra -Wno-unused-parameter -I$OUT/gen"
-for f in elf glibc syscall capture; do
+for f in elf glibc glibc_thread glibc_misc syscall capture; do
 	${TC}gcc $CFLAGS -c "$SRC/$f.c" -o "$OUT/obj/$f.o"
 done
 rm -f "$OUT/liblinux.a"
-${TC}ar rcs "$OUT/liblinux.a" "$OUT/obj/elf.o" "$OUT/obj/glibc.o" "$OUT/obj/syscall.o" "$OUT/obj/capture.o"
+${TC}ar rcs "$OUT/liblinux.a" "$OUT/obj/elf.o" "$OUT/obj/glibc.o" "$OUT/obj/glibc_thread.o" "$OUT/obj/glibc_misc.o" "$OUT/obj/syscall.o" "$OUT/obj/capture.o"
 
 # 3. linuxhost
 ${TC}gcc $CFLAGS -c "$HOST/main.c" -o "$OUT/obj/main.o"
 ${TC}gcc -c -DLXTEST_SO="\"$OUT/lxtest.so\"" "$HOST/blob.S" -o "$OUT/obj/blob.o"
-${TC}gcc $CFLAGS "$OUT/obj/main.o" "$OUT/obj/blob.o" "$OUT/liblinux.a" -o "$OUT/linuxhost"
+${TC}gcc $CFLAGS "$OUT/obj/main.o" "$OUT/obj/blob.o" "$OUT/liblinux.a" -lm -o "$OUT/linuxhost"
 ls -l "$OUT/lxtest.so" "$OUT/liblinux.a" "$OUT/linuxhost"
+
+# 4. (facultatif) la sonde du module Widevine pour Korin, WIDEVINE_SO=…/libwidevinecdm.so : le module de
+#    Google y est EMBARQUÉ (essai sous QEMU, sans vfs) ; build/pc/linux/cdmprobe ne quitte jamais build/
+#    (ni dépôt, ni paquet). L'en-tête de l'interface (Chromium, BSD) est téléchargé dans build/pc/linux/cdm.
+if [ -n "${WIDEVINE_SO:-}" ]; then
+	INC=$OUT/cdm
+	mkdir -p "$INC"
+	for f in content_decryption_module.h content_decryption_module_export.h; do
+		[ -s "$INC/$f" ] || curl -sS -m 60 "https://chromium.googlesource.com/chromium/cdm/+/refs/heads/main/$f?format=TEXT" | base64 -d >"$INC/$f"
+	done
+	WV=$(cd "$(dirname "$WIDEVINE_SO")" && pwd)/$(basename "$WIDEVINE_SO")
+	printf '\t.section .rodata\n\t.balign 4096\n\t.globl wv_so_start\n\t.globl wv_so_end\nwv_so_start:\n\t.incbin "%s"\nwv_so_end:\n\t.section .note.GNU-stack,"",@progbits\n' \
+		"$WV" >"$OUT/obj/wvblob.S"
+	${TC}gcc -c "$OUT/obj/wvblob.S" -o "$OUT/obj/wvblob.o"
+	${TC}g++ -specs=$POSIX/lib/posix.specs -O1 -g0 -std=gnu++17 -Wall -Wno-unused-result -I"$INC" -I"$SRC" \
+		"$ROOT/tools/linux/cdmprobe/cdmprobe.cpp" "$OUT/obj/wvblob.o" "$OUT/liblinux.a" -lm -o "$OUT/cdmprobe"
+	ls -l "$OUT/cdmprobe"
+fi

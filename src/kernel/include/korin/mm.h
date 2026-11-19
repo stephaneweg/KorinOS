@@ -13,6 +13,10 @@ struct mm;
 /* adresses fixes de l'ABI (src/inc/syscalls.inc, docs/ABI.md) */
 #define VM_ARENA_BASE 0x5800000000ULL
 #define VM_ARENA_END 0x6800000000ULL
+/* PC : l'arène haute, quand une demande ne tient pas dans l'arène (réservations de plusieurs dizaines de
+ * Go : PartitionAlloc du module Widevine, 32 Go alignés sur 32 Go) ; aussi pour MAP_FIXED */
+#define VM_HIGH_BASE 0x100000000000ULL
+#define VM_HIGH_END 0x700000000000ULL
 #define BUF_BASE 0x6800000000ULL      /* + n x 64 Mo */
 #define BUF_SLOT (64ULL << 20)
 #define BUF_MAX 128

@@ -12,6 +12,7 @@
  * bibliothèques liées entre elles (DT_NEEDED autre que la glibc : seulement nommées), dlopen depuis
  * le module.
  */
+#define _GNU_SOURCE	/* (dl_iterate_phdr, pthread_setname_np) */
 #include <errno.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -65,6 +66,7 @@ typedef struct
 #define PT_LOAD		1
 #define PT_DYNAMIC	2
 #define PT_TLS		7
+#define PT_GNU_EH_FRAME	0x6474e550
 #define PT_GNU_RELRO	0x6474e552
 #define PF_X		1
 #define PF_W		2
@@ -116,7 +118,11 @@ struct linux_atexit
 
 struct linux_module
 {
-	char name[64];
+	char name[256];			/* le chemin donné à linux_load (celui de /proc/self/maps) */
+	lx_phdr *ph;			/* copie des en-têtes de programme (/proc/self/maps) */
+	int phnum;
+	int tls_id;			/* 0 : pas de TLS ; sinon le numéro de module de __tls_get_addr */
+	void *eh_frame;			/* .eh_frame déclaré au dérouleur de libgcc (exceptions C++) */
 	unsigned char *base;		/* adresse de chargement (vaddr 0 du fichier) */
 	unsigned char *area;		/* la réservation : base + lo (première page des PT_LOAD) */
 	size_t span;			/* octets réservés depuis area */
@@ -371,8 +377,18 @@ static int apply (struct reloc_state *st, const lx_rela *r, uint64_t bytes)
 			break;
 		}
 		case R_X86_64_DTPMOD64:
+			/* (le module lui-même : ses variables de thread ; un symbole d'un autre module : pas servi) */
+			if (symi && st->d->symtab[symi].st_shndx == SHN_UNDEF)
+			{
+				st->tls++;
+				break;
+			}
+			*where = (uint64_t) st->m->tls_id;
+			break;
 		case R_X86_64_DTPOFF64:
-		case R_X86_64_TPOFF64:
+			*where = (symi ? st->d->symtab[symi].st_value : 0) + r[i].r_addend;
+			break;
+		case R_X86_64_TPOFF64:	/* (« initial exec » : un décalage fixe sous %fs, pas servi) */
 			st->tls++;
 			break;
 		default:
@@ -394,6 +410,90 @@ static int count_imports (const struct lx_dynamic *d, const lx_rela *r, uint64_t
 static int prot_of (uint32_t f)
 {
 	return ((f & PF_R) ? PROT_READ : 0) | ((f & PF_W) ? PROT_WRITE : 0) | ((f & PF_X) ? PROT_EXEC : 0);
+}
+
+/* ---- variables de thread des modules (PT_TLS, modèle « general dynamic » : __tls_get_addr) ----
+   Un bloc par thread et par module, fait à la première demande depuis l'image du module (.tdata, puis des
+   zéros) ; le numéro de module (DTPMOD64) indexe s_tls. (Les blocs d'un thread fini ne sont pas rendus.) */
+#define MAX_TLS 16
+static struct
+{
+	const unsigned char *init;
+	size_t filesz, memsz, align;
+} s_tls[MAX_TLS + 1];
+static __thread void *s_tls_block[MAX_TLS + 1];
+
+static int tls_add (const void *init, size_t filesz, size_t memsz, size_t align)
+{
+	for (int i = 1; i <= MAX_TLS; i++)
+		if (!s_tls[i].memsz)
+		{
+			s_tls[i].init = init;
+			s_tls[i].filesz = filesz;
+			s_tls[i].align = align < 16 ? 16 : align;
+			__atomic_store_n (&s_tls[i].memsz, memsz, __ATOMIC_RELEASE);
+			return i;
+		}
+	return 0;
+}
+
+static void tls_remove (int id)
+{
+	if (id > 0 && id <= MAX_TLS)
+		__atomic_store_n (&s_tls[id].memsz, 0, __ATOMIC_RELEASE);
+}
+
+/* l'argument de __tls_get_addr : {numéro de module, décalage} */
+void *linux_tls_get_addr (const uint64_t *ti)
+{
+	uint64_t id = ti[0];
+	if (id < 1 || id > MAX_TLS || !s_tls[id].memsz)
+	{
+		fprintf (stderr, "liblinux : __tls_get_addr d'un module inconnu (%llu)\n", (unsigned long long) id);
+		abort ();
+	}
+	void *b = s_tls_block[id];
+	if (!b)
+	{
+		size_t a = s_tls[id].align, n = (s_tls[id].memsz + a - 1) & ~(a - 1);
+		if (posix_memalign (&b, a, n))
+		{
+			fprintf (stderr, "liblinux : TLS d'un module : mémoire\n");
+			abort ();
+		}
+		memcpy (b, s_tls[id].init, s_tls[id].filesz);
+		memset ((char *) b + s_tls[id].filesz, 0, n - s_tls[id].filesz);
+		s_tls_block[id] = b;
+	}
+	return (char *) b + ti[1];
+}
+
+/* ---- exceptions C++ : le .eh_frame du module (par PT_GNU_EH_FRAME) déclaré au dérouleur de libgcc ---- */
+extern void __register_frame (void *);
+extern void __deregister_frame (void *);
+
+static void *eh_frame_of (const unsigned char *hdr)
+{
+	/* .eh_frame_hdr : version 1, codage du pointeur, …, puis le pointeur vers .eh_frame */
+	if (hdr[0] != 1)
+		return 0;
+	unsigned enc = hdr[1];
+	const unsigned char *p = hdr + 4;
+	int64_t v;
+	switch (enc & 0x0f)
+	{
+	case 0x0b: v = *(const int32_t *) p; break;	/* sdata4 */
+	case 0x03: v = *(const uint32_t *) p; break;	/* udata4 */
+	case 0x04: case 0x0c: v = *(const int64_t *) p; break;	/* udata8, sdata8 */
+	default: return 0;
+	}
+	switch (enc & 0x70)
+	{
+	case 0x00: return (void *) (uintptr_t) v;		/* absolu */
+	case 0x10: return (void *) (p + v);			/* pcrel */
+	case 0x30: return (void *) (hdr + v);			/* datarel */
+	}
+	return 0;
 }
 
 struct linux_module *linux_load (const void *image, size_t size, const char *name, int flags,
@@ -425,10 +525,21 @@ struct linux_module *linux_load (const void *image, size_t size, const char *nam
 	}
 	if (im.tlsph && im.tlsph->p_memsz)
 	{
-		set_err (err, errlen, "le module a des variables de thread (PT_TLS, %llu octets) : pas encore servies",
-			 (unsigned long long) im.tlsph->p_memsz);
+		m->tls_id = tls_add (m->base + im.tlsph->p_vaddr, im.tlsph->p_filesz, im.tlsph->p_memsz, im.tlsph->p_align);
+		if (!m->tls_id)
+		{
+			set_err (err, errlen, "trop de modules avec des variables de thread");
+			goto fail;
+		}
+	}
+	m->phnum = im.eh->e_phnum;
+	m->ph = malloc (sizeof (lx_phdr) * (size_t) m->phnum);
+	if (!m->ph)
+	{
+		set_err (err, errlen, "mémoire");
 		goto fail;
 	}
+	memcpy (m->ph, im.ph, sizeof (lx_phdr) * (size_t) m->phnum);
 	m->dyn = (const lx_dyn *) (m->base + im.dynph->p_vaddr);
 	struct lx_dynamic d;
 	read_dynamic (&d, m->dyn, xlate_loaded, m->base);
@@ -472,7 +583,7 @@ struct linux_module *linux_load (const void *image, size_t size, const char *nam
 	}
 	if (st.tls)
 	{
-		set_err (err, errlen, "%u relocations de TLS : pas encore servies", st.tls);
+		set_err (err, errlen, "%u relocations de TLS « initial exec » ou d'un autre module : pas servies", st.tls);
 		goto fail;
 	}
 	if (m->stubs)
@@ -496,6 +607,13 @@ struct linux_module *linux_load (const void *image, size_t size, const char *nam
 		}
 		mprotect (m->base + a, b - a, prot);
 	}
+	for (int i = 0; i < m->phnum; i++)
+		if (m->ph[i].p_type == PT_GNU_EH_FRAME)
+		{
+			m->eh_frame = eh_frame_of (m->base + m->ph[i].p_vaddr);
+			if (m->eh_frame)
+				__register_frame (m->eh_frame);
+		}
 	linux_register (m);
 	if (!(flags & LINUX_LOAD_NOINIT))
 	{
@@ -514,6 +632,8 @@ fail:
 	munmap (area, m->span);
 	if (m->stubs)
 		munmap (m->stubs, m->stubs_size);
+	tls_remove (m->tls_id);
+	free (m->ph);
 	free (m);
 	return 0;
 }
@@ -629,10 +749,92 @@ void linux_unload (struct linux_module *m)
 		if (s_modules[i] == m)
 			s_modules[i] = 0;
 	capture_update ();
+	if (m->eh_frame)
+		__deregister_frame (m->eh_frame);
+	tls_remove (m->tls_id);
 	munmap (m->area, m->span);
 	if (m->stubs)
 		munmap (m->stubs, m->stubs_size);
+	free (m->ph);
 	free (m);
+}
+
+/* ---- /proc/self/maps au format de Linux (syscall.c le sert aux modules) ----
+   Les segments de chaque module avec son chemin (la partie au-delà du fichier : anonyme, comme Linux),
+   ceux du programme hôte sous le nom de la libc de Linux (la glibc de compatibilité y vit : les fonctions
+   que le module importe tombent donc dans « libc.so.6 », comme sous Linux), et la pile. */
+#include <link.h>
+
+struct maps_out
+{
+	char *buf;
+	size_t cap, len;
+};
+
+static void maps_line (struct maps_out *o, uint64_t lo, uint64_t hi, int prot, uint64_t off, int file, uint64_t inode,
+		       const char *path)
+{
+	if (hi <= lo || o->len >= o->cap)
+		return;
+	char perm[5] = { prot & PF_R ? 'r' : '-', prot & PF_W ? 'w' : '-', prot & PF_X ? 'x' : '-', 'p', 0 };
+	int n = snprintf (o->buf + o->len, o->cap - o->len, "%08llx-%08llx %s %08llx %s %-10llu",
+			  (unsigned long long) lo, (unsigned long long) hi, perm, (unsigned long long) off,
+			  file ? "08:01" : "00:00", (unsigned long long) inode);
+	if (n < 0)
+		return;
+	o->len += (size_t) n < o->cap - o->len ? (size_t) n : o->cap - o->len;
+	/* (Linux aligne le chemin sur la colonne 73) */
+	n = snprintf (o->buf + o->len, o->cap - o->len, "%*s%s\n", path && *path ? (int) (73 - (n < 73 ? n : 72)) : 0, "",
+		      path ? path : "");
+	if (n > 0)
+		o->len += (size_t) n < o->cap - o->len ? (size_t) n : o->cap - o->len;
+}
+
+static int maps_host (struct dl_phdr_info *in, size_t size, void *arg)
+{
+	(void) size;
+	struct maps_out *o = arg;
+	if (in->dlpi_name && *in->dlpi_name)	/* (le programme hôte seulement : nom vide) */
+		return 0;
+	for (int i = 0; i < in->dlpi_phnum; i++)
+	{
+		const ElfW (Phdr) *p = &in->dlpi_phdr[i];
+		if (p->p_type != PT_LOAD)
+			continue;
+		uint64_t lo = PAGE_DOWN (in->dlpi_addr + p->p_vaddr), hi = PAGE_UP (in->dlpi_addr + p->p_vaddr + p->p_memsz);
+		maps_line (o, lo, hi, (int) p->p_flags, PAGE_DOWN (p->p_offset), 1, 3940652,
+			   "/usr/lib/x86_64-linux-gnu/libc.so.6");
+	}
+	return 1;
+}
+
+size_t linux_maps (char *buf, size_t cap)
+{
+	struct maps_out o = { buf, cap, 0 };
+	dl_iterate_phdr (maps_host, &o);
+	for (int k = 0; k < MAX_MODULES; k++)
+	{
+		struct linux_module *m = s_modules[k];
+		if (!m)
+			continue;
+		for (int i = 0; i < m->phnum; i++)
+		{
+			const lx_phdr *p = &m->ph[i];
+			if (p->p_type != PT_LOAD)
+				continue;
+			uint64_t lo = (uint64_t) (uintptr_t) m->base + PAGE_DOWN (p->p_vaddr);
+			uint64_t fend = (uint64_t) (uintptr_t) m->base + PAGE_UP (p->p_vaddr + p->p_filesz);
+			uint64_t hi = (uint64_t) (uintptr_t) m->base + PAGE_UP (p->p_vaddr + p->p_memsz);
+			maps_line (&o, lo, fend, (int) p->p_flags, PAGE_DOWN (p->p_offset), 1, 2621447 + (uint64_t) k, m->name);
+			maps_line (&o, fend, hi, (int) p->p_flags, 0, 0, 0, "");
+		}
+	}
+	/* la pile du thread : autour de l'adresse d'une variable locale */
+	uint64_t sp = (uint64_t) (uintptr_t) &o;
+	maps_line (&o, PAGE_DOWN (sp) - 0x100000, PAGE_UP (sp) + 0x10000, PF_R | PF_W, 0, 0, 0, "[stack]");
+	if (o.len < cap)
+		buf[o.len] = 0;
+	return o.len;
 }
 
 /* ---- linux_check : le rapport sans exécution ---- */

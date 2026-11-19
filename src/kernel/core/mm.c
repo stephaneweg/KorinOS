@@ -430,7 +430,9 @@ out:
 
 static int in_arena(uint64_t a, uint64_t len)
 {
-	return a >= VM_ARENA_BASE && a + len <= VM_ARENA_END && a + len > a;
+	if (a + len <= a)
+		return 0;
+	return (a >= VM_ARENA_BASE && a + len <= VM_ARENA_END) || (a >= VM_HIGH_BASE && a + len <= VM_HIGH_END);
 }
 
 static int overlaps(struct mm *mm, uint64_t s, uint64_t e)
@@ -460,20 +462,28 @@ static int unmap_range(struct process *p, uint64_t s, uint64_t e, struct freelis
 	return drop_pages(p, s, e, fl);
 }
 
-static uint64_t find_gap(struct mm *mm, uint64_t hint, uint64_t len)
+/* le premier trou de len octets dans [lo, hi[ (régions triées), 0 s'il n'y en a pas */
+static uint64_t gap_in(struct mm *mm, uint64_t lo, uint64_t hi, uint64_t len)
 {
-	if (hint && !(hint & (PAGE_SIZE - 1)) && in_arena(hint, len) && !overlaps(mm, hint, hint + len))
-		return hint;
-	uint64_t a = VM_ARENA_BASE;
+	uint64_t a = lo;
 	for (int i = 0; i < mm->n; i++) {
 		struct region *r = &mm->r[i];
 		if (r->end <= a)
 			continue;
-		if (r->start >= VM_ARENA_END || r->start >= a + len)
+		if (r->start >= hi || r->start >= a + len)
 			break; /* le trou avant cette région suffit */
 		a = r->end;
 	}
-	return a + len <= VM_ARENA_END ? a : 0;
+	return a + len <= hi && a + len > a ? a : 0;
+}
+
+static uint64_t find_gap(struct mm *mm, uint64_t hint, uint64_t len)
+{
+	if (hint && !(hint & (PAGE_SIZE - 1)) && in_arena(hint, len) && !overlaps(mm, hint, hint + len))
+		return hint;
+	uint64_t a = gap_in(mm, VM_ARENA_BASE, VM_ARENA_END, len);
+	/* (l'arène haute : seulement ce qui ne tient pas dans l'arène ; les adresses habituelles ne changent pas) */
+	return a ? a : gap_in(mm, VM_HIGH_BASE, VM_HIGH_END, len);
 }
 
 int64_t sys_vm_map(uint64_t addr, uint64_t size, uint64_t prot, uint64_t flags)

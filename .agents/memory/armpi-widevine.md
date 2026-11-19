@@ -1,6 +1,6 @@
 ---
 name: armpi-widevine
-description: "Widevine dans Jet : hôte Linux, jalon 1 fait (liblinux + linuxhost, QEMU PC) ; décisions du 19/11 prises ; module mesuré ; capture générique des syscall faite (2b, QEMU) ; docs/etude/WIDEVINE.md"
+description: "Widevine dans Jet : hôte Linux, jalon 1 fait (liblinux + linuxhost, QEMU PC) ; décisions du 19/11 prises ; module mesuré ; étapes 2b (capture des syscall) et 2c (requête de licence dans Korin) faites, QEMU ; docs/etude/WIDEVINE.md"
 metadata:
   type: project
 ---
@@ -30,7 +30,12 @@ thread appelant choisie par l'utilisateur (pas de thread hôte séparé).
 **Étape 2b faite le 19/11** : SYS_SYSCALL_CAPTURE 0x96 (noyau PC : core/signal.c, arch/x86_64/sigframe.c ;
 trame de signal SIGSYS, retour par SIG_RETURN), liblinux capture.c ; QEMU : 4 syscall directs traduits, ptest
 22/0. Noyau d'essai construit à part : `PC_OUT=build/pc/linux/kbuild PC_QUICK=1 PC_SVC=pcid sh tools/pc/build.sh`,
-puis `test_pc.py --esp-src build/pc/linux/kbuild/esp`. Suite : étape 2c (108 imports, TLS, /proc fabriqués).
+puis `test_pc.py --esp-src build/pc/linux/kbuild/esp`. **Étape 2c faite le 19/11 (QEMU)** : le vrai module produit une requête de licence (1702 octets) DANS Korin :
+glibc_thread.c, glibc_misc.c (177 imports servis), TLS (__tls_get_addr), .eh_frame déclaré à libgcc, /proc/self/maps
+fabriqué (hôte nommé libc.so.6), futex ; noyau PC : **arène haute** 0x1000_0000_0000-0x7000_0000_0000 (PartitionAlloc
+réserve 32 Go alignés sur 32 Go ; docs/ABI.md). Sonde Korin : `WIDEVINE_SO=… sh tools/linux/build.sh` puis
+`test_pc.py --probe --esp-src build/pc/linux/kbuild/esp` (module embarqué, build/ seulement). Suite : étape 3
+(UpdateSession avec une vraie licence, Decrypt, CreateFileIO, cdmhost et IPC), puis ZBook.
 
 Pièges : `linux` est une macro prédéfinie de gcc sous Linux (pas comme nom de champ) ; le canari de pile du code
 Linux (%fs:0x28) tombe dans le TCB de 64 octets de libposix, stable. Le module ne va jamais dans nos paquets.

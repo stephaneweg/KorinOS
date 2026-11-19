@@ -277,7 +277,7 @@ distribué à d'autres ne l'active jamais d'office.
 | 1 | **liblinux + linuxhost** (chargeur, glibc de compatibilité, appels de Linux) | un `.so` de Linux appelé dans Korin | **fait le 19/11** |
 | 2a | Module réel : téléchargement de développement et `linuxhost --check` | la liste de ce qui manque | **fait le 19/11** (§ 2.5) |
 | 2b | Capture générique des `syscall` dans le noyau du PC (§ 3.2) ; `liblinux` s'en sert | un `syscall` direct d'un module d'essai traduit | **fait le 19/11** (QEMU) |
-| 2c | Les 108 imports, TLS du module (`__tls_get_addr`), `_Unwind_*`, threads ; `/proc/self/maps` et `/proc/net/unix` fabriqués, `rt_sigaction` | dans Korin, la sonde va jusqu'à la requête de licence, comme sous Linux | 3 à 5 jours |
+| 2c | Les 108 imports, TLS du module (`__tls_get_addr`), `_Unwind_*`, threads ; `/proc/self/maps` et `/proc/net/unix` fabriqués, `rt_sigaction` | dans Korin, la sonde va jusqu'à la requête de licence, comme sous Linux | **fait le 19/11** (QEMU, § 8) |
 | 3 | `cdmhost` : `Host_10/11` en C++, essai hors de Jet sur un serveur de licences de test public | une licence de démonstration obtenue, un échantillon déchiffré | 2 à 3 jours |
 | 4 | EME ClearKey dans Jet (WebKit, MSE chiffré, CENC) | un flux ClearKey de démonstration joue | 3 à 5 jours |
 | 5 | EME Widevine dans Jet par `cdmhost` (audio) | le lecteur web de Spotify joue un titre | 2 à 3 jours |
@@ -317,6 +317,40 @@ Prises par l'utilisateur le 19/11 :
   `nanosleep`, `ctype` de glibc, mutex et `pthread_once`, `getrandom`, destructeur) ; appels de Linux traduits :
   write, close, nanosleep, getpid ×2, clock_gettime ×3, getrandom.
 * Pas encore : sur le ZBook, TLS du module, `syscall` directs (noyau), threads du module.
+
+## 8. Étape 2c (19/11/2026) : le vrai module dans Korin
+
+**Résultat sous QEMU PC** : le module de Google 4.10.3050.0, chargé par `liblinux` dans un process de Korin,
+passe `InitializeCdmModule_4`, `CreateCdmInstance`, `Initialize` (`OnInitialized 1`) et
+`CreateSessionAndGenerateRequest` : **il produit une requête de licence de 1702 octets**, comme sous Linux.
+57 `syscall` directs capturés par le noyau et traduits ; appels de Linux servis (directs et par la glibc de
+compatibilité) : read ×26, openat ×13, close ×13, mmap ×8, mprotect ×63, madvise ×82, rt_sigaction ×5, prctl ×7,
+gettid ×15, getrandom ×8, getpid, uname, stat, clock_gettime. `ktest` 59/0 et `ptest` 22/0 sur le même noyau.
+
+Ce qu'il a fallu :
+* **glibc de compatibilité complète pour ce module** (177 imports, 0 absent) : `glibc_thread.c` (mutex,
+  conditions avec horloge, verrous lecteurs/écrivains, sémaphores, attributs et création de threads,
+  affinité : les objets de glibc portent une « boîte » de libposix dans leur premier mot, faite à la première
+  utilisation), `glibc_misc.c` (fichiers, `struct tm` de glibc, locale « C » seule, caractères larges, libm,
+  `getauxval`, `prctl`, `uname`, `dlsym`, `_setjmp`/`longjmp`, `_Unwind_*` de libgcc).
+* **TLS du module** (`elf.c`) : modèle « general dynamic », `DTPMOD64`/`DTPOFF64`, `__tls_get_addr` avec un bloc
+  par thread et par module fait à la première demande.
+* **Exceptions C++** : le `.eh_frame` du module (par `PT_GNU_EH_FRAME`) déclaré au dérouleur de libgcc
+  (`__register_frame`).
+* **`/proc` fabriqué** (`syscall.c`) : `/proc/self/maps` au format de Linux (`linux_maps` d'`elf.c` : le
+  programme hôte sous le nom `/usr/lib/x86_64-linux-gnu/libc.so.6`, puisque la glibc de compatibilité y vit, les
+  segments du module avec son chemin, la pile), `/proc/net/unix` réduit à son en-tête ; `rt_sigaction` gardé
+  sans être installé ; `open`/`openat` aux drapeaux de Linux, `stat` à la `struct stat` de Linux, `pread64`,
+  `uname` (« Linux 6.8.0-korin »), `getrlimit`, `prctl`, affinité, **`futex`** (sur ceux de Korin).
+* **Noyau : l'arène haute** (`src/kernel/core/mm.c`, `docs/ABI.md`) : PartitionAlloc, l'allocateur de Chromium
+  dans le module, réserve au départ **32 Go alignés sur 32 Go** ; l'arène de `VM_MAP` n'a que 64 Go. Sur le PC,
+  ce qui ne tient pas dans l'arène va dans une arène haute `0x1000_0000_0000`–`0x7000_0000_0000` ; les adresses
+  habituelles ne changent pas (une demande qui échouait réussit, rien d'autre ne bouge).
+* **La sonde dans Korin** : `tools/linux/cdmprobe/cdmprobe.cpp` se construit pour Linux (`run.sh`) et pour Korin
+  (`WIDEVINE_SO=… sh tools/linux/build.sh`, module embarqué, essai `python3 -I tools/linux/test_pc.py --probe`).
+
+Reste pour l'étape 3 : `UpdateSession` avec une vraie licence et `Decrypt` (ce qu'ils demandent n'a pas encore
+été parcouru), le stockage (`CreateFileIO`), les threads du module en vrai, et le ZBook.
 
 ## Sources (19/11/2026)
 

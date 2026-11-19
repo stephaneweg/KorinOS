@@ -1,18 +1,17 @@
 /*
- * glibc.c -- liblinux : la glibc de compatibilité (linux.h, docs/etude/WIDEVINE.md § 4.2).
+ * glibc.c -- liblinux : la glibc de compatibilité, les bases (linux.h, docs/etude/WIDEVINE.md § 3.1).
  *
  * Un module de Linux importe des fonctions et des données de glibc par leur nom ; le chargeur
- * (elf.c) les cherche ici. Deux sortes :
+ * (elf.c) les cherche ici (linux_glibc_lookup), puis dans les tables de glibc_thread.c (threads) et
+ * de glibc_misc.c (fichiers, temps, locales, système, C++). Deux sortes :
  *   - les mêmes que newlib à l'ABI près (memcpy, malloc, snprintf…) : l'adresse de celle de libposix ;
  *   - celles dont l'ABI de Linux diffère : une enveloppe « lx_ » (errno de Linux par
- *     __errno_location, horloges et constantes de Linux, tables de ctype de glibc, mutex de glibc de
- *     40 octets, variantes _chk de _FORTIFY_SOURCE, stdout et stderr comme données).
- * Ce qui n'est pas dans la table est « absent » : linuxhost --check en donne la liste pour un module.
+ *     __errno_location, horloges et constantes de Linux, tables de ctype de glibc, variantes _chk de
+ *     _FORTIFY_SOURCE, stdout et stderr comme données).
+ * Ce qui n'est dans aucune table est « absent » : linuxhost --check en donne la liste pour un module.
  *
- * Limites (étapes suivantes, § 4.2 de l'étude) : FILE * de newlib passés tels quels (le module ne
- * doit pas lire leurs champs, ce que font les macros getc_unlocked de glibc) ; pthread_mutex en
- * attente active (sched_yield), sans les mutex récursifs ; pas de pthread_cond, de pthread_create,
- * de dlopen, de TLS du module.
+ * Limite : les FILE * de newlib passés tels quels (le module ne doit pas lire leurs champs, ce que
+ * font les macros getc_unlocked de glibc).
  */
 #include <ctype.h>
 #include <errno.h>
@@ -27,6 +26,7 @@
 #include <unistd.h>
 
 #include "linux.h"
+#include "glibc_internal.h"
 
 /* ---- errno de Linux ---- */
 static __thread int lx_errno_value;
@@ -36,8 +36,24 @@ static int *lx_errno_location (void)
 	return &lx_errno_value;
 }
 
+int *lx_errno_ptr (void)
+{
+	return &lx_errno_value;
+}
+
+long lx_set_errno_from_korin (void)
+{
+	lx_errno_value = linux_errno (errno);
+	return -1;
+}
+
+int lx_perr (int e)
+{
+	return e > 0 ? linux_errno (e) : e;
+}
+
 /* le résultat brut d'un appel (-errno de Linux) vers la convention de la libc */
-static long lx_ret (long r)
+long lx_ret (long r)
 {
 	if (r < 0 && r > -4096)
 	{
@@ -316,72 +332,9 @@ static const unsigned short **lx_ctype_b_loc (void) { return &s_ctype_b_ptr; }
 static const int32_t **lx_ctype_tolower_loc (void) { return &s_ctype_lower_ptr; }
 static const int32_t **lx_ctype_toupper_loc (void) { return &s_ctype_upper_ptr; }
 
-/* ---- pthread : les types de glibc (x86-64) ---- */
-/* pthread_mutex_t de glibc : 40 octets, zéro = PTHREAD_MUTEX_INITIALIZER ; on prend le premier mot
-   (__lock) comme verrou. pthread_once_t : un int (0 = pas fait). */
-static int lx_mutex_init (int *m, const void *attr)
-{
-	(void) attr;
-	memset (m, 0, 40);
-	return 0;
-}
-
-static int lx_mutex_lock (int *m)
-{
-	while (__atomic_exchange_n (m, 1, __ATOMIC_ACQUIRE))
-		sched_yield ();
-	return 0;
-}
-
-static int lx_mutex_trylock (int *m)
-{
-	return __atomic_exchange_n (m, 1, __ATOMIC_ACQUIRE) ? 16 /* EBUSY */ : 0;
-}
-
-static int lx_mutex_unlock (int *m)
-{
-	__atomic_store_n (m, 0, __ATOMIC_RELEASE);
-	return 0;
-}
-
-static int lx_mutex_destroy (int *m)
-{
-	(void) m;
-	return 0;
-}
-
-static int lx_once (int *once, void (*fn) (void))
-{
-	int s = __atomic_load_n (once, __ATOMIC_ACQUIRE);
-	if (s == 2)
-		return 0;
-	int zero = 0;
-	if (__atomic_compare_exchange_n (once, &zero, 1, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
-	{
-		fn ();
-		__atomic_store_n (once, 2, __ATOMIC_RELEASE);
-		return 0;
-	}
-	while (__atomic_load_n (once, __ATOMIC_ACQUIRE) != 2)
-		sched_yield ();
-	return 0;
-}
-
-static unsigned long lx_pthread_self (void) { return (unsigned long) pthread_self (); }
-static int lx_key_create (unsigned *k, void (*d) (void *)) { return pthread_key_create ((pthread_key_t *) k, d); }
-static int lx_key_delete (unsigned k) { return pthread_key_delete ((pthread_key_t) k); }
-static void *lx_getspecific (unsigned k) { return pthread_getspecific ((pthread_key_t) k); }
-static int lx_setspecific (unsigned k, const void *v) { return pthread_setspecific ((pthread_key_t) k, v); }
-
 /* ---- la table ---- */
-struct lx_entry
-{
-	const char *name;
-	void *addr;
-};
-
-#define F(n)		{ #n, (void *) n }
-#define W(n, f)		{ n, (void *) f }
+#define F(n)		LX_F (n)
+#define W(n, f)		LX_W (n, f)
 
 static const struct lx_entry s_table[] =
 {
@@ -421,13 +374,6 @@ static const struct lx_entry s_table[] =
 	W ("getrandom", lx_getrandom), W ("getentropy", lx_getentropy), W ("mmap", lx_mmap),
 	W ("mmap64", lx_mmap), W ("munmap", lx_munmap), W ("mprotect", lx_mprotect),
 	W ("sysconf", lx_sysconf),
-	/* pthread */
-	W ("pthread_mutex_init", lx_mutex_init), W ("pthread_mutex_lock", lx_mutex_lock),
-	W ("pthread_mutex_trylock", lx_mutex_trylock), W ("pthread_mutex_unlock", lx_mutex_unlock),
-	W ("pthread_mutex_destroy", lx_mutex_destroy), W ("pthread_once", lx_once),
-	W ("pthread_self", lx_pthread_self), W ("pthread_key_create", lx_key_create),
-	W ("pthread_key_delete", lx_key_delete), W ("pthread_getspecific", lx_getspecific),
-	W ("pthread_setspecific", lx_setspecific),
 };
 
 void *linux_glibc_lookup (const char *name)
@@ -437,10 +383,17 @@ void *linux_glibc_lookup (const char *name)
 	{
 		lx_stdio_init ();
 		lx_ctype_init ();
+		lx_misc_init ();
 		ready = 1;
 	}
 	for (size_t i = 0; i < sizeof s_table / sizeof s_table[0]; i++)
 		if (!strcmp (s_table[i].name, name))
 			return s_table[i].addr;
+	for (size_t i = 0; i < lx_table_thread_n; i++)
+		if (!strcmp (lx_table_thread[i].name, name))
+			return lx_table_thread[i].addr;
+	for (size_t i = 0; i < lx_table_misc_n; i++)
+		if (!strcmp (lx_table_misc[i].name, name))
+			return lx_table_misc[i].addr;
 	return 0;
 }

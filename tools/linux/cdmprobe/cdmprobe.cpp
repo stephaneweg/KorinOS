@@ -1,20 +1,18 @@
-// Sonde native (Linux, WSL) : un hôte Host_10 minimal pour libwidevinecdm.so ; un filtre seccomp
-// piège les syscall dont l'instruction est DANS le module (prototype de la personnalité Linux de
-// Korin) ; parcours : Initialize, CreateSessionAndGenerateRequest (PSSH de Widevine), minuteries,
-// CloseSession, Destroy.
-#include <dlfcn.h>
-#include <link.h>
-#include <linux/filter.h>
-#include <linux/seccomp.h>
+// cdmprobe -- la sonde du module Widevine (docs/etude/WIDEVINE.md § 2.5) : un hôte Host_10 minimal ;
+// parcours : InitializeCdmModule_4, CreateCdmInstance, Initialize, CreateSessionAndGenerateRequest
+// (PSSH de Widevine), minuteries, Destroy. Le même source pour deux systèmes :
+//   - Linux (WSL, tools/linux/cdmprobe/run.sh) : le module chargé par dlopen ; un filtre seccomp piège
+//     les syscall dont l'instruction est DANS le module, le gestionnaire les note et les exécute ;
+//   - Korin (tools/linux/build.sh avec WIDEVINE_SO=…) : le module chargé par liblinux (glibc de
+//     compatibilité, capture de syscall du noyau), embarqué dans le programme d'essai (qui reste dans
+//     build/ : jamais dans le dépôt ni dans un paquet).
 #include <signal.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/prctl.h>
 #include <sys/time.h>
-#include <ucontext.h>
 #include <unistd.h>
 
 #include <vector>
@@ -25,6 +23,15 @@ static unsigned long s_lo, s_hi;
 static unsigned long s_count[512];
 static const char *s_phase = "chargement";
 
+#if defined(__linux__)
+
+#include <dlfcn.h>
+#include <link.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
+#include <sys/prctl.h>
+#include <ucontext.h>
+
 static long raw6 (long n, long a, long b, long c, long d, long e, long f)
 {
 	register long r10 __asm__ ("r10") = d, r8 __asm__ ("r8") = e, r9 __asm__ ("r9") = f;
@@ -33,6 +40,18 @@ static long raw6 (long n, long a, long b, long c, long d, long e, long f)
 			  : "rcx", "r11", "memory");
 	return ret;
 }
+
+static void say_out (const char *b, int k) { raw6 (1, 2, (long) b, k, 0, 0, 0); }
+
+#else
+
+#include "linux.h"
+
+extern "C" const unsigned char wv_so_start[], wv_so_end[];
+
+static void say_out (const char *b, int k) { fwrite (b, 1, (size_t) k, stderr); }
+
+#endif
 
 static void say (const char *fmt, ...) __attribute__ ((format (printf, 1, 2)));
 static void say (const char *fmt, ...)
@@ -44,8 +63,10 @@ static void say (const char *fmt, ...)
 	va_end (ap);
 	if (k > (int) sizeof b - 1)
 		k = sizeof b - 1;
-	raw6 (1, 2, (long) b, k, 0, 0, 0);
+	say_out (b, k);
 }
+
+#if defined(__linux__)
 
 static void on_sys (int, siginfo_t *si, void *ctx)
 {
@@ -75,6 +96,89 @@ static int find_end (struct dl_phdr_info *in, size_t, void *)
 		}
 	return 1;
 }
+
+static void *s_dl;
+
+static void *sym (const char *n) { return dlsym (s_dl, n); }
+
+static int load (const char *path)
+{
+	s_dl = dlopen (path, RTLD_NOW);
+	if (!s_dl)
+	{
+		say ("dlopen : %s\n", dlerror ());
+		return 1;
+	}
+	struct link_map *lm;
+	dlinfo (s_dl, RTLD_DI_LINKMAP, &lm);
+	s_lo = lm->l_addr;
+	dl_iterate_phdr (find_end, 0);
+	say ("sonde : module à %#lx - %#lx\n", s_lo, s_hi);
+	if ((s_lo >> 32) != (s_hi >> 32))
+		return 1;
+	struct sigaction sa;
+	memset (&sa, 0, sizeof sa);
+	sa.sa_sigaction = on_sys;
+	sa.sa_flags = SA_SIGINFO;
+	sigaction (SIGSYS, &sa, 0);
+	struct sock_filter f[] = {
+		BPF_STMT (BPF_LD | BPF_W | BPF_ABS, offsetof (struct seccomp_data, instruction_pointer) + 4),
+		BPF_JUMP (BPF_JMP | BPF_JEQ | BPF_K, (unsigned) (s_lo >> 32), 0, 4),
+		BPF_STMT (BPF_LD | BPF_W | BPF_ABS, offsetof (struct seccomp_data, instruction_pointer)),
+		BPF_JUMP (BPF_JMP | BPF_JGE | BPF_K, (unsigned) s_lo, 0, 2),
+		BPF_JUMP (BPF_JMP | BPF_JGE | BPF_K, (unsigned) s_hi, 1, 0),
+		BPF_STMT (BPF_RET | BPF_K, SECCOMP_RET_TRAP),
+		BPF_STMT (BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+	};
+	struct sock_fprog prog = { (unsigned short) (sizeof f / sizeof f[0]), f };
+	prctl (PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+	if (prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog))
+	{
+		perror ("seccomp");
+		return 1;
+	}
+	return 0;
+}
+
+static void report (void)
+{
+	say ("sonde : appels directs du module par numéro :");
+	for (int i = 0; i < 512; i++)
+		if (s_count[i])
+			say (" %d×%lu", i, s_count[i]);
+	say ("\n");
+}
+
+#else
+
+static struct linux_module *s_mod;
+
+static void *sym (const char *n) { return linux_sym (s_mod, n); }
+
+static int load (const char *path)
+{
+	char err[200];
+	s_mod = linux_load (wv_so_start, (size_t) (wv_so_end - wv_so_start), path, 0, err, sizeof err);
+	if (!s_mod)
+	{
+		say ("sonde : linux_load : %s\n", err);
+		return 1;
+	}
+	s_lo = (unsigned long) linux_base (s_mod);
+	say ("sonde : module chargé par liblinux à %#lx (%zu octets)\n", s_lo, (size_t) (wv_so_end - wv_so_start));
+	return 0;
+}
+
+static void report (void)
+{
+	say ("sonde : syscall directs capturés par le noyau : %lu ; appels de Linux traduits :", linux_capture_count);
+	for (int i = 0; i < 512; i++)
+		if (linux_syscall_count[i])
+			say (" %d×%lu", i, linux_syscall_count[i]);
+	say ("\n");
+}
+
+#endif
 
 class Buf : public cdm::Buffer
 {
@@ -202,48 +306,19 @@ static void *get_host (int version, void *)
 	return version == cdm::Host_10::kVersion ? static_cast<cdm::Host_10 *> (&s_host) : 0;
 }
 
-int main (int, char **argv)
+int main (int argc, char **argv)
 {
-	void *h = dlopen (argv[1], RTLD_NOW);
-	if (!h)
-	{
-		printf ("dlopen : %s\n", dlerror ());
+	// (Korin : le chemin que le module verra dans /proc/self/maps)
+	const char *path = argc > 1 ? argv[1] : "/opt/google/chrome/WidevineCdm/_platform_specific/linux_x64/libwidevinecdm.so";
+	if (load (path))
 		return 1;
-	}
-	struct link_map *lm;
-	dlinfo (h, RTLD_DI_LINKMAP, &lm);
-	s_lo = lm->l_addr;
-	dl_iterate_phdr (find_end, 0);
-	say ("sonde : module à %#lx - %#lx\n", s_lo, s_hi);
-	if ((s_lo >> 32) != (s_hi >> 32))
-		return 1;
-	struct sigaction sa;
-	memset (&sa, 0, sizeof sa);
-	sa.sa_sigaction = on_sys;
-	sa.sa_flags = SA_SIGINFO;
-	sigaction (SIGSYS, &sa, 0);
-	struct sock_filter f[] = {
-		BPF_STMT (BPF_LD | BPF_W | BPF_ABS, offsetof (struct seccomp_data, instruction_pointer) + 4),
-		BPF_JUMP (BPF_JMP | BPF_JEQ | BPF_K, (unsigned) (s_lo >> 32), 0, 4),
-		BPF_STMT (BPF_LD | BPF_W | BPF_ABS, offsetof (struct seccomp_data, instruction_pointer)),
-		BPF_JUMP (BPF_JMP | BPF_JGE | BPF_K, (unsigned) s_lo, 0, 2),
-		BPF_JUMP (BPF_JMP | BPF_JGE | BPF_K, (unsigned) s_hi, 1, 0),
-		BPF_STMT (BPF_RET | BPF_K, SECCOMP_RET_TRAP),
-		BPF_STMT (BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
-	};
-	struct sock_fprog prog = { (unsigned short) (sizeof f / sizeof f[0]), f };
-	prctl (PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
-	if (prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog))
-	{
-		perror ("seccomp");
-		return 1;
-	}
 	s_phase = "InitializeCdmModule_4";
-	((void (*) ()) dlsym (h, "InitializeCdmModule_4")) ();
+	((void (*) ()) sym ("InitializeCdmModule_4")) ();
+	say ("sonde : version %s\n", ((const char *(*) ()) sym ("GetCdmVersion")) ());
 	s_phase = "CreateCdmInstance";
 	const char *ks = "com.widevine.alpha";
 	void *p = ((void *(*) (int, const char *, uint32_t, void *(*) (int, void *), void *))
-		   dlsym (h, "CreateCdmInstance")) (10, ks, (uint32_t) strlen (ks), get_host, 0);
+		   sym ("CreateCdmInstance")) (10, ks, (uint32_t) strlen (ks), get_host, 0);
 	say ("sonde : CreateCdmInstance -> %p\n", p);
 	if (!p)
 		return 1;
@@ -266,11 +341,9 @@ int main (int, char **argv)
 	s_phase = "Destroy";
 	s_host.cdm->Destroy ();
 	s_phase = "DeinitializeCdmModule";
-	((void (*) ()) dlsym (h, "DeinitializeCdmModule")) ();
-	say ("sonde : messages de licence : %d ; appels directs du module par numéro :", s_host.messages);
-	for (int i = 0; i < 512; i++)
-		if (s_count[i])
-			say (" %d×%lu", i, s_count[i]);
-	say ("\n");
-	return 0;
+	((void (*) ()) sym ("DeinitializeCdmModule")) ();
+	say ("sonde : messages de licence : %d\n", s_host.messages);
+	report ();
+	say ("sonde : %s\n", s_host.messages ? "RÉUSSI (requête de licence produite)" : "ÉCHEC (pas de requête de licence)");
+	return s_host.messages ? 0 : 1;
 }
