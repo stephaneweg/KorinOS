@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-18 20:12
+date = 2026-11-19 09:02
 abi = 626
 packages = 113
 board = pc
@@ -649,18 +649,18 @@ content = e6369709297bf0a54e239033bae2c28313f0aa6195924cc6626808b82350f612
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.54
+version = 2026.11.55
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 32052865
-installed = 96457232
-sha256 = 3d5f70e52c6cbd87fef8ec3a36b45c452d5051c24d4ede9b3466041ff89d8e6d
-file = pkgs/pc-2026.11.54.opk
+size = 32052912
+installed = 96457296
+sha256 = 0aeec4d1414465a25e8dc02688a46e23831bb8521bbc3fd99106660fc39d0e4e
+file = pkgs/pc-2026.11.55.opk
 needs = 
 required = 1
 restart = 1
-content = d0de4e1a192491a11982001bfb8234e3b38dd935a3db480de6ca9f553d221bf9
+content = fccb3b325e522e9f7125e8bd7dd36de1f28bf047e43f8c12c092a4b37d865349
 
 [2048]
 title = 2048
@@ -1114,18 +1114,18 @@ content = 2a13f0d9215501be0d46fb33e5884d0c819c84a0cb40839d3d4d1284dd2031d9
 
 [jamendo]
 title = Jamendo
-version = 1.0.0
+version = 1.0.1
 category = Multimédia
 author = Korin OS
 summary = La musique libre de Jamendo (Creative Commons) : populaires, nouveautés, recherche, radios par genre
-size = 2249717
-installed = 5818827
-sha256 = 801b2d4644190edd817783231548880f708967148d94d459821cce0500b482e3
-file = pkgs/jamendo-1.0.0.opk
+size = 2249994
+installed = 5819381
+sha256 = ff1eac8fd72f7cc1be563c95990851d7cd12262ea478826f24280b0ec73cb070
+file = pkgs/jamendo-1.0.1.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = cf96b6ef9e49f7554388dc9852d52b5fcd5e7308d02894c581b2b1d76b98946f
+content = 62c7b36950c8458e58a88317f49c85edf11c41de73c78881dfcd381cc53830d6
 
 [jet]
 title = Jet
@@ -1579,18 +1579,18 @@ content = bcc565a5cb90bc0a6168ccb2abf71fd8086c6e49a0b226a39dbe0bd687842b5f
 
 [spotify]
 title = Spotify
-version = 1.0.0
+version = 1.0.1
 category = Multimédia
 author = Korin OS
 summary = Spotify (compte Premium) : titres aimés, playlists, recherche, joués par librespot
-size = 4173071
+size = 4173171
 installed = 9913526
-sha256 = d9babd857b196a92ed297a8056e421e9eba174ed5eaf58a0fc868372034137c6
-file = pkgs/spotify-1.0.0.opk
+sha256 = fea6a484eb4839720526522beb57961efd222aeb0458a9d7825d2c279b0e9839
+file = pkgs/spotify-1.0.1.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = aac17faba85f844784683ce1e6f0c08ec030c278215440e3a3e7aab8d3e5dbd1
+content = caa7ab6bb195bdce9fa93a1301389fae888741ba3575d98e32554f5b9d2b969c
 
 [studio]
 title = Studio
