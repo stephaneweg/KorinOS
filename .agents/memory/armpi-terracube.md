@@ -41,4 +41,12 @@ repris d'un jeu existant), doc `docs/TERRACUBE.md`.
   générative selon la situation, ambiance, effets par matière. Essai sans son réel : moteur compilé sur l'hôte avec un
   faux AudioKit qui écrit un WAV (scratchpad/snd), niveaux et spectrogramme vérifiés ; pas encore écouté sur le ZBook.
 
+- 1.3.0 (19/11) : musique refaite à la demande (« nappes moins présentes, une mélodie chill par-dessus, pour être
+  focus ») : piano électrique FM à motifs (A A' B A''), accords jazz, batterie feutrée de jour ; démo 3 min envoyée.
+  **Lave** et eau qui coule (états de bloc : `Chunk::m`, un octet par case, fichiers TCC2 ; TCC1 relus), obsidienne,
+  seaux ; **circuits de cuivre** (nom original, pas « redstone ») dans `sim.cpp` : fil en réseau (Dijkstra par
+  seaux), forte/faible alimentation, torche-inverseur (grille), répéteur (verrou), comparateur, observateur,
+  pistons + colle (12 blocs), lampe, bloc musical, capteur de jour, dynamite. Banc d'essai hôte de sim.cpp :
+  scratchpad/simt/t.cpp. Suite demandée : santé/faim, créatures de nuit, animaux apprivoisables (poules, loups).
+
 **How to apply:** les numéros de blocs ne bougent jamais (ajout à la fin de `blocks.h`, de `terracube.py`, de la doc) ; de même les objets (100+, `items.h`).

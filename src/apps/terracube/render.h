@@ -48,6 +48,7 @@ struct HudState {
 	float mining = -1;		// le bloc en train d'être cassé : 0 à 1 (-1 : rien)
 	int selected;
 	bool underwater;
+	bool inLava = false;		// (l'œil dans la lave : tout orange)
 	bool crosshair;
 	bool hotbar = true;
 	const CraftDraw *craft = nullptr;	// (le panneau ouvert : pas de barre ni de viseur)

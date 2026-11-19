@@ -130,6 +130,7 @@ void World::tree (Chunk *c, int x, int y, int z, bool pine)
 void World::generate (Chunk *c)
 {
 	memset (c->b, AIR, sizeof c->b);
+	memset (c->m, 0, sizeof c->m);
 	int hs[CW * CW], bio[CW * CW];
 	for (int z = 0; z < CW; z++)
 		for (int x = 0; x < CW; x++) {
@@ -159,7 +160,7 @@ void World::generate (Chunk *c)
 				float big = n4.n3 (wx / 60.0f, y / 30.0f, wz / 60.0f);
 				if (a * a + b2 * b2 < 0.012f || (big > 0.55f && y < 40)) {
 					int was = c->at (x, y, z);
-					if (was != BEDROCK && was != WATER) c->put (x, y, z, y < 10 ? WATER : AIR);
+					if (was != BEDROCK && was != WATER) c->put (x, y, z, y < 10 ? LAVA : AIR);	// (des lacs de lave au fond)
 				}
 			}
 			// minerais
@@ -170,6 +171,7 @@ void World::generate (Chunk *c)
 				else if (r < 0.016f && y < 64) c->put (x, y, z, IRON_ORE);
 				else if (r < 0.0185f && y < 32) c->put (x, y, z, GOLD_ORE);
 				else if (r < 0.0197f && y < 16) c->put (x, y, z, CRYSTAL_ORE);
+				else if (r < 0.0247f && y < 20) c->put (x, y, z, COPPER_ORE);
 			}
 		}
 	// arbres, plantes, cactus : dans le tronçon seulement (les couronnes ne passent pas les bords)
@@ -208,6 +210,7 @@ Chunk *World::ensure (int cx, int cz)
 	c->cx = cx, c->cz = cz;
 	if (!loadChunk (c)) generate (c);
 	chunks[chunkKey (cx, cz)] = c;
+	if (onLoad) onLoad (c);
 	// les voisins faits refont leur maillage (leurs bords voient ce tronçon)
 	static const int D[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
 	for (auto &d : D)
@@ -243,13 +246,41 @@ void World::markDirty (int x, int z)
 	if (lz == CW - 1) if (Chunk *c = find (cx, cz + 1)) c->dirty = true;
 }
 
-bool World::set (int x, int y, int z, int b)
+int World::meta (int x, int y, int z) const
+{
+	if (y < 0 || y >= CH) return 0;
+	const Chunk *c = find (floorDiv (x, CW), floorDiv (z, CW));
+	if (!c) return 0;
+	return c->meta (x - c->cx * CW, y, z - c->cz * CW);
+}
+
+bool World::setMeta (int x, int y, int z, int mt)
+{
+	if (y < 0 || y >= CH) return false;
+	Chunk *c = find (floorDiv (x, CW), floorDiv (z, CW));
+	if (!c) return false;
+	int lx = x - c->cx * CW, lz = z - c->cz * CW;
+	if (c->meta (lx, y, lz) == (uint8_t) mt) return true;
+	c->putMeta (lx, y, lz, (uint8_t) mt);
+	c->modified = true;
+	markDirty (x, z);
+	int b = c->at (lx, y, lz);
+	if (onChange) onChange (x, y, z, b, b);
+	return true;
+}
+
+bool World::set (int x, int y, int z, int b, int mt)
 {
 	if (y < 0 || y >= CH || b < 0 || b >= BLOCK_COUNT) return false;
 	Chunk *c = ensure (floorDiv (x, CW), floorDiv (z, CW));
 	int lx = x - c->cx * CW, lz = z - c->cz * CW;
-	if (c->at (lx, y, lz) == b) return true;
+	int old = c->at (lx, y, lz);
+	if (old == b) {
+		if (c->meta (lx, y, lz) != (uint8_t) mt) setMeta (x, y, z, mt);
+		return true;
+	}
 	c->put (lx, y, lz, (uint8_t) b);
+	c->putMeta (lx, y, lz, (uint8_t) mt);
 	c->modified = true;
 	int t = c->top[lz * CW + lx];
 	if (y >= t) c->topColumn (lx, lz);
@@ -258,6 +289,7 @@ bool World::set (int x, int y, int z, int b)
 	if (y >= t || y >= c->top[lz * CW + lx]) {
 		markDirty (x - 1, z), markDirty (x + 1, z), markDirty (x, z - 1), markDirty (x, z + 1);
 	}
+	if (onChange) onChange (x, y, z, old, b);
 	return true;
 }
 
@@ -277,7 +309,8 @@ bool World::skyLit (int x, int y, int z) const
 	return y > c->top[(z - c->cz * CW) * CW + (x - c->cx * CW)];
 }
 
-// ---- sauvegardes : un fichier par tronçon changé, en plages (nombre sur deux octets, bloc) ----------------------
+// ---- sauvegardes : un fichier par tronçon changé, en plages (nombre sur deux octets, bloc, état) ---------------
+// (TCC1, avant la 1.3 : sans l'état)
 
 static void mkdirs (const std::string &path)
 {
@@ -294,13 +327,13 @@ bool World::saveChunk (const Chunk *c)
 	snprintf (fn, sizeof fn, "/c.%d.%d.chk", c->cx, c->cz);
 	FILE *f = fopen ((dir + fn).c_str (), "wb");
 	if (!f) return false;
-	fwrite ("TCC1", 1, 4, f);
+	fwrite ("TCC2", 1, 4, f);
 	const int N = CH * CW * CW;
 	for (int i = 0; i < N;) {
 		int j = i + 1;
-		while (j < N && j - i < 65535 && c->b[j] == c->b[i]) j++;
-		unsigned char rec[3] = { (unsigned char) ((j - i) & 255), (unsigned char) ((j - i) >> 8), c->b[i] };
-		fwrite (rec, 1, 3, f);
+		while (j < N && j - i < 65535 && c->b[j] == c->b[i] && c->m[j] == c->m[i]) j++;
+		unsigned char rec[4] = { (unsigned char) ((j - i) & 255), (unsigned char) ((j - i) >> 8), c->b[i], c->m[i] };
+		fwrite (rec, 1, 4, f);
 		i = j;
 	}
 	bool ok = !ferror (f);
@@ -315,17 +348,20 @@ bool World::loadChunk (Chunk *c)
 	FILE *f = fopen ((dir + fn).c_str (), "rb");
 	if (!f) return false;
 	char mg[4];
-	bool ok = fread (mg, 1, 4, f) == 4 && !memcmp (mg, "TCC1", 4);
+	bool ok = fread (mg, 1, 4, f) == 4 && (!memcmp (mg, "TCC1", 4) || !memcmp (mg, "TCC2", 4));
+	size_t rl = ok && mg[3] == '2' ? 4 : 3;
 	const int N = CH * CW * CW;
 	int i = 0;
-	unsigned char rec[3];
-	while (ok && i < N && fread (rec, 1, 3, f) == 3) {
+	unsigned char rec[4] = { 0, 0, 0, 0 };
+	memset (c->m, 0, sizeof c->m);
+	while (ok && i < N && fread (rec, 1, rl, f) == rl) {
 		int n = rec[0] | rec[1] << 8;
 		if (n <= 0 || i + n > N || rec[2] >= BLOCK_COUNT) {
 			ok = false;
 			break;
 		}
 		memset (c->b + i, rec[2], (size_t) n);
+		memset (c->m + i, rec[3], (size_t) n);
 		i += n;
 	}
 	fclose (f);
@@ -352,7 +388,7 @@ void World::unload (Chunk *c)
 
 // ---- lancer de rayon (DDA, de case en case) -----------------------------------------------------------------------
 
-Hit World::raycast (const float eye[3], const float d[3], float maxDist) const
+Hit World::raycast (const float eye[3], const float d[3], float maxDist, bool liquids) const
 {
 	Hit h;
 	int x = (int) floorf (eye[0]), y = (int) floorf (eye[1]), z = (int) floorf (eye[2]);
@@ -366,7 +402,7 @@ Hit World::raycast (const float eye[3], const float d[3], float maxDist) const
 	float t = 0;
 	while (t <= maxDist) {
 		int b = get (x, y, z);
-		if (b != AIR && b != WATER && y >= 0) {
+		if (b != AIR && (liquids || !isLiquid (b)) && y >= 0) {
 			h.hit = true;
 			h.x = x, h.y = y, h.z = z;
 			h.nx = x + nx, h.ny = y + ny, h.nz = z + nz;

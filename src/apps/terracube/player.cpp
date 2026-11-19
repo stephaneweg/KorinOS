@@ -73,7 +73,8 @@ void playerStep (const World &w, Player &p, const MoveInput &in, double dt)
 	int bx = (int) floor (p.x), bz = (int) floor (p.z);
 	if (!w.find (floorDiv (bx, CW), floorDiv (bz, CW))) return;	// (le sol pas encore fait)
 	int feet = w.get (bx, (int) floor (p.y + 0.1), bz), body = w.get (bx, (int) floor (p.y + 1.0), bz);
-	p.inWater = feet == WATER || body == WATER;
+	p.inLava = feet == LAVA || body == LAVA;
+	p.inWater = feet == WATER || body == WATER || p.inLava;	// (la lave : on y nage, lentement)
 	double yaw = p.yaw * M_PI / 180.0;
 	double fx = sin (yaw), fz = -cos (yaw);		// devant
 	double rx = cos (yaw), rz = sin (yaw);		// à droite
@@ -92,13 +93,13 @@ void playerStep (const World &w, Player &p, const MoveInput &in, double dt)
 			return;
 		}
 	} else if (p.inWater) {
-		double sp = 2.6;
+		double sp = p.inLava ? 1.2 : 2.6;
 		double k = 1 - exp (-dt * 6);
 		p.vx += (wx * sp - p.vx) * k, p.vz += (wz * sp - p.vz) * k;
-		p.vy -= 9.0 * dt;
-		if (in.jump) p.vy += 22.0 * dt;
-		if (p.vy < -3.5) p.vy = -3.5;
-		if (p.vy > 3.2) p.vy = 3.2;
+		p.vy -= (p.inLava ? 6.0 : 9.0) * dt;
+		if (in.jump) p.vy += (p.inLava ? 14.0 : 22.0) * dt;
+		if (p.vy < -3.5) p.vy = p.inLava ? -2.0 : -3.5;
+		if (p.vy > 3.2) p.vy = p.inLava ? 2.0 : 3.2;
 	} else {
 		double sp = in.sprint ? 5.6 : in.sneak ? 1.5 : 4.3;
 		double k = 1 - exp (-dt * (p.onGround ? 14.0 : 2.5));

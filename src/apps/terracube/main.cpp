@@ -44,6 +44,7 @@
 #include "mcp.h"
 #include "player.h"
 #include "render.h"
+#include "sim.h"
 #include "../../lib/keyvault/keyvault.h"
 
 #define TR(s) ((const char *) ui_tr ((long) (s)))
@@ -260,6 +261,7 @@ void openWorld (const std::string &name, uint32_t seed, bool seedGiven)
 		}
 	}
 	g.world.reset (name, sd);
+	sim::attach (&g.world);
 	for (auto *c : g.world.freed) R.freeChunk (c), delete c;
 	g.world.freed.clear ();
 	g.events.clear ();
@@ -792,12 +794,16 @@ void collect (int b)
 
 void doBreak ()
 {
-	int b = g_target.block;
+	int b = g_target.block, m = g.world.meta (g_target.x, g_target.y, g_target.z);
 	event (1, g_target, b);
 	audio::play (audio::S_BREAK, audio::materialOf (b), 1.0f, panOf (g_target.x, g_target.z));
 	g_activity = std::min (1.0f, g_activity + 0.12f);
 	g.world.set (g_target.x, g_target.y, g_target.z, AIR);
-	if (survival ()) collect (b);
+	int base = sim::broken (g_target.x, g_target.y, g_target.z, b, m);	// (la tête d'un piston : le piston avec)
+	if (survival ()) {
+		collect (b);
+		if (base && g.inv.add (base, 1) > 0) gamePost (TR ("Inventaire plein : l'objet est perdu"));
+	}
 	// une plante sur le bloc cassé tombe avec lui
 	int up = g.world.get (g_target.x, g_target.y + 1, g_target.z);
 	if (info (up).shape == SH_CROSS) {
@@ -816,26 +822,75 @@ void breakBlock ()
 
 void inventoryWindow (bool workbench = false);
 
+// un seau : vide, il prend la source visée (eau ou lave) ; plein, il la pose
+bool useBucket (int item)
+{
+	float eye[3], dir[3];
+	eyeOf (eye, dir);
+	Hit h = g.world.raycast (eye, dir, survival () ? 5.0f : 6.0f, true);
+	if (!h.hit) return false;
+	Stack &st = g.inv.s[g.selected];
+	if (item == I_BUCKET) {
+		if (!isLiquid (h.block) || g.world.meta (h.x, h.y, h.z) != 0) return false;	// (une source seulement)
+		int full = h.block == WATER ? I_WATER_BUCKET : I_LAVA_BUCKET;
+		g.world.set (h.x, h.y, h.z, AIR);
+		if (st.count > 1) {
+			st.count--;
+			if (g.inv.add (full, 1) > 0) gamePost (TR ("Inventaire plein : le seau est perdu"));
+		} else
+			st = Stack (), st.item = full, st.count = 1;
+		audio::play (audio::S_SPLASH, 0, 0.5f, panOf (h.x, h.z));
+		g.edited = true;
+		return true;
+	}
+	int liquid = item == I_WATER_BUCKET ? WATER : LAVA;
+	int x = h.nx, y = h.ny, z = h.nz;
+	if (isLiquid (h.block) || info (h.block).shape == SH_CROSS) x = h.x, y = h.y, z = h.z;
+	int there = g.world.get (x, y, z);
+	if (there != AIR && !isLiquid (there) && info (there).shape != SH_CROSS && info (there).shape != SH_SPECIAL) return false;
+	if (y < 0 || y >= CH) return false;
+	g.world.set (x, y, z, liquid, 0);
+	st = Stack (), st.item = I_BUCKET, st.count = 1;
+	audio::play (audio::S_SPLASH, 0, 0.5f, panOf (x, z));
+	g.edited = true;
+	return true;
+}
+
 void placeBlock ()
 {
 	if (!g_target.hit) return;
+	bool sneak = g_keys[0xE1] || g_keys[0xE5];
 	// survie : un clic droit sur un établi ou un four les ouvre (Maj : poser contre eux)
-	if (survival () && (g_target.block == WORKBENCH || g_target.block == FURNACE) && !(g_keys[0xE1] || g_keys[0xE5])) {
+	if (survival () && (g_target.block == WORKBENCH || g_target.block == FURNACE) && !sneak) {
 		g_buttons = 0;
 		inventoryWindow (g_target.block == WORKBENCH);
 		return;
 	}
 	int b = slotItem (g.selected);
+	// un levier, un bouton, un répéteur… servent (Maj : poser contre eux)
+	if (!sneak && sim::use (g_target.x, g_target.y, g_target.z, b)) {
+		g_activity = std::min (1.0f, g_activity + 0.05f);
+		g.edited = true;
+		return;
+	}
+	if (survival () && (b == I_BUCKET || b == I_WATER_BUCKET || b == I_LAVA_BUCKET)) {
+		useBucket (b);
+		return;
+	}
 	if (!isBlockItem (b)) return;
 	int x = g_target.nx, y = g_target.ny, z = g_target.nz;
 	// (une plante visée se remplace)
 	if (info (g_target.block).shape == SH_CROSS) x = g_target.x, y = g_target.y, z = g_target.z;
 	if (y < 0 || y >= CH) return;
 	int there = g.world.get (x, y, z);
-	if (there != AIR && there != WATER && info (there).shape != SH_CROSS) return;
+	if (there != AIR && !isLiquid (there) && info (there).shape != SH_CROSS) return;
 	if (isSolid (b) && playerInside (g.pl, x, y, z)) return;
 	if (info (b).shape == SH_CROSS && !isSolid (g.world.get (x, y - 1, z))) return;
-	g.world.set (x, y, z, b);
+	int dx = x - g_target.x, dy = y - g_target.y, dz = z - g_target.z;
+	int face = dx > 0 ? 0 : dx < 0 ? 1 : dy > 0 ? 2 : dy < 0 ? 3 : dz > 0 ? 4 : dz < 0 ? 5 : -1;
+	int m = sim::placeMeta (b, x, y, z, face, g.pl.yaw, g.pl.pitch);
+	if (m < 0) return;	// (pas de support)
+	g.world.set (x, y, z, b, m);
 	if (survival ()) {
 		Stack &st = g.inv.s[g.selected];
 		if (--st.count <= 0) st = Stack ();
@@ -846,6 +901,64 @@ void placeBlock ()
 	audio::play (audio::S_PLACE, audio::materialOf (b), 1.0f, panOf (x, z));
 	g_activity = std::min (1.0f, g_activity + 0.12f);
 	g.edited = true;
+}
+
+// ---- la simulation : ses sons, ce qui tombe, ce qu'elle pousse --------------------------------------------------
+
+void simSound (int s, int arg, int x, int y, int z)
+{
+	double dx = x + 0.5 - g.pl.x, dy = y + 0.5 - (g.pl.y + 1), dz = z + 0.5 - g.pl.z;
+	double d = sqrt (dx * dx + dy * dy + dz * dz);
+	float vol = (float) std::max (0.0, 1.0 - d / (s == sim::SS_EXPLODE ? 48.0 : 20.0));
+	if (vol <= 0.01f) return;
+	float pan = panOf (x, z);
+	switch (s) {
+	case sim::SS_CLICK: audio::play (audio::S_CLICK_ON, arg, vol, pan); break;
+	case sim::SS_PISTON_OUT: audio::play (audio::S_PISTON_OUT, 0, vol, pan); break;
+	case sim::SS_PISTON_IN: audio::play (audio::S_PISTON_IN, 0, vol, pan); break;
+	case sim::SS_FIZZ: audio::play (audio::S_FIZZ, 0, vol, pan); break;
+	case sim::SS_EXPLODE: audio::play (audio::S_EXPLODE, 0, vol, pan); break;
+	case sim::SS_FUSE: audio::play (audio::S_FUSE, 0, vol, pan); break;
+	case sim::SS_NOTE: {	// l'instrument : selon le bloc dessous
+		int under = g.world.get (x, y - 1, z), in = audio::IN_HARP;
+		switch (audio::materialOf (under)) {
+		case audio::M_WOOD: in = audio::IN_BASS; break;
+		case audio::M_STONE: in = audio::IN_DRUM; break;
+		case audio::M_SAND: in = audio::IN_SNARE; break;
+		case audio::M_GLASS: in = audio::IN_CLICK; break;
+		case audio::M_METAL: in = audio::IN_BELL; break;
+		case audio::M_SOFT: in = audio::IN_GUITAR; break;
+		case audio::M_SNOW: in = audio::IN_CHIME; break;
+		}
+		audio::playNote (arg, in, vol, pan);
+		g_activity = std::min (1.0f, g_activity + 0.02f);
+		break;
+	}
+	}
+}
+
+void simDrop (int item, int x, int y, int z)
+{
+	if (!survival ()) return;
+	double dx = x + 0.5 - g.pl.x, dz = z + 0.5 - g.pl.z;
+	if (dx * dx + dz * dz > 64) return;	// (loin : perdu)
+	g.inv.add (item, 1);
+}
+
+void simPush (int x, int y, int z, int dir)
+{
+	if (!playerInside (g.pl, x, y, z)) return;
+	g.pl.x += sim::DX[dir], g.pl.y += sim::DY[dir], g.pl.z += sim::DZ[dir];
+	if (sim::DY[dir] > 0) g.pl.vy = std::max (g.pl.vy, 0.0);
+}
+
+void simBlast (double x, double y, double z, float power)
+{
+	double dx = g.pl.x - x, dy = g.pl.y + 1 - y, dz = g.pl.z - z;
+	double d = sqrt (dx * dx + dy * dy + dz * dz);
+	if (d > power * 2 || d < 0.01) return;
+	double k = (1 - d / (power * 2)) * 18.0 / d;
+	g.pl.vx += dx * k, g.pl.vy += dy * k + 4, g.pl.vz += dz * k;
 }
 
 void selectSlot (int i)
@@ -861,7 +974,7 @@ void pickBlock ()
 {
 	if (!g_target.hit) return;
 	int b = g_target.block;
-	if (b == BEDROCK || b == WATER) return;
+	if (b == BEDROCK || isLiquid (b) || b == PISTON_HEAD) return;
 	if (!survival ()) {
 		g.hotbar[g.selected] = b;
 		selectSlot (g.selected);
@@ -885,7 +998,7 @@ void chooseBlock ()
 	std::string labels;
 	std::vector<int> ids;
 	for (int i = 1; i < BLOCK_COUNT; i++) {
-		if (i == BEDROCK || i == WATER) continue;
+		if (i == BEDROCK || i == PISTON_HEAD) continue;
 		labels += info (i).label;
 		labels += '\0';
 		ids.push_back (i);
@@ -1573,6 +1686,8 @@ void weatherStep (double dt)
 	if (g.weather == W_STORM && g.weatherLevel > 0.6f && rand () % 10000 < (int) (dt * 900)) g.lightning = nowMs ();
 }
 
+float daylight (float hour, float *sunAngle);
+
 void frame (double dt)
 {
 	// la souris tourne la tête
@@ -1607,6 +1722,20 @@ void frame (double dt)
 		if (!wasWater && g.pl.inWater && vy0 < -3) audio::play (audio::S_SPLASH, 0, (float) std::min (1.0, -vy0 / 12.0));
 	}
 	g_activity *= (float) exp (-dt / 25.0);
+	// la simulation : les liquides, les circuits (20 pas par seconde)
+	sim::step (dt, daylight (g.hour, nullptr) * (1.0f - 0.5f * g.weatherLevel), g.pl.x, g.pl.y, g.pl.z);
+	// survie : la lave brûle (on revient au point de départ, l'inventaire gardé)
+	static double lavaSince = 0;
+	if (survival () && g.pl.inLava) {
+		if (lavaSince == 0) lavaSince = nowMs (), audio::play (audio::S_FIZZ);
+		else if (nowMs () - lavaSince > 600) {
+			lavaSince = 0;
+			gamePost (TR ("Tu as brûlé dans la lave : retour au point de départ"));
+			spawnNear (0, 0);
+			g.pl.vx = g.pl.vy = g.pl.vz = 0;
+		}
+	} else
+		lavaSince = 0;
 	if (g.timeRuns) g.hour = fmodf (g.hour + (float) dt * 24.0f / 1200.0f, 24.0f);	// une journée : 20 minutes
 	weatherStep (dt);
 	// le bloc visé ; les clics tenus se répètent
@@ -1672,6 +1801,11 @@ void soundMood ()
 	}
 	m.cave = rock < 0 ? 0 : std::max (0.0f, std::min (1.0f, (g.world.height (x, z) - ey - 3) / 10.0f));
 	m.underwater = g.world.get (x, ey, z) == WATER;
+	int lava = 0;	// (la lave tout près : elle bouillonne)
+	for (int dy = -3; dy <= 3; dy++)
+		for (int dz = -4; dz <= 4; dz++)
+			for (int dx = -4; dx <= 4; dx++) lava += g.world.get (x + dx, ey + dy, z + dz) == LAVA;
+	m.lava = std::min (1.0f, lava / 12.0f);
 	m.altitude = std::max (0.0f, std::min (1.0f, (ey - 75) / 40.0f));
 	m.activity = g_activity;
 	m.seed = g.world.seed;
@@ -1719,6 +1853,7 @@ void renderTo (int w, int h, const Camera &cam, bool hotbar = true)
 	hud.selected = g.selected;
 	int eb = g.world.get ((int) floor (cam.x), (int) floor (cam.y), (int) floor (cam.z));
 	hud.underwater = eb == WATER;
+	hud.inLava = eb == LAVA;
 	hud.crosshair = g_locked;
 	hud.hotbar = hotbar;
 	hud.panel = jet (TJ_SURFACE);
@@ -2033,6 +2168,110 @@ static void selftest ()
 	Chunk tmp;
 	tmp.cx = 0, tmp.cz = 0;
 	check (g.world.loadChunk (&tmp) && tmp.at (2, 102, 2) == GOLD_BLOCK, "relecture d'un tronçon sauvé");
+	// les circuits et les liquides (sim.cpp), en l'air au-dessus d'une dalle
+	{
+		auto put = [] (int x, int y, int z, int b, int m = 0) { g.world.set (x, y, z, b, m); };
+		auto lit = [] (int x, int y, int z) { return (g.world.meta (x, y, z) & M_ON) != 0; };
+		for (int y = 115; y <= 122; y++)
+			for (int z = -30; z <= -10; z++)
+				for (int x = 10; x <= 30; x++) put (x, y, z, y == 115 ? STONE : AIR);
+		sim::runTicks (2);
+		put (10, 116, -30, LEVER, sim::D_DOWN);
+		for (int x = 11; x <= 15; x++) put (x, 116, -30, WIRE);
+		put (16, 116, -30, SIGNAL_LAMP);
+		sim::runTicks (2);
+		sim::use (10, 116, -30, 0);
+		sim::runTicks (1);
+		check ((g.world.meta (15, 116, -30) & 15) == 11 && lit (16, 116, -30), "circuits : levier, fil (15 -> 11), lampe allumée");
+		check (atoi (apiExec ("world.getPower(13,116,-30)", r).c_str ()) == 13, "protocole : world.getPower");
+		sim::use (10, 116, -30, 0);
+		sim::runTicks (6);
+		check (!lit (16, 116, -30), "circuits : levier coupé, lampe éteinte");
+		put (10, 116, -28, STONE);
+		put (10, 117, -28, LEVER, sim::D_DOWN);
+		put (11, 116, -28, COPPER_TORCH, sim::D_WEST);
+		put (12, 116, -28, REPEATER, sim::D_EAST | (3 << 3));
+		put (13, 116, -28, SIGNAL_LAMP);
+		sim::runTicks (14);
+		check (lit (13, 116, -28), "circuits : torche -> répéteur -> lampe");
+		sim::use (10, 117, -28, 0);
+		sim::runTicks (3);
+		check ((g.world.meta (11, 116, -28) & M_ON) && lit (13, 116, -28), "circuits : la torche s'éteint (inverseur), le répéteur retient");
+		sim::runTicks (12);
+		check (!lit (13, 116, -28), "circuits : la lampe s'éteint après le délai du répéteur");
+		put (10, 118, -26, STICKY_PISTON, sim::D_EAST);
+		put (11, 118, -26, GLUE_BLOCK);
+		put (11, 119, -26, GOLD_BLOCK);
+		put (9, 118, -26, LEVER, sim::D_EAST);
+		sim::runTicks (2);
+		sim::use (9, 118, -26, 0);
+		sim::runTicks (3);
+		check (g.world.get (11, 118, -26) == PISTON_HEAD && g.world.get (12, 118, -26) == GLUE_BLOCK && g.world.get (12, 119, -26) == GOLD_BLOCK,
+		       "circuits : piston collant, la colle entraîne l'or");
+		sim::use (9, 118, -26, 0);
+		sim::runTicks (3);
+		check (g.world.get (11, 118, -26) == GLUE_BLOCK && g.world.get (11, 119, -26) == GOLD_BLOCK, "circuits : le piston collant les ramène");
+		put (10, 116, -22, OBSERVER, sim::D_EAST);
+		put (9, 116, -22, NOTE_BLOCK);
+		sim::runTicks (4);
+		put (11, 116, -22, DIRT);
+		sim::runTicks (3);
+		check (g.world.meta (9, 116, -22) & M_POW, "circuits : l'observateur voit un bloc posé, le bloc musical joue");
+		put (20, 116, -20, WATER);
+		sim::runTicks (60);
+		check (g.world.get (27, 116, -20) == WATER && g.world.meta (27, 116, -20) == 7 && g.world.get (28, 116, -20) == AIR, "liquides : l'eau s'étale de 7 blocs");
+		put (20, 116, -14, LAVA);
+		put (21, 116, -14, WATER);
+		sim::runTicks (2);
+		check (g.world.get (20, 116, -14) == OBSIDIAN, "liquides : lave et eau font de l'obsidienne");
+		{	// une machine qui avance seule : observateurs, piston, piston collant, colle (en l'air)
+			int Y = 120, Z = -12;
+			put (10, Y + 1, Z, GLUE_BLOCK), put (11, Y + 1, Z, GLUE_BLOCK);
+			put (11, Y, Z, PISTON, sim::D_EAST);
+			put (12, Y, Z, GLUE_BLOCK), put (13, Y, Z, GLUE_BLOCK);
+			put (12, Y + 1, Z, STICKY_PISTON, sim::D_WEST);
+			put (13, Y + 1, Z, OBSERVER, sim::D_EAST);
+			put (10, Y, Z, OBSERVER, sim::D_WEST);
+			sim::runTicks (2);
+			put (9, Y, Z, DIRT), put (9, Y, Z, AIR);
+			sim::runTicks (40);
+			int minx = 99;
+			for (int x = 9; x <= 30; x++)
+				if (g.world.get (x, Y, Z) == OBSERVER) minx = std::min (minx, x);
+			check (minx >= 13 && minx < 99, "circuits : la machine à colle avance seule (" + std::to_string (minx - 10) + " blocs en 2 s)");
+		}
+		con ("mode survival");
+		con ("clear");
+		con ("give copper_ore 1");
+		bool hv;
+		mineTime (COPPER_ORE, I_IRON_PICKAXE, &hv);
+		check (hv && mining (COPPER_ORE).drop == WIRE && mining (COPPER_ORE).dropN == 4, "minage : le cuivre (pioche en fer) donne 4 poudres");
+		con ("give wire 9");
+		con ("give stick 1");
+		std::string tc = con ("craft copper_torch");
+		check (g.inv.count (COPPER_TORCH) == 1, "fabrication : une torche de cuivre (poudre sur un bâton)");
+		con ("clear");
+		con ("mode creative");
+		// une scène pour la capture
+		for (int z = 3; z <= 9; z++)
+			for (int x = -4; x <= 4; x++) put (x, 104, z, z == 9 || x == 4 ? STONE_BRICK : STONE);
+		put (-3, 105, 4, LEVER, sim::D_DOWN | M_ON);
+		for (int x = -2; x <= 0; x++) put (x, 105, 4, WIRE);
+		put (1, 105, 4, REPEATER, sim::D_EAST | (1 << 3));
+		put (2, 105, 4, WIRE);
+		put (3, 105, 4, SIGNAL_LAMP);
+		put (-3, 105, 6, COPPER_TORCH, sim::D_DOWN);
+		put (-2, 105, 6, WIRE), put (-2, 105, 7, WIRE), put (-1, 105, 7, WIRE);
+		put (0, 105, 7, PISTON, sim::D_EAST);
+		put (1, 105, 7, COBBLE);
+		put (-3, 105, 8, LAVA);
+		put (2, 105, 8, WATER);
+		put (3, 105, 6, TNT);
+		put (-1, 105, 5, STONE_PLATE), put (0, 105, 5, OBSERVER, sim::D_UP), put (1, 105, 5, DAYLIGHT_SENSOR);
+		put (2, 105, 6, COMPARATOR, sim::D_NORTH);
+		sim::runTicks (40);
+		check (lit (3, 105, 4) && g.world.get (1, 105, 7) == PISTON_HEAD, "scène : la lampe allumée, le piston sorti");
+	}
 	// une capture
 	gameTeleport (-6, 108, -6);
 	g.pl.yaw = 135, g.pl.pitch = -30;
@@ -2150,6 +2389,10 @@ int main (int argc, char **argv)
 	ui_fill (0, 0, ui.w, ui.h, jet (TJ_FACE));
 	setDistance (g.distance);
 	openWorld (worldName, seed, seedGiven);
+	sim::soundHook = simSound;
+	sim::dropHook = simDrop;
+	sim::pushHook = simPush;
+	sim::blastHook = simBlast;
 	if (audio::start ()) gameAudioChanged ();
 	else fprintf (stderr, "terracube : pas de son (AudioKit ou sa sortie absents)\n");
 	if (api) {

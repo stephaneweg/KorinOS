@@ -6,7 +6,11 @@
 // dans la conversation du jeu (« script : … »). La liste est dans docs/TERRACUBE.md et le README de l'app.
 //
 //   world.getBlock(x,y,z)                       -> numéro
-//   world.setBlock(x,y,z,bloc)
+//   world.setBlock(x,y,z,bloc[,état])           l'état : un nombre, ou une direction (east, west, up, down, south, north),
+//                                               « +on » (allumé) : « world.setBlock(0,64,0,repeater,east) »
+//   world.getBlockWithData(x,y,z)               -> numéro,état
+//   world.getPower(x,y,z)                       -> la puissance d'un circuit (0 à 15) : le fil, un composant, un bloc
+//   world.use(x,y,z)                            -> 1 si le bloc a servi (un levier basculé, un bouton enfoncé…)
 //   world.setBlocks(x1,y1,z1,x2,y2,z2,bloc)     un pavé plein (1 000 000 de blocs au plus)
 //   world.getBlocks(x1,y1,z1,x2,y2,z2)          -> numéros séparés par des virgules (y, puis z, puis x)
 //   world.getHeight(x,z)                        -> y du plus haut bloc non vide
@@ -54,6 +58,7 @@
 #include <mutex>
 
 #include "render.h"
+#include "sim.h"
 
 namespace tc {
 
@@ -162,9 +167,29 @@ std::string fmt (double v)
 const char *const REPLY[] = { "world.getBlock", "world.getBlocks", "world.getHeight", "world.getBlockTypes", "world.getTime",
 			      "player.getPos", "player.getTile", "player.getRotation", "player.getPitch", "player.getDirection",
 			      "events.blocks", "game.info", "ping", "world.getBlockWithData", "world.save", "game.getMode", "world.getWeather",
-			      "game.command", "player.getInventory", "player.craft" };
+			      "game.command", "player.getInventory", "player.craft", "world.getPower", "world.use" };
 
 } // namespace
+
+// un état écrit : un nombre, ou des mots joints par « + » (une direction, « on »)
+int stateOf (const std::string &t)
+{
+	if (t.empty ()) return 0;
+	if (isdigit ((unsigned char) t[0])) return atoi (t.c_str ()) & 255;
+	static const char *const DIRS[6] = { "east", "west", "up", "down", "south", "north" };
+	int m = 0;
+	size_t p = 0;
+	while (p <= t.size ()) {
+		size_t e = t.find ('+', p);
+		std::string w = t.substr (p, e == std::string::npos ? std::string::npos : e - p);
+		for (int d = 0; d < 6; d++)
+			if (!strcasecmp (w.c_str (), DIRS[d])) m |= d;
+		if (!strcasecmp (w.c_str (), "on")) m |= M_ON;
+		if (e == std::string::npos) break;
+		p = e + 1;
+	}
+	return m;
+}
 
 bool apiWantsReply (const std::string &line)
 {
@@ -189,13 +214,19 @@ std::string apiExec (const std::string &line, bool &reply)
 	try {
 		if (is ("world.setBlock")) {
 			int x = inum (a, 0), y = inum (a, 1), z = inum (a, 2), b = blk (a, 3);
-			if (!g.world.set (x, y, z, b)) return "error: outside the world (y from 0 to 127)";
+			if (!g.world.set (x, y, z, b, a.size () > 4 ? stateOf (a[4]) : 0)) return "error: outside the world (y from 0 to 127)";
 			g.edited = true;
 			return "";
 		}
 		if (is ("world.getBlock") || is ("world.getBlockWithData")) {
 			int b = g.world.getLoaded (inum (a, 0), inum (a, 1), inum (a, 2));
-			return is ("world.getBlock") ? std::to_string (b) : std::to_string (b) + ",0";
+			return is ("world.getBlock") ? std::to_string (b) : std::to_string (b) + "," + std::to_string (g.world.meta (inum (a, 0), inum (a, 1), inum (a, 2)));
+		}
+		if (is ("world.getPower")) return std::to_string (sim::powerAt (inum (a, 0), inum (a, 1), inum (a, 2)));
+		if (is ("world.use")) {
+			bool ok = sim::use (inum (a, 0), inum (a, 1), inum (a, 2), 0);
+			if (ok) g.edited = true;
+			return ok ? "1" : "0";
 		}
 		if (is ("world.setBlocks")) {
 			long cnt;

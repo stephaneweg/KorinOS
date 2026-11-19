@@ -52,11 +52,34 @@ enum Block : uint8_t {
 	BOOKSHELF,
 	WORKBENCH,
 	FURNACE,
+	// 1.3 : la lave, les circuits (le cuivre)
+	LAVA,
+	OBSIDIAN,
+	COPPER_ORE,
+	WIRE,			// le fil de cuivre (l'objet : la poudre de cuivre)
+	COPPER_BLOCK,
+	COPPER_TORCH,		// l'inverseur : éteinte quand son support est alimenté
+	LEVER,
+	STONE_BUTTON,
+	WOOD_BUTTON,
+	STONE_PLATE,
+	WOOD_PLATE,
+	REPEATER,
+	COMPARATOR,
+	OBSERVER,
+	PISTON,
+	STICKY_PISTON,
+	PISTON_HEAD,
+	SIGNAL_LAMP,
+	NOTE_BLOCK,
+	DAYLIGHT_SENSOR,
+	GLUE_BLOCK,
+	TNT,
 	BLOCK_COUNT
 };
 
-// la forme : un cube, une plante (deux quads en croix), un liquide
-enum Shape : uint8_t { SH_NONE, SH_CUBE, SH_CROSS, SH_LIQUID };
+// la forme : un cube, une plante (deux quads en croix), un liquide, une forme à part (mesh.cpp : fil, torche, levier…)
+enum Shape : uint8_t { SH_NONE, SH_CUBE, SH_CROSS, SH_LIQUID, SH_SPECIAL };
 
 struct BlockInfo {
 	const char *name;	// nom anglais (scripts, MCP)
@@ -80,7 +103,15 @@ enum Tile : uint8_t {
 	T_WORKBENCH_TOP, T_WORKBENCH_SIDE, T_FURNACE_TOP, T_FURNACE_SIDE,
 	T_STICK, T_COAL, T_IRON_INGOT, T_GOLD_INGOT, T_CRYSTAL,
 	T_PICK0, T_PICK1, T_PICK2, T_PICK3, T_AXE0, T_AXE1, T_AXE2, T_AXE3, T_SHOVEL0, T_SHOVEL1, T_SHOVEL2, T_SHOVEL3,
-	T_DIGIT0, T_TILE_COUNT = T_DIGIT0 + 10
+	T_DIGIT0, T_DIGIT9 = T_DIGIT0 + 9,
+	// 1.3
+	T_LAVA, T_OBSIDIAN, T_COPPER_ORE, T_DUST, T_WIRE_OFF, T_WIRE_ON, T_COPPER_BLOCK, T_TORCH_ON, T_TORCH_OFF,
+	T_LEVER, T_REPEATER_OFF, T_REPEATER_ON, T_COMPARATOR_OFF, T_COMPARATOR_ON, T_OBSERVER_FACE, T_OBSERVER_BACK,
+	T_OBSERVER_BACK_ON, T_OBSERVER_SIDE, T_PISTON_FACE, T_STICKY_FACE, T_PISTON_SIDE, T_PISTON_BACK, T_PISTON_INNER,
+	T_LAMP_OFF, T_LAMP_ON, T_NOTE, T_DAYLIGHT, T_DAYLIGHT_INV, T_GLUE, T_TNT_TOP, T_TNT_SIDE, T_TNT_BOTTOM,
+	T_BUCKET, T_BUCKET_WATER, T_BUCKET_LAVA, T_RESIN, T_BUTTON_ICON, T_PLATE_ICON, T_REPEATER_ICON,
+	T_COMPARATOR_ICON, T_TNT_LIT,
+	T_TILE_COUNT
 };
 
 static const BlockInfo BLOCKS[BLOCK_COUNT] = {
@@ -126,11 +157,53 @@ static const BlockInfo BLOCKS[BLOCK_COUNT] = {
 	{ "bookshelf", "Bibliothèque", SH_CUBE, true, true, false, false, T_PLANKS, T_BOOKSHELF, T_PLANKS },
 	{ "workbench", "Établi", SH_CUBE, true, true, false, false, T_WORKBENCH_TOP, T_WORKBENCH_SIDE, T_PLANKS },
 	{ "furnace", "Four", SH_CUBE, true, true, false, false, T_FURNACE_TOP, T_FURNACE_SIDE, T_FURNACE_TOP },
+	// (les formes à part : side est l'icône de l'objet)
+	{ "lava", "Lave", SH_LIQUID, false, false, false, true, T_LAVA, T_LAVA, T_LAVA },
+	{ "obsidian", "Obsidienne", SH_CUBE, true, true, false, false, T_OBSIDIAN, T_OBSIDIAN, T_OBSIDIAN },
+	{ "copper_ore", "Cuivre", SH_CUBE, true, true, false, false, T_COPPER_ORE, T_COPPER_ORE, T_COPPER_ORE },
+	{ "wire", "Poudre de cuivre", SH_SPECIAL, false, false, true, false, T_WIRE_OFF, T_DUST, T_WIRE_OFF },
+	{ "copper_block", "Bloc de cuivre", SH_CUBE, true, true, false, false, T_COPPER_BLOCK, T_COPPER_BLOCK, T_COPPER_BLOCK },
+	{ "copper_torch", "Torche de cuivre", SH_SPECIAL, false, false, true, false, T_TORCH_ON, T_TORCH_ON, T_TORCH_ON },
+	{ "lever", "Levier", SH_SPECIAL, false, false, true, false, T_COBBLE, T_LEVER, T_COBBLE },
+	{ "stone_button", "Bouton de pierre", SH_SPECIAL, false, false, false, false, T_STONE, T_BUTTON_ICON, T_STONE },
+	{ "wood_button", "Bouton de bois", SH_SPECIAL, false, false, false, false, T_PLANKS, T_BUTTON_ICON, T_PLANKS },
+	{ "stone_plate", "Plaque de pierre", SH_SPECIAL, false, false, false, false, T_STONE, T_PLATE_ICON, T_STONE },
+	{ "wood_plate", "Plaque de bois", SH_SPECIAL, false, false, false, false, T_PLANKS, T_PLATE_ICON, T_PLANKS },
+	{ "repeater", "Répéteur", SH_SPECIAL, false, false, true, false, T_REPEATER_OFF, T_REPEATER_ICON, T_STONE },
+	{ "comparator", "Comparateur", SH_SPECIAL, false, false, true, false, T_COMPARATOR_OFF, T_COMPARATOR_ICON, T_STONE },
+	{ "observer", "Observateur", SH_CUBE, true, true, false, false, T_OBSERVER_SIDE, T_OBSERVER_FACE, T_OBSERVER_SIDE },
+	{ "piston", "Piston", SH_CUBE, true, true, false, false, T_PISTON_FACE, T_PISTON_SIDE, T_PISTON_BACK },
+	{ "sticky_piston", "Piston collant", SH_CUBE, true, true, false, false, T_STICKY_FACE, T_PISTON_SIDE, T_PISTON_BACK },
+	{ "piston_head", "Tête de piston", SH_SPECIAL, true, false, false, false, T_PISTON_FACE, T_PISTON_FACE, T_PISTON_FACE },
+	{ "signal_lamp", "Lampe à signal", SH_CUBE, true, true, false, false, T_LAMP_OFF, T_LAMP_OFF, T_LAMP_OFF },
+	{ "note_block", "Bloc musical", SH_CUBE, true, true, false, false, T_NOTE, T_NOTE, T_NOTE },
+	{ "daylight_sensor", "Capteur de jour", SH_SPECIAL, false, false, false, false, T_DAYLIGHT, T_DAYLIGHT, T_PLANKS },
+	{ "glue_block", "Bloc de colle", SH_CUBE, true, false, true, false, T_GLUE, T_GLUE, T_GLUE },
+	{ "tnt", "Dynamite", SH_CUBE, true, true, false, false, T_TNT_TOP, T_TNT_SIDE, T_TNT_BOTTOM },
 };
 
 inline const BlockInfo &info (int b) { return BLOCKS[(unsigned) b < BLOCK_COUNT ? b : 0]; }
 inline bool isOpaque (int b) { return info (b).opaque; }
 inline bool isSolid (int b) { return info (b).solid; }
+inline bool isLiquid (int b) { return b == WATER || b == LAVA; }
+
+// l'état d'un bloc (un octet par case, World::meta) :
+//   eau, lave : 0 source, 1 à 7 le niveau qui s'écoule, + 8 qui tombe ;
+//   fil : la puissance (0 à 15) ;
+//   torche, levier, boutons : la direction de leur support (0 +x, 1 -x, 2 +y, 3 -y, 4 +z, 5 -z) + M_ON (allumé,
+//   abaissé, enfoncé ; la torche : M_ON veut dire éteinte) ;
+//   plaques, lampe à signal : M_ON ; capteur de jour : M_ON inversé, la puissance (bits 4 à 7) ;
+//   répéteur : la direction de la sortie, le délai - 1 (bits 3 et 4), M_POW (bit 5) allumé, M_LOCK (bit 6) bloqué ;
+//   comparateur : la direction de la sortie, M_ON soustraction, la puissance de sortie (bits 4 à 7) ;
+//   observateur : la direction qu'il regarde, M_ON l'impulsion ; pistons : la direction de la poussée, M_ON sorti ;
+//   tête de piston : sa direction, M_ON collante ; bloc musical : la note (0 à 24), bit 5 alimenté ;
+//   dynamite : M_ON allumée, bit 4 le clignotement.
+enum { M_DIR = 7, M_ON = 8, M_POW = 32, M_LOCK = 64 };
+inline int dirOf (int meta) { return meta & M_DIR; }
+
+// les blocs des circuits (et des liquides) : ceux que la simulation fait vivre (sim.cpp)
+inline bool isCircuit (int b) { return b >= WIRE && b <= TNT && b != COPPER_ORE; }
+inline bool isActive (int b) { return isLiquid (b) || isCircuit (b); }
 
 // le numéro d'un nom anglais ("stone"), d'un numéro écrit ("4") -> -1 si inconnu
 int blockByName (const char *s);

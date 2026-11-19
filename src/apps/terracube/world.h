@@ -38,6 +38,7 @@ struct Mesh {
 struct Chunk {
 	int cx, cz;
 	uint8_t b[CH * CW * CW];	// (y · 16 + z) · 16 + x
+	uint8_t m[CH * CW * CW];	// l'état de chaque bloc (blocks.h : le niveau d'un liquide, une direction…)
 	int8_t top[CW * CW];		// le plus haut bloc opaque de chaque colonne (-1 : aucun)
 	bool modified = false;		// changé depuis sa génération : à sauver
 	bool dirty = true;		// maillage à refaire
@@ -45,6 +46,8 @@ struct Chunk {
 	Mesh solid, water;
 	uint8_t at (int x, int y, int z) const { return b[(y * CW + z) * CW + x]; }
 	void put (int x, int y, int z, uint8_t v) { b[(y * CW + z) * CW + x] = v; }
+	uint8_t meta (int x, int y, int z) const { return m[(y * CW + z) * CW + x]; }
+	void putMeta (int x, int y, int z, uint8_t v) { m[(y * CW + z) * CW + x] = v; }
 	void computeTop ();
 	void topColumn (int x, int z);
 };
@@ -75,13 +78,19 @@ public:
 	}
 	int get (int x, int y, int z) const;	// AIR hors des tronçons faits ; BEDROCK sous 0
 	int getLoaded (int x, int y, int z);	// fait le tronçon au besoin
-	// pose un bloc (le tronçon est fait au besoin) -> faux hors du monde ou bloc inconnu
-	bool set (int x, int y, int z, int b);
+	// pose un bloc et son état (le tronçon est fait au besoin) -> faux hors du monde ou bloc inconnu
+	bool set (int x, int y, int z, int b, int meta = 0);
+	int meta (int x, int y, int z) const;		// 0 hors des tronçons faits
+	bool setMeta (int x, int y, int z, int meta);	// (le bloc reste)
+	bool loaded (int x, int z) const { return find (floorDiv (x, CW), floorDiv (z, CW)) != nullptr; }
+	// appelé après chaque changement par set ou setMeta (sim.cpp : les liquides et les circuits suivent)
+	void (*onChange) (int x, int y, int z, int oldBlock, int newBlock) = nullptr;
+	void (*onLoad) (Chunk *c) = nullptr;		// (un tronçon fait ou relu)
 	int height (int x, int z);		// y du plus haut bloc non vide (le tronçon est fait au besoin)
 	bool skyLit (int x, int y, int z) const;	// au-dessus de tout bloc opaque de sa colonne
 	void unload (Chunk *c);			// sauvé s'il a changé, puis oublié
 	void markDirty (int x, int z);		// le maillage du tronçon de (x, z), et des voisins au bord
-	Hit raycast (const float eye[3], const float dir[3], float maxDist) const;
+	Hit raycast (const float eye[3], const float dir[3], float maxDist, bool liquids = false) const;	// liquids : s'arrête sur l'eau et la lave
 	// sauvegardes
 	bool saveAll ();
 	bool saveChunk (const Chunk *c);

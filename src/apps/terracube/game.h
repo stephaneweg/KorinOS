@@ -14,7 +14,7 @@
 
 namespace tc {
 
-const char *const VERSION = "1.2.0";
+const char *const VERSION = "1.3.0";
 const int API_PORT = 4730;	// le protocole des scripts (Python, BASIC)
 const int MCP_PORT = 7312;	// le MCP (Forge a 7311)
 
@@ -22,7 +22,7 @@ struct Player {
 	double x = 0.5, y = 80, z = 0.5;	// les pieds
 	double vx = 0, vy = 0, vz = 0;
 	float yaw = 0, pitch = 0;		// degrés : yaw 0 vers le nord (-z), 90 vers l'est (+x)
-	bool fly = false, onGround = false, inWater = false;
+	bool fly = false, onGround = false, inWater = false, inLava = false;
 	static constexpr double EYE = 1.62, HALF = 0.3, HEIGHT = 1.8;
 };
 
@@ -87,6 +87,7 @@ void gameFlyChanged ();
 // api.cpp : le protocole des scripts (une commande par ligne, « world.setBlock(1,2,3,stone) »)
 std::string apiExec (const std::string &line, bool &reply);
 bool apiWantsReply (const std::string &line);
+int stateOf (const std::string &t);		// l'état d'un bloc écrit : un nombre, ou « east+on »…
 bool apiStart (int port, bool anyAddress, std::string &err);
 void apiStop ();
 bool apiRunning ();

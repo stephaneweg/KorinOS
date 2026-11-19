@@ -105,10 +105,12 @@ out vec2 v_uv;
 out float v_light;
 out float v_fog;
 out vec3 v_world;
+out float v_lava;
 void main () {
 	vec3 p = a_pos * (1.0 / 16.0) + u_origin;
 	vec3 w = vec3 (p.x + u_cell.x, p.y, p.z + u_cell.y);
-	if (u_water > 0.5 && abs (mod (a_pos.y, 16.0) - 14.0) < 0.5) {
+	v_lava = u_water > 0.5 && a_light.y > 0.99 ? 1.0 : 0.0;	// (la lave : un liquide qui luit)
+	if (u_water > 0.5 && v_lava < 0.5 && abs (mod (a_pos.y, 16.0) - 14.0) < 0.5) {
 		float h = sin (w.x * 0.785398 + u_time * 1.7) * 0.55 + sin ((w.x + w.z) * 0.392699 - u_time * 1.1) * 0.30
 			+ sin (w.z * 1.570796 + u_time * 2.3) * 0.15;
 		p.y += (h - 1.0) * 0.045;
@@ -132,11 +134,21 @@ in vec2 v_uv;
 in float v_light;
 in float v_fog;
 in vec3 v_world;
+in float v_lava;
 out vec4 o;
 void main () {
 	vec4 t;
 	float light = v_light;
-	if (u_water > 0.5) {
+	if (u_water > 0.5 && v_lava > 0.5) {
+		// la lave : sa tuile glisse lentement, se tord, palpite ; opaque
+		vec2 tile = floor (v_uv * 16.0) / 16.0;
+		vec2 q = v_world.xz + vec2 (v_world.y * 0.37, v_world.y * 0.61);
+		vec2 d = vec2 (sin (q.y * 1.1 + u_time * 0.5), cos (q.x * 1.3 + u_time * 0.4)) * 0.06;
+		vec2 l = fract (q * 0.5 + vec2 (u_time * 0.012, u_time * 0.009) + d);
+		t = texture (u_tex, tile + clamp (l, 0.004, 0.996) / 16.0);
+		t.rgb *= 0.88 + 0.16 * sin (u_time * 1.3 + q.x * 0.7 + q.y * 0.5);
+		t.a = 1.0;
+	} else if (u_water > 0.5) {
 		// la tuile de l'eau, lue à une place qui glisse et ondule
 		vec2 tile = floor (v_uv * 16.0) / 16.0;
 		vec2 q = v_world.xz + vec2 (v_world.y * 0.37, v_world.y * 0.61);
@@ -480,6 +492,7 @@ void Renderer::draw (World &w, const Camera &cam, const Frame &f, const HudState
 	}
 	float fog[3] = { hor[0], hor[1], hor[2] };
 	if (hud.underwater) fog[0] = 0.05f, fog[1] = 0.18f + 0.2f * f.daylight, fog[2] = 0.35f + 0.3f * f.daylight;
+	if (hud.inLava) fog[0] = 0.9f, fog[1] = 0.32f, fog[2] = 0.05f;
 
 	float proj[16], view[16], vp[16], inv[16];
 	matPerspective (proj, cam.fov, (float) f.w / (float) (f.h ? f.h : 1), 0.08f, (float) (f.distance + 2) * CW * 1.5f);
@@ -492,7 +505,7 @@ void Renderer::draw (World &w, const Camera &cam, const Frame &f, const HudState
 
 	// le ciel (sous l'eau : la couleur du brouillard suffit)
 	glBindVertexArray (vao);
-	if (!hud.underwater && matInvert (inv, vp)) {
+	if (!hud.underwater && !hud.inLava && matInvert (inv, vp)) {
 		static const float TRI[6] = { -1, -1, 3, -1, -1, 3 };
 		glUseProgram (progSky);
 		glUniformMatrix4fv (sInvVp, 1, GL_FALSE, inv);
@@ -531,6 +544,7 @@ void Renderer::draw (World &w, const Camera &cam, const Frame &f, const HudState
 	glUniform3fv (uCam, 1, camLocal);
 	float fogEnd = ((float) f.distance * CW - 4.0f) * (1.0f - 0.35f * f.gloom), fogStart = fogEnd * (hud.underwater ? 0.0f : 0.62f - 0.3f * f.gloom);
 	if (hud.underwater) fogEnd = 18.0f;
+	if (hud.inLava) fogStart = 0.0f, fogEnd = 2.5f;
 	glUniform1f (uFog0, fogStart);
 	glUniform1f (uFog1, fogEnd);
 	glUniform1f (uDay, std::min (1.0f, f.daylight + f.flash * 0.6f));
@@ -702,7 +716,7 @@ struct HudBatch {
 
 void blockIcon (HudBatch &b, int item, float cx, float cy, float s)
 {
-	if (item >= 100 || info (item).shape == SH_CROSS || info (item).shape == SH_NONE) {
+	if (item >= 100 || info (item).shape == SH_CROSS || info (item).shape == SH_NONE || info (item).shape == SH_SPECIAL) {
 		int t = itemInfo (item).tile;
 		float u0 = (t & 15) * 256 + 1, v0 = (t >> 4) * 256 + 1;
 		b.quad (cx - s * 0.5f, cy - s * 0.5f, cx + s * 0.5f, cy + s * 0.5f, u0, v0, u0 + 254, v0 + 254, 0xffffff, 255);
@@ -740,6 +754,7 @@ void Renderer::drawHud (const Frame &f, const HudState &hud)
 	HudBatch b;
 	float W = (float) f.w, H = (float) f.h;
 	if (hud.underwater) b.solid (0, 0, W, H, 0x1a4a90, 70);
+	if (hud.inLava) b.solid (0, 0, W, H, 0xff5a10, 150);
 	// la barre des blocs
 	float slot = 46, gap = 4, total = 9 * slot + 8 * gap;
 	float x0 = (W - total) * 0.5f, y0 = H - slot - 12;
