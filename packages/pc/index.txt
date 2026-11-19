@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-19 19:30
+date = 2026-11-19 19:51
 abi = 626
 packages = 114
 board = pc
@@ -81,6 +81,21 @@ required = 0
 restart = 0
 content = 6323dec095198f6fcdfe6ccaefdf3869d1ebb7d001f4a2a8e871aed0e0d56207
 arch = any
+
+[terracube]
+title = TerraCube
+version = 1.2.0
+category = Jeux
+author = Korin OS
+summary = Bac à sable de blocs en 3D par le GPU, modes créatif et survie, fabrication sur une grille, météo, console, pilotable par Python, BASIC ou un agent IA (MCP)
+size = 669936
+installed = 1512573
+sha256 = c7e20bea668ed51395c3684b971bd55d3b66c69b76f1840052585339f9ec1e4e
+file = pkgs/terracube-1.2.0.opk
+needs = abi >= 626
+required = 0
+restart = 0
+content = bf81ea24ab3aabf56ea01a9f2fe6cb1fd3ca1ef3f40b5154ef7abbad87364ac1
 
 [pkgman]
 title = Logiciels
@@ -649,18 +664,18 @@ content = e6369709297bf0a54e239033bae2c28313f0aa6195924cc6626808b82350f612
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.59
+version = 2026.11.60
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 32061041
-installed = 96474678
-sha256 = 93a4ed6b0138de5f95a37cb6321ff751e57a65dd3daf57f8d12ac3d078a6c91b
-file = pkgs/pc-2026.11.59.opk
+size = 32061260
+installed = 96475030
+sha256 = 2f7a97742a05c514301656d82b39e297efc0b6bf970ea233518db52aa6813a51
+file = pkgs/pc-2026.11.60.opk
 needs = 
 required = 1
 restart = 1
-content = 36366cf028478f69f6c86bc2f64fc78feea1b4a23667f5f7bfa4b5cf322c176a
+content = 2494963394014c192fcc61354547c90f5bb668f9bedf7e04c4db0eeb2fc636b2
 
 [2048]
 title = 2048
@@ -934,18 +949,18 @@ content = 792079d68767402d32b6552f4362830db0203ba1d457e4f365b9fd448337a48c
 
 [forge]
 title = Forge
-version = 1.3.5
+version = 1.3.6
 category = Création
 author = Korin OS
 summary = La CAO de Korin : solides exacts d'OpenCASCADE, formes au geste, pousser/tirer, congés sur toute arête, historique modifiable, pilotable par un agent (MCP)
-size = 12874660
-installed = 31824805
-sha256 = 130aaa3a2e6405bae68df88ec244e1809022e062c1ca40f936cc72f7783752af
-file = pkgs/forge-1.3.5.opk
+size = 12874517
+installed = 31824718
+sha256 = 925554aca8942cc49ea38224b5ca3c11366a6cd8b0b0334754d8e1edbd03378f
+file = pkgs/forge-1.3.6.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 68b337ca2e504816ccb28bff5dfbdfe75fd7551c217c520f4dc88fcc1e5ea9bd
+content = 5bc59facbb9bb4d2a9866051e02c6662c3781f6591f6f9e4df17ba37ebcd5672
 
 [freecell]
 title = FreeCell
@@ -1579,18 +1594,18 @@ content = bcc565a5cb90bc0a6168ccb2abf71fd8086c6e49a0b226a39dbe0bd687842b5f
 
 [spotify]
 title = Spotify
-version = 1.0.3
+version = 1.0.4
 category = Multimédia
 author = Korin OS
 summary = Spotify (compte Premium) : titres aimés, playlists, recherche, joués par librespot
-size = 4176026
-installed = 9921750
-sha256 = fc96fc61f42cdb25b1afcb3e632fe507e458ef1793c7851ce2b3bd7cb3a419d3
-file = pkgs/spotify-1.0.3.opk
+size = 4245887
+installed = 10084214
+sha256 = 371296f69750ce884d45e814040e265ca32bf16a38206e95d167d3060dadc6cf
+file = pkgs/spotify-1.0.4.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 8326b86b4080b334cfae6bbe85e83118bd1262bc035eab5a3556193e0b964b1b
+content = 69ba5c9f12d8ac93717d0c24a8ba4684ad1c3d892ec5d2a52206e3a24acaaee6
 
 [studio]
 title = Studio
@@ -1711,18 +1726,3 @@ needs = abi >= 626
 required = 0
 restart = 0
 content = 65b7348a488c5b8ec86aed20cb76355a92b2db56c7e8ac616ec39b32268ad863
-
-[terracube]
-title = TerraCube
-version = 1.2.0
-category = Jeux
-author = Korin OS
-summary = Bac à sable de blocs en 3D par le GPU, modes créatif et survie, fabrication sur une grille, météo, console, pilotable par Python, BASIC ou un agent IA (MCP)
-size = 669936
-installed = 1512573
-sha256 = c7e20bea668ed51395c3684b971bd55d3b66c69b76f1840052585339f9ec1e4e
-file = pkgs/terracube-1.2.0.opk
-needs = abi >= 626
-required = 0
-restart = 0
-content = bf81ea24ab3aabf56ea01a9f2fe6cb1fd3ca1ef3f40b5154ef7abbad87364ac1
