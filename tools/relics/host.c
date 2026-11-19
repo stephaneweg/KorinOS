@@ -128,6 +128,7 @@ static void write_ppm (const char *path)
 
 static void init_all (void)
 {
+	if (getenv ("RELICS_SPRITES")) g_sprdir = getenv ("RELICS_SPRITES");
 	gf_open ("Relics");
 	gs_open ();
 	ga_init (14u << 20);

@@ -236,7 +236,43 @@ static gf_sprite_t *g_storch[4], *g_sjet[4];
 static gf_sprite_t *g_lt_torch, *g_lt_small, *g_lt_big, *g_lt_relic, *g_lt_exit, *g_lt_lava, *g_lt_shot;
 static gf_sprite_t *g_sarrow[2], *g_sfern[NWORLD];
 static gf_sprite_t *g_hheart, *g_hbul, *g_hdyn, *g_hkey, *g_hcoin;	/* (les petites, du bandeau) */
-static gf_sprite_t *g_tfg[MAXH][MAXW], *g_tbg[MAXH][MAXW];	/* la tuile de chaque case, son fond */
+static gf_sprite_t *g_tfg[MAXH][MAXW], *g_tbg[MAXH][MAXW];
+
+/* un personnage en images (tools/relics/mksprites.py) : s'il est la, il remplace le dessine */
+struct sset { int nw, ns, w, h, ax, ay; gf_sprite_t *f[2][32]; };
+static struct sset *g_cfoe[NWORLD];
+static const char *g_sprdir = "/apps/relics.app/sprites";
+
+static struct sset *load_spr (const char *name)
+{
+	char p[300];
+	snprintf (p, sizeof p, "%s/%s", g_sprdir, name);
+	int fd = open (p, O_RDONLY);
+	if (fd < 0) return 0;
+	unsigned char hd[20];
+	struct sset *ss = 0;
+	if (read (fd, hd, 20) == 20 && !memcmp (hd, "RSPR", 4))
+	{
+		int n = hd[6] | hd[7] << 8, w = hd[8] | hd[9] << 8, h = hd[10] | hd[11] << 8;
+		if (n > 0 && n <= 32 && w > 0 && h > 0 && w <= 256 && h <= 256 && hd[16] + hd[17] == n && hd[16])
+		{
+			ss = (struct sset *) calloc (1, sizeof *ss);
+			ss->nw = hd[16]; ss->ns = hd[17]; ss->w = w; ss->h = h;
+			ss->ax = hd[12] | hd[13] << 8; ss->ay = hd[14] | hd[15] << 8;
+			for (int i = 0; i < n && ss; i++)
+			{
+				gf_sprite_t *s = ga_new ((unsigned long) w, (unsigned long) h);
+				long want = (long) w * h * 4, got = 0, r;
+				while (got < want && (r = read (fd, (char *) (s + 2) + got, (size_t) (want - got))) > 0) got += r;
+				if (got < want) { free (ss); ss = 0; break; }
+				ss->f[0][i] = s;
+				ss->f[1][i] = sp_mirror (s, 0);
+			}
+		}
+	}
+	close (fd);
+	return ss;
+}	/* la tuile de chaque case, son fond */
 static gf_sprite_t *g_dig[10], *g_digb[10], *g_slash;
 
 /* les textes */
@@ -1506,6 +1542,16 @@ static void draw_tile_fx (void)
 static void draw_foe (const struct ent *e)
 {
 	int d = e->dir < 0;
+	const struct sset *ss = g_cfoe[g_world];
+	if (ss)
+	{
+		int i;
+		if (e->type == E_SHOOTER && ss->ns && (e->t || e->vx == 0)) i = ss->nw + (e->t ? (16 - e->t) * ss->ns / 17 : 0);
+		else i = (int) (e->a * 2) % ss->nw;
+		long ax = d ? ss->w - ss->ax : ss->ax;
+		ga_ablit (SX (e->x + e->w / 2) - ax, SY (e->y + e->h) - ss->ay, ss->f[d][i]);
+		return;
+	}
 	const gf_sprite_t *s;
 	if (e->type == E_SHOOTER && (e->t || e->vx == 0)) s = g_foe[g_world][d][4];
 	else s = g_foe[g_world][d][(int) e->a & 3];
@@ -1986,6 +2032,12 @@ static void gen_sprites (void)
 	g_lt_exit = sp_light (110, 0x00103850);
 	g_lt_lava = sp_light (76, 0x00602808);
 	g_lt_shot = sp_light (22, 0x00604830);
+	for (int w = 0; w < NWORLD; w++)			/* les personnages en images, s'il y en a */
+	{
+		char n[32];
+		snprintf (n, sizeof n, "foe%d.spr", w);
+		g_cfoe[w] = load_spr (n);
+	}
 	sp_k = 1;						/* (le bandeau, le titre : a leur taille) */
 	g_hheart = gen_heart ();
 	g_hbul = gen_bullet_icon ();
