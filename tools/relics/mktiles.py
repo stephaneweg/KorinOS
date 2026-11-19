@@ -622,34 +622,34 @@ def background(src, world):
             pts = [(x, y + a * math.sin(x / W * 6.2832 * (2 + i) + i)) for x in range(0, W + 1, 8)]
             d.line(pts, fill=(252, 236, 186, 255), width=14 - 3 * i, joint="curve")
         d = ImageDraw.Draw(bg)
-        for px_, h in ((210, 70), (300, 110), (760, 90)):	# (jusqu'en bas, derriere les dunes : le pied toujours cache)
-            e = h + (H - 300)
-            d.polygon([(px_ - e, H), (px_, 300 - h), (px_ + e, H)], fill=(226, 160, 92, 255))
-            d.polygon([(px_, 300 - h), (px_ + e, H), (px_, H)], fill=(200, 132, 72, 255))
-        bg.alpha_composite(hills(W, 300, 34, 3, 0xE9B46A, 11))
-        bg.alpha_composite(hills(W, 340, 40, 2, 0xEFA650, 12))
+        for px_, h in ((190, 130), (330, 210), (760, 165)):	# (jusqu'en bas, derriere les dunes : le pied toujours cache)
+            e = h + (H - 330)
+            d.polygon([(px_ - e, H), (px_, 330 - h), (px_ + e, H)], fill=(226, 160, 92, 255))
+            d.polygon([(px_, 330 - h), (px_ + e, H), (px_, H)], fill=(200, 132, 72, 255))
+        bg.alpha_composite(hills(W, 335, 26, 3, 0xE9B46A, 11))
+        bg.alpha_composite(hills(W, 375, 32, 2, 0xEFA650, 12))
         dl = ImageDraw.Draw(bg)
         for k in range(3):				# les lignes du vent sur les dunes
-            pts = [(x, 352 + k * 22 + 10 * math.sin(x / W * 6.2832 * 3 + k)) for x in range(0, W + 1, 8)]
+            pts = [(x, 384 + k * 18 + 8 * math.sin(x / W * 6.2832 * 3 + k)) for x in range(0, W + 1, 8)]
             dl.line(pts, fill=(214, 128, 52, 255), width=4, joint="curve")
-        bg.alpha_composite(hills(W, 420, 26, 3, 0xF4BE66, 13))
+        bg.alpha_composite(hills(W, 445, 20, 3, 0xF4BE66, 13))
         return bg
     if world == 2:				# le temple : couchant, soleil, pyramides, dunes
         bg = grad(W, H, [(92, 52, 110), (232, 120, 96), (255, 196, 120), (255, 226, 160)])
         d = ImageDraw.Draw(bg)
         d.ellipse((690, 120, 790, 220), fill=(255, 236, 170, 255))
-        for px_, h in ((180, 120), (300, 170), (840, 110)):	# (jusqu'en bas, derriere les dunes : le pied toujours cache)
+        for px_, h in ((180, 170), (320, 240), (840, 160)):	# (jusqu'en bas, derriere les dunes : le pied toujours cache)
             d = ImageDraw.Draw(bg)
-            e = h + (H - 312)
-            d.polygon([(px_ - e, H), (px_, 312 - h), (px_ + e, H)], fill=(214, 140, 92, 255))
-            d.polygon([(px_, 312 - h), (px_ + e, H), (px_, H)], fill=(180, 108, 72, 255))
-        bg.alpha_composite(hills(W, 300, 30, 2, 0xD8946A, 1))
-        bg.alpha_composite(hills(W, 345, 26, 3, 0xE6A860, 2))
+            e = h + (H - 340)
+            d.polygon([(px_ - e, H), (px_, 340 - h), (px_ + e, H)], fill=(214, 140, 92, 255))
+            d.polygon([(px_, 340 - h), (px_ + e, H), (px_, H)], fill=(180, 108, 72, 255))
+        bg.alpha_composite(hills(W, 340, 24, 2, 0xD8946A, 1))
+        bg.alpha_composite(hills(W, 380, 22, 3, 0xE6A860, 2))
         for x in range(60, W, 170):			# des cactus au loin
-            d.rectangle((x, 300, x + 8, 350), fill=(110, 120, 70, 255))
-            d.rectangle((x - 10, 316, x, 322), fill=(110, 120, 70, 255))
-            d.rectangle((x - 10, 306, x - 4, 322), fill=(110, 120, 70, 255))
-        bg.alpha_composite(hills(W, 410, 22, 4, 0xF0BE74, 3))
+            d.rectangle((x, 345, x + 8, 395), fill=(110, 120, 70, 255))
+            d.rectangle((x - 10, 361, x, 367), fill=(110, 120, 70, 255))
+            d.rectangle((x - 10, 351, x - 4, 367), fill=(110, 120, 70, 255))
+        bg.alpha_composite(hills(W, 440, 18, 4, 0xF0BE74, 3))
         return bg
     if world == 3:				# la glace : montagnes enneigees, sapins
         bg = grad(W, H, [(70, 120, 190), (150, 200, 240), (220, 240, 255)])
