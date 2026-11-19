@@ -417,7 +417,14 @@ int main (int argc, char **argv)
 	}
 	if (argc >= 6 && !strcmp (argv[1], "chase"))
 	{						/* chase n tx ty script : une fuite devant un rocher, avec tout le jeu */
-		new_game (atoi (argv[2]));
+		{					/* (classique, hardcore : new_game partirait du premier niveau) */
+			int m = g_mode;
+			g_mode = MODE_NORMAL;
+			new_game (atoi (argv[2]));
+			g_mode = m;
+			g_lives = DF->lives;
+			start_level (atoi (argv[2]));
+		}
 		set_state (GS_PLAY);
 		g_h.x = (float) (atoi (argv[3]) * TS + 4);
 		g_h.y = (float) ((atoi (argv[4]) + 1) * TS - H_H);
