@@ -1,6 +1,6 @@
 ---
 name: armpi-relics
-description: "Relics, jeu de plates-formes et d'exploration à la Rick Dangerous (19/11/2026) : C sur gamefb, 7 mondes, 21 niveaux générés, musique par monde, sprites et tuiles des paquets achetés par l'utilisateur, banc d'essai sur l'hôte"
+description: "Relics (PC 1.1.0 publié), jeu de plates-formes et d'exploration à la Rick Dangerous (19/11/2026) : C sur gamefb, 7 mondes, 21 niveaux générés, musique par monde, sprites et tuiles des paquets achetés par l'utilisateur, banc d'essai sur l'hôte"
 metadata:
   node_type: memory
   type: project
@@ -54,3 +54,7 @@ booléens seulement (PEM, correspond à onyx.pub).
   dans l'ordre du voyage avant le volcan (niveaux 13-18) ; « Niveau x - y » vient du rang, pas du monde. Tuiles et fonds
   dessinés dans mktiles.py (`spooky`, `valley`), ennemis : Pumpkin Head Guy, Vampire, Hooded Girl ; Barbarian, Thug,
   Indian Tribe Knight. BANK 64 Mo (33 pris au départ).
+- **PC 1.1.0 publié le 19/11 au soir** (main 7a1b166, demande de l'utilisateur) : même méthode que la 1.0.0
+  (scratchpad pub_relics2.py : section remplacée, 1.0.0 retirée, index re-signé, checkrepo) ; main avait bougé
+  (terracube) pendant la publication : refaite sur le nouvel index. Essayée avant dans Korin PC (QEMU) : titre, partie,
+  pause, pas de plantage du thread de musique. Le Pi n'est toujours pas publié.
