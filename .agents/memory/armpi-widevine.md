@@ -1,6 +1,6 @@
 ---
 name: armpi-widevine
-description: "Widevine dans Jet : hôte Linux, jalon 1 fait (liblinux + linuxhost, QEMU PC) ; décisions du 19/11 prises ; module réel mesuré : 791 syscall directs, personnalité du noyau obligatoire ; docs/etude/WIDEVINE.md"
+description: "Widevine dans Jet : hôte Linux, jalon 1 fait (liblinux + linuxhost, QEMU PC) ; décisions du 19/11 prises ; module mesuré ; capture générique des syscall faite (2b, QEMU) ; docs/etude/WIDEVINE.md"
 metadata:
   type: project
 ---
@@ -25,7 +25,12 @@ produit une vraie requête de licence (1702 octets) ; ses syscall directs = open
 
 **Décision de forme (19/11)** : le noyau ne connaît pas « Linux » ; il offre une **capture générique** : l'hôte
 déclare les syscall qu'il veut capturer (plages d'adresses de l'instruction, numéros), le noyau les lui renvoie
-(même thread, comme un signal) ; porte ouverte à d'autres personnalités. Étude § 3.2.
+(même thread, comme un signal) ; porte ouverte à d'autres personnalités. Étude § 3.2. Livraison dans le
+thread appelant choisie par l'utilisateur (pas de thread hôte séparé).
+**Étape 2b faite le 19/11** : SYS_SYSCALL_CAPTURE 0x96 (noyau PC : core/signal.c, arch/x86_64/sigframe.c ;
+trame de signal SIGSYS, retour par SIG_RETURN), liblinux capture.c ; QEMU : 4 syscall directs traduits, ptest
+22/0. Noyau d'essai construit à part : `PC_OUT=build/pc/linux/kbuild PC_QUICK=1 PC_SVC=pcid sh tools/pc/build.sh`,
+puis `test_pc.py --esp-src build/pc/linux/kbuild/esp`. Suite : étape 2c (108 imports, TLS, /proc fabriqués).
 
 Pièges : `linux` est une macro prédéfinie de gcc sous Linux (pas comme nom de champ) ; le canari de pile du code
 Linux (%fs:0x28) tombe dans le TCB de 64 octets de libposix, stable. Le module ne va jamais dans nos paquets.

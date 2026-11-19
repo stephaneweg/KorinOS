@@ -18,6 +18,7 @@
 #define KORIN_LINUX_H
 
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #ifdef __cplusplus
@@ -60,6 +61,12 @@ int linux_errno (int korin_errno);
 
 /* nombre d'appels traduits, par numéro de Linux (diagnostic : linuxhost --stats) */
 extern unsigned long linux_syscall_count[512];
+
+/* capture.c : déclare au noyau les plages des modules (n paires {début, fin}, au plus 4) dont les
+   syscall directs reviennent à linux_syscall (capture de syscall de Korin) ; < 0 : erreur du noyau */
+int linux_capture_set (const uint64_t *ranges, int n);
+/* capture.c : syscall directs servis (Korin seulement) */
+extern unsigned long linux_capture_count;
 
 #ifdef __cplusplus
 }

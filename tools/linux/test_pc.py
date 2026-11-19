@@ -27,6 +27,10 @@ def main():
     ap.add_argument("--wait", type=float, default=10)
     ap.add_argument("--after", type=float, default=12)
     ap.add_argument("--keep", action="store_true")
+    ap.add_argument("--esp-src", default=os.path.join(PC, "esp"),
+                    help="le volume de démarrage à copier (défaut build/pc/esp ; un noyau construit à part : "
+                         "PC_OUT=build/pc/linux/kbuild PC_QUICK=1 sh tools/pc/build.sh, puis "
+                         "--esp-src build/pc/linux/kbuild/esp)")
     a = ap.parse_args()
     host = os.path.join(OUT, "linuxhost")
     if not os.path.exists(host):
@@ -34,7 +38,7 @@ def main():
     esp = os.path.join(OUT, "esp")
     if os.path.exists(esp):
         shutil.rmtree(esp)
-    shutil.copytree(os.path.join(PC, "esp"), esp)
+    shutil.copytree(a.esp_src, esp)
     initrd = os.path.join(esp, "korin", "initrd.tar")
     with tarfile.open(initrd, "a", format=tarfile.USTAR_FORMAT) as t:
         t.add(host, arcname="linuxhost")

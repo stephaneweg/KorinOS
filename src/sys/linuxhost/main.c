@@ -64,6 +64,7 @@ static void stats (void)
 			any = 1;
 		}
 	printf (any ? "\n" : " aucun\n");
+	printf ("syscall directs capturés par le noyau : %lu\n", linux_capture_count);
 }
 
 static int run (const void *img, size_t size, const char *name, const char *fn, int argc, char **argv, int flags)

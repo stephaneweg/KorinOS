@@ -508,3 +508,68 @@ void signal_child_exit(struct process *p)
 	if (parent && parent->act[SIGCHLD - 1].handler > 1)
 		signal_send_proc(parent, SIGCHLD);
 }
+
+/* ---- capture de syscall (SYS_SYSCALL_CAPTURE ; docs/etude/WIDEVINE.md 3.2) ----
+ * L'hôte d'un process (liblinux pour un module de Linux) déclare jusqu'à CAPTURE_MAX plages d'adresses :
+ * un syscall dont l'instruction est dans une plage, et dont le numéro est dans sa table, n'est pas servi
+ * comme un appel de Korin ; le thread passe à l'entrée de l'hôte avec la trame d'un signal (comme
+ * SECCOMP_RET_TRAP de Linux), l'hôte sert l'appel à sa façon, écrit le résultat dans la trame et reprend
+ * par SIG_RETURN. Le noyau ne sait pas quelle personnalité l'hôte imite. Les appels de l'hôte, hors des
+ * plages, restent des appels de Korin. Le masque des signaux ne change pas. */
+#define USER_TOP 0x0000800000000000ULL
+
+int64_t sys_syscall_capture(uint64_t ranges, uint64_t n, uint64_t entry, uint64_t restorer, uint64_t nums)
+{
+	struct process *p = sched_current()->proc;
+	uint64_t r[2 * CAPTURE_MAX], bits[8];
+	int all = !nums; /* (sans table : tous les numéros, même >= 512) */
+	if (n > CAPTURE_MAX)
+		return E_INVAL;
+	if (n && copy_from_user(r, ranges, n * 16))
+		return E_FAULT;
+	for (uint64_t i = 0; i < n; i++)
+		if (r[2 * i] >= r[2 * i + 1] || r[2 * i + 1] > USER_TOP)
+			return E_INVAL;
+	if (n && (!entry || !restorer || entry >= USER_TOP || restorer >= USER_TOP))
+		return E_INVAL;
+	if (nums) {
+		if (copy_from_user(bits, nums, sizeof bits))
+			return E_FAULT;
+	} else
+		memset(bits, 0xFF, sizeof bits);
+	uint64_t f = spin_lock_irqsave(&sig_lock);
+	p->cap_n = 0;
+	for (uint64_t i = 0; i < n; i++)
+		p->cap_lo[i] = r[2 * i], p->cap_hi[i] = r[2 * i + 1];
+	memcpy(p->cap_nums, bits, sizeof bits);
+	p->cap_entry = entry;
+	p->cap_restorer = restorer;
+	p->cap_all = all;
+	p->cap_n = (int)n;
+	spin_unlock_irqrestore(&sig_lock, f);
+	return 0;
+}
+
+int signal_capture(void *frame, uint64_t insn, uint64_t nr)
+{
+	struct thread *t = sched_current();
+	struct process *p = t->proc;
+	if (!p->cap_n) /* (le cas courant : un seul test) */
+		return 0;
+	uint64_t f = spin_lock_irqsave(&sig_lock);
+	int hit = 0;
+	for (int i = 0; i < p->cap_n; i++)
+		if (insn >= p->cap_lo[i] && insn < p->cap_hi[i])
+			hit = 1;
+	if (hit && !p->cap_all && (nr >= 512 || !(p->cap_nums[nr >> 6] & BIT(nr & 63))))
+		hit = 0;
+	uint64_t entry = p->cap_entry, restorer = p->cap_restorer;
+	spin_unlock_irqrestore(&sig_lock, f);
+	if (!hit)
+		return 0;
+	/* (trame faite hors du verrou : la copie vers la pile peut prendre une faute de page) */
+	if (arch_signal_frame(frame, SIGSYS, CAPTURE_CODE, insn, entry, restorer, t->sigmask, 0) ||
+	    arch_signal_frame_syscall(frame, (uint32_t)nr))
+		proc_exit(-SIGSEGV); /* pile illisible : comme un signal */
+	return 1;
+}

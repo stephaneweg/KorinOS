@@ -5,7 +5,8 @@
 #   build/pc/linux/linuxhost      l'hôte (libposix du PC), lxtest.so embarqué (--self-test)
 #
 #   sh tools/linux/build.sh
-#   sh tools/linux/test_pc.sh     l'essai sous QEMU (une copie de build/pc/esp, rien n'est écrit ailleurs)
+#   python3 -I tools/linux/test_pc.py   l'essai sous QEMU (une copie de build/pc/esp, rien n'est écrit ailleurs ;
+#                                       le noyau de build/pc/esp doit avoir la capture de syscall : tools/pc/build.sh)
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 TOOL=${TOOL:-${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2}
@@ -22,13 +23,19 @@ mkdir -p "$OUT/obj"
 gcc -O2 -g0 -shared -fPIC -fstack-protector-all -D_FORTIFY_SOURCE=2 -Wall -Wextra \
 	"$HOST/test/lxtest.c" -o "$OUT/lxtest.so"
 
-# 2. liblinux
-CFLAGS="-specs=$POSIX/lib/posix.specs -O2 -g0 -std=gnu11 -Wall -Wextra -Wno-unused-parameter"
-for f in elf glibc syscall; do
+# 2. liblinux ; les numéros des appels de Korin tirés de src/inc/syscalls.inc (seule source)
+mkdir -p "$OUT/gen"
+{
+	echo "/* Tiré de src/inc/syscalls.inc par tools/linux/build.sh : ne pas modifier. */"
+	sed -n 's/^\(SYS_[A-Z0-9_]*\|CAPTURE_[A-Z0-9_]*\)[[:space:]]*=[[:space:]]*\(0x[0-9A-Fa-f]*\|[0-9][0-9]*\).*/#define \1 \2/p' \
+		"$ROOT/src/inc/syscalls.inc"
+} | tr -d '\r' >"$OUT/gen/korin_sys_nr.h"
+CFLAGS="-specs=$POSIX/lib/posix.specs -O2 -g0 -std=gnu11 -Wall -Wextra -Wno-unused-parameter -I$OUT/gen"
+for f in elf glibc syscall capture; do
 	${TC}gcc $CFLAGS -c "$SRC/$f.c" -o "$OUT/obj/$f.o"
 done
 rm -f "$OUT/liblinux.a"
-${TC}ar rcs "$OUT/liblinux.a" "$OUT/obj/elf.o" "$OUT/obj/glibc.o" "$OUT/obj/syscall.o"
+${TC}ar rcs "$OUT/liblinux.a" "$OUT/obj/elf.o" "$OUT/obj/glibc.o" "$OUT/obj/syscall.o" "$OUT/obj/capture.o"
 
 # 3. linuxhost
 ${TC}gcc $CFLAGS -c "$HOST/main.c" -o "$OUT/obj/main.o"

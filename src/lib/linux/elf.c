@@ -554,15 +554,35 @@ static struct linux_module *module_of (void *p)
 	return 0;
 }
 
-/* (appelée à la fin de linux_load réussi, par linux_register) */
+/* les plages des modules chargés, déclarées au noyau : leurs syscall directs reviennent à linux_syscall
+   (capture.c) ; au plus 4 modules capturés */
+static void capture_update (void)
+{
+	uint64_t r[8];
+	int n = 0;
+	for (int i = 0; i < MAX_MODULES && n < 4; i++)
+		if (s_modules[i])
+		{
+			r[2 * n] = (uint64_t) (uintptr_t) s_modules[i]->area;
+			r[2 * n + 1] = r[2 * n] + s_modules[i]->span;
+			n++;
+		}
+	int e = linux_capture_set (r, n);
+	if (e < 0)
+		fprintf (stderr, "liblinux : capture de syscall refusée par le noyau (%d) : les syscall directs des modules"
+			 " ne seront pas traduits\n", e);
+}
+
+/* (à la fin de linux_load réussi, avant les constructeurs, qui peuvent déjà faire des syscall directs) */
 static void linux_register (struct linux_module *m)
 {
 	for (int i = 0; i < MAX_MODULES; i++)
 		if (!s_modules[i])
 		{
 			s_modules[i] = m;
-			return;
+			break;
 		}
+	capture_update ();
 }
 
 int linux_module_atexit (void (*fn) (void *), void *arg, void *dso)
@@ -608,6 +628,7 @@ void linux_unload (struct linux_module *m)
 	for (int i = 0; i < MAX_MODULES; i++)
 		if (s_modules[i] == m)
 			s_modules[i] = 0;
+	capture_update ();
 	munmap (m->area, m->span);
 	if (m->stubs)
 		munmap (m->stubs, m->stubs_size);

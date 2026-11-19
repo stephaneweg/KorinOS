@@ -44,6 +44,15 @@ static int mul (int a, int b) { return a * b; }
 static int (*const s_ops[]) (int, int) = { add, mul };
 static const char *const s_names[] = { "addition", "multiplication" };
 
+/* un syscall direct, sans glibc, comme le module Widevine (791 dans son code) : sous Korin, la capture de
+   syscall du noyau le renvoie à liblinux */
+static long raw_syscall (long n, long a, long b, long c)
+{
+	long r;
+	__asm__ volatile ("syscall" : "=a" (r) : "a" (n), "D" (a), "S" (b), "d" (c) : "rcx", "r11", "memory");
+	return r;
+}
+
 static int s_once_calls;
 static void once_fn (void) { s_once_calls++; }
 
@@ -119,6 +128,16 @@ int lx_run (int argc, char **argv)
 	for (int i = 0; i < 16; i++)
 		nz += rnd[i] != 0;
 	check (nz > 0, "getrandom : pas que des zéros");
+
+	/* syscall directs (numéros de Linux, sans glibc) */
+	check (raw_syscall (SYS_getpid, 0, 0, 0) == getpid (), "syscall direct getpid (39)");
+	const char rmsg[] = "  (écrit par un syscall direct, write = 1)\n";
+	fflush (stdout);
+	check (raw_syscall (SYS_write, 1, (long) rmsg, sizeof rmsg - 1) == (long) sizeof rmsg - 1, "syscall direct write (1)");
+	struct timespec rt0 = { -1, -1 };
+	check (raw_syscall (SYS_clock_gettime, CLOCK_MONOTONIC, (long) &rt0, 0) == 0 && rt0.tv_sec >= 0
+	       && rt0.tv_nsec >= 0 && rt0.tv_nsec < 1000000000L, "syscall direct clock_gettime (228)");
+	check (raw_syscall (4094, 0, 0, 0) == -ENOSYS, "syscall direct inconnu (4094) : -ENOSYS de Linux");
 
 	fprintf (stderr, "lxtest : (sur stderr) %d échec(s)\n", s_fails);
 	return s_fails;

@@ -561,6 +561,14 @@ int64_t sys_fork(void)
 	c->script_set = p->script_set;
 	c->restorer = p->restorer;
 	c->flags = p->flags;
+	/* la capture de syscall : même mémoire, même hôte */
+	memcpy(c->cap_lo, p->cap_lo, sizeof c->cap_lo);
+	memcpy(c->cap_hi, p->cap_hi, sizeof c->cap_hi);
+	memcpy(c->cap_nums, p->cap_nums, sizeof c->cap_nums);
+	c->cap_entry = p->cap_entry;
+	c->cap_restorer = p->cap_restorer;
+	c->cap_all = p->cap_all;
+	c->cap_n = p->cap_n;
 	ct->priority = t->priority;
 	ct->sigmask = t->sigmask;
 	ct->alt_sp = t->alt_sp;
@@ -697,6 +705,7 @@ static int64_t sys_exec_image(struct thread *t, struct process *p, uint64_t path
 		if (p->act[i].handler > 1)
 			p->act[i] = (struct sigact){0, 0, 0};
 	p->restorer = 0;
+	p->cap_n = 0; /* (plus de capture de syscall : l'hôte est parti avec l'ancien programme) */
 	t->alt_sp = t->alt_size = 0;
 	if (newname) {
 		memcpy(p->name, name, PROC_NAME);

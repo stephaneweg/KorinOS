@@ -211,6 +211,16 @@ PEX_SIZE		= 296
 PEXF_IMAGE		= 1		; lance d'une image (sinon : pas de chemin ni d'empreinte)
 PEXF_RIGHTS		= 2		; droits de /sys
 PEXF_SCRIPT		= 4		; un script est declare
+SYS_SYSCALL_CAPTURE	= 0x96		; (plages, n, entree, retour, numeros) -> 0 : capture de syscall (docs/etude/WIDEVINE.md 3.2) ;
+					; plages : n paires {debut, fin} (n <= CAPTURE_MAX, 0 : plus de capture) ; un syscall dont
+					; l'instruction est dans une plage (et dont le numero est dans la table de 512 bits « numeros »,
+					; 0 : tous) n'est pas servi : le thread passe a « entree » avec la trame d'un signal
+					; (siginfo : signo SIGSYS, code CAPTURE_CODE, +16 adresse de l'instruction, +24 numero sur
+					; 32 bits ; ucontext : les registres, dont rax = numero), et reprend par SIG_RETURN (« retour »
+					; l'appelle) avec les registres de la trame ; le noyau ignore quelle personnalite l'hote imite ;
+					; process entier, garde par fork, efface par exec ; PC seulement (Pi : E_NOSYS)
+CAPTURE_MAX		= 4
+CAPTURE_CODE		= 1
 SPAWN_UID		= 2		; options de SPAWN_IMAGE / SPAWN_PRELOADED (params+16) : l'uid du fils dans
 					; les bits 32-63 ; appelant d'uid 0 seulement (E_PERM)
 SYS_APPKIT_FIRST	= SYS_OPEN

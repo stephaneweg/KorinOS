@@ -195,8 +195,27 @@ pas quelle personnalité l'hôte imite ; il sait seulement que l'hôte (le code 
 * rien de propre à Linux : la même capture servira à d'autres personnalités (un autre système, un bac à sable,
   un traceur). Sous Linux, l'équivalent est *Syscall User Dispatch* ou `SECCOMP_RET_TRAP` (ce que fait la sonde).
 
-Appel système à ajouter (nom provisoire `SYS_SYSCALL_CAPTURE`, à la fin de `src/inc/syscalls.inc`) : poser,
-retirer, lister les plages d'un process ; hérité par les threads, effacé par `exec`.
+**Livraison dans le thread appelant** (choix de l'utilisateur, 19/11, contre un thread hôte séparé) : comme le
+noyau de Linux, qui sert un `syscall` dans le thread qui l'a fait, l'hôte le sert dans ce thread pendant que le
+code capturé est suspendu. Chaque thread du module est servi en parallèle, un appel qui bloque ne bloque que
+son thread, et les appels liés à l'appelant (`gettid`, masque, `futex`) sont faits par le bon thread. Une
+livraison « vers un thread ou un process hôte qui attend » (traceur, bac à sable surveillé) pourra s'ajouter
+comme une option du même appel.
+
+**Fait le 19/11 (étape 2b)** : `SYS_SYSCALL_CAPTURE` (0x96, `src/inc/syscalls.inc`) : `(plages, n, entrée,
+retour, numéros)`, au plus `CAPTURE_MAX` (4) plages `{début, fin}`, table facultative de 512 bits des numéros
+(sans table : tous, même au-delà de 511) ; `n = 0` retire la capture. Process entier (threads), gardé par
+`fork`, effacé par `exec` ; PC seulement (le Pi rend `E_NOSYS`).
+* Noyau (`src/kernel/core/signal.c`, `arch/x86_64/sigframe.c`) : à l'entrée d'un `syscall`, si l'adresse de
+  l'instruction (`rip - 2`) est dans une plage, rien n'est servi ; le noyau pose la trame d'un signal (celle du
+  PC suit déjà l'`ucontext` de Linux x86-64) avec `signo SIGSYS`, `code CAPTURE_CODE`, l'adresse de
+  l'instruction (+16) et le numéro (+24) dans le `siginfo`, et saute à l'entrée de l'hôte. Le masque des signaux
+  ne change pas. L'hôte reprend par le `SIG_RETURN` existant.
+* `liblinux` (`src/lib/linux/capture.c`) : déclare les plages des modules à chaque chargement et
+  déchargement (avant les constructeurs) ; l'entrée lit les registres de l'`ucontext`, appelle
+  `linux_syscall`, écrit `rax`.
+* Essai sous QEMU PC : 4 `syscall` directs du module d'essai (getpid, write, clock_gettime, un numéro
+  inconnu 4094) capturés et traduits, 20 contrôles sur 20 ; `ptest` du noyau (signaux, fork, exec) 22/0.
 
 ### 3.3 `cdmhost` et le protocole avec Jet
 
@@ -257,7 +276,7 @@ distribué à d'autres ne l'active jamais d'office.
 |---|---|---|---|
 | 1 | **liblinux + linuxhost** (chargeur, glibc de compatibilité, appels de Linux) | un `.so` de Linux appelé dans Korin | **fait le 19/11** |
 | 2a | Module réel : téléchargement de développement et `linuxhost --check` | la liste de ce qui manque | **fait le 19/11** (§ 2.5) |
-| 2b | Capture générique des `syscall` dans le noyau du PC (§ 3.2) ; `liblinux` s'en sert | un `syscall` direct d'un module d'essai traduit | 1 à 2 jours |
+| 2b | Capture générique des `syscall` dans le noyau du PC (§ 3.2) ; `liblinux` s'en sert | un `syscall` direct d'un module d'essai traduit | **fait le 19/11** (QEMU) |
 | 2c | Les 108 imports, TLS du module (`__tls_get_addr`), `_Unwind_*`, threads ; `/proc/self/maps` et `/proc/net/unix` fabriqués, `rt_sigaction` | dans Korin, la sonde va jusqu'à la requête de licence, comme sous Linux | 3 à 5 jours |
 | 3 | `cdmhost` : `Host_10/11` en C++, essai hors de Jet sur un serveur de licences de test public | une licence de démonstration obtenue, un échantillon déchiffré | 2 à 3 jours |
 | 4 | EME ClearKey dans Jet (WebKit, MSE chiffré, CENC) | un flux ClearKey de démonstration joue | 3 à 5 jours |

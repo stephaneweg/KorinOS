@@ -64,6 +64,12 @@ struct process {
 	uint64_t svc_n;      /* appels système faits (PROC_STATS) */
 	uint64_t svc_tab[128];
 	void *ipc_inherit;
+	/* capture de syscall (SYS_SYSCALL_CAPTURE, core/signal.c) : cap_n plages [lo, hi) */
+	int cap_n;
+	int cap_all;          /* sans table de numéros : tous */
+	uint64_t cap_lo[4], cap_hi[4];
+	uint64_t cap_entry, cap_restorer;
+	uint64_t cap_nums[8]; /* 512 bits : numéros capturés */
 	struct process *next;
 };
 

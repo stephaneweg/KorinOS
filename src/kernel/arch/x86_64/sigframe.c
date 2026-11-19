@@ -162,11 +162,22 @@ int arch_signal_return(void *frame, uint64_t *mask)
 	return 0;
 }
 
+int arch_signal_frame_syscall(void *frame, uint32_t nr)
+{
+	struct regs *r = frame;
+	return copy_to_user(r->rsi + 24, &nr, 4) ? -1 : 0; /* (rsi = siginfo, arch_signal_frame) */
+}
+
 void syscall_entry_c(struct regs *r)
 {
 	struct thread *t = sched_current();
 	t->uregs = r;
 	t->frame_replaced = 0;
+	/* capture de syscall (SYS_SYSCALL_CAPTURE) : rip = après l'instruction syscall (2 octets) */
+	if (signal_capture(r, r->rip - 2, r->rax)) {
+		signal_user_return(r);
+		return;
+	}
 	uint64_t a[6] = {r->rdi, r->rsi, r->rdx, r->r10, r->r8, r->r9};
 	int64_t ret = syscall_dispatch(r->rax, a);
 	if (!t->frame_replaced)
