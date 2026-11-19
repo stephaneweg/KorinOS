@@ -1252,20 +1252,23 @@ static long iview_mouse (long, long kind, long mx, long, long)
 static void install_poll ()
 {
 	if (g_page != P_INSTALL) return;
-	ui_w_set_value (g_iprog, s_ipct); ui_w_draw (g_iprog);
+	// (toutes les 30 ms : seulement ce qui a changé est réécrit et redessiné ; sinon le journal clignote)
+	static long d_pct = -1; static char d_t[220], d_tache[sizeof s_itache], d_j[16 * 162]; static bool d_det;
+	if (s_ipct != d_pct) { d_pct = s_ipct; ui_w_set_value (g_iprog, s_ipct); ui_w_draw (g_iprog); }
 	char t[220];
 	int e = s_istep < 1 ? 1 : s_istep > 5 ? 5 : s_istep;
 	snprintf (t, sizeof t, TR ("%d %% · Étape %d sur 5 · %s"), s_ipct, e, TR (ETAPES[e - 1]));
-	ui_w_set_text (g_ipct, (long) t); ui_w_draw (g_ipct);
-	ui_w_set_text (g_itache, (long) s_itache); ui_w_draw (g_itache);
+	if (strcmp (t, d_t)) { cpy (d_t, t, sizeof d_t); ui_w_set_text (g_ipct, (long) t); ui_w_draw (g_ipct); }
+	if (strcmp (s_itache, d_tache)) { cpy (d_tache, s_itache, sizeof d_tache); ui_w_set_text (g_itache, (long) s_itache); ui_w_draw (g_itache); }
 	if (s_detail)
 	{
 		static char j[16 * 162]; j[0] = 0;
 		pthread_mutex_lock (&s_jm);
 		for (int i = 0; i < s_nj; i++) { strncat (j, s_journal[i], sizeof j - strlen (j) - 2); strcat (j, "\n"); }
 		pthread_mutex_unlock (&s_jm);
-		ui_w_set_text (g_ijournal, (long) j); ui_w_draw (g_ijournal);
+		if (!d_det || strcmp (j, d_j)) { cpy (d_j, j, sizeof d_j); ui_w_set_text (g_ijournal, (long) j); ui_w_draw (g_ijournal); }
 	}
+	d_det = s_detail;
 	if (++s_diapo_t > 650) { s_diapo_t = 0; s_diapo = (s_diapo + 1) % 5; ui_view_dirty (g_iview); }	// (20 s)
 	if (s_ifini) { extern void montre (int); montre (P_DONE); }
 }
