@@ -55,7 +55,7 @@ private:
 	int iboQuads = 0;
 	std::string name;
 	// emplacements des uniformes
-	int uVp, uOrigin, uCam, uFog0, uFog1, uDay, uFogCol, uAlpha, uTex;
+	int uVp, uOrigin, uCam, uFog0, uFog1, uDay, uFogCol, uAlpha, uTex, uWater, uTime, uCell;
 	int sInvVp, sSun, sDay, sZen, sHor;
 	int hProj, hTex;
 	int lVp, lCol;

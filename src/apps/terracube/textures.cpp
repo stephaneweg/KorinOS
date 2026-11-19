@@ -163,8 +163,10 @@ void buildAtlas (uint8_t *px)
 	// eau (transparente)
 	for (int y = 0; y < 16; y++)
 		for (int x = 0; x < 16; x++) {
-			float w = sinf ((x + y * 0.5f) * 0.8f) * 0.5f + 0.5f;
-			put (T_WATER, x, y, mixc (0x2b5fbf, 0x4f86e0, w * 0.6f + rnd (T_WATER, x, y) * 0.2f), 168);
+			// (des ondes de période 16 : la tuile se raccorde à elle-même, l'eau la fait glisser)
+			const float K = 2.0f * (float) M_PI / 16.0f;
+			float w = sinf ((2 * x + y) * K) * 0.35f + sinf ((x - 2 * y) * K + 1.3f) * 0.25f + 0.5f;
+			put (T_WATER, x, y, mixc (0x2b5fbf, 0x5a92e6, w * 0.7f + rnd (T_WATER, x, y) * 0.12f), 168);
 		}
 	noisy (T_SAND, 0xdbcf92, 10);
 	specks (T_SAND, 0xc8b87a, 0.12f, 7);

@@ -170,7 +170,7 @@ essayé sur le ZBook (GPU Intel).
 | `main.cpp` | fenêtre, boucle, entrées, affichage tête haute par UIKit (`ui_surface_overlay`), menus, mondes, jeton du MCP, `--selftest` |
 | `world.h`, `world.cpp` | tronçons, génération (bruit de gradient, biomes, grottes, minerais, arbres), sauvegarde, lancer de rayon |
 | `mesh.cpp` | maillage : faces visibles, occlusion ambiante, lumière du ciel lissée, eau, plantes en croix |
-| `render.h`, `render.cpp` | OpenGL ES 3 : shaders, ciel et soleil, tronçons (tronc de vue), eau, contour visé, barre de blocs |
+| `render.h`, `render.cpp` | OpenGL ES 3 : shaders, ciel et soleil, tronçons (tronc de vue), eau animée (vagues de la surface dans le vertex shader, texture qui glisse et reflets dans le fragment shader), contour visé, barre de blocs |
 | `textures.cpp` | l'atlas de 16 × 16 tuiles, dessiné au départ |
 | `player.h`, `player.cpp` | marche, saut, nage, vol, collisions |
 | `api.cpp` | protocole des scripts et son serveur (un thread par connexion, une file vidée par la boucle) |

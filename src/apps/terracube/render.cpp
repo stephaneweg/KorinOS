@@ -86,6 +86,9 @@ static void viewMatrix (float *m, float yaw, float pitch)
 
 // ---- shaders ------------------------------------------------------------------------------------------------------
 
+// l'eau (u_water = 1) bouge : la surface (les sommets à 14/16 de bloc) ondule en hauteur, la texture glisse et se
+// déforme, des reflets passent. Les ondes ont des périodes qui divisent 2048 blocs : u_cell (la case de l'œil modulo
+// 2048) les garde continues d'un tronçon à l'autre.
 static const char *VS_WORLD = R"(#version 300 es
 layout(location = 0) in vec3 a_pos;
 layout(location = 1) in vec2 a_light;
@@ -94,32 +97,59 @@ uniform mat4 u_vp;
 uniform vec3 u_origin;
 uniform vec3 u_cam;
 uniform float u_fog0, u_fog1, u_day;
+uniform float u_water, u_time;
+uniform vec2 u_cell;
 out vec2 v_uv;
 out float v_light;
 out float v_fog;
+out vec3 v_world;
 void main () {
 	vec3 p = a_pos * (1.0 / 16.0) + u_origin;
+	vec3 w = vec3 (p.x + u_cell.x, p.y, p.z + u_cell.y);
+	if (u_water > 0.5 && abs (mod (a_pos.y, 16.0) - 14.0) < 0.5) {
+		float h = sin (w.x * 0.785398 + u_time * 1.7) * 0.55 + sin ((w.x + w.z) * 0.392699 - u_time * 1.1) * 0.30
+			+ sin (w.z * 1.570796 + u_time * 2.3) * 0.15;
+		p.y += (h - 1.0) * 0.045;
+	}
 	gl_Position = u_vp * vec4 (p - u_cam, 1.0);
 	v_uv = a_uv * (1.0 / 4096.0);
 	v_light = max (a_light.x * (0.24 + 0.76 * u_day), a_light.y);
 	float d = length ((p - u_cam).xz);
 	v_fog = clamp ((d - u_fog0) / (u_fog1 - u_fog0), 0.0, 1.0);
+	v_world = w;
 }
 )";
 
 static const char *FS_WORLD = R"(#version 300 es
-precision mediump float;
+precision highp float;
 uniform sampler2D u_tex;
 uniform vec3 u_fogcol;
 uniform float u_alpha;
+uniform float u_water, u_time, u_day;
 in vec2 v_uv;
 in float v_light;
 in float v_fog;
+in vec3 v_world;
 out vec4 o;
 void main () {
-	vec4 t = texture (u_tex, v_uv);
+	vec4 t;
+	float light = v_light;
+	if (u_water > 0.5) {
+		// la tuile de l'eau, lue à une place qui glisse et ondule
+		vec2 tile = floor (v_uv * 16.0) / 16.0;
+		vec2 q = v_world.xz + vec2 (v_world.y * 0.37, v_world.y * 0.61);
+		vec2 d = vec2 (sin (q.y * 1.7 + u_time * 1.3), cos (q.x * 1.9 + u_time * 1.1)) * 0.07;
+		vec2 l = fract (q + vec2 (u_time * 0.045, u_time * 0.028) + d);
+		t = texture (u_tex, tile + clamp (l, 0.004, 0.996) / 16.0);
+		// des reflets qui passent (plus forts de jour)
+		float sh = sin (v_world.x * 1.3 + u_time * 2.0 + sin (v_world.z * 0.7)) * sin (v_world.z * 1.1 - u_time * 1.6);
+		t.rgb *= 1.0 + 0.10 * sh;
+		t.rgb += vec3 (0.30, 0.34, 0.38) * smoothstep (0.82, 1.0, sh) * (0.3 + 0.7 * u_day);
+		t.a = clamp (t.a + 0.12 * sh, 0.45, 0.9);
+	} else
+		t = texture (u_tex, v_uv);
 	if (u_alpha < 0.5 && t.a < 0.5) discard;
-	o = vec4 (mix (t.rgb * v_light, u_fogcol, v_fog), u_alpha < 0.5 ? 1.0 : t.a * u_alpha);
+	o = vec4 (mix (t.rgb * light, u_fogcol, v_fog), u_alpha < 0.5 ? 1.0 : t.a * u_alpha);
 }
 )";
 
@@ -245,6 +275,9 @@ bool Renderer::init (std::string &err)
 	uFogCol = glGetUniformLocation (progWorld, "u_fogcol");
 	uAlpha = glGetUniformLocation (progWorld, "u_alpha");
 	uTex = glGetUniformLocation (progWorld, "u_tex");
+	uWater = glGetUniformLocation (progWorld, "u_water");
+	uTime = glGetUniformLocation (progWorld, "u_time");
+	uCell = glGetUniformLocation (progWorld, "u_cell");
 	sInvVp = glGetUniformLocation (progSky, "u_invvp");
 	sSun = glGetUniformLocation (progSky, "u_sun");
 	sDay = glGetUniformLocation (progSky, "u_day");
@@ -424,6 +457,12 @@ void Renderer::draw (World &w, const Camera &cam, const Frame &f, const HudState
 	glUniform1f (uFog1, fogEnd);
 	glUniform1f (uDay, f.daylight);
 	glUniform3fv (uFogCol, 1, fog);
+	// (l'heure des vagues : les secondes, ramenées sous une heure pour la précision ; la case de l'œil modulo 2048)
+	struct timespec ts;
+	clock_gettime (CLOCK_MONOTONIC, &ts);
+	glUniform1f (uTime, (float) fmod (ts.tv_sec + ts.tv_nsec / 1e9, 3600.0));
+	glUniform2f (uCell, (float) (bx - floor (bx / 2048.0) * 2048.0), (float) (bz - floor (bz / 2048.0) * 2048.0));
+	glUniform1f (uWater, 0.0f);
 	glBindBuffer (GL_ELEMENT_ARRAY_BUFFER, ibo);
 	glEnableVertexAttribArray (0);
 	glEnableVertexAttribArray (1);
@@ -475,6 +514,7 @@ void Renderer::draw (World &w, const Camera &cam, const Frame &f, const HudState
 	glDepthMask (GL_FALSE);
 	glDisable (GL_CULL_FACE);
 	glUniform1f (uAlpha, 1.0f);
+	glUniform1f (uWater, 1.0f);
 	for (Chunk *c : shown)
 		if (c->water.quads) drawMesh (c, c->water);
 	glDepthMask (GL_TRUE);
