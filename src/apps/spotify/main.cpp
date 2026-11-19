@@ -1,8 +1,8 @@
 //
 // main.cpp -- Spotify dans Korin (docs/etude/MUSIQUE.md §1) : un compte Premium (Famille l'est).
 //
-// Connexion : OAuth de Spotify par oauthd (compte « spotify/moi », fournisseur custom, le client_id d'une app que
-// l'utilisateur crée sur developer.spotify.com, adresse de retour http://127.0.0.1:8898/) ; la page d'accord s'ouvre
+// Connexion : OAuth de Spotify par oauthd (compte « spotify/korin », fournisseur custom, le client_id du client de
+// bureau de Spotify comme librespot, adresse de retour http://127.0.0.1:8898/login) ; la page d'accord s'ouvre
 // dans Jet, oauthd garde et rafraîchit les jetons (dans le coffre). Parcourir : l'API web de Spotify (titres
 // aimés, mes playlists, recherche). Jouer : librespot construit pour Korin (src/lib/korinspot, tools/spotify) avec le
 // jeton ; son PCM va dans un flux AudioKit, dans un fil.
@@ -25,7 +25,8 @@ using media::i64;
 using media::now_ms;
 
 #define TR(s)		((const char *) ui_tr ((long) (s)))
-#define ACCOUNT		"spotify/moi"
+#define ACCOUNT		"spotify/korin"		// (« spotify/moi » : l'ancien compte, au client_id de l'utilisateur, que le lecteur refuse)
+#define CLIENT_ID	"65b708073fc0480ea92a077233ca87bd"	// le client de bureau de Spotify (celui de librespot)
 #define PORT		8898
 #define SCOPES		"streaming user-read-email user-read-private playlist-read-private playlist-read-collaborative user-library-read"
 #define API		"https://api.spotify.com/v1"
@@ -328,15 +329,10 @@ static void login_player ()
 // la première fois : le client_id, puis l'accord dans le navigateur
 static void connect_account ()
 {
-	char cid[128] = "";
-	if (!ui_ask ((long) TR ("Se connecter à Spotify"),
-		     (long) TR ("Le Client ID de votre app Spotify (developer.spotify.com ; adresse de retour : http://127.0.0.1:8898/) :"),
-		     (long) cid, sizeof cid))
-		return;
-	media::tidy (cid);
-	if (!cid[0]) return;
-	std::string cfg = std::string ("provider = custom\nclient_id = ") + cid +
-		"\nauth_url = https://accounts.spotify.com/authorize\ntoken_url = https://accounts.spotify.com/api/token\nscope = " SCOPES "\n";
+	// le client de bureau de Spotify, comme librespot, ncspot et spotify_player : le point d'accès du lecteur refuse
+	// (INVALID_CREDENTIALS) un jeton fait pour un autre client_id, celui d'une app de developer.spotify.com
+	std::string cfg = std::string ("provider = custom\nclient_id = " CLIENT_ID
+		"\nauth_url = https://accounts.spotify.com/authorize\ntoken_url = https://accounts.spotify.com/api/token\nredirect_path = /login\nscope = " SCOPES "\n");
 	if (oauth_setup ((long) ACCOUNT, (long) cfg.c_str ()) != 0) { status (TR ("oauthd refuse le compte.")); return; }
 	static char url[2048];
 	long n = oauth_browser_begin ((long) ACCOUNT, PORT, (long) url, sizeof url - 1);

@@ -136,6 +136,7 @@ struct account {
 	/* la configuration (accounts.ini) */
 	char provider[32], client_id[TEXT], client_secret[TEXT], scope[TEXT];
 	char auth_url[TEXT], token_url[TEXT], device_url[TEXT], auth_params[TEXT], tenant[64];
+	char redirect_path[32];	/* le chemin du retour du navigateur (défaut « / ») : Spotify et librespot, « /login » */
 	/* les jetons */
 	char *refresh;		/* (secrets) */
 	char *access;		/* (en mémoire) */
@@ -971,7 +972,7 @@ static int save_secrets(void)
 /* ---- la configuration (accounts.ini) */
 
 static const char *const KEYS[] = {"provider", "client_id", "client_secret", "scope", "auth_url",
-				   "token_url", "device_url", "auth_params", "tenant", 0};
+				   "token_url", "device_url", "auth_params", "tenant", "redirect_path", 0};
 
 static char *field(struct account *a, const char *k, size_t *n)
 {
@@ -980,7 +981,7 @@ static char *field(struct account *a, const char *k, size_t *n)
 		*n = sizeof a->name;                                                                                   \
 		return a->name;                                                                                        \
 	}
-	F(provider) F(client_id) F(client_secret) F(scope) F(auth_url) F(token_url) F(device_url) F(auth_params) F(tenant)
+	F(provider) F(client_id) F(client_secret) F(scope) F(auth_url) F(token_url) F(device_url) F(auth_params) F(tenant) F(redirect_path)
 #undef F
 	return 0;
 }
@@ -1434,7 +1435,8 @@ static long op_browser_begin(struct account *a, long port, struct buf *out)
 	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
 	a->listen_fd = fd;
 	a->browser_until = time(0) + 600;
-	snprintf(a->redirect, sizeof a->redirect, "http://127.0.0.1:%d/", p);
+	const char *rp = cfg(a)->redirect_path[0] == '/' ? cfg(a)->redirect_path : "/";
+	snprintf(a->redirect, sizeof a->redirect, "http://127.0.0.1:%d%s", p, rp);
 	u8 rnd[48];
 	RAND_bytes(rnd, sizeof rnd);
 	b64url(rnd, 48, a->verifier); /* (64 caractères) */

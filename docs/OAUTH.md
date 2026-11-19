@@ -64,6 +64,7 @@ tous les registres) et elles **attendent le réseau** (jusqu'à 20 s) : dans une
 | `tenant` | Microsoft : `common` (défaut), `consumers`, `organizations` ou l'identifiant d'une organisation |
 | `auth_url`, `token_url`, `device_url` | les adresses, pour `custom` (ou pour remplacer celles d'un fournisseur connu) |
 | `auth_params` | paramètres de plus pour l'adresse d'accord ; Google : `access_type=offline&prompt=consent` par défaut, sans quoi il ne rend pas de jeton de rafraîchissement |
+| `redirect_path` | le chemin de l'adresse de retour du navigateur, `http://127.0.0.1:<port><chemin>` ; `/` par défaut (Spotify, avec le client de bureau comme librespot : `/login`) |
 
 Changer `client_id` ou l'adresse des jetons oublie les jetons du compte.
 

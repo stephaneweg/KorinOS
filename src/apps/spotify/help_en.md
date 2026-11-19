@@ -5,13 +5,11 @@ free client of Spotify's protocol. A **Premium** account is needed (a Family acc
 
 ## Connecting (once)
 
-Spotify asks every program to have its own identifier. Yours, free:
+1. **File > Connect to Spotify…**
+2. Jet opens Spotify's page: sign in and accept. The connection finishes by itself in the app.
 
-1. On [developer.spotify.com](https://developer.spotify.com/dashboard), sign in, **Create app**.
-2. In **Redirect URIs**, add exactly `http://127.0.0.1:8898/`; tick **Web API** and **Web Playback SDK**; save.
-3. Copy the app's **Client ID**.
-4. In Spotify (Korin): **File > Connect to Spotify…**, paste the Client ID, **OK**.
-5. Jet opens Spotify's page: accept. The connection finishes by itself in the app.
+No app to create on developer.spotify.com: like librespot, Korin presents itself with the identifier of Spotify's
+desktop client, the only one the player accepts.
 
 Korin keeps the connection (the oauthd service, in the secrets vault): next time, nothing to do again. **File >
 Disconnect** forgets it.
