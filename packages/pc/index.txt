@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-19 22:18
+date = 2026-11-19 22:36
 abi = 626
 packages = 115
 board = pc
@@ -81,6 +81,36 @@ required = 0
 restart = 0
 content = 6323dec095198f6fcdfe6ccaefdf3869d1ebb7d001f4a2a8e871aed0e0d56207
 arch = any
+
+[terracube]
+title = TerraCube
+version = 1.3.0
+category = Jeux
+author = Korin OS
+summary = Bac à sable de blocs en 3D par le GPU, modes créatif et survie, fabrication sur une grille, eau et lave qui coulent, circuits de cuivre et pistons, musique générative, pilotable par Python, BASIC ou un agent IA (MCP)
+size = 731712
+installed = 1639979
+sha256 = 9fbff12b22a00028ea3cadf35f97bbacc38f2d407cea7a9e44ed76ada8df9772
+file = pkgs/terracube-1.3.0.opk
+needs = abi >= 626
+required = 0
+restart = 0
+content = 8a834697e1e4ca2e9e8a450abd47de56d3348bf099bd28de136315ee6ec371ca
+
+[relics]
+title = Relics
+version = 1.1.1
+category = Jeux
+author = Korin OS
+summary = Plates-formes et exploration : vingt et un niveaux de pièges et de trésors dans sept mondes
+size = 2736337
+installed = 6459016
+sha256 = 11145d79c5ee8550fde5a5dabf58bbb75a8e07fc2b72e611ece06822aca0b454
+file = pkgs/relics-1.1.1.opk
+needs = abi >= 626
+required = 0
+restart = 0
+content = 4522346a36ccff40c57df6a54761bb4ba56ea2d0d18b2988bb9d6ac363c18ac3
 
 [pkgman]
 title = Logiciels
@@ -469,18 +499,18 @@ content = 4a62f5b65e76b629ed9b38197e4b13cefd661b379360c0c35ad7d50d0e65c422
 
 [vibe]
 title = Mistral Vibe
-version = 1.0.5
+version = 1.0.6
 category = Développement
 author = Korin OS
 summary = L'agent de code de Mistral : l'app Vibe, le client terminal agent, vibe-acp, et ses compétences de Korin (apps en C, C#, FreeBASIC, diagnostic)
-size = 534772
+size = 534880
 installed = 1163704
-sha256 = f62bdff0b40e2aaad63ff34306cab0258d3811960aa4cc4147de4f75b5671106
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vibe-1.0.5.opk
+sha256 = 08f1f713afdd5275aa3ab2732712a0d9ab8846ea95d4c390e96ae70b8ecdd9ec
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vibe-1.0.6.opk
 needs = python, bash, git, rg, vibe-data-1, vibe-data-2, abi >= 626
 required = 0
 restart = 0
-content = b03a8ab673e6f619045afbd4c617cd0e4179c1db2b43c2799743bf7312a974d4
+content = f7a9f9e3874ff1a3b04037b557e54fd27865ca693d11d8b509a6885ca0759b73
 
 [bash]
 title = GNU bash
@@ -1579,18 +1609,18 @@ content = bcc565a5cb90bc0a6168ccb2abf71fd8086c6e49a0b226a39dbe0bd687842b5f
 
 [spotify]
 title = Spotify
-version = 1.0.6
+version = 1.0.7
 category = Multimédia
 author = Korin OS
 summary = Spotify (compte Premium) : titres aimés, playlists, recherche, joués par librespot
-size = 4246147
-installed = 10084607
-sha256 = 5f85a511a4a36532a292aac451090d2bbf6f17ba4e4548ee2e6d0a93ed7c9608
-file = pkgs/spotify-1.0.6.opk
+size = 4378906
+installed = 10242687
+sha256 = 36197e46c22a14c835d5097f255c757671e05c5265ae9b0fcc325b3bed72809e
+file = pkgs/spotify-1.0.7.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 90d776f2022bbbe12f33207c7170f10a1cfa6365b98b53e31e30e86fad6c893e
+content = 6bb5ce7c0b21da832755ce011d0ebab66186608ed1d690d26ede582ff8444f66
 
 [studio]
 title = Studio
@@ -1711,33 +1741,3 @@ needs = abi >= 626
 required = 0
 restart = 0
 content = 65b7348a488c5b8ec86aed20cb76355a92b2db56c7e8ac616ec39b32268ad863
-
-[terracube]
-title = TerraCube
-version = 1.3.0
-category = Jeux
-author = Korin OS
-summary = Bac à sable de blocs en 3D par le GPU, modes créatif et survie, fabrication sur une grille, eau et lave qui coulent, circuits de cuivre et pistons, musique générative, pilotable par Python, BASIC ou un agent IA (MCP)
-size = 731712
-installed = 1639979
-sha256 = 9fbff12b22a00028ea3cadf35f97bbacc38f2d407cea7a9e44ed76ada8df9772
-file = pkgs/terracube-1.3.0.opk
-needs = abi >= 626
-required = 0
-restart = 0
-content = 8a834697e1e4ca2e9e8a450abd47de56d3348bf099bd28de136315ee6ec371ca
-
-[relics]
-title = Relics
-version = 1.1.1
-category = Jeux
-author = Korin OS
-summary = Plates-formes et exploration : vingt et un niveaux de pièges et de trésors dans sept mondes
-size = 2736337
-installed = 6459016
-sha256 = 11145d79c5ee8550fde5a5dabf58bbb75a8e07fc2b72e611ece06822aca0b454
-file = pkgs/relics-1.1.1.opk
-needs = abi >= 626
-required = 0
-restart = 0
-content = 4522346a36ccff40c57df6a54761bb4ba56ea2d0d18b2988bb9d6ac363c18ac3
