@@ -40,3 +40,8 @@ gauche et la barre de chemin suivent la vue active ; le bouton revient à une se
 **Au plan le 18/11 — Réglages, tous les volets en modules** : chaque volet devient un `/sys/applets/<nom>.so` comme
 Serveur web, SMB et Logiciels, livré par le paquet de son domaine ; Réglages n'est plus qu'un hôte. Ordre et
 catégories par le contrat de control.h ; Réglages en hôte sur le Pi aussi. Détail : src/apps/control/README.md.
+
+**Bug ouvert (19/11) : Wi-Fi et pavé tactile (ZBook)** : dans l'installateur, « Se connecter » cliqué au pavé tactile
+échoue (« Mot de passe refusé ») ; Tab puis Espace, ou Entrée, connecte. Même code des deux côtés : c'est l'activité du
+pavé (i2chid, IRQ IOAPIC, attente active de dw.c) pendant la connexion d'iwl (MSI, service(10), EAPOL en 6 s).
+Cause pas trouvée en lisant le code ; il faut les lignes `iwl :` du journal d'un échec. Mis de côté par l'utilisateur.
