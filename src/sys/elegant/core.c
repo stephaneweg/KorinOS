@@ -127,7 +127,8 @@ void dirty_window(struct win *w)
 
 /* fenêtre -> couche : 0 fond, 1 normale, 2 dessus, 3 plein écran (WF_TOP sans cadre, en 0,0, de
  * la taille de l'écran : un jeu, un émulateur ; au-dessus du panel, de la barre de menus et de
- * leurs bulles) */
+ * leurs bulles), 4 les menus (ui_popup : WF_TOP | WF_GRAB | WF_NOFOCUS), au-dessus de tout, plein
+ * écran compris : la liste d'une liste déroulante de l'installateur, qui couvre l'écran) */
 long win_layer(const struct win *w)
 {
 	u64 f = w->flags;
@@ -137,6 +138,8 @@ long win_layer(const struct win *w)
 		return 0;
 	if (!(f & WF_TOP))
 		return 1;
+	if ((f & (WF_GRAB | WF_NOFOCUS)) == (WF_GRAB | WF_NOFOCUS))
+		return 4;
 	if ((f & WF_FRAMELESS) && !(w->x | w->y) && (u64)w->w >= (u64)scr_w && (u64)w->h >= (u64)scr_h)
 		return 3;
 	return 2;

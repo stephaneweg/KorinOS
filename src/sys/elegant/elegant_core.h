@@ -26,7 +26,7 @@ long read_key(const char *file, const char *key); /* -> 1 si trouvée (valeur da
 
 /* ---- core.c (core.inc) */
 
-#define WIN_LAYERS 4
+#define WIN_LAYERS 5
 void dirty(long x, long y, long w, long h);
 void dirty_all(void);
 void win_outer(const struct win *w, long *x, long *y, long *wd, long *ht); /* rectangle extérieur */
