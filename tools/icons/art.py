@@ -170,6 +170,21 @@ def claude(ic):
     ic.fill(s, Grad(0xFFE9A8, 0xF6B73C, 100))
 
 
+@icon('mai', 0x2E86D6, 0x103E78)
+def mai(ic):
+    # l'agent de code MAI : la bulle de conversation de Claude, des chevrons de code dedans, une etincelle cyan
+    p = ic.rr(14, 20, 66, 48, 12)
+    tail = ic.poly([(26, 64), (24, 82), (42, 66)])
+    ic.raised(add(p, tail), WHITE)
+    c = Grad(0x2F8FE8, 0x1655A8, 100)
+    ic.fill(ic.line([(36, 32), (26, 44), (36, 56)], 6), c)
+    ic.fill(ic.line([(56, 32), (66, 44), (56, 56)], 6), c)
+    ic.fill(ic.line([(49, 30), (43, 58)], 5), c)
+    s = ic.star(76, 22, 12, 4.2, 4, -90)
+    ic.shadow(s, op=.35)
+    ic.fill(s, Grad(0xC8F6FF, 0x3CC8F0, 100))
+
+
 @icon('taskman', 0x25B089, 0x0B6657)
 def taskman(ic):
     f = screen(ic, 14, 21, 72, 58, tone(0x123B3A, .08, .1), Grad(0x0D2B2C, 0x0A2022, 90), 7, 2)

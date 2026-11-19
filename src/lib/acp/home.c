@@ -2,9 +2,10 @@
  * home.c -- le dossier de l'agent pour le compte en cours (acp.h, acp_home).
  *
  * Vibe garde ses comptes, ses séances et ses journaux dans $VIBE_HOME (défaut ~/.vibe), claude-acp dans
- * $CLAUDE_ACP_HOME (défaut ~/.claude-acp) : un dossier par compte, /home/<nom>/.vibe (docs/etude/MULTI-UTILISATEUR.md).
- * Les paquets vibe, claude et forge posent dans /.vibe et /.claude-acp ce que l'agent sait de Korin : AGENTS.md et
- * skills/. Quand le dossier du compte n'est pas celui-là :
+ * $CLAUDE_ACP_HOME (défaut ~/.claude-acp), mai-acp dans $MAI_ACP_HOME (défaut ~/.mai-acp) : un dossier par compte,
+ * /home/<nom>/.vibe (docs/etude/MULTI-UTILISATEUR.md). Les paquets vibe, claude, mai et forge posent dans /.vibe,
+ * /.claude-acp et /.mai-acp ce que l'agent sait de Korin : AGENTS.md et skills/. Quand le dossier du compte n'est pas
+ * celui-là :
  *   - chaque compétence de skills/ y est recopiée quand elle manque ou que celle du paquet est plus récente
  *     (SKILL.md fait foi) ; AGENTS.md seulement s'il manque (il est à l'utilisateur une fois posé) ;
  *   - ce qu'un compte avait laissé dans /.vibe avant les comptes (.env et la clé, config.toml, séances, journaux,
@@ -136,12 +137,16 @@ static void move_user_data (const char *sys, const char *home)
 	closedir (d);
 }
 
-int acp_home (int claude, char *out, unsigned long cap)
+int acp_home (int profile, char *out, unsigned long cap)
 {
-	const char *name = claude ? "/.claude-acp" : "/.vibe";
+	static const char *const NAME[] = { "/.vibe", "/.claude-acp", "/.mai-acp" };
+	static const char *const VAR[] = { "VIBE_HOME", "CLAUDE_ACP_HOME", "MAI_ACP_HOME" };
+	if (profile < 0 || profile > ACP_PROFILE_MAI)
+		profile = ACP_PROFILE_VIBE;
+	const char *name = NAME[profile];
 	char sys[300];
 	snprintf (sys, sizeof sys, "%s%s", ACP_SYS_ROOT, name);
-	const char *v = getenv (claude ? "CLAUDE_ACP_HOME" : "VIBE_HOME"), *h = getenv ("HOME");
+	const char *v = getenv (VAR[profile]), *h = getenv ("HOME");
 	if (v && *v)
 		snprintf (out, cap, "%s", v);
 	else

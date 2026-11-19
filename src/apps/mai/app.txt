@@ -1,0 +1,9 @@
+# Manifeste de MAI, la façade de mai-acp (docs/MAI-ACP.md) ; le source est celui de Vibe (src/apps/vibe)
+name        = MAI
+category    = Développement
+description = MAI, l'agent de code sur les modèles de Microsoft (MAI-Code) par votre déploiement Microsoft Foundry : il lit, modifie et crée des fichiers, construit et essaie vos apps et le système, en demandant votre accord.
+keywords    = mai microsoft foundry azure agent code programmation développement ia assistant fichiers git
+help        = La première fois, MAI demande le point d'accès et la clé de votre déploiement Microsoft Foundry (ai.azure.com) : l'usage est payé par ce compte. Menu MAI > Clé d'API... pour les changer.
+help        = Entrée envoie la demande ; Échap interrompt MAI ; Maj+Tab change le mode (ask demande votre accord avant chaque modification et chaque commande).
+help        = /cost donne les jetons et le coût estimé de la séance ; Menu MAI > Modèle de la séance... change de modèle (MAI-Code-1.1-Flash par défaut, retiré par Microsoft le 9 décembre 2026 ; MAI Code 2 Flash ensuite).
+help        = Menu MAI > Dossier de travail... : le dossier où MAI travaille ; Reprendre la dernière séance (ou /continue) reprend la conversation.

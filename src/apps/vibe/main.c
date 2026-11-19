@@ -13,6 +13,9 @@
  * l'assistant de comptes (la clé dans .env ; le dialogue s'ouvre aussi quand claude-acp dit qu'elle manque ou qu'elle
  * est refusée), pas de connexion par navigateur ni de choix du modèle à chaque séance (Modèle de la séance... le
  * change), /cost dans l'aide.
+ * Et l'app MAI (src/apps/mai, KORIN_MAI défini) : la façade de mai-acp, l'agent sur les modèles MAI de Microsoft par
+ * une API compatible OpenAI (docs/MAI-ACP.md) ; comme Claude, avec $MAI_ACP_HOME (~/.mai-acp) et un dialogue « Point
+ * d'accès et clé » (le déploiement de Microsoft Foundry : MAI_BASE_URL, MAI_API_KEY).
  *   (--account : l'assistant « Ajouter un compte » d'abord ; --debug : Vibe journalise tout, LOG_LEVEL=DEBUG et les
  *   messages ACP dans ~/.vibe/logs/acp)
  *
@@ -63,16 +66,52 @@
 
 #define TR(s)	((const char *) ui_tr ((long) (s)))
 
-/* le profil : Vibe, ou Claude (src/apps/claude) ; VC : la chaîne de l'un ou de l'autre (les traductions de Vibe
-   restent celles de ses chaînes) */
-#ifdef KORIN_CLAUDE
+/* le profil : Vibe, Claude (src/apps/claude) ou MAI (src/apps/mai) ; VC : la chaîne de Vibe ou celle de Claude (les
+   traductions de Vibe restent celles de ses chaînes). IS_CLAUDE : un agent par clé d'API (Claude ou MAI) ; MAI
+   prend les chaînes de Claude, où « Claude » devient « MAI » et « claude-acp » « mai-acp » (après la traduction) */
+#if defined (KORIN_MAI)
 #define IS_CLAUDE	1
+#define IS_MAI		1
+#define AGENT_NAME	"MAI"
+#define AGENT_CMD	"mai-acp"
+#define AGENT_PROFILE	ACP_PROFILE_MAI
+#define AGENT_HOME_ENV	"MAI_ACP_HOME"
+#define VC(v, c)	mai_str (TR (c))
+#elif defined (KORIN_CLAUDE)
+#define IS_CLAUDE	1
+#define IS_MAI		0
 #define AGENT_NAME	"Claude"
+#define AGENT_CMD	"claude-acp"
+#define AGENT_PROFILE	ACP_PROFILE_CLAUDE
+#define AGENT_HOME_ENV	"CLAUDE_ACP_HOME"
 #define VC(v, c)	TR (c)
 #else
 #define IS_CLAUDE	0
+#define IS_MAI		0
 #define AGENT_NAME	"Vibe"
+#define AGENT_CMD	"vibe-acp"
+#define AGENT_PROFILE	ACP_PROFILE_VIBE
+#define AGENT_HOME_ENV	"VIBE_HOME"
 #define VC(v, c)	TR (v)
+#endif
+
+#if IS_MAI
+/* une chaîne de Claude pour MAI (quatre tampons tournants : plusieurs dans un même appel) */
+static const char *mai_str (const char *s)
+{
+	static char buf[4][1200];
+	static int k;
+	char *o = buf[k = (k + 1) % 4];
+	size_t n = 0;
+	while (*s && n + 8 < sizeof buf[0])
+	{
+		if (!strncmp (s, "claude-acp", 10)) { memcpy (o + n, "mai-acp", 7); n += 7; s += 10; }
+		else if (!strncmp (s, "Claude", 6)) { memcpy (o + n, "MAI", 3); n += 3; s += 6; }
+		else o[n++] = *s++;
+	}
+	o[n] = 0;
+	return o;
+}
 #endif
 
 enum { M_NEW = 1, M_LAST, M_FOLDER, M_LEFT, M_RIGHT, M_QUIT, M_ASK = 11, M_EDITS, M_AUTO, M_ACCOUNT = 21, M_MODEL, M_RESTART };
@@ -493,7 +532,7 @@ static long chat_wheel (long v, long n) { (void) v; scroll_by ((int) -n * 48); r
 static int skip_name (const char *n)
 {
 	return n[0] == '.' && (!n[1] || !strcmp (n, "..") || !strcmp (n, ".git") || !strcmp (n, ".vibe")
-		|| !strcmp (n, ".claude-acp"));
+		|| !strcmp (n, ".claude-acp") || !strcmp (n, ".mai-acp"));
 }
 
 static int cmp_names (const void *a, const void *b) { return strcmp (*(char *const *) a, *(char *const *) b); }
@@ -1331,7 +1370,7 @@ static void ev_error (void *ud, const char *msg)
 {
 	(void) ud;
 	last_text = NULL;
-	if (IS_CLAUDE && strstr (msg, "(-32002)")) g_need_key = 1;	/* claude-acp : pas de clé, ou refusée */
+	if (IS_CLAUDE && strstr (msg, "(-32002)")) g_need_key = 1;	/* claude-acp, mai-acp : pas de clé, ou refusée */
 	add (I_ERROR, msg);
 	relayout ();
 	repaint ();
@@ -1632,9 +1671,41 @@ static void account_wizard (void)
 }
 
 /* le modèle de la séance : un dialogue avec la liste des modèles de la séance */
-/* (Claude) la clé d'API : $CLAUDE_ACP_HOME/.env, ANTHROPIC_API_KEY=... (les autres lignes gardées), lisible du seul
-   propriétaire ; claude-acp ne lit .env qu'au démarrage : relancé ensuite */
-static const char *key_write (const char *key)
+/* (Claude, MAI) la clé d'API : $CLAUDE_ACP_HOME/.env, ANTHROPIC_API_KEY=... (les autres lignes gardées), lisible du
+   seul propriétaire ; MAI : MAI_API_KEY=... et le point d'accès, MAI_BASE_URL=... (url non nulle) ; l'agent ne lit
+   .env qu'au démarrage : relancé ensuite */
+#if IS_MAI
+#define KEY_VAR	"MAI_API_KEY"
+#define URL_VAR	"MAI_BASE_URL"
+#else
+#define KEY_VAR	"ANTHROPIC_API_KEY"
+#define URL_VAR	"ANTHROPIC_BASE_URL"
+#endif
+
+static int line_is (const char *line, const char *var)
+{
+	size_t n = strlen (var);
+	return !strncmp (line, var, n) && line[n] == '=';
+}
+
+/* (MAI) le point d'accès rangé dans .env, pour le montrer dans le dialogue */
+static void env_value (const char *var, char *out, size_t cap)
+{
+	char p[700], line[1024];
+	*out = 0;
+	snprintf (p, sizeof p, "%s/.env", g_vhome);
+	FILE *f = fopen (p, "r");
+	if (!f) return;
+	while (fgets (line, sizeof line, f))
+		if (line_is (line, var))
+		{
+			snprintf (out, cap, "%s", line + strlen (var) + 1);
+			out[strcspn (out, "\r\n")] = 0;
+		}
+	fclose (f);
+}
+
+static const char *key_write (const char *key, const char *url)
 {
 	char p[700], tmp[720];
 	snprintf (p, sizeof p, "%s/.env", g_vhome);
@@ -1645,13 +1716,23 @@ static const char *key_write (const char *key)
 	if (f)
 	{
 		char line[1024];
-		while (fgets (line, sizeof line, f)) if (strncmp (line, "ANTHROPIC_API_KEY=", 18)) jb_puts (&b, line);
+		while (fgets (line, sizeof line, f))
+			if (!(key && line_is (line, KEY_VAR)) && !(url && line_is (line, URL_VAR))) jb_puts (&b, line);
 		fclose (f);
 	}
 	if (b.n && b.p[b.n - 1] != '\n') jb_putc (&b, '\n');
-	jb_puts (&b, "ANTHROPIC_API_KEY=");
-	jb_puts (&b, key);
-	jb_putc (&b, '\n');
+	if (url)
+	{
+		jb_puts (&b, URL_VAR "=");
+		jb_puts (&b, url);
+		jb_putc (&b, '\n');
+	}
+	if (key)		/* (MAI : pas de clé, celle qui est rangée reste) */
+	{
+		jb_puts (&b, KEY_VAR "=");
+		jb_puts (&b, key);
+		jb_putc (&b, '\n');
+	}
 	mkdir (g_vhome, 0700);
 	int fd = open (tmp, O_WRONLY | O_CREAT | O_TRUNC, 0600);
 	int ok = fd >= 0 && write (fd, b.p, b.n) == (ssize_t) b.n;
@@ -1743,8 +1824,21 @@ static long g_key_jet;
 static long key_fn (long d, long w, long code)
 {
 	(void) d;
-	if (w == g_key_jet && code == UN_ACTIVATE) open_in_jet ("https://console.anthropic.com/settings/keys");
+	if (w == g_key_jet && code == UN_ACTIVATE)
+		open_in_jet (IS_MAI ? "https://ai.azure.com" : "https://console.anthropic.com/settings/keys");
 	return 0;
+}
+
+/* un champ du dialogue, sans les espaces autour */
+static void field_text (long w, char *out, size_t cap)
+{
+	const char *t = (const char *) ui_w_get_text (w);
+	snprintf (out, cap, "%s", t ? t : "");
+	char *a = out;
+	while (*a == ' ') a++;
+	size_t n = strlen (a);
+	while (n && (a[n - 1] == ' ' || a[n - 1] == '\n' || a[n - 1] == '\r')) a[--n] = 0;
+	memmove (out, a, n + 1);
 }
 
 static void restart_agent (void);
@@ -1754,17 +1848,33 @@ static void key_dialog (void)
 	if (acp_state (A) == ACP_TURN) return;
 	int W = g_ww - 40 < 560 ? g_ww - 40 : 560;
 	if (W < 340) W = 340;
-	int H = 44 + 72 + CTL + 16 + 44;
-	long d = ui_dialog_begin (W, H, (long) TR ("Clé d'API de Claude"));
+	/* (MAI : le point d'accès du déploiement de Microsoft Foundry au-dessus de la clé) */
+	int UH = IS_MAI ? CTL + 10 : 0;
+	int H = 44 + 72 + UH + CTL + 16 + 44;
+	const char *title = IS_MAI ? TR ("Point d'accès et clé de MAI") : TR ("Clé d'API de Claude");
+	long d = ui_dialog_begin (W, H, (long) title);
 	if (!d) return;
-	char note[400];
-	snprintf (note, sizeof note, TR ("Claude passe par l'API d'Anthropic, payée à l'usage. Créez une clé dans la console "
-		"(Settings > API keys), puis collez-la ici. Elle est rangée dans le coffre à secrets de Korin."), g_vhome);
-	ui_label (16, 44, W - 32, 64, (long) note, ULB_DIM | ULB_WRAP);
+	ui_label (16, 44, W - 32, 64, (long) (IS_MAI
+		? TR ("MAI passe par Microsoft Foundry, payé à l'usage. Déployez le modèle (MAI-Code-1.1-Flash) dans ai.azure.com, "
+			"puis collez ici le point d'accès du déploiement (https://<ressource>.services.ai.azure.com) et sa clé. "
+			"La clé est rangée dans le coffre à secrets de Korin.")
+		: TR ("Claude passe par l'API d'Anthropic, payée à l'usage. Créez une clé dans la console "
+			"(Settings > API keys), puis collez-la ici. Elle est rangée dans le coffre à secrets de Korin.")),
+		ULB_DIM | ULB_WRAP);
 	int JW = 170, y = 44 + 72;
+	long url = 0;
+	if (IS_MAI)
+	{
+		char cur[400];
+		env_value (URL_VAR, cur, sizeof cur);
+		url = ui_textbox (16, y, W - 32, CTL, 0);
+		ui_textbox_hint (url, (long) "https://<ressource>.services.ai.azure.com");
+		if (*cur) ui_w_set_text (url, (long) cur);
+		y += UH;
+	}
 	long key = ui_textbox (16, y, W - 32 - JW - 8, CTL, UTF_PASSWORD);
-	ui_textbox_hint (key, (long) "sk-ant-...");
-	g_key_jet = ui_pushbutton (W - 16 - JW, y, JW, CTL, (long) TR ("Console (Jet)"), 0);
+	ui_textbox_hint (key, (long) (IS_MAI ? TR ("la clé (vide : garder celle qui est rangée)") : "sk-ant-..."));
+	g_key_jet = ui_pushbutton (W - 16 - JW, y, JW, CTL, (long) (IS_MAI ? TR ("Foundry (Jet)") : TR ("Console (Jet)")), 0);
 	long e = W - 12;
 	e = ui_dialog_button (d, 1, (long) TR ("Annuler"), 0, 0, e);
 	ui_dialog_button (d, 0, (long) TR ("Enregistrer"), 1, UB_DEFAULT, e);
@@ -1774,18 +1884,18 @@ static void key_dialog (void)
 	{
 		r = (int) ui_dialog_run (d, (long) key_fn, 0);
 		if (r != 1) break;
-		const char *t = (const char *) ui_w_get_text (key);
-		char k[300];
-		snprintf (k, sizeof k, "%s", t ? t : "");
-		char *a = k;
-		while (*a == ' ') a++;
-		size_t n = strlen (a);
-		while (n && (a[n - 1] == ' ' || a[n - 1] == '\n' || a[n - 1] == '\r')) a[--n] = 0;
-		const char *err = !*a ? TR ("Collez d'abord la clé d'API.")
-			: strchr (a, ' ') || strchr (a, '=') ? TR ("Ce n'est pas une clé d'API (pas d'espace ni de « = »).")
-			: key_write (a);
+		char k[300], u[400];
+		field_text (key, k, sizeof k);
+		*u = 0;
+		if (url) field_text (url, u, sizeof u);
+		const char *err = IS_MAI && !*u ? TR ("Collez d'abord le point d'accès du déploiement.")
+			: IS_MAI && (strchr (u, ' ') || strncmp (u, "https://", 8)) ? TR ("Le point d'accès commence par https:// (sans espace).")
+			: !*k && !IS_MAI ? TR ("Collez d'abord la clé d'API.")
+			: strchr (k, ' ') || strchr (k, '=') ? TR ("Ce n'est pas une clé d'API (pas d'espace ni de « = »).")
+			: key_write (*k ? k : NULL, IS_MAI ? u : NULL);
+		memset (k, 0, sizeof k);
 		if (!err) break;
-		ui_message ((long) TR ("Clé d'API de Claude"), (long) err, 0);
+		ui_message ((long) title, (long) err, 0);
 	}
 	ui_dialog_end (d);
 	ui_w_draw (0);
@@ -1996,9 +2106,9 @@ int main (int argc, char **argv)
 	acp_options o = { 0 };
 	o.mode = "ask";
 	o.sign_in = !IS_CLAUDE;
-	o.client = IS_CLAUDE ? "korin-claude" : "korin-vibe";
+	o.client = IS_MAI ? "korin-mai" : IS_CLAUDE ? "korin-claude" : "korin-vibe";
 	o.log = "/tmp/vibe-app.log";
-	char *agent_argv[16] = { IS_CLAUDE ? "claude-acp" : "vibe-acp", NULL };
+	char *agent_argv[16] = { AGENT_CMD, NULL };
 	int debug = 0;
 	for (int i = 1; i < argc; i++)
 	{
@@ -2017,8 +2127,8 @@ int main (int argc, char **argv)
 	/* $VIBE_HOME (celui que vibe-acp et vibe-account prendront : le même environnement) et les journaux */
 	/* (Claude : $CLAUDE_ACP_HOME, celui de claude-acp, et logs/agent.log comme le client terminal) ; celui du compte,
 	   ~/.vibe, avec les compétences des paquets (/.vibe) et ce qui y était avant les comptes (libacp, home.c) */
-	acp_home (IS_CLAUDE, g_vhome, sizeof g_vhome);
-	setenv (IS_CLAUDE ? "CLAUDE_ACP_HOME" : "VIBE_HOME", g_vhome, 1);
+	acp_home (AGENT_PROFILE, g_vhome, sizeof g_vhome);
+	setenv (AGENT_HOME_ENV, g_vhome, 1);
 	snprintf (CFG, sizeof CFG, "%s/korin-app.txt", g_vhome);
 	if (!*g_cwd) load_cwd ();
 	o.cwd = g_cwd;

@@ -26,6 +26,7 @@ if [ -x "$P/bin/python3" ]; then
 	[ -d "$P/python/lib/python3.14/site-packages/pip" ] || echo "sysroot_python : site-packages vide (ARCH=x86_64 sh tools/python/site-packages.sh)"
 	[ -f "$P/bin/vibe-acp" ] || echo "sysroot_python : pas de Vibe dans site-packages (site-packages.sh sans NO_RUST)"
 	[ -f "$P/bin/claude-acp" ] || echo "sysroot_python : pas de claude-acp (ARCH=x86_64 bash tools/claude/build.sh)"
+	[ -f "$P/bin/mai-acp" ] || echo "sysroot_python : pas de mai-acp (ARCH=x86_64 bash tools/oai/build.sh)"
 else
 	echo "sysroot_python : pas de Python (ARCH=x86_64 sh tools/python/build.sh)"
 fi
@@ -50,6 +51,15 @@ if [ -f "$C/main" ]; then
 else
 	echo "sysroot_python : pas de claude.app (sh tools/pc/apps.sh claude)"
 fi
+# l'app MAI (sh tools/pc/apps.sh mai : le source de Vibe, profil MAI), avec son icône
+C=build/pc/apps/sdroot/apps/mai.app
+if [ -f "$C/main" ]; then
+	mkdir -p "$OUT/apps/mai.app"
+	cp -r "$C"/. "$OUT/apps/mai.app/"
+	cp tools/icons/rendered/mai.rgba "$OUT/apps/mai.app/icon.rgba"
+else
+	echo "sysroot_python : pas de mai.app (sh tools/pc/apps.sh mai)"
+fi
 python3 -I tools/vibe/home.py "$OUT"
 if [ -n "$TESTS" ] && [ -d build/pc/python/tests ]; then
 	L=$OUT/python/lib/python3.14
@@ -61,7 +71,8 @@ if [ -n "$TESTS" ] && [ -d build/pc/python/tests ]; then
 	rm -rf "$OUT/home/pytest/panic"
 	[ ! -d build/pc/python/tests/rust-ext ] || cp -r build/pc/python/tests/rust-ext "$OUT/home/pytest/"
 	cp tools/vibe/acp_client.py tools/vibe/mcp_test_server.py tools/vibe/fakellm.py tools/vibe/accounttest.py tools/agent/ptytest.py \
-		tools/agent/skilltest.py tools/claude/acptest.py tools/claude/fakeapi.py "$OUT/home/pytest/"
+		tools/agent/skilltest.py tools/claude/acptest.py tools/claude/fakeapi.py tools/oai/oaitest.py tools/oai/fakeoai.py \
+		"$OUT/home/pytest/"
 fi
 n=$(du -sk "$OUT" | cut -f1)
 echo "sysroot_python : $OUT, $(( (n - n0) / 1024 )) Mo de plus"

@@ -1,12 +1,14 @@
 /*
  * agent -- le client terminal de Vibe pour Korin (docs/PYTHON.md §5.3, docs/PYTHON-PORT.md « Étape 8 »), et de
- * Claude (--claude : claude-acp, l'agent sur l'API de Claude, docs/CLAUDE-ACP.md).
+ * Claude (--claude : claude-acp, l'agent sur l'API de Claude, docs/CLAUDE-ACP.md), et de MAI (--mai : mai-acp, l'agent
+ * sur les modèles MAI de Microsoft par une API compatible OpenAI, docs/MAI-ACP.md).
  *
- *     agent [--claude] [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--model ALIAS]
+ *     agent [--claude | --mai] [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--model ALIAS]
  *           [--agent CMD] [--log FICHIER] [--debug]
  *
  * Avec --claude : journal dans $CLAUDE_ACP_HOME/logs/agent.log (/.claude-acp), /account range la clé d'API
- * (claude-acp --set-key), et les commandes /... que le client ne connaît pas partent à l'agent (/cost).
+ * (claude-acp --set-key), et les commandes /... que le client ne connaît pas partent à l'agent (/cost). Avec --mai : de
+ * même dans $MAI_ACP_HOME (/.mai-acp), et /account demande le point d'accès et la clé (mai-acp --set-key).
  *
  * Journaux : la sortie d'erreur de vibe-acp dans $VIBE_HOME/logs/server.log (--log : ailleurs), celui de Vibe dans
  * $VIBE_HOME/logs/vibe.log (LOG_LEVEL=INFO ; --debug : DEBUG, les messages ACP, PYTHONFAULTHANDLER). Une requête de
@@ -62,7 +64,8 @@ static double t_start;
 static const char *model_wanted;	/* --model */
 static double waited_said;		/* la dernière fois qu'une attente a été dite */
 static int choosing_model;		/* la prochaine ligne choisit le modèle */
-static int prof_claude;			/* --claude : l'agent est claude-acp */
+static int prof_claude;			/* --claude ou --mai : l'agent est claude-acp ou mai-acp (par clé d'API) */
+static int prof_mai;			/* --mai : l'agent est mai-acp */
 static const char *prof_name = "Vibe";	/* le nom de l'agent dans les messages */
 static long ctx_used, ctx_size;		/* le contexte de la séance (usage_update) */
 static int signin_failed;		/* la connexion n'a pas abouti : l'invite prend /login */
@@ -763,7 +766,7 @@ static void submit (void)
 			/* l'assistant au terminal (mode cuit), puis vibe-acp relancé : il ne lit .env qu'au démarrage */
 			flush ();
 			restore ();
-			int r = system (prof_claude ? "claude-acp --set-key" : "vibe-account wizard");
+			int r = system (prof_mai ? "mai-acp --set-key" : prof_claude ? "claude-acp --set-key" : "vibe-account wizard");
 			raw_mode ();
 			if (r == 0)
 			{
@@ -949,7 +952,7 @@ static void keys (int final)
 
 static void usage (void)
 {
-	fprintf (stderr, "agent [--claude] [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--model ALIAS] [--agent CMD] [--log FICHIER] [--debug]\n");
+	fprintf (stderr, "agent [--claude | --mai] [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--model ALIAS] [--agent CMD] [--log FICHIER] [--debug]\n");
 	exit (2);
 }
 
@@ -978,6 +981,13 @@ int main (int argc, char **argv)
 			agent_argv[0] = "claude-acp";
 			agent_argv[1] = NULL;
 		}
+		else if (!strcmp (a, "--mai"))
+		{
+			prof_claude = prof_mai = 1;
+			prof_name = "MAI";
+			agent_argv[0] = "mai-acp";
+			agent_argv[1] = NULL;
+		}
 		else if (!strcmp (a, "--log") && i + 1 < argc) o.log = argv[++i];
 		else if (!strcmp (a, "--agent") && i + 1 < argc)
 		{
@@ -990,14 +1000,14 @@ int main (int argc, char **argv)
 		else usage ();
 	}
 	o.argv = agent_argv;
-	/* les journaux dans $VIBE_HOME/logs (le même environnement que vibe-acp), ou $CLAUDE_ACP_HOME/logs */
+	/* les journaux dans $VIBE_HOME/logs (le même environnement que vibe-acp), ou $CLAUDE_ACP_HOME/logs, $MAI_ACP_HOME/logs */
 	static char slog[600];
 	if (prof_claude) o.sign_in = 0;
 	if (!o.log && prof_claude)
 	{
 		char d[520];
-		acp_home (1, d, sizeof d);		/* (~/.claude-acp, celui du compte) */
-		setenv ("CLAUDE_ACP_HOME", d, 1);
+		acp_home (prof_mai ? ACP_PROFILE_MAI : ACP_PROFILE_CLAUDE, d, sizeof d);	/* (~/.claude-acp, du compte) */
+		setenv (prof_mai ? "MAI_ACP_HOME" : "CLAUDE_ACP_HOME", d, 1);
 		snprintf (slog, sizeof slog, "%s/logs", d);
 		mkdir (slog, 0700);
 		strcat (slog, "/agent.log");
@@ -1006,7 +1016,7 @@ int main (int argc, char **argv)
 	if (!o.log)
 	{
 		char d[520];
-		acp_home (0, d, sizeof d);		/* (~/.vibe, celui du compte) */
+		acp_home (ACP_PROFILE_VIBE, d, sizeof d);	/* (~/.vibe, celui du compte) */
 		setenv ("VIBE_HOME", d, 1);
 		snprintf (slog, sizeof slog, "%s/logs", d);
 		mkdir (slog, 0700);
@@ -1025,7 +1035,7 @@ int main (int argc, char **argv)
 	signal (SIGTERM, on_term);
 	signal (SIGHUP, on_term);
 	outf (C_BOLD "agent" C_OFF C_DIM " · %s sous Korin · Ctrl+D pour quitter · /help" C_OFF "\n",
-		prof_claude ? "Claude (API)" : "Mistral Vibe");
+		prof_mai ? "MAI (Microsoft Foundry)" : prof_claude ? "Claude (API)" : "Mistral Vibe");
 	flush ();
 	acp_events ev = { ev_ready, ev_sign_in, ev_signed_in, ev_session, ev_mode, ev_text, ev_tool, ev_permission,
 		ev_turn_end, ev_plan, ev_error, ev_exited, ev_status, ev_usage, ev_model };
