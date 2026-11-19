@@ -27,6 +27,7 @@
 
 #include "cenc.h"
 #include "host.h"
+#include "net.h"
 
 #if defined(__linux__)
 #include <dlfcn.h>
@@ -100,89 +101,6 @@ static std::string hex (const uint8_t *p, size_t n)
 		s += b;
 	}
 	return s;
-}
-
-// ---- HTTPS POST (OpenSSL, bloquant) : le corps de la réponse, statut HTTP dans *status ----
-static bool https_post (const std::string &url, const std::vector<uint8_t> &body, std::vector<uint8_t> &out, int *status)
-{
-	if (url.compare (0, 8, "https://"))
-	{
-		say ("cdmtest : https seulement : %s\n", url.c_str ());
-		return false;
-	}
-	std::string rest = url.substr (8), host = rest, path = "/";
-	size_t sl = rest.find ('/');
-	if (sl != std::string::npos)
-	{
-		host = rest.substr (0, sl);
-		path = rest.substr (sl);
-	}
-	struct addrinfo hints = {}, *res = nullptr;
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	// (le réseau peut ne pas être prêt : jusqu'à 90 s d'attente)
-	for (int tries = 0; tries < 90 && (getaddrinfo (host.c_str (), "443", &hints, &res) || !res); tries++)
-	{
-		res = nullptr;
-		sleep (1);
-	}
-	if (!res)
-	{
-		say ("cdmtest : %s introuvable (réseau ?)\n", host.c_str ());
-		return false;
-	}
-	int fd = socket (res->ai_family, res->ai_socktype, res->ai_protocol);
-	if (fd < 0 || connect (fd, res->ai_addr, res->ai_addrlen))
-	{
-		say ("cdmtest : %s ne répond pas\n", host.c_str ());
-		freeaddrinfo (res);
-		if (fd >= 0)
-			close (fd);
-		return false;
-	}
-	freeaddrinfo (res);
-	SSL_CTX *ctx = SSL_CTX_new (TLS_client_method ());
-	SSL_CTX_set_min_proto_version (ctx, TLS1_2_VERSION);
-	SSL_CTX_set_verify (ctx, SSL_VERIFY_PEER, nullptr);
-	SSL_CTX_set_default_verify_paths (ctx);
-	SSL *ssl = SSL_new (ctx);
-	SSL_set_fd (ssl, fd);
-	SSL_set_tlsext_host_name (ssl, host.c_str ());
-	SSL_set1_host (ssl, host.c_str ());
-	bool ok = false;
-	if (SSL_connect (ssl) != 1)
-		say ("cdmtest : TLS avec %s impossible (vérification : %s)\n", host.c_str (),
-		     X509_verify_cert_error_string (SSL_get_verify_result (ssl)));
-	else
-	{
-		char head[512];
-		int n = snprintf (head, sizeof head,
-				  "POST %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: KorinOS-cdmtest/1\r\n"
-				  "Content-Type: application/octet-stream\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n",
-				  path.c_str (), host.c_str (), body.size ());
-		std::vector<uint8_t> req (head, head + n);
-		req.insert (req.end (), body.begin (), body.end ());
-		if (SSL_write (ssl, req.data (), (int) req.size ()) == (int) req.size ())
-		{
-			std::vector<uint8_t> raw;
-			char b[8192];
-			int k;
-			while ((k = SSL_read (ssl, b, sizeof b)) > 0)
-				raw.insert (raw.end (), b, b + k);
-			std::string s (raw.begin (), raw.end ());
-			size_t he = s.find ("\r\n\r\n");
-			if (he != std::string::npos && s.compare (0, 5, "HTTP/") == 0)
-			{
-				*status = atoi (s.c_str () + s.find (' ') + 1);
-				out.assign (raw.begin () + (long) he + 4, raw.end ());
-				ok = true;
-			}
-		}
-	}
-	SSL_free (ssl);
-	SSL_CTX_free (ctx);
-	close (fd);
-	return ok;
 }
 
 // ---- le client de l'hôte : ce que le module annonce ----
@@ -445,8 +363,23 @@ static void decode_pass (CdmHost &host, Stream &st, bool verbose)
 	cdm::Status init = host.cdm->InitializeVideoDecoder (vc);
 	say ("cdmtest : %s : InitializeVideoDecoder (H.264 %dx%d) : statut %u\n", st.what, st.t.width, st.t.height, init);
 	int images = 0, need = 0, bad = 0, w = 0, h = 0;
-	uint64_t vdigest = 0xcbf29ce484222325ULL;
 	uint32_t fmt = 0;
+	uint64_t vdigest = 0xcbf29ce484222325ULL;
+	// une image rendue : comptée, et ses trois plans (ligne par ligne, sans les marges) dans l'empreinte ; aussi
+	// celles de la fin (le partage entre la boucle et la fin dépend du décodeur du module, pas leur contenu)
+	auto take = [&] (CdmVideoFrame &f) {
+		images++;
+		w = f.Size ().width, h = f.Size ().height, fmt = f.Format ();
+		if (!f.FrameBuffer () || fmt != cdm::kI420)
+			return;
+		for (int pl = 0; pl < 3; pl++)
+		{
+			int pw = pl ? (w + 1) / 2 : w, ph = pl ? (h + 1) / 2 : h;
+			const uint8_t *base = f.FrameBuffer ()->Data () + f.PlaneOffset ((cdm::VideoPlane) pl);
+			for (int y = 0; y < ph; y++)
+				fnv (vdigest, base + (size_t) y * f.Stride ((cdm::VideoPlane) pl), (size_t) pw);
+		}
+	};
 	for (size_t i = 0; init == cdm::kSuccess && i < st.samples.size (); i++)
 	{
 		Prepared pr;
@@ -456,19 +389,7 @@ static void decode_pass (CdmHost &host, Stream &st, bool verbose)
 		cdm::Status r = pr.ok ? host.cdm->DecryptAndDecodeFrame (pr.in, &f) : cdm::kDecodeError;
 		if (r == cdm::kSuccess)
 		{
-			images++;
-			w = f.Size ().width, h = f.Size ().height, fmt = f.Format ();
-			if (f.FrameBuffer () && fmt == cdm::kI420)
-			{
-				// (les trois plans, ligne par ligne : sans les marges de chaque ligne)
-				for (int pl = 0; pl < 3; pl++)
-				{
-					int pw = pl ? (w + 1) / 2 : w, ph = pl ? (h + 1) / 2 : h;
-					const uint8_t *base = f.FrameBuffer ()->Data () + f.PlaneOffset ((cdm::VideoPlane) pl);
-					for (int y = 0; y < ph; y++)
-						fnv (vdigest, base + (size_t) y * f.Stride ((cdm::VideoPlane) pl), (size_t) pw);
-				}
-			}
+			take (f);
 		}
 		else if (r == cdm::kNeedMoreData)
 			need++;
@@ -481,7 +402,7 @@ static void decode_pass (CdmHost &host, Stream &st, bool verbose)
 		CdmVideoFrame f;
 		if (host.cdm->DecryptAndDecodeFrame (in, &f) != cdm::kSuccess)
 			break;
-		images++;
+		take (f);
 	}
 	say ("cdmtest : %s : empreinte des images décodées %016llx\n", st.what, (unsigned long long) vdigest);
 	say ("cdmtest : %s : DecryptAndDecodeFrame : %d images %dx%d (format %u), %d « encore des données », %d erreurs\n",

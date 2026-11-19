@@ -14,9 +14,11 @@ WKOUT=$OUT/webcore
 JITFLAGS=
 if [ "${ARCH:-aarch64}" = x86_64 ]; then
 	K=${WK_OUT:-$HOME/korin-webkit-x86_64}
-	BASE=$K/webkit
-	W=$K/webkit-gl
-	WKOUT=$K/webcore
+	# (WK_BASE, WK_GL, WK_BUILD : une copie et une construction à part, pour un essai qui ne touche pas
+	# celles de Jet ; par exemple EME, docs/etude/WIDEVINE.md)
+	BASE=${WK_BASE:-$K/webkit}
+	W=${WK_GL:-$K/webkit-gl}
+	WKOUT=${WK_BUILD:-$K/webcore}
 	[ -f "$BASE/Source/cmake/OptionsOnyx.cmake" ] || ARCH=x86_64 sh "$ARMPI_ROOT/tools/webkit/fetch.sh"
 	# (le JIT de WebAssembly aussi depuis le 14/11 : BBQ et OMG ; hCaptcha, sa preuve de travail en WebAssembly)
 	JITFLAGS="-DENABLE_JIT=ON -DENABLE_DFG_JIT=ON -DENABLE_FTL_JIT=ON -DENABLE_C_LOOP=OFF -DENABLE_WEBASSEMBLY_BBQJIT=ON -DENABLE_WEBASSEMBLY_OMGJIT=ON"

@@ -72,10 +72,14 @@ if [ -f "$TP/lib/libssl.a" ]; then
 		[ -s "$INC/$f" ] || curl -sS -m 60 "https://chromium.googlesource.com/chromium/cdm/+/refs/heads/main/$f?format=TEXT" | base64 -d >"$INC/$f"
 	done
 	S=$ROOT/src/sys/cdmhost
-	${TC}g++ -specs=$POSIX/lib/posix.specs -O2 -g0 -std=gnu++17 -Wall -Wno-unused-result -I"$INC" -I"$SRC" -I"$S" \
-		-I"$OUT/gen" -I"$TP/include" "$S/cdmtest.cpp" "$S/host.cpp" "$S/cenc.cpp" "$OUT/liblinux.a" \
+	CXF="-specs=$POSIX/lib/posix.specs -O2 -g0 -std=gnu++17 -Wall -Wno-unused-result -I$INC -I$SRC -I$S -I$OUT/gen -I$TP/include"
+	${TC}g++ $CXF "$S/cdmtest.cpp" "$S/host.cpp" "$S/cenc.cpp" "$S/net.cpp" "$OUT/liblinux.a" \
 		-L"$TP/lib" -lssl -lcrypto -lm -o "$OUT/cdmtest"
-	ls -l "$OUT/cdmtest"
+	# cdmhost (l'hôte du module pour Jet, docs/etude/WIDEVINE.md § 3.3) et ipctest (son essai par le client)
+	${TC}g++ $CXF "$S/cdmhost.cpp" "$S/host.cpp" "$S/module.cpp" "$S/proto.cpp" "$OUT/liblinux.a" -lm -o "$OUT/cdmhost"
+	${TC}g++ $CXF "$S/ipctest.cpp" "$S/cdmclient.cpp" "$S/proto.cpp" "$S/cenc.cpp" "$S/net.cpp" \
+		-L"$TP/lib" -lssl -lcrypto -lm -o "$OUT/ipctest"
+	ls -l "$OUT/cdmtest" "$OUT/cdmhost" "$OUT/ipctest"
 else
 	echo "linux : cdmtest pas construit (OpenSSL du PC absent : tools/pc/thirdparty.sh openssl)"
 fi

@@ -25,7 +25,7 @@ BASE=https://storage.googleapis.com/shaka-demo-assets/angel-one-widevine
 [ -s "$MEDIA/angel-one-aac.mp4" ] || curl -sS -m 120 -r 0-999999 "$BASE/a-eng-0128k-aac-2c.mp4" -o "$MEDIA/angel-one-aac.mp4"
 S=$ROOT/src/sys/cdmhost
 g++ -O1 -g -Wall -std=gnu++17 -DCDMTEST_AVCODEC -I"$INC" -I"$S" $(pkg-config --cflags libavcodec) \
-	"$S/cdmtest.cpp" "$S/host.cpp" "$S/cenc.cpp" -o "$OUT/cdmtest-linux" \
+	"$S/cdmtest.cpp" "$S/host.cpp" "$S/cenc.cpp" "$S/net.cpp" -o "$OUT/cdmtest-linux" \
 	-ldl -lssl -lcrypto $(pkg-config --libs libavcodec libavutil)
 "$OUT/cdmtest-linux" "$SO" "$MEDIA/angel-one-144p.mp4" https://cwip-shaka-proxy.appspot.com/no_auth \
 	"$MEDIA/angel-one-aac.mp4" --storage "$OUT/cdmtest-storage" "$@"
