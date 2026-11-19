@@ -442,6 +442,23 @@ int main (int argc, char **argv)
 		}
 		return 0;
 	}
+	if (argc >= 2 && !strcmp (argv[1], "camtest"))
+	{						/* camtest : la marche a droite ; le point de l'explorateur a l'ecran et le pas du decor */
+		new_game (0);
+		set_state (GS_PLAY);
+		memset (gf_held, 0, sizeof gf_held);
+		gf_held[0x4F] = 1;
+		int last = 0;
+		for (int i = 0; i < 160; i++)
+		{
+			step ();
+			int cx = (int) floorf (g_camx * ZK + 0.001f), hx = (int) floorf ((g_h.x + H_W / 2) * ZK);
+			if (i > 100) printf ("%d:%d/%d ", i, hx - cx, cx - last);
+			last = cx;
+		}
+		printf ("\n");
+		return 0;
+	}
 	fprintf (stderr, "host check [n] | host shot n out.ppm [script]\n");
 	return 2;
 }

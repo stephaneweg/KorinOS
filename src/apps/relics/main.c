@@ -21,6 +21,7 @@
 #define GF_H		384
 #define GF_BAND_TOP	0x00141210
 #define GF_BAND_BOT	0x00060504
+#define GF_SMOOTH			/* (gamefb.h : une echelle non entiere lissee ; les tuiles ne scintillent plus au defilement) */
 #include "../../inc/gamepause.h"
 #include <math.h>
 #include <stdio.h>
@@ -157,6 +158,7 @@ struct ent
 {
 	int type, on, kind, dir, st, t, tx, ty;
 	float x, y, vx, vy, w, h, x0, y0, a, b;
+	float px, py;				/* la position au pas d'avant (l'image est dessinee entre les deux) */
 };
 #define NE		600
 static struct ent g_e[NE];
@@ -179,8 +181,8 @@ static struct ent *ent_new (int type, float x, float y, float w, float h)
 	memset (e, 0, sizeof *e);
 	e->type = type;
 	e->on = 1;
-	e->x = e->x0 = x;
-	e->y = e->y0 = y;
+	e->x = e->x0 = e->px = x;
+	e->y = e->y0 = e->py = y;
 	e->w = w;
 	e->h = h;
 	return e;
@@ -192,6 +194,7 @@ enum { GS_TITLE, GS_INTRO, GS_PLAY, GS_DEAD, GS_CLEAR, GS_OVER, GS_WIN, GS_PAUSE
 struct hero
 {
 	float x, y, vx, vy;
+	float px, py;				/* (au pas d'avant) */
 	int face, ground, climb, coyote, jbuf, drop, anim, shoot, crouch, inv, dead;
 	float walk;
 };
@@ -205,7 +208,7 @@ static int g_treas, g_ntreas;
 static unsigned long g_s_score;			/* au debut du niveau : pour le recommencer */
 static int g_s_lives, g_s_ammo, g_s_dyns;
 static float g_chkx, g_chky;			/* le point de reprise */
-static float g_camx, g_camy;
+static float g_camx, g_camy, g_pcamx, g_pcamy;	/* la camera, et au pas d'avant */
 static int g_shake;
 static unsigned long g_bonus;
 static int g_fire_cd;
@@ -774,7 +777,7 @@ static void reset_actors (void)
 		{
 		case E_SHOT: case E_DART: case E_BULLET: case E_DYN: case E_CORPSE: e->on = 0; break;
 		case E_WALKER: case E_SHOOTER: case E_BAT: case E_SPIDER:
-			if (e->on) { e->x = e->x0; e->y = e->y0; e->vx = e->vy = 0; e->st = 0; }
+			if (e->on) { e->x = e->px = e->x0; e->y = e->py = e->y0; e->vx = e->vy = 0; e->st = 0; }
 			break;
 		case E_SPIKES: e->st = 0; e->t = 0; break;
 		case E_BOULDER: if (e->on && e->st) e->on = 0; break;
@@ -847,22 +850,46 @@ static void goto_title (void)
 }
 
 /* ---- la camera ------------------------------------------------------------------------------------------------ */
-static void camera_target (float *tx, float *ty)
+/* La camera a zone morte : elle ne bouge que si l'explorateur sort d'une zone au milieu de la vue, et le suit alors
+ * exactement, calee au point de l'ecran sur lui (amortie et arrondie a part, l'explorateur tremblait d'un point sur le
+ * decor pendant un defilement). */
+#define CAM_L		0.40f
+#define CAM_R		0.56f
+#define CAM_T		0.34f
+#define CAM_B		0.60f
+
+/* la camera, hors des bords du niveau ; x, y : son coin, en unites */
+static void camera_clamp (float *x, float *y)
 {
-	float x = g_h.x + H_W / 2 - VW / 2 + (float) g_h.face * 30, y = g_h.y + H_H / 2 - VH * 0.55f;
 	float mx = (float) g_iw - VW, my = (float) g_ih - VH;
-	if (mx < 0) x = mx / 2; else x = clampf (x, 0, mx);
-	if (my < 0) y = my / 2; else y = clampf (y, -HUD_H * 0.0f, my);
-	*tx = x;
-	*ty = y;
+	*x = mx < 0 ? mx / 2 : clampf (*x, 0, mx);
+	*y = my < 0 ? my / 2 : clampf (*y, 0, my);
 }
-static void camera_snap (void) { camera_target (&g_camx, &g_camy); }
+
+/* le bord de la camera a une distance fixe de l'explorateur, au point de l'ecran pres : (pixel du centre - decalage) */
+static inline float cam_edge (float c, float k, float span) { return (floorf (c * ZK) - floorf (k * span * ZK)) / ZK; }
+
 static void camera_step (void)
 {
-	float tx, ty;
-	camera_target (&tx, &ty);
-	g_camx += (tx - g_camx) * 0.09f;
-	g_camy += (ty - g_camy) * 0.12f;
+	float hx = g_h.x + H_W / 2, hy = g_h.y + H_H / 2, x = g_camx, y = g_camy;
+	if (hx - x < CAM_L * VW) x = cam_edge (hx, CAM_L, VW);
+	else if (hx - x > CAM_R * VW) x = cam_edge (hx, CAM_R, VW);
+	if (hy - y < CAM_T * VH) y = cam_edge (hy, CAM_T, VH);
+	else if (hy - y > CAM_B * VH) y = cam_edge (hy, CAM_B, VH);
+	camera_clamp (&x, &y);
+	g_camx = x;
+	g_camy = y;
+}
+
+static void camera_snap (void)
+{
+	g_camx = cam_edge (g_h.x + H_W / 2, 0.45f, VW);
+	g_camy = cam_edge (g_h.y + H_H / 2, 0.52f, VH);
+	camera_clamp (&g_camx, &g_camy);
+	g_pcamx = g_camx;
+	g_pcamy = g_camy;
+	g_h.px = g_h.x;
+	g_h.py = g_h.y;
 }
 
 /* ---- effets -------------------------------------------------------------------------------------------------- */
@@ -1536,6 +1563,11 @@ static void read_input (void)
 static void step (void)
 {
 	g_tick++;
+	for (int i = 0; i < g_ne; i++) { g_e[i].px = g_e[i].x; g_e[i].py = g_e[i].y; }	/* (le pas d'avant) */
+	g_h.px = g_h.x;
+	g_h.py = g_h.y;
+	g_pcamx = g_camx;
+	g_pcamy = g_camy;
 	read_input ();
 	if (g_toast_t) g_toast_t--;
 	for (int i = 0; i < 8; i++) if (g_fx[i].life) g_fx[i].life--;
@@ -1961,8 +1993,26 @@ static void draw_play (void)
 {
 	int sx = 0, sy = 0;
 	if (g_shake) { sx = (int) gf_below (7) - 3; sy = (int) gf_below (7) - 3; }
-	g_cx = (int) floorf (g_camx * ZK) + sx;
-	g_cy = (int) floorf (g_camy * ZK) + sy;
+	/* entre deux pas : tout ce qui bouge, et la camera, a mi-chemin (un affichage qui ne montre pas exactement un pas
+	 * par image ne fait plus sauter le defilement) */
+	float a = g_state == GS_PLAY || g_state == GS_INTRO || g_state == GS_DEAD ? (float) gf_frac / 1000.0f : 1.0f;
+	float keepx = g_h.x, keepy = g_h.y;
+	g_h.x = g_h.px + (g_h.x - g_h.px) * a;
+	g_h.y = g_h.py + (g_h.y - g_h.py) * a;
+	static float ex[NE], ey[NE];
+	for (int i = 0; i < g_ne; i++)
+	{
+		struct ent *e = &g_e[i];
+		ex[i] = e->x; ey[i] = e->y;
+		if (fabsf (e->x - e->px) < 40 && fabsf (e->y - e->py) < 40)	/* (pas un saut : une reprise) */
+		{
+			e->x = e->px + (e->x - e->px) * a;
+			e->y = e->py + (e->y - e->py) * a;
+		}
+	}
+	float cx = g_pcamx + (g_camx - g_pcamx) * a, cy = g_pcamy + (g_camy - g_pcamy) * a;
+	g_cx = (int) floorf (cx * ZK + 0.001f) + sx;
+	g_cy = (int) floorf (cy * ZK + 0.001f) + sy;
 	draw_bg (g_world, g_cx, g_cy);
 	draw_tiles ();
 	draw_tile_fx ();
@@ -1971,6 +2021,9 @@ static void draw_play (void)
 	draw_hero ();
 	draw_parts (ZK);
 	draw_ents (2);
+	g_h.x = keepx;					/* (les vraies positions) */
+	g_h.y = keepy;
+	for (int i = 0; i < g_ne; i++) { g_e[i].x = ex[i]; g_e[i].y = ey[i]; }
 	draw_hud ();
 	draw_toast ();
 	if (g_state == GS_INTRO)

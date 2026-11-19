@@ -45,10 +45,19 @@ static long gf_sf;
 static uint32_t *gf_dst;			/* ou dessinent gf_rect, gf_sprite */
 static unsigned long gf_rng;
 static long gf_quit, gf_still, gf_redraw;
+static unsigned long gf_frac;			/* (gf_run) ou en est le pas suivant, 0..999 : un jeu peut dessiner entre deux pas */
 static long gf_up;				/* 1 : focus pris et fenetre remontee */
 static unsigned long gf_dw[4];			/* image a l'ecran : l, h, x, y */
 static unsigned char gf_held[256];		/* touches tenues */
 static uint32_t gf_xmap[GF_MAXW];
+#ifdef GF_SMOOTH
+/* (GF_SMOOTH : une echelle qui n'est pas entiere est lissee, bilineaire : au plus proche voisin, des colonnes et des
+ * lignes doublees ou sautees changent a chaque pas d'un defilement, et les traits fins scintillent) */
+static uint32_t gf_xfrac[GF_MAXW];		/* (poids 0..256 de la colonne suivante) */
+static uint32_t gf_hrow[2][GF_MAXW];		/* deux lignes de l'image deja etirees en largeur */
+static long gf_hrow_y[2];
+static int gf_smooth;
+#endif
 static uint32_t gf_frame[GF_W * GF_H] __attribute__ ((aligned (16)));
 
 static inline void gp_draw (void);			/* (gamepause.h) */
@@ -121,6 +130,17 @@ static inline void gf_layout (void)
 	}
 	for (unsigned long x = 0; x < dw; x++)		/* colonne de chaque point de l'ecran */
 		gf_xmap[x] = (uint32_t) (x * GF_W / dw);
+#ifdef GF_SMOOTH
+	gf_smooth = !(dw % GF_W == 0 && dh % GF_H == 0 && dw / GF_W == dh / GF_H);	/* (echelle entiere : nette) */
+	for (unsigned long x = 0; x < dw && gf_smooth; x++)
+	{						/* le centre du point, dans l'image : colonne et poids */
+		long fx = (long) (((2 * x + 1) * GF_W * 256) / (2 * dw)) - 128;
+		if (fx < 0) fx = 0;
+		if (fx > (GF_W - 1) * 256) fx = (GF_W - 1) * 256;
+		gf_xmap[x] = (uint32_t) (fx >> 8);
+		gf_xfrac[x] = gf_xmap[x] + 1 < GF_W ? (uint32_t) (fx & 255) : 0;
+	}
+#endif
 	gf_redraw = 1;
 }
 
@@ -170,6 +190,52 @@ static inline void gf_present (const uint32_t *src)
 		for (int y = 0; y < GF_H; y++, d += pitch, src += GF_W)
 			memcpy (d, src, GF_PITCH);
 	}
+#ifdef GF_SMOOTH
+	else if (gf_smooth)
+	{
+		gf_hrow_y[0] = gf_hrow_y[1] = -1;
+		for (unsigned long y = 0; y < dh; y++, d += pitch)
+		{
+			long fy = (long) (((2 * y + 1) * GF_H * 256) / (2 * dh)) - 128;
+			if (fy < 0) fy = 0;
+			if (fy > (GF_H - 1) * 256) fy = (GF_H - 1) * 256;
+			long y0 = fy >> 8, y1 = y0 + 1 < GF_H ? y0 + 1 : y0;
+			uint32_t wy = (uint32_t) (fy & 255), iwy = 256 - wy;
+			uint32_t *r[2];
+			for (int k = 0; k < 2; k++)
+			{				/* la ligne de l'image, etiree en largeur (gardee pour la ligne suivante) */
+				long sy = k ? y1 : y0;
+				int slot = gf_hrow_y[0] == sy ? 0 : gf_hrow_y[1] == sy ? 1 : -1;
+				if (slot < 0)
+				{
+					slot = gf_hrow_y[0] == (k ? y0 : -2) ? 1 : (gf_hrow_y[1] == (k ? y0 : -2) ? 0 : k);
+					const uint32_t *s = src + sy * GF_W;
+					uint32_t *o = gf_hrow[slot];
+					for (unsigned long x = 0; x < dw; x++)
+					{
+						uint32_t a = s[gf_xmap[x]], w = gf_xfrac[x];
+						if (!w) { o[x] = a; continue; }
+						uint32_t b = s[gf_xmap[x] + 1], iw = 256 - w;
+						o[x] = ((((a & 0xFF00FF) * iw + (b & 0xFF00FF) * w) >> 8) & 0xFF00FF)
+						     | ((((a & 0xFF00) * iw + (b & 0xFF00) * w) >> 8) & 0xFF00);
+					}
+					gf_hrow_y[slot] = sy;
+				}
+				r[k] = gf_hrow[slot];
+			}
+			uint32_t *o = (uint32_t *) d;
+			if (!wy || r[0] == r[1])
+				memcpy (o, r[0], dw * 4);
+			else
+				for (unsigned long x = 0; x < dw; x++)
+				{
+					uint32_t a = r[0][x], b = r[1][x];
+					o[x] = ((((a & 0xFF00FF) * iwy + (b & 0xFF00FF) * wy) >> 8) & 0xFF00FF)
+					     | ((((a & 0xFF00) * iwy + (b & 0xFF00) * wy) >> 8) & 0xFF00);
+				}
+		}
+	}
+#endif
 	else
 	{
 		long prev = -1;
@@ -426,6 +492,7 @@ static inline void gf_run (gf_event_fn ev, void (*step) (void), void (*draw) (vo
 			while (n--)
 				step ();
 			gs_tick ();
+			gf_frac = acc;
 		}
 		gf_redraw = 0;
 		draw ();
