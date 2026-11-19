@@ -169,7 +169,7 @@ que tout soit fait). 16 connexions au plus.
 | `player.getInventory()` | `case:objet:nombre\|…` (survie ; les cases 0 à 8 sont la barre) |
 | `player.give(objet[,n])` | — (survie) |
 | `player.craft(recette[,fois])` | les fois faites, ou `error: …` (survie) |
-| `game.info()` | `TerraCube 1.1.1,<monde>,<graine>` |
+| `game.info()` | `TerraCube 1.1.2,<monde>,<graine>` |
 | `ping()` | `pong` |
 
 ### Python
@@ -252,7 +252,7 @@ essayé sur le ZBook (GPU Intel).
 
 | Fichier | Rôle |
 |---|---|
-| `main.cpp` | fenêtre, boucle, entrées, textes par-dessus la vue par UIKit (`ui_surface_overlay` ; l'octet haut d'un pixel est sa transparence : console à demi transparente, textes du panneau sur fond transparent), le panneau de fabrication (ses cases, le glisser-déposer), la console, menus, mondes, jeton du MCP, `--selftest` |
+| `main.cpp` | fenêtre, boucle, entrées ; la présentation : le GPU rend hors écran, l'image est relue (`glReadPixels`), les textes de UIKit y sont dessinés (console mélangée à demi), puis elle est recopiée d'un coup dans la fenêtre comme le fait Cosmo Zoom (`armgl_window` avec des zones posées par-dessus scintillait sur le ZBook) ; le panneau de fabrication (ses cases, le glisser-déposer), la console, menus, mondes, jeton du MCP, `--selftest` |
 | `world.h`, `world.cpp` | tronçons, génération (bruit de gradient, biomes, grottes, minerais, arbres), sauvegarde, lancer de rayon |
 | `mesh.cpp` | maillage : faces visibles, occlusion ambiante, lumière du ciel lissée, eau, plantes en croix |
 | `render.h`, `render.cpp` | OpenGL ES 3 : le panneau de fabrication (`CraftDraw`), shaders, ciel et soleil, pluie et neige (gouttes faites par le vertex shader, cachées sous les toits par une carte des hauteurs), tronçons (tronc de vue), eau animée (vagues de la surface dans le vertex shader, texture qui glisse et reflets dans le fragment shader), contour visé, barre de blocs |
