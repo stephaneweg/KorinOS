@@ -125,7 +125,7 @@ wsl sh tools/pc/apps.sh mai                        # l'app MAI
 ```
 
 `oaitest.py` lance la fausse API puis `mai-acp` (`python -m oai_acp`) et lui parle comme une façade, avec le client
-de `tools/claude/acptest.py`. Il fait 46 vérifications :
+de `tools/claude/acptest.py`. Il fait 44 vérifications :
 
 * clé absente, prompt système, flux et pensée ;
 * appels d'outils coupés en morceaux, accord, refus, deux appels dans un message, bash permis pour la séance ;
@@ -133,6 +133,16 @@ de `tools/claude/acptest.py`. Il fait 46 vérifications :
 * interruption, `/cost`, changement de modèle, reprise d'une séance, clé refusée.
 
 Sous Korin : `python3 /home/pytest/oaitest.py --installed` (`TESTS=1` pour le PC).
+
+**Vérifié sous QEMU PC le 19/11** (`tools/python/pctest.py`, lancé depuis WSL avec l'OVMF de `~/korin-cloud`) :
+
+* les 44 vérifications passent en 39 s, avec les modules installés sur le disque ;
+* l'app MAI s'ouvre et montre « MAI (démarrage…) », « Démarrage de mai-acp » et le dossier `/home/.mai-acp`.
+
+Ce jour-là, `python3 fichier.py` plantait sous Korin PC (`Segmentation fault` dès le démarrage, avec `-P`, `-I` ou
+`-S`, même pour un `print`), alors que `python3 -m`, `-c`, `< fichier` et `runpy` marchaient. Cela touchait aussi
+`/bin/mai-acp` et `/bin/claude-acp`, qui sont des scripts `#!/bin/python3`. L'essai est donc passé par `runpy` sans
+`--installed` : l'agent est lancé par `python3 -m oai_acp`, et la fausse API par `-m fakeoai`.
 
 Il n'y a pas eu d'essai contre le vrai Foundry, faute de déploiement. Le chemin `/mai/v1` et l'en-tête `api-key`
 viennent de la documentation de MAI-Thinking-1. Si MAI-Code les veut autrement, il suffit de donner `base_url` et

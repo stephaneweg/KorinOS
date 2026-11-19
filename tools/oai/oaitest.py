@@ -64,8 +64,9 @@ def main():
     work = os.path.join(tmp, "work")
     os.makedirs(work)
     log = os.path.join(tmp, "requests.jsonl")
-    fake = subprocess.Popen([sys.executable, os.path.join(HERE, "fakeoai.py"), "--port", str(PORT), "--log", log],
-                            stderr=subprocess.DEVNULL)
+    # (en module, depuis son dossier : sous Korin PC, « python3 fichier.py » plantait le 19/11, « -m » non)
+    fake = subprocess.Popen([sys.executable, "-m", "fakeoai", "--port", str(PORT), "--log", log],
+                            stderr=subprocess.DEVNULL, cwd=HERE)
     time.sleep(1.5)
     env = dict(os.environ)
     home = os.path.join(tmp, "home")
