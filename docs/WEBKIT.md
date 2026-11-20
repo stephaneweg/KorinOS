@@ -541,6 +541,35 @@ journal                     (au Terminal) puis D:\journal.txt :
   web: media: trace … decoded 30/s … dropped 0/s … decode N ms                            le décodeur suit
 ```
 
+## Tracé sur plusieurs cœurs et dommage par couche (20/11/2026)
+
+Mesures du ZBook (Jet 1.4.0) : « painting on 1 core (the main thread: no app core is free) » ; sur tf1.fr, paint 1000 à
+2000 ms par 2 s (un cœur saturé, la vidéo perd des images) ; sur netflix.com au repos, ~100 images composées par 2 s
+sans mise à jour de la page, composite 500 à 1000 ms.
+
+* **Les « app cores » sur le PC** (`tools/webkit/glue/webkit2_armpi.c`, x86-64 seulement ; le Pi garde ses
+  bouchons) : un groupe de fils de libposix, un par cœur moins un, 7 au plus (`KORIN_WEB_RASTER_THREADS=N` ; 0 :
+  aucun, comme avant). `LayerTreeHostOnyx` y donne déjà ses travaux : la page enregistrée en `SkPicture` par le fil
+  principal, rejouée par parties de 512 × 256 sur les fils et sur le fil principal. Les fils sont faits une fois et
+  dorment sur une condition entre deux lots. `onyx_cores_offload` reste à -1 : le décodeur vidéo a déjà son fil.
+* **Le dommage par couche** (patch `0010-compositor-damage.patch`, `LayerTreeHostOnyx`) : avant, une seule couche
+  changée (une animation, même un petit cercle qui tourne) faisait recomposer **et relire du GPU toute la vue** à
+  chaque image ; maintenant, seul le rectangle des couches changées (où elles étaient et où elles sont, un pixel de
+  plus). La vue entière quand les couches ne sont pas les mêmes, dans le même ordre. Une page immobile ne compose
+  toujours rien ; une animation ne compose que sa place.
+
+Sous QEMU (TCG, 4 cœurs, compositeur sur le processeur par `/etc/web-gpu` ; une page de 300 cartes à ombres et
+dégradés défilée par `requestAnimationFrame` pendant 30 s, un cercle animé en CSS) :
+
+| | 1 fil (`KORIN_WEB_RASTER_THREADS=0`) | 3 fils + le principal |
+|---|---|---|
+| images du défilement en 30 s | 263 | **1168** |
+| paint par 2 s pendant le défilement | 1130 à 1460 ms pour ~20 images | 470 à 690 ms pour ~80 images |
+| au repos, le cercle qui tourne : composite par 2 s | — | 50 à 110 ms pour ~118 images |
+
+Le journal dit maintenant `painting on N cores (N-1 app cores + the main thread)`. À mesurer sur le ZBook : tf1.fr
+(paint en ms par 2 s, `media: … dropped`), netflix.com au repos (composite en ms par 2 s).
+
 ## hCaptcha (14/11/2026)
 
 Retour du ZBook (Jet 1.3.0) : sur claude.ai, le défi hCaptcha s'affiche, l'utilisateur le réussit, il revient sans fin.

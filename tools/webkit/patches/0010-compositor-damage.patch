@@ -1,0 +1,83 @@
+diff -ru -U2 a/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/LayerTreeHostOnyx.cpp b/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/LayerTreeHostOnyx.cpp
+--- a/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/LayerTreeHostOnyx.cpp	2026-11-20 15:58:11.654259833 +0100
++++ b/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/LayerTreeHostOnyx.cpp	2026-11-20 15:58:11.682259872 +0100
+@@ -581,17 +581,20 @@
+         appendQuad(owner, texture, QuadKind::Color, layerToTarget, rect, state, opacity, alpha == 255);
+ }
+ 
++static bool layerIsEqual(const gpc_layer& first, const gpc_layer& second)
++{
++    return first.tex == second.tex && first.opacity == second.opacity && first.flags == second.flags && first.blend == second.blend
++        && first.src_x == second.src_x && first.src_y == second.src_y && first.src_w == second.src_w && first.src_h == second.src_h
++        && first.m.a == second.m.a && first.m.b == second.m.b && first.m.c == second.m.c && first.m.d == second.m.d && first.m.e == second.m.e && first.m.f == second.m.f
++        && first.clip[0] == second.clip[0] && first.clip[1] == second.clip[1] && first.clip[2] == second.clip[2] && first.clip[3] == second.clip[3];
++}
++
+ static bool layersAreEqual(const Vector<gpc_layer>& a, const Vector<gpc_layer>& b)
+ {
+     if (a.size() != b.size())
+         return false;
+     for (size_t i = 0; i < a.size(); ++i) {
+-        auto& first = a[i];
+-        auto& second = b[i];
+-        if (first.tex != second.tex || first.opacity != second.opacity || first.flags != second.flags || first.blend != second.blend
+-            || first.src_x != second.src_x || first.src_y != second.src_y || first.src_w != second.src_w || first.src_h != second.src_h
+-            || first.m.a != second.m.a || first.m.b != second.m.b || first.m.c != second.m.c || first.m.d != second.m.d || first.m.e != second.m.e || first.m.f != second.m.f
+-            || first.clip[0] != second.clip[0] || first.clip[1] != second.clip[1] || first.clip[2] != second.clip[2] || first.clip[3] != second.clip[3])
++        if (!layerIsEqual(a[i], b[i]))
+             return false;
+     }
+     return true;
+@@ -1241,17 +1244,37 @@
+ 
+     m_frameLayers.shrink(0);
+     m_frameLayers.reserveCapacity(m_quads.size());
+-    for (auto& quad : m_quads)
++    m_frameRects.shrink(0);
++    m_frameRects.reserveCapacity(m_quads.size());
++    for (auto& quad : m_quads) {
+         m_frameLayers.append(quad.layer);
++        m_frameRects.append(quad.rect);
++    }
+ 
+-    if (m_needsFullFrame || !layersAreEqual(m_frameLayers, m_previousFrameLayers))
++    // Korin: the layers that changed since the last frame (an animation, a layer that moved, a tile
++    // that came) damage where they drew and where they draw now, not the whole view: a small
++    // animation recomposites (and reads back from the GPU) its own rectangle only. The whole view
++    // when the layers are not the same ones in the same order.
++    if (m_needsFullFrame || m_frameLayers.size() != m_previousFrameLayers.size() || m_previousFrameRects.size() != m_previousFrameLayers.size())
+         m_frameDamage = viewRect;
++    else {
++        for (size_t i = 0; i < m_frameLayers.size(); ++i) {
++            if (layerIsEqual(m_frameLayers[i], m_previousFrameLayers[i]))
++                continue;
++            auto changed = m_frameRects[i];
++            changed.unite(m_previousFrameRects[i]);
++            // (A pixel more around it: the filtered edges.)
++            changed.inflate(1);
++            m_frameDamage.unite(changed);
++        }
++    }
+     m_frameDamage.intersect(viewRect);
+ 
+     if (!m_frameDamage.isEmpty()) {
+         if (compositeFrame(m_frameDamage)) {
+             m_needsFullFrame = false;
+             m_previousFrameLayers = m_frameLayers;
++            m_previousFrameRects = m_frameRects;
+             ++m_framesComposited;
+             ++m_totalFramesComposited;
+             if (!updatesRendering)
+diff -ru -U2 a/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/LayerTreeHostOnyx.h b/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/LayerTreeHostOnyx.h
+--- a/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/LayerTreeHostOnyx.h	2026-11-20 15:58:11.646259821 +0100
++++ b/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/LayerTreeHostOnyx.h	2026-11-20 15:58:11.682259872 +0100
+@@ -272,6 +272,9 @@
+     Vector<Quad> m_quads;
+     Vector<gpc_layer> m_frameLayers;
+     Vector<gpc_layer> m_previousFrameLayers;
++    // Korin: where each of those layers draws (the view's coordinates): the damage of a frame is what changed.
++    Vector<WebCore::IntRect> m_frameRects;
++    Vector<WebCore::IntRect> m_previousFrameRects;
+     WebCore::IntRect m_frameDamage;
+     unsigned m_offscreenTileBudget { 0 };
+     unsigned m_frameNumber { 0 };
