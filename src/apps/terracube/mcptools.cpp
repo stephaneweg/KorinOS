@@ -277,6 +277,40 @@ std::string t_remove_entities (const Args &a)
 	return JO ().num ("removed", n).end ();
 }
 
+std::string t_explain_block (const Args &a)
+{
+	int x = a.integer ("x"), y = a.integer ("y"), z = a.integer ("z");
+	g.world.getLoaded (x, y, z);
+	std::string t = sim::explain (x, y, z);
+	return JO ().str ("block", info (g.world.get (x, y, z)).name).num ("state", g.world.meta (x, y, z)).num ("power", sim::powerAt (x, y, z)).str ("explain", t).end ();
+}
+
+std::string t_test_circuit (const Args &a)
+{
+	double f[3], t[3];
+	a.vec ("from", 3, f);
+	a.vec ("to", 3, t);
+	long vol = (long) (fabs (t[0] - f[0]) + 1) * (long) (fabs (t[1] - f[1]) + 1) * (long) (fabs (t[2] - f[2]) + 1);
+	if (vol > 32768) fail ("the watched box is too large (32768 blocks at most)");
+	int ticks = std::max (1, std::min (1200, a.integer ("ticks", 60)));
+	bool use = a.has ("use");
+	double u[3] = { 0, 0, 0 };
+	if (use) a.vec ("use", 3, u);
+	auto ch = sim::test (ifloor (f[0]), ifloor (f[1]), ifloor (f[2]), ifloor (t[0]), ifloor (t[1]), ifloor (t[2]), ticks, use, ifloor (u[0]), ifloor (u[1]), ifloor (u[2]));
+	JA l;
+	for (auto &c : ch) {
+		JO o;
+		o.num ("tick", c.tick).raw ("pos", "[" + std::to_string (c.x) + "," + std::to_string (c.y) + "," + std::to_string (c.z) + "]").str ("block", info (c.block).name);
+		std::string st = sim::stateText (c.block, c.meta);
+		if (!st.empty ()) o.str ("state", st);
+		if (c.power) o.num ("power", c.power);
+		l.add (o.end ());
+	}
+	g.edited = true;
+	return JO ().num ("ticks", ticks).num ("seconds", ticks * 0.05).num ("changes", (double) ch.size ()).raw ("changes_list", l.end ())
+		.str ("note", "1 tick = 0.05 s, a repeater delay unit = 2 ticks; the simulation was run at once (faster than real time)").end ();
+}
+
 std::string t_use_block (const Args &a)
 {
 	int x = a.integer ("x"), y = a.integer ("y"), z = a.integer ("z");
@@ -346,7 +380,7 @@ std::string t_get_blocks (const Args &a)
 	int x2 = ifloor (fmax (f[0], t[0])), y2 = ifloor (fmax (f[1], t[1])), z2 = ifloor (fmax (f[2], t[2]));
 	long vol = (long) (x2 - x1 + 1) * (y2 - y1 + 1) * (z2 - z1 + 1);
 	if (vol > 32768) fail ("too many blocks (32768 at most); use get_heightmap for terrain");
-	bool skipAir = a.boolean ("non_air_only", true);
+	bool skipAir = a.boolean ("non_air_only", true), states = a.boolean ("states", false);
 	JA list;
 	long cnt = 0;
 	std::vector<int> used (BLOCK_COUNT, 0);
@@ -357,7 +391,14 @@ std::string t_get_blocks (const Args &a)
 					int b = g.world.getLoaded (x, y, z);
 					if (b == AIR) continue;
 					used[b]++;
-					list.add ("[" + std::to_string (x) + "," + std::to_string (y) + "," + std::to_string (z) + "," + std::to_string (b) + "]");
+					std::string e = "[" + std::to_string (x) + "," + std::to_string (y) + "," + std::to_string (z) + "," + std::to_string (b);
+					if (states) {	// (l'état et la puissance : un circuit lu d'un coup)
+						int m = g.world.meta (x, y, z);
+						e += "," + std::to_string (m) + "," + std::to_string (isActive (b) || isOpaque (b) ? sim::powerAt (x, y, z) : 0);
+						std::string st = sim::stateText (b, m);
+						if (!st.empty ()) e += ",\"" + st + "\"";
+					}
+					list.add (e + "]");
 					cnt++;
 				}
 	} else {
@@ -586,9 +627,9 @@ const ToolDef TOOLS[] = {
 	  S ({ "type" : "object", "properties" : { "x" : { "type" : "integer" }, "y" : { "type" : "integer" }, "z" : { "type" : "integer" } },
 		  "required" : ["x", "y", "z"] }),
 	  t_get_block, true },
-	{ "get_blocks", "The blocks of a box (32768 blocks at most). By default only non-air blocks as [x, y, z, id] with a legend; non_air_only:false gives full layers.",
+	{ "get_blocks", "The blocks of a box (32768 blocks at most). By default only non-air blocks as [x, y, z, id] with a legend; states:true adds the state number, the power (0..15) and the state in words: [x, y, z, id, state, power, \"output east, delay 2, on\"] (read a whole circuit at once); non_air_only:false gives full layers of ids.",
 	  S ({ "type" : "object", "properties" : { "from" : { "type" : "array", "items" : { "type" : "integer" } }, "to" : { "type" : "array", "items" : { "type" : "integer" } },
-		  "non_air_only" : { "type" : "boolean" } }, "required" : ["from", "to"] }),
+		  "non_air_only" : { "type" : "boolean" }, "states" : { "type" : "boolean" } }, "required" : ["from", "to"] }),
 	  t_get_blocks, true },
 	{ "get_heightmap", "Terrain survey: for columns from [x, z] to [x, z] (128 x 128 at most), the height of the highest non-air block and its type.",
 	  S ({ "type" : "object", "properties" : { "from" : { "type" : "array", "items" : { "type" : "integer" } }, "to" : { "type" : "array", "items" : { "type" : "integer" } } },
@@ -610,6 +651,14 @@ const ToolDef TOOLS[] = {
 	{ "remove_entities", "Remove creatures: one by id, every one of a type, or all:true.",
 	  S ({ "type" : "object", "properties" : { "id" : { "type" : "integer" }, "type" : { "type" : "string" }, "all" : { "type" : "boolean" } } }),
 	  t_remove_entities, false },
+	{ "explain_block", "Debug a circuit part: why a wire, piston, lamp, repeater, comparator, torch or solid block is (not) powered: its state, what each neighbour gives it, where a wire connects and points, whether a piston could push. Use it as soon as something does not react.",
+	  S ({ "type" : "object", "properties" : { "x" : { "type" : "integer" }, "y" : { "type" : "integer" }, "z" : { "type" : "integer" } },
+		  "required" : ["x", "y", "z"] }),
+	  t_explain_block, true },
+	{ "test_circuit", "Test a mechanism in one call: optionally right-click `use` [x,y,z] (a lever, a button), run the simulation `ticks` steps at once (1 tick = 0.05 s, default 60), and get every change inside the watched box from..to (32768 blocks at most), tick by tick: pistons extending, wires powering, blocks moved. Faster and more precise than screenshots or polling get_block.",
+	  S ({ "type" : "object", "properties" : { "from" : { "type" : "array", "items" : { "type" : "integer" } }, "to" : { "type" : "array", "items" : { "type" : "integer" } },
+		  "use" : { "type" : "array", "items" : { "type" : "integer" } }, "ticks" : { "type" : "integer" } }, "required" : ["from", "to"] }),
+	  t_test_circuit, false },
 	{ "use_block", "Right-click a block as the player would: flip a lever, press a button, change a repeater delay or comparator mode, tune a note block, switch a daylight sensor. Returns whether it did something.",
 	  S ({ "type" : "object", "properties" : { "x" : { "type" : "integer" }, "y" : { "type" : "integer" }, "z" : { "type" : "integer" } },
 		  "required" : ["x", "y", "z"] }),

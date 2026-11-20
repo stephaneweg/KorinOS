@@ -4,6 +4,7 @@
 #include "sim.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <algorithm>
 #include <deque>
@@ -1055,6 +1056,167 @@ int broken (int x, int y, int z, int b, int m)
 	}
 	g_fuse.erase (p);
 	return 0;
+}
+
+// ---- expliquer (pour les agents et les scripts) -------------------------------------------------------------------
+
+static const char *const DIRN[6] = { "east", "west", "up", "down", "south", "north" };
+
+std::string stateText (int b, int m)
+{
+	char t[160];
+	t[0] = 0;
+	switch (b) {
+	case WATER: case LAVA:
+		snprintf (t, sizeof t, "%s", m == 0 ? "source" : (m & 8) ? "falling" : (std::string ("flowing level ") + std::to_string (m & 7)).c_str ());
+		break;
+	case WIRE: snprintf (t, sizeof t, "power %d", m & 15); break;
+	case COPPER_TORCH: snprintf (t, sizeof t, "attached %s, %s", DIRN[dirOf (m)], (m & M_ON) ? "off (its support is powered)" : "lit"); break;
+	case LEVER: snprintf (t, sizeof t, "attached %s, %s", DIRN[dirOf (m)], (m & M_ON) ? "on" : "off"); break;
+	case STONE_BUTTON: case WOOD_BUTTON: snprintf (t, sizeof t, "attached %s, %s", DIRN[dirOf (m)], (m & M_ON) ? "pressed" : "released"); break;
+	case STONE_PLATE: case WOOD_PLATE: snprintf (t, sizeof t, "%s", (m & M_ON) ? "pressed" : "released"); break;
+	case REPEATER:
+		snprintf (t, sizeof t, "output %s, delay %d, %s%s", DIRN[dirOf (m)], ((m >> 3) & 3) + 1, (m & M_POW) ? "on" : "off", (m & M_LOCK) ? ", locked" : "");
+		break;
+	case COMPARATOR: snprintf (t, sizeof t, "output %s, %s mode, output %d", DIRN[dirOf (m)], (m & M_ON) ? "subtract" : "compare", m >> 4); break;
+	case OBSERVER: snprintf (t, sizeof t, "watching %s (output %s), %s", DIRN[dirOf (m)], DIRN[opposite (dirOf (m))], (m & M_ON) ? "pulsing" : "idle"); break;
+	case PISTON: case STICKY_PISTON: snprintf (t, sizeof t, "pushes %s, %s", DIRN[dirOf (m)], (m & M_ON) ? "extended" : "retracted"); break;
+	case PISTON_HEAD: snprintf (t, sizeof t, "facing %s%s", DIRN[dirOf (m)], (m & M_ON) ? ", sticky" : ""); break;
+	case SIGNAL_LAMP: snprintf (t, sizeof t, "%s", (m & M_ON) ? "lit" : "off"); break;
+	case NOTE_BLOCK: snprintf (t, sizeof t, "note %d%s", m & 31, (m & M_POW) ? ", powered" : ""); break;
+	case DAYLIGHT_SENSOR: snprintf (t, sizeof t, "%s, output %d", (m & M_ON) ? "inverted" : "normal", m >> 4); break;
+	case TNT: snprintf (t, sizeof t, "%s", (m & M_ON) ? "lit (about to explode)" : "idle"); break;
+	}
+	return t;
+}
+
+std::string explain (int x, int y, int z)
+{
+	P p = { x, y, z };
+	int b = get (p), m = meta (p);
+	std::string o = std::string (info (b).name) + (stateText (b, m).empty () ? "" : " (" + stateText (b, m) + ")") + "\n";
+	auto nbName = [&] (int d) {
+		P q = nb (p, d);
+		int qb = get (q);
+		std::string s = std::string (DIRN[d]) + " (" + std::to_string (q.x) + "," + std::to_string (q.y) + "," + std::to_string (q.z) + "): " + info (qb).name;
+		std::string st = stateText (qb, meta (q));
+		if (!st.empty ()) s += " [" + st + "]";
+		return s;
+	};
+	if (!loaded (p)) return o + "chunk not loaded\n";
+	if (b == WIRE) {
+		o += "power " + std::to_string (m & 15) + "; source input (not counting other wire) " + std::to_string (wireInput (p)) + "\n";
+		std::string con, pts;
+		for (int h : HORIZ) {
+			if (wireConnects (p, h)) con += std::string (con.empty () ? "" : ", ") + DIRN[h];
+			if (wirePoints (p, h)) pts += std::string (pts.empty () ? "" : ", ") + DIRN[h];
+		}
+		o += "connects: " + (con.empty () ? std::string ("nothing (a lone dot: it points everywhere)") : con) + "; points into: " + pts + " and down\n";
+		o += "it weakly powers the block below and the blocks it points into; a weakly powered block powers components (lamp, piston, repeater, torch on it), never other wire\n";
+		for (int d = 0; d < 6; d++) {
+			P q = nb (p, d);
+			int qb = get (q);
+			if (qb == WIRE) continue;
+			int v = conductor (qb) ? blockStrong (q) : emitted (q, opposite (d));
+			if (v) o += "  gets " + std::to_string (v) + " from " + nbName (d) + (conductor (qb) ? " (strongly powered block)" : "") + "\n";
+			else if (conductor (qb) && blockPower (q)) o += "  no input from " + nbName (d) + ": only weakly powered (wire ignores weak power)\n";
+		}
+		if (!supportTop (get (nb (p, D_DOWN)))) o += "  WARNING: no solid block below: the wire breaks\n";
+		return o;
+	}
+	bool comp = b == SIGNAL_LAMP || b == NOTE_BLOCK || b == TNT;	// (des composants qui sont aussi des blocs pleins)
+	if (conductor (b) && !comp) {
+		o += "solid block: strongly powered " + std::to_string (blockStrong (p)) + ", powered (weak or strong) " + std::to_string (blockPower (p)) + "\n";
+		for (int d = 0; d < 6; d++) {
+			P q = nb (p, d);
+			int s = strongEmitted (q, opposite (d)), w = get (q) == WIRE ? emitted (q, opposite (d)) : 0;
+			if (s) o += "  strongly by " + nbName (d) + ": " + std::to_string (s) + "\n";
+			else if (w) o += "  weakly by " + nbName (d) + " (wire pointing in): " + std::to_string (w) + "\n";
+		}
+		if (blockPower (p) && !blockStrong (p)) o += "  only weak power: it drives adjacent components but no wire\n";
+		return o;
+	}
+	switch (b) {
+	case REPEATER: {
+		int f = dirOf (m);
+		o += "input (its back, " + std::string (DIRN[opposite (f)]) + "): " + std::to_string (repeaterIn (p)) + " from " + nbName (opposite (f)) + "\n";
+		o += std::string ("locked by a powered repeater or comparator on its side: ") + (repeaterLocked (p) ? "yes" : "no") + "\n";
+		o += "output: 15 into " + nbName (f) + " when on (it strongly powers a solid block there)\n";
+		break;
+	}
+	case COMPARATOR: {
+		int f = dirOf (m);
+		o += "rear input: " + std::to_string (powerFrom (p, opposite (f))) + " from " + nbName (opposite (f)) + "\n";
+		for (int h : HORIZ)
+			if (h != f && h != opposite (f)) o += "side " + nbName (h) + " gives " + std::to_string (emitted (nb (p, h), opposite (h))) + " (only wire, repeater, comparator, copper block count)\n";
+		o += "output now " + std::to_string (compOut (p)) + " into " + nbName (f) + "\n";
+		break;
+	}
+	case COPPER_TORCH: {
+		P s = nb (p, dirOf (m));
+		o += "support " + nbName (dirOf (m)) + ": powered " + std::to_string (conductor (get (s)) ? blockPower (s) : 0) + " -> the torch should be " + (torchWants (p) ? "lit" : "off") + "\n";
+		o += "when lit it gives 15 to all its neighbours except its support, and strongly powers the block above it\n";
+		break;
+	}
+	case PISTON: case STICKY_PISTON: case SIGNAL_LAMP: case NOTE_BLOCK: case TNT: {
+		int skip = b == PISTON || b == STICKY_PISTON ? dirOf (m) : -1;
+		for (int d = 0; d < 6; d++) {
+			if (d == skip) {
+				o += "  " + nbName (d) + ": ignored (a piston is never powered through its face)\n";
+				continue;
+			}
+			int v = powerFrom (p, d);
+			o += "  " + nbName (d) + ": gives " + std::to_string (v) + "\n";
+		}
+		if (comp) o += "it is also a solid block: powered " + std::to_string (blockPower (p)) + " (strongly " + std::to_string (blockStrong (p)) + ")\n";
+		if (b == PISTON || b == STICKY_PISTON) {
+			o += std::string ("powered: ") + (pistonPowered (p) ? "yes" : "no") + " (wire powers it only if it points into it; a lever on the piston itself works)\n";
+			if (!(m & M_ON)) {
+				std::vector<P> mv, ds;
+				bool can = structure (p, nb (p, dirOf (m)), dirOf (m), mv, ds);
+				o += std::string ("it could push: ") + (can ? std::to_string (mv.size ()) + " block(s)" : "no (more than 12 blocks, or an immovable block: bedrock, obsidian, furnace, an extended piston)") + "\n";
+			}
+		}
+		break;
+	}
+	default:
+		o += "power here: " + std::to_string (powerAt (x, y, z)) + "\n";
+	}
+	return o;
+}
+
+std::vector<Change> test (int x1, int y1, int z1, int x2, int y2, int z2, int ticks, bool use_, int ux, int uy, int uz)
+{
+	if (x1 > x2) std::swap (x1, x2);
+	if (y1 > y2) std::swap (y1, y2);
+	if (z1 > z2) std::swap (z1, z2);
+	std::vector<Change> out;
+	long n = (long) (x2 - x1 + 1) * (y2 - y1 + 1) * (z2 - z1 + 1);
+	if (n <= 0 || n > 32768) return out;
+	std::vector<int> bm ((size_t) n);
+	auto idx = [&] (int x, int y, int z) { return (size_t) (((y - y1) * (z2 - z1 + 1) + (z - z1)) * (x2 - x1 + 1) + (x - x1)); };
+	auto scan = [&] (int tick) {
+		for (int y = y1; y <= y2; y++)
+			for (int z = z1; z <= z2; z++)
+				for (int x = x1; x <= x2; x++) {
+					int b = W->get (x, y, z), m = W->meta (x, y, z), v = b << 8 | m;
+					int &old = bm[idx (x, y, z)];
+					if (tick >= 0 && v != old && out.size () < 4000) out.push_back ({ tick, x, y, z, b, m, powerAt (x, y, z) });
+					old = v;
+				}
+	};
+	processUpdates (100000);
+	scan (-1);
+	if (use_) {
+		use (ux, uy, uz, 0);
+		processUpdates (100000);
+		scan (0);
+	}
+	for (int t = 1; t <= ticks; t++) {
+		tickOnce ();
+		scan (t);
+	}
+	return out;
 }
 
 int powerAt (int x, int y, int z)

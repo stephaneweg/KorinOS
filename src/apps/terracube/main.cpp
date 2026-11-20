@@ -2697,6 +2697,15 @@ static void selftest ()
 		sim::use (10, 116, -30, 0);
 		sim::runTicks (6);
 		check (!lit (16, 116, -30), "circuits : levier coupé, lampe éteinte");
+		// les outils de mise au point : lire un circuit d'un coup, l'essayer, expliquer un bloc
+		std::string st = apiExec ("world.getStates(10,116,-30,16,116,-30)", r);
+		check (std::count (st.begin (), st.end (), ',') == 6 && st.find ("48:3:0") == 0, "protocole : world.getStates (levier, fil, lampe)");
+		std::string tcr = mcpHandle (R"({"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"test_circuit","arguments":{"from":[10,116,-30],"to":[16,116,-30],"use":[10,116,-30],"ticks":10}}})");
+		check (tcr.find ("signal_lamp") != std::string::npos && tcr.find ("\\\"tick\\\":0") != std::string::npos, "MCP : test_circuit (le levier, puis la lampe s'allume)");
+		std::string ex = apiExec ("world.explain(16,116,-30)", r);
+		check (ex.find ("signal_lamp") == 0 && ex.find ("gives 11") != std::string::npos, "protocole : world.explain (la lampe : le fil lui donne 11)");
+		sim::use (10, 116, -30, 0);
+		sim::runTicks (6);
 		put (10, 116, -28, STONE);
 		put (10, 117, -28, LEVER, sim::D_DOWN);
 		put (11, 116, -28, COPPER_TORCH, sim::D_WEST);

@@ -341,6 +341,27 @@ class TerraCube:
         else:
             self.send("player.setHealth", float(health), float(hunger))
 
+    def get_states(self, x1, y1, z1, x2, y2, z2):
+        """Un circuit lu d'un coup : [(numéro, état, puissance)], dans l'ordre y, puis z, puis x (32 768 au plus)."""
+        t = self.ask("world.getStates", int(x1), int(y1), int(z1), int(x2), int(y2), int(z2))
+        return [tuple(int(v) for v in c.split(":")) for c in t.split(",")] if t else []
+
+    def explain(self, x, y, z):
+        """Pourquoi un composant (fil, piston, lampe, répéteur, torche...) est alimenté ou non : un texte."""
+        return self.ask("world.explain", int(x), int(y), int(z)).replace("|", "\n")
+
+    def test(self, box, ticks=60, use=None):
+        """Essayer un mécanisme : un clic droit sur use (x, y, z) s'il est donné, puis ticks pas de simulation tout de suite
+        (1 pas = 0,05 s) ; -> [(pas, (x, y, z), bloc, état, puissance)] : ce qui a changé dans box (x1, y1, z1, x2, y2, z2)."""
+        args = [int(v) for v in box] + [int(ticks)] + ([int(v) for v in use] if use else [])
+        t = self.ask("world.test", *args)
+        out = []
+        for c in t.split("|") if t else []:
+            tick, rest = c.split(":", 1)
+            x, y, z, b, m, p = rest.split(",")
+            out.append((int(tick), Vec3(int(x), int(y), int(z)), b, int(m), int(p)))
+        return out
+
     def use(self, x, y, z):
         """Un clic droit : bascule un levier, enfonce un bouton, change le délai d'un répéteur... -> vrai s'il a servi."""
         return self.ask("world.use", int(x), int(y), int(z)) == "1"
