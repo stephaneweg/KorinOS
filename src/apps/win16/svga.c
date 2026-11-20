@@ -172,6 +172,7 @@ int vesa_int10 (void)
 		{
 			svga_off ();
 			vga_set_mode (n, !(rBX & 0x8000));
+			mouse_mode_changed ();
 			ok ();
 			break;
 		}
@@ -182,6 +183,7 @@ int vesa_int10 (void)
 			break;
 		}
 		set_mode (m, !(rBX & 0x8000));
+		mouse_mode_changed ();
 		ok ();
 		break;
 	}

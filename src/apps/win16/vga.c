@@ -592,6 +592,7 @@ int vga_int10 (void)
 	{
 	case 0x00:
 		vga_set_mode (rAL & 0x7f, !(rAL & 0x80));
+		mouse_mode_changed ();
 		set8l (R_EAX, rAL > 7 && rAL != 0x13 ? 0x20 : rAL == 6 ? 0x3f : 0x30);
 		break;
 	case 0x01:

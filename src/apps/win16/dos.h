@@ -74,6 +74,7 @@ struct be_event;
 void mouse_init (void);
 void mouse_event (const struct be_event *e, int win_w, int win_h);
 void mouse_far (void);
+void mouse_mode_changed (void);	/* après un changement de mode vidéo : les bornes du nouveau mode */
 int mouse_int33 (void);
 int mouse_text_cursor (int *col, int *row, uint16_t *and_mask, uint16_t *xor_mask);
 int mouse_graphic_cursor (int *x, int *y);
