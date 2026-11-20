@@ -59,4 +59,9 @@ repris d'un jeu existant), doc `docs/TERRACUBE.md`.
   par appel sous QEMU) ; la compétence korin-terracube va dans le paquet terracube (comme korin-forge avec Forge),
   vibe/claude/mai l'excluent. L'utilisateur demande : fetch de main avant tout changement ou publication.
 
+- 20/11 (1.4.1) : l'agent de l'utilisateur (Claude Code sous Korin, en Python) a fait un escalier caché qui sort du
+  sol (va-et-vient à deux comparateurs) en ~1 h : il a dû lire sim.cpp pour les règles exactes. D'où : get_blocks
+  states:true, world.getStates, test_circuit / world.test (un essai, les changements pas par pas), explain_block /
+  world.explain ; la compétence donne le codage complet des états et les règles ; exemple secret_stairs.py essayé.
+
 **How to apply:** les numéros de blocs ne bougent jamais (ajout à la fin de `blocks.h`, de `terracube.py`, de la doc) ; de même les objets (100+, `items.h`).

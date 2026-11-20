@@ -64,7 +64,9 @@ Un script se lance dans le shell (`python3 fichier.py`) ; le jeu reste ouvert.
 |---|---|
 | `get_game_info`, `get_player` | le monde, la version, le mode, l'heure ; où est le joueur et où il regarde |
 | `teleport`, `look` | déplacer le joueur, tourner sa tête (`at = [x, y, z]`) |
-| `get_block`, `get_blocks`, `get_heightmap`, `list_block_types` | lire un bloc (avec `state` et `power` pour un liquide ou un circuit), un pavé, les hauteurs du terrain, la liste des blocs |
+| `get_block`, `get_blocks`, `get_heightmap`, `list_block_types` | lire un bloc (avec `state` et `power` pour un liquide ou un circuit), un pavé (`states: true` : l'état, la puissance et l'état en clair de chaque bloc, **tout un circuit en un appel**), les hauteurs du terrain, la liste des blocs |
+| `test_circuit` | **essayer un mécanisme en un appel** : un clic droit (`use` : [x, y, z]), puis `ticks` pas de simulation tout de suite ; rend chaque changement de la boîte `from`..`to`, pas par pas (le pas 0 : le clic) |
+| `explain_block` | **pourquoi** un fil, un piston, une lampe, un répéteur, une torche, un bloc ne réagit pas : son état, ce que lui donne chaque voisin, où un fil se relie et pointe, si un piston pourrait pousser |
 | `set_block`, `set_blocks`, `fill` | poser un bloc (`state`), une liste (`[[x, y, z, bloc, état], …]`, 200 000 au plus : **un montage entier d'un coup**), un pavé plein ou creux (`hollow`), `"air"` efface |
 | `use_block` | un clic droit : basculer un levier, appuyer un bouton, changer le délai d'un répéteur… |
 | `list_entities`, `spawn_entity`, `remove_entities` | les créatures autour du joueur ; en faire apparaître (`type`, `position`, `count` ; un loup `tamed`, `sitting` ; `baby`) ; en enlever (`id`, `type`, `all`) |
@@ -76,8 +78,12 @@ Un script se lance dans le shell (`python3 fichier.py`) ; le jeu reste ouvert.
 
 **La règle d'or** : `get_player` d'abord, et construire **près du joueur, devant lui** (relatif à sa case) ; poser
 d'un coup avec `set_blocks` ou `fill` ; puis **regarder** (`screenshot` avec `eye` et `look_at` bien placés, à
-quelques blocs du montage, un peu au-dessus) ; pour un circuit, **le faire marcher** (`use_block`) et lire le
-résultat (`get_block` : `state`, `power`).
+quelques blocs du montage, un peu au-dessus) ; pour un circuit, **l'essayer** avec `test_circuit` (le levier, puis
+ce qui bouge, pas par pas) et, si quelque chose ne réagit pas, `explain_block` sur lui : c'est plus rapide et plus sûr
+qu'une suite de `use_block`, `get_block` et de captures.
+
+En Python, les mêmes : `tc.get_states(x1, y1, z1, x2, y2, z2)` (numéro, état, puissance), `tc.test(boîte, pas,
+use=(x, y, z))`, `tc.explain(x, y, z)` ; une requête prend une vingtaine de millisecondes.
 
 ### Une grande construction (un temple, une ville, un château)
 
@@ -134,6 +140,40 @@ cuivre) :
 
 **Le temps** : 20 pas par seconde ; un « temps » de circuit = 2 pas (0,1 s).
 
+**Les règles exactes** (celles de `sim.cpp` ; inutile de lire les sources) :
+* le fil ne prend d'un bloc plein que sa puissance **forte** ; d'un composant, ce que ce composant donne vers lui ;
+* un fil se relie à : un fil voisin ; la marche d'un bloc plus bas (si le bloc d'à côté n'est pas opaque) ; la marche
+  d'un bloc plus haut (si rien d'opaque n'est au-dessus de lui) ; un levier, un bouton, une plaque, une torche, un bloc
+  de cuivre, un capteur de jour ; un répéteur ou un comparateur **dans son axe** ; un observateur **par son dos** ;
+* un composant (lampe, piston, bloc musical, dynamite) prend de chacun de ses six voisins : d'un bloc plein, sa
+  puissance (forte ou faible) ; d'un composant, ce qu'il donne vers lui ; **un piston rien par sa face** ;
+* le répéteur ne lit que son dos ; le comparateur son arrière (un bloc plein ou un composant) et, sur ses côtés,
+  seulement un fil, un répéteur, un comparateur ou un bloc de cuivre ;
+* la torche s'éteint quand le bloc qui la porte est alimenté (fort ou faible) ; allumée, elle donne 15 à tous ses
+  voisins sauf son support, et alimente fort le bloc au-dessus d'elle ;
+* rien ne tombe (le sable reste en l'air) ; le levier, le bouton, la plaque, le fil, le répéteur, le comparateur, la
+  torche et le capteur ne sont pas solides (on passe au travers) ;
+* `get_blocks` et `world.getStates` rangent les blocs par y, puis z, puis x (x le plus rapide).
+
+**Le codage des états** (`state`, un octet ; les directions : 0 est, 1 ouest, 2 haut, 3 bas, 4 sud, 5 nord) :
+
+| Bloc | État |
+|---|---|
+| `wire` | la puissance, 0 à 15 |
+| `lever`, `stone_button`, `wood_button` | la direction du support + 8 (abaissé, enfoncé) |
+| `copper_torch` | la direction du support (jamais 2) + 8 (**éteinte**) |
+| `stone_plate`, `wood_plate`, `signal_lamp`, `tnt` | 8 : enfoncée, allumée |
+| `repeater` | la sortie + 8 × (délai − 1) + 32 (allumé) + 64 (bloqué) |
+| `comparator` | la sortie + 8 (soustraction) ; la puissance de sortie × 16 (bits 4 à 7) |
+| `observer` | la direction regardée + 8 (l'impulsion) |
+| `piston`, `sticky_piston` | la direction de la poussée + 8 (sorti) ; `piston_head` : sa direction + 8 (collante) |
+| `note_block` | la note (0 à 24) + 32 (alimenté) |
+| `daylight_sensor` | 8 (inversé) ; la puissance × 16 |
+| `water`, `lava` | 0 source, 1 à 7 le niveau, 8 qui tombe |
+
+Pour un montage au repos, poser les pistons **rentrés** et les composants éteints : la simulation fait le reste dès
+que la source est posée (poser la source, le levier, en dernier).
+
 | Bloc | Ce qu'il fait | Son état (`state`) |
 |---|---|---|
 | `lever` | source 15 tant qu'il est abaissé ; alimente fort le bloc qui le porte | la direction **de son support** (`down` : posé au sol ; `west` : fixé au bloc à l'ouest) ; `+on` abaissé |
@@ -177,6 +217,18 @@ cuivre) :
   x+2 ; en y : `observer` `west` en x−1. Le départ : poser puis enlever un bloc en (x−2, y). Elle avance d'environ 2,5
   blocs par seconde et s'arrête au premier obstacle. (Un observateur **déplacé** par un piston envoie une impulsion :
   c'est ce qui la fait repartir.) Pour un autre sens, tourner toutes les directions ensemble.
+* **Escalier caché dans le sol** (exemple complet : `python/examples/secret_stairs.py`, essayé) : marches de 2 de
+  large qui descendent (marche k en (0..1, y0 − k, z k)) sous des dalles de **sable** (0..1, y0, k) ; de chaque côté
+  un `sticky_piston` (x −2 vers l'est, x 3 vers l'ouest) qui, **sorti**, tient la dalle sur l'escalier et, **rentré**,
+  la tire sous la rampe ; sous chaque piston un bloc de pierre, derrière lui un `repeater` de **délai k** qui
+  l'alimente fort (la cascade : la marche du haut d'abord, 0,1 s d'écart) ; les répéteurs pris sur un bus de fil
+  (x −4 et x 5) ; la commande : une `copper_torch` (l'inverseur) contre le bloc qui porte le levier, enfermée sous un
+  bloc, qui alimente le bus ; levier baissé : fermé, levier levé : ouvert ; tout le circuit en y0 − 1, des rampes en
+  y0 + 1 cachent pistons et têtes. Pour deux leviers (en haut et en bas de l'escalier), deux comparateurs en
+  soustraction font un va-et-vient (« A et pas B » ou « B et pas A »).
+* **Pistons empilés** (un ascenseur) : un piston pousse ceux qui sont au-dessus de lui s'ils sont rentrés (12 blocs
+  au plus) ; il faut alimenter chaque étage **là où il arrive**. À la descente, un piston collant ne ramène que le
+  bloc collé à sa tête, et rien ne tombe : redescendre du haut vers le bas, et prévoir de quoi ramener chaque bloc.
 * **Lampe de nuit** : `daylight_sensor` état `on` (inversé), du fil, une lampe.
 * **Ouvrir au passage** : une `stone_plate` devant la porte à pistons, reliée par du fil au bloc derrière les pistons.
 
@@ -189,8 +241,12 @@ cuivre) :
 * Un répéteur n'écoute que son arrière et ne sort que devant : vérifier sa direction (`get_block`, `state`).
 * La colle colle **à tout**, le sol compris : une machine à colle se construit en l'air, sinon le piston est trop
   chargé (plus de 12 blocs) et ne bouge pas.
-* Un piston ne s'alimente pas par sa face ; une torche ne s'alimente pas elle-même par son support… lire `power`
-  avec `get_block` aux points clés quand quelque chose ne marche pas.
+* Un piston ne s'alimente pas par sa face ; une torche ne s'alimente pas elle-même par son support.
+* **La méthode** quand quelque chose ne marche pas : `test_circuit` (qu'est-ce qui bouge, et quand ?), puis
+  `explain_block` sur le premier composant qui ne réagit pas ; corriger, réessayer. Construire d'abord un essai **dans
+  le ciel**, loin de tout (pas d'eau, pas de joueur), le défaire ensuite.
+* Ce qui n'existe pas (contrairement à d'autres jeux du genre) : le « crachat » d'un piston collant sur une impulsion
+  très courte, la quasi-connectivité (un piston alimenté par le bloc au-dessus de lui), les blocs qui tombent.
 
 ## 5. Les liquides
 

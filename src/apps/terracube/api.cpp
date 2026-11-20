@@ -11,6 +11,10 @@
 //   world.getBlockWithData(x,y,z)               -> numéro,état
 //   world.getPower(x,y,z)                       -> la puissance d'un circuit (0 à 15) : le fil, un composant, un bloc
 //   world.use(x,y,z)                            -> 1 si le bloc a servi (un levier basculé, un bouton enfoncé…)
+//   world.getStates(x1,y1,z1,x2,y2,z2)          -> « numéro:état:puissance,… » (y, puis z, puis x ; 32 768 au plus)
+//   world.explain(x,y,z)                        -> pourquoi un composant est (ou non) alimenté : des lignes séparées par « | »
+//   world.test(x1,y1,z1,x2,y2,z2,pas[,ux,uy,uz]) -> un clic droit en (ux,uy,uz), puis « pas » pas de simulation tout de
+//                                                  suite : « pas:x,y,z,bloc,état,puissance|… », ce qui change dans la boîte
 //   entities.list([rayon])                      -> « id,type,x,y,z,santé,apprivoisé|… » (autour du joueur, 64 par défaut)
 //   entities.spawn(type,x,y,z[,tamed|sitting])  -> l'id (chicken, pig, wolf, rodeur, spider ; un loup apprivoisé)
 //   entities.remove(id|type|all)
@@ -172,7 +176,7 @@ const char *const REPLY[] = { "world.getBlock", "world.getBlocks", "world.getHei
 			      "player.getPos", "player.getTile", "player.getRotation", "player.getPitch", "player.getDirection",
 			      "events.blocks", "game.info", "ping", "world.getBlockWithData", "world.save", "game.getMode", "world.getWeather",
 			      "game.command", "player.getInventory", "player.craft", "world.getPower", "world.use", "entities.list", "entities.spawn",
-			      "player.getHealth" };
+			      "player.getHealth", "world.getStates", "world.explain", "world.test" };
 
 } // namespace
 
@@ -228,6 +232,40 @@ std::string apiExec (const std::string &line, bool &reply)
 			return is ("world.getBlock") ? std::to_string (b) : std::to_string (b) + "," + std::to_string (g.world.meta (inum (a, 0), inum (a, 1), inum (a, 2)));
 		}
 		if (is ("world.getPower")) return std::to_string (sim::powerAt (inum (a, 0), inum (a, 1), inum (a, 2)));
+		if (is ("world.getStates")) {
+			int x1 = inum (a, 0), y1 = inum (a, 1), z1 = inum (a, 2), x2 = inum (a, 3), y2 = inum (a, 4), z2 = inum (a, 5);
+			if (x1 > x2) std::swap (x1, x2);
+			if (y1 > y2) std::swap (y1, y2);
+			if (z1 > z2) std::swap (z1, z2);
+			if ((double) (x2 - x1 + 1) * (y2 - y1 + 1) * (z2 - z1 + 1) > 32768) return "error: too many blocks (32768 at most)";
+			std::string out;
+			for (int y = y1; y <= y2; y++)
+				for (int z = z1; z <= z2; z++)
+					for (int x = x1; x <= x2; x++) {
+						int b = g.world.getLoaded (x, y, z), m = g.world.meta (x, y, z);
+						if (!out.empty ()) out += ',';
+						out += std::to_string (b) + ":" + std::to_string (m) + ":" + std::to_string (isActive (b) || isOpaque (b) ? sim::powerAt (x, y, z) : 0);
+					}
+			return out;
+		}
+		if (is ("world.explain")) {
+			std::string t = sim::explain (inum (a, 0), inum (a, 1), inum (a, 2));
+			for (auto &c : t)
+				if (c == '\n') c = '|';
+			while (!t.empty () && t.back () == '|') t.pop_back ();
+			return t;
+		}
+		if (is ("world.test")) {
+			bool use = a.size () >= 10;
+			auto ch = sim::test (inum (a, 0), inum (a, 1), inum (a, 2), inum (a, 3), inum (a, 4), inum (a, 5), std::max (1, std::min (1200, inum (a, 6))), use,
+					     use ? inum (a, 7) : 0, use ? inum (a, 8) : 0, use ? inum (a, 9) : 0);
+			std::string out;
+			for (auto &c : ch)
+				out += (out.empty () ? "" : "|") + std::to_string (c.tick) + ":" + std::to_string (c.x) + "," + std::to_string (c.y) + "," + std::to_string (c.z) + "," +
+				       info (c.block).name + "," + std::to_string (c.meta) + "," + std::to_string (c.power);
+			g.edited = true;
+			return out;
+		}
 		if (is ("world.use")) {
 			bool ok = sim::use (inum (a, 0), inum (a, 1), inum (a, 2), 0);
 			if (ok) g.edited = true;

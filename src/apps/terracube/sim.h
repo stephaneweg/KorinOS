@@ -12,6 +12,8 @@
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener.
 #pragma once
+#include <string>
+#include <vector>
 #include "world.h"
 
 namespace tc {
@@ -52,6 +54,16 @@ int broken (int x, int y, int z, int block, int meta);
 // la puissance d'un bloc (le fil, la sortie d'un composant, un bloc plein alimenté) : pour les scripts
 int powerAt (int x, int y, int z);
 int pending ();				// les pas programmés en attente
+// un état en clair (« facing east, on, delay 2 ») ; ce qui alimente un bloc ou non, et pourquoi (une ligne par fait,
+// en anglais : pour un agent)
+std::string stateText (int block, int meta);
+std::string explain (int x, int y, int z);
+// un essai : (si use) un clic droit sur (ux, uy, uz), puis « ticks » pas de simulation tout de suite ; ce qui change dans
+// la boîte (32 768 cases au plus), pas par pas (tick 0 : le clic lui-même)
+struct Change {
+	int tick, x, y, z, block, meta, power;
+};
+std::vector<Change> test (int x1, int y1, int z1, int x2, int y2, int z2, int ticks, bool use, int ux, int uy, int uz);
 
 } // namespace sim
 } // namespace tc

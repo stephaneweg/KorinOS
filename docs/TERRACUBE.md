@@ -283,6 +283,9 @@ que tout soit fait). 16 connexions au plus.
 | `player.getHealth()` / `player.setHealth(santé[,faim])` | `santé,faim` (0 à 20) / — |
 | `world.getPower(x,y,z)` | la puissance d'un circuit (0 à 15) : un fil, la sortie d'un composant, un bloc alimenté |
 | `world.use(x,y,z)` | `1` si le bloc a servi (levier basculé, bouton enfoncé, délai d'un répéteur…), sinon `0` |
+| `world.getStates(x1,y1,z1,x2,y2,z2)` | `numéro:état:puissance,…` (y, puis z, puis x ; 32 768 au plus) : un circuit lu d'un coup |
+| `world.test(x1,y1,z1,x2,y2,z2,pas[,ux,uy,uz])` | un clic droit en (ux,uy,uz), puis tant de pas de simulation tout de suite (1 pas = 0,05 s) : `pas:x,y,z,bloc,état,puissance\|…`, ce qui a changé dans la boîte |
+| `world.explain(x,y,z)` | pourquoi un composant est (ou non) alimenté : des lignes séparées par `\|` |
 | `world.setBlocks(x1,y1,z1,x2,y2,z2,bloc)` | — (un pavé plein, coins compris, 1 000 000 de blocs au plus) |
 | `world.getBlocks(x1,y1,z1,x2,y2,z2)` | les numéros séparés par des virgules : y, puis z, puis x (262 144 au plus) |
 | `world.getHeight(x,z)` | y du plus haut bloc non vide |
@@ -304,7 +307,7 @@ que tout soit fait). 16 connexions au plus.
 | `player.getInventory()` | `case:objet:nombre\|…` (survie ; les cases 0 à 8 sont la barre) |
 | `player.give(objet[,n])` | — (survie) |
 | `player.craft(recette[,fois])` | les fois faites, ou `error: …` (survie) |
-| `game.info()` | `TerraCube 1.4.0,<monde>,<graine>` |
+| `game.info()` | `TerraCube 1.4.1,<monde>,<graine>` |
 | `ping()` | `pong` |
 
 ### Python
@@ -315,7 +318,9 @@ que tout soit fait). 16 connexions au plus.
 collant, un arpège de blocs musicaux, une horloge à torche et répéteur), `flying_machine.py` (une machine qui
 avance seule : observateurs, pistons, colle), `farm.py` (un enclos, des poules, des cochons, un loup qui garde), `temple_mcp.py` (un client MCP, comme un agent :
 un temple aztèque explorable, 80 appels, captures et journal)) ;
-`creatures()`, `spawn()`, `remove()`, `health()`, `set_health()` ; `set_block(x, y, z, bloc, état)`,
+`creatures()`, `spawn()`, `remove()`, `health()`, `set_health()` ; `get_states()`, `test()`, `explain()` (la mise
+au point des circuits) ; l'exemple `secret_stairs.py` (un escalier caché dans le sol, des dalles tirées par des
+pistons collants en cascade, un levier et une torche-inverseur ; il s'essaie lui-même) ; `set_block(x, y, z, bloc, état)`,
 `get_block_state()`, `get_power()`, `use()`, les directions dans `Facing` ; aussi `mode()`, `set_mode()`, `weather()`,
 `set_weather()`, `command()`, `inventory()`, `give()`, `craft()` :
 
@@ -363,6 +368,7 @@ de Forge (`mcp.cpp`).
 | `list_block_types` | les blocs : numéro, nom, solide, transparent |
 | `set_block`, `set_blocks`, `fill` | poser un bloc (avec un état : `"east"`, `"down+on"`…) ; une liste (200 000 au plus) ; un pavé plein ou creux |
 | `use_block` | un clic droit : basculer un levier, appuyer un bouton, changer un répéteur… |
+| `get_blocks` avec `states: true`, `test_circuit`, `explain_block` | la mise au point des circuits : tout un montage lu d'un coup (état, puissance, état en clair) ; un essai (le levier, puis ce qui change, pas par pas) ; pourquoi un bloc ne réagit pas |
 | `list_entities`, `spawn_entity`, `remove_entities` | les créatures autour ; en faire apparaître (un loup `tamed`, `sitting`, des petits `baby`) ; en enlever |
 | `post_message` | un message au joueur |
 | `set_time` | l'heure et si le temps passe |
