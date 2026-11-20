@@ -134,3 +134,4 @@
 - [ImageKit](armpi-imagekit.md) — au plan le 18/11 : traducteurs d'images, document à calques canonique, UIKit s'appuie dessus ; docs/etude/IMAGEKIT.md
 - [TerraCube](armpi-terracube.md) — 19/11 : bac à sable de blocs sur GlKit (PC), scripts Python/BASIC port 4730, MCP 7312 ; QEMU seulement
 - [Noyau Linux écarté](armpi-noyau-linux.md) — 20/11 : Korin sur Linux (Elegant sur DRM) seulement en cas de vrai blocage ; on garde le micronoyau from scratch
+- [Relics](armpi-relics.md) — jeu à la Rick Dangerous en C sur gamefb (19/11) : 7 mondes, 21 niveaux de tools/relics/mklevels.py vérifiés par run.sh, musique (music.h), fuites devant le rocher ; PC 1.1.2 publié
