@@ -9,12 +9,13 @@
 #include <deque>
 #include <string>
 #include <vector>
+#include "entity.h"
 #include "items.h"
 #include "world.h"
 
 namespace tc {
 
-const char *const VERSION = "1.3.0";
+const char *const VERSION = "1.4.0";
 const int API_PORT = 4730;	// le protocole des scripts (Python, BASIC)
 const int MCP_PORT = 7312;	// le MCP (Forge a 7311)
 
@@ -70,6 +71,10 @@ struct Game {
 	// le son (audio.h)
 	bool musicOn = true, sfxOn = true;
 	float musicVol = 0.6f, sfxVol = 0.8f;
+	// les créatures ; la vie du joueur (mode survie) : santé et faim sur 20, l'air sous l'eau (s)
+	Entities mobs;
+	float health = 20, hunger = 20, saturation = 5, exhaustion = 0, air = 15, burn = 0;
+	double spawnX = 0.5, spawnY = -1, spawnZ = 0.5;	// (où l'on revient ; y < 0 : pas encore choisi)
 };
 
 extern Game g;
@@ -100,6 +105,7 @@ std::string blockList ();
 
 // main.cpp, suite
 void gameSetMode (int mode);
+void gameHurtPlayer (float dmg, const char *cause, double fromX, double fromZ);	// (survie : les cœurs)
 void gameAudioChanged ();	// (après un changement de g.musicOn, g.musicVol, g.sfxOn, g.sfxVol)
 void gameSetWeather (int w, double seconds);	// seconds <= 0 : jusqu'au prochain changement du cycle
 int gameHeldItem ();				// l'objet en main (créatif : le bloc de la case)

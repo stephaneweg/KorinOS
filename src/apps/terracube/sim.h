@@ -30,11 +30,14 @@ extern void (*soundHook) (int sound, int arg, int x, int y, int z);
 extern void (*blastHook) (double x, double y, double z, float power);
 extern void (*dropHook) (int item, int x, int y, int z);
 extern void (*pushHook) (int x, int y, int z, int dir);
+// quelqu'un (le joueur, une créature) a-t-il les pieds dans cette case ? (les plaques ; sinon : le joueur seul)
+extern bool (*occupiedHook) (int x, int y, int z);
 
 void attach (World *w);			// branche onChange et onLoad, oublie tout ce qui était en attente
 // avance de dt secondes (au plus 5 pas par appel) ; daylight 0 à 1 (le capteur) ; les pieds du joueur (plaques)
 void step (double dt, float daylight, double px, double py, double pz);
 void runTicks (int n);			// n pas tout de suite (le test)
+void press (int x, int y, int z);	// des pieds sur cette case : une plaque s'enfonce
 long now ();				// les pas depuis le début
 
 // un clic droit sur un bloc -> vrai s'il a servi (levier, bouton, répéteur…) ; held : l'objet en main

@@ -22,7 +22,7 @@ import math
 import os
 import socket
 
-__all__ = ["TerraCube", "Block", "Item", "Facing", "Vec3", "BlockEvent", "TerraCubeError"]
+__all__ = ["TerraCube", "Block", "Item", "Facing", "Creature", "Vec3", "BlockEvent", "TerraCubeError"]
 
 
 class TerraCubeError(RuntimeError):
@@ -147,6 +147,32 @@ class Item:
     WATER_BUCKET = 118
     LAVA_BUCKET = 119
     RESIN = 120
+    SEEDS = 121
+    APPLE = 122
+    RAW_CHICKEN = 123
+    COOKED_CHICKEN = 124
+    RAW_PORK = 125
+    COOKED_PORK = 126
+    FEATHER = 127
+    BONE = 128
+    STRING = 129
+    WOOD_SWORD = 130
+    STONE_SWORD = 131
+    IRON_SWORD = 132
+    CRYSTAL_SWORD = 133
+
+
+class Creature:
+    """Une créature : son id, son espèce ("chicken", "pig", "wolf", "rodeur", "spider"), où elle est, sa santé."""
+
+    def __init__(self, text):
+        f = text.split(",")
+        self.id, self.type = int(f[0]), f[1]
+        self.pos = Vec3(float(f[2]), float(f[3]), float(f[4]))
+        self.health, self.tamed = float(f[5]), f[6] == "1"
+
+    def __repr__(self):
+        return "Creature(%d, %s, %r, santé %g%s)" % (self.id, self.type, self.pos, self.health, ", apprivoisé" if self.tamed else "")
 
 
 class Facing:
@@ -286,6 +312,34 @@ class TerraCube:
     def get_power(self, x, y, z):
         """La puissance d'un circuit en ce bloc (0 à 15)."""
         return int(self.ask("world.getPower", int(x), int(y), int(z)))
+
+    # -- les créatures
+    def creatures(self, radius=64):
+        """Les créatures autour du joueur : une liste de Creature."""
+        t = self.ask("entities.list", radius)
+        return [Creature(c) for c in t.split("|")] if t else []
+
+    def spawn(self, kind, x, y, z, tamed=False, sitting=False):
+        """Fait apparaître une créature ("chicken", "pig", "wolf", "rodeur", "spider") -> son id. Un loup peut naître
+        apprivoisé (tamed : il suit le joueur) et assis (sitting : il garde sa place)."""
+        if kind == "wolf" and (tamed or sitting):
+            return int(self.ask("entities.spawn", kind, float(x), float(y), float(z), "sitting" if sitting else "tamed"))
+        return int(self.ask("entities.spawn", kind, float(x), float(y), float(z)))
+
+    def remove(self, what):
+        """Enlève une créature (son id), une espèce, ou "all"."""
+        self.send("entities.remove", what)
+
+    def health(self):
+        """(santé, faim), de 0 à 20 (le mode survie)."""
+        h, f = self.ask("player.getHealth").split(",")
+        return float(h), float(f)
+
+    def set_health(self, health, hunger=None):
+        if hunger is None:
+            self.send("player.setHealth", float(health))
+        else:
+            self.send("player.setHealth", float(health), float(hunger))
 
     def use(self, x, y, z):
         """Un clic droit : bascule un levier, enfonce un bouton, change le délai d'un répéteur... -> vrai s'il a servi."""

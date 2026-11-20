@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
+#include "entity.h"
 #include "world.h"
 
 namespace tc {
@@ -49,11 +50,23 @@ struct HudState {
 	int selected;
 	bool underwater;
 	bool inLava = false;		// (l'œil dans la lave : tout orange)
+	// le mode survie : santé et faim (0 à 20 ; -1 : ne pas les montrer), l'air (0 à 10 bulles ; -1 : rien), un coup reçu (0 à 1)
+	float health = -1, hunger = -1, air = -1, hurtFlash = 0;
 	bool crosshair;
 	bool hotbar = true;
 	const CraftDraw *craft = nullptr;	// (le panneau ouvert : pas de barre ni de viseur)
 	unsigned sunken = 0, line = 0, hoverCol = 0;
 	unsigned panel, panelLine, accent, text, good, warn, bad;	// jetons du thème (0xRRGGBB)
+};
+
+// ce que le joueur tient, dessiné en bas à droite de la vue
+struct HandView {
+	bool show = false;
+	int item = 0;		// un objet (items.h) ; 0 : la main nue
+	float swing = -1;	// 0 à 1 : le geste en cours (-1 : aucun)
+	float equip = 0;	// 1 à 0 : l'objet remonte après un changement de case
+	float bob = 0, bobAmt = 0;	// la marche (la phase, 0 à 1)
+	float light = 1;	// la lumière à l'œil
 };
 
 struct Frame {
@@ -69,6 +82,11 @@ struct Frame {
 	float gloom = 0;		// le ciel gris (0 à 1)
 	float flash = 0;		// un éclair (0 à 1)
 	const uint8_t *heights = nullptr;	// 64 × 64 : y + 1 du plus haut bloc opaque (ou feuilles) autour de l'œil
+	// les créatures : leurs quads, relatifs à la case de l'œil (floor (cam.x), 0, floor (cam.z)), par créature
+	const std::vector<EVertex> *ents = nullptr;
+	const std::vector<EDraw> *entDraws = nullptr;
+	const std::vector<EVertex> *overlay = nullptr;	// (des quads mélangés : les fissures du bloc miné)
+	HandView hand;
 };
 
 const int HMAP = 64;			// (la case de l'œil est la colonne 32, 32)
@@ -85,11 +103,12 @@ public:
 private:
 	unsigned progWorld = 0, progSky = 0, progHud = 0, progLine = 0, progRain = 0, hmapTex = 0;
 	int rU[8];
-	unsigned tex = 0, vao = 0, ibo = 0, hudVbo = 0, lineVbo = 0;
+	unsigned tex = 0, vao = 0, ibo = 0, hudVbo = 0, lineVbo = 0, entVbo = 0;
+	std::vector<uint8_t> atlas;	// (une copie de l'atlas : la transparence des objets tenus en main)
 	int iboQuads = 0;
 	std::string name;
 	// emplacements des uniformes
-	int uVp, uOrigin, uCam, uFog0, uFog1, uDay, uFogCol, uAlpha, uTex, uWater, uTime, uCell;
+	int uVp, uOrigin, uCam, uFog0, uFog1, uDay, uFogCol, uAlpha, uTex, uWater, uTime, uCell, uTint;
 	int sInvVp, sSun, sDay, sZen, sHor;
 	int hProj, hTex;
 	int lVp, lCol;
@@ -98,6 +117,8 @@ private:
 	void drawHud (const Frame &f, const HudState &hud);
 	void drawSelection (const Camera &cam, const Hit &h, const float *vp);
 	void drawPrecip (const Camera &cam, const Frame &f, const float *vp);
+	void drawEVerts (const std::vector<EVertex> &v, int first, int quads);
+	void drawHand (const Camera &cam, const Frame &f);
 };
 
 // matrices (colonnes d'abord, comme GL)

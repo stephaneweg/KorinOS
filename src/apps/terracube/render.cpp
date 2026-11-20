@@ -130,6 +130,7 @@ uniform sampler2D u_tex;
 uniform vec3 u_fogcol;
 uniform float u_alpha;
 uniform float u_water, u_time, u_day;
+uniform vec3 u_tint;
 in vec2 v_uv;
 in float v_light;
 in float v_fog;
@@ -163,7 +164,7 @@ void main () {
 	} else
 		t = texture (u_tex, v_uv);
 	if (u_alpha < 0.5 && t.a < 0.5) discard;
-	o = vec4 (mix (t.rgb * light, u_fogcol, v_fog), u_alpha < 0.5 ? 1.0 : t.a * u_alpha);
+	o = vec4 (mix (t.rgb * u_tint * light, u_fogcol, v_fog), u_alpha < 0.5 ? 1.0 : t.a * u_alpha);
 }
 )";
 
@@ -356,6 +357,7 @@ bool Renderer::init (std::string &err)
 	uWater = glGetUniformLocation (progWorld, "u_water");
 	uTime = glGetUniformLocation (progWorld, "u_time");
 	uCell = glGetUniformLocation (progWorld, "u_cell");
+	uTint = glGetUniformLocation (progWorld, "u_tint");
 	sInvVp = glGetUniformLocation (progSky, "u_invvp");
 	sSun = glGetUniformLocation (progSky, "u_sun");
 	sDay = glGetUniformLocation (progSky, "u_day");
@@ -368,6 +370,7 @@ bool Renderer::init (std::string &err)
 	// l'atlas
 	std::vector<uint8_t> px (256 * 256 * 4);
 	buildAtlas (px.data ());
+	atlas = px;
 	glGenTextures (1, &tex);
 	glBindTexture (GL_TEXTURE_2D, tex);
 	glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 256, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, px.data ());
@@ -380,6 +383,7 @@ bool Renderer::init (std::string &err)
 	glGenBuffers (1, &ibo);
 	glGenBuffers (1, &hudVbo);
 	glGenBuffers (1, &lineVbo);
+	glGenBuffers (1, &entVbo);
 	ensureIndices (4096);
 	return glGetError () == GL_NO_ERROR || true;
 }
@@ -555,6 +559,7 @@ void Renderer::draw (World &w, const Camera &cam, const Frame &f, const HudState
 	glUniform1f (uTime, (float) fmod (ts.tv_sec + ts.tv_nsec / 1e9, 3600.0));
 	glUniform2f (uCell, (float) (bx - floor (bx / 2048.0) * 2048.0), (float) (bz - floor (bz / 2048.0) * 2048.0));
 	glUniform1f (uWater, 0.0f);
+	glUniform3f (uTint, 1.0f, 1.0f, 1.0f);
 	glBindBuffer (GL_ELEMENT_ARRAY_BUFFER, ibo);
 	glEnableVertexAttribArray (0);
 	glEnableVertexAttribArray (1);
@@ -600,6 +605,14 @@ void Renderer::draw (World &w, const Camera &cam, const Frame &f, const HudState
 	glUniform1f (uAlpha, 0.0f);
 	for (Chunk *c : shown)
 		if (c->solid.quads) drawMesh (c, c->solid), drawnChunks++;
+	// les créatures : des boîtes en nombres réels, relatives à la case de l'œil
+	if (f.ents && f.entDraws && !f.entDraws->empty ()) {
+		for (auto &d : *f.entDraws) {
+			glUniform3fv (uTint, 1, d.tint);
+			drawEVerts (*f.ents, d.first, d.quads);
+		}
+		glUniform3f (uTint, 1.0f, 1.0f, 1.0f);
+	}
 	// l'eau : mélangée, sans écrire la profondeur, des deux côtés
 	glEnable (GL_BLEND);
 	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -609,12 +622,210 @@ void Renderer::draw (World &w, const Camera &cam, const Frame &f, const HudState
 	glUniform1f (uWater, 1.0f);
 	for (Chunk *c : shown)
 		if (c->water.quads) drawMesh (c, c->water);
+	// les fissures du bloc qu'on casse : par-dessus ses faces
+	if (f.overlay && !f.overlay->empty ()) {
+		glUniform1f (uWater, 0.0f);
+		glEnable (GL_POLYGON_OFFSET_FILL);
+		glPolygonOffset (-2.0f, -2.0f);
+		drawEVerts (*f.overlay, 0, (int) (f.overlay->size () / 4));
+		glDisable (GL_POLYGON_OFFSET_FILL);
+	}
 	glDepthMask (GL_TRUE);
 	glEnable (GL_CULL_FACE);
 
 	if (f.precip && f.precipLevel > 0.01f && !hud.underwater) drawPrecip (cam, f, vp);
 	if (f.hasTarget) drawSelection (cam, f.target, vp);
+	if (f.hand.show) drawHand (cam, f);
 	drawHud (f, hud);
+}
+
+// des quads en nombres réels (créatures, éclats, fissures, la main), relatifs à la case de l'œil
+void Renderer::drawEVerts (const std::vector<EVertex> &v, int first, int quads)
+{
+	if (quads <= 0) return;
+	float o[3] = { 0, 0, 0 };
+	glUniform3fv (uOrigin, 1, o);
+	glBindBuffer (GL_ARRAY_BUFFER, entVbo);
+	glBufferData (GL_ARRAY_BUFFER, (long) ((size_t) quads * 4 * sizeof (EVertex)), v.data () + first, GL_STREAM_DRAW);
+	ensureIndices (quads);
+	glBindBuffer (GL_ELEMENT_ARRAY_BUFFER, ibo);
+	glVertexAttribPointer (0, 3, GL_FLOAT, GL_FALSE, sizeof (EVertex), (void *) 0);
+	glVertexAttribPointer (1, 2, GL_FLOAT, GL_FALSE, sizeof (EVertex), (void *) 12);
+	glVertexAttribPointer (2, 2, GL_FLOAT, GL_FALSE, sizeof (EVertex), (void *) 20);
+	glDrawElements (GL_TRIANGLES, quads * 6, GL_UNSIGNED_INT, nullptr);
+}
+
+// ---- la main : l'objet tenu, en relief, et le geste -----------------------------------------------------------------
+
+namespace {
+
+struct M3 {
+	float m[3][3];
+	static M3 id () { return { { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } }; }
+	static M3 rx (float d)
+	{
+		float c = cosf (d * (float) M_PI / 180), s = sinf (d * (float) M_PI / 180);
+		return { { { 1, 0, 0 }, { 0, c, -s }, { 0, s, c } } };
+	}
+	static M3 ry (float d)
+	{
+		float c = cosf (d * (float) M_PI / 180), s = sinf (d * (float) M_PI / 180);
+		return { { { c, 0, s }, { 0, 1, 0 }, { -s, 0, c } } };
+	}
+	static M3 rz (float d)
+	{
+		float c = cosf (d * (float) M_PI / 180), s = sinf (d * (float) M_PI / 180);
+		return { { { c, -s, 0 }, { s, c, 0 }, { 0, 0, 1 } } };
+	}
+	M3 operator* (const M3 &b) const
+	{
+		M3 r;
+		for (int i = 0; i < 3; i++)
+			for (int j = 0; j < 3; j++) r.m[i][j] = m[i][0] * b.m[0][j] + m[i][1] * b.m[1][j] + m[i][2] * b.m[2][j];
+		return r;
+	}
+	void apply (const float p[3], float o[3]) const
+	{
+		for (int i = 0; i < 3; i++) o[i] = m[i][0] * p[0] + m[i][1] * p[1] + m[i][2] * p[2];
+	}
+};
+
+// l'espace de la main (x à droite, y en haut, z devant l'œil, en blocs) vers le monde (1/16, relatif à la case de l'œil)
+struct HandSpace {
+	float eye[3], rt[3], up[3], fw[3];
+	M3 rot;
+	float pos[3];
+	float light;
+	std::vector<EVertex> *out;
+	void vertex (const float p[3], float u, float v, float shade)
+	{
+		float q[3];
+		rot.apply (p, q);
+		for (int i = 0; i < 3; i++) q[i] += pos[i];
+		EVertex e;
+		e.x = (eye[0] + rt[0] * q[0] + up[0] * q[1] + fw[0] * q[2]) * 16.0f;
+		e.y = (eye[1] + rt[1] * q[0] + up[1] * q[1] + fw[1] * q[2]) * 16.0f;
+		e.z = (eye[2] + rt[2] * q[0] + up[2] * q[1] + fw[2] * q[2]) * 16.0f;
+		e.light = light * shade, e.glow = 0, e.u = u, e.v = v;
+		out->push_back (e);
+	}
+	// un quad : quatre coins, les texels (u0, v0)-(u1, v1) de la tuile
+	void quad (const float a[3], const float b[3], const float c[3], const float d[3], int tile, float u0, float v0, float u1, float v1, float shade)
+	{
+		float tu = (float) ((tile & 15) * 256), tv = (float) ((tile >> 4) * 256);
+		vertex (a, tu + u0 * 16, tv + v1 * 16, shade);
+		vertex (b, tu + u1 * 16, tv + v1 * 16, shade);
+		vertex (c, tu + u1 * 16, tv + v0 * 16, shade);
+		vertex (d, tu + u0 * 16, tv + v0 * 16, shade);
+	}
+	// une boîte : une tuile par face (+x, -x, +y, -y, +z, -z), la face entière sur la tuile entière
+	void box (float x0, float y0, float z0, float x1, float y1, float z1, const int tiles[6])
+	{
+		static const float SH[6] = { 0.8f, 0.8f, 1.0f, 0.55f, 0.68f, 0.9f };
+		float P[8][3] = { { x0, y0, z0 }, { x1, y0, z0 }, { x1, y1, z0 }, { x0, y1, z0 }, { x0, y0, z1 }, { x1, y0, z1 }, { x1, y1, z1 }, { x0, y1, z1 } };
+		static const int F[6][4] = { { 1, 5, 6, 2 }, { 4, 0, 3, 7 }, { 3, 2, 6, 7 }, { 4, 5, 1, 0 }, { 5, 4, 7, 6 }, { 0, 1, 2, 3 } };
+		for (int f = 0; f < 6; f++) quad (P[F[f][0]], P[F[f][1]], P[F[f][2]], P[F[f][3]], tiles[f], 0, 0, 16, 16, SH[f]);
+	}
+};
+
+} // namespace
+
+void Renderer::drawHand (const Camera &cam, const Frame &f)
+{
+	const HandView &h = f.hand;
+	static std::vector<EVertex> v;
+	v.clear ();
+	HandSpace hs;
+	hs.out = &v;
+	hs.light = h.light;
+	viewDir (cam.yaw, cam.pitch, hs.fw);
+	float up0[3] = { 0, 1, 0 };
+	float *fw = hs.fw, *rt = hs.rt, *up = hs.up;
+	rt[0] = fw[1] * up0[2] - fw[2] * up0[1], rt[1] = fw[2] * up0[0] - fw[0] * up0[2], rt[2] = fw[0] * up0[1] - fw[1] * up0[0];
+	float rl = sqrtf (rt[0] * rt[0] + rt[1] * rt[1] + rt[2] * rt[2]);
+	if (rl < 1e-6f) rt[0] = 1, rt[1] = rt[2] = 0, rl = 1;
+	for (int i = 0; i < 3; i++) rt[i] /= rl;
+	up[0] = rt[1] * fw[2] - rt[2] * fw[1], up[1] = rt[2] * fw[0] - rt[0] * fw[2], up[2] = rt[0] * fw[1] - rt[1] * fw[0];
+	hs.eye[0] = (float) (cam.x - floor (cam.x)), hs.eye[1] = (float) cam.y, hs.eye[2] = (float) (cam.z - floor (cam.z));
+	// le geste : la main part vers le centre et vers l'avant, l'objet bascule vers le bas, puis revient
+	float s = h.swing >= 0 ? h.swing : 0;
+	float a = sinf (s * (float) M_PI), a2 = sinf (sqrtf (s) * (float) M_PI);
+	float bobx = sinf (h.bob) * 0.035f * h.bobAmt, boby = -fabsf (cosf (h.bob)) * 0.04f * h.bobAmt;
+	hs.pos[0] = 0.56f + bobx - a2 * 0.22f;
+	hs.pos[1] = -0.52f + boby - h.equip * 0.6f + sinf (sqrtf (s) * 2 * (float) M_PI) * 0.08f;
+	hs.pos[2] = 0.78f + a * 0.12f;
+	M3 swing = M3::ry (a2 * 25.0f) * M3::rx (a * 75.0f);
+	int it = h.item;
+	bool cube = it > 0 && it < BLOCK_COUNT && (info (it).shape == SH_CUBE || info (it).shape == SH_LIQUID);
+	if (!it) {	// la main nue : une manche et une main, tendues vers l'avant
+		hs.pos[0] += 0.02f, hs.pos[1] += 0.02f;
+		hs.rot = swing * M3::ry (-18) * M3::rx (28);
+		int sl[6] = { T_SLEEVE, T_SLEEVE, T_SLEEVE, T_SLEEVE, T_SLEEVE, T_SLEEVE }, sk[6] = { T_SKIN, T_SKIN, T_SKIN, T_SKIN, T_SKIN, T_SKIN };
+		hs.box (-0.09f, -0.09f, -0.75f, 0.09f, 0.09f, -0.2f, sl);
+		hs.box (-0.08f, -0.08f, -0.2f, 0.08f, 0.08f, 0.05f, sk);
+	} else if (cube) {	// un bloc : un petit cube tourné de trois quarts
+		const BlockInfo &bi = info (it);
+		hs.rot = swing * M3::ry (40) * M3::rx (-12);
+		int t[6] = { bi.side, bi.side, bi.top, bi.bottom, bi.side, bi.side };
+		const float c = 0.13f;
+		hs.pos[0] += 0.06f, hs.pos[1] += 0.04f, hs.pos[2] += 0.15f;
+		hs.box (-c, -c, -c, c, c, c, t);
+	} else {	// un objet : son dessin, en relief (chaque pixel a son épaisseur), le manche dans la main
+		int tile = itemInfo (it).tile;
+		bool tool = itemInfo (it).tool != TOOL_NONE;
+		hs.rot = swing * M3::ry (tool ? 158 : 165) * M3::rz (tool ? -8 : 0) * M3::rx (tool ? -8 : 10);
+		const float S = tool ? 0.5f : 0.34f, p = S / 16, d = p;
+		hs.pos[2] += 0.1f;
+		float ox = -S / 2 + (tool ? 0.12f : 0), oy = -S / 2 + (tool ? 0.18f : 0.05f);
+		auto opaque = [&] (int x, int y) {
+			if (x < 0 || x > 15 || y < 0 || y > 15) return false;
+			int X = (tile & 15) * 16 + x, Y = (tile >> 4) * 16 + y;
+			return atlas[((size_t) Y * 256 + X) * 4 + 3] >= 128;
+		};
+		float A[3] = { ox, oy, d / 2 }, B[3] = { ox + S, oy, d / 2 }, C[3] = { ox + S, oy + S, d / 2 }, D[3] = { ox, oy + S, d / 2 };
+		hs.quad (A, B, C, D, tile, 0, 0, 16, 16, 1.0f);
+		float A2[3] = { ox + S, oy, -d / 2 }, B2[3] = { ox, oy, -d / 2 }, C2[3] = { ox, oy + S, -d / 2 }, D2[3] = { ox + S, oy + S, -d / 2 };
+		hs.quad (A2, B2, C2, D2, tile, 16, 0, 0, 16, 0.75f);
+		for (int y = 0; y < 16; y++)
+			for (int x = 0; x < 16; x++) {
+				if (!opaque (x, y)) continue;
+				float x0 = ox + x * p, x1 = x0 + p, y1 = oy + (16 - y) * p, y0 = y1 - p;
+				float u = x + 0.5f, vv = y + 0.5f;
+				if (!opaque (x - 1, y)) {
+					float q0[3] = { x0, y0, -d / 2 }, q1[3] = { x0, y0, d / 2 }, q2[3] = { x0, y1, d / 2 }, q3[3] = { x0, y1, -d / 2 };
+					hs.quad (q0, q1, q2, q3, tile, u, vv, u, vv, 0.7f);
+				}
+				if (!opaque (x + 1, y)) {
+					float q0[3] = { x1, y0, d / 2 }, q1[3] = { x1, y0, -d / 2 }, q2[3] = { x1, y1, -d / 2 }, q3[3] = { x1, y1, d / 2 };
+					hs.quad (q0, q1, q2, q3, tile, u, vv, u, vv, 0.8f);
+				}
+				if (!opaque (x, y - 1)) {
+					float q0[3] = { x0, y1, d / 2 }, q1[3] = { x1, y1, d / 2 }, q2[3] = { x1, y1, -d / 2 }, q3[3] = { x0, y1, -d / 2 };
+					hs.quad (q0, q1, q2, q3, tile, u, vv, u, vv, 1.0f);
+				}
+				if (!opaque (x, y + 1)) {
+					float q0[3] = { x0, y0, -d / 2 }, q1[3] = { x1, y0, -d / 2 }, q2[3] = { x1, y0, d / 2 }, q3[3] = { x0, y0, d / 2 };
+					hs.quad (q0, q1, q2, q3, tile, u, vv, u, vv, 0.55f);
+				}
+			}
+	}
+	// par-dessus le monde : la profondeur effacée (la main ne rentre pas dans les murs), des deux côtés
+	glUseProgram (progWorld);
+	glClear (GL_DEPTH_BUFFER_BIT);
+	glDisable (GL_CULL_FACE);
+	glDisable (GL_BLEND);
+	glDepthMask (GL_TRUE);
+	glUniform1f (uWater, 0.0f);
+	glUniform1f (uAlpha, 0.0f);
+	glUniform1f (uFog0, 1000.0f);
+	glUniform1f (uFog1, 2000.0f);
+	glUniform3f (uTint, 1.0f, 1.0f, 1.0f);
+	glBindVertexArray (vao);
+	glEnableVertexAttribArray (0);
+	glEnableVertexAttribArray (1);
+	glEnableVertexAttribArray (2);
+	drawEVerts (v, 0, (int) (v.size () / 4));
+	glEnable (GL_CULL_FACE);
 }
 
 void Renderer::drawPrecip (const Camera &cam, const Frame &f, const float *vp)
@@ -755,6 +966,7 @@ void Renderer::drawHud (const Frame &f, const HudState &hud)
 	float W = (float) f.w, H = (float) f.h;
 	if (hud.underwater) b.solid (0, 0, W, H, 0x1a4a90, 70);
 	if (hud.inLava) b.solid (0, 0, W, H, 0xff5a10, 150);
+	if (hud.hurtFlash > 0) b.solid (0, 0, W, H, 0xc81e1e, (int) (90 * hud.hurtFlash));
 	// la barre des blocs
 	float slot = 46, gap = 4, total = 9 * slot + 8 * gap;
 	float x0 = (W - total) * 0.5f, y0 = H - slot - 12;
@@ -776,6 +988,25 @@ void Renderer::drawHud (const Frame &f, const HudState &hud)
 			b.solid (x + 5, y0 + slot - 6, x + slot - 5, y0 + slot - 3, 0x000000, 200);
 			b.solid (x + 5, y0 + slot - 6, x + 5 + (slot - 10) * k, y0 + slot - 4, k > 0.5f ? hud.good : k > 0.2f ? hud.warn : hud.bad, 255);
 		}
+	}
+	// la santé (à gauche) et la faim (à droite), au-dessus de la barre ; l'air sous l'eau
+	if (hud.hotbar && hud.health >= 0) {
+		const float IS = 18, IG = 1;
+		auto icon = [&] (int tile, float x, float y) {
+			float u0 = (tile & 15) * 256 + 1, v0 = (tile >> 4) * 256 + 1;
+			b.quad (x, y, x + IS, y + IS, u0, v0, u0 + 254, v0 + 254, 0xffffff, 255);
+		};
+		float yh = y0 - 10 - IS;
+		bool low = hud.health <= 4;
+		for (int i = 0; i < 10; i++) {
+			float v = hud.health - i * 2;
+			float jig = low ? (float) ((i * 7 + (int) (hud.health * 13)) % 3) - 1 : 0;	// (presque mort : ils tremblent)
+			icon (v >= 2 ? T_HEART_FULL : v >= 1 ? T_HEART_HALF : T_HEART_EMPTY, x0 + i * (IS + IG), yh + jig);
+			float f = hud.hunger - i * 2;
+			icon (f >= 2 ? T_FOOD_FULL : f >= 1 ? T_FOOD_HALF : T_FOOD_EMPTY, x0 + total - (i + 1) * (IS + IG), yh);
+		}
+		if (hud.air >= 0)
+			for (int i = 0; i < (int) ceilf (hud.air); i++) icon (T_BUBBLE, x0 + total - (i + 1) * (IS + IG), yh - IS - 3);
 	}
 	// les nombres, par-dessus toutes les cases
 	for (auto &n : nums) number (b, n.n, n.x, n.y, 15);

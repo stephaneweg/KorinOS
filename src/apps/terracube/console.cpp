@@ -77,6 +77,8 @@ const char *HELP[] = {
 	"  give <objet> [nombre] · clear · inv  -- l'inventaire (survie)",
 	"  recipes [mot] · craft <recette> [fois]  -- la fabrication (survie)",
 	"  music on|off|<0..100> · sound on|off|<0..100>  -- la musique, les effets sonores",
+	"  summon <créature> [nombre] [x y z] · kill <créature>|all · mobs [on|off]  -- les créatures (chicken, pig, wolf, rodeur, spider)",
+	"  heal · feed · spawn set  -- la santé, la faim, le point de départ (survie)",
 	"  fly · distance <2..16> · seed · save · info · say <texte>",
 	"  et toute ligne du protocole des scripts : world.setBlocks(0,60,0,9,60,9,glass)",
 };
@@ -239,13 +241,55 @@ std::vector<std::string> consoleExec (const std::string &input)
 		std::string err;
 		say (gameSave (err) ? "monde sauvé" : "sauvegarde impossible : " + err);
 	} else if (is (c, { "spawn" })) {
-		int h = g.world.height (0, 0);
-		gameTeleport (0.5, h + 1, 0.5);
-		say ("retour au point de départ");
+		if (w.size () > 1 && is (w[1], { "set", "ici", "here" })) {
+			g.spawnX = g.pl.x, g.spawnY = g.pl.y, g.spawnZ = g.pl.z;
+			say ("point de départ : ici (on y revient en mourant)");
+		} else {
+			if (g.spawnY >= 0) gameTeleport (g.spawnX, g.spawnY, g.spawnZ);
+			else gameTeleport (0.5, g.world.height (0, 0) + 1, 0.5);
+			say ("retour au point de départ");
+		}
+	} else if (is (c, { "summon", "invoquer" })) {
+		int type = w.size () > 1 ? entityByName (w[1].c_str ()) : -1;
+		if (type < 0) say ("summon : chicken, pig, wolf, rodeur ou spider");
+		else {
+			int n = w.size () > 2 && number (w[2], v) ? std::max (1, std::min (32, (int) v)) : 1;
+			double x = g.pl.x, y = g.pl.y, z = g.pl.z;
+			double yr = g.pl.yaw * M_PI / 180.0;
+			x += sin (yr) * 3, z -= cos (yr) * 3;	// (devant le joueur)
+			if (w.size () > 5) {
+				double a, b, d;
+				if (coord (w[3], g.pl.x, a) && coord (w[4], g.pl.y, b) && coord (w[5], g.pl.z, d)) x = a, y = b, z = d;
+			}
+			for (int i = 0; i < n; i++) g.mobs.spawn (type, x + (i % 4) * 0.7, y + 0.2, z + (i / 4) * 0.7);
+			say (std::to_string (n) + " × " + entityInfo (type).label);
+		}
+	} else if (is (c, { "kill", "tuer" })) {
+		int type = w.size () > 1 ? entityByName (w[1].c_str ()) : -1;
+		bool all = w.size () > 1 && (w[1] == "all" || w[1] == "tout");
+		bool monsters = w.size () > 1 && (w[1] == "monsters" || w[1] == "hostile");
+		int n = 0;
+		for (auto &e : g.mobs.list)
+			if (e.dead < 0 && (all || e.type == type || (monsters && entityInfo (e.type).hostile))) e.dead = 9, n++;
+		if (type < 0 && !all && !monsters) say ("kill : une créature (chicken, pig, wolf, rodeur, spider), monsters ou all");
+		else say (std::to_string (n) + " créature(s) enlevée(s)");
+	} else if (is (c, { "mobs", "monsters", "monstres" })) {
+		std::string a = w.size () > 1 ? w[1] : "";
+		if (is (a, { "on", "oui" })) g.mobs.monsters = true;
+		else if (is (a, { "off", "non", "peaceful" })) g.mobs.monsters = false;
+		char t[120];
+		snprintf (t, sizeof t, "créatures de la nuit : %s · %d créature(s) autour", g.mobs.monsters ? "oui" : "non (paisible)", g.mobs.count (-1, 128));
+		say (t);
+	} else if (is (c, { "heal", "soigner" })) {
+		g.health = 20, g.burn = 0, g.air = 15;
+		say ("santé : 20");
+	} else if (is (c, { "feed", "nourrir" })) {
+		g.hunger = 20, g.saturation = 10;
+		say ("faim : 20");
 	} else if (is (c, { "info" })) {
 		char t[200];
-		snprintf (t, sizeof t, "%s (graine %u) · %s · %s · %s · x %.1f y %.1f z %.1f", g.world.name.c_str (), g.world.seed, modeName (g.mode),
-			  fmtHour (g.hour).c_str (), weatherName (g.weather), g.pl.x, g.pl.y, g.pl.z);
+		snprintf (t, sizeof t, "%s (graine %u) · %s · %s · %s · x %.1f y %.1f z %.1f · santé %.0f, faim %.0f", g.world.name.c_str (), g.world.seed,
+			  modeName (g.mode), fmtHour (g.hour).c_str (), weatherName (g.weather), g.pl.x, g.pl.y, g.pl.z, g.health, g.hunger);
 		say (t);
 	} else if (is (c, { "say", "dire" })) {
 		gamePost (line.size () > c.size () ? line.substr (c.size () + 1) : "");

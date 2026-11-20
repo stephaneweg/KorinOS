@@ -11,6 +11,10 @@
 //   world.getBlockWithData(x,y,z)               -> numéro,état
 //   world.getPower(x,y,z)                       -> la puissance d'un circuit (0 à 15) : le fil, un composant, un bloc
 //   world.use(x,y,z)                            -> 1 si le bloc a servi (un levier basculé, un bouton enfoncé…)
+//   entities.list([rayon])                      -> « id,type,x,y,z,santé,apprivoisé|… » (autour du joueur, 64 par défaut)
+//   entities.spawn(type,x,y,z[,tamed|sitting])  -> l'id (chicken, pig, wolf, rodeur, spider ; un loup apprivoisé)
+//   entities.remove(id|type|all)
+//   player.getHealth() / player.setHealth(santé[,faim])   -> « santé,faim » (0 à 20 ; le mode survie)
 //   world.setBlocks(x1,y1,z1,x2,y2,z2,bloc)     un pavé plein (1 000 000 de blocs au plus)
 //   world.getBlocks(x1,y1,z1,x2,y2,z2)          -> numéros séparés par des virgules (y, puis z, puis x)
 //   world.getHeight(x,z)                        -> y du plus haut bloc non vide
@@ -167,7 +171,8 @@ std::string fmt (double v)
 const char *const REPLY[] = { "world.getBlock", "world.getBlocks", "world.getHeight", "world.getBlockTypes", "world.getTime",
 			      "player.getPos", "player.getTile", "player.getRotation", "player.getPitch", "player.getDirection",
 			      "events.blocks", "game.info", "ping", "world.getBlockWithData", "world.save", "game.getMode", "world.getWeather",
-			      "game.command", "player.getInventory", "player.craft", "world.getPower", "world.use" };
+			      "game.command", "player.getInventory", "player.craft", "world.getPower", "world.use", "entities.list", "entities.spawn",
+			      "player.getHealth" };
 
 } // namespace
 
@@ -335,6 +340,37 @@ std::string apiExec (const std::string &line, bool &reply)
 			std::string out;
 			for (auto &l : consoleExec (raw)) out += (out.empty () ? "" : " | ") + l;
 			return out;
+		}
+		if (is ("entities.list")) {
+			double r = a.empty () ? 64 : num (a, 0);
+			std::string out;
+			for (auto &e : g.mobs.list) {
+				if (e.dead >= 0 || (e.x - g.pl.x) * (e.x - g.pl.x) + (e.z - g.pl.z) * (e.z - g.pl.z) > r * r) continue;
+				out += (out.empty () ? "" : "|") + std::to_string (e.id) + "," + entityInfo (e.type).name + "," + fmt (e.x) + "," + fmt (e.y) + "," +
+				       fmt (e.z) + "," + fmt (e.health) + "," + (e.tamed ? "1" : "0");
+			}
+			return out;
+		}
+		if (is ("entities.spawn")) {
+			int type = a.empty () ? -1 : entityByName (a[0].c_str ());
+			if (type < 0) throw ArgErr { "unknown creature (chicken, pig, wolf, rodeur, spider)" };
+			Entity *e = g.mobs.spawn (type, num (a, 1), num (a, 2), num (a, 3));
+			if (a.size () > 4 && type == E_WOLF && (a[4] == "tamed" || a[4] == "sitting"))	// (un loup apprivoisé, assis : il garde)
+				e->tamed = true, e->sitting = a[4] == "sitting", e->hx = e->x, e->hy = e->y, e->hz = e->z, e->health = 20;
+			return std::to_string (e->id);
+		}
+		if (is ("entities.remove")) {
+			if (a.empty ()) throw ArgErr { "missing id, type or all" };
+			int type = entityByName (a[0].c_str ()), id = atoi (a[0].c_str ());
+			for (auto &e : g.mobs.list)
+				if (a[0] == "all" || e.type == type || (id > 0 && e.id == id)) e.dead = 9;
+			return "";
+		}
+		if (is ("player.getHealth")) return fmt (g.health) + "," + fmt (g.hunger);
+		if (is ("player.setHealth")) {
+			g.health = (float) std::max (0.5, std::min (20.0, num (a, 0)));
+			if (a.size () > 1) g.hunger = (float) std::max (0.0, std::min (20.0, num (a, 1)));
+			return "";
 		}
 		if (is ("player.getInventory")) {
 			std::string out;

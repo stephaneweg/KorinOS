@@ -20,6 +20,7 @@ void (*soundHook) (int, int, int, int, int) = nullptr;
 void (*blastHook) (double, double, double, float) = nullptr;
 void (*dropHook) (int, int, int, int) = nullptr;
 void (*pushHook) (int, int, int, int) = nullptr;
+bool (*occupiedHook) (int, int, int) = nullptr;
 
 namespace {
 
@@ -344,6 +345,7 @@ bool pistonPowered (P p) { return inputPower (p, dirOf (meta (p))) > 0; }
 
 bool playerOn (P p)
 {
+	if (occupiedHook) return occupiedHook (p.x, p.y, p.z);
 	return g_px + 0.3 > p.x && g_px - 0.3 < p.x + 1 && g_pz + 0.3 > p.z && g_pz - 0.3 < p.z + 1 && g_py >= p.y - 0.01 && g_py < p.y + 0.6;
 }
 
@@ -905,14 +907,9 @@ void retract (P p)
 void tickOnce ()
 {
 	g_tick++;
-	// une plaque sous le joueur
+	// une plaque sous le joueur (ou une créature : main.cpp appelle press)
 	P under = { (int) floor (g_px), (int) floor (g_py + 0.01), (int) floor (g_pz) };
-	int ub = get (under);
-	if ((ub == STONE_PLATE || ub == WOOD_PLATE) && !(meta (under) & M_ON)) {
-		setM (under, meta (under) | M_ON);
-		schedule (under, 20);
-		sound (SS_CLICK, 1, under);
-	}
+	press (under.x, under.y, under.z);
 	int budget = 20000;
 	while (!g_sched.empty () && g_sched.begin ()->first <= g_tick && budget-- > 0) {
 		P p = g_sched.begin ()->second;
@@ -925,6 +922,17 @@ void tickOnce ()
 }
 
 } // namespace
+
+void press (int x, int y, int z)
+{
+	P under = { x, y, z };
+	int ub = get (under);
+	if ((ub == STONE_PLATE || ub == WOOD_PLATE) && !(meta (under) & M_ON)) {
+		setM (under, meta (under) | M_ON);
+		schedule (under, 20);
+		sound (SS_CLICK, 1, under);
+	}
+}
 
 void attach (World *w)
 {

@@ -39,6 +39,19 @@ const ItemInfo ITEMS[I_END - 100] = {
 	{ "water_bucket", "Seau d'eau", T_BUCKET_WATER, 1, TOOL_NONE, 0, 0 },
 	{ "lava_bucket", "Seau de lave", T_BUCKET_LAVA, 1, TOOL_NONE, 0, 0 },
 	{ "resin", "Résine", T_RESIN, 64, TOOL_NONE, 0, 0 },
+	{ "seeds", "Graines", T_SEEDS, 64, TOOL_NONE, 0, 0 },
+	{ "apple", "Pomme", T_APPLE, 64, TOOL_NONE, 0, 0 },
+	{ "raw_chicken", "Poulet cru", T_RAW_CHICKEN, 64, TOOL_NONE, 0, 0 },
+	{ "cooked_chicken", "Poulet rôti", T_COOKED_CHICKEN, 64, TOOL_NONE, 0, 0 },
+	{ "raw_pork", "Porc cru", T_RAW_PORK, 64, TOOL_NONE, 0, 0 },
+	{ "cooked_pork", "Côtelette grillée", T_COOKED_PORK, 64, TOOL_NONE, 0, 0 },
+	{ "feather", "Plume", T_FEATHER, 64, TOOL_NONE, 0, 0 },
+	{ "bone", "Os", T_BONE, 64, TOOL_NONE, 0, 0 },
+	{ "string", "Fil d'araignée", T_STRING, 64, TOOL_NONE, 0, 0 },
+	{ "wood_sword", "Épée en bois", T_SWORD0, 1, TOOL_SWORD, 1, 60 },
+	{ "stone_sword", "Épée en pierre", T_SWORD1, 1, TOOL_SWORD, 2, 132 },
+	{ "iron_sword", "Épée en fer", T_SWORD2, 1, TOOL_SWORD, 3, 251 },
+	{ "crystal_sword", "Épée en cristal", T_SWORD3, 1, TOOL_SWORD, 4, 1562 },
 };
 
 const float TIER_SPEED[5] = { 1, 2, 4, 6, 9 };
@@ -278,6 +291,14 @@ std::vector<Recipe> buildRecipes ()
 		{ "glue_block", GLUE_BLOCK, 1, "RRR/RRR/RRR", { { 'R', I_RESIN } }, 0, false },
 		{ "resin_from_glue", I_RESIN, 9, "G", { { 'G', GLUE_BLOCK } }, 0, true },
 		{ "tnt", TNT, 1, "CSC/SCS/CSC", { { 'C', I_COAL }, { 'S', SAND } }, 0, false },
+		// 1.4 : les épées, la cuisine, la laine des araignées
+		{ "wood_sword", I_WOOD_SWORD, 1, "M/M/S", { { 'M', M_WOOD }, { 'S', I_STICK } }, 0, false },
+		{ "stone_sword", I_STONE_SWORD, 1, "M/M/S", { { 'M', M_STONE }, { 'S', I_STICK } }, 0, false },
+		{ "iron_sword", I_IRON_SWORD, 1, "M/M/S", { { 'M', M_IRON }, { 'S', I_STICK } }, 0, false },
+		{ "crystal_sword", I_CRYSTAL_SWORD, 1, "M/M/S", { { 'M', M_CRYSTAL }, { 'S', I_STICK } }, 0, false },
+		{ "cooked_chicken", I_COOKED_CHICKEN, 1, "X", { { 'X', I_RAW_CHICKEN } }, ST_FURNACE, true },
+		{ "cooked_pork", I_COOKED_PORK, 1, "X", { { 'X', I_RAW_PORK } }, ST_FURNACE, true },
+		{ "wool_from_string", WOOL_WHITE, 1, "SS/SS", { { 'S', I_STRING } }, 0, false },
 	};
 	for (auto &r : R) {
 		// la taille de la forme, ce qu'elle prend en tout, où elle se fait
@@ -409,6 +430,30 @@ int craftable (const Recipe &r, const Inventory &inv)
 	for (auto &in : r.in)
 		if (in.n > 0) n = std::min (n, inv.count (in.item) / in.n);
 	return n == (1 << 20) ? 0 : n;
+}
+
+Food foodOf (int item)
+{
+	switch (item) {
+	case I_APPLE: return { 4, 2.4f };
+	case I_RAW_CHICKEN: return { 2, 1.2f };
+	case I_COOKED_CHICKEN: return { 6, 7.2f };
+	case I_RAW_PORK: return { 3, 1.8f };
+	case I_COOKED_PORK: return { 8, 12.8f };
+	default: return { 0, 0 };
+	}
+}
+
+float attackDamage (int item)
+{
+	ItemInfo t = itemInfo (item);
+	switch (t.tool) {
+	case TOOL_SWORD: return 3.0f + t.tier;		// 4 à 7
+	case TOOL_AXE: return 2.0f + t.tier;		// 3 à 6
+	case TOOL_PICKAXE: return 1.0f + t.tier;	// 2 à 5
+	case TOOL_SHOVEL: return 1.5f + t.tier * 0.5f;
+	default: return 1.0f;
+	}
 }
 
 float fuelValue (int item)

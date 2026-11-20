@@ -35,10 +35,24 @@ enum Item {
 	I_WATER_BUCKET,
 	I_LAVA_BUCKET,
 	I_RESIN,
+	// 1.4 : la nourriture, ce que donnent les créatures, les épées
+	I_SEEDS,
+	I_APPLE,
+	I_RAW_CHICKEN,
+	I_COOKED_CHICKEN,
+	I_RAW_PORK,
+	I_COOKED_PORK,
+	I_FEATHER,
+	I_BONE,
+	I_STRING,
+	I_WOOD_SWORD,
+	I_STONE_SWORD,
+	I_IRON_SWORD,
+	I_CRYSTAL_SWORD,
 	I_END
 };
 
-enum Tool { TOOL_NONE, TOOL_PICKAXE, TOOL_AXE, TOOL_SHOVEL };
+enum Tool { TOOL_NONE, TOOL_PICKAXE, TOOL_AXE, TOOL_SHOVEL, TOOL_SWORD };
 
 struct ItemInfo {
 	const char *name;	// nom anglais (scripts, MCP, console)
@@ -130,5 +144,14 @@ std::string recipeText (const Recipe &r);
 int craft (const Recipe &r, int times, Inventory &inv, float &fuel, bool hasWorkbench, bool hasFurnace, std::string &err);
 // les points de chauffe d'un combustible (0 : ne brûle pas)
 float fuelValue (int item);
+
+// ---- manger, se battre --------------------------------------------------------------------------------------------
+
+struct Food {
+	int hunger;		// points de faim rendus (0 : ça ne se mange pas)
+	float saturation;
+};
+Food foodOf (int item);
+float attackDamage (int item);		// les dégâts d'un coup avec cet objet en main (la main : 1)
 
 } // namespace tc

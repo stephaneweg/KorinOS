@@ -21,7 +21,9 @@ namespace audio {
 enum Material { M_STONE, M_WOOD, M_EARTH, M_SAND, M_GLASS, M_LEAVES, M_SOFT, M_SNOW, M_METAL };
 
 enum Sfx { S_BREAK, S_HIT, S_PLACE, S_STEP, S_LAND, S_JUMP, S_SPLASH, S_CRAFT, S_PICKUP, S_TOOLBREAK, S_CLICK, S_THUNDER,
-	   S_PISTON_OUT, S_PISTON_IN, S_FIZZ, S_EXPLODE, S_FUSE, S_CLICK_ON, S_NOTE };
+	   S_PISTON_OUT, S_PISTON_IN, S_FIZZ, S_EXPLODE, S_FUSE, S_CLICK_ON, S_NOTE,
+	   // les créatures (material : la variante ; S_WOLF : 0 aboie, 1 grogne, 2 content, 3 hurle ; S_MOB_HURT : l'espèce)
+	   S_CHICKEN, S_PIG, S_WOLF, S_RODEUR, S_SPIDER, S_MOB_HURT, S_PLAYER_HURT, S_EAT };
 
 // les instruments du bloc musical (selon le bloc dessous)
 enum Instrument { IN_HARP, IN_BASS, IN_DRUM, IN_SNARE, IN_CLICK, IN_BELL, IN_GUITAR, IN_CHIME };
@@ -39,6 +41,7 @@ struct Mood {
 	float altitude = 0;	// 0 à 1 (le vent)
 	float activity = 0;	// 0 à 1 : le joueur casse et pose (la musique s'anime)
 	float lava = 0;		// 0 à 1 : de la lave tout près (elle bouillonne)
+	float danger = 0;	// 0 à 1 : une créature de la nuit s'en prend au joueur (la musique se tend)
 	uint32_t seed = 1;	// la tonalité du monde
 };
 
