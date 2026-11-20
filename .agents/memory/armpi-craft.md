@@ -15,6 +15,9 @@ PC** (md→docx→pdf/png, info, text) ; aarch64 compile aussi, sans essai ni su
   cap-primitives/rustix évités dans craft-font-store ; ring : `korin` dans LINUX_ABI sinon pas d'asm au lien.
 - Essai PC : QEMU de WSL avec `. ~/korin-cloud/env.sh` (OVMF avec shell UEFI ; pas de QEMU côté Windows ici),
   `chmod +x` sur Korin avant de lancer.
-- Suite décidée : hôte egui pour Korin (UIKit + dessin CPU) dans un kit, puis WordCraft avec fenêtre.
+- Hôte egui fait le 20/11 : `src/lib/egui-korin` (relais C sur UIKit + hdrshot-egui-backend, dessin CPU dans ui.surf),
+  démo `/apps/eguidemo.app` (`bash tools/craft/egui.sh`) OK sous QEMU PC (souris, clavier AZERTY, presse-papiers) ;
+  essais : `tools/craft/pctest.py prep|run` (key:/type: ajoutés à tools/python/pctest.py), docs/EGUI.md.
+- Suite : WordCraft avec fenêtre = un `eframe` pour Korin sur egui-korin + couper winit/wayland/zbus/rfd/arboard/wgpu.
 
 Lié : [[armpi-rust]], [[armpi-python-rust-ext]].

@@ -32,7 +32,7 @@ Trois niveaux, d'après les `Cargo.toml` :
 
 ```sh
 ARCH=x86_64 bash tools/rust/build.sh          # une fois : la cible du PC
-bash tools/craft/build.sh                      # wordcraft-cli -> build/craft/x86_64/wordcraft-cli
+bash tools/craft/build.sh                      # wordcraft-cli -> build/craft/x86_64/bin/wordcraft-cli
 bash tools/craft/build.sh <app> <paquet>       # une autre app (sa révision : REV_<app> dans le script)
 ```
 
@@ -65,7 +65,8 @@ réseau HTTPS n'a pas été essayé.
 
 ## Essai (QEMU PC, 20/11/2026)
 
-Disque d'essai de `tools/rust/testimage.py --pc` avec `wordcraft-cli` et un `hello.md` dans `build/pc/rust/tests`,
+Disque d'essai de `tools/rust/testimage.py --pc` avec `wordcraft-cli` et un `hello.md` dans `build/pc/rust/tests`
+(depuis : `tools/craft/pctest.py`, qui met `build/craft/x86_64/bin` et `tools/craft/test` dans `HOME:/craft`),
 QEMU de WSL (`. ~/korin-cloud/env.sh` : l'OVMF avec le shell UEFI, [agents/CLOUD.md](agents/CLOUD.md)), puis
 `testimage.py --pc-run` :
 
@@ -82,8 +83,11 @@ Pas regardé : le contenu du PDF et du PNG (sur le disque de QEMU, en snapshot).
 
 ## La suite
 
-1. **L'hôte egui pour Korin** : une fenêtre UIKit, clavier, souris et IME vers `egui::RawInput`, les maillages
-   d'egui dessinés par le CPU (`tiny-skia` ou `vello_cpu`) dans le tampon de la fenêtre, presse-papiers et
-   dialogues de Korin à la place de `arboard` et `rfd`. Il sert aux seize apps : sa place est dans un kit (UIKit), pas
-   dans une app. Puis WordCraft avec fenêtre (`wordcraft-ui-egui` sans `eframe`).
+1. **L'hôte egui pour Korin : fait le 20/11/2026** ([EGUI.md](EGUI.md), `src/lib/egui-korin`) : la démo d'egui tourne
+   sous QEMU PC. Reste WordCraft avec fenêtre : un `eframe` pour Korin sur cet hôte, branché par `[patch]`.
+   `apps/wordcraft/src/main.rs` et `craft-ui-shell` n'utilisent d'eframe que `App`, `Frame`, `NativeOptions`,
+   `CreationContext`, `run_native` et `icon_data` ; mais l'exécutif de `craft` (`embed::install`, `WindowHost`, les
+   dialogues de `FilePanels`, rattachés à `eframe::Frame`) et les caisses qui prennent X11 ou Wayland parce que Korin
+   est `unix` sans être macOS (`winit`, `wayland-*`, `zbus`, `x11-dl` ; `rfd`, `arboard`, `egui-wgpu`) sont à couper
+   ou à rediriger.
 2. Le niveau 1, presque sans travail de plus ; le niveau 2 avec `cpal` sur AudioKit ; le niveau 3 en dernier.

@@ -13,7 +13,8 @@
       « @600 commande » : jusqu'à 600 s (60 sinon) ; puis arrête QEMU. --hostfwd tcp::P-:Q en plus
       (plusieurs permis). « shot:NOM » : une capture de l'écran (build/pc/pytest/NOM.png) ; « sleep:S » : attendre ;
       « click:X,Y » : un clic gauche (écran de 1280×800, avec --qemu "-device usb-tablet,bus=xhci.0") ;
-      « dblclick:X,Y » : un double-clic.
+      « dblclick:X,Y » : un double-clic ; « key:ctrl-c tab ret » : des touches (noms de sendkey de QEMU) ;
+      « type:TEXTE » : un texte tapé (sans Entrée ; le noyau décode en AZERTY : qemu_pc.azerty_keys).
       Le journal du noyau : build/pc/pytest/debug.log.
 Les ports par défaut évitent ceux des autres essais (4461, 4471) ; QMP sur PORT + 1000.
 """
@@ -146,6 +147,13 @@ def run(a):
                     q.cmd("input-send-event", events=[{"type": "btn", "data": {"down": down, "button": "left"}}])
                     time.sleep(0.05)
                 print("double-clic :", x, y, flush=True)
+                continue
+            if c.startswith("key:") or c.startswith("type:"):  # des touches (sendkey), ou un texte en AZERTY
+                ks = c[4:].split() if c.startswith("key:") else qp.azerty_keys(c[5:])[:-1]
+                for k in ks:
+                    q.hmp("sendkey " + k)
+                    time.sleep(0.08)
+                print("touches :", " ".join(ks), flush=True)
                 continue
             limit = 60
             if c.startswith("@") and " " in c:

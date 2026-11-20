@@ -4,7 +4,7 @@
 # Dans WSL, depuis la racine du dépôt, après ARCH=x86_64 bash tools/rust/build.sh :
 #     bash tools/craft/build.sh                     wordcraft-cli pour le PC (x86_64)
 #     bash tools/craft/build.sh <app> <paquet>      une autre app ou un autre paquet du même dépôt
-# Résultat (strippé) : build/craft/<arch>/<paquet>.
+# Résultat (strippé) : build/craft/<arch>/bin/<paquet> (tools/craft/pctest.py le met dans HOME:/craft).
 #
 # Travail dans ~/korin-craft (KORIN_CRAFT) :
 #   <app>/            le dépôt de l'app à la révision épinglée (REV_<app> plus bas) ; .cargo/config.toml
@@ -27,7 +27,7 @@ x86_64)  K=${KORIN_RUST:-$HOME/.cache/korin-rust-x86_64}; TC=${KORIN_TOOLCHAINS:
 esac
 [ -f "$K/env.sh" ] || { echo "craft : pas de chaîne Rust dans $K (ARCH=$ARCH bash tools/rust/build.sh)" >&2; exit 1; }
 . "$K/env.sh"
-OUT=$ROOT/build/craft/$ARCH
+OUT=$ROOT/build/craft/$ARCH/bin
 mkdir -p "$W/vendor" "$OUT" "$K/dl" "$K/vendor"
 
 # les révisions essayées

@@ -32,7 +32,9 @@ la LGPL, voir plus bas.
 WebKit (LGPL-2.1, BSD), GCC et binutils (GPL-3), newlib, Mesa (MIT), .NET et Avalonia (MIT), Skia (BSD), ICU, curl,
 OpenSSL (Apache-2.0), SDL (zlib), SuperTux et SuperTuxKart (GPL-3, données CC et autres), FreeBASIC (GPL-2, rtlib
 LGPL-2), MuPDF (AGPL-3.0), FFmpeg 7.1.2 (LGPL-2.1+, construit sans `--enable-gpl` par `tools/mediakit/ffmpeg.sh`,
-correctifs dans `tools/mediakit/ffmpeg-patches`), SoundFont GeneralUser GS (sa licence l'accompagne).
+correctifs dans `tools/mediakit/ffmpeg-patches`), SoundFont GeneralUser GS (sa licence l'accompagne), les caisses Rust
+de crates.io et des apps Craft de storytold (egui, `hdrshot-egui-backend`, `craft-libs`, WordCraft : MIT ou Apache-2.0 ;
+`docs/CRAFT.md`, `docs/EGUI.md`).
 
 ## À respecter pour distribuer des binaires
 
