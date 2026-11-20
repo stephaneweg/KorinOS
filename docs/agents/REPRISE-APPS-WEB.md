@@ -36,30 +36,24 @@ de l'utilisateur). Vérifier dans `packages/pc/index.txt` (`[jet]`, version 1.4.
 avec l'accord de l'utilisateur pour publier. Puis lui demander de se reconnecter une fois à Spotify sur le ZBook et
 de vérifier qu'il le reste après avoir quitté l'app.
 
-### fatfs : les grosses lectures ne voient pas les écritures d'une poignée ouverte (à faire)
+### fatfs : pas de défaut, c'était grep (vérifié le 20/11 au soir, dans le cloud)
 
-Trouvé en cherchant les cookies, demandé par l'utilisateur dans cette passation. Un process garde un fichier ouvert
-et y écrit par petits morceaux (SQLite, `pwrite` de 4 Ko) ; un autre process qui le lit en gros morceaux (`grep -a`
-sur le fichier entier) voit **l'ancien contenu**, pendant et même après la mort du premier ; un lecteur par petits
-morceaux (SQLite) voit le nouveau. Hypothèse à vérifier : les grosses lectures d'AppKit passent par
-`FS_READ_DIRECT` (`fc_rw` dans `src/kits/appkit/appkit.c`), qui lit le disque sans passer par le cache de blocs de
-fatfs (`bc_*`, secteurs différés `bc_dirty`, `src/svc/fatfs/fatfs.c` : la version C, celle du PC). Corriger : vider
-les secteurs différés du fichier avant une lecture directe, ou servir ces lectures par le cache. Le Pi a sa version
-en asm (`fatfs.asm`, cache `cc_*`) : regarder s'il a le même défaut.
+La passation soupçonnait fatfs : une grosse lecture (`grep -a` sur une base SQLite gardée ouverte par un autre
+process) ne voyait pas les écritures. **fatfs est cohérent** : `tools/linux/sqltest` (mode `scan`) lit le fichier par
+1 Mo (`FS_READ_DIRECT`), 4 Ko et 100 octets, depuis un autre process pendant que la base est ouverte (`fork` +
+`exec` depuis `sqltest … hold`) puis après la sortie du process : les trois lectures voient « holdperm » (×2). Le
+coupable était `grep` (C du PC, asm du Pi) : il s'arrêtait au premier octet nul de chaque ligne, et une base SQLite
+commence par « SQLite format 3 » et un nul, sans retour à la ligne avant ses données. Corrigé : chaque morceau
+entre deux nuls est cherché (l'ancien grep : 0, le nouveau : 2). Rien à changer dans fatfs, ni en C ni en asm.
 
-Reproduction : `tools/linux/sqltest/` (`sqltest.c` ; `build.sh` le construit avec la chaîne et le `libsqlite3.a` de
-Jet ; `run.sh` le lance sous QEMU PC). Résultat du 20/11 :
+### HOME de Jet (signalé le 20/11 au soir)
 
-```
-$ grep -a -c holdperm /home/hold.db          (pendant que sqltest … hold garde le fichier ouvert)
-0
-$ /bin/sqltest /home/hold.db read
-  row: holdperm
-(30 s plus tard, sqltest sorti sans fermer : même chose, grep 0, SQLite holdperm)
-```
-
-C'est fait quand `grep -a` voit les écritures d'un process qui garde le fichier ouvert (et après sa sortie), sous
-QEMU PC, et que rien d'autre n'a régressé (démarrage, `run ktest`, essais de fichiers existants).
+Sous un compte (`/home/trolly`), Jet téléchargeait dans `/home/downloads` et les apps web gardaient leur session dans
+`/home/<app>` : la libposix liée en statique dans Jet (sysroot de WebKit) datait d'avant la règle de libposix qui
+remplace `HOME=/home` par le dossier du compte. Corrigé : `build-jet.sh` refait ce sysroot (`tools/webkit/sysroot.sh`)
+quand `src/lib/posix` est plus récent ; Jet corrige `HOME` lui-même au démarrage (`fix_home`, `getpwuid`) et déplace
+`/home/<app>` vers `HOME/<app>` au premier lancement (comme `/home/jet` et `/home/downloads` déjà). Jet est à
+reconstruire avant jet 1.4.2.
 
 ## 2. Pièges rencontrés
 

@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <sys/wait.h>
 static int cb (void *u, int n, char **v, char **c) { printf ("  row: %s\n", v[0] ? v[0] : "(null)"); return 0; }
 static void ex (sqlite3 *db, const char *sql)
 {
@@ -60,6 +61,18 @@ int main (int argc, char **argv)
 		ex (h, "PRAGMA synchronous = 1;");
 		ex (h, "CREATE TABLE IF NOT EXISTS t (k TEXT PRIMARY KEY, v TEXT);");
 		ex (h, "INSERT OR REPLACE INTO t VALUES ('holdperm', 'yes');");
+		fflush (stdout);
+		/* pendant que la base reste ouverte ici : grep et les lectures de scan, par d'autres process */
+		const char *cmds[][5] = { { "/bin/grep", "-c", "holdperm", p, 0 }, { "/bin/sqltest", p, "scan", 0 } };
+		for (int i = 0; i < 2; i++)
+		{
+			printf ("(open) %s %s %s\n", cmds[i][0], cmds[i][1], cmds[i][2]);
+			fflush (stdout);
+			pid_t pid = fork ();
+			if (!pid) { execv (cmds[i][0], (char *const *) cmds[i]); _exit (127); }
+			int st;
+			waitpid (pid, &st, 0);
+		}
 		fflush (stdout);
 		sleep (25);
 		_exit (0);

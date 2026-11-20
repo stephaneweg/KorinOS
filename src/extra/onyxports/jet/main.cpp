@@ -26,6 +26,7 @@
 #include <openssl/crypto.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <pwd.h>
 #include <sys/wait.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -147,17 +148,45 @@ static void move_entries (const std::string &from, const std::string &to)
 		fprintf (stderr, "jet: %s : %d moved to %s, %d left\n", from.c_str (), moved, to.c_str (), left);
 }
 
-static void move_old_home ()
+// Le dossier du compte : HOME (libposix le prend dans users.ini quand il vaut « /home », depuis le 16/11) ; une libposix
+// plus ancienne liée dans Jet le laissait à /home : les téléchargements allaient dans /home/downloads, la session de
+// Spotify dans /home/spotify (20/11). Ici, avant tout le reste et pour chaque process (ceux de WebKit, cdmhost en
+// héritent ; HOME: aussi, que libposix traduit par HOME) : « /home » ou rien -> le home du compte de getuid ().
+static void fix_home ()
 {
 	const char *h = getenv ("HOME");
-	if (!h || h[0] != '/' || !strcmp (h, "/home") || !strcmp (h, "/home/") || !strncmp (h, "/home/jet", 9) || !strcmp (h, "/home/downloads"))
+	if (h && h[0] == '/' && strcmp (h, "/home") && strcmp (h, "/home/"))
+		return;
+	struct passwd *pw = getpwuid (getuid ());
+	if (pw && pw->pw_dir && pw->pw_dir[0] == '/' && pw->pw_dir[1] && strcmp (pw->pw_dir, "/home") && strcmp (pw->pw_dir, "/home/"))
+		setenv ("HOME", pw->pw_dir, 1);
+}
+
+// ce qui était resté sous /home (Jet : /home/jet, /home/downloads ; une app web : /home/<nom>) -> HOME, au premier
+// lancement sous le compte ; rien si HOME est encore /home, ou s'il est ce dossier ou dedans (un compte « spotify »)
+static void move_old_home (const char *app)
+{
+	const char *h = getenv ("HOME");
+	if (!h || h[0] != '/')
 		return;
 	std::string home = h;
 	while (home.size () > 1 && home.back () == '/')
 		home.pop_back ();
-	mkdir (home.c_str (), 0755);
-	move_entries ("/home/jet", home + "/jet");
-	move_entries ("/home/downloads", home + "/downloads");
+	if (home == "/" || home == "/home")
+		return;
+	std::vector<std::string> names;
+	if (app)
+		names.push_back (app);
+	else
+		names = { "jet", "downloads" };
+	for (const std::string &n : names)
+	{
+		std::string from = "/home/" + n;
+		if (n.empty () || n.find ('/') != std::string::npos || n == "." || n == ".." || home == from || !home.compare (0, from.size () + 1, from + "/"))
+			continue;
+		mkdir (home.c_str (), 0755);
+		move_entries (from, home + "/" + n);
+	}
 }
 
 static void settings_load ()
@@ -1274,6 +1303,7 @@ int main (int argc, char **argv)
 	// avant que le reseau soit pret, Jet ne retrouvait pas un site pendant 2 min 30. Ici 15 s. (Lu
 	// par le process reseau : avant tout le reste, dans chaque process.)
 	setenv ("WEBKIT_CURL_DNS_CACHE_TIMEOUT", "30", 1);
+	fix_home ();
 	// Le dossier de travail : /, dans chaque process (les fils en heritent aussi). Les chemins sans volume
 	// de WebKit (les donnees des sites : HOME/jet/webkit, engine_webkit.cpp ; file:///x ; HOME/downloads) sont
 	// alors sur / quel que soit le dossier d'ou Jet est lance (le Terminal dans /media/sd1/...).
@@ -1330,6 +1360,7 @@ int main (int argc, char **argv)
 	if (appName && *appName)
 	{
 		engine_set_clipboard (clip_write, clip_read, clip_serial);
+		move_old_home (appName);
 		return webapp_main (appName, appTitle, urls.empty () ? nullptr : urls[0], gpu);
 	}
 	if (urls.empty ())
@@ -1337,7 +1368,7 @@ int main (int argc, char **argv)
 	engine_set_compositing (gpu);
 	if (gpu)
 		engine_set_frame_client (cb_frame);
-	move_old_home ();
+	move_old_home (nullptr);
 	settings_load ();
 
 	if (!jet_window_open (0, 0, "Jet", &g_w, &g_h))

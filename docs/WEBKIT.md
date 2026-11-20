@@ -359,8 +359,9 @@ dans `cookies.db` tant que l'instruction n'était pas reprise, et tout était pe
 script réécrit un cookie qui existe déjà en HttpOnly (Spotify, entre autres), ou qu'une ressource d'un autre site
 lit des cookies existants. Essai : `tools/linux/test_webapp.sh` avec `SESSION=1` (quitter, puis relancer), `PROBE=1`
 et `PROBE_JS` (un cookie HttpOnly réécrit par script, puis un cookie reçu du réseau : ce dernier reste après la
-relance). Piège de l'essai : `grep` sur `cookies.db` pendant que le process réseau la garde ouverte ne voit pas
-les écritures (les grosses lectures de fatfs vont au disque sans passer par son cache) ; lire par SQLite.
+relance). Piège de l'essai (corrigé le 20/11) : le `grep` de Korin s'arrêtait au premier octet nul d'une ligne, et
+une base SQLite commence par « SQLite format 3 » et un nul : il ne voyait rien de `cookies.db`. Ce n'était pas
+fatfs (vérifié sous QEMU PC par `tools/linux/sqltest`, mode `scan`).
 
 ### Vérifié (QEMU q35 + OVMF, 4 cœurs, TCG, 2 Go, Korin PC ; 13/11/2026)
 
