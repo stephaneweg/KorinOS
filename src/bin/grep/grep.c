@@ -53,7 +53,7 @@ static void process(const char *name)
 			out_putn(lnum);
 			out_putc(':');
 		}
-		out_puts(l);
+		out_write(l, len); /* (la ligne entière, ses nuls compris, comme grep -a) */
 		out_nl();
 	}
 	if (opts & 8) {
