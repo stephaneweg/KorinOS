@@ -32,6 +32,11 @@ En option, deux façons de le piloter de l'extérieur, qui passent par la même 
 | T, / ou ² | la console de commandes (§ 2 ter) ; Entrée exécute, ↑ ↓ l'historique, Échap ferme |
 | F3, F9 | infos détaillées, plein écran |
 
+On voit ce qu'on tient, en bas à droite : un bloc en petit cube, un outil, une arme ou de la nourriture en relief, la
+main nue sinon ; chaque coup (casser, frapper, poser, se servir, manger) fait un geste, et le minage frappe en
+cadence ; le bloc qu'on casse se fissure, il en sort des éclats ; une créature frappée laisse voler des bribes de
+sa peau, une créature morte disparaît dans une bouffée de fumée.
+
 Menus : **Partie** (nouveau monde avec nom, graine et mode, ouvrir, sauver, mode survie, inventaire, console, plein
 écran), **Affichage** (distance de
 vue, vol, temps qui passe, infos), **Pilotage** (serveur des scripts, agent IA, où sont les exemples).
@@ -308,7 +313,8 @@ que tout soit fait). 16 connexions au plus.
 `pyramid.py`, `rainbow.py`, `golden_touch.py` (les évènements), `snake_walk.py` (suivre le joueur),
 `survival_kit.py` (le mode survie : outils fabriqués par le script), `circuits.py` (trois montages : un piston
 collant, un arpège de blocs musicaux, une horloge à torche et répéteur), `flying_machine.py` (une machine qui
-avance seule : observateurs, pistons, colle), `farm.py` (un enclos, des poules, des cochons, un loup qui garde)) ;
+avance seule : observateurs, pistons, colle), `farm.py` (un enclos, des poules, des cochons, un loup qui garde), `temple_mcp.py` (un client MCP, comme un agent :
+un temple aztèque explorable, 80 appels, captures et journal)) ;
 `creatures()`, `spawn()`, `remove()`, `health()`, `set_health()` ; `set_block(x, y, z, bloc, état)`,
 `get_block_state()`, `get_power()`, `use()`, les directions dans `Facing` ; aussi `mode()`, `set_mode()`, `weather()`,
 `set_weather()`, `command()`, `inventory()`, `give()`, `craft()` :

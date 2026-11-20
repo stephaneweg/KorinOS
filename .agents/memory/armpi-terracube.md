@@ -54,4 +54,9 @@ repris d'un jeu existant), doc `docs/TERRACUBE.md`.
   point de départ (inventaire gardé), en survie seulement ; épées, cuisine, graines et pommes. Corps en boîtes
   animées (flottants, même shader, u_tint rouge au coup). Banc d'essai hôte : scratchpad/entt/t.cpp.
 
+- 20/11 : la main en vue (render.cpp drawHand : bloc en cube, objets en relief depuis l'alpha de l'atlas, bras nu ;
+  geste, fissures, éclats, fumée) ; démo MCP « temple aztèque » réussie (examples/temple_mcp.py, 80 appels, ~18 s
+  par appel sous QEMU) ; la compétence korin-terracube va dans le paquet terracube (comme korin-forge avec Forge),
+  vibe/claude/mai l'excluent. L'utilisateur demande : fetch de main avant tout changement ou publication.
+
 **How to apply:** les numéros de blocs ne bougent jamais (ajout à la fin de `blocks.h`, de `terracube.py`, de la doc) ; de même les objets (100+, `items.h`).

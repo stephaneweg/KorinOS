@@ -631,6 +631,34 @@ static void creatureTiles ()
 		}
 }
 
+
+// la main, les fissures, la fumée
+static void handTiles ()
+{
+	fur (T_SKIN, 0xd8a07a, 10, 21);
+	fur (T_SLEEVE, 0x3a5a9a, 16, 22);
+	for (int x = 0; x < 16; x++) put (T_SLEEVE, x, 15, 0x2a4070), put (T_SLEEVE, x, 0, 0x2a4070);
+	// les fissures : des traits sombres qui partent du milieu, plus nombreux et plus longs à chaque étape
+	for (int st = 0; st < 5; st++) {
+		int t = T_CRACK0 + st;
+		clearTile (t);
+		int branches = 2 + st * 2, len = 4 + st * 2;
+		for (int b = 0; b < branches; b++) {
+			float a = rnd (T_CRACK0, b, 0) * 6.2832f, x = 7.5f, y = 7.5f;
+			for (int k = 0; k < len; k++) {
+				a += (rnd (T_CRACK0, b, k + 1) - 0.5f) * 1.2f;
+				x += cosf (a), y += sinf (a);
+				int ix = (int) floorf (x), iy = (int) floorf (y);
+				if (ix < 0 || ix > 15 || iy < 0 || iy > 15) break;
+				put (t, ix, iy, 0x101010, 200);
+			}
+		}
+	}
+	clearTile (T_SMOKE);
+	for (int y = 0; y < 16; y++)
+		for (int x = 0; x < 16; x++) put (T_SMOKE, x, y, shade (0xd8d8d8, (int) (rnd (T_SMOKE, x, y) * 30) - 15));
+}
+
 } // namespace
 
 void buildAtlas (uint8_t *px)
@@ -792,6 +820,7 @@ void buildAtlas (uint8_t *px)
 	extraTiles (px);
 	circuitTiles ();
 	creatureTiles ();
+	handTiles ();
 }
 
 } // namespace tc

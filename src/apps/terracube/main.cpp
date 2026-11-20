@@ -98,6 +98,60 @@ int g_targetEnt;		// la créature visée (0 : aucune)
 double g_attackAt;		// (le prochain coup possible)
 float g_hurtFlash;		// (un coup reçu : la vue rougit)
 double g_lastHurt;		// (un peu d'invulnérabilité après un coup)
+// la main en vue : le geste (0 à 1, -1 : aucun), l'objet qui remonte, la marche
+float g_swing = -1, g_equip = 0, g_bob = 0, g_bobAmt = 0;
+int g_heldShown = -1;
+// les éclats : des petits cubes de la texture d'un bloc ou d'une créature, qui tombent
+struct Particle {
+	double x, y, z;
+	float vx, vy, vz, life, size;
+	int tile;
+	float u, v;	// (le coin de leur morceau de tuile, en texels)
+	bool rise;	// (la fumée monte)
+};
+std::vector<Particle> g_parts;
+
+void swingArm ()
+{
+	if (g_swing < 0 || g_swing > 0.55f) g_swing = 0;
+}
+
+void addParticle (double x, double y, double z, float vx, float vy, float vz, int tile, float size, bool rise = false)
+{
+	if (g_parts.size () > 600) return;
+	Particle p { x, y, z, vx, vy, vz, rise ? 1.2f : 0.6f + (rand () % 100) / 150.0f, size, tile, (float) (rand () % 12), (float) (rand () % 12), rise };
+	g_parts.push_back (p);
+}
+
+inline float frnd () { return (rand () % 2001) / 1000.0f - 1.0f; }
+
+// des éclats sur la face touchée (un coup), ou de tout le bloc (cassé)
+void blockParticles (const Hit &h, int block, bool broken)
+{
+	const BlockInfo &bi = info (block);
+	int tile = bi.shape == SH_CROSS || bi.shape == SH_SPECIAL ? bi.side : bi.side;
+	if (broken) {
+		for (int i = 0; i < 18; i++)
+			addParticle (h.x + 0.5 + frnd () * 0.4, h.y + 0.5 + frnd () * 0.4, h.z + 0.5 + frnd () * 0.4, frnd () * 2.5f, 1.5f + frnd () * 2, frnd () * 2.5f,
+				     tile, 0.07f + (rand () % 5) * 0.012f);
+		return;
+	}
+	double fx = h.x + 0.5 + (h.nx - h.x) * 0.55, fy = h.y + 0.5 + (h.ny - h.y) * 0.55, fz = h.z + 0.5 + (h.nz - h.z) * 0.55;
+	for (int i = 0; i < 3; i++)
+		addParticle (fx + frnd () * 0.35, fy + frnd () * 0.35, fz + frnd () * 0.35, (h.nx - h.x) * 1.8f + frnd (), 1.2f + frnd (),
+			     (h.nz - h.z) * 1.8f + frnd (), tile, 0.06f);
+}
+
+int skinOf (int type)
+{
+	switch (type) {
+	case E_CHICKEN: return T_CHICKEN_BODY;
+	case E_PIG: return T_PIG_SKIN;
+	case E_WOLF: return T_WOLF_FUR;
+	case E_RODEUR: return T_RODEUR_SKIN;
+	default: return T_SPIDER_BODY;
+	}
+}
 bool g_selftest;
 const unsigned *g_jet;
 
@@ -835,6 +889,8 @@ void doBreak ()
 {
 	int b = g_target.block, m = g.world.meta (g_target.x, g_target.y, g_target.z);
 	event (1, g_target, b);
+	blockParticles (g_target, b, true);
+	swingArm ();
 	audio::play (audio::S_BREAK, audio::materialOf (b), 1.0f, panOf (g_target.x, g_target.z));
 	g_activity = std::min (1.0f, g_activity + 0.12f);
 	g.world.set (g_target.x, g_target.y, g_target.z, AIR);
@@ -863,6 +919,10 @@ void attackEntity ()
 	float dmg = survival () ? attackDamage (held) : 5.0f;
 	g.mobs.hurtEntity (*e, dmg, g.pl.x, g.pl.z, -1);
 	audio::play (audio::S_HIT, audio::M_SOFT, 0.7f, panOf ((int) floor (e->x), (int) floor (e->z)));
+	swingArm ();
+	float hh = entityInfo (e->type).height * (e->age < 0 ? 0.6f : 1.0f);
+	for (int i = 0; i < 5; i++)
+		addParticle (e->x + frnd () * 0.3, e->y + hh * 0.6 + frnd () * 0.2, e->z + frnd () * 0.3, frnd () * 2, 1.5f + frnd (), frnd () * 2, skinOf (e->type), 0.06f);
 	if (!survival ()) return;
 	g.exhaustion += 0.1f;
 	Stack &st = g.inv.s[g.selected];
@@ -947,6 +1007,7 @@ void placeBlock ()
 		bool used;
 		std::string msg;
 		if (e && g.mobs.interact (*e, held, used, msg)) {
+			swingArm ();
 			if (!msg.empty ()) gamePost (msg);
 			if (used && survival ()) {
 				Stack &st = g.inv.s[g.selected];
@@ -955,7 +1016,10 @@ void placeBlock ()
 			return;
 		}
 	}
-	if (eatHeld ()) return;
+	if (eatHeld ()) {
+		swingArm ();
+		return;
+	}
 	if (!g_target.hit) return;
 	bool sneak = g_keys[0xE1] || g_keys[0xE5];
 	// survie : un clic droit sur un établi ou un four les ouvre (Maj : poser contre eux)
@@ -967,6 +1031,7 @@ void placeBlock ()
 	int b = slotItem (g.selected);
 	// un levier, un bouton, un répéteur… servent (Maj : poser contre eux)
 	if (!sneak && sim::use (g_target.x, g_target.y, g_target.z, b)) {
+		swingArm ();
 		g_activity = std::min (1.0f, g_activity + 0.05f);
 		g.edited = true;
 		return;
@@ -996,6 +1061,7 @@ void placeBlock ()
 	Hit h = g_target;
 	h.x = x, h.y = y, h.z = z;
 	event (2, h, b);
+	swingArm ();
 	audio::play (audio::S_PLACE, audio::materialOf (b), 1.0f, panOf (x, z));
 	g_activity = std::min (1.0f, g_activity + 0.12f);
 	g.edited = true;
@@ -1677,7 +1743,7 @@ void mouseButtons (unsigned b)
 	unsigned pressed = b & ~g_buttons;
 	g_buttons = b;
 	double t0 = nowMs ();
-	if (pressed & 1) breakBlock (), g_breakAt = t0 + 300;
+	if (pressed & 1) breakBlock (), g_breakAt = t0 + 300, swingArm ();
 	if (pressed & 2) placeBlock (), g_placeAt = t0 + 300;
 	if (pressed & 4) pickBlock ();
 }
@@ -1929,6 +1995,39 @@ void frame (double dt)
 		vitals (dt, wasGround, in.sprint && g.pl.onGround, moved);
 	}
 	g.mobs.update (g.world, dt);
+	// la main : le geste, l'objet qui remonte après un changement, la marche ; les éclats ; la fumée des créatures mortes
+	if (g_swing >= 0 && (g_swing += (float) dt / 0.28f) >= 1) g_swing = -1;
+	{
+		int held = slotItem (g.selected);
+		if (held != g_heldShown) g_equip = g_heldShown < 0 ? 0 : 1, g_heldShown = held;
+		g_equip = std::max (0.0f, g_equip - (float) dt * 4);
+		double moved = sqrt ((g.pl.x - px0) * (g.pl.x - px0) + (g.pl.z - pz0) * (g.pl.z - pz0));
+		bool walking = g.pl.onGround && moved > dt * 0.5;
+		g_bob += (float) moved * 2.2f;
+		g_bobAmt += ((walking ? 1.0f : 0.0f) - g_bobAmt) * (float) std::min (1.0, dt * 6);
+	}
+	for (auto &e : g.mobs.list)
+		if (e.dead >= 0.5f && e.dead - dt < 0.5f && e.dead < 5)
+			for (int i = 0; i < 8; i++) addParticle (e.x + frnd () * 0.4, e.y + 0.3 + frnd () * 0.3, e.z + frnd () * 0.4, frnd () * 0.4f, 0.8f + frnd () * 0.3f, frnd () * 0.4f, T_SMOKE, 0.12f, true);
+	for (size_t i = 0; i < g_parts.size ();) {
+		Particle &p = g_parts[i];
+		p.life -= (float) dt;
+		if (p.life <= 0) {
+			g_parts[i] = g_parts.back ();
+			g_parts.pop_back ();
+			continue;
+		}
+		if (p.rise) p.vy = std::min (p.vy + (float) dt * 0.5f, 1.2f), p.size += (float) dt * 0.06f;
+		else p.vy -= (float) dt * 16.0f;
+		double nx = p.x + p.vx * dt, ny = p.y + p.vy * dt, nz = p.z + p.vz * dt;
+		if (isSolid (g.world.get ((int) floor (nx), (int) floor (ny), (int) floor (nz)))) {	// (posé : il glisse un peu et s'arrête)
+			if (p.vy < 0 && !isSolid (g.world.get ((int) floor (nx), (int) floor (p.y), (int) floor (nz)))) p.vy = 0, ny = p.y;
+			p.vx *= 0.3f, p.vz *= 0.3f;
+			if (isSolid (g.world.get ((int) floor (nx), (int) floor (ny), (int) floor (nz)))) nx = p.x, nz = p.z, ny = p.y;
+		}
+		p.x = nx, p.y = ny, p.z = nz;
+		i++;
+	}
 	for (auto &e : g.mobs.list)	// (une créature sur une plaque)
 		if (e.dead < 0 && e.onGround) sim::press ((int) floor (e.x), (int) floor (e.y + 0.01), (int) floor (e.z));
 	if (g.timeRuns) g.hour = fmodf (g.hour + (float) dt * 24.0f / 1200.0f, 24.0f);	// une journée : 20 minutes
@@ -1953,7 +2052,12 @@ void frame (double dt)
 		}
 		float need = on ? mineTime (g_target.block, slotItem (g.selected), nullptr) : -1;
 		if (on && need >= 0) {
-			if (t > g_hitAt) g_hitAt = t + 250, audio::play (audio::S_HIT, audio::materialOf (g_target.block), 1.0f, panOf (g_target.x, g_target.z));
+			if (t > g_hitAt) {	// un coup : le son, le geste, des éclats
+				g_hitAt = t + 250;
+				audio::play (audio::S_HIT, audio::materialOf (g_target.block), 1.0f, panOf (g_target.x, g_target.z));
+				g_swing = 0;
+				blockParticles (g_target, g_target.block, false);
+			}
 			g_mineProg += (float) (dt / std::max (0.05f, need));
 			if (g_mineProg >= 1) {
 				doBreak ();
@@ -2062,7 +2166,57 @@ void renderTo (int w, int h, const Camera &cam, bool hotbar = true)
 	static std::vector<EVertex> ev;
 	static std::vector<EDraw> ed;
 	buildEntityMeshes (g.mobs, g.world, floor (cam.x), floor (cam.z), ev, ed);
+	{	// les éclats : des petits cubes, un morceau de leur tuile
+		EDraw pd;
+		pd.first = (int) ev.size ();
+		pd.tint[0] = pd.tint[1] = pd.tint[2] = 1;
+		double bx = floor (cam.x), bz = floor (cam.z);
+		static const float SH[6] = { 0.8f, 0.8f, 1.0f, 0.55f, 0.7f, 0.7f };
+		for (auto &p : g_parts) {
+			float sky = g.world.skyLit ((int) floor (p.x), (int) floor (p.y), (int) floor (p.z)) ? 1.0f : 0.0f, l = 0.25f + 0.75f * sky;
+			float h = p.size * 8;	// (demi-côté, en 1/16)
+			float cx = (float) ((p.x - bx) * 16), cy = (float) (p.y * 16), cz = (float) ((p.z - bz) * 16);
+			float tu = (float) ((p.tile & 15) * 256) + p.u * 16, tv = (float) ((p.tile >> 4) * 256) + p.v * 16;
+			float P[8][3] = { { cx - h, cy - h, cz - h }, { cx + h, cy - h, cz - h }, { cx + h, cy + h, cz - h }, { cx - h, cy + h, cz - h },
+					  { cx - h, cy - h, cz + h }, { cx + h, cy - h, cz + h }, { cx + h, cy + h, cz + h }, { cx - h, cy + h, cz + h } };
+			static const int F[6][4] = { { 1, 5, 6, 2 }, { 4, 0, 3, 7 }, { 3, 2, 6, 7 }, { 4, 5, 1, 0 }, { 5, 4, 7, 6 }, { 0, 1, 2, 3 } };
+			static const float UV[4][2] = { { 0, 1 }, { 1, 1 }, { 1, 0 }, { 0, 0 } };
+			for (int fc = 0; fc < 6; fc++)
+				for (int k = 0; k < 4; k++) {
+					const float *q = P[F[fc][k]];
+					EVertex v { q[0], q[1], q[2], l * SH[fc], 0, tu + UV[k][0] * 48, tv + UV[k][1] * 48 };
+					ev.push_back (v);
+				}
+		}
+		pd.quads = ((int) ev.size () - pd.first) / 4;
+		if (pd.quads) ed.push_back (pd);
+	}
 	f.ents = &ev, f.entDraws = &ed;
+	// les fissures du bloc qu'on casse (survie)
+	static std::vector<EVertex> ov;
+	ov.clear ();
+	if (g_mineProg >= 0 && g_target.hit && hotbar) {
+		int tile = T_CRACK0 + std::min (4, (int) (g_mineProg * 5));
+		double bx = floor (cam.x), bz = floor (cam.z);
+		float x0 = (float) ((g_target.x - bx) * 16) - 0.05f, y0 = g_target.y * 16.0f - 0.05f, z0 = (float) ((g_target.z - bz) * 16) - 0.05f;
+		float x1 = x0 + 16.1f, y1 = y0 + 16.1f, z1 = z0 + 16.1f;
+		float P[8][3] = { { x0, y0, z0 }, { x1, y0, z0 }, { x1, y1, z0 }, { x0, y1, z0 }, { x0, y0, z1 }, { x1, y0, z1 }, { x1, y1, z1 }, { x0, y1, z1 } };
+		static const int F[6][4] = { { 1, 5, 6, 2 }, { 4, 0, 3, 7 }, { 3, 2, 6, 7 }, { 4, 5, 1, 0 }, { 5, 4, 7, 6 }, { 0, 1, 2, 3 } };
+		static const float UV[4][2] = { { 0, 16 }, { 16, 16 }, { 16, 0 }, { 0, 0 } };
+		float tu = (float) ((tile & 15) * 256), tv = (float) ((tile >> 4) * 256);
+		for (int fc = 0; fc < 6; fc++)
+			for (int k = 0; k < 4; k++) {
+				const float *q = P[F[fc][k]];
+				EVertex v { q[0], q[1], q[2], 1.0f, 0, tu + UV[k][0] * 16, tv + UV[k][1] * 16 };
+				ov.push_back (v);
+			}
+	}
+	f.overlay = &ov;
+	// ce que le joueur tient (pas dans les captures d'un autre point de vue)
+	f.hand.show = hotbar && !C_.open;
+	f.hand.item = slotItem (g.selected);
+	f.hand.swing = g_swing, f.hand.equip = g_equip, f.hand.bob = g_bob, f.hand.bobAmt = g_bobAmt;
+	f.hand.light = g.world.skyLit ((int) floor (cam.x), (int) floor (cam.y), (int) floor (cam.z)) ? 1.0f : 0.3f;
 	hud.selected = g.selected;
 	int eb = g.world.get ((int) floor (cam.x), (int) floor (cam.y), (int) floor (cam.z));
 	hud.underwater = eb == WATER;

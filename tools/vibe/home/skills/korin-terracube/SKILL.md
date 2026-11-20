@@ -79,6 +79,29 @@ d'un coup avec `set_blocks` ou `fill` ; puis **regarder** (`screenshot` avec `ey
 quelques blocs du montage, un peu au-dessus) ; pour un circuit, **le faire marcher** (`use_block`) et lire le
 résultat (`get_block` : `state`, `power`).
 
+### Une grande construction (un temple, une ville, un château)
+
+1. **Le site** : `get_player`, puis `get_heightmap` du terrain (128 × 128 au plus) ; le niveau du sol = la médiane
+   des hauteurs dont le bloc du dessus est de la terre, de l'herbe, du sable ou de la pierre (pas les arbres).
+   Construire à quelques dizaines de blocs du joueur, pas sur lui.
+2. **Le terrain** : `fill` d'air au-dessus (les arbres, les collines ; 1 000 000 de blocs au plus par appel), `fill`
+   de pierre dessous (les creux, les grottes), puis le dallage.
+3. **Les volumes** : de grands `fill` (pleins, puis `hollow` pour une peau d'un autre bloc) ; creuser les salles et
+   les couloirs par des `fill` d'air ensuite.
+4. **Les détails** : calculés, puis posés par `set_blocks` en lots (frises, escaliers, colonnes, lampes, circuits ;
+   200 000 au plus par appel, 50 000 est confortable).
+5. **Les mécanismes** (une porte secrète, un piège) : les poser au repos, puis les mettre en marche avec `use_block`
+   et vérifier l'état avec `get_block`.
+6. **Regarder** : `screenshot` d'ensemble (de loin, en hauteur), puis de près (l'entrée, une salle : l'œil dedans) ;
+   corriger ce qui ne va pas. Enfin `teleport` le joueur devant, un `post_message` qui dit quoi visiter, `save_world`.
+
+Un exemple complet, à lire : `/apps/terracube.app/python/examples/temple_mcp.py` (un temple aztèque : le site, la
+pyramide à gradins, l'escalier double, les sanctuaires, un tunnel, une salle, une porte secrète à piston, la chambre
+du trésor, les captures).
+
+Le dedans d'une construction est dans le noir (pas de ciel) : les créatures de la nuit peuvent y naître ;
+`run_command` `mobs off` pendant le chantier, le dire à l'utilisateur.
+
 ## 3. Le monde
 
 * x vers l'est, **y vers le haut** (0 à 127, la mer à 48), z vers le sud ; yaw 0 regarde le nord (−z), 90 l'est.

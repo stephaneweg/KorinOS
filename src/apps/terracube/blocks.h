@@ -117,6 +117,8 @@ enum Tile : uint8_t {
 	T_SEEDS, T_APPLE, T_RAW_CHICKEN, T_COOKED_CHICKEN, T_RAW_PORK, T_COOKED_PORK, T_FEATHER, T_BONE, T_STRING,
 	T_SWORD0, T_SWORD1, T_SWORD2, T_SWORD3,
 	T_HEART_FULL, T_HEART_HALF, T_HEART_EMPTY, T_FOOD_FULL, T_FOOD_HALF, T_FOOD_EMPTY, T_BUBBLE,
+	// 1.4 : la main (la peau, la manche), les fissures d'un bloc qu'on casse (5 étapes), la fumée
+	T_SKIN, T_SLEEVE, T_CRACK0, T_CRACK4 = T_CRACK0 + 4, T_SMOKE,
 	T_TILE_COUNT
 };
 
