@@ -31,7 +31,7 @@ ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab 
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
 screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu gcemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
 recorder targets bubbles arkanoid pkgman pkg pkgd webd smbd smbfs oauthd keyvault gdrivefs webstudio koton llm vibe claude mai forge
-2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris installer weather asteroids parkingjam jamendo spotify terracube relics"
+2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris installer weather asteroids parkingjam jamendo spotify terracube relics win16"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
 : > "$OUT/status.new"
@@ -294,6 +294,8 @@ build_one () { # nom
 	vibe|claude|mai)	# (libacp, le client ACP de Vibe : src/lib/acp, compilée avec l'app, comme tools/office/build.sh ;
 		# claude, mai : le source de Vibe avec le profil Claude ou MAI, src/apps/claude/main.c, src/apps/mai/main.c)
 		FLAGS="$FLAGS -I$ROOT/src/lib/acp" ;;
+	win16)	# (les programmes de Windows 3.x, docs/etude/WIN16.md : le cœur i486 de MAME, mame/, est inclus par cpu.cpp)
+		FLAGS="$FLAGS -O3 -w" ;;
 	ndsemu|nesemu|gbemu|gbaemu|snesemu)	# (comme tools/emu/build.sh ; ndsemu : l'interpréteur seul, son JIT n'est construit que pour AArch64)
 		FLAGS="$FLAGS -O3 -w -fno-math-errno -fno-trapping-math" ;;
 	n64emu)	# (le C++ et son recompilateur x86-64 ; gl/ (Mesa) reste a l'asm du Pi : -DN64_CPP ; le GPU Intel par
@@ -340,7 +342,7 @@ build_one () { # nom
 	cd "$S"
 	{
 		echo 'all:'
-		{ find . -name '*.c' -o -name '*.cpp' | sed 's#^\./##' | grep -v '^data/' | grep -v '^applet/'
+		{ find . -name '*.c' -o -name '*.cpp' | sed 's#^\./##' | grep -v '^data/' | grep -v '^applet/' | grep -v '^mame/'
 		  case $app in vibe|claude|mai) ls "$ROOT"/src/lib/acp/*.c ;; forge|terracube) echo "$ROOT/src/lib/acp/json.c" ;; esac; } | while read -r f; do
 			# (une source hors du dossier de l'app : son .o sous son seul nom)
 			case $f in /*) o=$O/$(echo "$f" | sed 's#.*/##; s/\.[a-z]*$//').o ;; *) o=$O/$(echo "$f" | sed 's/\.[a-z]*$//').o ;; esac

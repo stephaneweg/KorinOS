@@ -1,8 +1,18 @@
 # Étude : les programmes de Windows 3.x (Win16) sur Korin OS
 
 Demandée le 20/11/2026 (« ça m'intéresserait », à propos de winevdm). Chantier de plaisir, pas urgent : faire
-revivre les vieux logiciels de Windows 3.1 (`.exe` au format **NE**, API **Win16**). Rien n'est fait. Vérifications en
-ligne du 20/11/2026 (sources en fin de document).
+revivre les vieux logiciels de Windows 3.1 (`.exe` au format **NE**, API **Win16**). Vérifications en ligne du
+20/11/2026 (sources en fin de document).
+
+## 0. État (20/11/2026)
+
+**Premier jalon fait (étapes 0 à 2, QEMU PC)** : `src/apps/win16` (app « Windows 3.x », `win16.app`) charge un
+`.exe` NE compilé par Open Watcom v2 et affiche sa fenêtre dans le bureau de Korin : `tools/win16/tests/hello.c`
+(classe, `CreateWindow`, boucle des messages, `WM_PAINT` avec `Rectangle` et `TextOut`) s'ouvre, se dessine et se
+ferme par le ✕ d'Elegant (`WM_SYSCOMMAND` → `WM_CLOSE` → `WM_DESTROY` → `PostQuitMessage`, code 0) ; `msgbox.c`
+montre une boîte de message de Korin. Choix de l'utilisateur au § 7 ; fichiers et licences dans
+`src/apps/win16/README.md`. Pas encore : le Pi (même code, à construire), les ressources (menus, dialogues, icônes),
+les contrôles, les fichiers (`C:` = `HOME:/win16/c`), le tas local, les DLL des programmes ; pas de paquet.
 
 ## 1. Ce qu'il faut faire tourner
 
@@ -197,7 +207,25 @@ Durées en jours de travail d'une session, à la louche.
 Le premier jalon (étapes 0 à 2) tient en **une semaine** ; une couche qui fait tourner la plupart des petits
 programmes de l'époque (étapes 3 à 5), **deux mois** environ. Le reste se fait au fil des programmes essayés.
 
-## 7. Choix à faire par l'utilisateur
+## 7. Choix de l'utilisateur (20/11/2026)
+
+* **Voie : la couche maison** (4.4), sur UIKit, le même code sur le PC et le Pi.
+* **Code repris : winevdm entier accepté comme base** : le programme `win16` est sous **GPL-2** (le cœur de MAME garde
+  son en-tête BSD-3, les fichiers de Wine leur en-tête LGPL). On reprend de winevdm tout ce qui se porte ; USER et
+  GDI restent à écrire sur UIKit.
+* **Programmes d'essai : Open Watcom v2** (dans WSL, `~/win16/watcom`, version « Current-build » de GitHub).
+
+Ce que la lecture du code de winevdm a appris (20/11) : `vm86/msdos.cpp` exécute une instruction à la fois
+(`CPU_EXECUTE`) dans le cœur de MAME, avec une adresse linéaire **égale au pointeur de l'hôte** (`mem` = 0, LDT de
+Wine dont les bases sont des pointeurs Win32) ; il reconnaît un appel de l'API quand `EIP` tombe sur l'adresse native
+de `__wine_call_from_16`. Tout `krnl386` repose sur ce modèle (blocs de `GlobalAlloc` = mémoire de l'hôte). Sur
+Korin, en 64 bits, on garde le cœur et sa façon d'être piloté, mais avec **une mémoire émulée à part** (un tableau,
+adresse linéaire = décalage) et **notre boucle** : un sélecteur réservé aux points d'entrée, reconnu avant chaque
+instruction (§ 5.2). Le code de `krnl386` (NE, sélecteurs, tas local) se reprend en le passant à ce modèle.
+
+Le dossier est `src/apps/win16/` (construit par la règle générique de `tools/pc/apps.sh`), pas `src/sys/win16/`.
+
+## 7 bis. Les choix qui étaient proposés
 
 1. **La voie** : couche maison (4.4, recommandée) ; DOSBox + Windows 3.1 apporté par l'utilisateur (4.2) ;
    les deux (DOSBox pour le DOS et ce que la couche ne sait pas encore).

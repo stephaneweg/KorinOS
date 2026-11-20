@@ -1,0 +1,8 @@
+# Manifeste de win16 : les programmes de Windows 3.x (docs/etude/WIN16.md)
+name     = Windows 3.x
+category = Émulateurs
+opens    = exe
+description = Fait tourner les programmes de Windows 3.x (exécutables 16 bits NE) dans des fenêtres de Korin, d'après winevdm.
+keywords = windows 3.1 win16 16 bits exe ne émulateur winevdm otvdm rétro
+help = Ouvrir un programme de Windows 3.x (.exe) avec cette app le lance ; chacune de ses fenêtres principales devient une fenêtre de Korin.
+help = Encore au début : seuls les programmes très simples marchent (fenêtres, texte, rectangles, boîtes de message).
