@@ -9,6 +9,9 @@ L'app est un « studio » (direction proposée par Gemini à partir de `tools/mo
 deux thèmes, est encadrée au milieu de la fenêtre, sans décor (un dégradé, un halo, un anneau de socle, l'ombre) ; autour,
 aux jetons du thème : l'en-tête (nom, stade, caractère, Fiche), les cinq jauges en cartes, la rangée des six soins. La
 fiche glisse en tiroir depuis la droite de la vue ; messages et bulle restent dans la vue, en verre fumé.
+La fenêtre s'ouvre en **portrait** (jauges sur deux colonnes, soins en grille de 3 × 2) ; élargie, elle passe à la mise
+en page large (jauges et soins en une rangée chacun). Le fond de la vue : un dégradé (ardoise bleutée en haut, presque
+noir en bas), un vignettage doux, un halo derrière l'animal.
 
     sh tools/pc/apps.sh morpho                 # Korin PC (avec GlKit construit : le GPU Intel, sinon le processeur)
     sh tools/office/build.sh morpho            # le Pi (gk_draw : le V3D, sinon le processeur)
@@ -30,7 +33,7 @@ Sauvegarde : `HOME:/morpho/pet.ini`. Essais : `main new` (nouvel œuf), `speed=N
 | `scene.cpp` | le dessin par `gk_draw` dans le cadre de la vue ; au processeur, demi-taille quand une image dépasse 45 ms |
 | `pet.cpp` | la vie : besoins, sommeil, crottes, maladie, poids, stades, départ ; rattrapage du temps passé app fermée (plus doux, au plus 3 jours) ; sauvegarde |
 | `actor.cpp` | ce que fait l'animal (flâner, regarder, manger, jouer à la balle, dormir, bain, médicament, câlin, éclosion, métamorphose) -> une pose ; les objets 3D et les particules |
-| `hud.cpp` | la mise en page (`layout` : la place de la vue ; compacte sous 700 × 500, des icônes seules) et l'interface 2D aux jetons du thème : en-tête, jauges, soins à icônes dessinées, choix du repas, tiroir de la fiche, messages, bulle, cartes des grands moments |
+| `hud.cpp` | la mise en page (`layout` : portrait ou large, la place de la vue ; compacte quand la place manque, des icônes seules) et l'interface 2D aux jetons du thème : en-tête, jauges, soins à icônes dessinées, choix du repas, tiroir de la fiche, messages, bulle, cartes des grands moments |
 | `main.cpp` | fenêtre, boucle (30 images/s au plus, `WEV_FRAME`), souris, clavier, menus, sons (voix FM d'AudioKit, plus aiguë quand il est petit) |
 
 ## Les stades

@@ -25,9 +25,9 @@ Light studioLight (float hour, bool lampOff)
 	L.amb = 0.62f;
 	L.rimC = mixc (Col (0.55f, 0.72f, 1.0f), Col (1.0f, 0.72f, 0.55f), warm * 0.7f);
 	L.rimK = 0.5f;
-	Col topDay (0.090f, 0.102f, 0.137f), botDay (0.055f, 0.063f, 0.082f);
-	Col topNight (0.055f, 0.067f, 0.118f), botNight (0.031f, 0.035f, 0.055f);
-	Col topWarm (0.135f, 0.098f, 0.118f);
+	Col topDay (0.125f, 0.172f, 0.220f), botDay (0.035f, 0.043f, 0.059f);
+	Col topNight (0.078f, 0.098f, 0.188f), botNight (0.020f, 0.024f, 0.043f);
+	Col topWarm (0.205f, 0.145f, 0.165f);
 	L.bgTop = mixc (mixc (topDay, topWarm, warm), topNight, night);
 	L.bgBot = mixc (botDay, botNight, night);
 	L.glow = mixc (mixc (Col (0.18f, 0.45f, 0.86f), Col (0.95f, 0.55f, 0.35f), warm), Col (0.3f, 0.35f, 0.85f), night);
@@ -36,7 +36,7 @@ Light studioLight (float hour, bool lampOff)
 	{
 		L.sunC = Col (0.36f, 0.43f, 0.68f); L.skyC = Col (0.14f, 0.17f, 0.3f); L.groundC = Col (0.04f, 0.04f, 0.06f);
 		L.amb = 0.55f; L.rimC = Col (0.45f, 0.55f, 0.95f); L.rimK = 0.4f;
-		L.bgTop = Col (0.035f, 0.04f, 0.07f); L.bgBot = Col (0.016f, 0.018f, 0.03f);
+		L.bgTop = Col (0.055f, 0.066f, 0.115f); L.bgBot = Col (0.012f, 0.014f, 0.024f);
 		L.glow = Col (0.25f, 0.3f, 0.75f); L.glowK = 0.5f; L.night = 1;
 	}
 	L.fog = L.bgBot;
@@ -139,16 +139,20 @@ static inline uint32_t mixp (uint32_t d, const Col &c, float a)
 void drawStudio (uint32_t *px, int w, int h, int stride, const Camera &C, const Light &L, const V3 &at, const V3 &ringC, float ringR, float t)
 {
 	(void) t;
-	// le dégradé, ligne par ligne, avec un tramage léger (pas de bandes sur un fond si sombre)
+	// le dégradé : plus clair en haut, presque noir en bas, un peu plus clair au milieu de la largeur ; un vignettage
+	// doux sur les bords ; un tramage léger (pas de bandes sur un fond si sombre)
 	for (int y = 0; y < h; y++)
 	{
 		float f = (float) y / (float) (h > 1 ? h - 1 : 1);
-		Col c = mixc (L.bgTop, L.bgBot, smooth (0, 1, f));
+		Col c = mixc (L.bgTop, L.bgBot, powf (f, 0.85f));
+		float vy = f * 2 - 1;
 		uint32_t *row = px + (long) y * stride;
 		for (int x = 0; x < w; x++)
 		{
-			float d = (hashf (x, y, 3) - 0.5f) * (1.0f / 255);
-			row[x] = packc (Col (c.r + d, c.g + d, c.b + d));
+			float vx = (float) x / (float) (w > 1 ? w - 1 : 1) * 2 - 1;
+			float v = 1 - 0.32f * (vx * vx * 0.8f + vy * vy * 0.45f);	// (les bords, les coins plus sombres)
+			float d = (hashf (x, y, 3) - 0.5f) * (1.2f / 255);
+			row[x] = packc (Col (c.r * v + d, c.g * v + d, c.b * v + d));
 		}
 	}
 	// le halo derrière l'animal : une lueur douce, quelques pour cent
@@ -167,7 +171,7 @@ void drawStudio (uint32_t *px, int w, int h, int stride, const Camera &C, const 
 				float dx = ((float) x - sx) / R, dy = ((float) y - sy) / (R * 0.9f);
 				float d2 = dx * dx + dy * dy;
 				if (d2 >= 1) continue;
-				float k = (1 - d2); k = k * k * 0.085f * L.glowK;
+				float k = (1 - d2); k = k * k * 0.11f * L.glowK;
 				uint32_t &p = px[(long) y * stride + x];
 				p = mixp (p, L.glow, k);
 			}

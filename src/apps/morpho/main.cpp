@@ -579,13 +579,15 @@ int main (int argc, char **argv)
 #endif
 	long scr[4] = { 1280, 800, 0, 0 };
 	ui_screen ((long) scr);
-	long w = scr[0] - 120, h = scr[1] - scr[2] - scr[3] - 90;
-	if (w > 980) w = 980;
-	if (h > 700) h = 700;
-	if (w < 600) w = 600;
-	if (h < 460) h = 460;
+	// en portrait (élargir la fenêtre donne la mise en page large, hud.cpp)
+	long h = scr[1] - scr[2] - scr[3] - 80;
+	if (h > 860) h = 860;
+	if (h < 520) h = 520;
+	long w = h * 56 / 100;
+	if (w < 420) w = 420;
+	if (w > scr[0] - 40) w = scr[0] - 40;
 	if (ui_window_ex (-1, -1, w, h, (long) "Morpho", WF_RESIZABLE) <= 0) return 1;
-	ui_min_size (560, 440);
+	ui_min_size (380, 440);
 	app_init (argc, argv);
 	ui_menu ((long) MENU);
 	menuStates ();

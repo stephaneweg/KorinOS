@@ -17,7 +17,9 @@ réel avec rattrapage app fermée ; six stades tirés au hasard d'après les soi
 
 **Refonte « studio » (20/11, demandée par l'utilisateur : « une app moderne, vue 3D fond foncé, pas de décor, juste
 le personnage, les menus autour »)** : direction de Gemini (prompt écrit ici, maquette « Studio Frame ») ; plus de
-prairie ni de ciel ; la vue sombre dans les deux thèmes ; au processeur la 3D tombe de ~25 ms à ~4 ms (hôte).
+prairie ni de ciel ; la vue sombre dans les deux thèmes ; au processeur la 3D tombe de ~25 ms à ~4 ms (hôte). Puis, à sa demande :
+fenêtre en portrait par défaut (maquette portrait de Gemini : jauges 2 colonnes, soins 3 × 2 ; la mise en page large
+quand la fenêtre est élargie) et un dégradé bien visible dans la vue (ardoise bleutée -> noir, vignettage).
 
 **How to apply:**
 - Voir sans Korin : `sh tools/morpho/run.sh gallery|shot`, `tools/morpho/sheet.sh` (FreeType + polices Inter de

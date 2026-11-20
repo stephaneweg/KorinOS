@@ -20,6 +20,9 @@ struct Hud
 	int w = 0, h = 0; float k = 1;
 	bool compact = false;			// petite fenêtre, mode poche : des icônes seules
 	int vx = 0, vy = 0, vw = 1, vh = 1;	// la vue 3D (le studio), dans la fenêtre
+	bool portrait = false;			// fenêtre en hauteur : jauges sur deux colonnes, soins en grille 3 × 2
+	int gy = 0, gCols = 5, gRows = 1, gH = 50;	// les jauges : haut, colonnes, rangées, hauteur d'une carte
+	int dy = 0, dCols = 6, dRows = 1, bH = 38;	// les soins : haut (le filet), colonnes, rangées, hauteur d'un bouton
 	float infoT = 0;			// le tiroir de la fiche (0 fermé, 1 ouvert)
 	int hover = H_NONE;
 	bool feedOpen = false, infoOpen = false;

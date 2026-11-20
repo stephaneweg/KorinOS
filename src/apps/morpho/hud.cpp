@@ -203,14 +203,32 @@ static const int MARGIN = 12;
 void Hud::layout (int W, int H)
 {
 	w = W; h = H;
-	compact = W < 700 || H < 500;
-	k = clampf (fminf ((float) W / 960, (float) H / 660), 0.85f, 1.3f);
+	portrait = H > W * 1.12f && W < 760;
+	if (portrait)
+	{
+		// en hauteur : l'en-tête, la vue, les jauges en deux colonnes, les soins en grille de 3 × 2
+		compact = W < 400 || H < 560;
+		k = clampf ((float) W / 460, 0.85f, 1.25f);
+	}
+	else
+	{
+		compact = W < 700 || H < 500;
+		k = clampf (fminf ((float) W / 960, (float) H / 660), 0.85f, 1.3f);
+	}
 	auto K = [&] (float v) { return (int) (v * k + 0.5f); };
-	int head = compact ? K (40) : K (58), gauges = compact ? K (30) : K (50), dock = compact ? K (64) : K (60);
+	int head = portrait ? K (58) : compact ? K (40) : K (58);
+	gCols = portrait ? 2 : 5; gRows = portrait ? 3 : 1;
+	gH = compact ? K (30) : portrait ? K (46) : K (50);
+	int gauges = gRows * gH + (gRows - 1) * K (8);
+	dCols = portrait ? 3 : 6; dRows = portrait ? 2 : 1;
+	bH = portrait ? K (38) : compact ? K (46) : K (38);
+	int dock = portrait ? 1 + K (12) * 2 + dRows * bH + (dRows - 1) * K (8) : compact ? K (64) : K (60);
 	vx = MARGIN; vy = head;
 	vw = W - 2 * MARGIN;
 	vh = H - head - K (10) - gauges - K (10) - dock;
 	if (vh < 80) vh = 80;
+	gy = vy + vh + K (10);
+	dy = gy + gauges + K (10);
 }
 
 // ==== le dessin =======================================================================================================
@@ -380,9 +398,10 @@ void Hud::draw (Img &im, const Pet &p, const Actor &a, const Camera &cam, const 
 	// ---- l'en-tête : le nom, le stade, le caractère ; la fiche à droite (avant les boutons de la fenêtre)
 	{
 		int x = MARGIN + K (6);
-		int base = compact ? K (27) : K (27);
-		ga::text (x, base, p.name, T1, K (compact ? 16 : 18), true);
-		int nx = x + ga::textW (p.name, K (compact ? 16 : 18), true) + K (10);
+		int base = portrait ? K (35) : K (27);
+		int nsz = compact ? 16 : portrait ? 19 : 18;
+		ga::text (x, base, p.name, T1, K ((float) nsz), true);
+		int nx = x + ga::textW (p.name, K ((float) nsz), true) + K (10);
 		const char *sn = p.gone ? TR ("Parti") : stageName (p.g.stage);
 		int pw = ga::textW (sn, K (11), true) + K (18), ph = K (20);
 		pill (im, nx, base - K (15), pw, ph, ga::mix (CH, ACC, darkTheme () ? 70 : 40));
@@ -395,7 +414,24 @@ void Hud::draw (Img &im, const Pet &p, const Actor &a, const Camera &cam, const 
 			pill (im, nx, base - K (15), sw, ph, ga::mix (CH, tok (TJ_WARNING), 60));
 			ga::text (nx + K (7), base - K (1), b, T1, K (11), true);
 		}
-		if (!compact)
+		// la fiche : avec son nom s'il y a la place, sinon son icône seule
+		int bh = K (32), bwFull = ga::textW (TR ("Fiche"), K (13), true) + K (44);
+		int right = w - FRAME_CAP_W - MARGIN;
+		bool label = !compact && right - bwFull > nx + K (8) + (portrait ? ga::textW (traitName (p.g.trait), K (11), true) + K (26) : 0);
+		int bw = label ? bwFull : bh;
+		if (portrait && p.g.stage != ST_EGG && !p.gone)
+		{
+			// (le caractère, en pastille neutre, s'il reste de la place)
+			const char *tn = traitName (p.g.trait);
+			int tw = ga::textW (tn, K (11), true) + K (18);
+			if (nx + tw < right - bw - K (8))
+			{
+				im.rbox (nx, base - K (15), tw, ph, ph / 2, CARD, CARD, 256, LINE);
+				ga::text (nx + K (9), base - K (1), tn, T2, K (11), true);
+				nx += tw + K (8);
+			}
+		}
+		else if (!compact && !portrait)
 		{
 			formatAge (p.age, b2, sizeof b2);
 			if (egg) snprintf (b, sizeof b, TR ("Génération %d · éclosion bientôt"), p.generation);
@@ -403,29 +439,27 @@ void Hud::draw (Img &im, const Pet &p, const Actor &a, const Camera &cam, const 
 			im.disc ((float) (x + K (5)), (float) (base + K (14)), (float) K (4), T3);
 			ga::text (x + K (14), base + K (18), b, T3, K (12), false);
 		}
-		// la fiche
-		int bh = K (32), bw = compact ? bh : ga::textW (TR ("Fiche"), K (13), true) + K (44);
-		int bx = w - FRAME_CAP_W - MARGIN - bw, by = (vy - bh) / 2;
-		if (bx > nx + K (60))
+		int bx = right - bw, by = (vy - bh) / 2;
+		if (bx > nx)
 		{
 			bool hov = hover == H_INFO, sel = infoOpen;
 			unsigned bg = sel ? ga::mix (CARD, ACC, 60) : hov ? tok (TJ_HOVER) : CARD;
 			im.rbox (bx, by, bw, bh, K (8), bg, bg, 256, sel ? ACC : LINE);
-			float icx = (float) (bx + (compact ? bw / 2 : K (18))), icy = (float) (by + bh / 2);
+			float icx = (float) (bx + (label ? K (18) : bw / 2)), icy = (float) (by + bh / 2);
 			// (une feuille au coin plié)
 			float fw = (float) K (6), fh = (float) K (8);
 			float sheet[10] = { icx - fw, icy - fh, icx + fw * 0.35f, icy - fh, icx + fw, icy - fh * 0.45f, icx + fw, icy + fh, icx - fw, icy + fh };
 			im.poly (sheet, 5, T2);
 			im.rect ((int) (icx - fw * 0.55f), (int) (icy - fh * 0.15f), (int) (fw * 1.1f), 1 + (int) k, CARD);
 			im.rect ((int) (icx - fw * 0.55f), (int) (icy + fh * 0.35f), (int) (fw * 1.1f), 1 + (int) k, CARD);
-			if (!compact) ga::text (bx + K (32), by + K (21), TR ("Fiche"), T1, K (13), true);
+			if (label) ga::text (bx + K (32), by + K (21), TR ("Fiche"), T1, K (13), true);
 			addHit (H_INFO, bx, by, bw, bh, true);
 		}
 	}
 
 	// ---- les jauges, en cartes sous la vue
 	{
-		int gy = vy + vh + K (10), gh = compact ? K (30) : K (50);
+		int gh = gH;
 		int total = vw > K (900) ? K (900) : vw, gx = vx + (vw - total) / 2;
 		static const char *const NAMES[N_COUNT] = { "Satiété", "Bonheur", "Énergie", "Propreté", "Santé" };
 		static const int ICONS[N_COUNT] = { I_FOOD, I_FUN, I_ENERGY, I_CLEAN, I_HEALTH };
@@ -438,6 +472,7 @@ void Hud::draw (Img &im, const Pet &p, const Actor &a, const Camera &cam, const 
 		};
 		if (egg || p.gone)
 		{
+			int gy = this->gy;
 			im.rbox (gx, gy, total, gh, K (10), CARD, CARD, 256, LINE);
 			float f = p.gone ? 1 : sat (p.stageProgress ());
 			if (!compact)
@@ -452,10 +487,10 @@ void Hud::draw (Img &im, const Pet &p, const Actor &a, const Camera &cam, const 
 		}
 		else
 		{
-			int gap = K (8), cw = (total - 4 * gap) / 5;
+			int gap = K (8), cw = (total - (gCols - 1) * gap) / gCols;
 			for (int i = 0; i < N_COUNT; i++)
 			{
-				int x = gx + i * (cw + gap);
+				int x = gx + (i % gCols) * (cw + gap), gy = this->gy + (i / gCols) * (gh + gap);
 				float v = p.st[i];
 				bool low = v < 25 || (i == N_HEALTH && p.sick);
 				unsigned c = NEED_C[i], vc = low ? tok (TJ_DANGER) : c;
@@ -476,13 +511,12 @@ void Hud::draw (Img &im, const Pet &p, const Actor &a, const Camera &cam, const 
 				bar (x + K (12), gy + K (32), cw - K (24), v, vc, low);
 			}
 		}
-		addHit (H_NONE, gx, gy, total, gh, true);
+		addHit (H_NONE, gx, gy, total, dy - gy, true);
 	}
 
 	// ---- la rangée des soins
 	if (!p.gone)
 	{
-		int dy = vy + vh + K (10) + (compact ? K (30) : K (50)) + K (10);
 		im.rect (0, dy, w, 1, LINE);
 		struct B { int act, icon; const char *label; bool on; unsigned c; };
 		bool can = p.canAct (), awake = can && !p.asleep;
@@ -495,36 +529,53 @@ void Hud::draw (Img &im, const Pet &p, const Actor &a, const Camera &cam, const 
 			{ p.asleep ? H_WAKE : H_CARESS, p.asleep ? I_ZZZ : I_HAND, p.asleep ? "Réveiller" : "Câliner", can, 0xEC5B8F },
 		};
 		const int N = 6;
-		int bh = K (38), gap = K (8), pad = K (14), isz = K (8);
-		int bwid[N], tot = 0;
-		bool icons = compact;
-		for (int i = 0; i < N; i++) { bwid[i] = pad * 2 + isz * 2 + K (8) + ga::textW (TR (bs[i].label), K (13), true); tot += bwid[i] + (i ? gap : 0); }
-		if (tot > w - 2 * MARGIN) icons = true;
-		if (icons)
+		int bh = bH, gap = K (8), pad = K (14), isz = K (8);
+		int bwid[N], bxs[N], bys[N], tot = 0;
+		bool icons = compact, centered = false;
+		if (portrait)
 		{
-			bh = K (46); tot = 0;
-			for (int i = 0; i < N; i++) { bwid[i] = bh; tot += bh + (i ? gap : 0); }
+			// une grille de 3 × 2, sur toute la largeur ; icône et texte centrés ensemble
+			int cw = (w - 2 * MARGIN - (dCols - 1) * gap) / dCols;
+			for (int i = 0; i < N; i++)
+			{
+				bwid[i] = cw; bxs[i] = MARGIN + (i % dCols) * (cw + gap);
+				bys[i] = dy + 1 + K (12) + (i / dCols) * (bh + gap);
+			}
+			centered = true;
+			if (!icons) for (int i = 0; i < N; i++) if (isz * 2 + K (8) + ga::textW (TR (bs[i].label), K (13), true) > cw - K (12)) icons = true;
 		}
-		int x = (w - tot) / 2, y = dy + 1 + (h - dy - 1 - bh) / 2;
-		int feedX = x;
+		else
+		{
+			for (int i = 0; i < N; i++) { bwid[i] = pad * 2 + isz * 2 + K (8) + ga::textW (TR (bs[i].label), K (13), true); tot += bwid[i] + (i ? gap : 0); }
+			if (tot > w - 2 * MARGIN) icons = true;
+			if (icons)
+			{
+				bh = K (46); tot = 0;
+				for (int i = 0; i < N; i++) { bwid[i] = bh; tot += bh + (i ? gap : 0); }
+			}
+			int x0 = (w - tot) / 2, y0 = dy + 1 + (h - dy - 1 - bh) / 2;
+			for (int i = 0; i < N; i++) { bxs[i] = x0; bys[i] = y0; x0 += bwid[i] + gap; }
+		}
+		int feedX = bxs[0], y = bys[0];
 		for (int i = 0; i < N; i++)
 		{
 			const B &q = bs[i];
+			int x = bxs[i], y = bys[i];
 			bool hov = hover == q.act && q.on;
 			bool sel = (q.act == H_FEED && feedOpen) || (q.act == H_PLAY && a.ballOn) || (q.act == H_LAMP && p.lampOff);
 			unsigned bg = sel ? ga::mix (CARD, ACC, darkTheme () ? 80 : 50) : hov ? tok (TJ_HOVER) : CARD;
 			int al = q.on ? 256 : 120;
 			im.rbox (x, y, bwid[i], bh, K (icons ? 12 : 8), bg, bg, al, sel ? ACC : LINE);
-			float icx = icons ? (float) x + (float) bwid[i] / 2 : (float) (x + pad + isz), icy = (float) y + (float) bh / 2;
+			int lw = ga::textW (TR (q.label), K (13), true);
+			int lx = centered ? x + (bwid[i] - (isz * 2 + K (8) + lw)) / 2 : x + pad;		// (le début de l'icône)
+			float icx = icons ? (float) x + (float) bwid[i] / 2 : (float) (lx + isz), icy = (float) y + (float) bh / 2;
 			float s = (float) (icons ? K (12) : isz) * (hov ? 1.08f : 1);
 			unsigned ic = q.c ? q.c : T2;
 			if (q.icon == I_MOON) { im.disc (icx, icy, s * 0.8f, ic, al); im.disc (icx + s * 0.36f, icy - s * 0.25f, s * 0.68f, bg, 256); }
 			else icon (im, q.icon, icx, icy, s, ic, t);
 			if (!q.on) im.rbox (x + 1, y + 1, bwid[i] - 2, bh - 2, K (8), bg, bg, 140);
-			if (!icons) ga::text (x + pad + isz * 2 + K (8), y + bh / 2 + K (5), TR (q.label), q.on ? T1 : T3, K (13), true);
-			if (i == 0) feedX = x;
+			if (!icons) ga::text (lx + isz * 2 + K (8), y + bh / 2 + K (5), TR (q.label), q.on ? T1 : T3, K (13), true);
 			addHit (q.act, x, y, bwid[i], bh, q.on);
-			x += bwid[i] + gap;
 		}
 		// le choix du repas : au-dessus de « Nourrir »
 		if (feedOpen && awake)
@@ -533,6 +584,7 @@ void Hud::draw (Img &im, const Pet &p, const Actor &a, const Camera &cam, const 
 			static const char *const FH[3] = { "+ satiété", "+ santé", "+ bonheur" };
 			static const int FI[3] = { I_BOWL, I_APPLE, I_CAKE };
 			int tw = K (112), th = K (52), tg = K (6), pp = K (8);
+			if (3 * tw + 2 * tg + 2 * pp > w - 2 * MARGIN) tw = (w - 2 * MARGIN - 2 * tg - 2 * pp) / 3;
 			int pw = 3 * tw + 2 * tg + 2 * pp, phh = th + 2 * pp;
 			int px = feedX, py = y - phh - K (8);
 			if (px + pw > w - MARGIN) px = w - MARGIN - pw;
