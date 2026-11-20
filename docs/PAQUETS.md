@@ -237,6 +237,7 @@ d'anciennes publications), on publie un seul paquet **à partir de son archive p
 ```powershell
 python tools/pkg/pub.py claude --dry-run       # PC ; --pi pour le dépôt du Pi
 python tools/pkg/pub.py claude                 # montre les changements, demande, publie, commite, pousse
+python tools/pkg/pub.py win16 --new --tree DOSSIER  # un nouveau paquet (absent de l'index) : tous ses fichiers pris dans DOSSIER
 ```
 
 Python de Windows **sans `-I`** (`cryptography`). Le script :
