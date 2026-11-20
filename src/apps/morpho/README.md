@@ -19,6 +19,7 @@ noir en bas), un vignettage doux, un halo derrière l'animal.
     sh tools/morpho/run.sh shot out.png MORPHO_ARGS="new stage=3 hour=19" MORPHO_DO="1:feed 1.5:meal"
     sh tools/morpho/sheet.sh out.png "titre|VAR=... VAR=..." ...   # une planche de scénarios
 
+Traduction : `data/lang-en.txt`, posé dans `/apps/morpho.app/` et lu par l'app (`ui_tr_load`) : le paquet est complet seul.
 Sauvegarde : `HOME:/morpho/pet.ini`. Essais : `main new` (nouvel œuf), `speed=N`, `hour=H`, `stage=N`, `seed=N`,
 `trace` (les clics au journal).
 

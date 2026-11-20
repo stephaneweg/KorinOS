@@ -615,6 +615,8 @@ void app_init (int argc, char **argv)
 int main (int argc, char **argv)
 {
 	if (!uikit_open (&ui)) return 1;
+	// (sa table de traduction part avec l'app : /apps/morpho.app/lang-<langue>.txt)
+	{ char lang[96]; snprintf (lang, sizeof lang, "/apps/morpho.app/lang-%s.txt", (const char *) ui_lang ()); ui_tr_load ((long) lang); }
 	audiokit_kit_open ();
 	if (!gpukit_kit_open ()) return 1;
 #if defined(__x86_64__) && defined(MORPHO_GL)

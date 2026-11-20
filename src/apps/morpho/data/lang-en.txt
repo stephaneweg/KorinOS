@@ -1,4 +1,4 @@
-# apps/morpho : anglais (clés : les textes français du source)
+# /apps/morpho.app/lang-en.txt : anglais (clés : les textes français du source) ; lu par l'app (ui_tr_load), elle part avec son paquet
 Morpho = Morpho
 Soins = Care
 Nourrir = Feed
