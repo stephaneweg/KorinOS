@@ -1,6 +1,6 @@
 ---
 name: armpi-widevine
-description: "Widevine dans Jet : hôte Linux, jalon 1 fait (liblinux + linuxhost, QEMU PC) ; décisions du 19/11 prises ; module mesuré ; étapes 2b à 5 faites (licence réelle, audio déchiffré, vidéo décodée par le module, dans Korin sous QEMU) ; docs/etude/WIDEVINE.md"
+description: "Widevine dans Jet : hôte Linux, jalon 1 fait (liblinux + linuxhost, QEMU PC) ; décisions du 19/11 prises ; module mesuré ; étapes 2b à 6 faites (licence réelle, audio déchiffré, vidéo décodée par le module, dans Korin sous QEMU) ; docs/etude/WIDEVINE.md"
 metadata:
   type: project
 ---
@@ -54,8 +54,11 @@ par le module). av : tools/webkit/av-patches/0002 (décodeur externe, fabrique) 
 (CDMWidevineOnyx : cdmhost lancé par l'instance, audio par Decrypt, vidéo par DecryptAndDecodeFrame) ; cdmhost dans
 /apps/jet.app/libexec (ajouté à skel/sd0/etc/exec.txt : sinon pas exécutable). Essai : test_eme_jet.sh KS=widevine.
 Pièges : le FFmpeg de /tmp (WSL) disparaît, build-media.sh avant build-jet.sh ; CString::data() est en char8_t.
-Suite : Spotify web, Netflix (étape 6, UA Chrome Linux) ; décision de l'utilisateur du 20/11 : Widevine d'abord,
-Claude Code après.
+**Étape 6 faite le 20/11 (QEMU)** : UA Chrome Linux sur les sites Widevine quand le module est là (engine_webkit.cpp) ;
+cdmhost lancé au premier besoin (probeSupport de Shaka : 14 hôtes sinon) ; WebM chiffré pas lu par av (retiré des
+configurations : les sites prennent le MP4) ; le lecteur Shaka joue le flux DASH Widevine d'Internet (KS=shaka) ;
+netflix.com et open.spotify.com chargent. Reste : lecture avec un compte (l'utilisateur), ZBook, WebM chiffré,
+la case des réglages (étape 7). Décision de l'utilisateur du 20/11 : Widevine d'abord, Claude Code après.
 
 Pièges : `linux` est une macro prédéfinie de gcc sous Linux (pas comme nom de champ) ; le canari de pile du code
 Linux (%fs:0x28) tombe dans le TCB de 64 octets de libposix, stable. Le module ne va jamais dans nos paquets.

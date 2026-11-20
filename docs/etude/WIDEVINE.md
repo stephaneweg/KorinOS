@@ -290,7 +290,7 @@ distribué à d'autres ne l'active jamais d'office.
 | 3 | `cdmhost` : `Host_10/11` en C++, essai hors de Jet sur un serveur de licences de test public | une licence de démonstration obtenue, un échantillon déchiffré | **fait le 19/11** (Linux et QEMU, § 9) ; le serveur IPC de `cdmhost` reste, avec l'étape 4 |
 | 4 | EME ClearKey dans Jet (WebKit, MSE chiffré, CENC) | un flux ClearKey de démonstration joue | **fait le 20/11** (QEMU, § 11) ; `cdmhost` et son client aussi (§ 10) |
 | 5 | EME Widevine dans Jet par `cdmhost` (audio, vidéo) | un flux Widevine joue dans Jet ; puis le lecteur web de Spotify | **fait le 20/11** (QEMU, flux de Shaka, § 12) ; Spotify à essayer |
-| 6 | Vidéo, user agent, codecs | Netflix et Disney+ jouent (720p) | 2 à 4 jours |
+| 6 | Les sites : Jet se présente comme Chrome sous Linux, un vrai lecteur (Shaka) joue | Netflix et Spotify chargent ; Shaka joue | **fait le 20/11** (QEMU, § 13) ; lecture avec un compte : à essayer par l'utilisateur |
 | 7 | Case des réglages, téléchargement chez Google, mise à jour | de la case à la lecture sans manipulation | 1 à 2 jours |
 
 Un jour = une session de travail soutenue. Total : **quatre à six semaines** ; l'inconnue principale reste ce
@@ -507,6 +507,30 @@ sous QEMU (TCG, 192×144) : à mesurer sur le ZBook.
 
 Reste : Spotify web et Netflix (étape 6 : se présenter comme Chrome sous Linux), la case des réglages (étape 7),
 l'essai sur le ZBook ; les images passent par la socket (pas encore de mémoire partagée).
+
+## 13. Étape 6 (20/11/2026) : les sites
+
+* **User agent** (`src/extra/onyxports/jet/engine_webkit.cpp`) : sur les sites de contenus protégés (Netflix,
+  Spotify, Disney+, Prime Video, Deezer, Max, Hulu, Canal+, TF1, France TV, Bitmovin, démo de Shaka), et seulement
+  quand le module est installé, Jet se présente comme **Chrome sous Linux** (Safari recevrait FairPlay, que ce
+  moteur n'a pas) ; ailleurs rien ne change (Safari macOS sur le PC).
+* **`cdmhost` lancé au premier besoin** (une session, un certificat de serveur), plus à la création des
+  `MediaKeys` : `shaka.Player.probeSupport` crée un `MediaKeys` par configuration essayée, d'où 14 hôtes et une
+  machine écrasée au premier essai. Les demandes attendent que le module soit initialisé (`withHost`).
+* **WebM chiffré pas encore lu** : `av` lit le chiffrement du MP4 (CENC), pas celui du WebM (Matroska
+  `ContentEncryption`, octet de signal par bloc) ; Shaka choisissait le VP9 en WebM et le lecteur décodait des
+  paquets chiffrés comme en clair. Le CDM Widevine retire donc les capacités WebM des configurations
+  (`getSupportedConfiguration`) : les sites choisissent le MP4 (celui de Netflix, Disney+, Spotify). À faire un
+  jour dans `av_mkv.c` (YouTube s'en sert pour ses films).
+* **Essais sous QEMU PC** (`test_eme_jet.sh`, critère : 20 s de lecture et au moins 100 images) :
+  * `KS=widevine` (flux local) : licence, 5 clés, **400 images à 20 s** ;
+  * `KS=shaka` (`tools/webkit/tests/eme-shaka.html` : le lecteur Shaka 4.11.7 de jsDelivr, le flux DASH Widevine
+    depuis Internet, MediaCapabilities avec système de clés) : **409 images à 20 s, 1396 au bout : « EME-SHAKA :
+    RÉUSSI »** ;
+  * `SITES=…` : netflix.com et open.spotify.com s'ouvrent normalement (page d'accueil, lecteur web avec ses
+    titres), sans message de navigateur non pris en charge.
+* **Pas essayé** : lire avec un compte Netflix ou Spotify (l'utilisateur seul s'identifie) ; la vitesse sur le
+  ZBook (sous QEMU, beaucoup d'images sautées).
 
 ## Sources (19/11/2026)
 

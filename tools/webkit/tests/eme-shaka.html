@@ -1,0 +1,86 @@
+<!doctype html>
+<!--
+  eme-shaka.html -- essai d'EME Widevine dans Jet avec un vrai lecteur (docs/etude/WIDEVINE.md, étape 6) : le lecteur
+  Shaka (bibliothèque de Google, depuis jsDelivr) joue le flux DASH Widevine « Angel One » depuis Internet, comme le
+  font les sites (MediaCapabilities avec système de clés, MSE, licence de Shaka). Chaque étape va au serveur de
+  l'essai (GET /result?…) ; « EME-SHAKA : RÉUSSI » quand la lecture a passé 20 s avec au moins 100 images décodées.
+  tools/linux/test_eme_jet.sh (KS=shaka) l'ouvre dans Jet sous QEMU.
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>EME Shaka</title>
+<style>
+  body { font: 14px sans-serif; margin: 12px; }
+  video { width: 480px; height: 270px; background: #000; }
+  #log { white-space: pre-wrap; font: 12px monospace; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/shaka-player@4.11.7/dist/shaka-player.compiled.js"></script>
+</head>
+<body>
+<h1>EME Shaka (Widevine)</h1>
+<video id="v" muted playsinline></video>
+<div id="log"></div>
+<script>
+"use strict";
+const MANIFEST = "https://storage.googleapis.com/shaka-demo-assets/angel-one-widevine/dash.mpd";
+const LICENSE = "https://cwip-shaka-proxy.appspot.com/no_auth";
+const v = document.getElementById("v");
+let done = false;
+
+function log(text) {
+  console.log("EME-SHAKA : " + text);
+  document.getElementById("log").textContent += text + "\n";
+  fetch("result?" + encodeURIComponent("EME-SHAKA : " + text)).catch(() => {});
+}
+function fail(text) {
+  if (done) return;
+  done = true;
+  log("ÉCHEC : " + text);
+  document.title = "ÉCHEC";
+}
+function describe(e) {
+  if (e && e.code !== undefined && e.category !== undefined)
+    return "erreur Shaka " + e.code + " (catégorie " + e.category + ") " + JSON.stringify(e.data || []).slice(0, 300);
+  return e && e.name ? e.name + " : " + e.message : String(e);
+}
+
+v.addEventListener("waitingforkey", () => log("waitingforkey"));
+v.addEventListener("timeupdate", () => {
+  if (done || v.currentTime < 20) return;
+  const q = v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality() : null;
+  const frames = q ? q.totalVideoFrames : -1;
+  log("lecture à " + v.currentTime.toFixed(1) + " s, images décodées " + frames);
+  done = true;
+  if (frames >= 100) {
+    log("RÉUSSI");
+    document.title = "RÉUSSI";
+  } else
+    fail("trop peu d'images décodées (" + frames + ")");
+});
+
+(async () => {
+  try {
+    log("début, user agent : " + navigator.userAgent);
+    if (typeof shaka === "undefined") return fail("shaka-player.compiled.js pas chargé");
+    shaka.polyfill.installAll();
+    if (!shaka.Player.isBrowserSupported()) return fail("Shaka : navigateur non pris en charge");
+    const support = await shaka.Player.probeSupport();
+    log("Shaka " + shaka.Player.version + ", DRM : " + JSON.stringify(support.drm["com.widevine.alpha"] || null).slice(0, 300));
+    const player = new shaka.Player();
+    await player.attach(v);
+    player.addEventListener("error", (e) => fail(describe(e.detail)));
+    player.configure({ drm: { servers: { "com.widevine.alpha": LICENSE } }, abr: { enabled: false } });
+    await player.load(MANIFEST);
+    const t = player.getVariantTracks().find((x) => x.active);
+    log("chargé : " + (t ? t.width + "x" + t.height + " " + t.videoCodec + " / " + t.audioCodec : "?") + ", clés : " + (player.keySystem ? player.keySystem() : "?"));
+    await v.play();
+    log("play : en cours");
+    setTimeout(() => { if (!done) fail("la lecture n'a pas atteint 20 s en 200 s (temps " + v.currentTime.toFixed(1) + ")"); }, 200000);
+  } catch (e) {
+    fail(describe(e));
+  }
+})();
+</script>
+</body>
+</html>

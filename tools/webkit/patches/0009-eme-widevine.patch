@@ -148,8 +148,8 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMOnyx.h b/Source/WebCore/pla
  } // namespace WebCore
 diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp
 --- a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp	1970-01-01 01:00:00.000000000 +0100
-+++ b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp	2026-11-20 05:23:20.702526300 +0100
-@@ -0,0 +1,738 @@
++++ b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp	2026-11-20 10:21:30.642524000 +0100
+@@ -0,0 +1,802 @@
 +/*
 + * Copyright (C) 2026 Stéphane Wegener (Korin OS).
 + *
@@ -175,6 +175,7 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +#if ENABLE(ENCRYPTED_MEDIA) && PLATFORM(ONYX)
 +
 +#include "CDMKeySystemConfiguration.h"
++#include "CDMMediaCapability.h"
 +#include "CDMOnyx.h"
 +#include "CDMRestrictions.h"
 +#include "CDMSessionType.h"
@@ -277,6 +278,25 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +    // (offered only when Google's module and the host are installed: the page then picks another way)
 +    return equalLettersIgnoringASCIICase(keySystem, "com.widevine.alpha"_s)
 +        && !access(modulePath().c_str(), R_OK) && !access(hostPath().c_str(), X_OK);
++}
++
++void CDMPrivateWidevineOnyx::getSupportedConfiguration(CDMKeySystemConfiguration&& candidate, LocalStorageAccess access, SupportedConfigurationCallback&& callback)
++{
++    // The media library reads the encryption of MP4 (CENC) and not yet WebM's (Matroska ContentEncryption): WebM
++    // capabilities are left out, so that the sites choose MP4 (Netflix, Disney+, Spotify serve it); a type that
++    // asked only for WebM is not supported.
++    auto dropWebM = [](Vector<CDMMediaCapability>& capabilities) {
++        bool asked = !capabilities.isEmpty();
++        capabilities.removeAllMatching([](auto& capability) {
++            return capability.contentType.containsIgnoringASCIICase("webm"_s);
++        });
++        return !asked || !capabilities.isEmpty();
++    };
++    if (!dropWebM(candidate.videoCapabilities) || !dropWebM(candidate.audioCapabilities)) {
++        callback(std::nullopt);
++        return;
++    }
++    CDMPrivate::getSupportedConfiguration(WTF::move(candidate), access, WTF::move(callback));
 +}
 +
 +Vector<String> CDMPrivateWidevineOnyx::supportedInitDataTypes() const
@@ -383,18 +403,29 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +
 +void CDMInstanceWidevineOnyx::initializeWithConfiguration(const CDMKeySystemConfiguration&, AllowDistinctiveIdentifiers distinctiveIdentifiers, AllowPersistentState persistentState, SuccessCallback&& callback)
 +{
-+    if (m_host) {
-+        callback(SuccessValue::Succeeded);
++    // (the host starts at the first real need, as Chrome's: the sites' probes -- Shaka's probeSupport makes a
++    // MediaKeys for each configuration it tries -- start none)
++    m_distinctiveIdentifiers = distinctiveIdentifiers == AllowDistinctiveIdentifiers::Yes;
++    m_persistentState = persistentState == AllowPersistentState::Yes;
++    callback(SuccessValue::Succeeded);
++}
++
++void CDMInstanceWidevineOnyx::withHost(Function<void(CdmHostClient*)>&& then)
++{
++    if (m_hostReady) {
++        then(m_host.get());
 +        return;
 +    }
++    m_waitingForHost.append(WTF::move(then));
++    if (m_host)
++        return; // (started: its module initializes)
 +    std::unique_ptr<CdmHostClient> host = CdmHostClient::spawn(hostPath(), modulePath(), storagePath());
-+    if (!host || !host->init(keySystemName, distinctiveIdentifiers == AllowDistinctiveIdentifiers::Yes, persistentState == AllowPersistentState::Yes)) {
++    if (!host || !host->init(keySystemName, m_distinctiveIdentifiers, m_persistentState)) {
 +        WTFLogAlways("Widevine: the CDM host (%s) did not start", hostPath().c_str());
-+        callback(SuccessValue::Failed);
++        hostStarted(false);
 +        return;
 +    }
 +    m_host = std::shared_ptr<CdmHostClient>(host.release());
-+    m_initCallback = WTF::move(callback);
 +    m_sink = CDMWidevineEventSink::create(*this);
 +    Thread::create("CDM host events"_s, [sink = Ref { *m_sink }, host = m_host]() mutable {
 +        while (!sink->stop) {
@@ -418,17 +449,32 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +        static_cast<CDMProxyOnyx&>(*cdmProxy).setHost(m_host);
 +}
 +
++void CDMInstanceWidevineOnyx::hostStarted(bool ok)
++{
++    m_hostReady = ok;
++    if (!ok) {
++        m_host = nullptr;
++        if (RefPtr cdmProxy = proxy())
++            static_cast<CDMProxyOnyx&>(*cdmProxy).setHost(nullptr);
++    }
++    auto waiting = std::exchange(m_waitingForHost, { });
++    for (auto& then : waiting)
++        then(ok ? m_host.get() : nullptr);
++}
++
 +void CDMInstanceWidevineOnyx::setServerCertificate(Ref<SharedBuffer>&& certificate, SuccessCallback&& callback)
 +{
-+    if (!m_host) {
-+        callback(SuccessValue::Failed);
-+        return;
-+    }
-+    uint32_t promise = addPromise([callback = WTF::move(callback)](bool resolved, const String&) mutable {
-+        callback(resolved ? SuccessValue::Succeeded : SuccessValue::Failed);
++    withHost([this, certificate = WTF::move(certificate), callback = WTF::move(callback)](CdmHostClient* host) mutable {
++        if (!host) {
++            callback(SuccessValue::Failed);
++            return;
++        }
++        uint32_t promise = addPromise([callback = WTF::move(callback)](bool resolved, const String&) mutable {
++            callback(resolved ? SuccessValue::Succeeded : SuccessValue::Failed);
++        });
++        if (!host->set_server_certificate(promise, toStd(certificate->span())))
++            handleEvent(*std::make_unique<CdmIn>()); // (the host is gone)
 +    });
-+    if (!m_host->set_server_certificate(promise, toStd(certificate->span())))
-+        handleEvent(*std::make_unique<CdmIn>()); // (the host is gone)
 +}
 +
 +RefPtr<CDMInstanceSession> CDMInstanceWidevineOnyx::createSession()
@@ -481,8 +527,9 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +    switch (event.type) {
 +    case CDM_EV_INITIALIZED: {
 +        bool ok = event.u32();
-+        if (m_initCallback)
-+            m_initCallback(ok ? SuccessValue::Succeeded : SuccessValue::Failed);
++        if (!ok)
++            WTFLogAlways("Widevine: the module did not initialize");
++        hostStarted(ok);
 +        break;
 +    }
 +    case CDM_EV_RESOLVED:
@@ -541,8 +588,8 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +        auto promises = std::exchange(m_promises, { });
 +        for (auto& handler : promises.values())
 +            handler(false, { });
-+        if (m_initCallback)
-+            m_initCallback(SuccessValue::Failed);
++        if (m_host && !m_hostReady)
++            hostStarted(false);
 +        break;
 +    }
 +    }
@@ -579,7 +626,24 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +void CDMInstanceSessionWidevineOnyx::requestLicense(LicenseType type, KeyGroupingStrategy, const String& initDataType, Ref<SharedBuffer>&& initData, LicenseCallback&& callback)
 +{
 +    auto* parent = parentInstance();
-+    if (!parent || !parent->host() || type != LicenseType::Temporary) {
++    if (!parent || type != LicenseType::Temporary) {
++        callback(SharedBuffer::create(), emptyString(), false, SuccessValue::Failed);
++        return;
++    }
++    parent->withHost([weakThis = WeakPtr<CDMInstanceSessionProxy> { *this }, initDataType, initData = WTF::move(initData), callback = WTF::move(callback)](CdmHostClient* host) mutable {
++        auto* session = static_cast<CDMInstanceSessionWidevineOnyx*>(weakThis.get());
++        if (!session || !host) {
++            callback(SharedBuffer::create(), emptyString(), false, SuccessValue::Failed);
++            return;
++        }
++        session->startLicenseRequest(*host, initDataType, WTF::move(initData), WTF::move(callback));
++    });
++}
++
++void CDMInstanceSessionWidevineOnyx::startLicenseRequest(CdmHostClient& host, const String& initDataType, Ref<SharedBuffer>&& initData, LicenseCallback&& callback)
++{
++    auto* parent = parentInstance();
++    if (!parent) {
 +        callback(SharedBuffer::create(), emptyString(), false, SuccessValue::Failed);
 +        return;
 +    }
@@ -600,7 +664,7 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +        if (auto early = parent->takeEarlyMessage(sessionId))
 +            session->message(early->first, WTF::move(early->second));
 +    });
-+    if (!parent->host()->create_session(promise, 0, dataType, toStd(initData->span())))
++    if (!host.create_session(promise, 0, dataType, toStd(initData->span())))
 +        parent->handleEvent(*std::make_unique<CdmIn>());
 +}
 +
@@ -890,8 +954,8 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +#endif // ENABLE(ENCRYPTED_MEDIA) && PLATFORM(ONYX)
 diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h
 --- a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h	2026-11-20 05:23:20.702526300 +0100
-@@ -0,0 +1,172 @@
++++ b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h	2026-11-20 10:21:30.640515600 +0100
+@@ -0,0 +1,183 @@
 +/*
 + * Copyright (C) 2026 Stéphane Wegener (Korin OS).
 + *
@@ -963,6 +1027,9 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h b/Source/Web
 +public:
 +    CDMPrivateWidevineOnyx() = default;
 +
++    // (the media of the configuration that this engine plays encrypted: MP4 (CENC) only, not yet WebM's encryption)
++    void getSupportedConfiguration(CDMKeySystemConfiguration&& candidate, LocalStorageAccess, SupportedConfigurationCallback&&) final;
++
 +    Vector<String> supportedInitDataTypes() const final;
 +    Vector<String> supportedRobustnesses() const final;
 +    bool supportsConfiguration(const CDMKeySystemConfiguration&) const final;
@@ -998,7 +1065,9 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h b/Source/Web
 +    RefPtr<CDMInstanceSession> createSession() final;
 +
 +    // the sessions' side (main thread)
-+    CdmHostClient* host() const { return m_host.get(); }
++    CdmHostClient* host() const { return m_hostReady ? m_host.get() : nullptr; }
++    // the host, started at the first need (its module initialized), then 'then' with it; null: it did not start
++    void withHost(Function<void(CdmHostClient*)>&&);
 +    // a request to the host: its promise's number, and what to do with its answer (resolved / rejected, the
 +    // session ID of a new session)
 +    using PromiseHandler = Function<void(bool resolved, const String& sessionId)>;
@@ -1011,9 +1080,14 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h b/Source/Web
 +    void handleEvent(CdmIn&);
 +
 +private:
++    void hostStarted(bool ok);
++
 +    std::shared_ptr<CdmHostClient> m_host;
++    bool m_hostReady { false };
++    Vector<Function<void(CdmHostClient*)>> m_waitingForHost;
++    bool m_distinctiveIdentifiers { false };
++    bool m_persistentState { false };
 +    RefPtr<CDMWidevineEventSink> m_sink;
-+    SuccessCallback m_initCallback;
 +    uint32_t m_nextPromise { 1 };
 +    HashMap<uint32_t, PromiseHandler> m_promises;
 +    HashMap<String, WeakPtr<CDMInstanceSessionWidevineOnyx>> m_sessions;
@@ -1043,6 +1117,7 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h b/Source/Web
 +
 +private:
 +    CDMInstanceWidevineOnyx* parentInstance() const;
++    void startLicenseRequest(CdmHostClient&, const String& initDataType, Ref<SharedBuffer>&& initData, LicenseCallback&&);
 +
 +    String m_sessionId;
 +    LicenseCallback m_licenseCallback;	// a license request awaited (generateRequest)

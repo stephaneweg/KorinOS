@@ -4,6 +4,10 @@
 #
 #   JET=…/jet.app sh tools/linux/test_eme_jet.sh                                   (Clear Key)
 #   JET=…/jet.app KS=widevine WIDEVINE_SO=…/libwidevinecdm.so sh tools/linux/test_eme_jet.sh
+#   JET=…/jet.app KS=shaka WIDEVINE_SO=… [SITES="https://www.netflix.com/ …"] sh tools/linux/test_eme_jet.sh
+#
+# KS=shaka : le lecteur Shaka et son flux DASH Widevine depuis Internet (eme-shaka.html) ; SITES : des pages
+# ouvertes ensuite, une capture chacune (emetest/siteN.png : Netflix, Spotify… sans compte).
 #
 # Widevine : Jet avec cdmhost (build-jet.sh le met dans jet.app), le module dans /home/.jet/widevine (comme
 # l'utilisateur l'y mettra), le noyau avec la capture des syscall et l'arène haute (construit à part dans
@@ -28,10 +32,11 @@ JET=${JET:?JET=…/jet.app (Jet construit avec EME)}
 [ -f "$JET/main" ] || { echo "pas de $JET/main" >&2; exit 1; }
 KS=${KS:-clearkey}
 ESP=build/pc/esp
-if [ "$KS" = widevine ]; then
+if [ "$KS" = widevine ] || [ "$KS" = shaka ]; then
 	SO=${WIDEVINE_SO:?WIDEVINE_SO=…/libwidevinecdm.so}
 	[ -f "$JET/libexec/cdmhost" ] || { echo "pas de $JET/libexec/cdmhost (sh tools/linux/build.sh, puis build-jet.sh)" >&2; exit 1; }
 	PAGE=eme-widevine.html VIDEO=angel-one-144p.mp4 AUDIO=angel-one-aac.mp4 WORD=EME-WIDEVINE
+	[ "$KS" = shaka ] && PAGE=eme-shaka.html WORD=EME-SHAKA	# (le flux DASH vient d'Internet)
 	ESP=$OUT/kbuild/esp
 	[ -f "$ESP/korin/kernel.elf" ] || PC_OUT=$OUT/kbuild PC_QUICK=1 sh tools/pc/build.sh >/dev/null
 else
@@ -48,7 +53,7 @@ for d in build/pc/sysroot/*; do
 done
 mkdir -p "$T/apps"
 cp -r "$JET" "$T/apps/jet.app"
-if [ "$KS" = widevine ]; then
+if [ -n "${SO:-}" ]; then
 	mkdir -p "$T/home/.jet/widevine"
 	cp "$SO" "$T/home/.jet/widevine/libwidevinecdm.so"
 	# (le dossier de cdmhost est exécutable par skel/sd0/etc/exec.txt ; un sysroot plus ancien ne l'a pas)
@@ -76,17 +81,21 @@ trap 'kill $SRV 2>/dev/null || true' EXIT
 
 W=$OUT/emetest
 mkdir -p "$W"
-[ "$KS" = widevine ] && : "${WAIT:=200}"
-python3 -I - "$ROOT" "$W" "$IMG" "${WAIT:-120}" > "$W/run.txt" 2>&1 <<'PY' || true	# (QEMU coupe QMP en quittant : sans effet)
+[ -n "${SO:-}" ] && : "${WAIT:=200}"
+python3 -I - "$ROOT" "$W" "$IMG" "${WAIT:-120}" ${SITES:-} > "$W/run.txt" 2>&1 <<'PY' || true	# (QEMU coupe QMP en quittant : sans effet)
 import importlib.util, os, sys, types
 root, w, img, wait = sys.argv[1:5]
+sites = sys.argv[5:]	# (SITES : des pages ouvertes ensuite dans Jet, une capture chacune : site1.png…)
 spec = importlib.util.spec_from_file_location("pctest", os.path.join(root, "tools", "python", "pctest.py"))
 pt = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pt)
 pt.W, pt.IMG = os.path.abspath(w), os.path.abspath(img)
 a = types.SimpleNamespace(port=2395, hostfwd=[], smp=4, mem="4G", boot=150, shot=os.path.join(w, "fin.png"), qemu="",
     cmd=["sleep:20", "( /apps/jet.app/main http://10.0.2.2:8642/index.html > /tmp/jet.log 2>&1 & ) ; echo Jet lancé",
-         "sleep:" + wait, "shot:eme", "tail -n 60 /tmp/jet.log"])
+         "sleep:" + wait, "shot:eme"]
+    + sum([["( /apps/jet.app/main %s > /dev/null 2>&1 & ) ; echo ouvert" % u, "sleep:60", "shot:site%d" % (i + 1)]
+           for i, u in enumerate(sites)], [])
+    + ["grep agent /tmp/jet.log", "tail -n 60 /tmp/jet.log"])
 pt.run(a)
 PY
 

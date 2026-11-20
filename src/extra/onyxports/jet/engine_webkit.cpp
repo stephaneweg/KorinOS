@@ -577,12 +577,56 @@ static const char MOBILE_UA[] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)
 static const char MOBILE_UA[] = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
 #define SITE_UA_KIND "a phone's"
 #endif
+#if defined(__x86_64__)
+// The sites of protected content (EME Widevine, docs/etude/WIDEVINE.md, step 6): they play only for the browsers
+// they know with Widevine -- Safari is given FairPlay, which this engine has not. To them Jet is Chrome on Linux
+// (the platform of the module it runs, L3), once the module is installed (CDMWidevineOnyx: $JET_WIDEVINE_CDM, else
+// $HOME/.jet/widevine/libwidevinecdm.so); without it, nothing changes.
+static const char WIDEVINE_UA[] = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
+static const char *const WIDEVINE_SITES[] = { "netflix.com", "spotify.com", "disneyplus.com", "primevideo.com",
+	"amazon.com", "deezer.com", "max.com", "hulu.com", "canalplus.com", "mycanal.fr", "tf1.fr", "france.tv",
+	"bitmovin.com", "shaka-player-demo.appspot.com", nullptr };
+
+static bool widevine_installed ()
+{
+	static int installed = -1;
+	if (installed < 0) {
+		const char *path = getenv ("JET_WIDEVINE_CDM");
+		const char *home = getenv ("HOME");
+		std::string p = path && *path ? path : std::string (home && *home ? home : "/home") + "/.jet/widevine/libwidevinecdm.so";
+		installed = access (p.c_str (), R_OK) == 0;
+	}
+	return installed;
+}
+
+// url's host is a Widevine site or one of its subdomains
+static bool widevine_site (const std::string &url)
+{
+	size_t b = url.find ("://");
+	if (b == std::string::npos) return false;
+	b += 3;
+	size_t e = url.find_first_of ("/:?#", b);
+	std::string host = url.substr (b, e == std::string::npos ? std::string::npos : e - b);
+	for (const char *const *s = WIDEVINE_SITES; *s; s++) {
+		size_t n = strlen (*s);
+		if (host.size () >= n && host.compare (host.size () - n, n, *s) == 0
+		    && (host.size () == n || host[host.size () - n - 1] == '.'))
+			return true;
+	}
+	return false;
+}
+#endif
+
 static const char *site_user_agent (const std::string &url)
 {
 	static int off = -1;
 	if (off < 0) off = access ("/etc/web-desktop-ua", F_OK) == 0;
 	if (off) return nullptr;
-	return url.compare (0, 7, "http://") == 0 || url.compare (0, 8, "https://") == 0 ? MOBILE_UA : nullptr;
+	if (url.compare (0, 7, "http://") != 0 && url.compare (0, 8, "https://") != 0) return nullptr;
+#if defined(__x86_64__)
+	if (widevine_installed () && widevine_site (url)) return WIDEVINE_UA;
+#endif
+	return MOBILE_UA;
 }
 
 // The page's user agent made the one of url's site -> true when it changed.
@@ -594,7 +638,8 @@ static bool apply_site_user_agent (Tab *t, const std::string &url)
 	WKStringRef w = WKStringCreateWithUTF8CString (ua ? ua : "");
 	WKPageSetCustomUserAgent (t->page, w);
 	WKRelease (w);
-	say ("tab %d: user agent: %s (%s)", t->id, ua ? SITE_UA_KIND : "WebKit's own", brief (url).substr (0, 60).c_str ());
+	const char *kind = ua == MOBILE_UA ? SITE_UA_KIND : ua ? "Chrome on Linux's (Widevine)" : "WebKit's own";
+	say ("tab %d: user agent: %s (%s)", t->id, kind, brief (url).substr (0, 60).c_str ());
 	return true;
 }
 

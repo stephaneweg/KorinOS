@@ -5,7 +5,7 @@
   audio.mp4 : le début de chaque fichier). La licence vient du serveur de test de Shaka
   (cwip-shaka-proxy.appspot.com/no_auth) ; le module de Google tourne dans cdmhost (CDMWidevineOnyx) : il
   déchiffre l'audio et décode la vidéo. Chaque étape va au serveur de l'essai (GET /result?…) ;
-  « EME-WIDEVINE : RÉUSSI » quand la lecture a passé le début en clair avec des images décodées.
+  « EME-WIDEVINE : RÉUSSI » quand la lecture a passé 20 s (le chiffré, après la licence) avec au moins 100 images décodées.
   tools/linux/test_eme_jet.sh (KS=widevine) l'ouvre dans Jet sous QEMU.
 -->
 <html lang="fr">
@@ -49,7 +49,7 @@ async function setupKeys() {
   const access = await navigator.requestMediaKeySystemAccess("com.widevine.alpha", config);
   log("requestMediaKeySystemAccess : " + access.keySystem);
   const keys = await access.createMediaKeys();
-  log("createMediaKeys : fait (cdmhost lancé)");
+  log("createMediaKeys : fait (cdmhost démarre à la première session)");
   await v.setMediaKeys(keys);
   log("setMediaKeys : fait");
   let sessions = 0;
@@ -101,16 +101,16 @@ async function setupSource() {
 v.addEventListener("waitingforkey", () => log("waitingforkey"));
 v.addEventListener("error", () => fail("erreur du média " + (v.error ? v.error.code + " " + v.error.message : "")));
 v.addEventListener("timeupdate", () => {
-  if (done || v.currentTime < 10) return;
+  if (done || v.currentTime < 20) return;
   const q = v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality() : null;
   const frames = q ? q.totalVideoFrames : -1;
   log("lecture à " + v.currentTime.toFixed(1) + " s, images décodées " + frames);
   done = true;
-  if (frames > 0) {
+  if (frames >= 100) {
     log("RÉUSSI");
     document.title = "RÉUSSI";
   } else
-    fail("pas d'image décodée");
+    fail("trop peu d'images décodées (" + frames + ")");
 });
 
 (async () => {
@@ -120,7 +120,7 @@ v.addEventListener("timeupdate", () => {
     await setupSource();
     await v.play();
     log("play : en cours");
-    setTimeout(() => { if (!done) fail("la lecture n'a pas atteint 10 s en 150 s (temps " + v.currentTime.toFixed(1) + ")"); }, 150000);
+    setTimeout(() => { if (!done) fail("la lecture n'a pas atteint 20 s en 150 s (temps " + v.currentTime.toFixed(1) + ")"); }, 150000);
   } catch (e) {
     fail(e && e.name ? e.name + " : " + e.message : String(e));
   }
