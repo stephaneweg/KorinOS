@@ -3,11 +3,11 @@
 # sous-menu du menu ARMPI). description, keywords, help : pour l'assistant PocketQI (src/apps/pocketqi/README.md).
 name     = Éditeur
 category = Accessoires
-opens    = txt md ini cfg conf log lst asm inc s c h cpp hpp cs json css xml sh py js ts lua bat ps1 yaml yml toml diff patch bi abi csproj xaml axaml
+opens    = txt md ini cfg conf log lst asm inc s c h cpp hpp cs json css xml py js ts lua ps1 yaml yml toml diff patch bi abi csproj xaml axaml
 description = Un éditeur de texte UTF-8 avec numéros de ligne et couleurs du code pour les sources assembleur.
 keywords = éditeur texte txt notes code source asm inc ini conf programmer écrire modifier bloc-notes
-help = Tapez le chemin dans le champ du haut puis Entrée, ou menu Fichier > Parcourir… pour choisir le fichier.
-help = Menu Fichier > Enregistrer (Ctrl+S) ; Fichier > Enregistrer sous… pour un autre nom ; Ctrl+N un nouveau texte.
+help = Menu Fichier > Ouvrir… (Ctrl+O) pour choisir le fichier ; le champ du haut montre son chemin (lecture seule, on peut le copier).
+help = Menu Fichier > Enregistrer (Ctrl+S) ; Fichier > Enregistrer sous… (Ctrl+Maj+S) pour un autre nom ; Fichier > Nouveau (Ctrl+N) un nouveau texte.
 help = Menu Édition > Rechercher… (Ctrl+F), puis Suivant (F3) ; la casse est ignorée.
 help = Menu Fichier > Construire (Ctrl+B) ouvre PiBuild sur le dossier du fichier, une fois enregistré.
 help = Ctrl+Z annule, Ctrl+Y rétablit, Ctrl+X C V coupe, copie, colle, Ctrl+A sélectionne tout.

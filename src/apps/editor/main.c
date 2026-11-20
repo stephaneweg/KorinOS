@@ -3,11 +3,12 @@
  *
  * Le texte est un widget de UIKit (ui_textarea : numeros de ligne dans une marge, barres de defilement
  * verticale et horizontale, couleurs du code pour les sources .asm / .inc, annuler / retablir,
- * presse-papiers). En haut, le champ chemin (ui_textbox : nom pour Ouvrir/Enregistrer, Entree ouvre).
- * Menus Fichier et Edition dans la barre de menus globale. Ctrl+S enregistre, Ctrl+O ouvre le chemin du
- * champ, Ctrl+N nouveau, Ctrl+W ferme, Ctrl+B ouvre PiBuild (/apps/builder.app) sur le dossier du
- * fichier, Ctrl+F cherche, F3 cherche encore ; le widget traite Ctrl+Z, Y, X, C, V, A et le reste de la
- * frappe.
+ * presse-papiers). En haut, le chemin du fichier (ui_textbox en lecture seule : on le lit et le copie).
+ * Menus Fichier et Edition dans la barre de menus globale : Nouveau (Ctrl+N), Ouvrir... (Ctrl+O, le
+ * dialogue), Enregistrer (Ctrl+S ; un texte jamais enregistre passe par Enregistrer sous...), Enregistrer
+ * sous... (Ctrl+Maj+S), Construire (Ctrl+B : PiBuild, /apps/builder.app, sur le dossier du fichier),
+ * Fermer (Ctrl+W) ; Ctrl+F cherche, F3 cherche encore ; le widget traite Ctrl+Z, Y, X, C, V, A et le
+ * reste de la frappe. Nouveau, Ouvrir et Fermer demandent d'abord s'il faut enregistrer les modifications.
  *
  * Port en C de editor.asm (memes fenetre, menus, raccourcis, textes, messages), un seul source pour le Pi
  * et le PC ; l'asm reste dans le dossier jusqu'a sa validation sur le Pi.
@@ -35,7 +36,7 @@
 #define WIN_MIN_W	360
 #define WIN_MIN_H	200
 
-enum {	ID_NEW = 1, ID_OPEN = 2, ID_SAVE = 3, ID_CLOSE = 4, ID_BUILD = 5, ID_BROWSE = 6, ID_SAVE_AS = 7,	/* Fichier */
+enum {	ID_NEW = 1, ID_OPEN = 2, ID_SAVE = 3, ID_CLOSE = 4, ID_BUILD = 5, ID_SAVE_AS = 7,	/* Fichier */
 	ID_UNDO = 10, ID_REDO = 11, ID_CUT = 12, ID_COPY = 13, ID_PASTE = 14, ID_ALL = 15, ID_FIND = 16,	/* Edition */
 	ID_NEXT = 17 };
 
@@ -56,10 +57,9 @@ static const char s_default[] = "/sans titre.txt";
 static const char menus[] =
 	"MFichier\n"
 	"I1\tNouveau\tCtrl+N\n"
-	"I2\tOuvrir le chemin\tCtrl+O\n"
-	"I6\tParcourir\xE2\x80\xA6\n"
+	"I2\tOuvrir\xE2\x80\xA6\tCtrl+O\n"
 	"I3\tEnregistrer\tCtrl+S\n"
-	"I7\tEnregistrer sous\xE2\x80\xA6\n"
+	"I7\tEnregistrer sous\xE2\x80\xA6\tCtrl+Maj+S\n"
 	"-\n"
 	"I5\tConstruire\tCtrl+B\n"
 	"-\n"
@@ -147,16 +147,6 @@ static int ends_with (const char *s, const char *suf)	/* (casse ASCII, comme str
 static void path_to_field (void)
 {
 	ui_w_set_text (w_path, (long) pathbuf);
-}
-
-/* le champ dans pathbuf */
-static void field_to_path (void)
-{
-	const char *s = (const char *) ui_w_get_text (w_path);
-	int i = 0;
-	for (; s[i] && i < 255; i++)
-		pathbuf[i] = s[i];
-	pathbuf[i] = 0;
 }
 
 /* le chemin choisi dans un dialogue (dlgbuf) : pathbuf et le champ */
@@ -333,23 +323,51 @@ static void do_assemble (void)
 	msg = TR ("PiBuild ouvert");
 }
 
-/* avant de fermer : modifié, la question (Oui : enregistrer au chemin du champ, Non : perdre, Annuler : rester)
- * -> 1 si on peut fermer */
-static int may_close (void)
+/* Fichier > Enregistrer sous... : le dialogue (nom proposé : celui du fichier), puis l'enregistrement
+ * -> 1 si enregistré */
+static int do_save_as (void)
+{
+	/* (un fichier déjà là : son chemin, le dialogue s'ouvre dans son dossier ; un nouveau texte : le dossier
+	   personnel) */
+	long ok = has_file ? ui_file_save (0, (long) pathbuf, (long) dlgbuf, 256)
+			   : ui_file_save ((long) "HOME:", (long) base_name (pathbuf), (long) dlgbuf, 256);
+	if (!ok)
+		return 0;			/* (Annuler) */
+	dlg_to_path ();
+	do_save ();
+	return !modified;
+}
+
+/* Fichier > Enregistrer : au chemin du fichier ; un texte jamais enregistré passe par Enregistrer sous...
+ * -> 1 si enregistré */
+static int save_or_ask (void)
+{
+	if (!has_file)
+		return do_save_as ();
+	do_save ();
+	return !modified;
+}
+
+/* avant de quitter le texte (Nouveau, Ouvrir, Fermer) : modifié, la question (Oui : enregistrer, Non :
+ * perdre, Annuler : rester) -> 1 si on peut continuer */
+static int may_discard (const char *question)
 {
 	if (!modified)
 		return 1;
-	long r = ui_message ((long) TR ("\xC3\x89" "diteur"), (long) TR ("Enregistrer les modifications avant de fermer ?"), UM_YESNOCANCEL);
+	long r = ui_message ((long) TR ("\xC3\x89" "diteur"), (long) TR (question), UM_YESNOCANCEL);
 	if (r == 2)				/* Non */
 		return 1;
 	if (r != 1)				/* Annuler, Échap */
 		return 0;
-	field_to_path ();
-	do_save ();
-	if (modified)				/* (l'échec : son message, la fenêtre reste) */
+	if (!save_or_ask ())			/* (l'échec ou Annuler dans le dialogue : on reste) */
+	{
 		status ();
-	return !modified;
+		return 0;
+	}
+	return 1;
 }
+
+static int may_close (void) { return may_discard ("Enregistrer les modifications avant de fermer ?"); }
 
 /* w = commande (menu ou raccourci) */
 static void on_command (int c)
@@ -364,33 +382,35 @@ static void on_command (int c)
 	switch (c)
 	{
 	case ID_NEW:
-		do_new ();
+		if (may_discard ("Enregistrer les modifications avant de commencer un nouveau texte ?"))
+			do_new ();
 		break;
-	case ID_OPEN:
-		field_to_path ();
-		do_open ();
-		break;
-	case ID_SAVE:
-		field_to_path ();
-		do_save ();
-		break;
-	case ID_BUILD:
-		field_to_path ();
-		do_assemble ();
-		break;
-	case ID_BROWSE:				/* Parcourir : dialogue Ouvrir */
-		if (ui_file_open (0, (long) dlgbuf, 256))
+	case ID_OPEN:				/* Ouvrir... : le dialogue */
+		if (may_discard ("Enregistrer les modifications avant d'ouvrir un autre fichier ?"))
 		{
+			/* (le dossier du fichier ouvert, sinon le dossier personnel) */
+			char dir[260];
+			strcpy (dir, "HOME:");
+			if (has_file && strchr (pathbuf, '/'))
+			{
+				snprintf (dir, sizeof dir, "%s", pathbuf);
+				char *sl = strrchr (dir, '/');
+				sl[sl == dir ? 1 : 0] = 0;
+			}
+			if (!ui_file_open ((long) dir, (long) dlgbuf, 256))
+				break;
 			dlg_to_path ();
 			do_open ();
 		}
 		break;
-	case ID_SAVE_AS:			/* Enregistrer sous : dialogue (nom propose : celui du champ) */
-		if (ui_file_save (0, (long) base_name (pathbuf), (long) dlgbuf, 256))
-		{
-			dlg_to_path ();
-			do_save ();
-		}
+	case ID_SAVE:
+		save_or_ask ();
+		break;
+	case ID_SAVE_AS:
+		do_save_as ();
+		break;
+	case ID_BUILD:
+		do_assemble ();
 		break;
 	case ID_FIND:				/* Rechercher : le mot */
 		if (!ui_ask ((long) "Rechercher", (long) TR ("Texte \xC3\xA0 chercher (sans tenir compte de la casse) :"),
@@ -422,7 +442,9 @@ static int on_key (void)
 	else if (ui_ev_field (&ui, EV_MODS) & UI_MOD_CTRL)
 		switch (k)
 		{
-		case 0x16: c = ID_SAVE; break;		/* Ctrl+S */
+		case 0x16:				/* Ctrl+S, Ctrl+Maj+S */
+			c = ui_ev_field (&ui, EV_MODS) & UI_MOD_SHIFT ? ID_SAVE_AS : ID_SAVE;
+			break;
 		case 0x12: c = ID_OPEN; break;		/* Ctrl+O */
 		case 0x11: c = ID_NEW; break;		/* Ctrl+N */
 		case 0x1A: c = ID_CLOSE; break;		/* Ctrl+W */
@@ -516,7 +538,7 @@ int main (int argc, char **argv)
 	tokens = (const unsigned *) ui_tokens ();
 	ui_min_size (WIN_MIN_W, WIN_MIN_H);
 	ui_on_resize ((long) on_resize, 0);
-	w_path = ui_textbox (PATH_X, 6, PATH_W, 28, 0);	/* champ chemin */
+	w_path = ui_textbox (PATH_X, 6, PATH_W, 28, UTF_READONLY);	/* le chemin : lu, copié, pas tapé */
 	w_area = ui_textarea (4, TB_H + 2, WIN_W - 8, WIN_H - TB_H - SB_H - 6, AREA_FLAGS);	/* le texte */
 	ui_textarea_font (w_area, FONT_PX);
 	ui_w_focus (w_area);
@@ -550,16 +572,8 @@ int main (int argc, char **argv)
 		long w = uikit_w_event (&code, &taken);
 		if (!taken)
 			continue;
-		if (w == w_path)
-		{				/* Entree dans le chemin : ouvrir */
-			if (code != UN_ACTIVATE)
-				continue;
-			field_to_path ();
-			do_open ();
-			ui_w_focus (w_area);
-			status ();
+		if (w == w_path)		/* (lecture seule : sélection, copie) */
 			continue;
-		}
 		if (code == UN_CHANGE)
 		{				/* le texte change : modifie */
 			msg = 0;
