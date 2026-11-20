@@ -131,7 +131,7 @@ def active_api(cfg):
 
 
 def vibe_home():
-    return os.environ.get("VIBE_HOME") or os.path.join(os.path.expanduser("~"), ".vibe")
+    return os.environ.get("VIBE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "vibe")
 
 
 def read_env_values(path):
@@ -436,6 +436,7 @@ def main():
     section("6. journaux")
     tail(slog, 300)
     tail(os.path.join(home, "logs", "vibe.log"), 300)
+    # (Vibe l'écrit sous ~/.vibe quel que soit VIBE_HOME : vibe/acp/acp_logger.py, ACP_LOG_DIR)
     acpl = os.path.join(os.path.expanduser("~"), ".vibe", "logs", "acp", "messages.jsonl")
     tail(acpl, 40)
     say("\nfini en %.1f s ; rapport : %s" % (time.monotonic() - T0, a.out))

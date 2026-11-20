@@ -17,7 +17,7 @@ terminal agent s'en servent, on peut aussi le lancer au Terminal.
     vibe-account open-keys PROVIDER            ouvre la page des clés du fournisseur dans Jet
     vibe-account wizard                        l'assistant au terminal (les mêmes étapes que l'app)
 
-Où : $VIBE_HOME (par défaut ~/.vibe, /.vibe sous Korin), config.toml et .env, ceux que lit vibe-acp.
+Où : $VIBE_HOME (par défaut ~/.local/vibe, comme libacp, acp_home), config.toml et .env, ceux que lit vibe-acp.
 config.toml est lu par tomllib et récrit par tomli_w (celui de Vibe), comme Vibe le fait lui-même quand on change de
 modèle : les autres réglages sont gardés, pas les commentaires. Un fournisseur compatible OpenAI est un [[providers]]
 (api_style « openai », backend « generic ») et ses modèles des [[models]] ; Mistral est déjà connu de Vibe (connexion
@@ -53,7 +53,7 @@ def home():
     h = os.environ.get("VIBE_HOME")
     if h:
         return h
-    return os.path.join(os.path.expanduser("~"), ".vibe")
+    return os.path.join(os.path.expanduser("~"), ".local", "vibe")
 
 
 def config_path():

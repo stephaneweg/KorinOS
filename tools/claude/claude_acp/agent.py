@@ -38,16 +38,17 @@ FALLBACK_BETA = "server-side-fallback-2026-07-01"
 COMPACT_BETA = "compact-2026-01-12"
 
 
-# le dossier de l'agent : sa variable d'environnement et son nom sous $HOME (oai_acp, l'agent compatible OpenAI,
-# reprend ce module avec les siens : MAI_ACP_HOME, .mai-acp)
+# le dossier de l'agent : sa variable d'environnement et son nom sous $HOME/.local, comme les données des autres apps
+# (docs/etude/MULTI-UTILISATEUR.md, question 4 ; libacp, acp_home, donne le même) ; oai_acp, l'agent compatible
+# OpenAI, reprend ce module avec les siens : MAI_ACP_HOME, mai-acp
 HOME_ENV = "CLAUDE_ACP_HOME"
-HOME_DIR = ".claude-acp"
+HOME_DIR = "claude-acp"
 
 
 def home():
     h = os.environ.get(HOME_ENV)
     if not h:
-        h = os.path.join(os.environ.get("HOME") or "/", HOME_DIR)
+        h = os.path.join(os.environ.get("HOME") or "/", ".local", HOME_DIR)
     return h
 
 

@@ -1,11 +1,12 @@
 /*
  * home.c -- le dossier de l'agent pour le compte en cours (acp.h, acp_home).
  *
- * Vibe garde ses comptes, ses séances et ses journaux dans $VIBE_HOME (défaut ~/.vibe), claude-acp dans
- * $CLAUDE_ACP_HOME (défaut ~/.claude-acp), mai-acp dans $MAI_ACP_HOME (défaut ~/.mai-acp) : un dossier par compte,
- * /home/<nom>/.vibe (docs/etude/MULTI-UTILISATEUR.md). Les paquets vibe, claude, mai et forge posent dans /.vibe,
- * /.claude-acp et /.mai-acp ce que l'agent sait de Korin : AGENTS.md et skills/. Quand le dossier du compte n'est pas
- * celui-là :
+ * Vibe garde ses comptes, ses séances et ses journaux dans $VIBE_HOME (défaut ~/.local/vibe), claude-acp dans
+ * $CLAUDE_ACP_HOME (défaut ~/.local/claude-acp), mai-acp dans $MAI_ACP_HOME (défaut ~/.local/mai-acp) : un dossier par
+ * compte, sous ~/.local/<app> comme les données des autres apps (docs/etude/MULTI-UTILISATEUR.md, question 4, 18/11 ;
+ * ~/.vibe, ~/.claude-acp et ~/.mai-acp, les places d'avant, sont ignorées : rien n'y est repris). Les paquets vibe,
+ * claude, mai et forge posent dans /.vibe, /.claude-acp et /.mai-acp ce que l'agent sait de Korin : AGENTS.md et
+ * skills/. Quand le dossier du compte n'est pas celui-là :
  *   - chaque compétence de skills/ y est recopiée quand elle manque ou que celle du paquet est plus récente
  *     (SKILL.md fait foi) ; AGENTS.md seulement s'il manque (il est à l'utilisateur une fois posé) ;
  *   - ce qu'un compte avait laissé dans /.vibe avant les comptes (.env et la clé, config.toml, séances, journaux,
@@ -139,7 +140,8 @@ static void move_user_data (const char *sys, const char *home)
 
 int acp_home (int profile, char *out, unsigned long cap)
 {
-	static const char *const NAME[] = { "/.vibe", "/.claude-acp", "/.mai-acp" };
+	static const char *const NAME[] = { "/.vibe", "/.claude-acp", "/.mai-acp" };		/* (ceux des paquets) */
+	static const char *const LOCAL[] = { "vibe", "claude-acp", "mai-acp" };		/* ~/.local/<nom> */
 	static const char *const VAR[] = { "VIBE_HOME", "CLAUDE_ACP_HOME", "MAI_ACP_HOME" };
 	if (profile < 0 || profile > ACP_PROFILE_MAI)
 		profile = ACP_PROFILE_VIBE;
@@ -150,7 +152,13 @@ int acp_home (int profile, char *out, unsigned long cap)
 	if (v && *v)
 		snprintf (out, cap, "%s", v);
 	else
-		snprintf (out, cap, "%s%s", h && h[0] == '/' && h[1] ? h : "", name);
+	{
+		const char *base = h && h[0] == '/' && h[1] ? h : "";
+		char local[520];
+		snprintf (local, sizeof local, "%s/.local", base);
+		mkdir (local, 0700);
+		snprintf (out, cap, "%s/%s", local, LOCAL[profile]);
+	}
 	size_t l = strlen (out);
 	while (l > 1 && out[l - 1] == '/')
 		out[--l] = 0;

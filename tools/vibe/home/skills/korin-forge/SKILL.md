@@ -27,8 +27,9 @@ Forge existe **sur le PC** (x86-64) seulement pour l'instant : pas sur le Pi. `l
    lance-la avec un jeton à toi, `--mcp --mcp-token JETON` (une suite au hasard d'au moins 32 caractères
    hexadécimaux), ou demande à l'utilisateur celui que montre *Fichier > Piloter par un agent (MCP)*. Une fenêtre
    s'ouvre pour l'utilisateur ; Forge se ferme comme une app.
-2. **Déclarer le serveur à l'agent**, dans son `config.toml` : `/.vibe/config.toml` pour Vibe,
-   `/.claude-acp/config.toml` pour Claude (claude-acp). Le même bloc pour les deux ; le dire à l'utilisateur et lui
+2. **Déclarer le serveur à l'agent**, dans son `config.toml` : `~/.local/vibe/config.toml` pour Vibe,
+   `~/.local/claude-acp/config.toml` pour Claude (claude-acp), `~/.local/mai-acp/config.toml` pour MAI (ou
+   `$VIBE_HOME`, `$CLAUDE_ACP_HOME`, `$MAI_ACP_HOME`). Le même bloc pour tous ; le dire à l'utilisateur et lui
    demander d'abord ; ne pas toucher au reste du fichier ; remplacer `JETON` par le jeton :
 
    ```toml

@@ -32,7 +32,7 @@ défaut. Un autre fournisseur compatible OpenAI demande seulement un profil de p
 2. Sur Korin :
 
 ```
-mai-acp --set-key             # une fois : le point d'accès puis la clé (saisie cachée), rangés dans /.mai-acp/.env
+mai-acp --set-key             # une fois : le point d'accès puis la clé (saisie cachée), rangés dans ~/.local/mai-acp/.env
 agent --mai                   # le client terminal, dans le dossier de travail
 agent --mai --continue        # reprend la dernière séance de ce dossier
 ```
@@ -41,7 +41,7 @@ Ou l'app **MAI** (lanceur, catégorie Développement), la façade de Vibe avec l
 clé, elle ouvre d'elle-même le dialogue « Point d'accès et clé de MAI ». Ce dialogue a deux champs et un bouton qui
 ouvre Foundry dans Jet. Le point d'accès va dans `.env` (`MAI_BASE_URL`) et la clé au coffre à secrets
 ([KEYVAULT.md](KEYVAULT.md), sous `env/MAI_API_KEY`) ; laisser la clé vide garde celle qui est rangée. Menu MAI >
-Clé d'API... rouvre le dialogue. Le journal est dans `/.mai-acp/logs/agent.log`.
+Clé d'API... rouvre le dialogue. Le journal est dans `~/.local/mai-acp/logs/agent.log`.
 
 Les touches et commandes sont celles de Claude : Entrée envoie ; Échap interrompt ; Maj+Tab change le mode (`ask`,
 `accept-edits`, `auto-approve`) ; `/model`, `/cost` (jetons et coût estimé), `/account`, `/help`.
@@ -52,7 +52,9 @@ presque toujours d'un mauvais point d'accès ou d'un mauvais nom de déploiement
 
 ## La configuration
 
-Le dossier de l'agent est `$MAI_ACP_HOME`, par défaut `$HOME/.mai-acp` (`/.mai-acp`) :
+Le dossier de l'agent est `$MAI_ACP_HOME`, par défaut `~/.local/mai-acp` (`/home/.local/mai-acp`), comme les
+données des autres apps. L'ancien `~/.mai-acp` est ignoré depuis le 20/11. Le paquet pose `AGENTS.md` et `skills/`
+dans `/.mai-acp`, et libacp (`acp_home`) les recopie dans le dossier du compte. Ce dossier contient :
 
 * `.env` : `MAI_BASE_URL=...` et `MAI_API_KEY=...`. Ils appartiennent à l'utilisateur et ne vont jamais dans un
   paquet ; l'app passe la clé au coffre. L'environnement l'emporte sur `.env`, et `MAI_BASE_URL` sur `base_url`.
@@ -137,7 +139,7 @@ Sous Korin : `python3 /home/pytest/oaitest.py --installed` (`TESTS=1` pour le PC
 **Vérifié sous QEMU PC le 19/11** (`tools/python/pctest.py`, lancé depuis WSL avec l'OVMF de `~/korin-cloud`) :
 
 * les 44 vérifications passent en 39 s, avec les modules installés sur le disque ;
-* l'app MAI s'ouvre et montre « MAI (démarrage…) », « Démarrage de mai-acp » et le dossier `/home/.mai-acp`.
+* l'app MAI s'ouvre et montre « MAI (démarrage…) », « Démarrage de mai-acp » et le dossier du compte (alors `/home/.mai-acp`, `~/.local/mai-acp` depuis le 20/11).
 
 Ce jour-là, `python3 fichier.py` plantait sous Korin PC (`Segmentation fault` dès le démarrage, avec `-P`, `-I` ou
 `-S`, même pour un `print`), alors que `python3 -m`, `-c`, `< fichier` et `runpy` marchaient. Cela touchait aussi

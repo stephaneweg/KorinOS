@@ -139,8 +139,9 @@ int acp_permit (acp_t *a, long req, const char *option_id);
 int acp_pending_permission (acp_t *a);		/* une approbation attend sa réponse */
 void acp_close (acp_t *a);			/* ferme les tubes, attend l'agent (2 s), puis le tue */
 
-/* le dossier de l'agent pour le compte en cours (home.c) : $VIBE_HOME, sinon $HOME/.vibe (claude : $CLAUDE_ACP_HOME,
-   $HOME/.claude-acp ; mai : $MAI_ACP_HOME, $HOME/.mai-acp), créé ; les compétences et AGENTS.md des paquets (/.vibe,
+/* le dossier de l'agent pour le compte en cours (home.c) : $VIBE_HOME, sinon $HOME/.local/vibe (claude :
+   $CLAUDE_ACP_HOME, $HOME/.local/claude-acp ; mai : $MAI_ACP_HOME, $HOME/.local/mai-acp), créé ; les compétences et
+   AGENTS.md des paquets (/.vibe,
    /.claude-acp, /.mai-acp) y sont recopiés, et ce qu'un compte avait laissé là avant les comptes y est déplacé une
    fois. Rend 0. */
 enum { ACP_PROFILE_VIBE, ACP_PROFILE_CLAUDE, ACP_PROFILE_MAI };

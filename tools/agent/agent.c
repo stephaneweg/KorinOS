@@ -6,9 +6,9 @@
  *     agent [--claude | --mai] [--cwd DIR] [--mode ask|accept-edits|auto-approve] [--load ID | --continue] [--model ALIAS]
  *           [--agent CMD] [--log FICHIER] [--debug]
  *
- * Avec --claude : journal dans $CLAUDE_ACP_HOME/logs/agent.log (/.claude-acp), /account range la clé d'API
+ * Avec --claude : journal dans $CLAUDE_ACP_HOME/logs/agent.log (~/.local/claude-acp), /account range la clé d'API
  * (claude-acp --set-key), et les commandes /... que le client ne connaît pas partent à l'agent (/cost). Avec --mai : de
- * même dans $MAI_ACP_HOME (/.mai-acp), et /account demande le point d'accès et la clé (mai-acp --set-key).
+ * même dans $MAI_ACP_HOME (~/.local/mai-acp), et /account demande le point d'accès et la clé (mai-acp --set-key).
  *
  * Journaux : la sortie d'erreur de vibe-acp dans $VIBE_HOME/logs/server.log (--log : ailleurs), celui de Vibe dans
  * $VIBE_HOME/logs/vibe.log (LOG_LEVEL=INFO ; --debug : DEBUG, les messages ACP, PYTHONFAULTHANDLER). Une requête de
@@ -1006,7 +1006,7 @@ int main (int argc, char **argv)
 	if (!o.log && prof_claude)
 	{
 		char d[520];
-		acp_home (prof_mai ? ACP_PROFILE_MAI : ACP_PROFILE_CLAUDE, d, sizeof d);	/* (~/.claude-acp, du compte) */
+		acp_home (prof_mai ? ACP_PROFILE_MAI : ACP_PROFILE_CLAUDE, d, sizeof d);	/* (~/.local/claude-acp, du compte) */
 		setenv (prof_mai ? "MAI_ACP_HOME" : "CLAUDE_ACP_HOME", d, 1);
 		snprintf (slog, sizeof slog, "%s/logs", d);
 		mkdir (slog, 0700);
@@ -1016,7 +1016,7 @@ int main (int argc, char **argv)
 	if (!o.log)
 	{
 		char d[520];
-		acp_home (ACP_PROFILE_VIBE, d, sizeof d);	/* (~/.vibe, celui du compte) */
+		acp_home (ACP_PROFILE_VIBE, d, sizeof d);	/* (~/.local/vibe, celui du compte) */
 		setenv ("VIBE_HOME", d, 1);
 		snprintf (slog, sizeof slog, "%s/logs", d);
 		mkdir (slog, 0700);
