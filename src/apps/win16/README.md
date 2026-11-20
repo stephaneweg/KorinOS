@@ -13,6 +13,9 @@
 * `spec/` : les tables des DLL 16 bits (format de Wine, **LGPL-2.1+**), copiées de winevdm ; `api_table.c` en est
   tiré par `tools/win16/spec2c.py` (ne pas le modifier à la main).
 
+* `dos/COMMAND.COM` de l'app (lecteur Z: de la machine DOS) : **FreeCOM 0.86** (FreeDOS, GPL-2,
+  github.com/FDOS/freecom), construit par `tools/win16/build-freecom.sh`, livré avec sa licence (`COPYING.TXT`) et
+  le lien de ses sources (`FREECOM.TXT`).
 * Les polices de la « ROM » vidéo de la machine DOS (code page 437, 8×8, 8×14, 8×16) viennent de
   `src/lib/basic/basfont.h` (polices VGA de console-setup de Debian : MIT et domaine public).
 
@@ -40,7 +43,10 @@
 
 ## Construire et essayer
 
-* Korin PC : `sh tools/pc/apps.sh win16` (WSL) → `build/pc/apps/sdroot/apps/win16.app`.
+* Korin PC : `sh tools/win16/build-freecom.sh` (une fois), puis `sh tools/pc/apps.sh win16` (WSL) →
+  `build/pc/apps/sdroot/apps/win16.app` (avec `dos/COMMAND.COM`).
+* DOS : `win16 PROG.EXE` (un `.exe` sans en-tête NE ou un `.COM`), `win16 FICHIER.BAT`, `win16 --dos` (l'invite) ;
+  sur l'hôte, `W16_DOSDIR=build/win16/dos` donne le lecteur Z:.
 * Programmes d'essai : `sh tools/win16/build-tests.sh` (Open Watcom v2 dans `~/win16/watcom`) ; ceux du DOS
   (`tools/win16/tests/dos`) : `dostest.exe` (console, écran B800, BIOS, mémoire, fichiers, EXEC de `dosecho.exe`).
 * Sur l'hôte, sans Korin : `W16_TRACE=1 sh tools/win16/host.sh build/win16/tests/hello.exe`.

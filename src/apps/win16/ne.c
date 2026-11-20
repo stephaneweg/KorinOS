@@ -133,6 +133,8 @@ int ne_find_file (const char *dir, const char *name, char *out, size_t cap)
 			break;
 		}
 	closedir (d);
+	if (!ok)	/* (un nom court 8.3 : MONDOC~1.TXT) */
+		ok = kernel_find_short (dir, name, out, cap);
 	return ok;
 }
 

@@ -35,3 +35,4 @@ for f in "$ROOT"/tools/win16/tests/dos/*.c; do
 	rm -f "$n.o" "$n.obj"
 	echo "$n.exe : $(stat -c %s "$n.exe") octets"
 done
+cp "$ROOT"/tools/win16/tests/dos/*.bat "$OUT/"

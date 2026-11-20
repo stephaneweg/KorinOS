@@ -48,6 +48,16 @@ retour et code (4Dh), console du DOS dans l'écran texte, INT 10h texte (polices
 A20. `tools/win16/tests/dos/dostest.c` (Open Watcom) : texte et couleurs en B800, mémoire, fichiers, horloge,
 `spawnl` d'un enfant qui rend 42, touche lue.
 
+**Étape D2 (20/11)** : **FreeCOM 0.86** en français (`tools/win16/build-freecom.sh`, Open Watcom, sans échange
+XMS) est COMMAND.COM, sur un lecteur **Z:** (`win16.app/dos`, avec sa licence GPL-2 et le lien des sources) ;
+`COMSPEC=Z:\COMMAND.COM`, `PATH=Z:\;C:\;D:\`. `win16 --dos` ouvre l'invite (D: = le dossier personnel), `win16
+FICHIER.BAT` le lance par `COMMAND /C` et garde la fenêtre ouverte à la fin (« terminé »). Le DOS a gagné : poignées
+de périphériques (CON, NUL, AUX, PRN), la plus basse poignée libre (redirection `>` de FreeCOM), duplication (45h,
+46h), ouverture étendue (6Ch), **noms courts 8.3** (`LONGNO~1.TXT` à la Windows 95, dans la recherche et dans les
+chemins), fichiers cachés pour les noms en « . », étiquette de volume. Essai `tools/win16/tests/dos/essai.bat` :
+`dir /w > LISTE.TXT`, `type`, EXEC de `dostest.exe`, `if errorlevel`, `set` et `%VAR%`, `del`, `if not exist`
+(hôte et QEMU PC). Reste : fermer les fichiers d'un processus à sa fin, Ctrl-C.
+
 Pas encore : le Pi (même code, à construire), MDI, métafichiers, impression, WinHelp, crochets, les barres de
 défilement des fenêtres (seulement les contrôles), le son ; pas de paquet.
 

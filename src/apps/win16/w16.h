@@ -29,6 +29,7 @@ uint32_t sel_base (uint16_t sel);
 uint32_t sel_limit (uint16_t sel);
 int sel_valid (uint16_t sel);
 extern int w16_realmode;	/* la machine DOS (dos.c) : sel_base (s) = s × 16 */
+extern char w16_dosdir[512];	/* le dossier du lecteur Z: (win16.app/dos), main.c */
 
 /* le tas global (GlobalAlloc) : un bloc a un sélecteur, poignée = sélecteur */
 uint16_t global_alloc (uint32_t size, int code);
@@ -137,6 +138,8 @@ int w16_from_utf8 (const char *s, uint8_t *out, int cap);
 const uint8_t *kernel_resource (uint16_t hinst, uint32_t type, uint32_t name, uint32_t *size);
 int ne_find_name (struct ne_module *m, const char *name);
 int ne_find_file (const char *dir, const char *name, char *out, size_t cap);
+int kernel_find_short (const char *dir, const char *name, char *out, size_t cap);
+void kernel_short_name (const char *dir, const char *name, char *out);
 uint32_t ne_resource_find_ex (struct ne_module *m, uint32_t type, uint32_t name, uint32_t *off, uint32_t *size);
 
 /* ---- la tâche (kernel.c) ---- */

@@ -16,7 +16,7 @@
 struct hwin { int used, w, h; uint32_t *px; char title[160]; };
 static struct hwin wins[MAX_WIN];
 static int idle, idle_max = 3, shots;
-static char *script, *spos;
+static char *script, *spos, *script_end;
 static long script_win;
 
 int be_init (void)
@@ -27,6 +27,7 @@ int be_init (void)
 	{
 		script = strdup (getenv ("W16_SCRIPT"));
 		spos = script;
+		script_end = script + strlen (script);
 	}
 	return 1;
 }
@@ -189,9 +190,10 @@ static char *next_word (void)
 {
 	if (!spos)
 		return 0;
-	while (*spos == ' ')
+	/* (un « type: » rejoué laisse des 0 entre les mots : on les saute aussi) */
+	while (spos < script_end && (*spos == ' ' || !*spos))
 		spos++;
-	if (!*spos)
+	if (spos >= script_end)
 		return 0;
 	char *w = spos;
 	while (*spos && *spos != ' ')

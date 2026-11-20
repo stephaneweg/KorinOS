@@ -35,6 +35,8 @@ void kernel_drives_init (void);
 #define MEM_TOP		0xa000
 #define NOEPI		2		/* (un gestionnaire qui a déjà réglé CS:IP et la pile : EXEC) */
 
+int dos_hold;			/* garder la fenêtre à la fin (un .BAT : main.c) */
+static int closed_by_user (void) { return dos_closed; }
 static uint16_t cur_psp, root_psp;
 static uint16_t last_ret;		/* le code de retour du dernier enfant (4Dh) */
 static uint8_t strategy;
@@ -1160,6 +1162,27 @@ static int int21 (void)
 	case 0x68:
 	case 0x6a:
 		return DONE;
+	case 0x6c:	/* ouverture étendue (DOS 4) : par 3Dh ou 3Ch */
+	{
+		char host[700];
+		const char *n = w16_raw (MAKESEGPTR (cpu_sreg (S_DS), rSI));
+		int exists = dos_to_host (n, host, sizeof host) && access (host, F_OK) == 0;
+		int act = exists ? (rDL & 0x0f) : (rDL >> 4);
+		if (!act)
+		{
+			dos_error (exists ? 80 : 2);
+			return DONE;
+		}
+		uint16_t dx = rDX, bx = rBX;
+		set16 (R_EDX, rSI);
+		set16 (R_EAX, (uint16_t) (exists && act == 1 ? 0x3d00 | (bx & 3) : 0x3c00));
+		int r = int21 ();
+		if (!(cpu_flags () & 1))
+			set16 (R_ECX, (uint16_t) (!exists ? 2 : act == 1 ? 1 : 3));
+		if (cpu_flags () & 1)
+			set16 (R_EDX, dx);
+		return r;
+	}
 	case 0x71:
 		set16 (R_EAX, 0x7100);
 		set_cf (1);
@@ -1392,7 +1415,7 @@ static void dos_data_init (void)
 	mcb_set (FIRST_MCB, 'Z', 0, (uint16_t) (MEM_TOP - FIRST_MCB - 1));
 }
 
-int dos_main (const char *path, const char *args)
+int dos_main (const char *path, const char *dospath_in, const char *args)
 {
 	w16_realmode = 1;
 	if (!cpu_init ())
@@ -1411,8 +1434,8 @@ int dos_main (const char *path, const char *args)
 	{
 		char *e = (char *) lin_ptr (RM (env, 0));
 		int o = 0;
-		o += sprintf (e + o, "COMSPEC=C:\\COMMAND.COM") + 1;
-		o += sprintf (e + o, "PATH=C:\\;D:\\") + 1;
+		o += sprintf (e + o, "COMSPEC=Z:\\COMMAND.COM") + 1;
+		o += sprintf (e + o, "PATH=Z:\\;C:\\;D:\\") + 1;
 		o += sprintf (e + o, "PROMPT=$P$G") + 1;
 		o += sprintf (e + o, "TEMP=C:\\") + 1;
 		e[o] = 0;
@@ -1424,10 +1447,12 @@ int dos_main (const char *path, const char *args)
 	b = b ? b + 1 : path;
 	char dpath[300];
 	snprintf (dpath, sizeof dpath, "D:\\%s", b);
+	if (dospath_in)
+		snprintf (dpath, sizeof dpath, "%s", dospath_in);
 	for (char *q = dpath; *q; q++)
 		*q = (char) toupper ((unsigned char) *q);
 	char title[160];
-	snprintf (title, sizeof title, "%s", dpath + 3);
+	snprintf (title, sizeof title, "%s", dospath_in ? "DOS" : dpath + 3);
 	bios_set_title (title);
 	struct loaded L;
 	int e = load (dpath, 0, 0, 0, 0, &L);
@@ -1476,5 +1501,19 @@ int dos_main (const char *path, const char *args)
 	bios_poll (1);
 	run ();
 	w16_log ("DOS : fin, code %d\n", w16_exit_code);
-	return w16_exit_code;
+	int code = w16_exit_code;
+	if (dos_hold && !closed_by_user ())
+	{
+		/* (un .BAT lancé depuis Fichiers : sa sortie reste lisible jusqu'à la fermeture de la fenêtre) */
+		bios_poll (1);
+		char t[200];
+		snprintf (t, sizeof t, "%s (terminé)", title);
+		bios_set_title (t);
+		w16_exit = 0;
+		while (!w16_exit)
+			bios_idle (100);
+	}
+	if (bios_win)
+		be_window_close (bios_win);
+	return code;
 }

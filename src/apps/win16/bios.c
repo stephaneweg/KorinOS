@@ -13,6 +13,7 @@
 #include "../../lib/basic/basfont.h"
 
 long bios_win;
+int dos_closed;			/* la fenêtre a été fermée par l'utilisateur */
 static char win_title[160] = "DOS";
 
 #define BDA(o)	(0x400u + (o))
@@ -262,6 +263,7 @@ static void kq_push (uint8_t code, uint8_t ascii)
 static void kbd_event (const struct be_event *e)
 {
 	uint16_t s = hid_scan (e->key);
+	w16_log ("DOS : touche %d (car. %d) %s -> %03x\n", e->key, e->ch, e->type == BE_KEY_UP ? "relâchée" : "appuyée", s);
 	if (!s)
 		return;
 	uint8_t ascii = 0;
@@ -521,6 +523,7 @@ static void handle_event (const struct be_event *e)
 	switch (e->type)
 	{
 	case BE_CLOSE:
+		dos_closed = 1;
 		w16_exit = 1;
 		w16_exit_code = 0;
 		break;

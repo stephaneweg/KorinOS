@@ -51,7 +51,7 @@ void set_cf (int on);
 void set_zf (int on);
 
 /* dos.c */
-int dos_main (const char *path, const char *args);
+int dos_main (const char *path, const char *dospath, const char *args);
 int dos_trap (int vec);
 void dos_far (int n);
 
@@ -66,6 +66,7 @@ int pic_pending (void);
 int kbd_get (int remove, uint16_t *key);	/* une touche du tampon du BIOS -> 1 */
 void bios_set_title (const char *title);
 extern long bios_win;
+extern int dos_hold, dos_closed;
 
 /* vga.c */
 void vga_init (void);

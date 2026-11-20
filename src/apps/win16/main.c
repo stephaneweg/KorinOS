@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <ctype.h>
 #include "w16.h"
 #include "be.h"
@@ -51,12 +52,22 @@ static int is_windows (const char *path)
 	return win;
 }
 
+char w16_dosdir[512];
+
+static int is_batch (const char *path)
+{
+	size_t l = strlen (path);
+	return l > 4 && !strcasecmp (path + l - 4, ".bat");
+}
+
 int main (int argc, char **argv)
 {
-	int i = 1;
+	int i = 1, dos_prompt = 0;
 	for (; i < argc && argv[i][0] == '-' && argv[i][1] == '-'; i++)
 	{
-		if (!strcmp (argv[i], "--trace"))
+		if (!strcmp (argv[i], "--dos"))
+			dos_prompt = 1;
+		else if (!strcmp (argv[i], "--trace"))
 			w16_trace = 1;
 		else if (!strcmp (argv[i], "--trace-cpu"))
 			w16_trace = 2;
@@ -69,6 +80,50 @@ int main (int argc, char **argv)
 	if (getenv ("W16_TRACE"))
 		w16_trace = atoi (getenv ("W16_TRACE"));
 	int ui = be_init ();
+	/* Z: : le dossier dos/ à côté du programme (COMMAND.COM), ou W16_DOSDIR */
+	{
+		const char *e = getenv ("W16_DOSDIR");
+		if (e && *e)
+			snprintf (w16_dosdir, sizeof w16_dosdir, "%s", e);
+		else
+		{
+			snprintf (w16_dosdir, sizeof w16_dosdir, "%s", argv[0]);
+			char *sl = strrchr (w16_dosdir, '/');
+			if (sl)
+				snprintf (sl, sizeof w16_dosdir - (size_t) (sl - w16_dosdir), "/dos");
+			else
+				snprintf (w16_dosdir, sizeof w16_dosdir, "dos");
+		}
+	}
+	if (dos_prompt || (i < argc && is_batch (argv[i])))
+	{
+		/* l'invite du DOS (--dos), ou un .BAT : COMMAND.COM (FreeCOM) sur Z:, D: = le dossier courant ou celui du .BAT */
+		char comspec[600], args[300] = "";
+		snprintf (comspec, sizeof comspec, "%s/COMMAND.COM", w16_dosdir);
+		if (i < argc && is_batch (argv[i]))
+		{
+			snprintf (task.dir, sizeof task.dir, "%s", argv[i]);
+			char *sl = strrchr (task.dir, '/');
+			if (sl)
+				*sl = 0;
+			else
+				snprintf (task.dir, sizeof task.dir, ".");
+			const char *b = strrchr (argv[i], '/');
+			snprintf (args, sizeof args, "/C %s", b ? b + 1 : argv[i]);
+			for (int k = i + 1; k < argc; k++)
+			{
+				strncat (args, " ", sizeof args - strlen (args) - 1);
+				strncat (args, argv[k], sizeof args - strlen (args) - 1);
+			}
+		}
+		else
+		{
+			const char *h = getenv ("HOME");
+			snprintf (task.dir, sizeof task.dir, "%s", h && *h ? h : ".");
+		}
+		dos_hold = !dos_prompt;
+		return dos_main (comspec, "Z:\\COMMAND.COM", args);
+	}
 	if (i >= argc)
 	{
 		if (ui)
@@ -94,7 +149,7 @@ int main (int argc, char **argv)
 			*sl = 0;
 		else
 			snprintf (task.dir, sizeof task.dir, ".");
-		return dos_main (argv[i], args);
+		return dos_main (argv[i], 0, args);
 	}
 	if (!cpu_init ())
 	{

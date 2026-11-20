@@ -387,6 +387,15 @@ build_one () { # nom
 	for f in help_*.md; do [ ! -f "$f" ] || cp "$f" "$D/"; done
 	[ ! -d help ] || cp -r help "$D/"
 	[ "$app" != forge ] || cp -r lang "$D/"	# (Forge charge sa table : tools/lang/merge.py la saute)
+	# (win16 : le lecteur Z: de sa machine DOS, COMMAND.COM de FreeCOM fait par tools/win16/build-freecom.sh)
+	if [ "$app" = win16 ]; then
+		if [ -f "$ROOT/build/win16/dos/COMMAND.COM" ]; then
+			mkdir -p "$D/dos"
+			cp "$ROOT"/build/win16/dos/* "$D/dos/"
+		else
+			echo "win16 : pas de COMMAND.COM (sh tools/win16/build-freecom.sh)" >&2
+		fi
+	fi
 	[ "$app" != arabesque ] || [ ! -d presets ] || { mkdir -p "$OUT/sdroot/home/public/arabesque"; cp presets/*.arb "$OUT/sdroot/home/public/arabesque/"; }
 	# (FM Tracker : instruments et mots dans l'app, morceaux d'exemple dans /home/public/music/fms, comme build.ps1)
 	if [ "$app" = fmtracker ]; then
