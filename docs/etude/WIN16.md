@@ -68,6 +68,22 @@ pour Korin quand un programme sonde la souris. Un clic ouvre les menus de QB (h�
 suit la souris. Les programmes BASIC de l'utilisateur qui appelaient CTMOUSE par l'INT 33h marcheront ; pas ceux
 qui liraient la mémoire interne du pilote. Reste : l'éditeur de QB sonde le clavier sans attendre (un cœur occupé).
 
+**Étape D4 (20/11) : le graphisme.** `vga.c` : la mémoire de la VGA en 4 plans de 64 Ko derrière A0000 (le cœur
+passe par `cpu_vga_rd`/`cpu_vga_wr` quand les plans sont en jeu : modes 0Dh-12h et Mode X), modes d'écriture 0-3,
+verrous, set/reset, masque de bits, rotation et fonctions logiques, lecture par plan et comparaison de couleurs ;
+CGA 4/5/6 (mémoire entrelacée, palettes, port 3D9h), EGA 0Dh/0Eh/0Fh/10h, VGA 11h/12h, 13h chaîné, **Mode X**
+(déchaîné par le séquenceur : la mémoire passe dans les plans ; hauteur et pas lus dans le CRTC : 320 × 240) ;
+palette de 256 couleurs du BIOS, DAC, palette « CGA » des modes de 200 lignes ; INT 10h 0Bh, 0Ch, 0Dh, texte et
+défilement en mode graphique (police de l'INT 43h), 1Bh (la table des modes, que QuickBASIC lit avant SCREEN 12 et
+13) ; rendu agrandi (320 × 200 -> 640 × 400) avec le curseur de la souris. Essais : `tools/win16/tests/dos/gfxtest.c`
+(modes 4, 6, D, E, 10, 12, 13, X) sur l'hôte, 12h et X sous QEMU PC ; un programme QuickBASIC compilé (LINE, BF,
+CIRCLE, PAINT, PRINT) en SCREEN 1, 2, 7, 9, 12 et 13 sur l'hôte. Sous QEMU, le dessin en plans est lent (deux
+émulations l'une dans l'autre) ; à mesurer sur le ZBook.
+
+**Pour l'utilisateur** : `win16.app` déclare `.exe`, `.com` et `.bat` ; un double-clic dans Fichiers lance win16, qui
+choisit seul Windows 3.x (en-tête NE) ou DOS. Les `.bat` sont aussi déclarés par l'Éditeur (`/etc/fileassoc.ini`
+tranche).
+
 **Après D6, à envisager (question de l'utilisateur, 20/11)** : les premiers Tomb Raider (DOS/4GW) demandent le DPMI
 (INT 31h), un lecteur de CD (MSCDEX, image ISO/CUE et pistes audio) et beaucoup de vitesse (Pentium avec FPU, rendu
 logiciel) : peut-être un recompilateur pour le cœur.

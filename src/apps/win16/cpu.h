@@ -38,6 +38,9 @@ int cpu_a20 (void);
 int cpu_protected (void);
 extern uint32_t (*cpu_io_in) (uint16_t port, int size);
 extern void (*cpu_io_out) (uint16_t port, uint32_t v, int size);
+extern int cpu_vga_on;	/* A0000-AFFFF par cpu_vga_rd, cpu_vga_wr (la VGA en plans) */
+extern uint8_t (*cpu_vga_rd) (uint32_t a);
+extern void (*cpu_vga_wr) (uint32_t a, uint8_t v);
 
 #ifdef __cplusplus
 }

@@ -118,12 +118,62 @@ static UINT8 *mem;
 #define MEMMASK (W16_MEM_SIZE - 1)
 
 static void *read_ptr (offs_t a) { return mem + (a & MEMMASK); }
-static inline UINT8 read_byte (offs_t a) { return mem[a & MEMMASK]; }
-static inline UINT16 read_word (offs_t a) { UINT16 v; memcpy (&v, mem + (a & MEMMASK), 2); return v; }
-static inline UINT32 read_dword (offs_t a) { UINT32 v; memcpy (&v, mem + (a & MEMMASK), 4); return v; }
-static inline void write_byte (offs_t a, UINT8 v) { mem[a & MEMMASK] = v; }
-static inline void write_word (offs_t a, UINT16 v) { memcpy (mem + (a & MEMMASK), &v, 2); }
-static inline void write_dword (offs_t a, UINT32 v) { memcpy (mem + (a & MEMMASK), &v, 4); }
+/* la mémoire de la VGA (A0000-AFFFF) quand elle est en plans (machine DOS : vga.c) : par des fonctions */
+extern "C" {
+int cpu_vga_on;
+uint8_t (*cpu_vga_rd) (uint32_t a);
+void (*cpu_vga_wr) (uint32_t a, uint8_t v);
+}
+#define IN_VGA(a, n) (cpu_vga_on && ((a) & MEMMASK) - 0xa0000u < 0x10000u - ((n) - 1))
+static inline UINT8 read_byte (offs_t a)
+{
+	if (IN_VGA (a, 1))
+		return cpu_vga_rd (a & MEMMASK);
+	return mem[a & MEMMASK];
+}
+static inline UINT16 read_word (offs_t a)
+{
+	if (IN_VGA (a, 1) || IN_VGA (a + 1, 1))
+		return (UINT16) (read_byte (a) | read_byte (a + 1) << 8);
+	UINT16 v;
+	memcpy (&v, mem + (a & MEMMASK), 2);
+	return v;
+}
+static inline UINT32 read_dword (offs_t a)
+{
+	if (IN_VGA (a, 1) || IN_VGA (a + 3, 1))
+		return read_word (a) | (UINT32) read_word (a + 2) << 16;
+	UINT32 v;
+	memcpy (&v, mem + (a & MEMMASK), 4);
+	return v;
+}
+static inline void write_byte (offs_t a, UINT8 v)
+{
+	if (IN_VGA (a, 1))
+		cpu_vga_wr (a & MEMMASK, v);
+	else
+		mem[a & MEMMASK] = v;
+}
+static inline void write_word (offs_t a, UINT16 v)
+{
+	if (IN_VGA (a, 1) || IN_VGA (a + 1, 1))
+	{
+		write_byte (a, (UINT8) v);
+		write_byte (a + 1, (UINT8) (v >> 8));
+		return;
+	}
+	memcpy (mem + (a & MEMMASK), &v, 2);
+}
+static inline void write_dword (offs_t a, UINT32 v)
+{
+	if (IN_VGA (a, 1) || IN_VGA (a + 3, 1))
+	{
+		write_word (a, (UINT16) v);
+		write_word (a + 2, (UINT16) (v >> 16));
+		return;
+	}
+	memcpy (mem + (a & MEMMASK), &v, 4);
+}
 
 #define read_decrypted_byte read_byte
 #define read_decrypted_word read_word

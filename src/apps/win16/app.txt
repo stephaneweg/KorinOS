@@ -1,8 +1,9 @@
-# Manifeste de win16 : les programmes de Windows 3.x (docs/etude/WIN16.md)
+# Manifeste de win16 : les programmes de Windows 3.x et de DOS (docs/etude/WIN16.md)
 name     = Windows 3.x
 category = Émulateurs
-opens    = exe
-description = Fait tourner les programmes de Windows 3.x (exécutables 16 bits NE) dans des fenêtres de Korin, d'après winevdm.
-keywords = windows 3.1 win16 16 bits exe ne émulateur winevdm otvdm rétro
-help = Ouvrir un programme de Windows 3.x (.exe) avec cette app le lance ; chacune de ses fenêtres principales devient une fenêtre de Korin.
-help = Encore au début : seuls les programmes très simples marchent (fenêtres, texte, rectangles, boîtes de message).
+opens    = exe com bat
+description = Fait tourner les programmes de Windows 3.x (exécutables 16 bits NE) et de DOS (.exe, .com, .bat) dans des fenêtres de Korin, d'après winevdm.
+keywords = windows 3.1 win16 16 bits exe ne émulateur winevdm otvdm rétro dos ms-dos com bat quickbasic freecom vga
+help = Ouvrir un programme de Windows 3.x (.exe) avec cette app le lance ; chacune de ses fenêtres principales devient une fenêtre de Korin, avec les contrôles et le thème de Korin.
+help = Un programme de DOS (.exe sans Windows, .com) s'ouvre dans sa propre fenêtre (texte, CGA, EGA, VGA), avec le clavier et la souris ; un .bat passe par COMMAND.COM (FreeCOM) et la fenêtre reste ouverte à la fin. « win16 --dos » dans le Terminal ouvre l'invite du DOS.
+help = Lecteurs : C: = HOME:/win16/c, D: = le dossier du programme, E: = tout Korin, Z: = les fichiers DOS de l'app ; HOME:/win16/drives.ini les règle.
