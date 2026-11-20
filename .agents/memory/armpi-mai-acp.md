@@ -27,5 +27,10 @@ dans main (commits cef2a945..1e756fcd), décrit dans docs/MAI-ACP.md.
 - Rien n'est publié. Les versions de versions.ini sont remises par mkrepo à chaque publication, donc on ne les monte
   pas à la main.
 
+- **20/11 : chantier mis de côté par l'utilisateur.** MAI-Code-1.1-Flash est en préversion et n'est pas disponible
+  en Belgique dans Foundry : pas d'essai réel possible. Le paquet mai n'est pas publié. Le code reste dans main
+  (il sert aussi à tout autre fournisseur compatible OpenAI : profil `openai` d'oai_acp). Ne pas relancer sans que
+  l'utilisateur le demande (par exemple quand MAI Code 2 Flash sera ouvert en Europe).
+
 **Why:** pour reprendre le chantier sans refaire la recherche. **How to apply:** voir [[armpi-claude-acp]] pour la
 base ; vérifier le bug de python3 avant de dire que claude-acp ou mai-acp marchent sur le PC.
