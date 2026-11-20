@@ -38,8 +38,8 @@ build/win16/compare) ; **mode natif** : contrôles standard = widgets de UIKit (
 l'ancien dessin.
 
 **DOS demandé le 20/11** (« quickbasic 4, modes cga, vga et svga (futurelib) », FreeCOM, Sound Blaster/OPL,
-essai OPL = FM-Song d'Asher256, redistribuable) : architecture dans WIN16.md §9, choix lourds (voie intégrée ou
-DOSBox, émulateur OPL, FreeCOM) à faire trancher avant tout code. QB 4.5 et FutureLib 3.5 = copies de
+essai OPL = FM-Song d'Asher256, redistribuable) : architecture dans WIN16.md §9. **Choix de l'utilisateur (20/11)** :
+voie intégrée à win16 (pas DOSBox), Nuked OPL3, FreeCOM 0.86. Étapes D1-D7 du §9.8. QB 4.5 et FutureLib 3.5 = copies de
 l'utilisateur, jamais au dépôt ni en paquet (FutureLib : licence muette), extraites dans WSL ~/korin-win16, image
 QEMU effacée après l'essai. Dans les commits : « QuickBASIC 4.5, copie de l'utilisateur ».
 

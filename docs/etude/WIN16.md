@@ -429,8 +429,8 @@ QuickBASIC et les programmes QBasic, à mesurer sur le Pi 4 pour les démos SVGA
 | D6 | haut-parleur, OPL et ses minuteries, Sound Blaster (DSP, DMA, IRQ, mélangeur) | FM-Song, `PLAY` | 3-4 j |
 | D7 | construction pour le Pi, mesure de la vitesse | les mêmes | 1-2 j |
 
-Choix lourds à présenter à l'utilisateur avant de commencer : la voie (9.7), l'émulateur de l'OPL (9.5), FreeCOM
-ou un COMMAND maison (9.4).
+**Choix de l'utilisateur (20/11/2026)** : la voie **intégrée à win16** (9.7, voie 1), **Nuked OPL3** pour l'OPL,
+**FreeCOM 0.86** pour COMMAND.COM.
 
 ## Sources (consultées le 20/11/2026)
 
