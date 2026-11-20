@@ -90,11 +90,14 @@ cp "$J/app.txt" "$J/start.html" "$JET_OUT/"
 # « Connexion à Facebook »)
 cp "$HERE/tests/frame-probe.js" "$HERE/tests/login-probe.js" "$JET_OUT/"
 # l'hôte du module Widevine (src/sys/cdmhost, docs/etude/WIDEVINE.md ; PC seulement : le module est Linux x86-64),
-# que CDMWidevineOnyx lance (/apps/jet.app/cdmhost) ; construit par tools/linux/build.sh. Le module n'est pas là :
+# que CDMWidevineOnyx lance (/apps/jet.app/libexec/cdmhost : un dossier de /etc/exec.txt, donc exécutable) ;
+# construit par tools/linux/build.sh. Le module n'est pas là :
 # l'utilisateur le met dans HOME:/.jet/widevine (jamais dans nos paquets)
 if [ "$ONYX_ARCH" = x86_64 ]; then
 	if [ -f "$ARMPI/build/pc/linux/cdmhost" ]; then
-		${STRIP} -o "$JET_OUT/cdmhost" "$ARMPI/build/pc/linux/cdmhost"
+		mkdir -p "$JET_OUT/libexec"
+		rm -f "$JET_OUT/cdmhost"
+		${STRIP} -o "$JET_OUT/libexec/cdmhost" "$ARMPI/build/pc/linux/cdmhost"
 	else
 		echo "build-jet.sh : pas de build/pc/linux/cdmhost (sh tools/linux/build.sh) : Jet sans Widevine" >&2
 	fi

@@ -1,6 +1,6 @@
 ---
 name: armpi-widevine
-description: "Widevine dans Jet : hôte Linux, jalon 1 fait (liblinux + linuxhost, QEMU PC) ; décisions du 19/11 prises ; module mesuré ; étapes 2b, 2c et 3 faites (licence réelle, audio déchiffré, vidéo décodée par le module, dans Korin sous QEMU) ; docs/etude/WIDEVINE.md"
+description: "Widevine dans Jet : hôte Linux, jalon 1 fait (liblinux + linuxhost, QEMU PC) ; décisions du 19/11 prises ; module mesuré ; étapes 2b à 5 faites (licence réelle, audio déchiffré, vidéo décodée par le module, dans Korin sous QEMU) ; docs/etude/WIDEVINE.md"
 metadata:
   type: project
 ---
@@ -49,8 +49,13 @@ decidePolicyForMediaKeySystemPermissionRequest (sinon NotSupportedError). cdmhos
 cdmclient) : mêmes empreintes Linux/Korin. Essais : tools/linux/test_eme_jet.sh (JET=…), ESSAI=ipctest
 test_cdm_pc.sh. Pièges : build-jet.sh refuse si av.h > libWebCore.a ; WSL 9 Go = 4 travaux pour WebCore (~1 h 30 en
 plus de 3 h d'une construction neuve) ; Jet EME à part dans ~/korin-webkit-x86_64/out/jet-eme.app (webcore-eme).
-Suite : étape 5 (Widevine dans Jet par cdmhost : CDMFactory Widevine, décodage vidéo par le module → images), Netflix
-ensuite (décision de l'utilisateur du 20/11 : Widevine d'abord, Claude Code après).
+**Étape 5 faite le 20/11 (QEMU)** : Widevine joue dans Jet (flux Shaka, licence réelle, 5 clés, 1496 images décodées
+par le module). av : tools/webkit/av-patches/0002 (décodeur externe, fabrique) ; WebKit : patches/0009-eme-widevine
+(CDMWidevineOnyx : cdmhost lancé par l'instance, audio par Decrypt, vidéo par DecryptAndDecodeFrame) ; cdmhost dans
+/apps/jet.app/libexec (ajouté à skel/sd0/etc/exec.txt : sinon pas exécutable). Essai : test_eme_jet.sh KS=widevine.
+Pièges : le FFmpeg de /tmp (WSL) disparaît, build-media.sh avant build-jet.sh ; CString::data() est en char8_t.
+Suite : Spotify web, Netflix (étape 6, UA Chrome Linux) ; décision de l'utilisateur du 20/11 : Widevine d'abord,
+Claude Code après.
 
 Pièges : `linux` est une macro prédéfinie de gcc sous Linux (pas comme nom de champ) ; le canari de pile du code
 Linux (%fs:0x28) tombe dans le TCB de 64 octets de libposix, stable. Le module ne va jamais dans nos paquets.

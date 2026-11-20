@@ -148,7 +148,7 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMOnyx.h b/Source/WebCore/pla
  } // namespace WebCore
 diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp
 --- a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp	1970-01-01 01:00:00.000000000 +0100
-+++ b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp	2026-11-20 05:08:58.558257800 +0100
++++ b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp	2026-11-20 05:23:20.702526300 +0100
 @@ -0,0 +1,738 @@
 +/*
 + * Copyright (C) 2026 Stéphane Wegener (Korin OS).
@@ -230,7 +230,7 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +{
 +    if (const char* path = getenv("JET_CDMHOST"); path && *path)
 +        return path;
-+    return "/apps/jet.app/cdmhost";
++    return "/apps/jet.app/libexec/cdmhost"; // (a folder of /etc/exec.txt: executable)
 +}
 +
 +static std::string storagePath()
@@ -890,7 +890,7 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +#endif // ENABLE(ENCRYPTED_MEDIA) && PLATFORM(ONYX)
 diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h
 --- a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h	2026-11-20 04:16:25.674442000 +0100
++++ b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h	2026-11-20 05:23:20.702526300 +0100
 @@ -0,0 +1,172 @@
 +/*
 + * Copyright (C) 2026 Stéphane Wegener (Korin OS).
@@ -942,7 +942,7 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h b/Source/Web
 +// the audio is decrypted there (widevineDecryptPacket), the video decoded there (widevineVideoDecoder).
 +//
 +// Where things are: the module at $JET_WIDEVINE_CDM, else $HOME/.jet/widevine/libwidevinecdm.so (the key
-+// system is offered only when it is there); the host at $JET_CDMHOST, else /apps/jet.app/cdmhost; the
++// system is offered only when it is there); the host at $JET_CDMHOST, else /apps/jet.app/libexec/cdmhost; the
 +// module's storage in $HOME/.jet/widevine/storage.
 +
 +class CDMFactoryWidevineOnyx final : public CDMFactory {

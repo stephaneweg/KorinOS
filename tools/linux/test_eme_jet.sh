@@ -30,7 +30,7 @@ KS=${KS:-clearkey}
 ESP=build/pc/esp
 if [ "$KS" = widevine ]; then
 	SO=${WIDEVINE_SO:?WIDEVINE_SO=…/libwidevinecdm.so}
-	[ -f "$JET/cdmhost" ] || { echo "pas de $JET/cdmhost (sh tools/linux/build.sh, puis build-jet.sh)" >&2; exit 1; }
+	[ -f "$JET/libexec/cdmhost" ] || { echo "pas de $JET/libexec/cdmhost (sh tools/linux/build.sh, puis build-jet.sh)" >&2; exit 1; }
 	PAGE=eme-widevine.html VIDEO=angel-one-144p.mp4 AUDIO=angel-one-aac.mp4 WORD=EME-WIDEVINE
 	ESP=$OUT/kbuild/esp
 	[ -f "$ESP/korin/kernel.elf" ] || PC_OUT=$OUT/kbuild PC_QUICK=1 sh tools/pc/build.sh >/dev/null
@@ -51,6 +51,8 @@ cp -r "$JET" "$T/apps/jet.app"
 if [ "$KS" = widevine ]; then
 	mkdir -p "$T/home/.jet/widevine"
 	cp "$SO" "$T/home/.jet/widevine/libwidevinecdm.so"
+	# (le dossier de cdmhost est exécutable par skel/sd0/etc/exec.txt ; un sysroot plus ancien ne l'a pas)
+	grep -qx /apps/jet.app/libexec "$T/etc/exec.txt" || echo /apps/jet.app/libexec >>"$T/etc/exec.txt"
 fi
 touch "$T/etc/web-console"
 printf 'password = essai\n' >"$T/etc/remote.txt"
@@ -83,8 +85,8 @@ pt = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pt)
 pt.W, pt.IMG = os.path.abspath(w), os.path.abspath(img)
 a = types.SimpleNamespace(port=2395, hostfwd=[], smp=4, mem="4G", boot=150, shot=os.path.join(w, "fin.png"), qemu="",
-    cmd=["sleep:20", "( /apps/jet.app/main http://10.0.2.2:8642/index.html > /dev/null 2>&1 & ) ; echo Jet lancé",
-         "sleep:" + wait, "shot:eme"])
+    cmd=["sleep:20", "( /apps/jet.app/main http://10.0.2.2:8642/index.html > /tmp/jet.log 2>&1 & ) ; echo Jet lancé",
+         "sleep:" + wait, "shot:eme", "tail -n 60 /tmp/jet.log"])
 pt.run(a)
 PY
 
