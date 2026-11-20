@@ -144,6 +144,10 @@ Ce jour-là, `python3 fichier.py` plantait sous Korin PC (`Segmentation fault` d
 `/bin/mai-acp` et `/bin/claude-acp`, qui sont des scripts `#!/bin/python3`. L'essai est donc passé par `runpy` sans
 `--installed` : l'agent est lancé par `python3 -m oai_acp`, et la fausse API par `-m fakeoai`.
 
+Corrigé le 20/11 : le patch de CPython du coffre à secrets (18/11) déclarait le script au noyau en encodant son
+chemin par `Py_EncodeLocale`, donc par obmalloc, avant qu'il y ait un interpréteur ; il passe maintenant par
+l'allocateur brut (`tools/python/korin.patch`, paquet python 1.0.3). `oaitest.py --installed` passe alors aussi.
+
 Il n'y a pas eu d'essai contre le vrai Foundry, faute de déploiement. Le chemin `/mai/v1` et l'en-tête `api-key`
 viennent de la documentation de MAI-Thinking-1. Si MAI-Code les veut autrement, il suffit de donner `base_url` et
 `auth` dans `config.toml`.

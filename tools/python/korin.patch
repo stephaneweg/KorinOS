@@ -63,7 +63,7 @@
  
 --- a/Python/initconfig.c
 +++ b/Python/initconfig.c
-@@ -3355,6 +3355,22 @@
+@@ -3355,6 +3355,23 @@
  
  
  /* Get run_filename absolute path */
@@ -71,14 +71,15 @@
 +#include <armpi/syscall.h>
 +/* Korin OS : le script que cet interprete execute, dit au noyau une fois (SYS_PROC_SET_SCRIPT 0x95), avant tout
 +   code Python (site, .pth) : le coffre a secrets (docs/KEYVAULT.md) range ses secrets sous ce chemin, pas sous
-+   celui de python3 */
++   celui de python3. Appele pendant la lecture de la configuration, sans interpreteur ni thread state :
++   l'allocateur brut seulement (Py_EncodeLocale passe par obmalloc, qui lit tstate->interp : faute) */
 +static void
 +korin_set_script(const wchar_t *w)
 +{
-+    char *b = Py_EncodeLocale(w, NULL);
++    char *b = _Py_EncodeLocaleRaw(w, NULL);
 +    if (b != NULL) {
 +        armpi_syscall(0x95, (long)b, 0, 0, 0, 0, 0);
-+        PyMem_Free(b);
++        PyMem_RawFree(b);
 +    }
 +}
 +#endif
