@@ -25,7 +25,7 @@
 | `user.c`, `user.h` | USER : classes, fenêtres, messages, minuteries, focus, rectangles, atomes, presse-papiers |
 | `menu.c` | menus (barre globale de Korin) et accélérateurs |
 | `dialog.c` | dialogues des ressources, DefDlgProc, IsDialogMessage |
-| `ctrl.c` | contrôles BUTTON, STATIC, EDIT, LISTBOX, COMBOBOX, SCROLLBAR (thème de Korin) |
+| `ctrl.c` | contrôles BUTTON, STATIC, EDIT, LISTBOX, COMBOBOX, SCROLLBAR : widgets de UIKit (mode natif), sinon dessinés au thème |
 | `gdi.c`, `gdi.h` | GDI : DC, objets, polices, bitmaps, BitBlt, DIB, formes, régions, palettes, icônes |
 | `commdlg.c` | Ouvrir, Enregistrer, Couleur (dialogues de Korin) |
 | `mmsystem.c` | sortie MIDI (sans son), minuteries multimédia |

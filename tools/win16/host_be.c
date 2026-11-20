@@ -357,6 +357,24 @@ int be_clip_take (char *buf, int cap) { snprintf (buf, (size_t) cap, "%s", clip)
 
 void be_fatal (const char *msg) { (void) msg; }
 
+/* les widgets : pas sur l'hôte (win16 dessine alors ses contrôles lui-même) */
+int be_ui_metric (int what) { (void) what; return 0; }
+long be_w_create (long win, int kind, int x, int y, int w, int h, const char *text, long extra)
+{ (void) win; (void) kind; (void) x; (void) y; (void) w; (void) h; (void) text; (void) extra; return 0; }
+void be_w_move (long wd, int x, int y, int w, int h) { (void) wd; (void) x; (void) y; (void) w; (void) h; }
+void be_w_show (long wd, int s) { (void) wd; (void) s; }
+void be_w_enable (long wd, int on) { (void) wd; (void) on; }
+void be_w_focus (long wd) { (void) wd; }
+void be_w_set_text (long wd, const char *t) { (void) wd; (void) t; }
+const char *be_w_get_text (long wd) { (void) wd; return ""; }
+void be_w_set_value (long wd, long v) { (void) wd; (void) v; }
+long be_w_get_value (long wd) { (void) wd; return 0; }
+void be_w_set_range (long wd, long a, long b, long c, long d) { (void) wd; (void) a; (void) b; (void) c; (void) d; }
+void be_w_list_add (long wd, const char *t) { (void) wd; (void) t; }
+void be_w_list_clear (long wd) { (void) wd; }
+void be_w_draw (long wd) { (void) wd; }
+void be_w_destroy (long wd) { (void) wd; }
+
 /* le synthé : sur l'hôte, les messages sont seulement comptés et notés (W16_MIDI=1) */
 static long midi_count;
 int be_synth_start (void) { return 1; }

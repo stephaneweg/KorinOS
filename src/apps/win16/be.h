@@ -37,7 +37,7 @@ enum { BT_SURFACE, BT_TEXT, BT_LINE_STRONG, BT_ACCENT, BT_RAISED, BT_SUNKEN, BT_
 uint32_t be_theme (int what);
 
 enum { BE_NONE, BE_CLOSE, BE_MOUSE_MOVE, BE_MOUSE_DOWN, BE_MOUSE_UP, BE_KEY_DOWN, BE_KEY_UP, BE_RESIZE, BE_FOCUS,
-	BE_MENU, BE_WHEEL };
+	BE_MENU, BE_WHEEL, BE_WIDGET };
 struct be_event
 {
 	int type;
@@ -60,6 +60,29 @@ int be_file_save (const char *dir, const char *name, const char *filter, char *o
 long be_color (const char *title, uint32_t rgb);
 void be_clip_put (const char *utf8);
 int be_clip_take (char *buf, int cap);
+/* les widgets de UIKit (les contrôles standard de Win16 en mode natif : ctrl.c) ; x, y dans la zone cliente de la
+ * fenêtre de Korin ; textes en UTF-8 ; les événements reviennent en BE_WIDGET (key = widget, x = UN_*) */
+enum { BW_PUSH, BW_DEFPUSH, BW_CHECK, BW_RADIO, BW_TEXT, BW_PASSWORD, BW_TEXTAREA, BW_LIST, BW_DROPDOWN, BW_COMBO,
+	BW_VSCROLL, BW_HSCROLL, BW_LABEL, BW_LABEL_CENTER, BW_LABEL_RIGHT, BW_GROUP };
+/* les mesures de UIKit (ui_metric) : taille du texte, hauteur d'un contrôle, d'une ligne ; 0 sans UIKit */
+enum { BEM_PX, BEM_CTL, BEM_ROW };
+int be_ui_metric (int what);
+enum { BWN_CHANGE = 1, BWN_ACTIVATE = 2 };			/* codes des événements (UN_CHANGE, UN_ACTIVATE) */
+enum { BWF_READONLY = 1, BWF_VSCROLL = 2, BWF_HSCROLL = 4 };	/* extra des champs et zones de texte */
+long be_w_create (long win, int kind, int x, int y, int w, int h, const char *text, long extra);
+void be_w_move (long wd, int x, int y, int w, int h);
+void be_w_show (long wd, int show);
+void be_w_enable (long wd, int on);
+void be_w_focus (long wd);
+void be_w_set_text (long wd, const char *text);
+const char *be_w_get_text (long wd);
+void be_w_set_value (long wd, long v);
+long be_w_get_value (long wd);
+void be_w_set_range (long wd, long min, long max, long page, long step);
+void be_w_list_add (long wd, const char *text);
+void be_w_list_clear (long wd);
+void be_w_draw (long wd);
+void be_w_destroy (long wd);
 /* la sortie MIDI : le synthé General MIDI d'AudioKit (la SoundFont du système), joué par un fil à part comme dans
  * Arabesque ; be_synth_start le lance, be_synth_midi y envoie un message (canal, commande, données) */
 int be_synth_start (void);

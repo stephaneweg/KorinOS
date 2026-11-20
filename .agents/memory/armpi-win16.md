@@ -33,8 +33,9 @@ Delphi se sert du presse-papiers (format privé) pour cloner : tous les formats 
 « regarde Arabesque, c'est un portage d'Art Song »). Art Song compose sous QEMU ; écoute sur le ZBook à faire.
 Pièges : BeginPaint doit découper à la zone invalide et WS_CLIPCHILDREN exclure les filles (sinon le fond d'un
 parent efface ses filles) ; lire les événements de Korin à chaque GetMessage (double-clics sous émulation lente) ;
-pctest.py a « dblclick:X,Y ». Demandes du 20/11 à faire : comparer avec winevdm sous Windows ; contrôles dessinés
-par UIKit lui-même (thème des apps natives).
+pctest.py a « dblclick:X,Y ». Fait le 20/11 : comparaison avec winevdm (OTVDM 0.9.0 sous Windows, captures dans
+build/win16/compare) ; **mode natif** : contrôles standard = widgets de UIKit (ctrl.c, native_*), W16_NATIVE=0 pour
+l'ancien dessin.
 
 **How to apply:** code dans src/apps/win16 (cœur de MAME copié de vm86/mame, mémoire émulée à part, sélecteur réservé
 aux points d'entrée de l'API) ; sources de winevdm dans WSL ~/win16/winevdm. Même code pour le Pi. Voir

@@ -23,6 +23,7 @@
 #define IDCANCEL 2
 
 int user_take (void *m, uint16_t hwnd, uint16_t lo, uint16_t hi, int remove, int wait);
+int native_enabled (void);
 uint32_t user_dispatch (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp, uint32_t time);
 uint32_t user_def_window_proc (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp);
 int user_register_system_class (const char *name, native_wndproc fn, uint16_t style, uint16_t brush, int wndextra);
@@ -68,7 +69,7 @@ uint32_t dlg_def_proc (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp)
 	case WM_NCCREATE:
 		return 1;
 	case WM_ERASEBKGND:
-		gdi_rgb_fill (wp, 0, 0, w->cw, w->ch, be_theme (BT_SURFACE));
+		gdi_rgb_fill (wp, 0, 0, w->cw, w->ch, be_theme (BT_FACE));	/* (le fond des fenêtres de UIKit) */
 		return 1;
 	case WM_CLOSE:
 	{
@@ -208,6 +209,18 @@ static uint16_t create_dialog (uint16_t hinst, const uint8_t *t, uint16_t owner,
 		gdi_release_dc (hdc);
 		if (bx < 4) bx = 4;
 		if (by < 8) by = 8;
+	}
+	/* mode natif (widgets de UIKit) : les unités suivent la police de UIKit, comme les « grandes polices » de
+	 * Windows ; le dialogue grandit juste assez pour ses widgets */
+	int upx = native_enabled () ? be_ui_metric (BEM_PX) : 0;
+	if (upx > 0)
+	{
+		int nbx = be_text_width ("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", upx, 0) / 52;
+		int nby = be_font_height (upx);
+		if (nbx > bx)
+			bx = nbx;
+		if (nby > by)
+			by = nby;
 	}
 #define DX(v) ((v) * bx / 4)
 #define DY(v) ((v) * by / 8)

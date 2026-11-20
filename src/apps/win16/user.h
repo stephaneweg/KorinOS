@@ -103,6 +103,7 @@ struct wnd
 	struct { uint16_t atom; uint16_t value; char name[32]; } props[16];
 	int sb_min[2], sb_max[2], sb_pos[2];	/* barres de défilement de la fenêtre (0 horizontale, 1 verticale) */
 	void *cdata;		/* l'état d'un contrôle (ctrl.c) */
+	int cdata_kind;		/* sa classe du système : 1 BUTTON, 2 STATIC, 3 EDIT, 4 LISTBOX, 5 COMBOBOX, 6 SCROLLBAR */
 	char clsname[32];
 };
 
@@ -134,6 +135,11 @@ uint32_t ctrl_edit_proc (uint16_t, uint16_t, uint16_t, uint32_t);
 uint32_t ctrl_listbox_proc (uint16_t, uint16_t, uint16_t, uint32_t);
 uint32_t ctrl_combo_proc (uint16_t, uint16_t, uint16_t, uint32_t);
 uint32_t ctrl_scroll_proc (uint16_t, uint16_t, uint16_t, uint32_t);
+/* le mode natif (widgets de UIKit) */
+void ctrl_native_event (long wd, int code);
+void ctrl_native_redraw_under (uint16_t hwnd);
+void ctrl_native_sync_tree (uint16_t hwnd);
+void ctrl_native_focus (uint16_t hwnd);
 
 /* le multimédia (mmsystem.c) : minuteries appelées pendant l'attente des messages */
 void mm_poll (void);

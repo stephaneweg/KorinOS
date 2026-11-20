@@ -25,6 +25,18 @@ de 1996, fourni par l'utilisateur, jamais dans le dépôt) démarre dans Korin, 
 système (`/res/soundfonts/GeneralUser-GS.sf2`), joué par un fil comme dans Arabesque (choix de l'utilisateur, § 8) ;
 Art Song compose sous QEMU (plus de mille messages MIDI, la mesure avance), son pas encore écouté sur le ZBook.
 
+**Mode natif (20/11, demande de l'utilisateur)** : les contrôles standard (boutons, cases, boutons radio, cadres de
+groupe, textes, champs, zones de texte, listes, listes déroulantes, barres de défilement) sont des **widgets de
+UIKit** posés à leur place : dessin, survol, focus, clavier et thème de Korin, comme une app native ; les dialogues
+des ressources prennent alors la police de UIKit pour leurs unités (comme les « grandes polices » de Windows).
+Restent dessinés par win16 : les contrôles owner-draw (les `TBitBtn` de Delphi), les listes à choix multiple, tout
+sur l'hôte, et tout avec `W16_NATIVE=0`. UIKit traduit de lui-même les mots courants (« Cancel » → « Annuler »).
+
+**Comparaison avec winevdm (20/11)** : Art Song sous OTVDM 0.9.0 (Windows 11) commence par trois « Cannot Find IFS
+Codes... » et ses listes de motifs et de styles restent vides ; dans win16 il les trouve (D: = son dossier). Mise en
+page proche ; écarts : menus dans la barre de Korin, polices de Korin (un peu plus larges : quelques contrôles
+rognés à droite), boîte « About » sans le mot « UNREGISTERED » (texte plus large que son étiquette).
+
 **Lecteurs** (réglages de chaque utilisateur) : C: = `HOME:/win16/c` (avec `C:\WINDOWS\WIN.INI`), D: = le dossier
 du programme, E: = tout l'arbre de Korin ; `HOME:/win16/drives.ini` (section `[drives]`, `C=/dossier`) et l'option
 `--drive C=/dossier` les changent.
