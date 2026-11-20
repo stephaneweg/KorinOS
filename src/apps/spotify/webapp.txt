@@ -1,0 +1,5 @@
+# Spotify : une app web sur le moteur de Jet (src/extra/onyxports/jet/webapp.cpp ; lanceur : main.c)
+title  = Spotify
+url    = https://open.spotify.com/
+sites  = spotify.com
+player = spotify

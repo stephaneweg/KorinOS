@@ -269,11 +269,6 @@ build_one () { # nom
 	gdrivefs)	build_gdrive; return ;;
 	control)	# (hôte de dlopen : les volets installés par des paquets, sys/applets/*.so, prennent son cadre et ses relais)
 		LINKX=-rdynamic ;;
-	spotify)	# (librespot pour Korin : tools/spotify/build.sh -> build/pc/spotify ; OpenSSL comme Jamendo)
-		[ -f "$ROOT/build/pc/spotify/libkorinspot.a" ] || { note "spotify : pas construite (bash tools/spotify/build.sh)"; return 0; }
-		[ -f "$TP/openssl/lib/libssl.a" ] || { note "spotify : pas construite (OpenSSL x86-64 absent)"; return 0; }
-		FLAGS="$FLAGS -I$TP/openssl/include -I$ROOT/build/pc/spotify"
-		EXTRA="$ROOT/build/pc/spotify/libkorinspot.a -L$TP/openssl/lib -lssl -lcrypto" ;;
 	mail|telegram|courier|pocketqi|budget|pkg|pkgd|llm|jamendo)	# (OpenSSL : tools/pc/thirdparty.sh openssl ; pkgman passe par pkg)
 		[ -f "$TP/openssl/lib/libssl.a" ] || { note "$app : pas construite (OpenSSL x86-64 absent : tools/pc/thirdparty.sh openssl)"; return 0; }
 		FLAGS="$FLAGS -I$TP/openssl/include"
@@ -386,6 +381,7 @@ build_one () { # nom
 	fi
 	${TC}strip -o "$D/main" "$O/main"
 	cp app.txt "$D/"
+	[ ! -f webapp.txt ] || cp webapp.txt "$D/"	# (une app web sur le moteur de Jet : src/extra/onyxports/jet/webapp.cpp)
 	[ ! -d data ] || cp -r data/. "$D/"
 	# (l'aide de l'app et ses images, comme build.ps1 sur le Pi : le menu Aide de menubar, help.app)
 	for f in help_*.md; do [ ! -f "$f" ] || cp "$f" "$D/"; done

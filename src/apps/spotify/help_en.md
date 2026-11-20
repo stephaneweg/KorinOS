@@ -1,43 +1,50 @@
 # Spotify
 
-Listen to Spotify in Korin: your liked songs, your playlists and search. The music is played by **librespot**, the
-free client of Spotify's protocol. A **Premium** account is needed (a Family account is one).
+Listen to Spotify in Korin: **Spotify's web player** (open.spotify.com) in its own window, with its icon, on Jet's
+engine. Everything the web player does is there: home, search, library, playlists, podcasts. Nothing to register at
+Spotify: no Client ID, it is Spotify's own web client, signed in with your account.
 
-## Connecting (once)
+Korin PC only: Spotify protects its music with **Widevine**, Google's module that Jet can run on the PC.
 
-Two connections, like ncspot: the **player** presents itself with the identifier of Spotify's desktop client (the
-only one it accepts), and **lists and search** with your app's (Spotify rate-limits the shared desktop client very
-quickly: "429").
+## The first time
 
-1. On [developer.spotify.com](https://developer.spotify.com/dashboard), **Create app**; in **Redirect URIs**, add
-   exactly `http://127.0.0.1:8898/` (with the trailing slash); tick **Web API**; save; copy the **Client ID**.
-2. **File > Connect to Spotify…**: Jet opens, accept (the player).
-3. The app then asks for your app's Client ID: paste it, then accept again in Jet (the lists).
+1. **The Widevine module**: if it is not there yet, Spotify offers to download it from Google (about 22 MB, checksum
+   verified) and to install it in your home folder. It is the same one as Jet's (Settings, "Play protected
+   content"): one download for both.
+2. **Your account**: sign in in the window, as on Spotify's site. The app keeps its own session (its cookies are its
+   own, apart from Jet's): next time, nothing to do again.
 
-Korin keeps the connection (the oauthd service, in the secrets vault): next time, nothing to do again. **File >
-Disconnect** forgets it.
+Sign-ins that open another window (some "Continue with…" buttons) open in Jet, which does not have the app's
+session: prefer your e-mail address and password, or the code Spotify sends.
 
 ## Listening
 
-- On the left: **Liked songs**, and your **playlists**.
-- At the top: **search** (tracks, artists, albums), then **Enter**.
-- **Double-click** or **Enter** on a track: it plays; at the end, the next one in the list.
+As on the site: click a track, a playlist, an album. The **Playback** menu and the card drive the page's playing
+bar.
 
 | Key | Effect |
 |---|---|
-| Space | play or pause |
-| Ctrl+→, Ctrl+← | next, previous track |
-| Ctrl+F | search |
-| Ctrl+W | close |
+| Space | play or pause (Spotify's shortcut) |
+| Ctrl+R, F5 | reload the page |
+| Alt+← | previous page |
+| Ctrl+W | shrink to the card while playing, otherwise close |
+| Ctrl+Q | quit |
 
 ## The card
 
-Closing the window while music plays turns it into a **card** at the bottom right of the screen, above the other
-windows: the music goes on. The button at the top right of the card brings the window back; closing the card stops
-the music.
+Closing the window while playing shrinks it to a **card** at the bottom right of the screen, above the other
+windows: the music goes on. The card shows the title, the artist and the position; its buttons: previous, play or
+pause, next. The button at its top right brings the window back; closing the card stops the music and the app.
+**Playback > Shrink to a card** shows it at any time.
+
+## The File menu
+
+- **Reload**, **Back**: the page.
+- **Open in Jet**: Spotify in the browser (with Jet's session).
+- **Sign out (clear the data)…**: clears the app's session (cookies, storage); Jet's does not change.
 
 ## Good to know
 
-- librespot is not a Spotify product: a change on Spotify's side can stop it playing for a while, until it follows.
-- **Spotify Connect**: once connected, Korin appears in the device list of the Spotify app on your phone ("Korin
-  (machine name)"): pick it, the music plays here, controlled from the phone.
+- On protected sites, the engine presents itself as Chrome on Linux: Spotify treats it as an ordinary browser (the
+  web player's sound quality).
+- Without a Premium account, Spotify's web player plays with ads, as elsewhere.

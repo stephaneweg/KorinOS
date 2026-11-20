@@ -1017,7 +1017,8 @@ int __posix_exited_child (void)
 int _wait (int *status) { return (int) wait (status); }
 
 /* ---- fork, exec ---- */
-#define EXP_ARGS	8			/* parametres de SYS_EXEC (src/inc/syscalls.inc) */
+#define EXP_NAME	0			/* parametres de SYS_EXEC (src/inc/syscalls.inc) */
+#define EXP_ARGS	8
 #define EXP_STDIN	24
 #define EXP_MARKS	56
 #define EXP_NMARKS	64
@@ -1311,6 +1312,20 @@ static long exec_stdio (int i, long *end)
 	return h;
 }
 
+/* Korin : le nom du process après le prochain execve (EXP_NAME ; 0 : celui du fichier, le défaut). Le lanceur des
+ * apps web (src/apps/spotify/main.c) devient Jet en gardant le nom de son app : le panneau y voit l'app, pas Jet. */
+static char exec_name[32];
+
+void korin_exec_name (const char *name)
+{
+	exec_name[0] = 0;
+	if (name)
+	{
+		strncpy (exec_name, name, sizeof exec_name - 1);
+		exec_name[sizeof exec_name - 1] = 0;
+	}
+}
+
 int execve (const char *path, char *const argv[], char *const envp[])
 {
 	if (path == 0 || *path == '\0')
@@ -1380,6 +1395,7 @@ int execve (const char *path, char *const argv[], char *const envp[])
 	{
 		struct { unsigned h, tag; } marq = { (unsigned) blob, POSIX_SPAWN_TAG | pages };
 		params[EXP_ARGS / 8] = line && *line ? (long) line : 0;
+		params[EXP_NAME / 8] = exec_name[0] ? (long) exec_name : 0;
 		params[EXP_MARKS / 8] = (long) &marq;
 		params[EXP_NMARKS / 8] = 1;
 		r = xfile (&m, params);				/* (ne revient pas s'il reussit) */

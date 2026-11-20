@@ -21,7 +21,7 @@ K=$HOME/.cache/korin-src
 [ -f "$K/bash/bash_5.2.37.orig.tar.xz" ] && export BASH_TAR=$K/bash/bash_5.2.37.orig.tar.xz
 [ -f "$K/rg-deps/pcre2_10.46.orig.tar.gz" ] && export PCRE2_TAR=$K/rg-deps/pcre2_10.46.orig.tar.gz
 
-STEPS="gcc gcckits make fbc fasm openssl webkitdeps mesa webkitui anglesrc webkit jet jsc git rg bash python rust spotify sitepackages
+STEPS="gcc gcckits make fbc fasm openssl webkitdeps mesa webkitui anglesrc webkit jet jsc git rg bash python rust sitepackages
 agent claude dotnetsetup dotnet dotnetstage dotnetkits avalonia cao godot sysroot"
 declare -A CMD NEED
 CMD[gcc]="sh tools/gcc/build.sh"
@@ -42,7 +42,6 @@ CMD[rg]="sh tools/rg/build.sh"
 CMD[bash]="sh tools/bash/build.sh"
 CMD[python]="sh tools/python/build.sh";                    NEED[python]="openssl"
 CMD[rust]="SKIP_TESTS=1 bash tools/rust/build.sh"
-CMD[spotify]="bash tools/spotify/build.sh && sh tools/pc/apps.sh spotify"; NEED[spotify]="rust openssl"
 CMD[sitepackages]="sh tools/python/site-packages.sh";      NEED[sitepackages]="python rust"
 CMD[agent]="sh tools/agent/build.sh"
 CMD[claude]="bash tools/claude/build.sh && bash tools/oai/build.sh"; NEED[claude]="python"	# (et mai-acp)

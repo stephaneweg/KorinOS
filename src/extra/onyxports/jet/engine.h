@@ -121,6 +121,16 @@ void engine_set_clipboard (void (*write) (const char *, unsigned long), unsigned
 void engine_load_html (const char *html, const char *baseUrl);
 void engine_set_scripts (bool enabled);
 void engine_set_link_handler (void (*clicked) (const char *url));
+// Korin: a web app on this engine (webapp.cpp: `main --app=<name> URL`, the Spotify app's web player). Before
+// engine_init: its sites' data in HOME/<name>/webkit and HOME/<name>/cache instead of HOME/jet (its own session).
+void engine_set_data_name (const char *name);
+// Before engine_tab_new: the program WebKit starts for the tabs' web and network processes (this one by default). A web
+// app gives its launcher (/apps/<name>.app/main), which becomes this program again under the app's name: the panel
+// counts those processes as the app's, not as Jet's.
+void engine_set_helper_path (const char *path);
+// A script run in the shown tab's main frame; done (ctx, its value when it is a string, else "") is called later,
+// from engine_cycle (never when there is no tab).
+void engine_run_script (const char *js, void (*done) (void *ctx, const char *result), void *ctx);
 // Helper processes started from this program (the downloads' window): argv[1] the role.
 int  engine_spawn_self (const char *role, int *toChild, int *fromChild);	// -> pid (0: failed)
 

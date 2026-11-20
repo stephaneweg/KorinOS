@@ -30,13 +30,14 @@ HERE=$ARMPI/tools/webkit
 J=$ARMPI/src/extra/onyxports/jet
 U=$WK_OUT/uikit
 [ -f "$BUILD/lib/libWebKit.a" ] || { echo "build-jet.sh : pas de $BUILD/lib/libWebKit.a : sh tools/mesa/build-webkit.sh" >&2; exit 1; }
-[ -f "$U/libuikit_c.a" ] || sh "$HERE/build-ui.sh"
+# (refaite aussi quand UIKit a de nouvelles fonctions : ui_window_place, ui_window_top de webapp.cpp)
+[ -f "$U/libuikit_c.a" ] && [ ! "$ARMPI/src/kits/uikit/uikit.abi" -nt "$U/libuikit_c.a" ] || sh "$HERE/build-ui.sh"
 
 # les sources C++ avec la commande meme d'une source de WebKit (en-tetes prives, configuration)
 ref=UIProcess/API/C/onyx/WKRunLoop.cpp
 cmd=$(cd "$BUILD" && ninja -t commands lib/libWebKit.a | grep -F "$ref" | grep -F -- " -c " | head -n 1)
 [ -n "$cmd" ] || { echo "build-jet.sh : pas de commande pour $ref dans $BUILD" >&2; exit 1; }
-for f in engine_webkit main; do
+for f in engine_webkit main webapp; do
 	c=$(printf '%s' "$cmd" | sed -E 's/ -MD -MT [^ ]+ -MF [^ ]+//; s/ -o [^ ]+/ -o jet_'"$f"'.o/; s| -c [^ ]+| -c '"$J/$f"'.cpp -I'"$J"' -I'"$ARMPI"'/src/kits/uikit/include -I'"$U"'|')
 	echo "jet : $f.cpp"
 	( cd "$BUILD" && sh -c "$c" )
@@ -81,7 +82,7 @@ echo "jet : edition de liens"
 AVWRAP=
 [ "$ONYX_ARCH" = x86_64 ] && AVWRAP="-Wl,--wrap=vpx_codec_dec_init_ver -Wl,--wrap=dav1d_open"
 ${ONYX_TOOLCHAIN_PREFIX}g++ $ONYX_CPU_FLAGS -specs="$S/lib/onyx.specs" -L"$S/lib" -Wl,--gc-sections $AVWRAP \
-	"$BUILD/jet_main.o" "$BUILD/jet_engine_webkit.o" "$BUILD/jet_present.o" "$BUILD/webkit2_armpi.o" "$BUILD/gpucomp.o" "$BUILD/gpucomp_armpi.o" $WK \
+	"$BUILD/jet_main.o" "$BUILD/jet_engine_webkit.o" "$BUILD/jet_webapp.o" "$BUILD/jet_present.o" "$BUILD/webkit2_armpi.o" "$BUILD/gpucomp.o" "$BUILD/gpucomp_armpi.o" $WK \
 	"$U/libuikit_c.a" "$WK_OUT/av/libonyxav.a" $FFLIBS $LIBS $GL -o "$BUILD/bin/jet"
 ${ONYX_TOOLCHAIN_PREFIX}size "$BUILD/bin/jet"
 ${STRIP} -o "$JET_OUT/main" "$BUILD/bin/jet"

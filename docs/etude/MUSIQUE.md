@@ -11,6 +11,39 @@ Demandée le 18/11/2026. **Fait le 18/11** (construit, pas encore essayé : il f
    par le nuage de Spotify : \`ks_connect\`). **Reste** : les pochettes, les
    touches multimédia et les pièces communes dans les kits (§3) ; korinspot pour le Pi.
 
+**Spotify refait le 20/11 : le lecteur web.** Depuis que Jet lit les contenus protégés par Widevine
+(docs/etude/WIDEVINE.md), le lecteur web de Spotify joue dans Jet (le ZBook, le 20/11). Décisions de l'utilisateur
+(20/11) : l'app Spotify devient le **lecteur web dans sa propre fenêtre**, sur le moteur de Jet ; l'interface UIKit,
+librespot (`src/lib/korinspot`, `tools/spotify`) et Spotify Connect sont **retirés** du dépôt (ils sont dans l'historique
+de git, jusqu’à b71cf646) ; la session de l'app est **à part** de celle de Jet. Pas de Client ID : c'est le client web
+de Spotify, connecté avec le compte de l'utilisateur (le Web Playback SDK n'était pas une voie : il exige le jeton
+d'une app enregistrée, portée `streaming`, et Premium).
+
+* `src/apps/spotify/main.c` : le **lanceur commun des apps web** ; il prend le nom de son dossier et devient Jet par
+  `execv` (le même process : le panneau voit l'app Spotify) : `/apps/jet.app/main --app=spotify`. Le reste est dans
+  `webapp.txt` de l'app (`title`, `url`, `sites` : les domaines dont les nouvelles fenêtres restent dans l'app, les
+  autres vont dans Jet ; `player` : un lecteur connu, pour la carte). Netflix et Disney+ (demandés le 20/11, à faire
+  quand la lenteur de Jet sera résolue) : un dossier `src/apps/<nom>` avec ce même `main.c`, un `webapp.txt` et un
+  `app.txt`, rien de plus.
+* Le nom des process : après `execv`, le noyau nomme un process d'après son fichier (`jet`) et le panneau aurait
+  montré Jet. Le lanceur appelle `korin_exec_name (nom)` de libposix (proc.c : `EXP_NAME` de `SYS_EXEC`) ; les process
+  web et réseau de WebKit sont lancés par le lanceur (`engine_set_helper_path`), qui redevient Jet de la même façon :
+  tous s'appellent `spotify`, le panneau montre l'app et ramène sa fenêtre.
+* `src/extra/onyxports/jet/webapp.cpp` : le **mode app** de Jet. Une fenêtre sans barre d'adresse ni onglets ; les
+  données des sites dans `HOME/<nom>/webkit` (`engine_set_data_name`) ; le module Widevine proposé au premier
+  lancement s'il manque (cdmupdate, le même que la case des réglages de Jet) ; l'UA Chrome sous Linux sur spotify.com
+  (`widevine_site` d'engine_webkit.cpp, comme dans Jet) ; les autres fenêtres (`target=_blank`, `window.open`) dans
+  Jet. Un lecteur connu (table `g_players`) : son état lu dans la page chaque seconde (`engine_run_script` : Media
+  Session si WebKit l'a, sinon les `data-testid` de la barre de lecture de Spotify), ses boutons pressés par un
+  script. Fermer pendant la lecture réduit en **carte** en bas à droite, au-dessus (`ui_window_place`,
+  `ui_window_top`) ; la page reste derrière, la carte passe par-dessus sa surface (`ui_surface_overlay`).
+* Fragile : les `data-testid` de Spotify peuvent changer ; la carte montre alors le titre de la page, ses boutons ne
+  font plus rien, la lecture dans la fenêtre continue de marcher.
+* Essai : `tools/linux/test_spotify_app.sh` (QEMU PC : cdmupdate, puis l'app ; sans compte). L'identification à
+  Spotify est faite par l'utilisateur, jamais par un essai.
+
+Ce qui suit (§ 1) est l'étude du 18/11 (voie librespot), gardée pour mémoire.
+
 Le reste de l'étude : L'utilisateur a un compte **Spotify Famille** (Premium) et veut une app
 Korin pour Spotify, et un client Jamendo. Ce qui suit n'a pas été revérifié en ligne : à confirmer au début du
 chantier (protocoles et conditions des deux services changent).
