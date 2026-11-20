@@ -137,3 +137,4 @@
 - [Noyau Linux écarté](armpi-noyau-linux.md) — 20/11 : Korin sur Linux (Elegant sur DRM) seulement en cas de vrai blocage ; on garde le micronoyau from scratch
 - [Relics](armpi-relics.md) — jeu à la Rick Dangerous en C sur gamefb (19/11) : 7 mondes, 21 niveaux de tools/relics/mklevels.py vérifiés par run.sh, musique (music.h), fuites devant le rocher ; PC 1.1.2 publié
 - [Win16](armpi-win16.md) — 20/11 : apps Windows 3.x d'après winevdm, couche maison sur UIKit, GPL-2 accepté, Open Watcom ; src/apps/win16, docs/etude/WIN16.md
+- [Tampon de stdio](armpi-stdio-tampon.md) — fread lent (tampon newlib 1 Ko) corrigé dans libposix le 20/11 (stdiobuf.c, 64 Ko) ; seulement pour les programmes reliés ensuite
