@@ -142,3 +142,7 @@ Copier vers « %s » = Copy to “%s”
 Déplacer vers « %s » = Move to “%s”
 Supprimer ces %ld éléments = Delete these %ld items
 choisis = selected
+Épingler aux accès rapides = Pin to Quick Access
+Les accès rapides sont pleins : retirez-en un d'abord. = Quick Access is full: remove one first.
+Ce chemin est trop long pour les accès rapides. = This path is too long for Quick Access.
+Les accès rapides ne peuvent pas être enregistrés. = Quick Access cannot be saved.
