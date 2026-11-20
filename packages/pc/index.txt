@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-20 14:03
+date = 2026-11-20 17:07
 abi = 626
 packages = 115
 board = pc
@@ -1159,18 +1159,18 @@ content = 9dcc6ae967cf3770ce2c99171be88fcde48a3415e593ca9e6fbeae8163173869
 
 [jet]
 title = Jet
-version = 1.4.0
+version = 1.4.1
 category = Internet
 author = Korin OS
 summary = Le navigateur, sur WebKit
-size = 55624204
-installed = 139355199
-sha256 = 3022924f3e4b87727f5523bac9ba7147103aa2723a9535f6bf185642e677ebea
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.0.opk
+size = 55658503
+installed = 139420959
+sha256 = aea3cb8c79152604094c6fc9925198b4fbfa11f2739b40eda025f33560f014af
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.1.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = e7c91615d04db16bf87f7dc2977f10cd7518cdd1776f99de8d7b9c68c0b47dbc
+content = 515580f079efc79306b620c6500eb39abb5f86fee75c5bbc0595dc357368ff01
 
 [koton]
 title = Koton
@@ -1609,18 +1609,18 @@ content = bcc565a5cb90bc0a6168ccb2abf71fd8086c6e49a0b226a39dbe0bd687842b5f
 
 [spotify]
 title = Spotify
-version = 1.0.7
+version = 1.1.0
 category = Multimédia
 author = Korin OS
-summary = Spotify (compte Premium) : titres aimés, playlists, recherche, joués par librespot
-size = 4378906
-installed = 10242687
-sha256 = 36197e46c22a14c835d5097f255c757671e05c5265ae9b0fcc325b3bed72809e
-file = pkgs/spotify-1.0.7.opk
-needs = abi >= 626
+summary = Spotify : le lecteur web de Spotify dans sa fenêtre (Widevine, sans Client ID), avec la carte de lecture
+size = 126132
+installed = 265555
+sha256 = 43c60642b4d0d2559c680cfd5d965d4c2cc28ad270c7855f92c844279e0acd78
+file = pkgs/spotify-1.1.0.opk
+needs = jet, abi >= 626
 required = 0
 restart = 0
-content = 6bb5ce7c0b21da832755ce011d0ebab66186608ed1d690d26ede582ff8444f66
+content = b57a4a85cba3d597e4a7b3ba6596d9ba7219495472518734c6f2a061be2c554a
 
 [studio]
 title = Studio
