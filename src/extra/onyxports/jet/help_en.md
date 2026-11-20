@@ -84,6 +84,21 @@ It is stored in `HOME:/jet/webkit` (the cookies in `cookies.db`) and the cache i
 
 **Clearing everything**: **Réglages > Effacer les cookies et données des sites…** (Settings > Clear cookies and site data…) (or the **⌕** button, at the bottom of its menu), then **OK**. You are then signed out of every site; open pages may need a reload.
 
+## Protected content (Netflix, Spotify, Disney+…)
+
+On the PC, Jet can play the protected videos and music of streaming sites. It needs **Google's Widevine module** for
+this, proprietary software that only Google distributes: Korin does not ship it.
+
+**Turning it on**: **Réglages > Lire les contenus protégés (Widevine)…** (Settings > Play protected content), then
+**OK**. Jet downloads the module from Google (about 22 MB), checks its fingerprint and installs it in
+`HOME:/.jet/widevine`; the menu entry is then checked. Reload the pages already open. Afterwards, Jet looks for
+updates of the module at most once a day, when it starts.
+
+On these sites, Jet presents itself as Chrome on Linux (the version of the module it uses). The quality is that of
+Chrome on Linux: often 720p at most on Netflix or Disney+.
+
+**Removing it**: the same entry (checked), then **OK**: the module and its data are deleted.
+
 ## Opening an HTML page from the card
 
 - From [Files](help:files): double-click a `.html` or `.htm` file to open it in Jet.

@@ -25,6 +25,8 @@
 #include <uikit.h>
 #include <openssl/crypto.h>
 #include <dirent.h>
+#include <fcntl.h>
+#include <sys/wait.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -702,10 +704,161 @@ static void choose_search ()
 		clear_site_data ();
 }
 
+// ---- Widevine : la case des réglages (docs/etude/WIDEVINE.md, étape 7) ------------------------------------
+// « Lire les contenus protégés (Widevine) », décochée tant que le module n'est pas là. Cochée : Jet demande à
+// l'utilisateur, puis /apps/jet.app/libexec/cdmupdate télécharge le module chez Google (son serveur de composants,
+// SHA-256 vérifié) et l'installe dans HOME/.jet/widevine, là où le CDM de WebKit le cherche (CDMWidevineOnyx).
+// Ensuite, au plus une demande par jour, au démarrage, sans rien dire si rien ne change. Décochée : le module et ses
+// données sont retirés. Le module n'est jamais dans nos paquets (seul Google le distribue).
+#define WV_UPDATER	"/apps/jet.app/libexec/cdmupdate"
+
+static pid_t g_wvPid = -1;		// cdmupdate en cours
+static int g_wvOut = -1;		// sa sortie (stdout et stderr)
+static std::string g_wvText;
+static bool g_wvQuiet;			// la vérification du jour : rien à dire si rien ne change
+
+static std::string wv_dir ()
+{
+	const char *h = getenv ("HOME");
+	return std::string (h && *h ? h : "/home") + "/.jet/widevine";
+}
+
+static bool wv_installed () { return access ((wv_dir () + "/libwidevinecdm.so").c_str (), R_OK) == 0; }
+
+static bool wv_start (bool quiet)
+{
+	if (g_wvPid > 0) return true;
+	int p[2];
+	if (pipe (p)) return false;
+	pid_t pid = fork ();
+	if (pid == 0)
+	{
+		dup2 (p[1], 1);
+		dup2 (p[1], 2);
+		close (p[0]);
+		close (p[1]);
+		execl (WV_UPDATER, WV_UPDATER, (char *) nullptr);
+		_exit (127);
+	}
+	close (p[1]);
+	if (pid < 0)
+	{
+		close (p[0]);
+		return false;
+	}
+	fcntl (p[0], F_SETFL, fcntl (p[0], F_GETFL) | O_NONBLOCK);
+	g_wvPid = pid;
+	g_wvOut = p[0];
+	g_wvText.clear ();
+	g_wvQuiet = quiet;
+	say (quiet ? "widevine: daily check" : "widevine: download asked");
+	return true;
+}
+
+// la boucle principale : cdmupdate a-t-il fini ?
+static void wv_poll ()
+{
+	if (g_wvPid <= 0) return;
+	char b[1024];
+	ssize_t n;
+	while ((n = read (g_wvOut, b, sizeof b)) > 0)
+		g_wvText.append (b, (size_t) n);
+	int st = 0;
+	if (waitpid (g_wvPid, &st, WNOHANG) != g_wvPid) return;
+	while ((n = read (g_wvOut, b, sizeof b)) > 0)
+		g_wvText.append (b, (size_t) n);
+	close (g_wvOut);
+	g_wvOut = -1;
+	g_wvPid = -1;
+	bool ok = WIFEXITED (st) && WEXITSTATUS (st) == 0;
+	// (sa dernière ligne dit ce qui a été fait ; en cas d'échec, la dernière de ses messages dit pourquoi)
+	std::string last = g_wvText;
+	while (!last.empty () && (last.back () == '\n' || last.back () == '\r')) last.pop_back ();
+	size_t nl = last.rfind ('\n');
+	if (nl != std::string::npos) last = last.substr (nl + 1);
+	fprintf (stderr, "jet: widevine: %s (%s)\n", ok ? "ok" : "failed", last.c_str ());
+	menu_checks ();
+	bool installed = last.find ("installé") == 0;
+	if (g_wvQuiet && ok && !installed) return;	// (déjà à jour)
+	if (ok)
+	{
+		// (« installé : 4.10.3112.0 », « à jour : … » : la version)
+		size_t colon = last.find (": ");
+		std::string version = colon != std::string::npos ? last.substr (colon + 2) : last;
+		status (("Widevine : module " + version + (installed ? " installé" : " à jour") +
+			". Les pages déjà ouvertes doivent être rechargées.").c_str ());
+		if (!g_wvQuiet)
+			ui_message ((long) "Jet", (long) ("Le module Widevine de Google est installé (version " + version + ").\n"
+				"Les sites de contenus protégés (Netflix, Spotify, Disney+…) peuvent maintenant jouer ; rechargez les "
+				"pages déjà ouvertes.").c_str (), UM_OK);
+	}
+	else if (!g_wvQuiet)
+		ui_message ((long) "Jet", (long) ("Le module Widevine n'a pas pu être installé :\n" + last).c_str (), UM_OK);
+}
+
+static void rm_tree (const std::string &path)
+{
+	if (DIR *d = opendir (path.c_str ()))
+	{
+		while (struct dirent *e = readdir (d))
+			if (strcmp (e->d_name, ".") && strcmp (e->d_name, ".."))
+				rm_tree (path + "/" + e->d_name);
+		closedir (d);
+		rmdir (path.c_str ());
+	}
+	else
+		unlink (path.c_str ());
+}
+
+static void wv_toggle ()
+{
+	if (g_wvPid > 0)
+	{
+		status ("Widevine : le téléchargement est en cours…");
+		return;
+	}
+	if (wv_installed ())
+	{
+		if (ui_message ((long) "Jet", (long) "Retirer le module Widevine de Google et ses données ?\n"
+				"Les sites de contenus protégés (Netflix, Spotify, Disney+…) ne joueront plus.", UM_OKCANCEL) != 1)
+			return;
+		rm_tree (wv_dir ());
+		say ("widevine: module removed");
+		status ("Widevine : module retiré.");
+		menu_checks ();
+		return;
+	}
+	if (ui_message ((long) "Jet", (long) "Lire les contenus protégés (Netflix, Spotify, Disney+…) demande le module "
+			"Widevine de Google, un logiciel propriétaire que seul Google distribue.\n\n"
+			"Jet va le télécharger chez Google (environ 22 Mo), vérifier son empreinte et l'installer dans votre dossier "
+			"personnel ; il vérifiera ensuite les mises à jour une fois par jour. Sur ces sites, Jet se présentera comme "
+			"Chrome sous Linux.\n\nTélécharger le module ?", UM_OKCANCEL) != 1)
+		return;
+	if (wv_start (false))
+		status ("Widevine : téléchargement du module chez Google…");
+	else
+		ui_message ((long) "Jet", (long) "Le téléchargement n'a pas pu commencer (" WV_UPDATER ").", UM_OK);
+}
+
+// au démarrage : une demande par jour au plus, quand le module est là
+static void wv_daily ()
+{
+	if (!wv_installed ()) return;
+	std::string t;
+	if (FILE *f = fopen ((wv_dir () + "/checked.txt").c_str (), "rb"))
+	{
+		char b[32] = {};
+		if (fgets (b, sizeof b, f)) t = b;
+		fclose (f);
+	}
+	if (time (nullptr) - atoll (t.c_str ()) >= 86400)
+		wv_start (true);
+}
+
 // ---- les menus d'Elegant (la barre du haut) -------------------------------------------------------------
 
 enum { M_NEWTAB = 1, M_NEWWIN, M_CLOSETAB, M_QUIT, M_BACK, M_FWD, M_RELOAD, M_HOME, M_NEXTTAB, M_PREVTAB, M_ADDRESS,
-       M_CLEAR, M_ENGINE = 100 };
+       M_CLEAR, M_WIDEVINE, M_ENGINE = 100 };
 
 static void build_menu ()
 {
@@ -718,7 +871,10 @@ static void build_menu ()
 		M_NEWTAB, M_NEWWIN, M_CLOSETAB, M_QUIT, M_BACK, M_FWD, M_RELOAD, M_HOME, M_NEXTTAB, M_PREVTAB, M_ADDRESS);
 	for (int i = 0; i < N_ENGINES && n < (int) sizeof t - 100; i++)
 		n += snprintf (t + n, sizeof t - (size_t) n, "I%d\tRechercher avec %s\n", M_ENGINE + i, g_engines[i].name);
-	snprintf (t + n, sizeof t - (size_t) n, "-\n" "I%d\tEffacer les cookies et données des sites…\n", M_CLEAR);
+	n += snprintf (t + n, sizeof t - (size_t) n, "-\n" "I%d\tEffacer les cookies et données des sites…\n", M_CLEAR);
+	// (seulement un Jet qui sait s'en servir : WebKit avec EME, cdmhost et cdmupdate dans jet.app/libexec)
+	if (engine_protected_content ())
+		snprintf (t + n, sizeof t - (size_t) n, "-\n" "I%d\tLire les contenus protégés (Widevine)…\n", M_WIDEVINE);
 	ui_menu ((long) t);
 	menu_checks ();
 }
@@ -727,6 +883,8 @@ static void menu_checks ()
 {
 	for (int i = 0; i < N_ENGINES; i++)
 		ui_menu_state (M_ENGINE + i, i == g_engine ? UMS_CHECKED : 0);
+	if (engine_protected_content ())
+		ui_menu_state (M_WIDEVINE, wv_installed () ? UMS_CHECKED : 0);
 }
 
 // ---- la fenetre -------------------------------------------------------------------------------------------
@@ -848,6 +1006,7 @@ static void menu_command (int id)
 	case M_PREVTAB: next_tab (-1); break;
 	case M_ADDRESS: focus_address (); break;
 	case M_CLEAR: clear_site_data (); break;
+	case M_WIDEVINE: wv_toggle (); break;
 	default:
 		if (id >= M_ENGINE && id < M_ENGINE + N_ENGINES) set_engine (id - M_ENGINE);
 	}
@@ -1232,6 +1391,8 @@ int main (int argc, char **argv)
 	engine_set_clipboard (clip_write, clip_read, clip_serial);	/* copier, coller : le presse-papiers du système */
 	ui_on_resize ((long) on_resize, 0);
 	build_menu ();
+	if (engine_protected_content ())
+		wv_daily ();
 	status ("Démarrage de WebKit…");
 	for (const char *u : urls)
 		open_tab (u, (int) g_tabs.size (), g_tabs.empty ());
@@ -1256,6 +1417,7 @@ int main (int argc, char **argv)
 			choose_search ();
 		}
 		show_pending_popup ();
+		wv_poll ();
 		flush_paint ();
 		// l'indicateur de chargement tourne (un pas toutes les ~80 ms)
 		bool anyLoading = false;

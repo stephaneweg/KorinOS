@@ -14,9 +14,13 @@
  *   divers        dlsym, dlclose, _setjmp, longjmp, strerror_r (forme GNU), __isoc99_*scanf,
  *                 vasprintf, bcmp, __strncat_chk
  *   C++           _Unwind_* : le dérouleur de libgcc (elf.c lui déclare le .eh_frame du module)
+ *   4.10.3112     ce que le module 4.10.3112.0 (20/11/2026) importe en plus : __fxstat64, fcntl, _exit,
+ *                 getpagesize, strerror, rint, sigfillset, pthread_sigmask, pthread_getname_np,
+ *                 pthread_getschedparam, __udivti3 (libgcc)
  */
 #define _GNU_SOURCE	/* (vasprintf, timegm) */
 #include <errno.h>
+#include <fcntl.h>
 #include <math.h>
 #include <setjmp.h>
 #include <stdarg.h>
@@ -47,6 +51,37 @@ static int lx_open64 (const char *p, int fl, ...)
 static int lx_creat64 (const char *p, int mode) { return (int) sc (2, (long) p, 0x241, mode, 0); }	/* WRONLY|CREAT|TRUNC */
 static long lx_pread64 (int fd, void *b, size_t n, long off) { return sc (17, fd, (long) b, (long) n, off); }
 static int lx_xstat64 (int ver, const char *p, void *st) { (void) ver; return (int) sc (4, (long) p, (long) st, 0, 0); }
+static int lx_fxstat64 (int ver, int fd, void *st) { (void) ver; return (int) sc (5, fd, (long) st, 0, 0); }	/* fstat */
+
+/* fcntl : les descripteurs, et leur drapeau « fermé à l'exec » (les nombres de Linux : F_GETFD 1, F_SETFD 2,
+ * F_GETFL 3, F_SETFL 4, FD_CLOEXEC 1) ; les fichiers fabriqués de liblinux (/proc, 0x7000 et plus) n'en ont pas */
+static int lx_fcntl (int fd, int cmd, ...)
+{
+	va_list ap;
+	va_start (ap, cmd);
+	long arg = va_arg (ap, long);
+	va_end (ap);
+	if (fd >= 0x7000)
+		return 0;	/* (F_GETFL : O_RDONLY ; le reste : rien à changer) */
+	int r;
+	switch (cmd)
+	{
+	case 1: r = fcntl (fd, F_GETFD); break;
+	case 2: r = fcntl (fd, F_SETFD, (arg & 1) ? FD_CLOEXEC : 0); break;
+	case 3:
+		r = fcntl (fd, F_GETFL);
+		if (r >= 0)	/* (l'accès, et O_NONBLOCK 0x800, O_APPEND 0x400 de Linux) */
+			r = (r & O_ACCMODE) | ((r & O_NONBLOCK) ? 0x800 : 0) | ((r & O_APPEND) ? 0x400 : 0);
+		break;
+	case 4: r = fcntl (fd, F_SETFL, ((arg & 0x800) ? O_NONBLOCK : 0) | ((arg & 0x400) ? O_APPEND : 0)); break;
+	default:
+		*lx_errno_ptr () = 22;	/* EINVAL */
+		return -1;
+	}
+	if (r < 0)
+		lx_set_errno_from_korin ();
+	return r;
+}
 static FILE *lx_fopen64 (const char *p, const char *m) { FILE *f = fopen (p, m); if (!f) lx_set_errno_from_korin (); return f; }
 
 /* ---- temps : struct tm de glibc ---- */
@@ -160,6 +195,40 @@ static int lx_isoc99_sscanf (const char *s, const char *f, ...)
 
 static int lx_isoc99_vsscanf (const char *s, const char *f, va_list ap) { return vsscanf (s, f, ap); }
 static int lx_bcmp (const void *a, const void *b, size_t n) { return memcmp (a, b, n); }
+static char *lx_strerror (int e) { return strerror (linux_errno_korin (e)); }
+static int lx_getpagesize (void) { return 4096; }
+
+/* signaux : le sigset_t de glibc fait 128 octets ; le module ne fait que préparer des masques (ses fils ne
+ * reçoivent pas de signaux de Linux) */
+static int lx_sigfillset (void *set) { memset (set, 0xff, 128); return 0; }
+static int lx_pthread_sigmask (int how, const void *set, void *old)
+{
+	(void) how;
+	(void) set;
+	if (old)
+		memset (old, 0, 128);
+	return 0;
+}
+/* le nom d'un fil (aucun gardé : pthread_setname_np est accepté sans effet) ; sa politique : SCHED_OTHER, priorité 0 */
+static int lx_pthread_getname_np (unsigned long t, char *buf, size_t n)
+{
+	(void) t;
+	if (!buf || n < 1)
+		return 34;	/* ERANGE */
+	buf[0] = 0;
+	return 0;
+}
+static int lx_pthread_getschedparam (unsigned long t, int *policy, int *param)
+{
+	(void) t;
+	if (policy)
+		*policy = 0;
+	if (param)
+		*param = 0;
+	return 0;
+}
+/* (la division de 128 bits de libgcc) */
+unsigned __int128 __udivti3 (unsigned __int128, unsigned __int128);
 
 static char *lx_strncat_chk (char *d, const char *s, size_t n, size_t dn)
 {
@@ -229,6 +298,7 @@ const struct lx_entry lx_table_misc[] =
 	/* fichiers */
 	LX_W ("open64", lx_open64), LX_W ("open", lx_open64), LX_W ("creat64", lx_creat64),
 	LX_W ("pread64", lx_pread64), LX_W ("__xstat64", lx_xstat64), LX_W ("fopen64", lx_fopen64),
+	LX_W ("__fxstat64", lx_fxstat64), LX_W ("fcntl", lx_fcntl), LX_W ("fcntl64", lx_fcntl),
 	LX_W ("fopen", lx_fopen64), LX_F (fclose), LX_F (fgets), LX_F (getc), LX_F (ungetc),
 	LX_W ("perror", lx_perror),
 	/* temps */
@@ -249,11 +319,15 @@ const struct lx_entry lx_table_misc[] =
 	/* divers */
 	LX_W ("strerror_r", lx_strerror_r), LX_W ("__isoc99_sscanf", lx_isoc99_sscanf),
 	LX_W ("__isoc99_vsscanf", lx_isoc99_vsscanf), LX_F (vasprintf), LX_W ("bcmp", lx_bcmp),
-	LX_W ("__strncat_chk", lx_strncat_chk),
+	LX_W ("__strncat_chk", lx_strncat_chk), LX_W ("strerror", lx_strerror), LX_F (rint),
+	LX_W ("__udivti3", __udivti3),
 	/* système */
 	LX_W ("getauxval", lx_getauxval), LX_W ("prctl", lx_prctl), LX_W ("uname", lx_uname),
 	LX_W ("getrlimit64", lx_getrlimit64), LX_W ("getrlimit", lx_getrlimit64), LX_W ("madvise", lx_madvise),
 	LX_W ("geteuid", lx_geteuid), LX_W ("__libc_stack_end", &lx_libc_stack_end),
+	LX_W ("getpagesize", lx_getpagesize), LX_F (_exit), LX_W ("sigfillset", lx_sigfillset),
+	LX_W ("pthread_sigmask", lx_pthread_sigmask), LX_W ("pthread_getname_np", lx_pthread_getname_np),
+	LX_W ("pthread_getschedparam", lx_pthread_getschedparam),
 	/* dl, sauts, TLS */
 	LX_W ("dlsym", lx_dlsym), LX_W ("dlclose", lx_dlclose), LX_W ("_setjmp", setjmp), LX_F (longjmp),
 	LX_W ("__tls_get_addr", linux_tls_get_addr),

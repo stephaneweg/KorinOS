@@ -91,13 +91,18 @@ cp "$J/app.txt" "$J/start.html" "$JET_OUT/"
 cp "$HERE/tests/frame-probe.js" "$HERE/tests/login-probe.js" "$JET_OUT/"
 # l'hôte du module Widevine (src/sys/cdmhost, docs/etude/WIDEVINE.md ; PC seulement : le module est Linux x86-64),
 # que CDMWidevineOnyx lance (/apps/jet.app/libexec/cdmhost : un dossier de /etc/exec.txt, donc exécutable) ;
-# construit par tools/linux/build.sh. Le module n'est pas là :
-# l'utilisateur le met dans HOME:/.jet/widevine (jamais dans nos paquets)
+# construit par tools/linux/build.sh. Le module n'est pas là : la case des réglages de Jet le fait télécharger chez
+# Google par cdmupdate (même dossier ; OpenSSL et zlib du sysroot de Jet), dans HOME:/.jet/widevine (jamais dans nos
+# paquets)
 if [ "$ONYX_ARCH" = x86_64 ]; then
 	if [ -f "$ARMPI/build/pc/linux/cdmhost" ]; then
 		mkdir -p "$JET_OUT/libexec"
 		rm -f "$JET_OUT/cdmhost"
 		${STRIP} -o "$JET_OUT/libexec/cdmhost" "$ARMPI/build/pc/linux/cdmhost"
+		CDM=$ARMPI/src/sys/cdmhost
+		${ONYX_TOOLCHAIN_PREFIX}g++ -specs="$S/lib/onyx.specs" -O2 $ONYX_CPU_FLAGS -std=gnu++17 -I"$S/include" \
+			"$CDM/cdmupdate.cpp" "$CDM/net.cpp" "$S/lib/libssl.a" "$S/lib/libcrypto.a" "$S/lib/libz.a" -o "$BUILD/cdmupdate"
+		${STRIP} -o "$JET_OUT/libexec/cdmupdate" "$BUILD/cdmupdate"
 	else
 		echo "build-jet.sh : pas de build/pc/linux/cdmhost (sh tools/linux/build.sh) : Jet sans Widevine" >&2
 	fi

@@ -82,6 +82,21 @@ Elles sont rangées dans `HOME:/jet/webkit` (les cookies dans `cookies.db`) et l
 
 **Tout effacer** : **Réglages > Effacer les cookies et données des sites…** (ou le bouton **⌕**, en bas du menu), puis **OK**. Vous êtes alors déconnecté de tous les sites ; les pages ouvertes devront peut-être être rechargées.
 
+## Contenus protégés (Netflix, Spotify, Disney+…)
+
+Sur le PC, Jet peut lire les vidéos et la musique protégées des sites de streaming. Il lui faut pour cela le
+**module Widevine de Google**, un logiciel propriétaire que seul Google distribue : Korin ne le fournit pas.
+
+**L'activer** : **Réglages > Lire les contenus protégés (Widevine)…**, puis **OK**. Jet télécharge le module chez
+Google (environ 22 Mo), vérifie son empreinte et l'installe dans `HOME:/.jet/widevine` ; l'entrée du menu est alors
+cochée. Rechargez les pages déjà ouvertes. Ensuite, Jet vérifie les mises à jour du module au plus une fois par jour,
+au démarrage.
+
+Sur ces sites, Jet se présente comme Chrome sous Linux (c'est la version du module qu'il utilise). La qualité est
+celle de Chrome sous Linux : souvent 720p au plus sur Netflix ou Disney+.
+
+**Le retirer** : la même entrée (cochée), puis **OK** : le module et ses données sont effacés.
+
 ## Ouvrir une page HTML de la carte
 
 - Depuis [Fichiers](help:files) : un double-clic sur un fichier `.html` ou `.htm` l'ouvre dans Jet.
@@ -129,6 +144,7 @@ Les fichiers vont dans le dossier `/Downloads`. Si un fichier du même nom y est
 | **Navigation** | **Aller à l'adresse** | Ctrl+L |
 | **Réglages** | **Rechercher avec** Google, Bing, DuckDuckGo... (le moteur choisi est coché) | |
 | **Réglages** | **Effacer les cookies et données des sites…** | |
+| **Réglages** | **Lire les contenus protégés (Widevine)…** (coché : le module est installé ; PC) | |
 | **Aide** | **Aide de Jet** (cette page), **Sommaire de l'aide** | |
 
 Les autres raccourcis de la fenêtre :

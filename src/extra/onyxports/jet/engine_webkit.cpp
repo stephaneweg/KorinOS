@@ -587,16 +587,13 @@ static const char *const WIDEVINE_SITES[] = { "netflix.com", "spotify.com", "dis
 	"amazon.com", "deezer.com", "max.com", "hulu.com", "canalplus.com", "mycanal.fr", "tf1.fr", "france.tv",
 	"bitmovin.com", "shaka-player-demo.appspot.com", nullptr };
 
+// (looked at each time: the settings' box installs or removes it while Jet runs)
 static bool widevine_installed ()
 {
-	static int installed = -1;
-	if (installed < 0) {
-		const char *path = getenv ("JET_WIDEVINE_CDM");
-		const char *home = getenv ("HOME");
-		std::string p = path && *path ? path : std::string (home && *home ? home : "/home") + "/.jet/widevine/libwidevinecdm.so";
-		installed = access (p.c_str (), R_OK) == 0;
-	}
-	return installed;
+	const char *path = getenv ("JET_WIDEVINE_CDM");
+	const char *home = getenv ("HOME");
+	std::string p = path && *path ? path : std::string (home && *home ? home : "/home") + "/.jet/widevine/libwidevinecdm.so";
+	return access (p.c_str (), R_OK) == 0;
 }
 
 // url's host is a Widevine site or one of its subdomains
@@ -624,7 +621,7 @@ static const char *site_user_agent (const std::string &url)
 	if (off) return nullptr;
 	if (url.compare (0, 7, "http://") != 0 && url.compare (0, 8, "https://") != 0) return nullptr;
 #if defined(__x86_64__)
-	if (widevine_installed () && widevine_site (url)) return WIDEVINE_UA;
+	if (widevine_site (url) && widevine_installed ()) return WIDEVINE_UA;
 #endif
 	return MOBILE_UA;
 }
@@ -891,6 +888,15 @@ static void cleared (void *)
 		say ("the sites' data cleared");
 		if (s_clearDone) s_clearDone ();
 	}
+}
+
+bool engine_protected_content ()
+{
+#if ENABLE(ENCRYPTED_MEDIA) && defined(__x86_64__)
+	return access ("/apps/jet.app/libexec/cdmhost", X_OK) == 0 && access ("/apps/jet.app/libexec/cdmupdate", X_OK) == 0;
+#else
+	return false;
+#endif
 }
 
 void engine_clear_site_data (void (*done) ())

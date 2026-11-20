@@ -1,6 +1,6 @@
 ---
 name: armpi-widevine
-description: "Widevine dans Jet : hôte Linux, jalon 1 fait (liblinux + linuxhost, QEMU PC) ; décisions du 19/11 prises ; module mesuré ; étapes 2b à 6 faites (licence réelle, audio déchiffré, vidéo décodée par le module, dans Korin sous QEMU) ; docs/etude/WIDEVINE.md"
+description: "Widevine dans Jet : hôte Linux, jalon 1 fait (liblinux + linuxhost, QEMU PC) ; décisions du 19/11 prises ; module mesuré ; étapes 2b à 7 faites (licence réelle, audio déchiffré, vidéo décodée par le module, dans Korin sous QEMU) ; docs/etude/WIDEVINE.md"
 metadata:
   type: project
 ---
@@ -59,6 +59,12 @@ cdmhost lancé au premier besoin (probeSupport de Shaka : 14 hôtes sinon) ; Web
 configurations : les sites prennent le MP4) ; le lecteur Shaka joue le flux DASH Widevine d'Internet (KS=shaka) ;
 netflix.com et open.spotify.com chargent. Reste : lecture avec un compte (l'utilisateur), ZBook, WebM chiffré,
 la case des réglages (étape 7). Décision de l'utilisateur du 20/11 : Widevine d'abord, Claude Code après.
+**Étape 7 faite le 20/11 (QEMU)** : Réglages > « Lire les contenus protégés (Widevine)… » (main.cpp, montrée si
+engine_protected_content) ; cdmupdate (src/sys/cdmhost, jet.app/libexec) : serveur de composants de Google (Omaha 3.1,
+oimompecagnajdejgnnjijobebaeigek), .crx3 vérifié (SHA-256), installé dans HOME/.jet/widevine. Le module 4.10.3112.0
+importe 11 fonctions de plus (glibc_misc.c) : une mise à jour de Google peut en demander d'autres (cdmhost le dit).
+Essais : test_eme_jet.sh KS=update, CLICKS=… (clics sous QEMU). Reste : ZBook, compte, WebM chiffré, Jet ordinaire
+(WebKit avec 0008/0009, versions jet et pc).
 
 Pièges : `linux` est une macro prédéfinie de gcc sous Linux (pas comme nom de champ) ; le canari de pile du code
 Linux (%fs:0x28) tombe dans le TCB de 64 octets de libposix, stable. Le module ne va jamais dans nos paquets.

@@ -291,7 +291,7 @@ distribué à d'autres ne l'active jamais d'office.
 | 4 | EME ClearKey dans Jet (WebKit, MSE chiffré, CENC) | un flux ClearKey de démonstration joue | **fait le 20/11** (QEMU, § 11) ; `cdmhost` et son client aussi (§ 10) |
 | 5 | EME Widevine dans Jet par `cdmhost` (audio, vidéo) | un flux Widevine joue dans Jet ; puis le lecteur web de Spotify | **fait le 20/11** (QEMU, flux de Shaka, § 12) ; Spotify à essayer |
 | 6 | Les sites : Jet se présente comme Chrome sous Linux, un vrai lecteur (Shaka) joue | Netflix et Spotify chargent ; Shaka joue | **fait le 20/11** (QEMU, § 13) ; lecture avec un compte : à essayer par l'utilisateur |
-| 7 | Case des réglages, téléchargement chez Google, mise à jour | de la case à la lecture sans manipulation | 1 à 2 jours |
+| 7 | Case des réglages, téléchargement chez Google, mise à jour | de la case à la lecture sans manipulation | **fait le 20/11** (QEMU, § 14) |
 
 Un jour = une session de travail soutenue. Total : **quatre à six semaines** ; l'inconnue principale reste ce
 que les `syscall` obscurcis du module demandent (§ 2.5).
@@ -531,6 +531,42 @@ l'essai sur le ZBook ; les images passent par la socket (pas encore de mémoire 
     titres), sans message de navigateur non pris en charge.
 * **Pas essayé** : lire avec un compte Netflix ou Spotify (l'utilisateur seul s'identifie) ; la vitesse sur le
   ZBook (sous QEMU, beaucoup d'images sautées).
+
+## 14. Étape 7 (20/11/2026) : la case des réglages
+
+* **`cdmupdate`** (`src/sys/cdmhost/cdmupdate.cpp`, dans `jet.app/libexec`, construit par `build-jet.sh` avec OpenSSL
+  et zlib du sysroot de Jet) : la voie de Chrome, le serveur de composants de Google
+  (`update.googleapis.com/service/update2/json`, protocole Omaha 3.1, composant `oimompecagnajdejgnnjijobebaeigek`,
+  Chrome 142 sous Linux x86-64). Sa réponse donne la version courante, ses adresses chez Google (`dl.google.com`,
+  `edgedl.me.gvt1.com`… : les https d'abord), la taille et le SHA-256 de l'archive `.crx3`. `cdmupdate` la
+  télécharge, vérifie taille et empreinte, saute l'en-tête `Cr24`, lit le zip (zlib) et en tire
+  `_platform_specific/linux_x64/libwidevinecdm.so` (CRC vérifié, un ELF) et `manifest.json`. Installation dans
+  `HOME/.jet/widevine` (fichiers neufs renommés : jamais un module à moitié écrit), avec `version.txt` et
+  `checked.txt` (la date de la demande). La version installée n'est pas retéléchargée ; `--check` dit seulement s'il y
+  en a une plus récente. Le client HTTP de `net.cpp` fait maintenant aussi GET, HTTP simple et redirections.
+* **Jet** (`main.cpp`) : **Réglages > Lire les contenus protégés (Widevine)…**, montré seulement par un Jet qui sait
+  s'en servir (`engine_protected_content` : WebKit avec EME, `cdmhost` et `cdmupdate` dans `jet.app/libexec`).
+  Décochée : un dialogue explique (module propriétaire de Google, téléchargé chez lui, environ 22 Mo, mises à jour
+  quotidiennes, Jet vu comme Chrome sous Linux sur ces sites) ; OK lance `cdmupdate` en arrière-plan, la boucle de Jet
+  suit sa fin, la barre d'état et un dialogue disent la version installée ; la case est cochée. Cochée : un dialogue,
+  puis le module et ses données sont effacés. Au démarrage, au plus une demande par jour (`checked.txt`), muette si
+  rien ne change. Le user agent de Chrome et le CDM regardent la présence du module à chaque fois : pas besoin de
+  relancer Jet. Aide de Jet (`help_fr.md`, `help_en.md`) : « Contenus protégés ».
+* **Le module 4.10.3112.0** (la version que Google donnait le 20/11) importe 11 fonctions de plus que la 4.10.3050.0 :
+  `__fxstat64`, `fcntl`, `_exit`, `getpagesize`, `strerror`, `rint`, `sigfillset`, `pthread_sigmask`,
+  `pthread_getname_np`, `pthread_getschedparam`, `__udivti3` ; liblinux les sert (`glibc_misc.c`). Une mise à jour
+  de Google peut donc demander d'en ajouter d'autres : `cdmhost` le dit (`linux_load : import absent : …`) et la page
+  reçoit `NotSupportedError` ; `linuxhost --check` en donne la liste.
+* **Essais sous QEMU PC** :
+  * sous Linux d'abord : `cdmupdate` installe la 4.10.3112.0 (21 965 296 octets), puis répond « à jour » ;
+  * `KS=update` (`test_eme_jet.sh`) : dans Korin, `cdmupdate` télécharge et installe le module chez Google en 8,7 s,
+    puis la page joue avec lui : **406 images à 20 s, « EME-WIDEVINE : RÉUSSI »** ;
+  * la case, par clics (`CLICKS=…` : la tablette USB de QEMU) : le menu Réglages la montre décochée, le dialogue
+    s'ouvre, OK télécharge et installe (« Widevine : module 4.10.3112.0 installé »), la page rechargée joue, la case
+    est cochée ; sans module, la page reçoit `NotSupportedError` (Widevine n'est pas proposé).
+* Reste : essai sur le ZBook ; un compte Netflix ou Spotify (l'utilisateur) ; le WebM chiffré (§ 13) ; le Jet
+  ordinaire n'a EME qu'après une construction de WebKit avec les correctifs 0008 et 0009 (puis la version du paquet
+  `jet` et celle de `pc`, pour `etc/exec.txt`).
 
 ## Sources (19/11/2026)
 
