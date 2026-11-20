@@ -165,7 +165,11 @@ pub fn run_with(
             }
             wait = 0;
             if t == sys::WEV_CLOSE {
-                return Ok(());
+                // une demande : la passe suivante la voit (ViewportEvent::Close), l'app peut l'annuler (CancelClose,
+                // « Enregistrer les modifications ? ») ; sinon la fenêtre se ferme
+                win.close_requested = true;
+                next_frame = Some(Instant::now());
+                continue;
             }
             if win.event(&e) {
                 next_frame = Some(Instant::now());
@@ -198,6 +202,8 @@ struct Window {
     focused: bool,
     theme: Theme,
     cursor: i32,
+    close_requested: bool,
+    maximized: bool,
     render: EguiSoftwareRender,
 }
 
@@ -215,6 +221,8 @@ impl Window {
             focused: true,
             theme: system_theme(),
             cursor: -1,
+            close_requested: false,
+            maximized: false,
             render: EguiSoftwareRender::new(ColorFieldOrder::Bgra).with_caching(true),
         };
         w.read_pixels();
@@ -348,10 +356,19 @@ impl Window {
             max_texture_side: Some(8192),
             ..Default::default()
         };
+        let (mut sw, mut sh, mut bottom, mut top) = (0, 0, 0, 0);
+        unsafe { sys::kh_screen(&mut sw, &mut sh, &mut bottom, &mut top) };
         if let Some(v) = input.viewports.get_mut(&ViewportId::ROOT) {
             v.native_pixels_per_point = Some(self.ppp);
             v.focused = Some(self.focused);
             v.inner_rect = input.screen_rect;
+            v.maximized = Some(self.maximized);
+            if sw > 0 && sh > 0 {
+                v.monitor_size = Some(Vec2::new(sw as f32, (sh - bottom - top).max(1) as f32) / self.ppp);
+            }
+            if self.close_requested {
+                v.events.push(egui::ViewportEvent::Close);
+            }
         }
         input
     }
@@ -372,14 +389,34 @@ impl Window {
             unsafe { sys::kh_cursor(cur) };
         }
         let mut delay = Duration::MAX;
+        let mut cancel_close = false;
         if let Some(vo) = out.viewport_output.get(&ViewportId::ROOT) {
             delay = vo.repaint_delay;
             for c in &vo.commands {
                 match c {
                     ViewportCommand::Close => host.close = true,
+                    ViewportCommand::CancelClose => cancel_close = true,
                     ViewportCommand::Title(t) => host.set_title(t),
+                    ViewportCommand::Minimized(true) => unsafe { sys::kh_minimize() },
+                    ViewportCommand::Maximized(m) if *m != self.maximized => {
+                        self.maximized = *m;
+                        unsafe { sys::kh_maximize() }
+                    }
+                    ViewportCommand::StartDrag => unsafe { sys::kh_drag() },
+                    ViewportCommand::InnerSize(v) => {
+                        unsafe { sys::kh_resize((v.x * self.ppp) as _, (v.y * self.ppp) as _) };
+                        self.read_pixels();
+                        delay = Duration::ZERO;
+                    }
+                    ViewportCommand::MinInnerSize(v) => unsafe { sys::kh_min_size((v.x * self.ppp) as _, (v.y * self.ppp) as _) },
                     _ => {}
                 }
+            }
+        }
+        if self.close_requested {
+            self.close_requested = false;
+            if !cancel_close {
+                host.close = true;
             }
         }
         self.paint(ctx, out);

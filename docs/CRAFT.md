@@ -6,9 +6,10 @@ DeckCraft, DesignCraft, PdfCraft, PhotoCraft, VectorCraft, FigCraft, CadCraft, C
 MaterialCraft, FilmCraft, LightCraft, EffectCraft, TextureCraft, AniCraft. Elles se compilent avec notre cible Rust
 ([RUST.md](RUST.md)), en compilation croisée depuis WSL.
 
-**État (20/11/2026)** : `wordcraft-cli` (WordCraft sans fenêtre) **marche sous QEMU PC**. **Le PC seulement** (décision
-de l'utilisateur du 20/11/2026) : le script construit aussi pour le Pi (`ARCH=aarch64`, ça compile), mais rien n'y est
-visé ni essayé. Aucune app avec fenêtre pour l'instant (plus bas, « La suite »).
+**État (20/11/2026)** : **WordCraft avec fenêtre marche sous QEMU PC** (`/apps/wordcraft.app` : écran d'accueil, document
+d'exemple, ruban, saisie, correcteur), sur l'eframe de Korin (`src/lib/eframe-korin`, [EGUI.md](EGUI.md)) ;
+`wordcraft-cli` aussi. **Le PC seulement** (décision de l'utilisateur du 20/11/2026). Les autres apps : en cours
+(`tools/craft/apps.txt`).
 
 ## Ce qu'elles ont en commun
 

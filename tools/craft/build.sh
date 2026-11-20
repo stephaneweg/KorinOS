@@ -3,22 +3,28 @@
 # Le PC seulement pour l'instant (décision du 20/11/2026) ; ARCH=aarch64 construit aussi pour le Pi, sans essai.
 # Dans WSL, depuis la racine du dépôt, après ARCH=x86_64 bash tools/rust/build.sh :
 #     bash tools/craft/build.sh                     wordcraft-cli pour le PC (x86_64)
-#     bash tools/craft/build.sh <app> <paquet>      une autre app ou un autre paquet du même dépôt
-# Résultat (strippé) : build/craft/<arch>/bin/<paquet> (tools/craft/pctest.py le met dans HOME:/craft).
+#     bash tools/craft/build.sh <app> [paquet]      une app de tools/craft/apps.txt (son paquet par défaut)
+# Résultat (strippé) : build/craft/<arch>/bin/<paquet> (tools/craft/pctest.py le met dans HOME:/craft) ; un paquet
+# qui a son manifeste (tools/craft/app/<paquet>.txt) devient aussi build/craft/<arch>/apps/<paquet>.app.
 #
 # Travail dans ~/korin-craft (KORIN_CRAFT) :
-#   <app>/            le dépôt de l'app à la révision épinglée (REV_<app> plus bas) ; .cargo/config.toml
+#   <app>/            le dépôt de l'app à la révision de tools/craft/apps.txt ; .cargo/config.toml
 #                     y branche les caisses patchées (écrit ici, à chaque lancement)
 #   vendor/           les caisses de crates.io qui ne connaissent pas « korin » : tools/craft/patches/<caisse>-<version>.patch
-#   craft-libs-<rev>/ craft-libs à la révision du Cargo.lock de l'app, avec tools/craft/patches/craft-libs.patch ;
-#                     toutes ses caisses y sont redirigées (une seule copie de chaque type)
+#   craft-libs-<rev>/ craft-libs à chaque révision du Cargo.lock de l'app (une app en épingle souvent plusieurs, une
+#                     par caisse), avec tools/craft/patches/craft-libs.patch, korin_cfg.py et korin_libs.py ; les
+#                     caisses qui n'y sont qu'à une révision y sont redirigées (celles qui sont à plusieurs révisions
+#                     sont des formats en Rust pur, laissés tels quels : un [patch] ne prend qu'une source par version)
 # Et dans la chaîne Rust ($K/vendor/libc-0.2.191) : la libc des projets (plus bas, « libc »).
 set -e
 cd "$(dirname "$0")/../.."
 ROOT=$(pwd)
 ARCH=${ARCH:-x86_64}
 APP=${1:-wordcraft}
-PKG=${2:-wordcraft-cli}
+LINE=$(grep -E "^$APP[[:space:]]" "$ROOT/tools/craft/apps.txt" || true)
+[ -n "$LINE" ] || { echo "craft : $APP absent de tools/craft/apps.txt" >&2; exit 1; }
+REV=$(echo "$LINE" | awk '{print $2}')
+if [ $# -ge 2 ]; then PKG=$2; elif [ $# = 0 ]; then PKG=wordcraft-cli; else PKG=$(echo "$LINE" | awk '{print $3}'); fi
 W=${KORIN_CRAFT:-$HOME/korin-craft}
 case $ARCH in
 aarch64) K=${KORIN_RUST:-$HOME/.cache/korin-rust}; TC=${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf- ;;
@@ -30,10 +36,6 @@ esac
 OUT=$ROOT/build/craft/$ARCH/bin
 mkdir -p "$W/vendor" "$OUT" "$K/dl" "$K/vendor"
 
-# les révisions essayées
-REV_wordcraft=b5e0be787912d29e8ef106cba0cc538a6be64722
-eval "REV=\${REV_$APP:-}"
-[ -n "$REV" ] || { echo "craft : pas de révision épinglée pour $APP (REV_$APP dans $0)" >&2; exit 1; }
 
 # 1. libc : la std garde la 0.2.185 de rust-src (tools/rust/libc.patch) ; les projets récents demandent plus
 #    (nix 0.31 : ^0.2.186). La même libc.patch sur la 0.2.191, et deux entrées dans le [patch] de cargo
@@ -79,11 +81,14 @@ EOF
 A=$W/$APP
 [ -d "$A/.git" ] || git clone -q "https://github.com/storytold/$APP.git" "$A"
 (cd "$A" && { git cat-file -e "$REV^{commit}" 2>/dev/null || git fetch -q origin; } && git checkout -q --detach "$REV")
-# le Cargo.lock et le .cargo/config.toml de l'app, intacts : la construction précédente les a réécrits (patchs) ; un
+# les fichiers de l'app intacts (Cargo.lock, .cargo/config.toml, les retouches de korin_app.py) : la construction précédente les a réécrits (patchs) ; un
 # Cargo.lock repris d'une autre construction peut avoir changé de version une caisse patchée (« patch was not used »)
-(cd "$A" && git checkout -q -- Cargo.lock && { git checkout -q -- .cargo/config.toml 2>/dev/null || rm -f .cargo/config.toml; })
+(cd "$A" && git checkout -q -- . && { git ls-files --error-unmatch .cargo/config.toml >/dev/null 2>&1 || rm -f .cargo/config.toml; })
 APPCFG=$(cat "$A/.cargo/config.toml" 2>/dev/null || true)
 cargo +korin fetch --manifest-path "$A/Cargo.toml" >/dev/null	# (le registre et craft-libs : les sources à patcher)
+# les retouches de l'app pour Korin (eframe de Korin, sans X11 ni wgpu) : après le fetch, qui a besoin de la fourche
+python3 -I "$ROOT/tools/craft/korin_app.py" "$A" "$ROOT"
+python3 -I "$ROOT/tools/craft/korin_cfg.py" "$A"
 
 # 3. les caisses de crates.io patchées
 REG=$(ls -d "$CARGO_HOME"/registry/src/index.crates.io-* | head -1)
@@ -102,40 +107,24 @@ for p in "$ROOT"/tools/craft/patches/*-[0-9]*.patch; do
 $(echo "$c" | tr . -) = { path = \"$W/vendor/$c\", package = \"$name\" }"
 done
 
-# 4. craft-libs, patchée, et toutes ses caisses redirigées
-CREV=$(grep -o 'craft-libs?rev=[0-9a-f]*#[0-9a-f]*' "$A/Cargo.lock" | sed 's/.*#//' | sort -u)
-[ "$(echo "$CREV" | wc -l)" = 1 ] || { echo "craft : plusieurs révisions de craft-libs dans $APP : $CREV" >&2; exit 1; }
-CL=$W/craft-libs-${CREV:0:7}
-if [ ! -f "$CL/.korin" ] || [ "$ROOT/tools/craft/patches/craft-libs.patch" -nt "$CL/.korin" ]; then
-	rm -rf "$CL"
-	cp -a "$(ls -d "$CARGO_HOME"/git/checkouts/craft-libs-*/"${CREV:0:7}" | head -1)" "$CL"
-	(cd "$CL" && patch -p1 -s --no-backup-if-mismatch < "$ROOT/tools/craft/patches/craft-libs.patch")
-	touch "$CL/.korin"
-fi
+# 4. craft-libs, patchée, à chacune de ses révisions ; les caisses à une seule révision y sont redirigées
+for CREV in $(grep -o 'craft-libs?rev=[0-9a-f]*#[0-9a-f]*' "$A/Cargo.lock" | sed 's/.*#//' | sort -u); do
+	CL=$W/craft-libs-${CREV:0:7}
+	if [ ! -f "$CL/.korin" ] || [ "$ROOT/tools/craft/patches/craft-libs.patch" -nt "$CL/.korin" ] ||
+		[ "$ROOT/tools/craft/korin_cfg.py" -nt "$CL/.korin" ] || [ "$ROOT/tools/craft/korin_libs.py" -nt "$CL/.korin" ]; then
+		rm -rf "$CL"
+		cp -a "$(ls -d "$CARGO_HOME"/git/checkouts/craft-libs-*/"${CREV:0:7}" | head -1)" "$CL"
+		# (craft-font-store sans cap-primitives : là où le fichier est le même qu'à la révision de WordCraft)
+		if (cd "$CL" && patch -p1 -s --dry-run < "$ROOT/tools/craft/patches/craft-libs.patch" >/dev/null 2>&1); then
+			(cd "$CL" && patch -p1 -s --no-backup-if-mismatch < "$ROOT/tools/craft/patches/craft-libs.patch")
+		fi
+		python3 -I "$ROOT/tools/craft/korin_cfg.py" "$CL" >/dev/null
+		python3 -I "$ROOT/tools/craft/korin_libs.py" "$CL"
+		touch "$CL/.korin"
+	fi
+done
 CFG="$CFG
-$(python3 -I - "$A" "$CL" <<'EOF'
-import os, sys, tomllib
-app, root = sys.argv[1], sys.argv[2]
-lock = tomllib.load(open(app + '/Cargo.lock', 'rb'))
-ws = tomllib.load(open(app + '/Cargo.toml', 'rb'))
-skip = set(ws.get('patch', {}).get('crates-io', {}))	# déjà des patchs de crates.io : pas de patch en chaîne
-paths = {}
-for d, dirs, files in os.walk(root):
-    dirs[:] = [x for x in dirs if x not in ('target', '.git')]
-    if 'Cargo.toml' in files:
-        try:
-            n = tomllib.load(open(d + '/Cargo.toml', 'rb')).get('package', {}).get('name')
-        except Exception:
-            continue
-        if n:
-            paths[n] = d
-print('[patch."https://github.com/storytold/craft-libs"]')
-for n in sorted({p['name'] for p in lock['package'] if 'craft-libs' in p.get('source', '')} - skip):
-    if n not in paths:
-        sys.exit('craft : %s absent de %s' % (n, root))
-    print('%s = { path = "%s" }' % (n, paths[n]))
-EOF
-)"
+$(python3 -I "$ROOT/tools/craft/craftlibs_patch.py" "$A" "$W")"
 mkdir -p "$A/.cargo"
 printf '%s\n\n# tools/craft/build.sh (Korin)\n%s\n' "$APPCFG" "$CFG" > "$A/.cargo/config.toml"
 
@@ -143,11 +132,22 @@ printf '%s\n\n# tools/craft/build.sh (Korin)\n%s\n' "$APPCFG" "$CFG" > "$A/.carg
 (cd "$A" && cargo korin build --release -p "$PKG")
 UNUSED=$(python3 -I - "$A/Cargo.lock" "$W/vendor" <<'EOF'
 import os, sys, tomllib
+lock = tomllib.load(open(sys.argv[1], 'rb'))
 mine = {d.rsplit('-', 1)[0] for d in os.listdir(sys.argv[2])} | {'libc'}
-unused = tomllib.load(open(sys.argv[1], 'rb')).get('patch', {}).get('unused', [])
-print(' '.join(sorted('%s %s' % (u['name'], u['version']) for u in unused if u['name'] in mine and u['version'] != '0.2.185')))
+here = {p['name'] for p in lock['package'] if 'registry' in p.get('source', '')}
+# un patch non pris ne compte que si l'app a cette caisse (à une autre version que la nôtre)
+print(' '.join(sorted('%s %s' % (u['name'], u['version']) for u in lock.get('patch', {}).get('unused', [])
+                      if u['name'] in mine and u['name'] in here and u['version'] != '0.2.185')))
 EOF
 )
 [ -z "$UNUSED" ] || { echo "craft : patchs non pris (une autre version dans le Cargo.lock) : $UNUSED" >&2; exit 1; }
 "${TC}strip" -o "$OUT/$PKG" "$A/target/$ARCH-unknown-korin/release/$PKG"
 echo "craft : $OUT/$PKG ($(stat -c %s "$OUT/$PKG") octets)"
+# un paquet qui a son manifeste (tools/craft/app/<paquet>.txt) devient une app : build/craft/<arch>/apps/<paquet>.app
+if [ -f "$ROOT/tools/craft/app/$PKG.txt" ]; then
+	D=$ROOT/build/craft/$ARCH/apps/$PKG.app
+	mkdir -p "$D"
+	cp "$OUT/$PKG" "$D/main"
+	cp "$ROOT/tools/craft/app/$PKG.txt" "$D/app.txt"
+	echo "craft : $D"
+fi

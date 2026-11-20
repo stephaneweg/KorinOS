@@ -401,8 +401,6 @@ dependencies = [
 [[package]]
 name = "hdrshot-egui-backend"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "088cf499827bfe1ffd6d6c860d1e3c31f52543a7fcc0f1f1734e8d92e79b9319"
 dependencies = [
  "ahash",
  "constify",

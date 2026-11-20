@@ -1,0 +1,163 @@
+--- a/src/backend/korin.rs
++++ b/src/backend/korin.rs
+@@ -0,0 +1,149 @@
++//! Korin OS (tools/craft/patches/rfd-0.17.2.patch, docs/CRAFT.md) : les dialogues de UIKit, par le relais de
++//! l'hôte egui de Korin (src/lib/egui-korin/csrc/host.c, lié au programme par egui-korin). Ils sont modaux et
++//! bloquent le programme, comme les dialogues synchrones de rfd ; les versions async rendent un futur déjà prêt.
++
++use std::ffi::{CString, c_char, c_int, c_long};
++use std::path::PathBuf;
++
++use crate::backend::{
++    AsyncFilePickerDialogImpl, AsyncFileSaveDialogImpl, AsyncFolderPickerDialogImpl, AsyncMessageDialogImpl, DialogFutureType,
++    FilePickerDialogImpl, FileSaveDialogImpl, FolderPickerDialogImpl, MessageDialogImpl,
++};
++use crate::message_dialog::{MessageButtons, MessageDialog, MessageDialogResult};
++use crate::{FileDialog, FileHandle};
++
++unsafe extern "C" {
++    fn kh_file_open(dir: *const c_char, filter: *const c_char, buf: *mut c_char, cap: c_long) -> c_int;
++    fn kh_file_save(dir: *const c_char, name: *const c_char, filter: *const c_char, buf: *mut c_char, cap: c_long) -> c_int;
++    fn kh_folder_choose(dir: *const c_char, buf: *mut c_char, cap: c_long) -> c_int;
++    fn kh_message_ex(title: *const c_char, text: *const c_char, buttons: c_int) -> c_int;
++}
++
++fn cstr(s: &str) -> CString {
++    CString::new(s.replace('\0', "")).unwrap_or_default()
++}
++
++fn from_buf(buf: &[u8]) -> PathBuf {
++    let n = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
++    PathBuf::from(String::from_utf8_lossy(&buf[..n]).into_owned())
++}
++
++fn dir(d: &FileDialog) -> CString {
++    cstr(&d.starting_directory.as_ref().map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|| "HOME:/".to_owned()))
++}
++
++/// Les filtres de rfd -> ceux de UIKit : « Documents|*.docx;*.odt|Tous|* » (None : tous les fichiers).
++fn filter(d: &FileDialog) -> Option<CString> {
++    if d.filters.is_empty() {
++        return None;
++    }
++    let parts: Vec<String> = d
++        .filters
++        .iter()
++        .map(|f| {
++            let pats: Vec<String> = f.extensions.iter().map(|e| if e == "*" { "*".to_owned() } else { format!("*.{e}") }).collect();
++            format!("{}|{}", if f.name.is_empty() { "Fichiers" } else { &f.name }, pats.join(";"))
++        })
++        .collect();
++    Some(cstr(&parts.join("|")))
++}
++
++fn ptr(c: &Option<CString>) -> *const c_char {
++    c.as_ref().map_or(std::ptr::null(), |c| c.as_ptr())
++}
++
++impl FilePickerDialogImpl for FileDialog {
++    fn pick_file(self) -> Option<PathBuf> {
++        let (d, f) = (dir(&self), filter(&self));
++        let mut buf = vec![0u8; 1024];
++        (unsafe { kh_file_open(d.as_ptr(), ptr(&f), buf.as_mut_ptr().cast(), buf.len() as _) } != 0).then(|| from_buf(&buf))
++    }
++
++    fn pick_files(self) -> Option<Vec<PathBuf>> {
++        self.pick_file().map(|p| vec![p])
++    }
++}
++
++impl FileSaveDialogImpl for FileDialog {
++    fn save_file(self) -> Option<PathBuf> {
++        let (d, f) = (dir(&self), filter(&self));
++        let name = cstr(self.file_name.as_deref().unwrap_or(""));
++        let mut buf = vec![0u8; 1024];
++        (unsafe { kh_file_save(d.as_ptr(), name.as_ptr(), ptr(&f), buf.as_mut_ptr().cast(), buf.len() as _) } != 0).then(|| from_buf(&buf))
++    }
++}
++
++impl FolderPickerDialogImpl for FileDialog {
++    fn pick_folder(self) -> Option<PathBuf> {
++        let d = dir(&self);
++        let mut buf = vec![0u8; 1024];
++        (unsafe { kh_folder_choose(d.as_ptr(), buf.as_mut_ptr().cast(), buf.len() as _) } != 0).then(|| from_buf(&buf))
++    }
++
++    fn pick_folders(self) -> Option<Vec<PathBuf>> {
++        self.pick_folder().map(|p| vec![p])
++    }
++}
++
++impl MessageDialogImpl for MessageDialog {
++    fn show(self) -> MessageDialogResult {
++        let (t, x) = (cstr(&self.title), cstr(&self.description));
++        let kind = match &self.buttons {
++            MessageButtons::Ok | MessageButtons::OkCustom(_) => 0,
++            MessageButtons::OkCancel | MessageButtons::OkCancelCustom(..) => 1,
++            MessageButtons::YesNo => 2,
++            MessageButtons::YesNoCancel | MessageButtons::YesNoCancelCustom(..) => 3,
++        };
++        let r = unsafe { kh_message_ex(t.as_ptr(), x.as_ptr(), kind) };
++        match (&self.buttons, r) {
++            (MessageButtons::Ok, _) => MessageDialogResult::Ok,
++            (MessageButtons::OkCustom(s), _) => MessageDialogResult::Custom(s.clone()),
++            (MessageButtons::OkCancel, 1) => MessageDialogResult::Ok,
++            (MessageButtons::OkCancelCustom(a, _), 1) => MessageDialogResult::Custom(a.clone()),
++            (MessageButtons::OkCancelCustom(_, b), _) => MessageDialogResult::Custom(b.clone()),
++            (MessageButtons::YesNo, 1) | (MessageButtons::YesNoCancel, 1) => MessageDialogResult::Yes,
++            (MessageButtons::YesNo, _) => MessageDialogResult::No,
++            (MessageButtons::YesNoCancel, 2) => MessageDialogResult::No,
++            (MessageButtons::YesNoCancelCustom(a, _, _), 1) => MessageDialogResult::Custom(a.clone()),
++            (MessageButtons::YesNoCancelCustom(_, b, _), 2) => MessageDialogResult::Custom(b.clone()),
++            (MessageButtons::YesNoCancelCustom(_, _, c), _) => MessageDialogResult::Custom(c.clone()),
++            _ => MessageDialogResult::Cancel,
++        }
++    }
++}
++
++fn ready<T: Send + 'static>(v: T) -> DialogFutureType<T> {
++    Box::pin(std::future::ready(v))
++}
++
++impl AsyncFilePickerDialogImpl for FileDialog {
++    fn pick_file_async(self) -> DialogFutureType<Option<FileHandle>> {
++        ready(self.pick_file().map(FileHandle::from))
++    }
++
++    fn pick_files_async(self) -> DialogFutureType<Option<Vec<FileHandle>>> {
++        ready(self.pick_files().map(|v| v.into_iter().map(FileHandle::from).collect()))
++    }
++}
++
++impl AsyncFolderPickerDialogImpl for FileDialog {
++    fn pick_folder_async(self) -> DialogFutureType<Option<FileHandle>> {
++        ready(self.pick_folder().map(FileHandle::from))
++    }
++
++    fn pick_folders_async(self) -> DialogFutureType<Option<Vec<FileHandle>>> {
++        ready(self.pick_folders().map(|v| v.into_iter().map(FileHandle::from).collect()))
++    }
++}
++
++impl AsyncFileSaveDialogImpl for FileDialog {
++    fn save_file_async(self) -> DialogFutureType<Option<FileHandle>> {
++        ready(self.save_file().map(FileHandle::from))
++    }
++}
++
++impl AsyncMessageDialogImpl for MessageDialog {
++    fn show_async(self) -> DialogFutureType<MessageDialogResult> {
++        ready(self.show())
++    }
++}
+--- a/src/backend.rs
++++ b/src/backend.rs
+@@ -28,6 +28,8 @@
+     feature = "gtk3"
+ ))]
+ mod gtk3;
++#[cfg(target_os = "korin")]
++mod korin;
+ #[cfg(target_os = "macos")]
+ mod macos;
+ #[cfg(target_arch = "wasm32")]

@@ -26,6 +26,11 @@ unsafe extern "C" {
     pub fn kh_event(timeout_ms: c_int, e: *mut Event) -> c_int;
     pub fn kh_update(x: c_int, y: c_int, w: c_int, h: c_int);
     pub fn kh_title(title: *const c_char);
+    pub fn kh_screen(w: *mut c_int, h: *mut c_int, bottom: *mut c_int, top: *mut c_int);
+    pub fn kh_minimize();
+    pub fn kh_maximize();
+    pub fn kh_drag();
+    pub fn kh_resize(w: c_int, h: c_int);
     pub fn kh_cursor(shape: c_int);
     pub fn kh_min_size(w: c_int, h: c_int);
     pub fn kh_dark() -> c_int;
@@ -35,6 +40,8 @@ unsafe extern "C" {
     pub fn kh_file_open(dir: *const c_char, filter: *const c_char, buf: *mut c_char, cap: c_long) -> c_int;
     pub fn kh_file_save(dir: *const c_char, name: *const c_char, filter: *const c_char, buf: *mut c_char, cap: c_long) -> c_int;
     pub fn kh_message(title: *const c_char, text: *const c_char);
+    pub fn kh_message_ex(title: *const c_char, text: *const c_char, buttons: c_int) -> c_int;
+    pub fn kh_folder_choose(dir: *const c_char, buf: *mut c_char, cap: c_long) -> c_int;
     pub fn kh_open_with(path: *const c_char);
 }
 

@@ -58,6 +58,23 @@ void kh_update (int x, int y, int w, int h)
 }
 
 void kh_title (const char *title) { ui_title ((long) title); }
+
+/* l'ecran : largeur, hauteur, place reservee en bas (dock) et en haut (barre de menus) */
+void kh_screen (int *w, int *h, int *bottom, int *top)
+{
+	long s[4] = { 0, 0, 0, 0 };
+	ui_screen ((long) s);
+	*w = (int) s[0];
+	*h = (int) s[1];
+	*bottom = (int) s[2];
+	*top = (int) s[3];
+}
+
+/* les commandes de fenetre d'egui (ViewportCommand) */
+void kh_minimize (void) { ui_minimize (); }
+void kh_maximize (void) { ui_maximize (); }
+void kh_drag (void) { ui_window_drag (); }
+void kh_resize (int w, int h) { ui_resize (w, h); }
 void kh_cursor (int shape) { ui_cursor (shape); }
 void kh_min_size (int w, int h) { ui_min_size (w, h); }
 
@@ -94,6 +111,19 @@ int kh_file_save (const char *dir, const char *name, const char *filter, char *b
 
 /* une boite de message (UM_OK) */
 void kh_message (const char *title, const char *text) { ui_message ((long) title, (long) text, UM_OK); }
+
+/* une boite de message aux boutons choisis (0 UM_OK, 1 UM_OKCANCEL, 2 UM_YESNO, 3 UM_YESNOCANCEL)
+ * -> 1 OK / Oui, 0 Annuler / Non (Echap), 2 Non de UM_YESNOCANCEL */
+int kh_message_ex (const char *title, const char *text, int buttons)
+{
+	return (int) ui_message ((long) title, (long) text, buttons);
+}
+
+/* le choix d'un dossier : 1 si choisi (chemin dans buf) */
+int kh_folder_choose (const char *dir, char *buf, long cap)
+{
+	return ui_folder_choose ((long) dir, (long) buf, cap) == 1;
+}
 
 /* ouvre un fichier ou une adresse avec l'app associee */
 void kh_open_with (const char *path) { ui_open_with ((long) path); }
