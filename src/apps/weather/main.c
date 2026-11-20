@@ -9,7 +9,9 @@
 // Écrit par Claude sur Korin (le 18/11/2026), intégré à l'arbre ensuite.
 // Le réseau passe par un thread (weather.c attend les réponses) ; la boucle d'événements regarde s'il a fini.
 // Au démarrage de la session, le widget est souvent lancé avant que le Wi-Fi ait son adresse : il s'abonne à
-// korin.net.state (BusKit) et refait la carte dès que le réseau vient, sans attendre le prochain essai.
+// korin.net.state (BusKit) et refait la carte dès que le réseau vient, sans attendre le prochain essai. Un essai qui
+// ne rend pas la main en JOB_MAX_S secondes est abandonné à son thread (il libère sa part s'il finit un jour) : un
+// seul appel bloqué ne doit plus figer le widget pour toute la session.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -53,11 +55,14 @@ static int g_status_err;				// 1 : le message est une erreur
 static time_t g_last;					// heure du dernier essai, réussi ou non
 static int g_wx = -1, g_wy = -1;			// place du widget (weather.ini : widget_x, widget_y)
 
-// le travail du thread du réseau
-static pthread_t g_thread;
-static int g_busy;					// un thread tourne
-static volatile int g_done;				// il a fini : g_job_* sont à lire
-static struct wx_place g_job_place;
+// le travail du thread du réseau : un essai = un bloc à lui, que le thread ne touche plus une fois abandonné
+enum { JOB_RUN, JOB_DONE, JOB_LEFT };			// en cours ; fini (à lire) ; abandonné (le thread le libère)
+enum { JOB_MAX_S = 120 };				// au-delà, l'essai est tenu pour bloqué
+struct job { struct wx_place place; struct wx_data data; int rc; int state; };
+static struct job *g_job;				// l'essai en cours
+static int g_busy;					// un essai est en cours (g_job)
+static double g_job_t0;					// son départ (horloge monotone, s)
+static struct wx_place g_job_place;			// le résultat du dernier essai fini
 static struct wx_data g_job_data;
 static int g_job_rc;
 static int g_last_rc = WX_ERR_NONET;			// le résultat du dernier essai (rien encore : comme sans réseau)
@@ -66,13 +71,21 @@ static int g_net_retry;					// le réseau est venu pendant un essai : le refaire
 
 static void *job_run (void *arg)
 {
-	(void) arg;
+	struct job *j = arg;
 	int rc = WX_OK;
-	if (!g_job_place.found) rc = wx_geocode (&g_job_place, g_lang);
-	if (rc == WX_OK) rc = wx_forecast (&g_job_place, &g_job_data);
-	g_job_rc = rc;
-	__atomic_store_n (&g_done, 1, __ATOMIC_RELEASE);
+	if (!j->place.found) rc = wx_geocode (&j->place, g_lang);
+	if (rc == WX_OK) rc = wx_forecast (&j->place, &j->data);
+	j->rc = rc;
+	int run = JOB_RUN;				// abandonné entre-temps : personne ne le lira plus
+	if (!__atomic_compare_exchange_n (&j->state, &run, JOB_DONE, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) free (j);
 	return 0;
+}
+
+static double mono_s (void)
+{
+	struct timespec ts;
+	clock_gettime (CLOCK_MONOTONIC, &ts);		// (pas time () : l'heure saute au premier NTP)
+	return ts.tv_sec + ts.tv_nsec / 1e9;
 }
 
 // ---- les textes ------------------------------------------------------------------------------------------------------
@@ -389,11 +402,20 @@ static void set_status (int err, const char *fmt, const char *arg)
 static void fetch (const struct wx_place *pl)
 {
 	if (g_busy) return;
-	g_job_place = *pl;
-	g_done = 0;
+	struct job *j = calloc (1, sizeof *j);
+	pthread_t th;
 	g_net_retry = 0;
 	g_last = time (0);
-	if (pthread_create (&g_thread, 0, job_run, 0) != 0) { set_status (1, "%s", TR ("Impossible de lancer la recherche.")); return; }
+	if (j) j->place = *pl;
+	if (!j || pthread_create (&th, 0, job_run, j) != 0)
+	{
+		free (j);
+		set_status (1, "%s", TR ("Impossible de lancer la recherche."));
+		return;
+	}
+	pthread_detach (th);
+	g_job = j;
+	g_job_t0 = mono_s ();
 	g_busy = 1;
 	if (g_widget) return;					// (le widget garde l'ancienne carte pendant ce temps)
 	ui_w_enable (g_search, 0);
@@ -406,7 +428,11 @@ static int net_failed (int rc) { return rc == WX_ERR_NONET || rc == WX_ERR_DNS |
 // le thread a fini : on reprend son résultat
 static void fetch_done (void)
 {
-	pthread_join (g_thread, 0);
+	g_job_place = g_job->place;
+	g_job_data = g_job->data;
+	g_job_rc = g_job->rc;
+	free (g_job);
+	g_job = 0;
 	g_busy = 0;
 	g_last_rc = g_job_rc;
 	if (!g_widget) ui_w_enable (g_search, 1);
@@ -427,6 +453,29 @@ static void fetch_done (void)
 		if (!g_widget) place_save ();			// (le widget ne fait que lire le lieu)
 		set_status (0, g_widget ? "" : TR ("Données : Open-Meteo.com"), 0);
 	}
+}
+
+// l'essai en cours : fini -> fetch_done ; bloqué depuis JOB_MAX_S -> abandonné (un autre partira) ; 1 : l'état a changé
+static int job_poll (void)
+{
+	if (!g_busy) return 0;
+	int st = __atomic_load_n (&g_job->state, __ATOMIC_ACQUIRE);
+	if (st == JOB_RUN && mono_s () - g_job_t0 >= JOB_MAX_S)
+	{
+		if (__atomic_compare_exchange_n (&g_job->state, &st, JOB_LEFT, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
+		{					// (le thread garde le bloc et le libérera)
+			g_job = 0;
+			g_busy = 0;
+			g_last_rc = WX_ERR_CONNECT;
+			if (!g_widget) ui_w_enable (g_search, 1);
+			set_status (1, "%s", error_text (WX_ERR_CONNECT));
+			if (g_net_retry && g_place.found) fetch (&g_place);	// (le réseau est venu entre-temps)
+			return 1;
+		}				// (st : JOB_DONE, il vient de finir)
+	}
+	if (st != JOB_DONE) return 0;
+	fetch_done ();
+	return 1;
 }
 
 // ---- le réseau qui vient : korin.net.state (docs/BUS.md) -----------------------------------------------------------
@@ -546,7 +595,7 @@ static int widget_main (void)
 		else if (t == WEV_MOUSE && ui_ev_field (&ui, EV_KIND) == 1) open_app ();
 
 		time_t now = time (0);
-		if (g_busy && __atomic_load_n (&g_done, __ATOMIC_ACQUIRE)) { fetch_done (); widget_paint (); }
+		if (job_poll ()) widget_paint ();
 		if (!g_busy && now - reload >= RELOAD_S)		// la fenêtre a choisi un autre lieu ?
 		{
 			reload = now;
@@ -563,8 +612,7 @@ static int widget_main (void)
 		}
 		if (!g_busy && g_place.found && now - g_last >= (g_data.valid ? REFRESH_S : RETRY_S)) fetch (&g_place);
 	}
-	if (g_busy) pthread_join (g_thread, 0);
-	return 0;
+	return 0;					// (un essai en cours finit avec le programme)
 }
 
 // ---- le rôle « fenêtre » ---------------------------------------------------------------------------------------------
@@ -697,12 +745,11 @@ static int window_main (void)
 		}
 		else ui_w_idle ();
 
-		if (g_busy && __atomic_load_n (&g_done, __ATOMIC_ACQUIRE)) fetch_done ();
+		job_poll ();
 		if (!g_busy && g_place.found && time (0) - g_last >= REFRESH_S) fetch (&g_place);
 		ui_view_flush ();
 	}
-	if (g_busy) pthread_join (g_thread, 0);
-	return 0;
+	return 0;					// (un essai en cours finit avec le programme)
 }
 
 int main (int argc, char **argv)
