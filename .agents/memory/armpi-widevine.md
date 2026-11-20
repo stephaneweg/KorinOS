@@ -63,8 +63,10 @@ la case des réglages (étape 7). Décision de l'utilisateur du 20/11 : Widevine
 engine_protected_content) ; cdmupdate (src/sys/cdmhost, jet.app/libexec) : serveur de composants de Google (Omaha 3.1,
 oimompecagnajdejgnnjijobebaeigek), .crx3 vérifié (SHA-256), installé dans HOME/.jet/widevine. Le module 4.10.3112.0
 importe 11 fonctions de plus (glibc_misc.c) : une mise à jour de Google peut en demander d'autres (cdmhost le dit).
-Essais : test_eme_jet.sh KS=update, CLICKS=… (clics sous QEMU). Reste : ZBook, compte, WebM chiffré, Jet ordinaire
-(WebKit avec 0008/0009, versions jet et pc).
+Essais : test_eme_jet.sh KS=update, CLICKS=… (clics sous QEMU). **Jet ordinaire avec EME le 20/11** : 0008 et 0009
+dans webkit et webkit-gl, webcore reconstruit (build-webkit.sh force -DENABLE_ENCRYPTED_MEDIA=ON : le cache CMake
+gardait OFF), out/jet.app joue ; copies *-eme effacées. Reste : ZBook, compte, WebM chiffré, versions jet et pc à
+monter avant leur publication.
 
 Pièges : `linux` est une macro prédéfinie de gcc sous Linux (pas comme nom de champ) ; le canari de pile du code
 Linux (%fs:0x28) tombe dans le TCB de 64 octets de libposix, stable. Le module ne va jamais dans nos paquets.

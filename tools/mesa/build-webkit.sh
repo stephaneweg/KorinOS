@@ -22,6 +22,9 @@ if [ "${ARCH:-aarch64}" = x86_64 ]; then
 	[ -f "$BASE/Source/cmake/OptionsOnyx.cmake" ] || ARCH=x86_64 sh "$ARMPI_ROOT/tools/webkit/fetch.sh"
 	# (le JIT de WebAssembly aussi depuis le 14/11 : BBQ et OMG ; hCaptcha, sa preuve de travail en WebAssembly)
 	JITFLAGS="-DENABLE_JIT=ON -DENABLE_DFG_JIT=ON -DENABLE_FTL_JIT=ON -DENABLE_C_LOOP=OFF -DENABLE_WEBASSEMBLY_BBQJIT=ON -DENABLE_WEBASSEMBLY_OMGJIT=ON"
+	# (EME depuis le 20/11, correctifs 0008 et 0009 : Clear Key, Widevine par cdmhost, docs/etude/WIDEVINE.md ; dit
+	# ici aussi, car un arbre configuré avant garde ENABLE_ENCRYPTED_MEDIA=OFF dans son cache malgré OptionsOnyx.cmake)
+	JITFLAGS="$JITFLAGS -DENABLE_ENCRYPTED_MEDIA=ON"
 fi
 if [ ! -f "$W/Source/cmake/OptionsOnyx.cmake" ]; then
 	mkdir -p "$W"

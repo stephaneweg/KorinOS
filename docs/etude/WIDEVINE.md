@@ -564,9 +564,15 @@ l'essai sur le ZBook ; les images passent par la socket (pas encore de mémoire 
   * la case, par clics (`CLICKS=…` : la tablette USB de QEMU) : le menu Réglages la montre décochée, le dialogue
     s'ouvre, OK télécharge et installe (« Widevine : module 4.10.3112.0 installé »), la page rechargée joue, la case
     est cochée ; sans module, la page reçoit `NotSupportedError` (Widevine n'est pas proposé).
-* Reste : essai sur le ZBook ; un compte Netflix ou Spotify (l'utilisateur) ; le WebM chiffré (§ 13) ; le Jet
-  ordinaire n'a EME qu'après une construction de WebKit avec les correctifs 0008 et 0009 (puis la version du paquet
-  `jet` et celle de `pc`, pour `etc/exec.txt`).
+* **Le Jet ordinaire** (20/11) : les correctifs 0008 et 0009 sont appliqués aux copies `webkit` et `webkit-gl`, et
+  WebKit reconstruit dans `webcore` (1 h 15 avec 4 travaux). Piège : un arbre déjà configuré garde
+  `ENABLE_ENCRYPTED_MEDIA=OFF` dans son cache CMake malgré `OptionsOnyx.cmake` (le premier essai n'a rien compilé) ;
+  `tools/mesa/build-webkit.sh` passe donc `-DENABLE_ENCRYPTED_MEDIA=ON` (PC). Essai de `out/jet.app` sous QEMU : sans
+  module, `NotSupportedError` ; la case, OK, le module installé, la page rechargée : **401 images à 20 s,
+  « EME-WIDEVINE : RÉUSSI »**. Les copies et la construction à part (`webkit-eme`, `webkit-gl-eme`, `webcore-eme`)
+  sont effacées.
+* Reste : essai sur le ZBook ; un compte Netflix ou Spotify (l'utilisateur) ; le WebM chiffré (§ 13) ; les versions
+  des paquets `jet` et `pc` (pour `etc/exec.txt`) avant leur prochaine publication.
 
 ## Sources (19/11/2026)
 
