@@ -1,0 +1,10 @@
+--- a/src/unix/mod.rs
++++ b/src/unix/mod.rs
+@@ -25,6 +25,7 @@
+                         target_os = "freebsd",
+                         target_os = "netbsd",
+                         target_os = "openbsd",
++                        target_os = "korin",
+                         target_os = "haiku"))] {
+         mod utimensat;
+         pub use self::utimensat::*;

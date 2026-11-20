@@ -308,7 +308,11 @@ le même `[patch.crates-io]` (`libc` 0.2.185, `target-lexicon` 0.13.5, `getrando
 * Pas d'IPv6, pas de socket `AF_UNIX` nommé (`std::os::unix::net::UnixListener::bind` échoue : `EAFNOSUPPORT`).
 * Le patch de `libc` vise la 0.2.185 : une caisse qui exigerait une `libc` plus récente ne prendrait pas le patch
   (cargo le dit : « patch was not used ») et ne compilerait pas pour Korin. Remède : rejouer `libc.patch` sur cette
-  version.
+  version. **Fait pour la 0.2.191** (20/11/2026, [CRAFT.md](CRAFT.md)) : `tools/craft/build.sh` l'applique dans
+  `$KORIN_RUST/vendor/libc-0.2.191` et ajoute une seconde entrée, `libc-0-2-191 = { path, package = "libc" }`, au
+  `[patch.crates-io]` de `$CARGO_HOME/config.toml`. Garder les deux entrées : une seule entrée `libc` remplace celle
+  de la `std` (verrouillée sur 0.2.185), qui retombe alors sur la `libc` du registre, sans module `korin` (99 erreurs
+  dans la `std`).
 * Pas de gestionnaire de débordement de pile (un débordement est une faute, pas le message de la `std`).
 * `std::fs::File::lock` : non pris en charge (branche des systèmes inconnus) ; `flock` de libposix est sans effet.
 

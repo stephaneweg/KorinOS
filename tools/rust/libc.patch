@@ -3,7 +3,7 @@ new file mode 100755
 index 0000000..c570e0f
 --- /dev/null
 +++ b/vendor/libc-0.2.185/src/unix/korin/mod.rs
-@@ -0,0 +1,1416 @@
+@@ -0,0 +1,1417 @@
 +//! Korin OS (aarch64-unknown-korin, x86_64-unknown-korin) : newlib 4.4 des chaînes
 +//! aarch64-onyx-elf et x86_64-onyx-elf, et libposix
 +//! (src/lib/posix du dépôt Korin, docs/RUST.md). Les types, dispositions et valeurs viennent
@@ -1304,6 +1304,7 @@ index 0000000..c570e0f
 +    pub fn madvise(addr: *mut c_void, len: size_t, advice: c_int) -> c_int;
 +    pub fn posix_madvise(addr: *mut c_void, len: size_t, advice: c_int) -> c_int;
 +    pub fn msync(addr: *mut c_void, len: size_t, flags: c_int) -> c_int;
++    pub fn mprotect(addr: *mut c_void, len: size_t, prot: c_int) -> c_int;
 +    pub fn mincore(addr: *mut c_void, len: size_t, vec: *mut c_uchar) -> c_int;
 +    pub fn memfd_create(name: *const c_char, flags: c_uint) -> c_int;
 +    pub fn shm_open(name: *const c_char, oflag: c_int, mode: mode_t) -> c_int;
