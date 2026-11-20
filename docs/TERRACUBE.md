@@ -24,8 +24,8 @@ En option, deux façons de le piloter de l'extérieur, qui passent par la même 
 | Espace / Maj / Ctrl (ou R) | sauter (en vol : monter) / s'accroupir, ne pas tomber du bord (en vol : descendre) / courir |
 | clic gauche / droit / milieu | casser (survie : tenir) / poser le bloc choisi / prendre le bloc visé |
 | 1 à 9, molette | la case de la barre |
-| B | créatif : la liste des blocs, pour la case choisie ; survie : l'inventaire |
-| I ou C | survie : inventaire et fabrication (aussi : clic droit sur un établi ou un four ; Maj + clic droit pose contre eux) |
+| B | créatif : la liste rapide des blocs, pour la case choisie ; survie : l'inventaire |
+| I ou C | survie : inventaire et fabrication (aussi : clic droit sur un établi ou un four ; Maj + clic droit pose contre eux) ; créatif : le catalogue de tous les objets (blocs, outils, épées, nourriture, os, seaux, circuits), à glisser vers la barre (Maj + clic : dans la case choisie ; 1 à 9 : dans cette case ; lâché ailleurs : il disparaît) |
 | A (Q en QWERTY) | prendre le bloc visé dans la case |
 | E | « toucher » le bloc visé (un évènement pour les scripts) |
 | F | voler ou non |

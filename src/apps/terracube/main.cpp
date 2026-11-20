@@ -330,7 +330,7 @@ void openWorld (const std::string &name, uint32_t seed, bool seedGiven)
 				char *s = (char *) v;
 				for (int i = 0; i < 9; i++) {
 					long b = strtol (s, &s, 10);
-					if (b > 0 && b < BLOCK_COUNT) g.hotbar[i] = (int) b;
+					if (b >= 0 && (b == 0 || itemValid ((int) b))) g.hotbar[i] = (int) b;
 				}
 			}
 		}
@@ -605,6 +605,9 @@ struct CraftUI {
 	int ox, oy;			// le coin du panneau dans la vue
 	bool book = false;		// le livre des recettes, à la place des cases
 	int bookScroll = 0;
+	bool creative = false;		// le mode créatif : le catalogue de tous les objets, et la barre
+	Stack cbar[9];			// (la barre du créatif, le temps du panneau)
+	int catScroll = 0;		// (la première rangée du catalogue montrée)
 } C_;
 
 const int CELL = 44, GAP = 4, STEP = CELL + GAP, PAD = 16;
@@ -686,6 +689,20 @@ void craftTexts ()
 		C_.bookScroll = std::max (0, std::min (C_.bookScroll, (int) lines.size () - rows));
 		for (int i = 0; i < rows && C_.bookScroll + i < (int) lines.size (); i++)
 			ui_text_fit ((long) lines[(size_t) (C_.bookScroll + i)].c_str (), x0, C_.oy + 54 + i * LH, jet (TJ_TEXT2), 12, f, PW - 2 * PAD);
+		return;
+	}
+	if (C_.creative) {
+		craftText (TR ("Tous les objets · créatif"), x0, C_.oy + 28, jet (TJ_TEXT1), 14, fb);
+		std::string h = TR ("molette : défiler · glisser vers la barre · Maj + clic, 1 à 9");
+		craftText (TR ("Barre"), x0, C_.oy + BAR_Y - 10, jet (TJ_TEXT1), 14, fb);
+		craftText (h, C_.ox + PW - PAD - (int) ui_text_width ((long) h.c_str (), 12, f), C_.oy + BAR_Y - 10, jet (TJ_TEXT3), 12, f);
+		std::string tip = craftTipText ();
+		if (!tip.empty ()) {
+			long w = ui_text_width ((long) tip.c_str (), 12, f) + 14;
+			int x = std::min (C_.mx + 14, (int) ui.w - (int) w - 4), y = C_.my - 30;
+			panel (x, y, (int) w, 22);
+			ui_text ((long) tip.c_str (), x + 7, y + 16, jet (TJ_TEXT1), 12, f, 0);
+		}
 		return;
 	}
 	craftText (C_.n == 3 ? TR ("Fabrication · établi") : TR ("Fabrication · à la main"), x0, C_.oy + 28, jet (TJ_TEXT1), 14, fb);
@@ -959,7 +976,8 @@ bool useBucket (int item)
 		if (!isLiquid (h.block) || g.world.meta (h.x, h.y, h.z) != 0) return false;	// (une source seulement)
 		int full = h.block == WATER ? I_WATER_BUCKET : I_LAVA_BUCKET;
 		g.world.set (h.x, h.y, h.z, AIR);
-		if (st.count > 1) {
+		if (!survival ()) {	// (créatif : le seau ne change pas)
+		} else if (st.count > 1) {
 			st.count--;
 			if (g.inv.add (full, 1) > 0) gamePost (TR ("Inventaire plein : le seau est perdu"));
 		} else
@@ -975,7 +993,7 @@ bool useBucket (int item)
 	if (there != AIR && !isLiquid (there) && info (there).shape != SH_CROSS && info (there).shape != SH_SPECIAL) return false;
 	if (y < 0 || y >= CH) return false;
 	g.world.set (x, y, z, liquid, 0);
-	st = Stack (), st.item = I_BUCKET, st.count = 1;
+	if (survival ()) st = Stack (), st.item = I_BUCKET, st.count = 1;
 	audio::play (audio::S_SPLASH, 0, 0.5f, panOf (x, z));
 	g.edited = true;
 	return true;
@@ -1002,7 +1020,7 @@ void placeBlock ()
 	if (g_targetEnt) {
 		Entity *e = g.mobs.get (g_targetEnt);
 		int held = slotItem (g.selected);
-		if (e && !survival ())	// (créatif : la barre n'a que des blocs ; on fait comme si on tenait ce qu'il faut)
+		if (e && !survival () && (held == 0 || isBlockItem (held)))	// (créatif, un bloc en main : comme si on tenait ce qu'il faut)
 			held = e->type == E_WOLF ? (e->tamed ? 0 : I_BONE) : e->type == E_CHICKEN ? I_SEEDS : e->type == E_PIG ? I_APPLE : 0;
 		bool used;
 		std::string msg;
@@ -1036,7 +1054,7 @@ void placeBlock ()
 		g.edited = true;
 		return;
 	}
-	if (survival () && (b == I_BUCKET || b == I_WATER_BUCKET || b == I_LAVA_BUCKET)) {
+	if (b == I_BUCKET || b == I_WATER_BUCKET || b == I_LAVA_BUCKET) {
 		useBucket (b);
 		return;
 	}
@@ -1220,10 +1238,33 @@ struct Slot {
 
 int resultY () { return C_.oy + TOP + (C_.n * STEP - GAP - CELL) / 2; }
 
+// le catalogue du créatif : tous les objets (l'eau et la lave aussi)
+const std::vector<int> &catalogue ()
+{
+	static std::vector<int> v;
+	if (v.empty ()) {
+		v = allItems ();
+		v.push_back (WATER), v.push_back (LAVA);
+	}
+	return v;
+}
+const int CAT_ROWS = 6;
+
 std::vector<Slot> craftSlots ()
 {
 	std::vector<Slot> v;
 	int x0 = C_.ox + PAD, y0 = C_.oy + TOP;
+	if (C_.creative) {	// le catalogue (cases 100 et plus : 100 + son rang), puis la barre
+		int rows = ((int) catalogue ().size () + 8) / 9;
+		C_.catScroll = std::max (0, std::min (C_.catScroll, rows - CAT_ROWS));
+		for (int r = 0; r < CAT_ROWS; r++)
+			for (int c = 0; c < 9; c++) {
+				int k = (C_.catScroll + r) * 9 + c;
+				if (k < (int) catalogue ().size ()) v.push_back ({ 100 + k, x0 + c * STEP, y0 + r * STEP });
+			}
+		for (int c = 0; c < 9; c++) v.push_back ({ 47 + c, x0 + c * STEP, C_.oy + BAR_Y });
+		return v;
+	}
 	for (int r = 0; r < C_.n; r++)
 		for (int c = 0; c < C_.n; c++) v.push_back ({ r * C_.n + c, x0 + c * STEP, y0 + r * STEP });
 	v.push_back ({ 9, x0 + C_.n * STEP + 52, resultY () });
@@ -1240,6 +1281,12 @@ std::vector<Slot> craftSlots ()
 
 Stack *slotStack (int id)
 {
+	if (C_.creative) {
+		static Stack tmp;
+		if (id >= 47 && id < 56) return &C_.cbar[id - 47];
+		if (id >= 100 && id - 100 < (int) catalogue ().size ()) return tmp = Stack (), tmp.item = catalogue ()[(size_t) (id - 100)], tmp.count = 1, &tmp;
+		return nullptr;
+	}
 	if (id >= 0 && id < 9) return &C_.grid[id];
 	if (id == 10) return &C_.fin;
 	if (id >= 20 && id < 47) return &g.inv.s[9 + id - 20];
@@ -1294,6 +1341,10 @@ void craftDraw (CraftDraw &d)
 		c.result = sl.id == 9 || sl.id == 11;
 		c.selected = sl.id >= 47 && sl.id - 47 == g.selected;
 		d.cells.push_back (c);
+	}
+	if (C_.creative) {
+		if (!C_.cursor.empty ()) d.cursorItem = C_.cursor.item, d.cursorCount = 1, d.mx = C_.mx, d.my = C_.my;
+		return;
 	}
 	// les flèches : la grille vers son résultat, l'entrée du four vers le sien
 	int gx = C_.ox + PAD + C_.n * STEP - GAP;
@@ -1402,9 +1453,57 @@ void returnCursor ()
 	if (!C_.cursor.empty () && g.inv.add (C_.cursor.item, C_.cursor.count) == 0) C_.cursor = Stack ();
 }
 
+void syncBar ()
+{
+	for (int i = 0; i < 9; i++) g.hotbar[i] = C_.cbar[i].empty () ? 0 : C_.cbar[i].item;
+}
+
+// le créatif : un clic (ou un glisser) prend un objet du catalogue, sans fin ; lâché sur une case de la barre, il y
+// va ; ailleurs, il disparaît. Maj + clic : dans la case choisie de la barre.
+long creativeMouse (long kind, long x, long y, long infos)
+{
+	C_.mx = (int) x, C_.my = (int) y;
+	unsigned b = (unsigned) (infos >> 8) & 0xFF, mods = (unsigned) (infos >> 16);
+	unsigned pressed = kind == 1 ? b & ~C_.buttons : 0;
+	C_.buttons = b;
+	int id = slotAt ((int) x, (int) y);
+	Stack &c = C_.cursor;
+	if (kind == 2 && C_.dragFrom != -1) {	// (lâché)
+		int from = C_.dragFrom;
+		C_.dragFrom = -1;
+		if (id == from) return 0;	// (un clic : l'objet reste sous la souris)
+		if (id >= 47 && id < 56) C_.cbar[id - 47] = c, C_.cbar[id - 47].count = 1, audio::play (audio::S_CLICK);
+		c = Stack ();
+		syncBar ();
+		return 0;
+	}
+	if (!pressed) return 0;
+	if (id < 0 || (id >= 100 && !c.empty ())) {	// (ailleurs, ou sur le catalogue : ce qu'on tient disparaît)
+		c = Stack ();
+		return 0;
+	}
+	if (id >= 100) {
+		Stack *s = slotStack (id);
+		if (mods & UI_MOD_SHIFT) {
+			C_.cbar[g.selected] = *s;
+			syncBar ();
+		} else
+			c = *s, C_.dragFrom = id;
+		audio::play (audio::S_CLICK);
+		return 0;
+	}
+	Stack &s = C_.cbar[id - 47];
+	if (!c.empty ()) s = c, s.count = 1, c = Stack ();
+	else if (!s.empty ()) c = s, s = Stack (), C_.dragFrom = id;
+	audio::play (audio::S_CLICK);
+	syncBar ();
+	return 0;
+}
+
 // la souris dans le panneau : kind 0 déplacement, 1 appui, 2 relâché ; infos = boutons << 8 | modificateurs << 16
 long craftMouse (long, long kind, long x, long y, long infos)
 {
+	if (C_.creative) return creativeMouse (kind, x, y, infos);
 	C_.mx = (int) x, C_.my = (int) y;
 	unsigned b = (unsigned) (infos >> 8) & 0xFF, mods = (unsigned) (infos >> 16);
 	unsigned pressed = kind == 1 ? b & ~C_.buttons : 0;
@@ -1473,6 +1572,15 @@ void craftClose ()
 	if (!C_.open) return;
 	C_.open = false;
 	C_.book = false;
+	if (C_.creative) {
+		syncBar ();
+		C_.cursor = Stack ();
+		C_.dragFrom = -1;
+		C_.creative = false;
+		selectSlot (g.selected);
+		lock ();
+		return;
+	}
 	// ce qui reste dans la grille, le four et sous la souris revient dans l'inventaire
 	int lost = 0;
 	for (auto &s : C_.grid)
@@ -1489,8 +1597,13 @@ void craftClose ()
 void craftKey (int code)
 {
 	if (code == KEY_ESC || code == 0x0C || code == 0x08 || code == 0x05) craftClose ();	// Échap, I, E, B
-	else if (code == 0x15) C_.book = !C_.book, C_.bookScroll = 0;			// R : le livre des recettes
-	else if (code >= 0x1E && code <= 0x26) {	// 1 à 9 sur une case : vers cette case de la barre
+	else if (code == 0x15 && !C_.creative) C_.book = !C_.book, C_.bookScroll = 0;	// R : le livre des recettes
+	else if (code >= 0x1E && code <= 0x26 && C_.creative) {	// (créatif : l'objet survolé dans cette case)
+		int id = slotAt (C_.mx, C_.my), k = code - 0x1E;
+		if (id >= 100) C_.cbar[k] = *slotStack (id);
+		else if (id >= 47) std::swap (C_.cbar[k], C_.cbar[id - 47]);
+		syncBar ();
+	} else if (code >= 0x1E && code <= 0x26) {	// 1 à 9 sur une case : vers cette case de la barre
 		int id = slotAt (C_.mx, C_.my);
 		Stack *s = slotStack (id);
 		int k = code - 0x1E;
@@ -1500,12 +1613,21 @@ void craftKey (int code)
 
 void inventoryWindow (bool workbench)
 {
-	if (!survival ()) {
-		chooseBlock ();
-		return;
-	}
 	if (C_.open) {
 		craftClose ();
+		return;
+	}
+	if (!survival ()) {	// le créatif : le catalogue de tous les objets et la barre
+		C_.creative = true;
+		for (int i = 0; i < 9; i++) C_.cbar[i] = Stack (), C_.cbar[i].item = g.hotbar[i], C_.cbar[i].count = g.hotbar[i] ? 1 : 0;
+		C_.cursor = Stack ();
+		C_.buttons = 0;
+		C_.dragFrom = -1;
+		C_.book = false;
+		C_.open = true;
+		craftPlace ();
+		unlock ();
+		g_buttons = 0;
 		return;
 	}
 	bool wb, fu;
@@ -1793,6 +1915,7 @@ void handleEvent (long t)
 	}
 	if (t == WEV_WHEEL && C_.open) {
 		if (C_.book) C_.bookScroll -= (int) ui_ev_field (&ui, EV_Y) * 3;
+		if (C_.creative) C_.catScroll -= (int) ui_ev_field (&ui, EV_Y);
 		return;
 	}
 	if (t == WEV_WHEEL) {
@@ -2525,6 +2648,24 @@ static void selftest ()
 	}
 	con ("mode creative");
 	check (g.mode == MODE_CREATIVE, "console : mode creative");
+	{	// le créatif : I ouvre le catalogue ; un objet glissé vers la barre y reste
+		inventoryWindow ();
+		check (C_.open && C_.creative, "créatif : I ouvre le catalogue de tous les objets");
+		auto &cat = catalogue ();
+		int k = (int) (std::find (cat.begin (), cat.end (), (int) I_IRON_SWORD) - cat.begin ());
+		C_.catScroll = k / 9;
+		int sx = 0, sy = 0, bx = 0, by = 0;
+		for (auto &sl : craftSlots ()) {
+			if (sl.id == 100 + k) sx = sl.x + CELL / 2, sy = sl.y + CELL / 2;
+			if (sl.id == 47 + 3) bx = sl.x + CELL / 2, by = sl.y + CELL / 2;
+		}
+		craftMouse (0, 1, sx, sy, 1 << 8);
+		craftMouse (0, 0, bx, by, 1 << 8);
+		craftMouse (0, 2, bx, by, 0);
+		craftClose ();
+		check (!C_.open && g.hotbar[3] == I_IRON_SWORD, "créatif : une épée glissée dans la barre (case 4)");
+		g.hotbar[3] = COBBLE;
+	}
 	con ("music 35");
 	con ("sound off");
 	check (g.musicOn && fabsf (g.musicVol - 0.35f) < 0.01f && !g.sfxOn, "console : music 35, sound off");
