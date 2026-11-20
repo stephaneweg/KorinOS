@@ -40,6 +40,8 @@
 | `dos.h`, `dos.c` | la machine DOS (un `.exe` sans en-tête NE, un `.COM`) : MCB, PSP, chargeur MZ, EXEC, console, INT 21h, la boucle |
 | `bios.c` | son BIOS : zone 40:00, INT 10h-1Ah, PIC, PIT, clavier (port 60h, INT 9), CMOS, ports, fenêtre |
 | `mouse.c` | son pilote de souris (INT 33h, IRQ 12 vers le gestionnaire du programme) |
+| `svga.c` | sa SVGA : VESA BIOS Extension 2.0 (banques, tampon linéaire, 8 à 32 bits) |
+| `xms.c` | sa mémoire XMS 3.0 et EMS 4.0 |
 | `vga.c` | sa VGA : modes texte, CGA, EGA, VGA en plans, 13h, Mode X, registres, DAC, INT 10h, rendu dans la fenêtre |
 
 ## Construire et essayer

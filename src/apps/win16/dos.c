@@ -947,9 +947,9 @@ static int int21 (void)
 		for (; b[k] && b[k] != '.' && k < 15; k++)
 			base[k] = (char) toupper ((unsigned char) b[k]);
 		base[k] = 0;
-		int dev = !strcmp (base, "CON") ? 1 : !strcmp (base, "NUL") ? 2 : !strcmp (base, "PRN") || !strcmp (base, "AUX")
+		int dev = !strcmp (base, "CON") ? 1 : !strcmp (base, "NUL") || !strcmp (base, "EMMXXXX0") ? 2 : !strcmp (base, "PRN") || !strcmp (base, "AUX")
 			|| !strncmp (base, "LPT", 3) || !strncmp (base, "COM", 3) ? 3 : 0;
-		if (dev && (!base[3] || isdigit ((unsigned char) base[3])))
+		if (dev && (!base[3] || isdigit ((unsigned char) base[3]) || !strcmp (base, "EMMXXXX0")))
 		{
 			int h = kernel_fh_newdev (dev);
 			if (h < 0)
@@ -1200,8 +1200,14 @@ static int int2f (void)
 {
 	switch (rAX)
 	{
+	case 0x4300:	/* XMS : présent (xms.c) */
+		set8l (R_EAX, 0x80);
+		return DONE;
+	case 0x4310:
+		cpu_set_sreg (S_ES, ROM_SEG);
+		set16 (R_EBX, FAR_XMS);
+		return DONE;
 	case 0x1600:	/* Windows ? non */
-	case 0x4300:	/* XMS ? pas encore */
 	case 0x1a00:	/* ANSI.SYS ? non */
 	case 0xae00:	/* commandes installables : non */
 	case 0x1100:
@@ -1269,6 +1275,8 @@ int dos_trap (int vec)
 		return int2f ();
 	case 0x33:
 		return mouse_int33 ();
+	case 0x67:
+		return ems_int67 ();
 	}
 	return -1;
 }
@@ -1424,6 +1432,7 @@ int dos_main (const char *path, const char *dospath_in, const char *args)
 	kernel_drives_init ();
 	bios_init ();
 	dos_data_init ();
+	xms_init ();
 	/* le processus racine (le « DOS ») et son environnement */
 	root_psp = mcb_alloc (0x10, 8, 0);
 	wr16 (RM (root_psp - 1, 1), root_psp);

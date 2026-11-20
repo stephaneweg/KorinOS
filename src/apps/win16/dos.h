@@ -18,7 +18,7 @@ extern "C" {
 #define ROM_SEG		0xf000
 #define TRAP_END	0x200
 #define FAR_BASE	0x100
-enum { FAR_TICK = 0x100, FAR_KBD, FAR_NULL, FAR_MOUSE };
+enum { FAR_TICK = 0x100, FAR_KBD, FAR_NULL, FAR_MOUSE, FAR_XMS };
 #define ROM_CODE	0x1000
 #define VROM_SEG	0xc000		/* les polices de la « ROM » vidéo */
 #define FONT16_OFF	0x1000
@@ -87,6 +87,23 @@ uint32_t vga_in (uint16_t port);
 void vga_out (uint16_t port, uint8_t v);
 void vga_mouse_space (int *w, int *h);	/* les coordonnées virtuelles de la souris dans ce mode */
 extern int vga_width, vga_height;	/* la taille de l'image rendue */
+uint32_t vga_rgb (int idx);
+void vga_dac_put (int i, uint8_t r, uint8_t g, uint8_t b);
+void vga_dac_get (int i, uint8_t *r, uint8_t *g, uint8_t *b);
+
+/* svga.c */
+extern int svga_on;
+void svga_init (void);
+void svga_off (void);
+void svga_size (int *w, int *h);
+int vesa_int10 (void);
+void svga_render (uint32_t *px, int stride, int W, int H, int sx, int sy);
+void svga_crtc_start (uint32_t bytes);
+
+/* xms.c : XMS (INT 2Fh 43h, appel lointain) et EMS (INT 67h) */
+void xms_init (void);
+void xms_call (void);
+int ems_int67 (void);
 
 #ifdef __cplusplus
 }

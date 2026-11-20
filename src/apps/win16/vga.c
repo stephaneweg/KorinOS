@@ -302,6 +302,7 @@ static void cga_apply (void)
 
 void vga_set_mode (int m, int clear)
 {
+	svga_off ();
 	mode = m;
 	graphics = !(m <= 3 || m == 7);
 	kind = !graphics ? K_TEXT : (m == 4 || m == 5) ? K_CGA4 : m == 6 ? K_CGA2 : m == 0x13 ? K_256 : K_PLANAR;
@@ -822,6 +823,8 @@ int vga_int10 (void)
 			set16 (R_EBX, 0x0008);
 		}
 		break;
+	case 0x4f:	/* le VESA BIOS Extension (svga.c) */
+		return vesa_int10 ();
 	case 0x1b:	/* l'état de la carte, et la table des modes qu'elle sait faire (QuickBASIC la lit pour SCREEN 12, 13) */
 	{
 		static const uint8_t func[16] = { 0xff, 0xe0, 0x0f, 0, 0, 0, 0, 0x07, 0x02, 0x08, 0xff, 0x0e, 0, 0, 0x3f, 0 };
@@ -935,6 +938,8 @@ void vga_out (uint16_t port, uint8_t v)
 	case 0x3b5: case 0x3d5:
 		if (crtc_index < 0x19)
 			crtc[crtc_index] = v;
+		if (svga_on && (crtc_index == 0x0c || crtc_index == 0x0d))	/* (FutureLib change de page par le CRTC) */
+			svga_crtc_start ((uint32_t) (crtc[0x0c] << 8 | crtc[0x0d]) * 4);
 		break;
 	case 0x3d8: cga_mode_reg = v; break;
 	case 0x3d9:	/* (la couleur de la CGA : fond et palette des modes 4 et 5) */
@@ -1001,6 +1006,8 @@ static void draw_mouse (uint32_t *px, int stride, int W, int H, int sx, int sy)
 			px[Y * stride + X] = (inner[y] & (0x8000 >> x)) ? 0xffffff : 0x000000;
 		}
 }
+
+static void render_svga (void);
 
 static void render_gfx (void)
 {
@@ -1069,6 +1076,11 @@ void vga_render (void)
 	if (!bios_win)
 		return;
 	frames++;
+	if (svga_on)
+	{
+		render_svga ();
+		return;
+	}
 	if (graphics)
 	{
 		render_gfx ();
@@ -1141,6 +1153,11 @@ void vga_render (void)
 /* les coordonnées virtuelles de la souris : 640 de large ; en hauteur, les lignes du mode (texte : 8 par ligne) */
 void vga_mouse_space (int *w, int *h)
 {
+	if (svga_on)
+	{
+		svga_size (w, h);
+		return;
+	}
 	*w = 640;
 	if (!graphics)
 	{
@@ -1153,4 +1170,29 @@ void vga_mouse_space (int *w, int *h)
 	*h = gh;
 	if (gw > 640)
 		*w = gw;
+}
+
+/* ======================================================================== pour svga.c */
+uint32_t vga_rgb (int idx) { return rgb_of (idx); }
+void vga_dac_put (int i, uint8_t r, uint8_t g, uint8_t b) { dac_set (i, r, g, b); }
+void vga_dac_get (int i, uint8_t *r, uint8_t *g, uint8_t *b)
+{
+	*r = dac[i & 255][0];
+	*g = dac[i & 255][1];
+	*b = dac[i & 255][2];
+}
+
+static void render_svga (void)
+{
+	int w, h;
+	svga_size (&w, &h);
+	int sx = w <= 400 ? 2 : 1, sy = h <= 300 ? 2 : 1;
+	resize (w * sx, h * sy);
+	int W, H, stride;
+	uint32_t *px = be_pixels (bios_win, &W, &H, &stride);
+	if (!px)
+		return;
+	svga_render (px, stride, W, H, sx, sy);
+	draw_mouse (px, stride, W, H, sx, sy);
+	be_present (bios_win, 0, 0, W, H);
 }

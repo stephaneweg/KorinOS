@@ -80,6 +80,18 @@ défilement en mode graphique (police de l'INT 43h), 1Bh (la table des modes, qu
 CIRCLE, PAINT, PRINT) en SCREEN 1, 2, 7, 9, 12 et 13 sur l'hôte. Sous QEMU, le dessin en plans est lent (deux
 émulations l'une dans l'autre) ; à mesurer sur le ZBook.
 
+**Étape D5 (20/11) : SVGA, XMS, EMS ; FutureLib 3.5 (copie de l'utilisateur, hors du dépôt).** `svga.c` : VESA
+BIOS Extension 2.0 (4F00h-4F09h), 8 Mo de mémoire vidéo à 16 Mo dans l'arène (aussi l'adresse du tampon linéaire),
+fenêtre A de 64 Ko en A0000 par banques (4F05h et WinFuncPtr), 45 modes de 320 × 200 à 1280 × 1024 en 8, 15, 16, 24
+et 32 bits, début d'affichage par 4F07h ou par le CRTC (FutureLib change de page ainsi). `xms.c` : **XMS 3.0**
+(INT 2Fh 4300h/4310h, point d'entrée lointain : allocation, copie 0Bh, verrou, A20 ; de 1 Mo + 64 Ko à 16 Mo) et
+**EMS 4.0** (INT 67h derrière un faux « EMMXXXX0 », cadre de 4 pages en D000, 8 Mo, fonctions 40h-4Eh, 50h, 51h,
+53h, 57h, 58h). Les copies de XMS et d'EMS qui touchent A0000-AFFFF passent par la carte (banques, plans).
+FutureLib : sa bibliothèque est faite dans la machine DOS par LIB.EXE à partir de ses `.OBJ`, puis BC et LINK ; un
+petit programme à nous (640 × 480 en 16 bits : texte, boîtes, cercle plein, lignes) et ses exemples TCOLOR (32
+bits), SPRITES, ANIGIF, PUTXMS et PUTEMS (pages, souris) marchent sur l'hôte, le nôtre aussi sous QEMU PC. Reste : un
+fichier lu par DOS directement dans la fenêtre vidéo (BLOAD en SVGA ou en plans) ne passe pas encore par la carte.
+
 **Pour l'utilisateur** : `win16.app` déclare `.exe`, `.com` et `.bat` ; un double-clic dans Fichiers lance win16, qui
 choisit seul Windows 3.x (en-tête NE) ou DOS. Les `.bat` sont aussi déclarés par l'Éditeur (`/etc/fileassoc.ini`
 tranche).

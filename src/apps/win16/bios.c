@@ -615,6 +615,9 @@ void bios_far (int n)
 	case FAR_MOUSE:
 		mouse_far ();
 		break;
+	case FAR_XMS:
+		xms_call ();
+		break;
 	}
 }
 
@@ -835,6 +838,7 @@ void bios_init (void)
 	cpu_io_in = io_in;
 	cpu_io_out = io_out;
 	cpu_set_a20 (0);
+	svga_init ();
 	vga_init ();
 	mouse_init ();
 }
