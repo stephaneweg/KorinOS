@@ -8,6 +8,8 @@
 // Le lieu choisi est gardé dans HOME:/etc/weather.ini ; le widget le relit toutes les 5 s et suit le changement.
 // Écrit par Claude sur Korin (le 18/11/2026), intégré à l'arbre ensuite.
 // Le réseau passe par un thread (weather.c attend les réponses) ; la boucle d'événements regarde s'il a fini.
+// Au démarrage de la session, le widget est souvent lancé avant que le Wi-Fi ait son adresse : il s'abonne à
+// korin.net.state (BusKit) et refait la carte dès que le réseau vient, sans attendre le prochain essai.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +20,7 @@
 #include <armpi/userconf.h>
 #include <uikit.h>
 #include <netkit_abi.h>
+#include <buskit_abi.h>
 #include "weather.h"
 
 extern char **environ;
@@ -57,6 +60,9 @@ static volatile int g_done;				// il a fini : g_job_* sont à lire
 static struct wx_place g_job_place;
 static struct wx_data g_job_data;
 static int g_job_rc;
+static int g_last_rc = WX_ERR_NONET;			// le résultat du dernier essai (rien encore : comme sans réseau)
+static long g_netsub;					// l'abonnement à korin.net.state (0 : pas de bus)
+static int g_net_retry;					// le réseau est venu pendant un essai : le refaire s'il a échoué
 
 static void *job_run (void *arg)
 {
@@ -385,6 +391,7 @@ static void fetch (const struct wx_place *pl)
 	if (g_busy) return;
 	g_job_place = *pl;
 	g_done = 0;
+	g_net_retry = 0;
 	g_last = time (0);
 	if (pthread_create (&g_thread, 0, job_run, 0) != 0) { set_status (1, "%s", TR ("Impossible de lancer la recherche.")); return; }
 	g_busy = 1;
@@ -393,12 +400,22 @@ static void fetch (const struct wx_place *pl)
 	set_status (0, pl->found ? TR ("Mise à jour de %s…") : TR ("Recherche de %s…"), pl->found ? pl->name : pl->city);
 }
 
+// l'essai a échoué faute de réseau (adresse, DNS, connexion) : la venue du réseau doit le refaire
+static int net_failed (int rc) { return rc == WX_ERR_NONET || rc == WX_ERR_DNS || rc == WX_ERR_CONNECT; }
+
 // le thread a fini : on reprend son résultat
 static void fetch_done (void)
 {
 	pthread_join (g_thread, 0);
 	g_busy = 0;
+	g_last_rc = g_job_rc;
 	if (!g_widget) ui_w_enable (g_search, 1);
+	if (g_net_retry && net_failed (g_job_rc))	// le réseau est venu pendant l'essai : tout de suite un autre
+	{
+		struct wx_place pl = g_job_place;
+		fetch (&pl);
+		return;
+	}
 	if (g_job_rc == WX_ERR_NOTFOUND)
 		set_status (1, g_job_place.country[0] ? TR ("« %s » est introuvable dans ce pays.") : TR ("« %s » est introuvable."),
 			g_job_place.city);
@@ -410,6 +427,27 @@ static void fetch_done (void)
 		if (!g_widget) place_save ();			// (le widget ne fait que lire le lieu)
 		set_status (0, g_widget ? "" : TR ("Données : Open-Meteo.com"), 0);
 	}
+}
+
+// ---- le réseau qui vient : korin.net.state (docs/BUS.md) -----------------------------------------------------------
+
+static void net_watch (void)
+{
+	long s = buskit_kit_open () ? bus_subscribe ((long) "korin.net.state", 0) : 0;
+	g_netsub = s > 0 ? s : 0;			// (sans bus : les essais toutes les RETRY_S secondes restent)
+}
+
+// WEV_BUS : « up <genre> <adresse> <interface> » ou « down » ; à « up », refaire ce qui a échoué faute de réseau
+static void net_changed (void)
+{
+	if (!g_netsub || ui_ev_field (&ui, BEV_SUB) != g_netsub) return;
+	char v[BUS_VALUE_MAX + 1];
+	long n = bus_get ((long) "korin.net.state", (long) v, BUS_VALUE_MAX);
+	if (n < 3) return;
+	v[n < BUS_VALUE_MAX ? n : BUS_VALUE_MAX] = 0;
+	if (strncmp (v, "up ", 3)) return;
+	if (g_busy) { g_net_retry = 1; return; }	// (fetch_done le refera s'il échoue)
+	if (g_place.found && net_failed (g_last_rc)) fetch (&g_place);
 }
 
 // ---- le rôle « widget du bureau » ------------------------------------------------------------------------------------
@@ -495,6 +533,7 @@ static int widget_main (void)
 	if (ui_window_ex (x, y, CARD_W, CARD_H, (long) TR ("Météo"),
 		WF_FRAMELESS | WF_BACK | WF_NOFOCUS | WF_NOLIST | WF_ALPHA) <= 0) return 1;
 	widget_paint ();
+	net_watch ();					// (avant le premier essai : le réseau peut venir pendant)
 	if (g_place.found) fetch (&g_place);
 	time_t reload = time (0);
 
@@ -503,6 +542,7 @@ static int widget_main (void)
 		long t = ui_event (1000);
 		if (t == WEV_CLOSE) break;
 		if (t == WEV_THEME) { s_jet = (const unsigned *) ui_tokens (); widget_paint (); }
+		else if (t == WEV_BUS) net_changed ();
 		else if (t == WEV_MOUSE && ui_ev_field (&ui, EV_KIND) == 1) open_app ();
 
 		time_t now = time (0);
@@ -632,6 +672,7 @@ static int window_main (void)
 		ui_w_set_text (g_country, (long) saved.country);
 	}
 	on_resize (ui.w, ui.h);
+	net_watch ();
 	if (g_place.found) fetch (&g_place);
 	ui_w_focus (g_city);
 	ui_textbox_select (g_city, 0, ui_w_text_len (g_city));
@@ -641,6 +682,7 @@ static int window_main (void)
 		long t = ui_event (100);
 		if (t == WEV_CLOSE || g_quit) break;
 		if (t == WEV_MENU) command (ui_ev_field (&ui, EV_CODE));
+		else if (t == WEV_BUS) net_changed ();
 		else if (t > 0)
 		{
 			long code = 0, taken = 0;
