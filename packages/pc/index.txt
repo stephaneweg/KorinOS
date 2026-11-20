@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-20 08:51
+date = 2026-11-20 14:03
 abi = 626
 packages = 115
 board = pc
@@ -81,6 +81,36 @@ required = 0
 restart = 0
 content = 6323dec095198f6fcdfe6ccaefdf3869d1ebb7d001f4a2a8e871aed0e0d56207
 arch = any
+
+[relics]
+title = Relics
+version = 1.1.2
+category = Jeux
+author = Korin OS
+summary = Plates-formes et exploration : vingt et un niveaux de pièges et de trésors dans sept mondes
+size = 2954930
+installed = 7146470
+sha256 = 1557b37f54629b6de2a4dc0283006c2ef7ed168cac6f31e2a877ceb1f1f37236
+file = pkgs/relics-1.1.2.opk
+needs = abi >= 626
+required = 0
+restart = 0
+content = d13e5d6c0b64ea2f44c7206e0c5dcd8c994410958ec34d3ca24348a1547e8bdf
+
+[terracube]
+title = TerraCube
+version = 1.4.1
+category = Jeux
+author = Korin OS
+summary = Bac à sable de blocs en 3D par le GPU, modes créatif et survie, fabrication sur une grille, eau et lave qui coulent, circuits de cuivre et pistons, animaux et créatures de la nuit, musique générative, pilotable par Python, BASIC ou un agent IA (MCP)
+size = 852280
+installed = 1907542
+sha256 = 6161c739cdbb16b719e1918c8181b882840daf05d935e22d62e3b86b4deb631f
+file = pkgs/terracube-1.4.1.opk
+needs = abi >= 626
+required = 0
+restart = 0
+content = 652f4b562d4309c2ae55b5a291082aba5838093197e4c2b76099b8444b662146
 
 [pkgman]
 title = Logiciels
@@ -407,33 +437,33 @@ content = 7354880489ca7b2d5f12bb8a6546c35c0b7fddbdf42c7c6807eb7d015e508b0e
 
 [python]
 title = Python
-version = 1.0.3
+version = 1.0.4
 category = Développement
 author = Korin OS
 summary = CPython 3.14 : l'interpréteur python3, la bibliothèque standard, pip et setuptools (/devtools/python)
-size = 23261448
+size = 23261450
 installed = 49035837
-sha256 = a1d2e56132491c43d0be1ddd4e61716389e6fa6d73da39c2997ab93242b08f1f
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-python-1.0.3.opk
+sha256 = 6a11dadefcc63620eb53d8b4e786ef8a72410c2898814a95e1ab636b553aa1fa
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-python-1.0.4.opk
 needs = pc, abi >= 626
 required = 0
 restart = 0
-content = a50ab76c8a7a51009d8ae52d350ea54617bb7028b3c984e6fa8707b7c95b871d
+content = cb99d49768c9dba0378cf075bc302950e1001beaf7ac9567b4a63b8ab6f5182b
 
 [claude]
 title = Claude (API)
-version = 1.0.6
+version = 1.0.7
 category = Développement
 author = Korin OS
 summary = Claude, l'agent de code d'Anthropic, par sa clé d'API : l'app Claude, ou agent --claude au Terminal
-size = 8004070
+size = 8004196
 installed = 17827814
-sha256 = e9060089c125c133866ea4a19514fb0b90f80455668b52e42dce6058513d62e6
-file = pkgs/claude-1.0.6.opk
+sha256 = f31007feceddb6d5537c2f91c3fdd5c00643580c59f0dd0ddc3e68e180aacb53
+file = pkgs/claude-1.0.7.opk
 needs = vibe, abi >= 626
 required = 0
 restart = 0
-content = bd1d53c203a33884a20497cecd347e6babdefe238f76e78356682ad2e9268aa1
+content = b362b021108d2e679473b0c969cdaf3560f9de8025be43358f1cd9b04aa9f249
 
 [vibe-data-1]
 title = Mistral Vibe (1/2)
@@ -649,18 +679,18 @@ content = e6369709297bf0a54e239033bae2c28313f0aa6195924cc6626808b82350f612
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.62
+version = 2026.11.63
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 32062017
-installed = 96477346
-sha256 = a65e37a3dfb42d19d69fb73f864b74cdaa244ba488de02d465a5c4f7a59c2d03
-file = pkgs/pc-2026.11.62.opk
+size = 32063430
+installed = 96477657
+sha256 = 26bc2942384e7487b7e4b96bbc788c4c3b4bf061156000b28400a260087bceeb
+file = pkgs/pc-2026.11.63.opk
 needs = 
 required = 1
 restart = 1
-content = 366de1124e7f1f5f614312543a8b29c1bc78d2041285b905d7841fb6b0194834
+content = ce75a982b935d40d288d12f0c7a452451ec155129f0a980c588e8604b4511628
 
 [2048]
 title = 2048
@@ -1129,18 +1159,18 @@ content = 9dcc6ae967cf3770ce2c99171be88fcde48a3415e593ca9e6fbeae8163173869
 
 [jet]
 title = Jet
-version = 1.3.5
+version = 1.4.0
 category = Internet
 author = Korin OS
 summary = Le navigateur, sur WebKit
-size = 53023097
-installed = 132813396
-sha256 = 1d904db8f03a79b021f8aec9f4dd94399c4a674d26593bd46afaefd836bc4382
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.3.5.opk
+size = 55624204
+installed = 139355199
+sha256 = 3022924f3e4b87727f5523bac9ba7147103aa2723a9535f6bf185642e677ebea
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.0.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 3a896d298670bb2c414053fe0601fe8ac6620d10f10e6c7b912d3481d39e8287
+content = e7c91615d04db16bf87f7dc2977f10cd7518cdd1776f99de8d7b9c68c0b47dbc
 
 [koton]
 title = Koton
@@ -1711,33 +1741,3 @@ needs = abi >= 626
 required = 0
 restart = 0
 content = 65b7348a488c5b8ec86aed20cb76355a92b2db56c7e8ac616ec39b32268ad863
-
-[relics]
-title = Relics
-version = 1.1.2
-category = Jeux
-author = Korin OS
-summary = Plates-formes et exploration : vingt et un niveaux de pièges et de trésors dans sept mondes
-size = 2954930
-installed = 7146470
-sha256 = 1557b37f54629b6de2a4dc0283006c2ef7ed168cac6f31e2a877ceb1f1f37236
-file = pkgs/relics-1.1.2.opk
-needs = abi >= 626
-required = 0
-restart = 0
-content = d13e5d6c0b64ea2f44c7206e0c5dcd8c994410958ec34d3ca24348a1547e8bdf
-
-[terracube]
-title = TerraCube
-version = 1.4.1
-category = Jeux
-author = Korin OS
-summary = Bac à sable de blocs en 3D par le GPU, modes créatif et survie, fabrication sur une grille, eau et lave qui coulent, circuits de cuivre et pistons, animaux et créatures de la nuit, musique générative, pilotable par Python, BASIC ou un agent IA (MCP)
-size = 852280
-installed = 1907542
-sha256 = 6161c739cdbb16b719e1918c8181b882840daf05d935e22d62e3b86b4deb631f
-file = pkgs/terracube-1.4.1.opk
-needs = abi >= 626
-required = 0
-restart = 0
-content = 652f4b562d4309c2ae55b5a291082aba5838093197e4c2b76099b8444b662146
