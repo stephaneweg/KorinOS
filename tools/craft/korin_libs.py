@@ -129,3 +129,25 @@ for rel in ("crates/font-store/src/language_packs/removal.rs", "crates/font-stor
         break
 
 print("korin_libs : %s" % os.path.basename(top))
+
+# craft-pkcs7 : les opérations RSA à clé privée passent par aws-lc-rs (aws-lc, en C et en assembleur, sans port pour
+# Korin) ; Korin prend la branche du navigateur (wasm32) : la vérification marche (RustCrypto), la signature RSA et la
+# création de clés RSA sont refusées (P-256, P-384 signent)
+NO_AWS = 'any(target_arch = "wasm32", target_os = "korin")'
+AWS = 'aws-lc-rs = { version = "1.18", default-features = false, features = ["aws-lc-sys", "prebuilt-nasm"] }\n'
+edit("crates/pkcs7/Cargo.toml", [
+    ("[target.'cfg(not(target_arch = \"wasm32\"))'.dependencies]\n" + AWS + "getrandom = \"0.4\"\n",
+     "[target.'cfg(not(target_arch = \"wasm32\"))'.dependencies]\ngetrandom = \"0.4\"\n\n"
+     "# Korin : sans aws-lc (tools/craft/korin_libs.py)\n"
+     "[target.'cfg(not(%s))'.dependencies]\n" % NO_AWS + AWS),
+])
+for rel in ["crates/pkcs7/src/keys.rs"]:
+    p = os.path.join(top, rel)
+    if os.path.isfile(p):
+        t = open(p, encoding="utf-8").read()
+        if NO_AWS not in t:
+            t = t.replace('#[cfg(not(target_arch = "wasm32"))]', '#[cfg(not(%s))]' % NO_AWS)
+            t = t.replace('#[cfg(target_arch = "wasm32")]', '#[cfg(%s)]' % NO_AWS)
+            open(p, "w", encoding="utf-8", newline="\n").write(t)
+            with open(os.path.join(top, ".korin-changed"), "a", encoding="utf-8") as f:
+                f.write(rel + "\n")

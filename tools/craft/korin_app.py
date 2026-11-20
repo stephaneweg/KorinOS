@@ -43,6 +43,16 @@ else:
 open(p, "w", encoding="utf-8", newline="\n").write(s)
 
 name = os.path.basename(os.path.normpath(app))
+# winit pris directement (la fenêtre native : ses écrans, sa poignée) : le winit de Korin (src/lib/winit-korin), sans
+# fenêtre, à la place de la fourche de storytold ; eframe-korin le prend aussi (winit_window() rend None)
+if name in ("vectorcraft", "effectcraft"):
+    p = os.path.join(app, "Cargo.toml")
+    s = open(p, encoding="utf-8").read()
+    wfork = re.compile(r'^winit = \{ git = "https://github\.com/storytold/winit\.git".*$', re.M)
+    if not wfork.search(s):
+        sys.exit("korin_app : %s : la ligne winit du [patch.crates-io] est absente" % name)
+    s = wfork.sub('winit = { path = "%s/src/lib/winit-korin" }' % root, s)
+    open(p, "w", encoding="utf-8", newline="\n").write(s)
 if name == "wordcraft":
     edit("apps/wordcraft/Cargo.toml", [
         ('    "gpu-startup",\n', ""),
@@ -88,4 +98,19 @@ if name == "pdfcraft":
     edit("crates/optimize/src/pool.rs", [("    let _ = thread_priority::set_current_thread_priority(",
                                           "    #[cfg(not(target_os = \"korin\"))]\n"
                                           "    let _ = thread_priority::set_current_thread_priority(")])
+if name == "pdfcraft":
+    # la signature : aws-lc-rs (aws-lc, C et assembleur) ne se construit pas pour Korin ; Korin prend la branche du
+    # navigateur (wasm32) : vérification complète, signature P-256 et P-384, mais ni signature ni création de clé RSA
+    # (craft-pkcs7, sa copie dans craft-libs : tools/craft/korin_libs.py)
+    NO_AWS = 'any(target_arch = "wasm32", target_os = "korin")'
+    AWS = 'aws-lc-rs = { version = "1.18", default-features = false, features = ["aws-lc-sys", "prebuilt-nasm"] }\n'
+    edit("crates/sign/Cargo.toml", [
+        ("[target.'cfg(not(target_arch = \"wasm32\"))'.dependencies]\n" + AWS + "getrandom = \"0.4\"\n",
+         "[target.'cfg(not(target_arch = \"wasm32\"))'.dependencies]\ngetrandom = \"0.4\"\n\n"
+         "# Korin : sans aws-lc (tools/craft/korin_app.py)\n"
+         "[target.'cfg(not(%s))'.dependencies]\n" % NO_AWS + AWS)])
+    edit("crates/sign/src/keys.rs", [('#[cfg(not(target_arch = "wasm32"))]', '#[cfg(not(%s))]' % NO_AWS),
+                                     ('#[cfg(target_arch = "wasm32")]', '#[cfg(%s)]' % NO_AWS)])
+    edit("crates/sign/src/lib.rs", [("pub fn init_crypto() {\n    aws_lc_rs::init();\n}",
+                                     "pub fn init_crypto() {\n    #[cfg(not(target_os = \"korin\"))]\n    aws_lc_rs::init();\n}")])
 print("korin_app : %s retouchée" % name)

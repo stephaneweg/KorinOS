@@ -61,8 +61,11 @@ KORIN_HAS = ["flock", "FlockOperation", "pipe_with", "PipeFlags", "utimensat", "
              "dir", "Dir", "DirEntry", "DIRECTORY", "NOFOLLOW", "from_dirent_d_type", "owned_fd", "IntoRawFd"]
 # (mais pas fcntl_lock, qui nomme FlockOperation : il émule flock par struct flock de fcntl, que Korin n'a pas)
 NOT_ITEMS = ("fcntl_lock",)
-ITEM = re.compile(r'^\s*(pub(\([a-z]+\))?\s+)?((unsafe\s+)?fn|enum|struct|const|type|use|mod)\b.*\b(%s)\b|^\s*const (%s)\b'
-                  % ("|".join(KORIN_HAS), "|".join(KORIN_HAS)))
+# les horloges de temps CPU (libposix : CLOCK_PROCESS_CPUTIME_ID, CLOCK_THREAD_CPUTIME_ID) : des variantes de ClockId
+# et leurs bras de match, pas des items
+KORIN_HAS_VARIANTS = r'^\s*(ProcessCPUTime|ThreadCPUTime) = c::|^\s*c::CLOCK_(PROCESS|THREAD)_CPUTIME_ID =>'
+ITEM = re.compile(r'^\s*(pub(\([a-z]+\))?\s+)?((unsafe\s+)?fn|enum|struct|const|type|use|mod)\b.*\b(%s)\b|^\s*const (%s)\b|%s'
+                  % ("|".join(KORIN_HAS), "|".join(KORIN_HAS), KORIN_HAS_VARIANTS))
 UNDO = 'any(target_os = "horizon", target_os = "korin")'
 undone = 0
 for d, dirs, files in os.walk(os.path.join(top, "src")):

@@ -4,7 +4,7 @@ produisent les patchs de tools/craft/patches (rustix : tools/craft/rustix_korin.
     python3 -I tools/craft/crate_korin.py <caisse-version> <dossier de la caisse>
 
 cap-primitives 4.0.3 (cap-std, sur rustix) : O_DSYNC approché par O_SYNC comme sur FreeBSD, pas d'O_RSYNC ni de
-ttyname (termios) ; uid_t et gid_t sur 16 bits (newlib). fs4 1.1.0 : la réservation de place sans fallocate, comme sur
+ttyname (termios), ni d'O_PATH ; uid_t et gid_t sur 16 bits (newlib). fs4 1.1.0 : la réservation de place sans fallocate, comme sur
 les autres Unix qui n'en ont pas.
 """
 import os
@@ -35,6 +35,11 @@ if name == "cap-primitives-4.0.3":
     ])
     edit("src/rustix/fs/file_path.rs", [
         ('not(any(target_os = "wasi", target_os = "fuchsia"))', 'not(any(target_os = "wasi", target_os = "fuchsia", %s))' % K),
+    ])
+    # pas d'O_PATH : ouvrir le dossier tel quel
+    edit("src/rustix/fs/dir_utils.rs", [
+        ('        target_os = "illumos",\n        target_os = "solaris",\n    ))]\n    {\n        OFlags::empty()',
+         '        target_os = "illumos",\n        target_os = "solaris",\n        %s,\n    ))]\n    {\n        OFlags::empty()' % K),
     ])
     edit("src/rustix/fs/metadata_ext.rs", [
         ("                uid: stat.st_uid,", "                uid: stat.st_uid.into(),"),
