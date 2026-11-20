@@ -1,0 +1,83 @@
+/* dos.h -- win16 : la machine DOS (programmes MZ et .COM en mode réel ; docs/etude/WIN16.md §9).
+ *
+ * dos.c : la mémoire (MCB), les PSP, le chargeur, EXEC, l'INT 21h des processus et de la console, la boucle.
+ * bios.c : la zone du BIOS, les interruptions du BIOS, le PIC, le PIT, le clavier, les ports, la fenêtre.
+ * vga.c : la carte vidéo (texte pour l'instant) et son rendu dans la fenêtre. */
+#ifndef W16_DOS_H
+#define W16_DOS_H
+#include "w16.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define RM(seg, off)	(((uint32_t) (seg) << 4) + (uint16_t) (off))
+
+/* la « ROM » du BIOS en F000 : F000:0000-00FF = un point d'arrêt par vecteur (le gestionnaire C, puis IRET),
+ * F000:0100-01FF = des services lointains (le C, puis RETF), F000:1000 = du code 16 bits (IRQ) */
+#define ROM_SEG		0xf000
+#define TRAP_END	0x200
+#define FAR_BASE	0x100
+enum { FAR_TICK = 0x100, FAR_KBD, FAR_NULL };
+#define ROM_CODE	0x1000
+#define VROM_SEG	0xc000		/* les polices de la « ROM » vidéo */
+#define FONT16_OFF	0x1000
+#define FONT14_OFF	0x2000
+#define FONT8_OFF	0x3000
+
+/* un gestionnaire rend DONE, ou WAIT : il n'a pas fini (attente du clavier) et sera rappelé */
+enum { DONE = 0, WAIT = 1 };
+
+/* registres */
+#define rAX ((uint16_t) cpu_reg (R_EAX))
+#define rBX ((uint16_t) cpu_reg (R_EBX))
+#define rCX ((uint16_t) cpu_reg (R_ECX))
+#define rDX ((uint16_t) cpu_reg (R_EDX))
+#define rSI ((uint16_t) cpu_reg (R_ESI))
+#define rDI ((uint16_t) cpu_reg (R_EDI))
+#define rBP ((uint16_t) cpu_reg (R_EBP))
+#define rAH ((uint8_t) (cpu_reg (R_EAX) >> 8))
+#define rAL ((uint8_t) cpu_reg (R_EAX))
+#define rBH ((uint8_t) (cpu_reg (R_EBX) >> 8))
+#define rBL ((uint8_t) cpu_reg (R_EBX))
+#define rCH ((uint8_t) (cpu_reg (R_ECX) >> 8))
+#define rCL ((uint8_t) cpu_reg (R_ECX))
+#define rDH ((uint8_t) (cpu_reg (R_EDX) >> 8))
+#define rDL ((uint8_t) cpu_reg (R_EDX))
+void set16 (int r, uint16_t v);
+void set8l (int r, uint8_t v);
+void set8h (int r, uint8_t v);
+void set_cf (int on);
+void set_zf (int on);
+
+/* dos.c */
+int dos_main (const char *path, const char *args);
+int dos_trap (int vec);
+void dos_far (int n);
+
+/* bios.c */
+void bios_init (void);
+int bios_int (int vec);
+void bios_far (int n);
+void bios_poll (int force);
+void bios_idle (int ms);
+void pic_raise (int irq);
+int pic_pending (void);
+int kbd_get (int remove, uint16_t *key);	/* une touche du tampon du BIOS -> 1 */
+void bios_set_title (const char *title);
+extern long bios_win;
+
+/* vga.c */
+void vga_init (void);
+void vga_set_mode (int mode, int clear);
+int vga_int10 (void);
+void vga_tty (uint8_t ch);
+void vga_render (void);
+uint32_t vga_in (uint16_t port);
+void vga_out (uint16_t port, uint8_t v);
+extern int vga_width, vga_height;	/* la taille de l'image rendue */
+
+#ifdef __cplusplus
+}
+#endif
+#endif

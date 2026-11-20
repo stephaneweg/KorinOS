@@ -13,6 +13,9 @@
 * `spec/` : les tables des DLL 16 bits (format de Wine, **LGPL-2.1+**), copiées de winevdm ; `api_table.c` en est
   tiré par `tools/win16/spec2c.py` (ne pas le modifier à la main).
 
+* Les polices de la « ROM » vidéo de la machine DOS (code page 437, 8×8, 8×14, 8×16) viennent de
+  `src/lib/basic/basfont.h` (polices VGA de console-setup de Debian : MIT et domaine public).
+
 ## Fichiers
 
 | Fichier | Rôle |
@@ -31,11 +34,15 @@
 | `mmsystem.c` | sortie MIDI (sans son), minuteries multimédia |
 | `misc.c` | WIN87EM, KEYBOARD, TOOLHELP |
 | `be.h`, `be_uikit.c` | l'affichage sur UIKit (`tools/win16/host_be.c` : l'hôte, pour les essais) |
+| `dos.h`, `dos.c` | la machine DOS (un `.exe` sans en-tête NE, un `.COM`) : MCB, PSP, chargeur MZ, EXEC, console, INT 21h, la boucle |
+| `bios.c` | son BIOS : zone 40:00, INT 10h-1Ah, PIC, PIT, clavier (port 60h, INT 9), CMOS, ports, fenêtre |
+| `vga.c` | sa VGA : modes texte, registres, DAC, rendu dans la fenêtre (les modes graphiques : étape D4) |
 
 ## Construire et essayer
 
 * Korin PC : `sh tools/pc/apps.sh win16` (WSL) → `build/pc/apps/sdroot/apps/win16.app`.
-* Programmes d'essai : `sh tools/win16/build-tests.sh` (Open Watcom v2 dans `~/win16/watcom`).
+* Programmes d'essai : `sh tools/win16/build-tests.sh` (Open Watcom v2 dans `~/win16/watcom`) ; ceux du DOS
+  (`tools/win16/tests/dos`) : `dostest.exe` (console, écran B800, BIOS, mémoire, fichiers, EXEC de `dosecho.exe`).
 * Sur l'hôte, sans Korin : `W16_TRACE=1 sh tools/win16/host.sh build/win16/tests/hello.exe`.
 * Sous QEMU PC : `sh tools/win16/test_pc.sh hello` (après `. ~/korin-cloud/env.sh`).
 * Ce qu'un `.exe` importe : `python3 -I tools/win16/nedump.py PROG.EXE` ; ce qui n'est pas encore écrit :

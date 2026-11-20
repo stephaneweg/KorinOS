@@ -62,13 +62,19 @@ void sel_free (uint16_t sel)
 	memset (lin_ptr (LDT_LIN + (uint32_t) i * 8), 0, 8);
 }
 
+int w16_realmode;
+
 int sel_valid (uint16_t sel)
 {
+	if (w16_realmode)	/* (la machine DOS : un « sélecteur » est un paragraphe) */
+		return 1;
 	return SEL_INDEX (sel) < LDT_ENTRIES && sel_used[SEL_INDEX (sel)];
 }
 
 uint32_t sel_base (uint16_t sel)
 {
+	if (w16_realmode)
+		return (uint32_t) sel << 4;
 	const uint8_t *d = lin_ptr (LDT_LIN + (sel & ~7u));
 	return d[2] | d[3] << 8 | d[4] << 16 | (uint32_t) d[7] << 24;
 }

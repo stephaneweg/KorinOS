@@ -366,7 +366,7 @@ static int32_t do_read (int h, uint32_t buf, uint32_t n)
 static int32_t do_write (int h, uint32_t buf, uint32_t n)
 {
 	int fd = fh_fd (h);
-	if (h == 1 || h == 2)
+	if ((h == 1 || h == 2) && fd < 0)
 	{
 		fwrite (far_ptr (buf), 1, n, stderr);
 		return (int32_t) n;
@@ -378,6 +378,79 @@ static int32_t do_write (int h, uint32_t buf, uint32_t n)
 	ssize_t r = write (fd, lin_ptr (far_lin (buf)), n);
 	return (int32_t) r;
 }
+
+/* ---- pour la machine DOS (dos.c) : les poignées de périphériques (CON, NUL, AUX, PRN) et la redirection ---- */
+/* le périphérique derrière une poignée : 1 CON, 2 NUL, 3 AUX/PRN ; 0 : un fichier ou rien */
+int kernel_fh_dev (int h)
+{
+	if (h < 0 || h >= MAX_FH)
+		return 0;
+	if (fh[h] < 0)
+		return -fh[h];
+	if (h < 5 && !fh[h])
+		return h <= 2 ? 1 : 3;
+	return 0;
+}
+
+int kernel_fh_newdev (int dev)
+{
+	for (int i = 5; i < MAX_FH; i++)
+		if (!fh[i])
+		{
+			fh[i] = -dev;
+			return i;
+		}
+	return -1;
+}
+
+int kernel_fh_valid (int h)
+{
+	return kernel_fh_dev (h) || fh_fd (h) >= 0;
+}
+
+/* dupliquer h (dans to, ou la première libre si to < 0) -> la nouvelle poignée, -1 */
+int kernel_fh_dup (int h, int to)
+{
+	int dev = kernel_fh_dev (h), fd = fh_fd (h);
+	if (!dev && fd < 0)
+		return -1;
+	if (to >= 0)
+	{
+		if (to >= MAX_FH)
+			return -1;
+		if (fh[to] > 0)
+			close (fh[to] - 1);
+		fh[to] = dev ? -dev : dup (fd) + 1;
+		return to;
+	}
+	if (dev)
+		return kernel_fh_newdev (dev);
+	return fh_new (dup (fd));
+}
+
+int kernel_fh_close (int h)
+{
+	if (h < 0 || h >= MAX_FH || (!fh[h] && h >= 5))
+		return -1;
+	if (fh[h] > 0)
+		close (fh[h] - 1);
+	fh[h] = h < 5 ? -(h <= 2 ? 1 : 3) : 0;
+	return 0;
+}
+
+int32_t kernel_write (int h, const void *p, uint32_t n)
+{
+	int fd = fh_fd (h);
+	return fd < 0 ? -1 : (int32_t) write (fd, p, n);
+}
+
+int32_t kernel_read (int h, void *p, uint32_t n)
+{
+	int fd = fh_fd (h);
+	return fd < 0 ? -1 : (int32_t) read (fd, p, n);
+}
+
+void kernel_set_dta (uint32_t segptr);
 
 void api_WIN16_lread (struct w16call *c) { int32_t r = do_read ((int) c->a[0], c->a[1], c->a[2]); c->ret = (uint16_t) r; }
 void api_WIN16_hread (struct w16call *c) { c->ret = (uint32_t) do_read ((int) c->a[0], c->a[1], c->a[2]); }
@@ -730,7 +803,8 @@ void api_WriteProfileString16 (struct w16call *c)
 /* ======================================================================== la tâche */
 static uint16_t builtin_hmod[MAX_BUILTIN];
 
-void kernel_init (void)
+/* les lecteurs (C:, D:, E:, drives.ini) et le dossier courant D:\ ; aussi pour la machine DOS (dos.c) */
+void kernel_drives_init (void)
 {
 	/* C: et son WINDOWS */
 	const char *home = getenv ("HOME");
@@ -759,6 +833,11 @@ void kernel_init (void)
 	}
 	cur_drive = 4;
 	cur_dir[0] = 0;
+}
+
+void kernel_init (void)
+{
+	kernel_drives_init ();
 	/* le PSP et l'environnement, comme sous DOS : la ligne de commande en 0x80, le chemin après l'environnement */
 	task.env = global_alloc (512, 0);
 	uint8_t *e = lin_ptr (sel_base (task.env));
@@ -1443,6 +1522,8 @@ static int wild_match (const char *pat, const char *name)
 	return !*name;
 }
 
+void kernel_set_dta (uint32_t segptr) { dta = segptr; }
+
 static int find_next (void)
 {
 	struct dirent *e;
@@ -1608,7 +1689,7 @@ void dos_int21 (void)
 	}
 	case 0x3f:	/* lire */
 	{
-		if (BX == 0)
+		if (BX == 0 && fh_fd (0) < 0)
 		{
 			set16 (R_EAX, 0);
 			break;

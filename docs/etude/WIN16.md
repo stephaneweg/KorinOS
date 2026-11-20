@@ -41,6 +41,13 @@ rognés à droite), boîte « About » sans le mot « UNREGISTERED » (texte plu
 du programme, E: = tout l'arbre de Korin ; `HOME:/win16/drives.ini` (section `[drives]`, `C=/dossier`) et l'option
 `--drive C=/dossier` les changent.
 
+**Programmes DOS, étape D1 (20/11, § 9)** : un `.exe` sans en-tête NE ou un `.COM` part dans la machine DOS de
+win16 (`dos.c`, `bios.c`, `vga.c`) : mode réel du cœur de MAME, MCB, PSP, environnement, chargeur MZ, EXEC avec
+retour et code (4Dh), console du DOS dans l'écran texte, INT 10h texte (polices de la ROM, 25/28/50 lignes), INT
+16h et clavier par le port 60h et l'INT 9 (codes de balayage, caractère de Korin), PIC, PIT et INT 8/1Ch, CMOS,
+A20. `tools/win16/tests/dos/dostest.c` (Open Watcom) : texte et couleurs en B800, mémoire, fichiers, horloge,
+`spawnl` d'un enfant qui rend 42, touche lue.
+
 Pas encore : le Pi (même code, à construire), MDI, métafichiers, impression, WinHelp, crochets, les barres de
 défilement des fenêtres (seulement les contrôles), le son ; pas de paquet.
 

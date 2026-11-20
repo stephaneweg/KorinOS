@@ -27,3 +27,11 @@ for f in "$ROOT"/tools/win16/tests/*.c; do
 	fi
 	echo "$n.exe : $(stat -c %s "$n.exe") octets"
 done
+# les programmes DOS d'essai (tools/win16/tests/dos : la machine DOS de win16, WIN16.md §9)
+export INCLUDE="$WATCOM/h"
+for f in "$ROOT"/tools/win16/tests/dos/*.c; do
+	n=$(basename "$f" .c)
+	wcl -q -bt=dos -l=dos -ms -fe="$n.exe" "$f" >"$n.log" 2>&1 || { cat "$n.log" >&2; exit 1; }
+	rm -f "$n.o" "$n.obj"
+	echo "$n.exe : $(stat -c %s "$n.exe") octets"
+done

@@ -30,6 +30,14 @@ void cpu_set_flags (uint32_t f);
 void cpu_step (void);
 void cpu_reload_segments (void);
 int cpu_disasm (char *buf, uint16_t cs, uint32_t eip);
+/* la machine DOS (mode réel) */
+void cpu_interrupt (int vec);
+int cpu_take_halt (void);
+void cpu_set_a20 (int on);
+int cpu_a20 (void);
+int cpu_protected (void);
+extern uint32_t (*cpu_io_in) (uint16_t port, int size);
+extern void (*cpu_io_out) (uint16_t port, uint32_t v, int size);
 
 #ifdef __cplusplus
 }

@@ -28,6 +28,7 @@ void sel_free (uint16_t sel);
 uint32_t sel_base (uint16_t sel);
 uint32_t sel_limit (uint16_t sel);
 int sel_valid (uint16_t sel);
+extern int w16_realmode;	/* la machine DOS (dos.c) : sel_base (s) = s × 16 */
 
 /* le tas global (GlobalAlloc) : un bloc a un sélecteur, poignée = sélecteur */
 uint16_t global_alloc (uint32_t size, int code);

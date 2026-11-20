@@ -12,6 +12,7 @@
 #include <ctype.h>
 #include "w16.h"
 #include "be.h"
+#include "dos.h"
 
 void kernel_set_cmdline (const char *args);
 
@@ -29,6 +30,25 @@ static void dos_path (const char *path, char *out, size_t cap)
 	snprintf (out, cap, "D:\\%s", b);
 	for (char *p = out; *p; p++)
 		*p = (char) toupper ((unsigned char) *p);
+}
+
+/* un exécutable de Windows (MZ suivi d'un en-tête NE) ; sinon, un programme DOS */
+static int is_windows (const char *path)
+{
+	FILE *f = fopen (path, "rb");
+	if (!f)
+		return 1;	/* (ne_load dira qu'il ne peut pas le lire) */
+	uint8_t h[0x40], ne[2] = { 0, 0 };
+	size_t n = fread (h, 1, sizeof h, f);
+	int win = 0;
+	if (n == sizeof h && h[0] == 'M' && h[1] == 'Z' && (h[0x18] | h[0x19] << 8) >= 0x40)
+	{
+		uint32_t off = (uint32_t) (h[0x3c] | h[0x3d] << 8 | h[0x3e] << 16 | (uint32_t) h[0x3f] << 24);
+		if (!fseek (f, (long) off, SEEK_SET) && fread (ne, 1, 2, f) == 2)
+			win = ne[0] == 'N' && ne[1] == 'E';
+	}
+	fclose (f);
+	return win;
 }
 
 int main (int argc, char **argv)
@@ -58,6 +78,24 @@ int main (int argc, char **argv)
 	}
 	if (!ui)
 		fprintf (stderr, "win16 : pas d'affichage\n");
+	if (!is_windows (argv[i]))
+	{
+		/* un programme DOS (MZ sans en-tête NE, .COM) : la machine DOS (dos.c) */
+		char args[256] = "";
+		for (int k = i + 1; k < argc; k++)
+		{
+			if (k > i + 1)
+				strncat (args, " ", sizeof args - strlen (args) - 1);
+			strncat (args, argv[k], sizeof args - strlen (args) - 1);
+		}
+		snprintf (task.dir, sizeof task.dir, "%s", argv[i]);
+		char *sl = strrchr (task.dir, '/');
+		if (sl)
+			*sl = 0;
+		else
+			snprintf (task.dir, sizeof task.dir, ".");
+		return dos_main (argv[i], args);
+	}
 	if (!cpu_init ())
 	{
 		fprintf (stderr, "win16 : pas assez de mémoire\n");
