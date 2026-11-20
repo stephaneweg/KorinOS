@@ -76,6 +76,27 @@ python3 -I tools/craft/pctest.py run --qemu "-device usb-tablet,bus=xhci.0" \
 `key:` (noms de `sendkey`) et `type:` (un texte, en AZERTY) ont été ajoutés à `tools/python/pctest.py` pour cela.
 L'image fait près d'un Go : effacer `build/pc/crafttest` après l'essai.
 
+## L'eframe de Korin (`src/lib/eframe-korin`)
+
+Les apps faites pour eframe (les apps Craft) le prennent par `[patch.crates-io] eframe = { path = … }`
+(`tools/craft/korin_app.py`) : le paquet s'appelle `eframe`, version 0.37.99, avec les noms d'eframe 0.37 de la
+fourche de storytold :
+
+- `App` à deux temps (`raw_input_hook`, `logic`, `ui`, `on_exit`, `save`…), `Frame` (sans poignée native :
+  `HasWindowHandle` rend `NotSupported`, et les dialogues n'ont pas de fenêtre parente), `CreationContext`,
+  `NativeOptions` (seul `viewport` compte : titre, taille, taille minimale), `run_native`, `icon_data`,
+  `storage_dir`, `Error` ;
+- sous la fonction `wgpu` : le **vrai** `egui-wgpu` (et `wgpu`), pour les types que les apps règlent
+  (`wgpu_options`, `egui_wgpu::WgpuSetup`, `Error::Wgpu`), mais aucun état de rendu GPU (`wgpu_render_state : None`) ;
+- les autres fonctions d'eframe (`x11`, `wayland`, `glow`, `accesskit`…) existent et ne font rien.
+
+`run_native` crée l'app, puis tourne sur `egui_korin::run_with` ; la passe est celle d'eframe (`logic` puis `ui` dans
+`run_ui`). La fermeture passe par egui : la case de fermeture devient `ViewportEvent::Close`, et une app qui répond
+`CancelClose` (« Enregistrer les modifications ? ») garde la fenêtre.
+
+L'hôte suit aussi les commandes de fenêtre d'egui (titre, réduire, agrandir, déplacer, taille, taille minimale) et
+ramène la taille demandée à la place de l'écran (sans le dock ni la barre de menus).
+
 ## Limites et suite
 
 - **Toute la fenêtre est recopiée à chaque image** (`ui_update` de tout) ; la caisse sait quelles tuiles ont changé :
@@ -85,5 +106,6 @@ L'image fait près d'un Go : effacer `build/pc/crafttest` après l'essai.
 - Une seule fenêtre (pas de fenêtres secondaires d'egui, les « viewports »).
 - Le redimensionnement passe par `uikit_w_event`, et la démo s'est redessinée après le bouton agrandir, mais la
   fenêtre était déjà presque à la taille de l'écran : pas vu à des tailles bien différentes.
-- **WordCraft avec fenêtre** : un `eframe` pour Korin, fait sur cet hôte, à la place de celui de storytold
-  ([CRAFT.md](CRAFT.md), « La suite »).
+- Le rendu par le CPU (`hdrshot-egui-backend` 0.2.0) garde un cache par primitive ; notre patch le vide quand une
+  texture change (sinon les pages de WordCraft restaient figées). Il est épinglé à `=0.2.0` pour que le patch prenne.
+- egui **0.37** seulement : Craft Anything et AniCraft, en 0.36, ne passent pas ([CRAFT.md](CRAFT.md)).

@@ -1,23 +1,21 @@
 ---
 name: armpi-craft
-description: "apps Craft de storytold (Rust pur, egui) pour Korin : wordcraft-cli marche sous QEMU PC (20/11/2026), tools/craft/build.sh, pièges"
+description: "suite Craft de storytold (Rust, egui) sur Korin PC : lanceur Craft, Word/Grid/Deck/CAD/Design construites, reste passé au cloud (20/11/2026)"
 metadata:
   type: project
 ---
 
-20/11/2026 : l'utilisateur veut les 16 apps Craft (github.com/storytold) sur Korin, en commençant par WordCraft.
-**Le PC seulement, pas le Pi** (décision de l'utilisateur, 20/11/2026). `wordcraft-cli` 0.18.1 **marche sous QEMU
-PC** (md→docx→pdf/png, info, text) ; aarch64 compile aussi, sans essai ni suite. Détail et niveaux des apps : docs/CRAFT.md.
+20/11/2026 : l'utilisateur veut **toute la suite Craft** (github.com/storytold) sur **Korin PC seulement** (pas le Pi),
+ouverte par **un lanceur unique**. Le reste est **passé à une session du cloud** : fiche docs/agents/CRAFT-HANDOVER.md
+(priorités, diagnostics, pièges) ; état et fonctionnement : docs/CRAFT.md ; hôte egui et eframe : docs/EGUI.md.
 
-- `bash tools/craft/build.sh [app paquet]` (WSL, x86_64 par défaut) ; travail dans ~/korin-craft.
-- Pièges : libc 0.2.191 pour les projets **en plus** de la 0.2.185 de la std (deux entrées dans le [patch], sinon
-  la std perd son module korin) ; rediriger **toutes** les caisses de craft-libs vers la copie patchée ;
-  cap-primitives/rustix évités dans craft-font-store ; ring : `korin` dans LINUX_ABI sinon pas d'asm au lien.
-- Essai PC : QEMU de WSL avec `. ~/korin-cloud/env.sh` (OVMF avec shell UEFI ; pas de QEMU côté Windows ici),
-  `chmod +x` sur Korin avant de lancer.
-- Hôte egui fait le 20/11 : `src/lib/egui-korin` (relais C sur UIKit + hdrshot-egui-backend, dessin CPU dans ui.surf),
-  démo `/apps/eguidemo.app` (`bash tools/craft/egui.sh`) OK sous QEMU PC (souris, clavier AZERTY, presse-papiers) ;
-  essais : `tools/craft/pctest.py prep|run` (key:/type: ajoutés à tools/python/pctest.py), docs/EGUI.md.
-- Suite : WordCraft avec fenêtre = un `eframe` pour Korin sur egui-korin + couper winit/wayland/zbus/rfd/arboard/wgpu.
+- Fait : hôte egui (`src/lib/egui-korin`), eframe de Korin (`src/lib/eframe-korin`), lanceur **Craft**
+  (`src/apps/craft`), catégorie « Craft » cachée (`src/sys/common/applist.c`). Essayés sous QEMU PC : Craft,
+  WordCraft (saisie, correcteur), GridCraft ; construites sans essai : DeckCraft, CADCraft, DesignCraft.
+- Tout se refait par `bash tools/craft/all.sh` (WSL ou cloud) ; apps et révisions : `tools/craft/apps.txt`.
+- rustix 1.1.6 compile pour Korin (`tools/craft/rustix_korin.py` : Korin comme Horizon sauf ce que libposix a), avec
+  cap-primitives et fs4 ; libc.patch a gagné openat, fstatat, linkat, symlinkat, fchownat.
+- Pièges : une construction à la fois (copies de craft-libs partagées) ; ne pas éditer build.sh pendant qu'il tourne ;
+  règles de korin_cfg.py trop larges = doubles définitions ; hdrshot épinglé =0.2.0 (son patch).
 
 Lié : [[armpi-rust]], [[armpi-python-rust-ext]].

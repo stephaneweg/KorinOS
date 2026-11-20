@@ -78,7 +78,7 @@
 - [CPython](armpi-cpython.md) — 3.14.10 étapes 1-2 dans main (59c119e8) ; étape 3 (tree-sitter, cffi, pip) sur claude/python-step3-fd7473 ; QEMU seulement
 - [Rust pour Korin](armpi-rust.md) — cible aarch64-unknown-korin (croisée, WSL), branche claude/rust-target-06eed0 (12/11), QEMU seulement ; pièges build-std, dérouleur partagé
 - [Modules Rust de Python](armpi-python-rust-ext.md) — étape 5 dans main (e68c0a7d, 12/11) : cdylib pyo3, build-rust-ext.sh, caisses patchées, OpenSSL exporté ; QEMU seulement
-- [Apps Craft](armpi-craft.md) — apps Rust de storytold (egui) : wordcraft-cli et hôte egui (démo) marchent sous QEMU PC (20/11), PC seulement ; suite : eframe pour Korin
+- [Apps Craft](armpi-craft.md) — suite Craft sur Korin PC : lanceur Craft, Word/Grid/Deck/CAD/Design ; le reste passé au cloud (docs/agents/CRAFT-HANDOVER.md), tools/craft/all.sh
 - [Python et Vibe](armpi-python-vibe.md) — étapes 0 à 5 dans main, étape 6 (harness, arbre POSIX /sd0) aussi, poussé (12/11), QEMU seulement
 - [Pas de C pour le Pi seul](armpi-pas-de-c-pour-pi-seul.md) — ce qui ne sert qu'au Pi (GPU, DMA, GpuKit) reste en asm
 - [Ordre des pilotes du PC](armpi-pc-ordre-pilotes.md) — pas de réseau par téléphone, le Wi-Fi AX201 avant l'Ethernet

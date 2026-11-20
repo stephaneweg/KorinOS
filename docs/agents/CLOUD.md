@@ -3,6 +3,7 @@
 Pour un agent de code (Claude Code dans le cloud) sur une **machine Linux x86-64 neuve** (Ubuntu ou Debian), sans
 WSL, sans Windows, sans le ZBook ni le Pi, sans la carte SD : construire Korin PC et le Pi, et les essayer sous QEMU.
 Lire d'abord [AGENTS.md](../../AGENTS.md), puis `.agents/memory/MEMORY.md` et `.agents/memory/armpi-x86-pc.md`.
+Chantiers passés au cloud avec leur fiche : la suite Craft (apps Rust et egui) : [CRAFT-HANDOVER.md](CRAFT-HANDOVER.md).
 
 ## 1. Mise en place
 

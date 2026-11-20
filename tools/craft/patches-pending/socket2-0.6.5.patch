@@ -1,0 +1,323 @@
+
+--- a/src/lib.rs	2006-07-24 03:21:28.000000000 +0200
++++ b/src/lib.rs	2026-11-18 18:27:18.245267797 +0100
+@@ -441,7 +441,7 @@
+ #[derive(Debug, Clone)]
+ pub struct TcpKeepalive {
+     #[cfg_attr(
+-        any(target_os = "openbsd", target_os = "haiku", target_os = "vita"),
++        any(target_os = "openbsd", target_os = "haiku", target_os = "vita", target_os = "korin"),
+         allow(dead_code)
+     )]
+     time: Option<Duration>,
+@@ -451,7 +451,7 @@
+         target_os = "solaris",
+         target_os = "nto",
+         target_os = "espidf",
+-        target_os = "vita",
++        target_os = "vita", target_os = "korin",
+         target_os = "haiku",
+         target_os = "horizon"
+     )))]
+@@ -462,7 +462,7 @@
+         target_os = "solaris",
+         target_os = "nto",
+         target_os = "espidf",
+-        target_os = "vita",
++        target_os = "vita", target_os = "korin",
+         target_os = "haiku",
+         target_os = "horizon"
+     )))]
+@@ -481,7 +481,7 @@
+                 target_os = "solaris",
+                 target_os = "nto",
+                 target_os = "espidf",
+-                target_os = "vita",
++                target_os = "vita", target_os = "korin",
+                 target_os = "haiku",
+                 target_os = "horizon"
+             )))]
+@@ -492,7 +492,7 @@
+                 target_os = "solaris",
+                 target_os = "nto",
+                 target_os = "espidf",
+-                target_os = "vita",
++                target_os = "vita", target_os = "korin",
+                 target_os = "haiku",
+                 target_os = "horizon"
+             )))]
+
+--- a/src/socket.rs	2006-07-24 03:21:28.000000000 +0200
++++ b/src/socket.rs	2026-11-18 18:31:03.404256103 +0100
+@@ -785,7 +785,7 @@
+             target_os = "netbsd",
+             target_os = "openbsd",
+             target_os = "espidf",
+-            target_os = "vita",
++            target_os = "vita", target_os = "korin",
+             target_os = "cygwin",
+         ))
+     ))]
+@@ -835,7 +835,7 @@
+             target_os = "netbsd",
+             target_os = "openbsd",
+             target_os = "espidf",
+-            target_os = "vita",
++            target_os = "vita", target_os = "korin",
+             target_os = "cygwin",
+         ))
+     ))]
+@@ -1213,6 +1213,7 @@
+         feature = "all",
+         not(any(
+             target_os = "redox",
++        target_os = "korin",
+             target_os = "espidf",
+             target_os = "nuttx",
+             target_os = "wasi",
+@@ -1245,6 +1246,7 @@
+         feature = "all",
+         not(any(
+             target_os = "redox",
++        target_os = "korin",
+             target_os = "espidf",
+             target_os = "nuttx",
+             target_os = "wasi",
+@@ -1353,7 +1355,7 @@
+         target_os = "solaris",
+         target_os = "nto",
+         target_os = "espidf",
+-        target_os = "vita",
++        target_os = "vita", target_os = "korin",
+         target_os = "cygwin",
+         target_os = "wasi",
+         target_os = "horizon"
+@@ -1389,7 +1391,7 @@
+         target_os = "solaris",
+         target_os = "nto",
+         target_os = "espidf",
+-        target_os = "vita",
++        target_os = "vita", target_os = "korin",
+         target_os = "cygwin",
+         target_os = "wasi",
+         target_os = "horizon"
+@@ -1427,7 +1429,7 @@
+         target_os = "fuchsia",
+         target_os = "nto",
+         target_os = "espidf",
+-        target_os = "vita",
++        target_os = "vita", target_os = "korin",
+         target_os = "wasi",
+         target_os = "horizon"
+     )))]
+@@ -1467,7 +1469,7 @@
+         target_os = "fuchsia",
+         target_os = "nto",
+         target_os = "espidf",
+-        target_os = "vita",
++        target_os = "vita", target_os = "korin",
+         target_os = "wasi",
+         target_os = "horizon"
+     )))]
+@@ -1689,7 +1691,7 @@
+         target_os = "nto",
+         target_os = "espidf",
+         target_os = "nuttx",
+-        target_os = "vita",
++        target_os = "vita", target_os = "korin",
+         target_os = "cygwin",
+         target_os = "wasi",
+         target_os = "horizon"
+@@ -1724,7 +1726,7 @@
+         target_os = "nto",
+         target_os = "espidf",
+         target_os = "nuttx",
+-        target_os = "vita",
++        target_os = "vita", target_os = "korin",
+         target_os = "cygwin",
+         target_os = "wasi",
+         target_os = "horizon"
+@@ -1766,6 +1768,7 @@
+         feature = "all",
+         not(any(
+             target_os = "redox",
++        target_os = "korin",
+             target_os = "espidf",
+             target_os = "nuttx",
+             target_os = "openbsd",
+@@ -1799,6 +1802,7 @@
+         feature = "all",
+         not(any(
+             target_os = "redox",
++            target_os = "korin",
+             target_os = "espidf",
+             target_os = "nuttx",
+             target_os = "openbsd",
+@@ -2105,7 +2109,7 @@
+         target_os = "hurd",
+         target_os = "espidf",
+         target_os = "nuttx",
+-        target_os = "vita",
++        target_os = "vita", target_os = "korin",
+         target_os = "wasi",
+         target_os = "horizon"
+     )))]
+@@ -2133,7 +2137,7 @@
+         target_os = "hurd",
+         target_os = "espidf",
+         target_os = "nuttx",
+-        target_os = "vita",
++        target_os = "vita", target_os = "korin",
+         target_os = "wasi",
+         target_os = "horizon"
+     )))]
+@@ -2167,7 +2171,7 @@
+             target_os = "haiku",
+             target_os = "hurd",
+             target_os = "espidf",
+-            target_os = "vita",
++            target_os = "vita", target_os = "korin",
+             target_os = "cygwin",
+             target_os = "wasi",
+             target_os = "horizon"
+@@ -2198,7 +2202,7 @@
+             target_os = "haiku",
+             target_os = "hurd",
+             target_os = "espidf",
+-            target_os = "vita",
++            target_os = "vita", target_os = "korin",
+             target_os = "cygwin",
+             target_os = "wasi",
+             target_os = "horizon"
+@@ -2241,7 +2245,7 @@
+             windows,
+             target_os = "haiku",
+             target_os = "openbsd",
+-            target_os = "vita"
++            target_os = "vita", target_os = "korin"
+         ))
+     ))]
+     pub fn tcp_keepalive_time(&self) -> io::Result<Duration> {
+
+--- a/src/sys/unix.rs	2006-07-24 03:21:28.000000000 +0200
++++ b/src/sys/unix.rs	2026-11-18 18:30:27.919910094 +0100
+@@ -152,7 +152,7 @@
+         target_os = "solaris",
+         target_os = "haiku",
+         target_os = "espidf",
+-        target_os = "vita",
++        target_os = "vita", target_os = "korin",
+         target_os = "wasi",
+         target_os = "cygwin",
+         target_os = "horizon"
+@@ -171,7 +171,7 @@
+     target_os = "haiku",
+     target_os = "espidf",
+     target_os = "nuttx",
+-    target_os = "vita",
++    target_os = "vita", target_os = "korin",
+     target_os = "wasi",
+     target_os = "horizon"
+ )))]
+@@ -180,6 +180,7 @@
+     feature = "all",
+     not(any(
+         target_os = "redox",
++        target_os = "korin",
+         target_os = "espidf",
+         target_os = "nuttx",
+         target_os = "wasi",
+@@ -201,7 +202,7 @@
+     target_os = "nto",
+     target_os = "espidf",
+     target_os = "nuttx",
+-    target_os = "vita",
++    target_os = "vita", target_os = "korin",
+     target_os = "wasi",
+     target_os = "cygwin",
+     target_os = "horizon"
+@@ -254,7 +255,7 @@
+     target_os = "fuchsia",
+     target_os = "nto",
+     target_os = "espidf",
+-    target_os = "vita",
++    target_os = "vita", target_os = "korin",
+     target_os = "wasi",
+     target_os = "horizon"
+ )))]
+@@ -343,7 +344,7 @@
+     target_os = "openbsd",
+     target_os = "tvos",
+     target_os = "watchos",
+-    target_os = "vita",
++    target_os = "vita", target_os = "korin",
+ )))]
+ use libc::TCP_KEEPIDLE as KEEPALIVE_TIME;
+ 
+@@ -402,6 +403,7 @@
+         )
+     ),
+     target_os = "android",
++    target_os = "korin",
+ ))]
+ type IovLen = usize;
+ 
+@@ -547,6 +549,7 @@
+     libc::SOCK_RAW,
+     #[cfg(not(any(
+         target_os = "redox",
++        target_os = "korin",
+         target_os = "haiku",
+         target_os = "espidf",
+         target_os = "wasi",
+@@ -1263,7 +1266,7 @@
+ 
+ #[cfg(all(
+     feature = "all",
+-    not(any(target_os = "haiku", target_os = "openbsd", target_os = "vita"))
++    not(any(target_os = "haiku", target_os = "openbsd", target_os = "vita", target_os = "korin"))
+ ))]
+ pub(crate) fn tcp_keepalive_time(fd: RawSocket) -> io::Result<Duration> {
+     unsafe {
+@@ -1278,7 +1281,7 @@
+         target_os = "haiku",
+         target_os = "openbsd",
+         target_os = "nto",
+-        target_os = "vita"
++        target_os = "vita", target_os = "korin"
+     )))]
+     if let Some(time) = keepalive.time {
+         let secs = into_secs(time);
+@@ -1329,7 +1332,7 @@
+     target_os = "haiku",
+     target_os = "openbsd",
+     target_os = "nto",
+-    target_os = "vita"
++    target_os = "vita", target_os = "korin"
+ )))]
+ fn into_secs(duration: Duration) -> c_int {
+     min(duration.as_secs(), c_int::MAX as u64) as c_int
+@@ -1436,7 +1439,7 @@
+     target_os = "solaris",
+     target_os = "nto",
+     target_os = "espidf",
+-    target_os = "vita",
++    target_os = "vita", target_os = "korin",
+     target_os = "cygwin",
+     target_os = "wasi",
+     target_os = "horizon"
+@@ -1566,12 +1569,12 @@
+         ),
+         allow(rustdoc::broken_intra_doc_links)
+     )]
+-    #[cfg(all(feature = "all", not(target_os = "vita")))]
++    #[cfg(all(feature = "all", not(any(target_os = "vita", target_os = "korin"))))]
+     pub fn set_cloexec(&self, close_on_exec: bool) -> io::Result<()> {
+         self._set_cloexec(close_on_exec)
+     }
+ 
+-    #[cfg(not(target_os = "vita"))]
++    #[cfg(not(any(target_os = "vita", target_os = "korin")))]
+     pub(crate) fn _set_cloexec(&self, close_on_exec: bool) -> io::Result<()> {
+         if close_on_exec {
+             fcntl_add(

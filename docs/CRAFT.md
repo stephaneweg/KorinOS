@@ -1,94 +1,121 @@
 # Les apps Craft pour Korin
 
-Les « Crafting Apps » de storytold (<https://github.com/storytold>, <https://getartcraft.com>) : seize applications
-de bureau libres (MIT ou Apache-2.0) en **Rust pur** — WordCraft (traitement de texte), GridCraft (tableur),
-DeckCraft, DesignCraft, PdfCraft, PhotoCraft, VectorCraft, FigCraft, CadCraft, Craft Anything, SoundCraft,
-MaterialCraft, FilmCraft, LightCraft, EffectCraft, TextureCraft, AniCraft. Elles se compilent avec notre cible Rust
-([RUST.md](RUST.md)), en compilation croisée depuis WSL.
+Les « Crafting Apps » de storytold (<https://github.com/storytold>, <https://getartcraft.com>) : dix-sept applications
+de bureau libres (MIT ou Apache-2.0) en **Rust pur**, sur egui. Elles se compilent avec notre cible Rust
+([RUST.md](RUST.md)), en compilation croisée depuis WSL (ou une session du cloud), pour **Korin PC seulement**
+(décision de l'utilisateur du 20/11/2026). L'hôte egui de Korin et l'eframe de Korin : [EGUI.md](EGUI.md).
+Reprise dans le cloud : [agents/CRAFT-HANDOVER.md](agents/CRAFT-HANDOVER.md).
 
-**État (20/11/2026)** : **WordCraft avec fenêtre marche sous QEMU PC** (`/apps/wordcraft.app` : écran d'accueil, document
-d'exemple, ruban, saisie, correcteur), sur l'eframe de Korin (`src/lib/eframe-korin`, [EGUI.md](EGUI.md)) ;
-`wordcraft-cli` aussi. **Le PC seulement** (décision de l'utilisateur du 20/11/2026). Les autres apps : en cours
-(`tools/craft/apps.txt`).
+## État (20/11/2026)
 
-## Ce qu'elles ont en commun
+| App | Construite | Essayée sous QEMU PC | Ce qui bloque |
+|---|---|---|---|
+| **Craft** (le lanceur, `src/apps/craft`) | oui | **oui** : la grille de la suite, ouvre les apps | — |
+| WordCraft (+ `wordcraft-cli`) | oui | **oui** : accueil, document d'exemple, ruban, saisie, correcteur ; la CLI convertit md, docx, pdf, png | — |
+| GridCraft | oui | **oui** : s'ouvre depuis Craft (ruban, grille) | — |
+| DeckCraft, CADCraft, DesignCraft | oui | non (pas encore lancées) | — |
+| PdfCraft | non | | `aws-lc-sys` (C, par `craft-pkcs7` : signatures) ; `thread-priority` coupé |
+| FilmCraft | non | | `open` 5.4.5 (patch dans `patches-pending`) ; une erreur de type dans `ring` (à voir) |
+| LightCraft | non | | il nomme `eframe::Renderer`, `NativeOptions::renderer`, `eframe::glow` (à ajouter à eframe-korin) ; `candle`, wgpu |
+| MaterialCraft, TextureCraft | non | | `mio` 1.2.4 (tokio) : patch dans `patches-pending` + `--cfg mio_unsupported_force_*` |
+| PhotoCraft | non | | `rustix` 1.1.5 épinglé (patch à faire pour 1.1.5) ; `appearance.rs` d'une autre forme ; canevas GPU |
+| FigCraft | non (5 erreurs dans l'app) | | à lire |
+| SoundCraft | non | | hôte VST3, `cpal`, `midir` (pas de son pour Korin dans cpal) |
+| VectorCraft, EffectCraft | non | | `winit` pris directement (fenêtre native : presse-papiers, verrou des majuscules…) |
+| Craft Anything, AniCraft | non | | egui et eframe **0.36** (l'hôte suit egui 0.37) |
 
-| Couche | Quoi | Sur Korin |
-|---|---|---|
-| cœur | formats, mise en page, PDF, codecs (H.264, AAC, Opus…), polices : `craft-libs` et caisses de crates.io, sans C | se compile, avec cinq petits patchs (plus bas) |
-| interface | `egui` 0.37 (fourche de storytold), dans une caisse à part (`wordcraft-ui-egui`…) qui ne dépend d'aucune fenêtre | à faire : un hôte egui pour Korin |
-| fenêtre | `eframe` + `winit` (X11, Wayland, Win32, Cocoa), `rfd` (dialogues), `arboard` (presse-papiers) | rien : c'est ce que l'hôte remplace |
-| dessin | `vello_cpu` ou `tiny-skia` (par le CPU) ; `wgpu` pour cinq apps | le CPU suffit pour onze apps |
-| son | `cpal`, `midir` (SoundCraft, EffectCraft, AniCraft) | à faire : un backend AudioKit |
-
-Trois niveaux, d'après les `Cargo.toml` :
-
-| Niveau | Apps | En plus de l'hôte egui |
-|---|---|---|
-| 1 : CPU | WordCraft, GridCraft, DeckCraft, DesignCraft, PdfCraft, PhotoCraft, VectorCraft, FigCraft, CadCraft, Craft Anything | rien |
-| 2 : son | SoundCraft (`cpal`, `midir`), MaterialCraft (`tokio`) | `cpal` sur AudioKit ; `tokio` (mio, socket2 : les patchs de l'ancien port Spotify) |
-| 3 : GPU | FilmCraft, LightCraft (+ `candle`), EffectCraft (+ `boa`, `cpal`), TextureCraft, AniCraft (repli `glow`) | `wgpu` sur le GPU du PC (Mesa) ; QEMU n'a pas de GPU |
+La suite est dans `/apps/<app>.app`, catégorie **« Craft »**, que le lanceur et le menu de Korin ne montrent pas
+(`src/sys/common/applist.c`, `cat_hidden`, comme « Émulateurs ») : on l'ouvre par **Craft** (`/apps/craft.app`), seul
+dans le lanceur et le dock. Une app pas encore construite y est grisée.
 
 ## Construire
 
 ```sh
-ARCH=x86_64 bash tools/rust/build.sh          # une fois : la cible du PC
-bash tools/craft/build.sh                      # wordcraft-cli -> build/craft/x86_64/bin/wordcraft-cli
-bash tools/craft/build.sh <app> <paquet>       # une autre app (sa révision : REV_<app> dans le script)
+bash tools/craft/all.sh                       # tout, depuis zéro : chaîne Rust, libposix et UIKit du PC, les apps,
+                                              # la démo d'egui, Craft et les icônes, panel et menubar
+bash tools/craft/all.sh gridcraft deckcraft   # seulement ces apps (puis le lanceur)
+bash tools/craft/build.sh <app> [paquet]      # une app de tools/craft/apps.txt ; sans argument : wordcraft-cli
+bash tools/craft/launcher.sh                  # Craft, ses icônes (PIL), l'icon.rgba de chaque app
+bash tools/craft/egui.sh                      # la démo d'egui (/apps/eguidemo.app)
 ```
 
-Quatre à huit minutes la première fois (la `std` et ≈ 400 caisses). Le binaire strippé fait 58,6 Mo sur le PC,
-52,8 Mo sur le Pi (polices et données de langue embarquées). Le script remet le `Cargo.lock` de l'app à sa version
-du dépôt à chaque lancement (la construction précédente l'a réécrit) et s'arrête si l'un de nos patchs est resté de
-côté (« patch was not used » : une autre version de la caisse dans le `Cargo.lock`). Il se copie sur la carte et devient exécutable par `chmod +x`.
+Sorties : `build/craft/x86_64/apps/<app>.app` (`main`, `app.txt`, `icon.rgba`), `build/craft/x86_64/bin`,
+`build/craft/x86_64/status.txt` (l'état de chaque app après `all.sh`), journaux dans `build/craft/x86_64/logs`.
+Travail hors du dépôt : `~/korin-craft` (`KORIN_CRAFT`).
 
-`tools/craft/build.sh` travaille dans `~/korin-craft` (`KORIN_CRAFT`) : le dépôt de l'app à la révision épinglée
-(WordCraft : `b5e0be78`, 0.18.1), les caisses patchées dans `vendor/`, une copie patchée de `craft-libs`, et un
-`.cargo/config.toml` dans le dépôt de l'app qui branche tout cela.
+Une app : de cinq à quinze minutes la première fois. Binaires strippés : WordCraft 161 Mo, DesignCraft 95 Mo,
+CADCraft 60 Mo, DeckCraft 46 Mo, GridCraft 35 Mo, Craft 6,4 Mo (polices et données embarquées).
+
+## Comment `build.sh` construit une app
+
+1. **libc** : la `std` garde la 0.2.185 de `rust-src` ; les projets prennent une 0.2.191 patchée de la même
+   `tools/rust/libc.patch` (deux entrées dans le `[patch]` de cargo : une seule remplacerait celle de la `std`).
+2. **le dépôt** de l'app à la révision de `tools/craft/apps.txt`, remis à neuf (`git checkout -- .`), puis :
+   - `tools/craft/korin_app.py` : `eframe` → `src/lib/eframe-korin` dans le `[patch.crates-io]` ; WordCraft : son
+     presse-papiers sur Korin (`tools/craft/app/korin.rs`), sans `gpu-startup` ; PdfCraft : sans `rustix` ni
+     `thread-priority` ;
+   - `tools/craft/korin_cfg.py` : les `cfg` des « Unix autres que macOS » (X11, Wayland, D-Bus, portails) excluent
+     Korin, qui prend la branche « aucun bureau connu » (et son repli `not(any(unix, windows))` quand la branche Unix
+     du fichier était celle du bureau) ;
+   - chaque caisse que Korin patche est ramenée à notre version (`cargo update --precise`) si l'app en a une autre de
+     la même série.
+3. **les caisses de crates.io** patchées : chaque `tools/craft/patches/<caisse>-<version>.patch`, appliqué à une copie
+   dans `~/korin-craft/vendor`, branchée par le `.cargo/config.toml` de l'app.
+4. **craft-libs** : une app la prend à plusieurs révisions (une par caisse). Une copie par révision
+   (`~/korin-craft/craft-libs-<rev>`) reçoit `korin_cfg.py` et `korin_libs.py` (par ancres : `appearance.rs`,
+   `craft-font-store` sans `cap-primitives`, où que soit son code) ; `craftlibs_patch.py` ne redirige que les
+   révisions dont l'app prend une caisse changée, et de celles-ci toutes ses caisses (sinon deux copies des mêmes
+   types), sauf celles qu'elle prend à plusieurs révisions.
+5. `cargo korin build --release -p <paquet>`, contrôle des patchs restés de côté, `strip`, et l'app si
+   `tools/craft/app/<paquet>.txt` existe.
 
 ## Ce qui a été patché
 
 | Caisse | Pourquoi | Le patch |
 |---|---|---|
-| `libc` 0.2.191 | `nix` 0.31 (par `zip`) veut `^0.2.186` ; notre patch vise la 0.2.185 | `tools/rust/libc.patch` rejoué tel quel ; deux entrées dans le `[patch]` de cargo ([RUST.md](RUST.md), « Limites connues ») ; la 0.2.191 veut `safe` ou `unsafe` dans `f!` et n'a plus `safe_f!` (réécrit à l'application) |
-| `libc` (module `korin`) | `memmap2` appelle `mprotect` | la déclaration ajoutée à `libc.patch` (libposix l'avait déjà) |
-| `getrandom` 0.2.17 et 0.4.3 | `compile_error!` « target is not supported » (`ring`, `rand`) | `korin` dans le backend `getrandom ()`, `errno` par `__errno` (repris de l'ancien port Spotify) |
-| `ring` 0.17.14 | `SystemRandom` sans `SecureRandom` ; puis l'assembleur AArch64 et x86-64 absent (édition de liens) | `korin` dans la liste des OS de `getrandom` et dans `LINUX_ABI` du `build.rs` (ELF System V comme Linux) |
-| `filetime` 0.2.29 | `lutimes` absent | `korin` prend le backend `utimensat` |
-| `craft-font-store` (`craft-libs`) | `cap-primitives` tire `rustix`, qui ne connaît pas Korin (142 erreurs) | sur Korin, la suppression des packs de langue passe par des chemins (`std::fs`) au lieu de dossiers ouverts ; Korin n'a pas de liens symboliques à éviter |
+| `libc` 0.2.191 (projets) | `nix` 0.31 veut `^0.2.186` | `libc.patch` rejoué ; `f!` et `safe_f!` réécrits (build.sh) |
+| `libc` (module `korin`) | `memmap2`, `cap-std`, rustix | `mprotect`, `openat`, `fstatat`, `linkat`, `symlinkat`, `fchownat` (libposix les a) |
+| `getrandom` 0.2.17, 0.4.3 | « target is not supported » | `korin` dans le backend `getrandom ()` |
+| `ring` 0.17.14 | `SecureRandom` ; l'assembleur absent au lien | `korin` dans les OS de `getrandom` et dans `LINUX_ABI` |
+| `filetime` 0.2.29 | `lutimes` | backend `utimensat` |
+| `tempfile` 3.27.0 | `rustix` | la `std` |
+| `rfd` 0.17.2 | aucun backend | **les dialogues de Korin** (`ui_file_open`, `ui_file_save`, `ui_folder_choose`, `ui_message`) |
+| `arboard` 3.7.0 | X11, Wayland | **le presse-papiers de Korin** (texte) |
+| `hdrshot-egui-backend` 0.2.0 | le cache oubliait les textures qui changent (les pages de WordCraft restaient figées) | tout redessiner quand une texture change |
+| `rustix` 1.1.6 | ne connaît pas Korin (140 erreurs) | Korin comme Horizon (newlib), sauf ce que libposix a (`flock`, `pipe2`, les `*at`, la lecture des dossiers…) : `tools/craft/rustix_korin.py` |
+| `cap-primitives` 4.0.3 | `O_DSYNC`, `O_RSYNC`, `ttyname`, `uid_t` 16 bits | `tools/craft/crate_korin.py` |
+| `fs4` 1.1.0 | `allocate` | la branche sans `fallocate` |
 
-Un `[patch]` vers une copie de `craft-libs` doit couvrir **toutes** ses caisses (88 pour WordCraft) : n'en rediriger
-qu'une ferait deux copies des autres, et des types différents. `build.sh` les lit dans le `Cargo.lock`, sauf celles que
-l'app a déjà en `[patch.crates-io]` (`krilla`, `hayro`… : pas de patch en chaîne).
+Les trois derniers patchs sont produits par les scripts (`rustix_korin.py`, `crate_korin.py`) : une autre version de
+la caisse se refait en les relançant (docs/agents/CRAFT-HANDOVER.md, « Refaire un patch »).
 
-`ring` et `rustls` viennent de `ureq` (téléchargement de polices et de packs de langue) ; ils compilent, mais le
-réseau HTTPS n'a pas été essayé.
+`tools/craft/patches-pending` : les patchs de l'ancien port Spotify (`open` 5.4.5, `mio` 1.2.4, `socket2` 0.6.5,
+`tokio` 1.54.1), pas encore essayés avec la suite (MaterialCraft, TextureCraft, FilmCraft en ont besoin) ; `mio`
+demande aussi `RUSTFLAGS=--cfg mio_unsupported_force_poll_poll --cfg mio_unsupported_force_waker_pipe`.
 
-## Essai (QEMU PC, 20/11/2026)
+## Essai (QEMU PC)
 
-Disque d'essai de `tools/rust/testimage.py --pc` avec `wordcraft-cli` et un `hello.md` dans `build/pc/rust/tests`
-(depuis : `tools/craft/pctest.py`, qui met `build/craft/x86_64/bin` et `tools/craft/test` dans `HOME:/craft`),
-QEMU de WSL (`. ~/korin-cloud/env.sh` : l'OVMF avec le shell UEFI, [agents/CLOUD.md](agents/CLOUD.md)), puis
-`testimage.py --pc-run` :
+`tools/craft/pctest.py` (dans WSL ou le cloud, `. ~/korin-cloud/env.sh` d'abord : l'OVMF avec le shell UEFI) : une
+copie de `build/pc/sysroot` (sans `/devtools`) avec les apps de `build/craft/x86_64/apps`, `build/craft/x86_64/bin` et
+`tools/craft/test` dans `HOME:/craft`, le panel et le menubar de `build/sys/x86_64` ; puis les commandes de
+`tools/python/pctest.py` (captures `shot:`, clics `click:`, touches `key:` et `type:`). Exemple :
 
-| Commande | Résultat |
-|---|---|
-| `wordcraft-cli --version` | `wordcraft-cli 0.18.1` (3,6 s, le premier lancement) |
-| `convert hello.md hello.docx` | 8 208 octets, 1,8 s |
-| `info hello.docx` | 1 page, 11 paragraphes, 30 mots ; mise en page 889 ms |
-| `text hello.docx` | le texte, accents, puces et tableau compris |
-| `convert hello.docx hello.pdf` | 29 872 octets, 4,6 s |
-| `render hello.docx hello.png --scale 1` | 612 × 792, 18 771 octets, 5,9 s |
+```sh
+python3 -I tools/craft/pctest.py prep --mb 1800
+python3 -I tools/craft/pctest.py run --qemu "-device usb-tablet,bus=xhci.0" \
+    "/apps/craft.app/main &" sleep:20 shot:craft click:550,195 sleep:40 shot:gridcraft
+```
 
-Pas regardé : le contenu du PDF et du PNG (sur le disque de QEMU, en snapshot).
+`wordcraft-cli` (20/11) : `--version`, md → docx (1,8 s), `info` (mise en page 889 ms), `text`, docx → pdf (4,6 s),
+docx → png (5,9 s). L'image d'essai fait près de 2 Go : effacer `build/pc/crafttest` après.
 
-## La suite
+## Limites connues
 
-1. **L'hôte egui pour Korin : fait le 20/11/2026** ([EGUI.md](EGUI.md), `src/lib/egui-korin`) : la démo d'egui tourne
-   sous QEMU PC. Reste WordCraft avec fenêtre : un `eframe` pour Korin sur cet hôte, branché par `[patch]`.
-   `apps/wordcraft/src/main.rs` et `craft-ui-shell` n'utilisent d'eframe que `App`, `Frame`, `NativeOptions`,
-   `CreationContext`, `run_native` et `icon_data` ; mais l'exécutif de `craft` (`embed::install`, `WindowHost`, les
-   dialogues de `FilePanels`, rattachés à `eframe::Frame`) et les caisses qui prennent X11 ou Wayland parce que Korin
-   est `unix` sans être macOS (`winit`, `wayland-*`, `zbus`, `x11-dl` ; `rfd`, `arboard`, `egui-wgpu`) sont à couper
-   ou à rediriger.
-2. Le niveau 1, presque sans travail de plus ; le niveau 2 avec `cpal` sur AudioKit ; le niveau 3 en dernier.
+- **Pas de GPU** : l'eframe de Korin ne crée jamais d'état wgpu ; les apps qui l'exigent (PhotoCraft, FilmCraft,
+  LightCraft…) devront prendre leur chemin CPU, ou attendre wgpu sur Mesa.
+- Pas de **certificats racines** pour rustls (« No CA certificates were loaded from the system ») : pas de mise à jour,
+  pas de téléchargement de polices ni de packs de langue.
+- **Verrous de fichiers** : `File::lock` n'est pas pris en charge par la `std` de Korin ; les réglages s'enregistrent
+  sans verrou, la récupération des documents ne peut pas effacer ses copies.
+- Le presse-papiers de Korin ne prend que le **texte** (les copies riches restent dans l'app).
+- Pas de son (`cpal` n'a pas d'hôte pour Korin).
