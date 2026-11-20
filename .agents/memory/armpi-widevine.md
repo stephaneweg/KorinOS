@@ -69,8 +69,11 @@ gardait OFF), out/jet.app joue ; copies *-eme effacées. **Publié le 20/11** (8
 jet 1.4.0, pc 2026.11.63 (noyau du PC refait avec la capture et l'arène haute : build/pc/esp était du 19/11 au matin),
 python 1.0.4 et claude 1.0.7 (changements d'autres sessions, accord de l'utilisateur) ; mai 1.0.0 écarté à sa demande
 (publish = 0 dans une copie de packages-pc.ini) ; MKREPO_EXTRA=--keep-unbuilt (koton-samples, wallpapers,
-home-samples pas construits) ; gh absent de WSL : la Release envoyée par le gh de Windows, puis git push. Reste :
-ZBook, compte, WebM chiffré.
+home-samples pas construits) ; gh absent de WSL : la Release envoyée par le gh de Windows, puis git push.
+**ZBook (20/11)** : Spotify web joue bien (l'utilisateur) ; Netflix sans erreur ; TF1+ 720p (9-11 ms par image) mais
+des images perdues : la lenteur vient du tracé de Jet sur un seul fil et du compositeur à vide (session « Jet plus
+fluide sur PC »), pas de Widevine (cdmhost au repos : 10 appels/s). Reste : Netflix lance 6 cdmhost (un
+setServerCertificate par MediaKeys de sondage : garder le certificat jusqu'à la première session), WebM chiffré.
 
 Pièges : `linux` est une macro prédéfinie de gcc sous Linux (pas comme nom de champ) ; le canari de pile du code
 Linux (%fs:0x28) tombe dans le TCB de 64 octets de libposix, stable. Le module ne va jamais dans nos paquets.

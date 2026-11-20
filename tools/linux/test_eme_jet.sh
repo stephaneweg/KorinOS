@@ -111,7 +111,7 @@ a = types.SimpleNamespace(port=2395, hostfwd=[], smp=4, mem="4G", boot=150, shot
     + sum([["( /apps/jet.app/main %s > /dev/null 2>&1 & ) ; echo ouvert" % u, "sleep:60", "shot:site%d" % (i + 1)]
            for i, u in enumerate(sites)], [])
     + clicks.split ()
-    + ["grep agent /tmp/jet.log", "tail -n 60 /tmp/jet.log"])
+    + ["grep agent /tmp/jet.log", "sysstat", "sleep:5", "sysstat", "sysstat cdmhost", "tail -n 60 /tmp/jet.log"])
 pt.run(a)
 PY
 

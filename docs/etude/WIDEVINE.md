@@ -571,8 +571,13 @@ l'essai sur le ZBook ; les images passent par la socket (pas encore de mémoire 
   module, `NotSupportedError` ; la case, OK, le module installé, la page rechargée : **401 images à 20 s,
   « EME-WIDEVINE : RÉUSSI »**. Les copies et la construction à part (`webkit-eme`, `webkit-gl-eme`, `webcore-eme`)
   sont effacées.
-* Reste : essai sur le ZBook ; un compte Netflix ou Spotify (l'utilisateur) ; le WebM chiffré (§ 13) ; les versions
-  des paquets `jet` et `pc` (pour `etc/exec.txt`) avant leur prochaine publication.
+* **Sur le ZBook (20/11, publié dans jet 1.4.0 et pc 2026.11.63)** : **Spotify web joue bien** (l'utilisateur, avec
+  son compte). Netflix ne donne pas d'erreur. TF1+ joue en 720p, décodé par le module en 9 à 11 ms par image, mais
+  avec des images perdues. La lenteur générale de Jet (défilement, dessin) ne vient pas de Widevine : tout le tracé se
+  fait sur le fil principal (« no app core is free ») et le compositeur recompose une page immobile (session à part :
+  « Jet plus fluide sur PC »). Netflix lance 6 `cdmhost` en quelques secondes (un `setServerCertificate` par
+  `MediaKeys` de sondage) : à corriger en gardant le certificat jusqu'à la première session.
+* Reste : le WebM chiffré (§ 13) ; les 6 `cdmhost` de Netflix ; la fluidité de Jet.
 
 ## Sources (19/11/2026)
 
