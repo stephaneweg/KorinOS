@@ -240,7 +240,9 @@ python tools/pkg/pub.py claude                 # montre les changements, demande
 python tools/pkg/pub.py win16 --new --tree DOSSIER  # un nouveau paquet (absent de l'index) : tous ses fichiers pris dans DOSSIER
 ```
 
-Python de Windows **sans `-I`** (`cryptography`). Le script :
+Python de Windows **sans `-I`** (`cryptography`). Dans le cloud (pas de `gh` utilisable) : `--api`, la Release par
+l'API REST de GitHub avec `curl` (la connexion GitHub de la session est appliquée par le proxy), et la clé dans la
+variable `ONYX_PKG_KEY` (ou `OnyxPkgKey`). Le script :
 
 1. `git fetch` ; la base est l'index d'**`origin/main`** (`packages/pc/index.txt`), jamais une archive plus ancienne
    que la dernière publiée ;
