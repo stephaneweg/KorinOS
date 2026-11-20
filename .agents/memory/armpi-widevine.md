@@ -41,8 +41,16 @@ DecryptAndDecodeFrame rend des images I420 (H.264 en Annex B obligatoire, comme 
 par Decrypt. Mêmes empreintes sous Linux et DANS Korin (QEMU avec netd et usb-net) : vidéo fabf757bb7928937 (sans les
 images de la fin ; toutes : 967a04bdc5ec8b46, depuis le 20/11), audio
 85bba6b1d46b3472. Refaire : `sh tools/linux/cdmtest.sh MODULE` (Linux) ; `sh tools/linux/build.sh` puis
-`WIDEVINE_SO=MODULE sh tools/linux/test_cdm_pc.sh` (disque d'essai effacé à la fin). Suite : serveur IPC de
-cdmhost + EME ClearKey dans Jet (étape 4), puis Widevine dans Jet (5), ZBook.
+`WIDEVINE_SO=MODULE sh tools/linux/test_cdm_pc.sh` (disque d'essai effacé à la fin).
+**Étape 4 faite le 20/11 (QEMU)** : EME ClearKey joue dans Jet (249 images après le début chiffré). av : CENC en
+correctif tools/webkit/av-patches/0001-cenc.patch (src/extra/onyx-libs pas suivi ; glue.sh l'applique) ; WebKit :
+tools/webkit/patches/0008-eme-clearkey.patch (ENABLE_ENCRYPTED_MEDIA, CDMOnyx, lecteur) ; Jet : permission
+decidePolicyForMediaKeySystemPermissionRequest (sinon NotSupportedError). cdmhost (process à part, proto.h,
+cdmclient) : mêmes empreintes Linux/Korin. Essais : tools/linux/test_eme_jet.sh (JET=…), ESSAI=ipctest
+test_cdm_pc.sh. Pièges : build-jet.sh refuse si av.h > libWebCore.a ; WSL 9 Go = 4 travaux pour WebCore (~1 h 30 en
+plus de 3 h d'une construction neuve) ; Jet EME à part dans ~/korin-webkit-x86_64/out/jet-eme.app (webcore-eme).
+Suite : étape 5 (Widevine dans Jet par cdmhost : CDMFactory Widevine, décodage vidéo par le module → images), Netflix
+ensuite (décision de l'utilisateur du 20/11 : Widevine d'abord, Claude Code après).
 
 Pièges : `linux` est une macro prédéfinie de gcc sous Linux (pas comme nom de champ) ; le canari de pile du code
 Linux (%fs:0x28) tombe dans le TCB de 64 octets de libposix, stable. Le module ne va jamais dans nos paquets.

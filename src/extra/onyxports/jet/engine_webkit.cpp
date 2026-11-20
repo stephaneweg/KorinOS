@@ -37,6 +37,9 @@
 #include <WebKit/WKEventOnyx.h>
 #include <WebKit/WKGeometry.h>
 #include <WebKit/WKHitTestResult.h>
+#if ENABLE(ENCRYPTED_MEDIA)
+#include <WebKit/WKMediaKeySystemPermissionCallback.h>
+#endif
 #include <WebKit/WKNavigationActionRef.h>
 #include <WebKit/WKPage.h>
 #include <WebKit/WKPageConfigurationRef.h>
@@ -705,6 +708,18 @@ static void runConfirm (WKPageRef, WKStringRef text, WKFrameRef, WKSecurityOrigi
 	WKPageRunJavaScriptConfirmResultListenerCall (listener, ok);
 }
 
+#if ENABLE(ENCRYPTED_MEDIA)
+// EME (Korin, docs/etude/WIDEVINE.md): a page asks for a key system (navigator.requestMediaKeySystemAccess).
+// Clear Key: always (no module, the keys stay in the page). The others (Widevine, through cdmhost): for now
+// too; the setting « Lire les contenus protégés » will decide (étape 7).
+static void mediaKeySystemPermission (WKPageRef, WKSecurityOriginRef, WKStringRef keySystem, WKMediaKeySystemPermissionCallbackRef callback)
+{
+	if (getenv ("WEBKIT_TRACE_MEDIA") || access ("/etc/web-trace-media", F_OK) == 0)
+		fprintf (stderr, "jet: EME: the page asks for %s: allowed\n", str (keySystem).c_str ());
+	WKMediaKeySystemPermissionCallbackComplete (callback, true);
+}
+#endif
+
 // A new window: this program started again with the URL (the kernel shares its image: quick).
 extern "C" char *program_invocation_name;
 extern "C" char **environ;
@@ -980,6 +995,9 @@ int engine_tab_new (const char *typed)
 	uc.mouseDidMoveOverElement = mouseOverElement;
 	uc.runJavaScriptAlert = runAlert;
 	uc.runJavaScriptConfirm = runConfirm;
+#if ENABLE(ENCRYPTED_MEDIA)
+	uc.decidePolicyForMediaKeySystemPermissionRequest = mediaKeySystemPermission;
+#endif
 	WKPageSetPageUIClient (t->page, &uc.base);
 
 	WKPageFindClientV0 fc;

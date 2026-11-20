@@ -288,7 +288,7 @@ distribué à d'autres ne l'active jamais d'office.
 | 2b | Capture générique des `syscall` dans le noyau du PC (§ 3.2) ; `liblinux` s'en sert | un `syscall` direct d'un module d'essai traduit | **fait le 19/11** (QEMU) |
 | 2c | Les 108 imports, TLS du module (`__tls_get_addr`), `_Unwind_*`, threads ; `/proc/self/maps` et `/proc/net/unix` fabriqués, `rt_sigaction` | dans Korin, la sonde va jusqu'à la requête de licence, comme sous Linux | **fait le 19/11** (QEMU, § 8) |
 | 3 | `cdmhost` : `Host_10/11` en C++, essai hors de Jet sur un serveur de licences de test public | une licence de démonstration obtenue, un échantillon déchiffré | **fait le 19/11** (Linux et QEMU, § 9) ; le serveur IPC de `cdmhost` reste, avec l'étape 4 |
-| 4 | EME ClearKey dans Jet (WebKit, MSE chiffré, CENC) | un flux ClearKey de démonstration joue | 3 à 5 jours |
+| 4 | EME ClearKey dans Jet (WebKit, MSE chiffré, CENC) | un flux ClearKey de démonstration joue | **fait le 20/11** (QEMU, § 11) ; `cdmhost` et son client aussi (§ 10) |
 | 5 | EME Widevine dans Jet par `cdmhost` (audio) | le lecteur web de Spotify joue un titre | 2 à 3 jours |
 | 6 | Vidéo, user agent, codecs | Netflix et Disney+ jouent (720p) | 2 à 4 jours |
 | 7 | Case des réglages, téléchargement chez Google, mise à jour | de la case à la lecture sans manipulation | 1 à 2 jours |
@@ -440,7 +440,8 @@ fois (noté dans `src/extra/onyx-libs/.korin-patches`), comme `fetch.sh` pour We
 * Garde : `av_packet` et `av_track` ont des champs de plus ; `build-jet.sh` refuse de lier si `av.h` est plus
   récent que `libWebCore.a` (WebKit d'abord), et refait `libonyxav.a` quand les sources d'`av` ont changé.
 
-**WebKit** (correctif `0008-eme-clearkey.patch`, essayé à part avant d'aller dans `tools/webkit/patches`) :
+**WebKit** (correctif `tools/webkit/patches/0008-eme-clearkey.patch`, essayé à part, puis rangé le 20/11 : la
+prochaine construction de WebKit le prend, et reconstruit tout WebCore, l'option touchant `cmakeconfig.h`) :
 * `OptionsOnyx.cmake` : `ENABLE_ENCRYPTED_MEDIA` avec le moteur ;
 * `CDMOnyx.h`, `CDMOnyx.cpp` (nouveaux) : la fabrique du CDM Clear Key de WebKit (`CDMFactoryClearKey`,
   générique) enregistrée pour Onyx, et `CDMProxyOnyx`, le côté déchiffreur d'une instance : les fils de décodage
@@ -453,9 +454,20 @@ fois (noté dans `src/extra/onyx-libs/.korin-patches`), comme `fetch.sh` pour We
 * Construction à part (copies `webkit-eme`, `webkit-gl-eme`, construction `webcore-eme` ; `tools/mesa/build-webkit.sh`
   prend `WK_BASE`, `WK_GL`, `WK_BUILD` ; `build-jet.sh` prend `JET_OUT`), pour ne pas toucher au Jet des autres
   sessions.
-* Essai dans Jet : `tools/webkit/tests/eme-clearkey.html` (MSE + EME Clear Key, la licence JSON faite par la page,
-  résultats dans la console) et `tools/linux/test_eme_jet.sh` (disque d'essai, page servie par WSL sur
-  `10.0.2.2:8642`, Jet lancé par telnet, console des pages dans le journal du noyau par `/etc/web-console`).
+* **Jet** (`src/extra/onyxports/jet/engine_webkit.cpp`) : WebKit2 demande au navigateur la permission d'un système
+  de clés (`decidePolicyForMediaKeySystemPermissionRequest`) ; sans réponse, `requestMediaKeySystemAccess`
+  échoue (`NotSupportedError`). Jet accepte Clear Key, et pour l'instant tout système de clés (la case des
+  réglages en décidera pour Widevine, étape 7).
+* Essai dans Jet : `tools/webkit/tests/eme-clearkey.html` (MSE + EME Clear Key, la licence JSON faite par la page)
+  et `tools/linux/test_eme_jet.sh` (disque d'essai avec ce Jet, page servie par WSL sur `10.0.2.2:8642`, Jet lancé
+  par telnet ; la page envoie chaque ligne de son journal au serveur de l'essai, d'où le verdict).
+* **Résultat sous QEMU PC (20/11)** : `requestMediaKeySystemAccess` → `setMediaKeys` → `encrypted` (cenc,
+  52 octets) → requête de licence → clé `usable` → MSE (60 s tamponnées) → lecture au-delà de 8 s (le début du
+  chiffré), **249 images décodées : « EME-CLEARKEY : RÉUSSI »**. Capture : la vidéo s'affiche dans Jet.
+* Dans Korin aussi, `cdmhost` par son client (`ESSAI=ipctest sh tools/linux/test_cdm_pc.sh`) : licence, audio et
+  vidéo, **mêmes empreintes que sous Linux**.
+* Reste : la console des pages ne va pas dans le journal du noyau malgré `/etc/web-console` (à voir) ; essai sur
+  le ZBook.
 
 ## Sources (19/11/2026)
 

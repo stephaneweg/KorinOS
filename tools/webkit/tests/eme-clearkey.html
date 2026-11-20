@@ -31,6 +31,8 @@ let done = false;
 function log(text) {
   console.log("EME-CLEARKEY : " + text);
   document.getElementById("log").textContent += text + "\n";
+  // (aussi au serveur de l'essai : son journal donne le verdict, tools/linux/test_eme_jet.sh)
+  fetch("result?" + encodeURIComponent("EME-CLEARKEY : " + text)).catch(() => {});
 }
 function fail(text) {
   if (done) return;
