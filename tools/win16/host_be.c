@@ -1,7 +1,7 @@
 /* host_be.c -- win16 sur l'hôte (WSL), pour les essais sans Korin : l'affichage de be.h en mémoire.
  *
  * Les fenêtres sont des tampons de pixels ; le texte est tracé en blocs (une case par caractère) et noté sur
- * stderr. Les événements viennent de W16_SCRIPT (« menu:ID », « click:X,Y », « key:CODE,CHAR », « close »,
+ * stderr. Les événements viennent de W16_SCRIPT (« menu:ID », « click:X,Y », « key:CODE,CHAR », « keyup:CODE », « close »,
  * « wait:N », séparés par des espaces ; « win:N » choisit la fenêtre) ; script fini, quand le programme attend
  * sans rien à faire, la dernière fenêtre ouverte reçoit « fermer » (après W16_IDLE attentes, 3 par défaut).
  * Chaque fenêtre est écrite en PPM dans W16_SHOT (dossier) à sa fermeture, et sur « shot ».
@@ -208,6 +208,15 @@ static int script_wait;
 int be_wait (int ms, struct be_event *ev)
 {
 	memset (ev, 0, sizeof *ev);
+	/* (W16_REALTIME : une attente dure vraiment, au plus 20 ms ; pour les essais du son, au rythme réel) */
+	static int realtime = -1;
+	if (realtime < 0)
+		realtime = getenv ("W16_REALTIME") != 0;
+	if (realtime && ms > 0)
+	{
+		struct timespec ts = { 0, (long) (ms < 20 ? ms : 20) * 1000000L };
+		nanosleep (&ts, 0);
+	}
 	if (script_wait > 0)
 	{
 		/* (une attente par appel qui attend ; un programme qui ne fait que sonder, comme l'éditeur de QuickBASIC,
@@ -254,6 +263,12 @@ int be_wait (int ms, struct be_event *ev)
 		{
 			ev->type = BE_MOUSE_UP;
 			sscanf (w + 3, "%d,%d", &ev->x, &ev->y);
+			return 1;
+		}
+		if (!strncmp (w, "keyup:", 6))
+		{
+			ev->type = BE_KEY_UP;
+			ev->key = atoi (w + 6);
 			return 1;
 		}
 		if (!strncmp (w, "key:", 4))
@@ -401,3 +416,49 @@ void be_synth_midi (int ch, int cmd, int a, int b)
 		fprintf (stderr, "[hôte] MIDI %ld : canal %d, %02x %d %d\n", midi_count, ch, cmd, a, b);
 }
 void be_synth_reset (void) { if (getenv ("W16_MIDI")) fprintf (stderr, "[hôte] MIDI : tout se tait\n"); }
+
+/* la sortie PCM sur l'hôte : un fil au rythme réel ; W16_WAV=fichier.wav l'enregistre (44,1 kHz, stéréo, 16 bits) */
+#include <pthread.h>
+#include <unistd.h>
+static void (*pcm_fill) (int16_t *buf, int frames);
+
+static void *pcm_main (void *arg)
+{
+	(void) arg;
+	const char *path = getenv ("W16_WAV");
+	FILE *f = path ? fopen (path, "wb") : 0;
+	uint32_t total = 0;
+	static int16_t buf[256 * 2];
+	if (f)
+		fwrite ("RIFF\0\0\0\0WAVEfmt \x10\0\0\0\x01\0\x02\0\x44\xac\0\0\x10\xb1\x02\0\x04\0\x10\0data\0\0\0\0", 1, 44, f);
+	for (;;)
+	{
+		pcm_fill (buf, 256);
+		if (f)
+		{
+			fwrite (buf, 1, sizeof buf, f);
+			total += sizeof buf;
+			long here = ftell (f);
+			uint32_t riff = total + 36;
+			fseek (f, 4, SEEK_SET);
+			fwrite (&riff, 4, 1, f);
+			fseek (f, 40, SEEK_SET);
+			fwrite (&total, 4, 1, f);
+			fseek (f, here, SEEK_SET);
+			fflush (f);
+		}
+		usleep (256 * 1000000 / 44100);
+	}
+	return 0;
+}
+
+int be_pcm_start (void (*fill) (int16_t *buf, int frames))
+{
+	static int started;
+	pthread_t t;
+	if (started)
+		return 1;
+	pcm_fill = fill;
+	started = pthread_create (&t, 0, pcm_main, 0) == 0;
+	return started;
+}

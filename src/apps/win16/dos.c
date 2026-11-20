@@ -1445,6 +1445,7 @@ int dos_main (const char *path, const char *dospath_in, const char *args)
 		o += sprintf (e + o, "PATH=Z:\\;C:\\;D:\\") + 1;
 		o += sprintf (e + o, "PROMPT=$P$G") + 1;
 		o += sprintf (e + o, "TEMP=C:\\") + 1;
+		o += sprintf (e + o, "BLASTER=A220 I5 D1 H5 T6") + 1;
 		e[o] = 0;
 	}
 	make_psp (root_psp, MEM_TOP, root_psp, env);

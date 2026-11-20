@@ -483,6 +483,37 @@ void be_synth_reset (void)
 	pthread_mutex_unlock (&g_lk);
 }
 
+/* la sortie PCM de la machine DOS (son.c) : un fil remplit des blocs de 44,1 kHz stéréo, AudioKit les joue */
+static void (*pcm_fill) (int16_t *buf, int frames);
+
+static void *pcm_main (void *arg)
+{
+	(void) arg;
+	if (!audiokit_kit_open ())
+		return 0;
+	long out = ak_open (RATE, 2, 16, 0);
+	if (out < 0)
+		return 0;
+	static int16_t buf[BLOCK * 2];
+	for (;;)
+	{
+		pcm_fill (buf, BLOCK);
+		((long (*) (long, long, long)) ak_write_all) (out, (long) buf, sizeof buf);
+	}
+	return 0;
+}
+
+int be_pcm_start (void (*fill) (int16_t *buf, int frames))
+{
+	static int started;
+	pthread_t t;
+	if (started)
+		return started > 0;
+	pcm_fill = fill;
+	started = pthread_create (&t, 0, pcm_main, 0) == 0 ? 1 : -1;
+	return started > 0;
+}
+
 void be_fatal (const char *msg)
 {
 	if (ui_ok)

@@ -77,6 +77,14 @@ int mouse_int33 (void);
 int mouse_text_cursor (int *col, int *row, uint16_t *and_mask, uint16_t *xor_mask);
 int mouse_graphic_cursor (int *x, int *y);
 
+/* sound.c */
+void sound_init (void);
+void sound_poll (void);
+int sound_in (uint16_t port, uint8_t *v);
+int sound_out (uint16_t port, uint8_t v);
+uint32_t bios_pit2_reload (void);
+uint8_t bios_port61 (void);
+
 /* vga.c */
 void vga_init (void);
 void vga_set_mode (int mode, int clear);

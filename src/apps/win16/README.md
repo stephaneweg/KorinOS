@@ -16,6 +16,8 @@
 * `dos/COMMAND.COM` de l'app (lecteur Z: de la machine DOS) : **FreeCOM 0.86** (FreeDOS, GPL-2,
   github.com/FDOS/freecom), construit par `tools/win16/build-freecom.sh`, livré avec sa licence (`COPYING.TXT`) et
   le lien de ses sources (`FREECOM.TXT`).
+* `nuked/` : **Nuked OPL3** 1.8 (github.com/nukeykt/Nuked-OPL3, **LGPL-2.1+**, `nuked/LICENSE`), l'émulateur de
+  l'OPL3 de la machine DOS (choix de l'utilisateur du 20/11/2026), copié tel quel.
 * Les polices de la « ROM » vidéo de la machine DOS (code page 437, 8×8, 8×14, 8×16) viennent de
   `src/lib/basic/basfont.h` (polices VGA de console-setup de Debian : MIT et domaine public).
 
@@ -42,6 +44,7 @@
 | `mouse.c` | son pilote de souris (INT 33h, IRQ 12 vers le gestionnaire du programme) |
 | `svga.c` | sa SVGA : VESA BIOS Extension 2.0 (banques, tampon linéaire, 8 à 32 bits) |
 | `xms.c` | sa mémoire XMS 3.0 et EMS 4.0 |
+| `sound.c` | son son : haut-parleur, OPL3 (Nuked), Sound Blaster 16 (DSP, DMA, IRQ, mélangeur), dans AudioKit |
 | `vga.c` | sa VGA : modes texte, CGA, EGA, VGA en plans, 13h, Mode X, registres, DAC, INT 10h, rendu dans la fenêtre |
 
 ## Construire et essayer
@@ -51,7 +54,9 @@
 * DOS : `win16 PROG.EXE` (un `.exe` sans en-tête NE ou un `.COM`), `win16 FICHIER.BAT`, `win16 --dos` (l'invite) ;
   sur l'hôte, `W16_DOSDIR=build/win16/dos` donne le lecteur Z:.
 * Programmes d'essai : `sh tools/win16/build-tests.sh` (Open Watcom v2 dans `~/win16/watcom`) ; ceux du DOS
-  (`tools/win16/tests/dos`) : `dostest.exe` (console, écran B800, BIOS, mémoire, fichiers, EXEC de `dosecho.exe`).
+  (`tools/win16/tests/dos`) : `dostest.exe` (console, écran B800, BIOS, mémoire, fichiers, EXEC de `dosecho.exe`),
+  `gfxtest.exe` (modes graphiques), `sndtest.exe OPL|SPK|SB` (le son ; sur l'hôte, `W16_WAV=f.wav W16_REALTIME=1`
+  l'enregistre).
 * Sur l'hôte, sans Korin : `W16_TRACE=1 sh tools/win16/host.sh build/win16/tests/hello.exe`.
 * Sous QEMU PC : `sh tools/win16/test_pc.sh hello` (après `. ~/korin-cloud/env.sh`).
 * Ce qu'un `.exe` importe : `python3 -I tools/win16/nedump.py PROG.EXE` ; ce qui n'est pas encore écrit :

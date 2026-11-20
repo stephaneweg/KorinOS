@@ -263,7 +263,8 @@ static void kq_push (uint8_t code, uint8_t ascii)
 static void kbd_event (const struct be_event *e)
 {
 	uint16_t s = hid_scan (e->key);
-	w16_log ("DOS : touche %d (car. %d) %s -> %03x\n", e->key, e->ch, e->type == BE_KEY_UP ? "relâchée" : "appuyée", s);
+	if (w16_trace > 2)	/* (W16_TRACE=3 : les touches et les sons, en détail) */
+		w16_log ("DOS : touche %d (car. %d) %s -> %03x\n", e->key, e->ch, e->type == BE_KEY_UP ? "relâchée" : "appuyée", s);
 	if (!s)
 		return;
 	uint8_t ascii = 0;
@@ -292,6 +293,8 @@ static void kbd_deliver (void)
 
 static int kbd_put (uint16_t key)
 {
+	if (w16_trace > 2)
+		w16_log ("DOS : touche du BIOS %04x\n", key);
 	uint16_t head = rd16 (BDA (0x1a)), tail = rd16 (BDA (0x1c));
 	uint16_t start = rd16 (BDA (0x80)), end = rd16 (BDA (0x82));
 	uint16_t next = (uint16_t) (tail + 2 >= end ? start : tail + 2);
@@ -444,6 +447,12 @@ static uint8_t cmos_read (void)
 static uint32_t io_in (uint16_t port, int size)
 {
 	(void) size;
+	{
+		uint8_t sv;
+		if ((port < 0x10 || (port >= 0x81 && port <= 0x8f) || (port >= 0xc0 && port <= 0xdf) || (port >= 0x220 && port <= 0x22f)
+			|| (port >= 0x388 && port <= 0x38b)) && sound_in (port, &sv))
+			return sv;
+	}
 	switch (port)
 	{
 	case 0x20: return pic[0].read_isr ? pic[0].isr : pic[0].irr;
@@ -476,6 +485,9 @@ static void io_out (uint16_t port, uint32_t v32, int size)
 {
 	(void) size;
 	uint8_t v = (uint8_t) v32;
+	if ((port < 0x10 || (port >= 0x81 && port <= 0x8f) || (port >= 0xc0 && port <= 0xdf) || (port >= 0x220 && port <= 0x22f)
+		|| (port >= 0x388 && port <= 0x38b)) && sound_out (port, v))
+		return;
 	switch (port)
 	{
 	case 0x20: case 0x21: pic_out (0, port & 1, v); return;
@@ -559,6 +571,7 @@ void bios_poll (int force)
 {
 	uint64_t t = now_ns ();
 	pit_update ();
+	sound_poll ();
 	if (force || t - last_events > 10000000ull)
 	{
 		last_events = t;
@@ -839,6 +852,11 @@ void bios_init (void)
 	cpu_io_out = io_out;
 	cpu_set_a20 (0);
 	svga_init ();
+	sound_init ();
 	vga_init ();
 	mouse_init ();
 }
+
+/* pour sound.c : le haut-parleur (canal 2 du PIT, port 61h) */
+uint32_t bios_pit2_reload (void) { return pit[2].reload ? pit[2].reload : 65536; }
+uint8_t bios_port61 (void) { return port61; }

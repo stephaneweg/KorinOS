@@ -92,6 +92,19 @@ petit programme à nous (640 × 480 en 16 bits : texte, boîtes, cercle plein, l
 bits), SPRITES, ANIGIF, PUTXMS et PUTEMS (pages, souris) marchent sur l'hôte, le nôtre aussi sous QEMU PC. Reste : un
 fichier lu par DOS directement dans la fenêtre vidéo (BLOAD en SVGA ou en plans) ne passe pas encore par la carte.
 
+**Étape D6 (20/11) : le son.** `sound.c`, un fil qui mélange à 44,1 kHz stéréo dans un flux d'AudioKit
+(`be_pcm_start` ; sur l'hôte, `W16_WAV` l'enregistre) et ne démarre qu'au premier son : le **haut-parleur** (canal 2
+du PIT, port 61h), l'**OPL3** par **Nuked OPL3** 1.8 (`nuked/`, LGPL-2.1+) aux ports de l'AdLib (388h-38Bh) et de la
+Sound Blaster (220h-223h, 228h-229h), avec ses minuteries (chaque lecture du port d'état compte 2 µs, comme sur le
+bus ISA : sinon les boucles de détection finissent avant les 80 µs) ; la **Sound Blaster 16** (DSP 4.05 : reset,
+version, sortie directe, DMA 8 et 16 bits simple et auto-init, haute vitesse, stéréo de la SB Pro, commandes
+Bxh/Cxh, pause, IRQ forcée ; mélangeur 224h/225h, volumes général, voix et FM), les **deux contrôleurs DMA 8237** et
+leurs pages ; l'IRQ 5 à chaque fin de bloc ; `BLASTER=A220 I5 D1 H5 T6` dans l'environnement. Essais (hôte) :
+`tools/win16/tests/dos/sndtest.c` (gamme sur l'OPL après la détection par minuteries, gamme sur le haut-parleur,
+sinus par DMA auto-init avec ses IRQ) ; **FM-Song 1.3.2** démarre, trouve la carte FM et ouvre son éditeur ; la démo
+de **FM-Lib** (sa propre source, compilée par BC) joue `ACTION.FMS` par la Sound Blaster (211 notes en 14 s,
+enregistrées). Sous QEMU PC : l'essai OPL va au bout (pas d'écoute possible). Reste : l'écoute sur le ZBook.
+
 **Pour l'utilisateur** : `win16.app` déclare `.exe`, `.com` et `.bat` ; un double-clic dans Fichiers lance win16, qui
 choisit seul Windows 3.x (en-tête NE) ou DOS. Les `.bat` sont aussi déclarés par l'Éditeur (`/etc/fileassoc.ini`
 tranche).

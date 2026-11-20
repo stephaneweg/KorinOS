@@ -88,6 +88,8 @@ void be_w_destroy (long wd);
 int be_synth_start (void);
 void be_synth_midi (int ch, int cmd, int a, int b);
 void be_synth_reset (void);
+/* la sortie PCM (44 100 Hz, stéréo, 16 bits) : fill est appelée par un fil à part, un bloc à la fois */
+int be_pcm_start (void (*fill) (int16_t *buf, int frames));
 
 #ifdef __cplusplus
 }
