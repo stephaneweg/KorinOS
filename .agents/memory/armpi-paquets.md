@@ -94,3 +94,9 @@ os.replace a échoué sur drvfs). La date de [repo] n'a pas été changée (sans
 content recalculé vérifié, seuls les fichiers changés remplacés, commit par un index git à part. Essayé en --dry-run sur
 calendar, pc (rien à publier), claude et python (115 paquets bons). Piège vu : bin/python3 de build/pc/sysroot (19/11 21:34)
 diffère du python 1.0.3 publié, plus récent : la date affichée sert à voir un arbre pas à jour.
+
+**weather 1.0.1 PC (20/11, main 34ea92e)** : publié depuis le cloud par `pub.py weather --tree build/pc/apps/sdroot
+--only apps/weather.app/main` après `setup.sh root`, `base toolchains` (18 min sur 4 cœurs), `ARCH=x86_64
+tools/posix/build.sh`, `tools/pc/apps.sh weather`. Dans cet environnement du cloud, la clé est dans **`ONYX_PKG_KEY`**
+(PEM), pas `OnyxPkgKey` que lit pub.py : `OnyxPkgKey="$ONYX_PKG_KEY" python3 tools/pkg/pub.py …`. Le Pi n'a pas weather
+dans son index publié.
