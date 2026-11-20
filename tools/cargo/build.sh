@@ -62,7 +62,7 @@ cargo +korin fetch -q --manifest-path "$S/Cargo.toml"
 #    ramenées (cargo update --precise ; sinon « patch was not used », et la caisse du registre ne connaît pas « korin »)
 PATCHES=$(ls "$ROOT"/tools/craft/patches/*-[0-9]*.patch "$ROOT"/tools/cargo/patches/*-[0-9]*.patch 2>/dev/null || true)
 for cv in libc-$LV $(for p in $PATCHES; do basename "$p" .patch; done); do
-	n=${cv%-*}; v=${cv##*-}
+	n=$(echo "$cv" | sed 's/-[0-9].*//'); v=${cv#"$n"-}	# (une version peut avoir un tiret : 0.4.88+curl-8.20.0)
 	for old in $(python3 -I - "$S/Cargo.lock" "$n" "$v" <<'PY'
 import sys, tomllib
 lock, n, v = tomllib.load(open(sys.argv[1], 'rb')), sys.argv[2], sys.argv[3]
@@ -80,7 +80,7 @@ REG=$(ls -d "$CARGO_HOME"/registry/src/index.crates.io-* | head -1)
 CFG="[patch.crates-io]"
 for p in $PATCHES; do
 	c=$(basename "$p" .patch)
-	name=${c%-*}
+	name=$(echo "$c" | sed 's/-[0-9].*//')
 	# (seulement les caisses que cargo prend)
 	grep -q "^name = \"$name\"" "$S/Cargo.lock" || continue
 	if [ ! -f "$W/vendor/$c/.korin" ] || [ "$p" -nt "$W/vendor/$c/.korin" ]; then
@@ -91,7 +91,7 @@ for p in $PATCHES; do
 		touch "$W/vendor/$c/.korin"
 	fi
 	CFG="$CFG
-$(echo "$c" | tr . -) = { path = \"$W/vendor/$c\", package = \"$name\" }"
+$(echo "$c" | tr .+ --) = { path = \"$W/vendor/$c\", package = \"$name\" }"
 done
 mkdir -p "$S/.cargo"
 printf '# tools/cargo/build.sh (Korin)\n%s\n' "$CFG" > "$S/.cargo/config.toml"
@@ -107,9 +107,9 @@ export PKG_CONFIG_ALLOW_CROSS=0 LIBSSH2_SYS_USE_PKG_CONFIG=0 LIBZ_SYS_STATIC=1 L
 export CARGO_TARGET_DIR=$W/target
 (cd "$S" && cargo korin build --release --bin cargo --features curl/static-curl,vendored-libgit2)
 UNUSED=$(python3 -I - "$S/Cargo.lock" "$W/vendor" <<'EOF'
-import os, sys, tomllib
+import os, re, sys, tomllib
 lock = tomllib.load(open(sys.argv[1], 'rb'))
-mine = {d.rsplit('-', 1)[0] for d in os.listdir(sys.argv[2])} | {'libc'}
+mine = {re.sub(r'-[0-9].*', '', d) for d in os.listdir(sys.argv[2])} | {'libc'}
 here = {p['name'] for p in lock['package'] if 'registry' in p.get('source', '')}
 print(' '.join(sorted('%s %s' % (u['name'], u['version']) for u in lock.get('patch', {}).get('unused', [])
                       if u['name'] in mine and u['name'] in here and u['version'] != '0.2.185')))
