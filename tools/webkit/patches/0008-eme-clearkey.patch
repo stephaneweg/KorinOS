@@ -1,0 +1,455 @@
+diff -ruN a/Source/WebCore/PlatformOnyx.cmake b/Source/WebCore/PlatformOnyx.cmake
+--- a/Source/WebCore/PlatformOnyx.cmake	2026-11-19 23:46:37.900234900 +0100
++++ b/Source/WebCore/PlatformOnyx.cmake	2026-11-19 23:46:55.497606900 +0100
+@@ -60,6 +60,7 @@
+     platform/generic/KeyedDecoderGeneric.cpp
+     platform/generic/KeyedEncoderGeneric.cpp
+ 
++    platform/graphics/onyx/CDMOnyx.cpp
+     platform/graphics/onyx/GraphicsLayerOnyx.cpp
+     platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp
+     platform/graphics/onyx/MediaSourcePrivateOnyx.cpp
+diff -ruN a/Source/WebCore/platform/encryptedmedia/CDMFactory.cpp b/Source/WebCore/platform/encryptedmedia/CDMFactory.cpp
+--- a/Source/WebCore/platform/encryptedmedia/CDMFactory.cpp	2026-11-19 23:46:37.957735700 +0100
++++ b/Source/WebCore/platform/encryptedmedia/CDMFactory.cpp	2026-11-19 23:46:55.497606900 +0100
+@@ -61,7 +61,7 @@
+     registeredFactories().removeAllMatching([&](auto& item) { return item.ptr() == &factory; });
+ }
+ 
+-#if !USE(GSTREAMER) && !USE(AVFOUNDATION)
++#if !USE(GSTREAMER) && !USE(AVFOUNDATION) && !PLATFORM(ONYX)
+ void CDMFactory::platformRegisterFactories(Vector<WeakRef<CDMFactory>>&)
+ {
+ }
+diff -ruN a/Source/WebCore/platform/encryptedmedia/CDMProxy.cpp b/Source/WebCore/platform/encryptedmedia/CDMProxy.cpp
+--- a/Source/WebCore/platform/encryptedmedia/CDMProxy.cpp	2026-11-19 23:46:38.016426400 +0100
++++ b/Source/WebCore/platform/encryptedmedia/CDMProxy.cpp	2026-11-19 23:46:55.498607800 +0100
+@@ -80,7 +80,7 @@
+     return cdmProxy;
+ }
+ 
+-#if !USE(GSTREAMER)
++#if !USE(GSTREAMER) && !PLATFORM(ONYX)
+ Vector<CDMProxyFactory*> CDMProxyFactory::platformRegisterFactories()
+ {
+     Vector<CDMProxyFactory*> factories;
+diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMOnyx.cpp b/Source/WebCore/platform/graphics/onyx/CDMOnyx.cpp
+--- a/Source/WebCore/platform/graphics/onyx/CDMOnyx.cpp	1970-01-01 01:00:00.000000000 +0100
++++ b/Source/WebCore/platform/graphics/onyx/CDMOnyx.cpp	2026-11-19 23:47:28.089693500 +0100
+@@ -0,0 +1,80 @@
++/*
++ * Copyright (C) 2026 Stéphane Wegener (Korin OS).
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
++ * EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES.
++ */
++
++#include "config.h"
++#include "CDMOnyx.h"
++
++#if ENABLE(ENCRYPTED_MEDIA) && PLATFORM(ONYX)
++
++#include "CDMClearKey.h"
++#include "CDMFactory.h"
++#include <wtf/NeverDestroyed.h>
++
++namespace WebCore {
++
++bool CDMProxyOnyx::copyKey(std::span<const uint8_t, 16> keyID, std::span<uint8_t, 16> key) const
++{
++    KeyIDType id;
++    id.append(std::span<const uint8_t> { keyID });
++    RefPtr handle = keyHandle(id);
++    if (!handle || !handle->isStatusCurrentlyValid())
++        return false;
++    auto* value = std::get_if<Vector<uint8_t>>(&handle->value());
++    if (!value || value->size() != 16)
++        return false;
++    memcpy(key.data(), value->span().data(), 16);
++    return true;
++}
++
++void CDMProxyOnyx::setWaitingForKey(bool waiting) const
++{
++    if (!instance())
++        return;
++    if (waiting)
++        startedWaitingForKey();
++    else
++        stoppedWaitingForKey();
++}
++
++// the key systems of the Onyx engine: Clear Key (WebKit's CDM, keys decrypted in the page's process)
++class CDMProxyFactoryOnyx final : public CDMProxyFactory {
++protected:
++    RefPtr<CDMProxy> createCDMProxy(const String& keySystem) final
++    {
++        if (supportsKeySystem(keySystem))
++            return CDMProxyOnyx::create();
++        return nullptr;
++    }
++    bool supportsKeySystem(const String& keySystem) final { return keySystem == "org.w3.clearkey"_s; }
++};
++
++void CDMFactory::platformRegisterFactories(Vector<WeakRef<CDMFactory>>& factories)
++{
++    factories.append(CDMFactoryClearKey::singleton());
++}
++
++Vector<CDMProxyFactory*> CDMProxyFactory::platformRegisterFactories()
++{
++    static NeverDestroyed<CDMProxyFactoryOnyx> factory;
++    return { &factory.get() };
++}
++
++} // namespace WebCore
++
++#endif // ENABLE(ENCRYPTED_MEDIA) && PLATFORM(ONYX)
+diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMOnyx.h b/Source/WebCore/platform/graphics/onyx/CDMOnyx.h
+--- a/Source/WebCore/platform/graphics/onyx/CDMOnyx.h	1970-01-01 01:00:00.000000000 +0100
++++ b/Source/WebCore/platform/graphics/onyx/CDMOnyx.h	2026-11-19 23:47:28.034109400 +0100
+@@ -0,0 +1,48 @@
++/*
++ * Copyright (C) 2026 Stéphane Wegener (Korin OS).
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
++ * EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES.
++ */
++
++#pragma once
++
++#if ENABLE(ENCRYPTED_MEDIA) && PLATFORM(ONYX)
++
++#include "CDMProxy.h"
++#include <span>
++
++namespace WebCore {
++
++// EME for the Onyx media engine (Korin OS, docs/etude/WIDEVINE.md): the decryptor's side of a CDM
++// instance. The page's sessions (WebKit's Clear Key CDM, CDMClearKey) give their keys to this proxy;
++// the player's decoding threads read them (MediaPlayerPrivateOnyx's decryptor, av_decrypt).
++class CDMProxyOnyx final : public CDMProxy {
++public:
++    static Ref<CDMProxyOnyx> create() { return adoptRef(*new CDMProxyOnyx); }
++
++    // Any thread: the 16-byte AES key of a key ID -> true; false: no usable key for it (yet).
++    bool copyKey(std::span<const uint8_t, 16> keyID, std::span<uint8_t, 16> key) const;
++    // Any thread: a decoding thread starts / stops waiting for a key (the media element's
++    // waitingforkey, MediaPlayer::waitingForKeyChanged).
++    void setWaitingForKey(bool) const;
++
++private:
++    CDMProxyOnyx() = default;
++};
++
++} // namespace WebCore
++
++#endif // ENABLE(ENCRYPTED_MEDIA) && PLATFORM(ONYX)
+diff -ruN a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp b/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp
+--- a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp	2026-11-19 23:46:38.148308800 +0100
++++ b/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp	2026-11-19 23:48:31.526453100 +0100
+@@ -45,6 +45,11 @@
+ #include "SharedBuffer.h"
+ #include "VideoPlaybackQualityMetrics.h"
+ #include <av.h>
++#if ENABLE(ENCRYPTED_MEDIA)
++#include "CDMInstance.h"
++#include "CDMOnyx.h"
++#include <JavaScriptCore/ArrayBuffer.h>
++#endif
+ #include <unistd.h>
+ #include <wtf/MainThread.h>
+ #include <wtf/NeverDestroyed.h>
+@@ -355,6 +360,9 @@
+     acquireDecoderCore();
+     applyVolume();
+     av_player_set_rate(m_av, m_rate);
++#if ENABLE(ENCRYPTED_MEDIA)
++    av_player_set_decryptor(m_av, decryptPacket, this);
++#endif
+     return true;
+ }
+ 
+@@ -1131,6 +1139,71 @@
+     };
+ }
+ 
++#if ENABLE(ENCRYPTED_MEDIA)
++
++// ---- EME (Korin OS, docs/etude/WIDEVINE.md) ----
++
++void MediaPlayerPrivateOnyx::encryptedInitializationData(const String& initDataType, std::span<const uint8_t> initData)
++{
++    if (RefPtr player = m_player.get())
++        player->initializationDataEncountered(initDataType, ArrayBuffer::create(initData));
++}
++
++void MediaPlayerPrivateOnyx::cdmInstanceAttached(CDMInstance& instance)
++{
++    // (the instances of the key systems the Onyx engine registers are proxies: CDMOnyx.cpp)
++    if (instance.implementationType() != CDMInstance::ImplementationType::ClearKey)
++        return;
++    auto& proxyInstance = static_cast<CDMInstanceProxy&>(instance);
++    if (RefPtr player = m_player.get())
++        proxyInstance.setPlayer(ThreadSafeWeakPtr<MediaPlayer> { *player });
++    RefPtr<CDMProxy> proxy = proxyInstance.proxy();
++    {
++        Locker locker { m_cdmLock };
++        m_cdmProxy = static_cast<CDMProxyOnyx*>(proxy.get());
++    }
++    if (ensurePlayer())
++        av_player_kick(m_av);
++}
++
++void MediaPlayerPrivateOnyx::cdmInstanceDetached(CDMInstance&)
++{
++    Locker locker { m_cdmLock };
++    m_cdmProxy = nullptr;
++}
++
++void MediaPlayerPrivateOnyx::attemptToDecryptWithInstance(CDMInstance&)
++{
++    // (the decoding threads ask the proxy again for the key they wait for: nothing to do here)
++    if (m_av)
++        av_player_kick(m_av);
++}
++
++// The player's audio and video threads: an encrypted packet decrypted in place with the key its CDM
++// instance received -> AV_OK ; AV_AGAIN: no key yet (the thread asks again; the element is told it waits)
++int MediaPlayerPrivateOnyx::decryptPacket(void* context, const av_track*, av_packet* packet)
++{
++    auto* self = static_cast<MediaPlayerPrivateOnyx*>(context);
++    RefPtr<CDMProxyOnyx> proxy;
++    {
++        Locker locker { self->m_cdmLock };
++        proxy = self->m_cdmProxy;
++    }
++    uint8_t key[16];
++    if (!proxy || !packet->crypt || !proxy->copyKey(std::span<const uint8_t, 16> { packet->crypt->kid, 16 }, std::span<uint8_t, 16> { key, 16 })) {
++        if (proxy && !self->m_waitingForKey.exchange(true))
++            proxy->setWaitingForKey(true);
++        return AV_AGAIN;
++    }
++    if (self->m_waitingForKey.exchange(false))
++        proxy->setWaitingForKey(false);
++    int result = av_decrypt(packet, key);
++    memset(key, 0, sizeof key);
++    return result == AV_OK ? AV_OK : AV_ERR;
++}
++
++#endif // ENABLE(ENCRYPTED_MEDIA)
++
+ } // namespace WebCore
+ 
+ #endif // ENABLE(VIDEO) && PLATFORM(ONYX)
+diff -ruN a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h b/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h
+--- a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h	2026-11-19 23:46:38.074819900 +0100
++++ b/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h	2026-11-19 23:48:08.031388900 +0100
+@@ -34,16 +34,24 @@
+ #include <wtf/MonotonicTime.h>
+ #include <wtf/NativePromise.h>
+ #include <wtf/RefCounted.h>
++#include <wtf/Lock.h>
+ #include <wtf/RunLoop.h>
++#include <atomic>
++#include <span>
+ #include <wtf/WeakPtr.h>
+ 
+ struct av_player;
++struct av_packet;
++struct av_track;
+ struct av_store;
+ struct av_player_status;
+ 
+ namespace WebCore {
+ 
+ class MediaSourcePrivateOnyx;
++#if ENABLE(ENCRYPTED_MEDIA)
++class CDMProxyOnyx;
++#endif
+ class NativeImage;
+ class PlatformMediaResource;
+ 
+@@ -83,6 +91,11 @@
+     MediaTime playerTime() const { return m_time; }
+     void mediaSourceDurationChanged(const MediaTime&);
+     void mediaSourceVideoSize(const IntSize&); // an initialization segment's video track
++#if ENABLE(ENCRYPTED_MEDIA)
++    // an initialization segment with encrypted tracks: its init data (MP4: the pssh boxes) for the
++    // media element's "encrypted" event
++    void encryptedInitializationData(const String& initDataType, std::span<const uint8_t>);
++#endif
+     void notifyActiveSourceBuffersChanged() final;
+ 
+     // The file's loader (its client is a class of the .cpp).
+@@ -139,6 +152,15 @@
+ #endif
+     void ensureImage();
+     MediaPlayer::MovieLoadType movieLoadType() const final;
++#if ENABLE(ENCRYPTED_MEDIA)
++    // EME (Korin OS): the media element's CDM instance (Clear Key) gives the keys; the player's decoding
++    // threads decrypt each encrypted packet with them (decryptPacket, av_player_set_decryptor)
++    void cdmInstanceAttached(CDMInstance&) final;
++    void cdmInstanceDetached(CDMInstance&) final;
++    void attemptToDecryptWithInstance(CDMInstance&) final;
++    bool waitingForKey() const final { return m_waitingForKey; }
++    static int decryptPacket(void* context, const av_track*, av_packet*);
++#endif
+     std::optional<VideoPlaybackQualityMetrics> videoPlaybackQualityMetrics() final;
+     String engineDescription() const final { return "Onyx"_s; }
+ 
+@@ -225,6 +247,11 @@
+ 
+ #if ENABLE(MEDIA_SOURCE)
+     RefPtr<MediaSourcePrivateOnyx> m_mediaSourcePrivate;
++#if ENABLE(ENCRYPTED_MEDIA)
++    mutable Lock m_cdmLock;
++    RefPtr<CDMProxyOnyx> m_cdmProxy WTF_GUARDED_BY_LOCK(m_cdmLock);
++    std::atomic<bool> m_waitingForKey { false };
++#endif
+ #endif
+ };
+ 
+diff -ruN a/Source/WebCore/platform/graphics/onyx/MediaSourcePrivateOnyx.cpp b/Source/WebCore/platform/graphics/onyx/MediaSourcePrivateOnyx.cpp
+--- a/Source/WebCore/platform/graphics/onyx/MediaSourcePrivateOnyx.cpp	2026-11-19 23:46:38.278841900 +0100
++++ b/Source/WebCore/platform/graphics/onyx/MediaSourcePrivateOnyx.cpp	2026-11-19 23:49:08.607482700 +0100
+@@ -172,16 +172,38 @@
+ 
+ // ---- a coded frame ----
+ 
++// (Korin, EME: how a frame is encrypted -- the demuxer's av_crypt --, shared by the frame's copies)
++class CryptOnyx final : public ThreadSafeRefCounted<CryptOnyx> {
++public:
++    static RefPtr<CryptOnyx> create(const av_crypt* crypt)
++    {
++        av_crypt* copy = crypt ? av_crypt_dup(crypt) : nullptr;
++        return copy ? adoptRef(new CryptOnyx(copy)) : nullptr;
++    }
++    ~CryptOnyx() { free(m_crypt); }
++    const av_crypt* crypt() const { return m_crypt; }
++
++private:
++    explicit CryptOnyx(av_crypt* crypt)
++        : m_crypt(crypt)
++    {
++    }
++    av_crypt* m_crypt;
++};
++
+ class MediaSampleOnyx final : public MediaSample {
+ public:
+     static Ref<MediaSampleOnyx> create(const av_packet& packet, TrackID trackID, const IntSize& size)
+     {
+-        return adoptRef(*new MediaSampleOnyx(SharedBuffer::create(std::span<const uint8_t> { packet.data, packet.size }), fromUs(packet.pts),
++        Ref sample = adoptRef(*new MediaSampleOnyx(SharedBuffer::create(std::span<const uint8_t> { packet.data, packet.size }), fromUs(packet.pts),
+             fromUs(packet.dts != AV_NOTIME ? packet.dts : packet.pts), fromUs(packet.dur), packet.key, trackID, size, packet.discard_end));
++        sample->m_crypt = CryptOnyx::create(packet.crypt);
++        return sample;
+     }
+ 
+     const SharedBuffer& data() const { return m_data.get(); }
+     av_us discardEnd() const { return m_discardEnd; }
++    const av_crypt* crypt() const { return m_crypt ? m_crypt->crypt() : nullptr; }
+ 
+ private:
+     MediaSampleOnyx(Ref<SharedBuffer>&& data, const MediaTime& presentationTime, const MediaTime& decodeTime, const MediaTime& duration, bool isSync, TrackID trackID, const IntSize& size, av_us discardEnd)
+@@ -200,6 +222,7 @@
+     {
+         Ref sample = adoptRef(*new MediaSampleOnyx(m_data.copyRef(), m_presentationTime, m_decodeTime, m_duration, m_isSync, m_trackID, m_size, m_discardEnd));
+         sample->m_isNonDisplaying = m_isNonDisplaying;
++        sample->m_crypt = m_crypt;
+         return sample;
+     }
+ 
+@@ -255,6 +278,7 @@
+     av_us m_discardEnd { 0 };
+     bool m_isSync { false };
+     bool m_isNonDisplaying { false };
++    RefPtr<CryptOnyx> m_crypt;
+ };
+ 
+ // ---- the tracks of an initialization segment ----
+@@ -402,6 +426,26 @@
+             segment.audioTracks.append(WTF::move(information));
+         }
+     }
++#if ENABLE(ENCRYPTED_MEDIA)
++    // (Korin, EME) encrypted tracks: the segment's init data (MP4: its pssh boxes) for the media element's
++    // "encrypted" event -- once for the same init data appended again
++    bool encrypted = false;
++    for (int i = 0; i < av_demux_ntracks(m_demux); i++) {
++        if (auto* info = av_demux_track(m_demux, i); info && info->encrypted)
++            encrypted = true;
++    }
++    size_t initLength = 0;
++    const uint8_t* initData = av_demux_init_data(m_demux, &initLength);
++    if (encrypted && initData && initLength) {
++        Vector<uint8_t> bytes { std::span<const uint8_t> { initData, initLength } };
++        if (bytes != m_lastInitData) {
++            m_lastInitData = WTF::move(bytes);
++            mediaLog(makeString("a source buffer's init segment is encrypted: init data of "_s, m_lastInitData.size(), " bytes"_s));
++            if (RefPtr mediaSource = mediaSourcePrivate(); mediaSource && mediaSource->onyxPlayer())
++                mediaSource->onyxPlayer()->encryptedInitializationData("cenc"_s, m_lastInitData.span());
++        }
++    }
++#endif
+     didReceiveInitializationSegment(WTF::move(segment));
+ }
+ 
+@@ -505,6 +549,7 @@
+     packet.data = const_cast<uint8_t*>(bytes.data()); // (copied by the queue)
+     packet.size = bytes.size();
+     packet.discard_end = onyxSample.discardEnd();
++    packet.crypt = const_cast<av_crypt*>(onyxSample.crypt()); // (Korin, EME: copied by the queue too)
+     av_store_queue_put(store, m_queue, track->queueIndex, &packet);
+ }
+ 
+diff -ruN a/Source/WebCore/platform/graphics/onyx/MediaSourcePrivateOnyx.h b/Source/WebCore/platform/graphics/onyx/MediaSourcePrivateOnyx.h
+--- a/Source/WebCore/platform/graphics/onyx/MediaSourcePrivateOnyx.h	2026-11-19 23:46:38.221664800 +0100
++++ b/Source/WebCore/platform/graphics/onyx/MediaSourcePrivateOnyx.h	2026-11-19 23:49:08.607482700 +0100
+@@ -143,6 +143,9 @@
+     int m_pendingFormat { 0 };      // changeType(): the next bytes' container
+     int m_queue { -1 };             // the queue in the player's store
+     Vector<Track> m_tracks;
++#if ENABLE(ENCRYPTED_MEDIA)
++    Vector<uint8_t> m_lastInitData; // (Korin, EME) the init data the element was last told
++#endif
+ #if !RELEASE_LOG_DISABLED
+     const Ref<const Logger> m_logger;
+     const uint64_t m_logIdentifier;
+diff -ruN a/Source/cmake/OptionsOnyx.cmake b/Source/cmake/OptionsOnyx.cmake
+--- a/Source/cmake/OptionsOnyx.cmake	2026-11-19 23:46:37.854089000 +0100
++++ b/Source/cmake/OptionsOnyx.cmake	2026-11-19 23:46:55.496607800 +0100
+@@ -169,6 +169,8 @@
+ WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_WEBGL PRIVATE OFF)
+ WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_VIDEO PRIVATE ${ONYX_WEBCORE})
+ WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_MEDIA_SOURCE PRIVATE ${ONYX_WEBCORE})
++# Korin: EME (Clear Key in the page's process; Widevine through cdmhost, docs/etude/WIDEVINE.md)
++WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_ENCRYPTED_MEDIA PRIVATE ${ONYX_WEBCORE})
+ WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_WEB_AUDIO PRIVATE OFF)
+ WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_XSLT PRIVATE OFF)
+ WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_GEOLOCATION PRIVATE OFF)

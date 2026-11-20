@@ -2,6 +2,7 @@
 
     python3 tools/claude/acptest.py                  sur le PC (WSL : le SDK anthropic installé dans ce Python)
     python3 /tools/claude/acptest.py --installed sous Korin : /bin/claude-acp et le SDK de la carte
+    ACPTEST_TIMEOUT=400 ...                          sous QEMU sans KVM (délai d'une requête, 60 s sinon)
 
 Lance la fausse API, puis claude-acp (python -m claude_acp, ou /bin/claude-acp avec --installed) avec un
 CLAUDE_ACP_HOME neuf, et lui parle ACP comme une façade : séance, tours, outils, accords, interruption, coût,
@@ -47,7 +48,8 @@ class Agent:
         self.p.stdin.write((json.dumps(msg) + "\n").encode())
         self.p.stdin.flush()
 
-    def call(self, method, params, on_request=None, timeout=60):
+    # ACPTEST_TIMEOUT : sous QEMU PC sans KVM, le premier import d'anthropic (ses modèles pydantic) prend ~100 s
+    def call(self, method, params, on_request=None, timeout=int(os.environ.get("ACPTEST_TIMEOUT", "60"))):
         """Une requête ; les notifications sont gardées dans updates ; on_request(msg) répond aux requêtes."""
         self.next += 1
         id_ = self.next

@@ -88,3 +88,9 @@ os.replace a échoué sur drvfs). La date de [repo] n'a pas été changée (sans
 **pkgman 1.0.14 PC (18/11, KorinOS-pub main)** : Logiciels en cartes par catégorie (claude/x86-64-pc 1b23c1a6) ; publication partielle (scratchpad pubpkgman.py) : seuls pkgman.app/main, sys/applets/pkg.so et les aides remplacés, pkg et pkgd gardés (src/bin/pkg et pkglib.h portaient le travail non commité d'une autre session). Contenu publié recalculé dans l'ordre de l'archive. Les nouveaux textes anglais (src/apps/pkgman/lang/en.txt) ne sont pas dans res/lang/en.txt du paquet pc publié : ils viendront avec le prochain pc. Pi pas publié (dépôt du Pi à abi 597 ; versions.ini dit déjà pkgman 1.0.10).
 
 **pc 2026.11.48 (18/11, KorinOS-pub f5b36e59)** : retenir l'élévation 5 minutes (claude/x86-64-pc 68b304f5) ; publication partielle sur pc-2026.11.47 (scratchpad pubpc48.py, repris de pubpart.py) : sys/svc/authd, bin/sudo, sys/authcard, sys/login remplacés, une clé ajoutée à la fin de res/lang/en.txt. **MediaKit du PC (366de46a) avait monté pc à 2026.11.48 sans être publié** : il n'est pas dans le .48 publié ; versions.ini passe à 2026.11.49 pour lui. checkrepo du PC : `python tools/pkg/checkrepo.py <pub>/packages/pc skel/sd0/etc/pkg/onyx.pub` (python de Windows sans -I, pour cryptography) ; seules les archives de la Release manquent.
+
+**tools/pkg/pub.py (20/11)** : la publication partielle d'un seul paquet en un outil (docs/PAQUETS.md, « Publier un paquet ») :
+`python tools/pkg/pub.py NOM [--dry-run] [--pi]`, base = index d'origin/main, archive publiée (pkgs/ ou Release par gh),
+content recalculé vérifié, seuls les fichiers changés remplacés, commit par un index git à part. Essayé en --dry-run sur
+calendar, pc (rien à publier), claude et python (115 paquets bons). Piège vu : bin/python3 de build/pc/sysroot (19/11 21:34)
+diffère du python 1.0.3 publié, plus récent : la date affichée sert à voir un arbre pas à jour.

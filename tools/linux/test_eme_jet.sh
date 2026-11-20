@@ -10,8 +10,9 @@
 # 2. le disque d'essai build/pc/linux/emedisk.img (mkkorindisk.py, layout zbook) ;
 # 3. la page tools/webkit/tests/eme-clearkey.html et le premier Mo du flux Clear Key de Shaka (avcenc_test.sh
 #    les télécharge), servis par python3 -m http.server sur le port 8642 de WSL : http://10.0.2.2:8642/ pour QEMU ;
-# 4. QEMU (tools/python/pctest.py run : NVMe en snapshot, usb-net, telnet) : Jet lancé sur la page, puis le
-#    journal du noyau (« EME-CLEARKEY : » de la console de la page) et une capture.
+# 4. QEMU (tools/python/pctest.py run : NVMe en snapshot, usb-net, telnet) : Jet lancé sur la page, une capture
+#    (build/pc/linux/emetest/eme.png) ; la page envoie chaque ligne de son journal au serveur de l'essai
+#    (GET /result?…) : « EME-CLEARKEY : RÉUSSI » attendu.
 # L'arbre, le disque et le serveur sont effacés ou arrêtés à la fin (KEEP=1 : garder l'arbre et le disque).
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -46,13 +47,13 @@ mkdir -p "$WWW"
 cp tools/webkit/tests/eme-clearkey.html "$WWW/index.html"
 cp "$OUT/media/ck-144p.mp4" "$WWW/video.mp4"
 cp "$OUT/media/ck-aac.mp4" "$WWW/audio.mp4"
-python3 -m http.server 8642 --directory "$WWW" >/dev/null 2>&1 &
+python3 -m http.server 8642 --directory "$WWW" >"$OUT/emetest-www.log" 2>&1 &
 SRV=$!
 trap 'kill $SRV 2>/dev/null || true' EXIT
 
 W=$OUT/emetest
 mkdir -p "$W"
-python3 -I - "$ROOT" "$W" "$IMG" <<'PY'
+python3 -I - "$ROOT" "$W" "$IMG" > "$W/run.txt" 2>&1 <<'PY' || true	# (QEMU coupe QMP en quittant : sans effet)
 import importlib.util, os, sys, types
 root, w, img = sys.argv[1:4]
 spec = importlib.util.spec_from_file_location("pctest", os.path.join(root, "tools", "python", "pctest.py"))
@@ -64,8 +65,14 @@ a = types.SimpleNamespace(port=2395, hostfwd=[], smp=4, mem="4G", boot=150, shot
          "sleep:120", "shot:eme"])
 pt.run(a)
 PY
-grep -a "EME-CLEARKEY\|MediaPlayer\|encrypted\|source buffer" "$W/debug.log" | tail -40 || true
+
 if [ -z "${KEEP:-}" ]; then
 	rm -rf "$T" "$IMG" "$WWW"
 fi
-grep -aq "EME-CLEARKEY : RÉUSSI" "$W/debug.log"
+# (la page envoie chaque ligne de son journal au serveur de l'essai : GET /result?…)
+python3 -I -c 'import sys, urllib.parse
+for l in open(sys.argv[1], encoding="utf-8", errors="replace"):
+    if "/result?" in l:
+        print(urllib.parse.unquote(l.split("/result?", 1)[1].split(" HTTP/", 1)[0]))' "$OUT/emetest-www.log" | tee "$W/page.txt"
+echo "capture : $W/eme.png"
+grep -aq "EME-CLEARKEY : RÉUSSI" "$W/page.txt"

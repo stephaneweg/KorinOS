@@ -129,8 +129,9 @@
 - [Sécurité contre le web](armpi-securite.md) — plan du 18/11 : enforce, SMEP/SMAP, unveil pour Jet, ASLR, pledge ; docs/etude/SECURITE.md, rien de fait
 - [Ports construits dans Korin](armpi-ports-dans-korin.md) — plan du 18/11 : libs tierces en .so/.a, outils de construction, puis tous les ports (SDL, STK, Python, Godot, WebKit…) dans Korin sur le ZBook ; rien de fait
 - [Spotify et Jamendo](armpi-musique.md) — au plan le 18/11 : librespot (Rust) en bibliothèque C + app UIKit, client Jamendo d'abord ; docs/etude/MUSIQUE.md, rien de fait
-- [Widevine dans Jet](armpi-widevine.md) — hôte Linux, jalon 1 fait (QEMU PC) ; compatibilité glibc, canal de Google, ClearKey d'abord (19/11) ; étapes 2b, 2c, 3 faites (19/11, QEMU) : vraie licence, audio déchiffré, vidéo décodée par le module dans Korin
+- [Widevine dans Jet](armpi-widevine.md) — hôte Linux, jalon 1 fait (QEMU PC) ; compatibilité glibc, canal de Google, ClearKey d'abord (19/11) ; étapes 2 à 4 faites (QEMU) : licence réelle dans Korin, cdmhost, EME ClearKey joue dans Jet (20/11)
 - [Suivi du plan](armpi-suivi-plan.md) — artefact « Plan Korin OS » (18/11), base items à tenir à jour par ArtifactData quand un chantier bouge
 - [ImageKit](armpi-imagekit.md) — au plan le 18/11 : traducteurs d'images, document à calques canonique, UIKit s'appuie dessus ; docs/etude/IMAGEKIT.md
 - [TerraCube](armpi-terracube.md) — 19/11 : bac à sable de blocs sur GlKit (PC), scripts Python/BASIC port 4730, MCP 7312 ; QEMU seulement
 - [Noyau Linux écarté](armpi-noyau-linux.md) — 20/11 : Korin sur Linux (Elegant sur DRM) seulement en cas de vrai blocage ; on garde le micronoyau from scratch
+- [Relics](armpi-relics.md) — jeu à la Rick Dangerous en C sur gamefb (19/11) : 7 mondes, 21 niveaux de tools/relics/mklevels.py vérifiés par run.sh, musique (music.h), fuites devant le rocher ; PC 1.1.2 publié

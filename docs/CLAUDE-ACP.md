@@ -133,6 +133,8 @@ Essai sur le PC (WSL), sans clé : un venv avec `anthropic==2.8.0`, puis `python
 API, `claude-acp` lancé par `python -m claude_acp`, une cinquantaine de vérifications : séance, flux, pensée rejouée avec sa signature,
 accords, diff, bash, interruption, refus, changement de modèle, reprise, clé refusée). Sous Korin :
 `python3 /home/pytest/acptest.py --installed` (carte d'essai de `testimage.py`, ou `TESTS=1` pour le PC).
+Sous QEMU PC sans KVM (`tools/python/pctest.py` dans WSL), le premier `import anthropic` prend environ 100 s :
+`ACPTEST_TIMEOUT=400` devant (52 vérifications en 7 min 45, le 20/11).
 
 ## Paquet
 
