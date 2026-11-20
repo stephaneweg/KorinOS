@@ -23,3 +23,5 @@ done
 mkdir -p "$WK_OUT/glue/user/Libs"
 ln -sfn "$L/gpucomp" "$WK_OUT/glue/user/Libs/gpucomp"
 ln -sfn "$L/av" "$WK_OUT/glue/user/Libs/av"
+# le client de cdmhost (EME Widevine : CDMWidevineOnyx de WebCore prend ses en-tetes ; av.mk compile son code)
+ln -sfn "$ARMPI/src/sys/cdmhost" "$WK_OUT/glue/user/Libs/cdmhost"

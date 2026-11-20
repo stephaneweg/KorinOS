@@ -7,3 +7,4 @@
 /devtools/gcc/aarch64-onyx-elf/bin
 /devtools/dotnet
 /apps/koton.app/plugins
+/apps/jet.app/libexec

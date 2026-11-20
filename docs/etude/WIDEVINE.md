@@ -289,7 +289,7 @@ distribué à d'autres ne l'active jamais d'office.
 | 2c | Les 108 imports, TLS du module (`__tls_get_addr`), `_Unwind_*`, threads ; `/proc/self/maps` et `/proc/net/unix` fabriqués, `rt_sigaction` | dans Korin, la sonde va jusqu'à la requête de licence, comme sous Linux | **fait le 19/11** (QEMU, § 8) |
 | 3 | `cdmhost` : `Host_10/11` en C++, essai hors de Jet sur un serveur de licences de test public | une licence de démonstration obtenue, un échantillon déchiffré | **fait le 19/11** (Linux et QEMU, § 9) ; le serveur IPC de `cdmhost` reste, avec l'étape 4 |
 | 4 | EME ClearKey dans Jet (WebKit, MSE chiffré, CENC) | un flux ClearKey de démonstration joue | **fait le 20/11** (QEMU, § 11) ; `cdmhost` et son client aussi (§ 10) |
-| 5 | EME Widevine dans Jet par `cdmhost` (audio) | le lecteur web de Spotify joue un titre | 2 à 3 jours |
+| 5 | EME Widevine dans Jet par `cdmhost` (audio, vidéo) | un flux Widevine joue dans Jet ; puis le lecteur web de Spotify | **fait le 20/11** (QEMU, flux de Shaka, § 12) ; Spotify à essayer |
 | 6 | Vidéo, user agent, codecs | Netflix et Disney+ jouent (720p) | 2 à 4 jours |
 | 7 | Case des réglages, téléchargement chez Google, mise à jour | de la case à la lecture sans manipulation | 1 à 2 jours |
 
@@ -468,6 +468,45 @@ prochaine construction de WebKit le prend, et reconstruit tout WebCore, l'option
   vidéo, **mêmes empreintes que sous Linux**.
 * Reste : la console des pages ne va pas dans le journal du noyau malgré `/etc/web-console` (à voir) ; essai sur
   le ZBook.
+
+## 12. Étape 5 (20/11/2026) : EME Widevine dans Jet
+
+**av** (correctif `tools/webkit/av-patches/0002-external-decoder.patch`) : `av_decoder_external` (un décodeur donné
+par l'hôte : ses appels et son contexte) et `av_player_set_decoder_factory` (la fabrique des décodeurs des pistes
+chiffrées, appelée par les fils du lecteur au début d'une piste) ; le déchiffreur peut rendre `AV_OK` en laissant
+`p->crypt` : le paquet va encore chiffré au décodeur de l'hôte. Le client de `cdmhost` (`cdmclient.cpp`,
+`proto.cpp`, `cenc.cpp` de `src/sys/cdmhost`) est compilé dans `libonyxav.a` (`av.mk`) ; `glue.sh` met son
+dossier dans la colle (`user/Libs/cdmhost`), d'où WebCore prend ses en-têtes.
+
+**WebKit** (correctif `tools/webkit/patches/0009-eme-widevine.patch`, après 0008) :
+* `CDMWidevineOnyx.h/.cpp` (nouveaux) : `com.widevine.alpha`, proposé seulement quand le module
+  (`$HOME/.jet/widevine/libwidevinecdm.so`, ou `JET_WIDEVINE_CDM`) et l'hôte (`/apps/jet.app/libexec/cdmhost`, ou
+  `JET_CDMHOST`) sont là. L'instance lance `cdmhost` (`CdmHostClient::spawn`, stockage
+  `$HOME/.jet/widevine/storage`) ; un fil lit ses événements et les passe au fil principal (promesses, nouvelle
+  session, message de licence, statuts de clés). Sessions temporaires seulement (le module Linux ne garde pas de
+  licence), pas d'identifiant distinctif, robustesses `""`, `SW_SECURE_CRYPTO`, `SW_SECURE_DECODE` (L3).
+* Les clés restent dans l'hôte : le magasin de clés de WebKit n'en garde que les KID et les statuts (le lecteur
+  attend une clé `usable`). L'audio est déchiffré par l'hôte (`Decrypt`), la vidéo **décodée** par le module
+  (`DecryptAndDecodeFrame`, H.264 passé en Annex B par `cenc_to_annexb`, images I420), par un décodeur externe d'av.
+* `MediaPlayerPrivateOnyx` : la fabrique de décodeurs donne aux pistes vidéo chiffrées un décodeur qui choisit au
+  premier paquet : celui de l'hôte (Widevine) ou celui de la bibliothèque (Clear Key, paquets déjà déchiffrés) ;
+  un paquet resté chiffré le fait passer à l'hôte (le début en clair a pu partir avant les `MediaKeys`).
+* `CDMInstance::ImplementationType::Onyx` (sous `PLATFORM(ONYX)`) : l'instance Widevine.
+
+**Jet** : `build-jet.sh` met `cdmhost` dans `jet.app/libexec/` (PC seulement). Sous Korin, seul
+`/apps/<nom>.app/main` est exécutable par règle : `/apps/jet.app/libexec` est ajouté à `skel/sd0/etc/exec.txt`
+(comme `/apps/koton.app/plugins`), sinon `access (X_OK)` et `exec` le refusent.
+
+**Essai** : `JET=… KS=widevine WIDEVINE_SO=… sh tools/linux/test_eme_jet.sh` (page
+`tools/webkit/tests/eme-widevine.html`, début du flux Widevine « Angel One » de Shaka, licence du serveur de test de
+Shaka par le réseau de QEMU ; noyau d'essai avec la capture et l'arène haute dans `build/pc/linux/kbuild`). **Sous
+QEMU PC (20/11)** : `requestMediaKeySystemAccess` → `cdmhost` lancé (module 4.10.3050.0) → requête de licence de
+1714 octets → licence HTTP 200 → **5 clés utilisables** → lecture jusqu'au bout des 60 s tamponnées, **1496 images
+décodées par le module : « EME-WIDEVINE : RÉUSSI »**, la vidéo déchiffrée s'affiche. Beaucoup d'images sautées
+sous QEMU (TCG, 192×144) : à mesurer sur le ZBook.
+
+Reste : Spotify web et Netflix (étape 6 : se présenter comme Chrome sous Linux), la case des réglages (étape 7),
+l'essai sur le ZBook ; les images passent par la socket (pas encore de mémoire partagée).
 
 ## Sources (19/11/2026)
 
