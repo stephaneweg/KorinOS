@@ -1,0 +1,6 @@
+# Manifeste de GridCraft (une app Craft de storytold, Rust et egui ; docs/CRAFT.md) : construite par
+# tools/craft/build.sh gridcraft ; catégorie « Craft » : ouverte par le lanceur Craft (/apps/craft.app)
+name     = GridCraft
+category = Craft
+description = Le tableur libre GridCraft (storytold) : feuilles de calcul, formules, graphiques, analyse de données ; lit et écrit le .xlsx.
+keywords = tableur feuille de calcul xlsx ods csv formules graphique gridcraft

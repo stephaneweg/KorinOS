@@ -1,0 +1,6 @@
+# Manifeste de PdfCraft (une app Craft de storytold, Rust et egui ; docs/CRAFT.md) : construite par
+# tools/craft/build.sh pdfcraft ; catégorie « Craft » : ouverte par le lanceur Craft (/apps/craft.app)
+name     = PdfCraft
+category = Craft
+description = L'atelier PDF libre PdfCraft (storytold) : lire, annoter, organiser, assembler, découper et protéger des PDF.
+keywords = pdf lecteur annoter fusionner découper signer pdfcraft

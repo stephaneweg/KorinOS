@@ -1,0 +1,6 @@
+# Manifeste de LightCraft (une app Craft de storytold, Rust et egui ; docs/CRAFT.md) : construite par
+# tools/craft/build.sh lightcraft ; catégorie « Craft » : ouverte par le lanceur Craft (/apps/craft.app)
+name     = LightCraft
+category = Craft
+description = La photothèque libre LightCraft (storytold) : classer, développer les fichiers RAW, retouche non destructive.
+keywords = photothèque raw développement photo lightcraft

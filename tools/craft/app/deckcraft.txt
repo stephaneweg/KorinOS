@@ -1,0 +1,6 @@
+# Manifeste de DeckCraft (une app Craft de storytold, Rust et egui ; docs/CRAFT.md) : construite par
+# tools/craft/build.sh deckcraft ; catégorie « Craft » : ouverte par le lanceur Craft (/apps/craft.app)
+name     = DeckCraft
+category = Craft
+description = Les présentations libres DeckCraft (storytold) : diapositives, thèmes, mode présentateur ; lit et écrit le .pptx.
+keywords = présentation diaporama diapositives pptx odp deckcraft

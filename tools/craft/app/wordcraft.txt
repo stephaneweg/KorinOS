@@ -1,6 +1,6 @@
 # Manifeste de WordCraft (l'app Craft de storytold, Rust et egui ; docs/CRAFT.md) : construite par tools/craft/build.sh
 # wordcraft wordcraft, dans build/craft/x86_64/apps/wordcraft.app
 name     = WordCraft
-category = Bureautique
+category = Craft
 description = Le traitement de texte libre WordCraft (storytold) : ruban, styles, tableaux, suivi des modifications, références ; lit et écrit le .docx.
 keywords = traitement de texte docx word odt rtf document lettre rapport wordcraft

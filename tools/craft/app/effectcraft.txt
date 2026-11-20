@@ -1,0 +1,6 @@
+# Manifeste de EffectCraft (une app Craft de storytold, Rust et egui ; docs/CRAFT.md) : construite par
+# tools/craft/build.sh effectcraft ; catégorie « Craft » : ouverte par le lanceur Craft (/apps/craft.app)
+name     = EffectCraft
+category = Craft
+description = L'animation graphique et les effets visuels libres EffectCraft (storytold).
+keywords = animation effets compositing motion design effectcraft

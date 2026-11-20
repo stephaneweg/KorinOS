@@ -1,0 +1,6 @@
+# Manifeste de AniCraft (une app Craft de storytold, Rust et egui ; docs/CRAFT.md) : construite par
+# tools/craft/build.sh anicraft ; catégorie « Craft » : ouverte par le lanceur Craft (/apps/craft.app)
+name     = AniCraft
+category = Craft
+description = L'animation vectorielle 2D libre AniCraft (storytold).
+keywords = animation 2d vectorielle dessin animé anicraft

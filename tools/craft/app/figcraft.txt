@@ -1,0 +1,6 @@
+# Manifeste de FigCraft (une app Craft de storytold, Rust et egui ; docs/CRAFT.md) : construite par
+# tools/craft/build.sh figcraft ; catégorie « Craft » : ouverte par le lanceur Craft (/apps/craft.app)
+name     = FigCraft
+category = Craft
+description = La conception d'interfaces libre FigCraft (storytold) : maquettes d'écrans, composants, prototypes.
+keywords = interface maquette prototype design ui figcraft

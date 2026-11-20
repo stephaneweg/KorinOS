@@ -1,0 +1,6 @@
+# Manifeste de DesignCraft (une app Craft de storytold, Rust et egui ; docs/CRAFT.md) : construite par
+# tools/craft/build.sh designcraft ; catégorie « Craft » : ouverte par le lanceur Craft (/apps/craft.app)
+name     = DesignCraft
+category = Craft
+description = La mise en page libre DesignCraft (storytold) : maquettes, gabarits, publication.
+keywords = mise en page maquette publication brochure affiche idml designcraft

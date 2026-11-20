@@ -21,6 +21,20 @@ int kh_open (const char *title, int w, int h, int min_w, int min_h)
 {
 	if (!uikit_open (&ui))
 		return 0;
+	/* la taille demandee, ramenee a la place de l'ecran (sans le dock ni la barre de menus, et le cadre
+	 * autour) : les apps de bureau demandent souvent plus que l'ecran du PC */
+	long s[4] = { 0, 0, 0, 0 };
+	ui_screen ((long) s);
+	if (s[0] > 0 && s[1] > 0)
+	{
+		long aw = s[0] - 16, ah = s[1] - s[2] - s[3] - 16;
+		if (aw < 320) aw = 320;
+		if (ah < 240) ah = 240;
+		if (w > aw) w = (int) aw;
+		if (h > ah) h = (int) ah;
+		if (min_w > aw) min_w = (int) aw;
+		if (min_h > ah) min_h = (int) ah;
+	}
 	if (ui_window_ex (-1, -1, w, h, (long) title, WF_RESIZABLE) <= 0)
 		return 0;
 	if (min_w > 0 && min_h > 0)

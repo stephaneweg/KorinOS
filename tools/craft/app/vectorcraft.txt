@@ -1,0 +1,6 @@
+# Manifeste de VectorCraft (une app Craft de storytold, Rust et egui ; docs/CRAFT.md) : construite par
+# tools/craft/build.sh vectorcraft ; catégorie « Craft » : ouverte par le lanceur Craft (/apps/craft.app)
+name     = VectorCraft
+category = Craft
+description = L'illustration vectorielle libre VectorCraft (storytold) : tracés, formes, texte, SVG.
+keywords = vectoriel illustration svg dessin logo vectorcraft

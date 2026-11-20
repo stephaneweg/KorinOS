@@ -1,0 +1,6 @@
+# Manifeste de CADCraft (une app Craft de storytold, Rust et egui ; docs/CRAFT.md) : construite par
+# tools/craft/build.sh cadcraft ; catégorie « Craft » : ouverte par le lanceur Craft (/apps/craft.app)
+name     = CADCraft
+category = Craft
+description = La CAO libre CADCraft (storytold) : dessin technique et conception assistés par ordinateur, DXF.
+keywords = cao dessin technique plan dxf dwg cadcraft

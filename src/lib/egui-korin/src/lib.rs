@@ -141,6 +141,7 @@ pub fn run_with(
     mut pass: impl FnMut(&egui::Context, RawInput, &mut Host) -> egui::FullOutput,
 ) -> Result<(), Error> {
     let title = cstr(&options.title);
+    // (kh_open ramène la taille à la place de l'écran)
     let [w, h] = options.size;
     let [mw, mh] = options.min_size.unwrap_or([0, 0]);
     if unsafe { sys::kh_open(title.as_ptr(), w as _, h as _, mw as _, mh as _) } == 0 {

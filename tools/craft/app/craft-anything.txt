@@ -1,0 +1,6 @@
+# Manifeste de Craft Anything (une app Craft de storytold, Rust et egui ; docs/CRAFT.md) : construite par
+# tools/craft/build.sh craft-anything ; catégorie « Craft » : ouverte par le lanceur Craft (/apps/craft.app)
+name     = Craft Anything
+category = Craft
+description = Craft Anything (storytold) : comprendre comment marche un logiciel, et faire le sien.
+keywords = logiciel comprendre créer craft anything

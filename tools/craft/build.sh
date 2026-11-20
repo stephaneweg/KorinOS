@@ -12,7 +12,7 @@
 #                     y branche les caisses patchées (écrit ici, à chaque lancement)
 #   vendor/           les caisses de crates.io qui ne connaissent pas « korin » : tools/craft/patches/<caisse>-<version>.patch
 #   craft-libs-<rev>/ craft-libs à chaque révision du Cargo.lock de l'app (une app en épingle souvent plusieurs, une
-#                     par caisse), avec tools/craft/patches/craft-libs.patch, korin_cfg.py et korin_libs.py ; les
+#                     par caisse), avec tools/craft/korin_cfg.py et korin_libs.py ; les
 #                     caisses qui n'y sont qu'à une révision y sont redirigées (celles qui sont à plusieurs révisions
 #                     sont des formats en Rust pur, laissés tels quels : un [patch] ne prend qu'une source par version)
 # Et dans la chaîne Rust ($K/vendor/libc-0.2.191) : la libc des projets (plus bas, « libc »).
@@ -89,6 +89,22 @@ cargo +korin fetch --manifest-path "$A/Cargo.toml" >/dev/null	# (le registre et 
 # les retouches de l'app pour Korin (eframe de Korin, sans X11 ni wgpu) : après le fetch, qui a besoin de la fourche
 python3 -I "$ROOT/tools/craft/korin_app.py" "$A" "$ROOT"
 python3 -I "$ROOT/tools/craft/korin_cfg.py" "$A"
+# les caisses que Korin patche à une version (libc 0.2.191, tools/craft/patches/<caisse>-<version>.patch) : une app
+# qui en a une autre de la même série y est ramenée (cargo update --precise ; sinon « patch was not used », et la
+# caisse du registre ne connaît pas « korin »)
+for cv in libc-$LV $(cd "$ROOT/tools/craft/patches" && ls *-[0-9]*.patch | sed 's/\.patch$//'); do
+	n=${cv%-*}; v=${cv##*-}
+	for old in $(python3 -I - "$A/Cargo.lock" "$n" "$v" <<'PY'
+import sys, tomllib
+lock, n, v = tomllib.load(open(sys.argv[1], 'rb')), sys.argv[2], sys.argv[3]
+series = lambda x: x.split('.')[:2] if x.startswith('0.') else x.split('.')[:1]
+print(' '.join(p['version'] for p in lock['package'] if p['name'] == n and 'registry' in p.get('source', '')
+               and p['version'] != v and series(p['version']) == series(v)))
+PY
+	); do
+		(cd "$A" && cargo +korin update -q -p "$n@$old" --precise "$v" 2>/dev/null) || echo "craft : $n $old -> $v refusé" >&2
+	done
+done
 
 # 3. les caisses de crates.io patchées
 REG=$(ls -d "$CARGO_HOME"/registry/src/index.crates.io-* | head -1)
@@ -110,14 +126,9 @@ done
 # 4. craft-libs, patchée, à chacune de ses révisions ; les caisses à une seule révision y sont redirigées
 for CREV in $(grep -o 'craft-libs?rev=[0-9a-f]*#[0-9a-f]*' "$A/Cargo.lock" | sed 's/.*#//' | sort -u); do
 	CL=$W/craft-libs-${CREV:0:7}
-	if [ ! -f "$CL/.korin" ] || [ "$ROOT/tools/craft/patches/craft-libs.patch" -nt "$CL/.korin" ] ||
-		[ "$ROOT/tools/craft/korin_cfg.py" -nt "$CL/.korin" ] || [ "$ROOT/tools/craft/korin_libs.py" -nt "$CL/.korin" ]; then
+	if [ ! -f "$CL/.korin" ] || [ "$ROOT/tools/craft/korin_cfg.py" -nt "$CL/.korin" ] || [ "$ROOT/tools/craft/korin_libs.py" -nt "$CL/.korin" ]; then
 		rm -rf "$CL"
 		cp -a "$(ls -d "$CARGO_HOME"/git/checkouts/craft-libs-*/"${CREV:0:7}" | head -1)" "$CL"
-		# (craft-font-store sans cap-primitives : là où le fichier est le même qu'à la révision de WordCraft)
-		if (cd "$CL" && patch -p1 -s --dry-run < "$ROOT/tools/craft/patches/craft-libs.patch" >/dev/null 2>&1); then
-			(cd "$CL" && patch -p1 -s --no-backup-if-mismatch < "$ROOT/tools/craft/patches/craft-libs.patch")
-		fi
 		python3 -I "$ROOT/tools/craft/korin_cfg.py" "$CL" >/dev/null
 		python3 -I "$ROOT/tools/craft/korin_libs.py" "$CL"
 		touch "$CL/.korin"

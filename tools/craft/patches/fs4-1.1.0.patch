@@ -1,0 +1,20 @@
+--- a/src/unix/async_impl.rs
++++ b/src/unix/async_impl.rs
+@@ -46,6 +46,7 @@
+       target_os = "haiku",
+       target_os = "hurd",
+       target_os = "cygwin",
++      target_os = "korin",
+     ))]
+     pub async fn allocate(file: &$file, len: u64) -> std::io::Result<()> {
+       // No file allocation API available, just set the length if necessary.
+--- a/src/unix/sync_impl.rs
++++ b/src/unix/sync_impl.rs
+@@ -56,6 +56,7 @@
+       target_os = "haiku",
+       target_os = "hurd",
+       target_os = "cygwin",
++      target_os = "korin",
+     ))]
+     pub fn allocate(file: &$file, len: u64) -> std::io::Result<()> {
+       // No file allocation API available, just set the length if necessary.

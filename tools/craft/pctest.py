@@ -76,7 +76,16 @@ def overlay(a):
     os.makedirs(home)
     for d in (os.path.join(CRAFT, "bin"), os.path.join(ROOT, "tools", "craft", "test")):
         for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+            if os.path.isdir(os.path.join(apps, f + ".app")):
+                continue			# (un programme qui est déjà une app : pas deux fois)
             shutil.copy(os.path.join(d, f), os.path.join(home, f))
+    # le lanceur et le menu de Korin qui cachent la catégorie « Craft » (src/sys/common/applist.c, cat_hidden) :
+    # ceux de build/sys/x86_64 (sh tools/sys/build_c.sh panel menubar), s'ils y sont
+    for n in ("panel", "menubar"):
+        f = os.path.join(ROOT, "build", "sys", "x86_64", n)
+        if os.path.isfile(f):
+            shutil.copy(f, os.path.join(TROOT, "sys", n))
+            print("sys :", n)
     # l'OVMF de Linux ne lance pas le shell UEFI (startup.nsh) : le chargeur au chemin de secours des supports
     # amovibles, sur la partition KORIN OS (il y trouve korin/kernel.elf)
     boot = os.path.join(TROOT, "EFI", "BOOT")

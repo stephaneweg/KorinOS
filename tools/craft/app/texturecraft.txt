@@ -1,0 +1,6 @@
+# Manifeste de TextureCraft (une app Craft de storytold, Rust et egui ; docs/CRAFT.md) : construite par
+# tools/craft/build.sh texturecraft ; catégorie « Craft » : ouverte par le lanceur Craft (/apps/craft.app)
+name     = TextureCraft
+category = Craft
+description = La peinture de textures 3D libre TextureCraft (storytold).
+keywords = texture 3d peinture modèle gltf texturecraft

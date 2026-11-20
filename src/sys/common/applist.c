@@ -96,7 +96,8 @@ long cat_hidden(long c)
 {
 	if (c < 0 || c >= ca_n) /* (0xFF : sans catégorie) */
 		return 0;
-	return str_eq(ca_nom[c], "Émulateurs") != 0; /* « Émulateurs » */
+	/* « Émulateurs » ; « Craft » : la suite Craft, ouverte par son lanceur Craft (docs/CRAFT.md) */
+	return str_eq(ca_nom[c], "Émulateurs") != 0 || str_eq(ca_nom[c], "Craft") != 0;
 }
 
 long app_launch(long app)

@@ -1,0 +1,6 @@
+# Manifeste de PhotoCraft (une app Craft de storytold, Rust et egui ; docs/CRAFT.md) : construite par
+# tools/craft/build.sh photocraft ; catégorie « Craft » : ouverte par le lanceur Craft (/apps/craft.app)
+name     = PhotoCraft
+category = Craft
+description = L'éditeur d'images libre PhotoCraft (storytold) : calques, sélections, retouche, peinture.
+keywords = image photo retouche calques peinture psd photocraft

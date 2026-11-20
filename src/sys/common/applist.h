@@ -26,7 +26,8 @@ long cat_find(const char *name);   /* -> catégorie (ajoutée si nouvelle ; -1 :
 void applis_load(void);            /* le catalogue (sans manifeste ni catégorie : « Autres ») */
 long app_launch(long app);         /* /apps/<nom>.app/main -> pid ou erreur (SYS_SPAWN) */
 /* catégorie -> 1 si le lanceur et le menu Korin ne la montrent pas : « Émulateurs » (comme
- * « Emulators » d'Onyx) ; les émulateurs se lancent par la Game Library ou par leurs fichiers */
+ * « Emulators » d'Onyx) ; les émulateurs se lancent par la Game Library ou par leurs fichiers ;
+ * « Craft » : la suite Craft, par son lanceur Craft (/apps/craft.app, docs/CRAFT.md) */
 long cat_hidden(long c);
 
 #endif

@@ -20,8 +20,10 @@ wayland = []
 x11 = []
 system_fonts = []
 web_screen_reader = []
-wgpu = []
-wgpu_no_default_features = []
+# le vrai egui-wgpu (et wgpu), pour les types : les apps règlent le GPU au démarrage et certaines ont un chemin GPU ;
+# l'eframe de Korin ne crée jamais d'état de rendu GPU (wgpu_render_state : None), elles prennent leur chemin CPU
+wgpu = ["dep:egui-wgpu"]
+wgpu_no_default_features = ["wgpu"]
 __screenshot = []
 inspection = []
 links = []
@@ -33,3 +35,4 @@ egui-korin = { path = "../egui-korin" }
 raw-window-handle = "0.6"
 image = { version = "0.25", default-features = false, features = ["png"] }
 log = "0.4"
+egui-wgpu = { version = "0.37", optional = true }

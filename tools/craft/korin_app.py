@@ -74,4 +74,18 @@ if name == "wordcraft":
                 "fn system_clipboard() -> korin::KorinClipboard {\n    let _ = decode_png;\n    korin::KorinClipboard::default()\n}\n")
     import shutil
     shutil.copy(os.path.join(root, "tools", "craft", "app", "korin.rs"), os.path.join(app, "apps/wordcraft/src/korin.rs"))
+if name == "pdfcraft":
+    # rustix ne sert qu'à tuer le groupe de processus de LibreOffice ; child.kill(), juste après, suffit sur Korin
+    edit("crates/create/Cargo.toml", [("[target.'cfg(unix)'.dependencies]\n# Already in the graph (pdfcraft-platform, ui-egui); stops",
+                                       "[target.'cfg(all(unix, not(target_os = \"korin\")))'.dependencies]\n# Already in the graph (pdfcraft-platform, ui-egui); stops")])
+    edit("crates/create/src/office.rs", [("        #[cfg(unix)]\n        {\n            use rustix::process::",
+                                          "        #[cfg(all(unix, not(target_os = \"korin\")))]\n        {\n            use rustix::process::")])
+    # thread-priority ne connaît pas Korin : la priorité basse du fil d'optimisation n'est pas demandée
+    edit("crates/optimize/Cargo.toml", [('thread-priority = "3.1"\n', "")])
+    with open(os.path.join(app, "crates/optimize/Cargo.toml"), "a", encoding="utf-8", newline="\n") as f:
+        f.write("\n# Korin (tools/craft/korin_app.py)\n[target.'cfg(not(target_os = \"korin\"))'.dependencies]\n"
+                "thread-priority = \"3.1\"\n")
+    edit("crates/optimize/src/pool.rs", [("    let _ = thread_priority::set_current_thread_priority(",
+                                          "    #[cfg(not(target_os = \"korin\"))]\n"
+                                          "    let _ = thread_priority::set_current_thread_priority(")])
 print("korin_app : %s retouchée" % name)

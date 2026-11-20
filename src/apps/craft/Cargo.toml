@@ -1,0 +1,17 @@
+[package]
+# Craft (/apps/craft.app) : le lanceur de la suite Craft de storytold sur Korin (docs/CRAFT.md) ; une app egui sur
+# l'hôte egui-korin. Construit par tools/craft/launcher.sh.
+name = "craft"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+egui = { version = "0.37", default-features = false, features = ["default_fonts", "monochrome_emoji_fonts"] }
+egui-korin = { path = "../../lib/egui-korin" }
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"

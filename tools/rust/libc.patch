@@ -3,7 +3,7 @@ new file mode 100755
 index 0000000..c570e0f
 --- /dev/null
 +++ b/vendor/libc-0.2.185/src/unix/korin/mod.rs
-@@ -0,0 +1,1417 @@
+@@ -0,0 +1,1423 @@
 +//! Korin OS (aarch64-unknown-korin, x86_64-unknown-korin) : newlib 4.4 des chaînes
 +//! aarch64-onyx-elf et x86_64-onyx-elf, et libposix
 +//! (src/lib/posix du dépôt Korin, docs/RUST.md). Les types, dispositions et valeurs viennent
@@ -1417,6 +1417,12 @@ index 0000000..c570e0f
 +        bufsiz: size_t,
 +    ) -> ssize_t;
 +    pub fn fchmodat(dirfd: c_int, pathname: *const c_char, mode: mode_t, flags: c_int) -> c_int;
++    // (libposix : les *at que rustix et cap-std prennent ; tools/craft, docs/CRAFT.md)
++    pub fn openat(dirfd: c_int, pathname: *const c_char, flags: c_int, ...) -> c_int;
++    pub fn fstatat(dirfd: c_int, pathname: *const c_char, buf: *mut stat, flags: c_int) -> c_int;
++    pub fn linkat(olddirfd: c_int, oldpath: *const c_char, newdirfd: c_int, newpath: *const c_char, flags: c_int) -> c_int;
++    pub fn symlinkat(target: *const c_char, newdirfd: c_int, linkpath: *const c_char) -> c_int;
++    pub fn fchownat(dirfd: c_int, pathname: *const c_char, owner: crate::uid_t, group: crate::gid_t, flags: c_int) -> c_int;
 +    pub fn faccessat(dirfd: c_int, pathname: *const c_char, mode: c_int, flags: c_int) -> c_int;
 +    pub fn getpwuid(uid: crate::uid_t) -> *mut passwd;
 +    pub fn getpwnam(name: *const c_char) -> *mut passwd;

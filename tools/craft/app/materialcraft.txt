@@ -1,0 +1,6 @@
+# Manifeste de MaterialCraft (une app Craft de storytold, Rust et egui ; docs/CRAFT.md) : construite par
+# tools/craft/build.sh materialcraft ; catégorie « Craft » : ouverte par le lanceur Craft (/apps/craft.app)
+name     = MaterialCraft
+category = Craft
+description = Les matériaux procéduraux libres MaterialCraft (storytold), par nœuds.
+keywords = matériau procédural nœuds texture shader materialcraft

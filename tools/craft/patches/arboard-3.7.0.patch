@@ -1,0 +1,199 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -79,26 +79,26 @@
+ [dev-dependencies.env_logger]
+ version = "0.10.2"
+ 
+-[target.'cfg(all(unix, not(any(target_os="macos", target_os="android", target_os="emscripten"))))'.dependencies.image]
++[target.'cfg(all(unix, not(any(target_os="macos", target_os="android", target_os="emscripten", target_os="korin"))))'.dependencies.image]
+ version = "0.25"
+ features = ["png"]
+ optional = true
+ default-features = false
+ 
+-[target.'cfg(all(unix, not(any(target_os="macos", target_os="android", target_os="emscripten"))))'.dependencies.log]
++[target.'cfg(all(unix, not(any(target_os="macos", target_os="android", target_os="emscripten", target_os="korin"))))'.dependencies.log]
+ version = "0.4"
+ 
+-[target.'cfg(all(unix, not(any(target_os="macos", target_os="android", target_os="emscripten"))))'.dependencies.parking_lot]
++[target.'cfg(all(unix, not(any(target_os="macos", target_os="android", target_os="emscripten", target_os="korin"))))'.dependencies.parking_lot]
+ version = "0.12"
+ 
+-[target.'cfg(all(unix, not(any(target_os="macos", target_os="android", target_os="emscripten"))))'.dependencies.percent-encoding]
++[target.'cfg(all(unix, not(any(target_os="macos", target_os="android", target_os="emscripten", target_os="korin"))))'.dependencies.percent-encoding]
+ version = "2.3.1"
+ 
+-[target.'cfg(all(unix, not(any(target_os="macos", target_os="android", target_os="emscripten"))))'.dependencies.wl-clipboard-rs]
++[target.'cfg(all(unix, not(any(target_os="macos", target_os="android", target_os="emscripten", target_os="korin"))))'.dependencies.wl-clipboard-rs]
+ version = "0.9.3"
+ optional = true
+ 
+-[target.'cfg(all(unix, not(any(target_os="macos", target_os="android", target_os="emscripten"))))'.dependencies.x11rb]
++[target.'cfg(all(unix, not(any(target_os="macos", target_os="android", target_os="emscripten", target_os="korin"))))'.dependencies.x11rb]
+ version = "0.13"
+ 
+ [target.'cfg(target_os = "macos")'.dependencies.image]
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -23,7 +23,8 @@
+ 
+ #[cfg(all(
+ 	unix,
+-	not(any(target_os = "macos", target_os = "android", target_os = "emscripten")),
++	not(any(target_os = "macos", target_os = "android", target_os = "emscripten",
++		target_os = "korin")),
+ ))]
+ pub use platform::{ClearExtLinux, GetExtLinux, LinuxClipboardKind, SetExtLinux};
+ 
+@@ -423,7 +424,8 @@
+ 		}
+ 		#[cfg(all(
+ 			unix,
+-			not(any(target_os = "macos", target_os = "android", target_os = "emscripten")),
++			not(any(target_os = "macos", target_os = "android", target_os = "emscripten",
++		target_os = "korin")),
+ 		))]
+ 		{
+ 			use crate::{LinuxClipboardKind, SetExtLinux};
+--- a/src/platform/korin.rs
++++ b/src/platform/korin.rs
+@@ -0,0 +1,116 @@
++//! Korin OS (tools/craft/patches/arboard-3.7.0.patch, docs/CRAFT.md) : le presse-papiers de Korin (le service clipd,
++//! par UIKit), par le relais de l'hôte egui de Korin (src/lib/egui-korin/csrc/host.c, lié au programme par
++//! egui-korin). Le texte seulement : une image ou des fichiers ne sont pas pris en charge.
++
++use std::borrow::Cow;
++use std::ffi::{c_char, c_long};
++#[cfg(feature = "image-data")]
++use std::path::Path;
++use std::path::PathBuf;
++
++#[cfg(feature = "image-data")]
++use crate::common::ImageData;
++use crate::common::Error;
++
++unsafe extern "C" {
++	fn kh_clip_set(s: *const c_char, n: c_long);
++	fn kh_clip_get(buf: *mut c_char, cap: c_long) -> c_long;
++}
++
++fn read() -> Option<String> {
++	let mut buf = vec![0u8; 1 << 20];
++	let n = unsafe { kh_clip_get(buf.as_mut_ptr().cast(), buf.len() as _) };
++	if n <= 0 {
++		return None;
++	}
++	let n = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
++	Some(String::from_utf8_lossy(&buf[..n]).into_owned())
++}
++
++fn write(text: &str) {
++	unsafe { kh_clip_set(text.as_ptr().cast(), text.len() as _) }
++}
++
++pub(crate) struct Clipboard(());
++
++impl Clipboard {
++	pub(crate) fn new() -> Result<Self, Error> {
++		Ok(Self(()))
++	}
++}
++
++pub(crate) struct Get<'clipboard> {
++	_clipboard: &'clipboard mut Clipboard,
++}
++
++impl<'clipboard> Get<'clipboard> {
++	pub(crate) fn new(clipboard: &'clipboard mut Clipboard) -> Self {
++		Self { _clipboard: clipboard }
++	}
++
++	pub(crate) fn text(self) -> Result<String, Error> {
++		read().filter(|t| !t.is_empty()).ok_or(Error::ContentNotAvailable)
++	}
++
++	pub(crate) fn html(self) -> Result<String, Error> {
++		Err(Error::ContentNotAvailable)
++	}
++
++	#[cfg(feature = "image-data")]
++	pub(crate) fn image(self) -> Result<ImageData<'static>, Error> {
++		Err(Error::ContentNotAvailable)
++	}
++
++	pub(crate) fn file_list(self) -> Result<Vec<PathBuf>, Error> {
++		Err(Error::ContentNotAvailable)
++	}
++}
++
++pub(crate) struct Set<'clipboard> {
++	_clipboard: &'clipboard mut Clipboard,
++}
++
++impl<'clipboard> Set<'clipboard> {
++	pub(crate) fn new(clipboard: &'clipboard mut Clipboard) -> Self {
++		Self { _clipboard: clipboard }
++	}
++
++	pub(crate) fn text(self, data: Cow<'_, str>) -> Result<(), Error> {
++		write(&data);
++		Ok(())
++	}
++
++	/// Le texte de remplacement, s'il y en a un ; sinon le HTML tel quel.
++	pub(crate) fn html(self, html: Cow<'_, str>, alt: Option<Cow<'_, str>>) -> Result<(), Error> {
++		write(alt.as_deref().unwrap_or(&html));
++		Ok(())
++	}
++
++	#[cfg(feature = "image-data")]
++	pub(crate) fn image(self, _image: ImageData) -> Result<(), Error> {
++		Err(Error::ClipboardNotSupported)
++	}
++
++	#[cfg(feature = "image-data")]
++	#[allow(dead_code)]
++	fn _path(_p: &Path) {}
++
++	pub(crate) fn file_list(self, _file_list: &[impl AsRef<std::path::Path>]) -> Result<(), Error> {
++		Err(Error::ClipboardNotSupported)
++	}
++}
++
++pub(crate) struct Clear<'clipboard> {
++	_clipboard: &'clipboard mut Clipboard,
++}
++
++impl<'clipboard> Clear<'clipboard> {
++	pub(crate) fn new(clipboard: &'clipboard mut Clipboard) -> Self {
++		Self { _clipboard: clipboard }
++	}
++
++	pub(crate) fn clear(self) -> Result<(), Error> {
++		write("");
++		Ok(())
++	}
++}
+--- a/src/platform/mod.rs
++++ b/src/platform/mod.rs
+@@ -1,8 +1,8 @@
+-#[cfg(all(unix, not(any(target_os = "macos", target_os = "android", target_os = "emscripten"))))]
++#[cfg(all(unix, not(any(target_os = "macos", target_os = "android", target_os = "emscripten", target_os = "korin"))))]
+ mod linux;
+ #[cfg(all(
+ 	unix,
+-	not(any(target_os = "macos", target_os = "android", target_os = "emscripten"))
++	not(any(target_os = "macos", target_os = "android", target_os = "emscripten", target_os = "korin"))
+ ))]
+ pub use linux::*;
+ 
+@@ -15,3 +15,9 @@
+ mod osx;
+ #[cfg(target_os = "macos")]
+ pub use osx::*;
++
++// Korin OS (tools/craft/patches/arboard-3.7.0.patch)
++#[cfg(target_os = "korin")]
++mod korin;
++#[cfg(target_os = "korin")]
++pub use korin::*;
