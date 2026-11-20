@@ -1255,6 +1255,32 @@ def relics(ic):
         ic.fill(ic.circ(42, 24, 2.2), 0xFFFFFF, .8)
 
 
+@icon('morpho', 0x8E6CF0, 0x4A2FA8)
+def morpho(ic):
+    # la créature de Morpho : une boule ronde aux grands yeux, deux petites cornes, sortie de sa coquille
+    body = Grad(0x9BE36A, 0x3E9E45, 100)
+    if not ic.small:
+        for x, y, r in ((24, 22, 1.6), (78, 18, 1.3), (84, 40, 1.1), (18, 46, 1.0)):
+            ic.fill(ic.circ(x, y, r), 0xFFF2B0, .9)
+        ic.fill(ic.line([(36, 18), (42, 30)], 7), Grad(0xFFF1C8, 0xE6B85A, 100))
+        ic.fill(ic.line([(64, 18), (58, 30)], 7), Grad(0xFFF1C8, 0xE6B85A, 100))
+    ic.raised(add(ic.ell(50, 54, 30, 27), ic.ell(50, 74, 24, 12)), body)
+    # la coquille, en bas
+    shell = sub(ic.ell(50, 80, 32, 14), ic.poly([(14, 66), (26, 74), (34, 66), (44, 75), (54, 66), (64, 75), (74, 66), (86, 74), (86, 60), (14, 60)]))
+    ic.raised(shell, Grad(0xFFFDF6, 0xE4DCCB, 100))
+    if not ic.small:
+        ic.fill(ic.circ(36, 84, 2.8), 0xF07AA8)
+        ic.fill(ic.circ(64, 85, 2.4), 0x5FB6F0)
+    for x in (39, 61):
+        ic.fill(ic.circ(x, 50, 10.5), 0xFFFFFF)
+        ic.fill(ic.circ(x + 1.2, 51.5, 6.4), 0x3A2A6A)
+        ic.fill(ic.circ(x - 1.6, 47.8, 2.4), 0xFFFFFF)
+    if not ic.small:
+        ic.fill(ic.circ(29, 62, 4), 0xFF8FA8, .55)
+        ic.fill(ic.circ(71, 62, 4), 0xFF8FA8, .55)
+        ic.fill(ic.arc(50, 61, 6, 20, 160, 2.4), 0x2E4A22)
+
+
 @icon('parkingjam', 0x6F7680, 0x40464F)
 def parkingjam(ic):
     # le parking vu de haut : des places, trois voitures, une qui sort

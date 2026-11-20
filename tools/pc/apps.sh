@@ -31,7 +31,7 @@ ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab 
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
 screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu gcemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
 recorder targets bubbles arkanoid pkgman pkg pkgd webd smbd smbfs oauthd keyvault gdrivefs webstudio koton llm vibe claude mai forge
-2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris installer weather asteroids parkingjam jamendo spotify terracube relics win16"
+2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris installer weather asteroids parkingjam jamendo spotify terracube relics win16 morpho"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
 : > "$OUT/status.new"
@@ -312,6 +312,9 @@ build_one () { # nom
 		EXTRA="-L$OCL -L$CAO/planegcs/lib -Wl,--start-group $TK -lplanegcs -Wl,--end-group" ;;
 	cosmozoom)	# (GpuKit par GlKit sur le PC : gk_gl_attach)
 		glkit_extra gk || return 0 ;;
+	morpho)	# (l'animal de compagnie en 3D : GpuKit par GlKit sur le PC quand GlKit est construit, gk_gl_attach ; sinon le
+		# processeur, gk_draw de GpuKit)
+		if [ -f "$PM/lib/libglkit.a" ]; then glkit_extra gk; FLAGS="$FLAGS -DMORPHO_GL"; fi ;;
 	terracube)	# (le bac à sable de blocs : OpenGL ES 3 par GlKit, le GPU Intel ou softpipe ; json.c de libacp : le MCP)
 		FLAGS="$FLAGS -I$ROOT/src/lib/acp"
 		glkit_extra || return 0 ;;
