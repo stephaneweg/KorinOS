@@ -16,7 +16,7 @@ use std::time::Duration;
 use librespot_core::authentication::Credentials;
 use librespot_core::config::SessionConfig;
 use librespot_core::session::Session;
-use librespot_core::spotify_id::SpotifyId;
+use librespot_core::SpotifyUri;
 use librespot_playback::audio_backend::{Sink, SinkResult};
 use librespot_playback::config::PlayerConfig;
 use librespot_playback::convert::Converter;
@@ -205,6 +205,7 @@ fn on_event(ev: PlayerEvent) {
                     artists.0.iter().map(|a| a.name.as_str()).collect::<Vec<_>>().join(", ")
                 }
                 UniqueFields::Episode { show_name, .. } => show_name.clone(),
+                _ => String::new(),
             };
         }
         PlayerEvent::EndOfTrack { .. } => {
@@ -289,7 +290,7 @@ pub unsafe extern "C" fn ks_load(uri: *const c_char, play: c_int, position_ms: u
         set_error("pas connecté");
         return -1;
     };
-    let id = match cstr(uri).map(SpotifyId::from_uri) {
+    let id = match cstr(uri).map(SpotifyUri::from_uri) {
         Some(Ok(id)) => id,
         _ => {
             set_error("adresse de titre illisible");

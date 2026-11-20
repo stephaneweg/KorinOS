@@ -107,6 +107,7 @@
 - [Idée : presse-papier et glisser-déposer](armpi-idee-presse-papier-dnd.md) — plus tard : historique dans l'applet, coller une image (Telegram), glisser-déposer du gestionnaire vers les apps
 - [Koton : l'IA](armpi-koton-ia.md) — 15/11 : « Composer avec l'IA » porté d'Onyx, /bin/llm (OpenSSL, paquet llm), barre du haut sans recouvrement ; pas essayé dans l'OS
 - [claude-acp](armpi-claude-acp.md) — 14/11 : agent Python sur la clé d'API (100 $ de l'abonnement Max), ACP, agent --claude ; jiter en Python pur ; posé à la main sur D:
+- [mai-acp](armpi-mai-acp.md) — 19/11 : agent générique compatible OpenAI (oai_acp sur claude_acp), profil MAI (Foundry), app MAI, agent --mai ; MAI-Code-1.1-Flash retiré le 9/12 ; python3 fichier.py plante sous PC
 - [Partage SMB](armpi-smb.md) — 15/11 : smbd (C sur le serveur de libsmb2) et smbfs (client vfs), korin.patch (dont bug de signature des composées fragmentées), docs/SMB.md
 - [Idée : WebStudio et FTP](armpi-idee-webstudio-ftp.md) — plus tard : ouvrir un site FTP synchronisé en local, bouton Publier (paramètres demandés puis gardés), bouton Synchroniser dans la liste des fichiers
 - [Godot](armpi-godot.md) — Godot 4.7.2 sur Korin PC, tools/godot ; éditeur, démo, export essayés sous QEMU le 15/11 ; ZBook/Pi pas encore ; export depuis Godot Windows par préréglage Linux + modèle Korin
@@ -128,7 +129,8 @@
 - [Sécurité contre le web](armpi-securite.md) — plan du 18/11 : enforce, SMEP/SMAP, unveil pour Jet, ASLR, pledge ; docs/etude/SECURITE.md, rien de fait
 - [Ports construits dans Korin](armpi-ports-dans-korin.md) — plan du 18/11 : libs tierces en .so/.a, outils de construction, puis tous les ports (SDL, STK, Python, Godot, WebKit…) dans Korin sur le ZBook ; rien de fait
 - [Spotify et Jamendo](armpi-musique.md) — au plan le 18/11 : librespot (Rust) en bibliothèque C + app UIKit, client Jamendo d'abord ; docs/etude/MUSIQUE.md, rien de fait
-- [Widevine dans Jet](armpi-widevine.md) — hôte Linux, jalon 1 fait (QEMU PC) ; compatibilité glibc, canal de Google, ClearKey d'abord (19/11) ; 2b capture des syscall et 2c requête de licence dans Korin faites (19/11, QEMU)
+- [Widevine dans Jet](armpi-widevine.md) — hôte Linux, jalon 1 fait (QEMU PC) ; compatibilité glibc, canal de Google, ClearKey d'abord (19/11) ; étapes 2b, 2c, 3 faites (19/11, QEMU) : vraie licence, audio déchiffré, vidéo décodée par le module dans Korin
 - [Suivi du plan](armpi-suivi-plan.md) — artefact « Plan Korin OS » (18/11), base items à tenir à jour par ArtifactData quand un chantier bouge
 - [ImageKit](armpi-imagekit.md) — au plan le 18/11 : traducteurs d'images, document à calques canonique, UIKit s'appuie dessus ; docs/etude/IMAGEKIT.md
 - [TerraCube](armpi-terracube.md) — 19/11 : bac à sable de blocs sur GlKit (PC), scripts Python/BASIC port 4730, MCP 7312 ; QEMU seulement
+- [Noyau Linux écarté](armpi-noyau-linux.md) — 20/11 : Korin sur Linux (Elegant sur DRM) seulement en cas de vrai blocage ; on garde le micronoyau from scratch

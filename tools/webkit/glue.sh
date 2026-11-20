@@ -10,6 +10,16 @@ WK_ENV_SELF=$0
 . "$(dirname "$0")/env.sh"
 L=$EXTRA/onyx-libs
 [ -f "$L/gpucomp/gpucomp.h" ] && [ -f "$L/av/av.h" ] || { echo "glue.sh : pas de $L/{gpucomp,av} (src/extra/README.md)" >&2; exit 1; }
+# les changements de Korin à av (src/extra/onyx-libs n'est pas suivi) : tools/webkit/av-patches/*.patch,
+# appliqués une fois à la copie de src/extra (notés dans .korin-patches), comme fetch.sh pour WebKit
+for p in "$ARMPI"/tools/webkit/av-patches/*.patch; do
+	[ -f "$p" ] || continue
+	n=$(basename "$p")
+	grep -qx "$n" "$L/.korin-patches" 2>/dev/null && continue
+	echo "glue.sh : $n"
+	patch -d "$L" -p1 --forward < "$p"
+	echo "$n" >> "$L/.korin-patches"
+done
 mkdir -p "$WK_OUT/glue/user/Libs"
 ln -sfn "$L/gpucomp" "$WK_OUT/glue/user/Libs/gpucomp"
 ln -sfn "$L/av" "$WK_OUT/glue/user/Libs/av"

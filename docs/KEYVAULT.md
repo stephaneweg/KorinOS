@@ -83,7 +83,9 @@ Le programme ne dit jamais qui il est : le coffre le demande au noyau.
 2. **Il reconnaît les interprètes.** Pour un interprète de `/etc/keyvault/interpreters.ini` (bash, python3,
    dotnet), l'identité est le **script** déclaré, pas l'interprète. Les déclarations :
    - bash : `tools/bash/patches/03-coffre-script.patch` ;
-   - CPython : `config_run_filename_abspath`, avant `site` et les `.pth` (`tools/python/korin.patch`) ;
+   - CPython : `config_run_filename_abspath`, avant `site` et les `.pth` (`tools/python/korin.patch`). Il n'y a pas
+     encore d'interpréteur à ce moment-là : seulement l'allocateur brut (`_Py_EncodeLocaleRaw`, `PyMem_RawFree`).
+     `Py_EncodeLocale` passe par obmalloc, et `python3 fichier.py` plantait (du 18 au 20/11) ;
    - dotnet : `armpihost.cpp` déclare l'assembly (`tools/dotnet/armpi.patch`).
 
    Un interprète sans script (bash interactif, `python3 -c`) n'a pas de coffre.

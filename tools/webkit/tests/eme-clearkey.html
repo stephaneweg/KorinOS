@@ -1,0 +1,122 @@
+<!doctype html>
+<!--
+  eme-clearkey.html -- essai d'EME Clear Key dans Jet (docs/etude/WIDEVINE.md, étape 4) : MSE + EME sur le flux
+  Clear Key public « Angel One » de Shaka (H.264 et AAC en « cenc », clé connue), servi à côté de la page
+  (video.mp4, audio.mp4 : le premier Mo de chaque fichier). La licence est faite par la page elle-même (le JSON
+  de Clear Key, clé publique du flux). Chaque étape va dans la console (avec /etc/web-console : le journal du
+  noyau) ; « EME-CLEARKEY : RÉUSSI » quand la lecture a passé le début en clair (8 s) avec des images décodées.
+  tools/linux/test_eme_jet.sh l'ouvre dans Jet sous QEMU.
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>EME Clear Key</title>
+<style>
+  body { font: 14px sans-serif; margin: 12px; }
+  video { width: 384px; height: 288px; background: #000; }
+  #log { white-space: pre-wrap; font: 12px monospace; }
+</style>
+</head>
+<body>
+<h1>EME Clear Key</h1>
+<video id="v" muted playsinline></video>
+<div id="log"></div>
+<script>
+"use strict";
+const KID = "feedf00deedeadbeeff0baadf00dd00d";
+const KEY = "00112233445566778899aabbccddeeff";
+const v = document.getElementById("v");
+let done = false;
+
+function log(text) {
+  console.log("EME-CLEARKEY : " + text);
+  document.getElementById("log").textContent += text + "\n";
+}
+function fail(text) {
+  if (done) return;
+  done = true;
+  log("ÉCHEC : " + text);
+  document.title = "ÉCHEC";
+}
+function hexToB64url(hex) {
+  let s = "";
+  for (let i = 0; i < hex.length; i += 2) s += String.fromCharCode(parseInt(hex.substr(i, 2), 16));
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function setupKeys() {
+  const config = [{
+    initDataTypes: ["cenc"],
+    videoCapabilities: [{ contentType: 'video/mp4; codecs="avc1.42c01e"' }],
+    audioCapabilities: [{ contentType: 'audio/mp4; codecs="mp4a.40.2"' }],
+  }];
+  const access = await navigator.requestMediaKeySystemAccess("org.w3.clearkey", config);
+  log("requestMediaKeySystemAccess : " + access.keySystem);
+  const keys = await access.createMediaKeys();
+  await v.setMediaKeys(keys);
+  log("setMediaKeys : fait");
+  let sessions = 0;
+  v.addEventListener("encrypted", async (e) => {
+    log("encrypted : " + e.initDataType + ", " + e.initData.byteLength + " octets");
+    if (sessions++) return;   // (une session suffit : la même clé pour l'audio et la vidéo)
+    const session = keys.createSession("temporary");
+    session.addEventListener("message", async (m) => {
+      const request = JSON.parse(new TextDecoder().decode(m.message));
+      log("message : type " + m.messageType + ", KID demandés " + JSON.stringify(request.kids));
+      const license = { keys: [{ kty: "oct", kid: hexToB64url(KID), k: hexToB64url(KEY) }], type: "temporary" };
+      await session.update(new TextEncoder().encode(JSON.stringify(license)));
+      log("update : licence donnée");
+    });
+    session.addEventListener("keystatuseschange", () => {
+      session.keyStatuses.forEach((status, kid) => log("statut de clé : " + status));
+    });
+    await session.generateRequest(e.initDataType, e.initData);
+    log("generateRequest : fait");
+  });
+}
+
+async function setupSource() {
+  const ms = new MediaSource();
+  v.src = URL.createObjectURL(ms);
+  await new Promise((r) => ms.addEventListener("sourceopen", r, { once: true }));
+  log("MediaSource ouverte");
+  const tracks = [["video.mp4", 'video/mp4; codecs="avc1.42c01e"'], ["audio.mp4", 'audio/mp4; codecs="mp4a.40.2"']];
+  await Promise.all(tracks.map(async ([url, type]) => {
+    const sb = ms.addSourceBuffer(type);
+    const data = await (await fetch(url)).arrayBuffer();
+    sb.appendBuffer(data);
+    await new Promise((r, j) => { sb.addEventListener("updateend", r, { once: true }); sb.addEventListener("error", j, { once: true }); });
+    log(url + " : " + data.byteLength + " octets ajoutés, tampon " + (sb.buffered.length ? sb.buffered.end(0).toFixed(1) : 0) + " s");
+  }));
+}
+
+v.addEventListener("waitingforkey", () => log("waitingforkey"));
+v.addEventListener("error", () => fail("erreur du média " + (v.error ? v.error.code + " " + v.error.message : "")));
+v.addEventListener("timeupdate", () => {
+  if (done || v.currentTime < 10) return;
+  const q = v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality() : null;
+  const frames = q ? q.totalVideoFrames : -1;
+  log("lecture à " + v.currentTime.toFixed(1) + " s (le chiffré commence à 8 s), images décodées " + frames);
+  done = true;
+  if (frames > 0) {
+    log("RÉUSSI");
+    document.title = "RÉUSSI";
+  } else
+    fail("pas d'image décodée");
+});
+
+(async () => {
+  try {
+    log("début");
+    await setupKeys();
+    await setupSource();
+    await v.play();
+    log("play : en cours");
+    setTimeout(() => { if (!done) fail("la lecture n'a pas atteint 10 s en 90 s (temps " + v.currentTime.toFixed(1) + ")"); }, 90000);
+  } catch (e) {
+    fail(e && e.name ? e.name + " : " + e.message : String(e));
+  }
+})();
+</script>
+</body>
+</html>

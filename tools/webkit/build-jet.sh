@@ -23,6 +23,8 @@ else
 	[ -f "$ARMPI/prebuilt/mesa/lib/libarmgl.a" ] || { echo "build-jet.sh : pas de prebuilt/mesa : sh tools/mesa/build-armgl.sh" >&2; exit 1; }
 fi
 unset CFLAGS CXXFLAGS LDFLAGS CC CXX
+# (JET_OUT : Jet ailleurs que dans $WK_OUT/out/jet.app, pour un essai à part, avec BUILD)
+: "${JET_OUT:=$WK_OUT/out/jet.app}"
 S=$ONYX_SYSROOT
 HERE=$ARMPI/tools/webkit
 J=$ARMPI/src/extra/onyxports/jet
@@ -50,7 +52,17 @@ for l in skia harfbuzz-icu harfbuzz freetype png16 jpeg webpmux webpdemux webp s
 done
 # WebGL : ANGLE, puis Mesa par armgl
 GL="-Wl,--start-group $BUILD/lib/libANGLE.a $BUILD/lib/libGLESv2.a $GLKIT $S/lib/libz.a -Wl,--end-group"
-[ -f "$WK_OUT/av/libonyxav.a" ] || sh "$HERE/build-media.sh"
+# la bibliothèque media d'av (src/extra/onyx-libs/av, avec tools/webkit/av-patches) : WebCore l'utilise par ses
+# en-têtes (av_packet, av_track : leur forme compte) ; un av.h plus récent que libWebCore.a : WebKit d'abord
+# (tools/mesa/build-webkit.sh), sinon Jet lierait deux formes de ces structures ; des sources d'av plus récentes que
+# libonyxav.a : elle est refaite
+if [ "$EXTRA/onyx-libs/av/av.h" -nt "$BUILD/lib/libWebCore.a" ]; then
+	echo "build-jet.sh : av.h a changé depuis $BUILD/lib/libWebCore.a : d'abord tools/mesa/build-webkit.sh" >&2
+	exit 1
+fi
+if [ ! -f "$WK_OUT/av/libonyxav.a" ] || [ -n "$(find "$EXTRA/onyx-libs/av" -name '*.[ch]' -newer "$WK_OUT/av/libonyxav.a" | head -n 1)" ]; then
+	sh "$HERE/build-media.sh"
+fi
 # FFmpeg dans la bibliotheque media (LGPL, build-media.sh) : ses bibliotheques apres libonyxav.a
 FF=/tmp/korin-ffmpeg-jet-$ONYX_ARCH
 FFLIBS=
@@ -63,7 +75,7 @@ ${ONYX_TOOLCHAIN_PREFIX}gcc $GC -c "$EXTRA/onyx-libs/gpucomp/gpucomp.c" -o "$BUI
 GCGLUE=gpucomp_armpi.c
 [ "$ONYX_ARCH" = x86_64 ] && GCGLUE=gpucomp_gl.c
 ${ONYX_TOOLCHAIN_PREFIX}gcc $GC -c "$HERE/glue/$GCGLUE" -o "$BUILD/gpucomp_armpi.o"
-mkdir -p "$BUILD/bin" "$WK_OUT/out/jet.app"
+mkdir -p "$BUILD/bin" "$JET_OUT"
 echo "jet : edition de liens"
 # (Korin PC : les decodeurs video sur plusieurs fils, glue/av_threads_pc.c)
 AVWRAP=
@@ -72,9 +84,9 @@ ${ONYX_TOOLCHAIN_PREFIX}g++ $ONYX_CPU_FLAGS -specs="$S/lib/onyx.specs" -L"$S/lib
 	"$BUILD/jet_main.o" "$BUILD/jet_engine_webkit.o" "$BUILD/jet_present.o" "$BUILD/webkit2_armpi.o" "$BUILD/gpucomp.o" "$BUILD/gpucomp_armpi.o" $WK \
 	"$U/libuikit_c.a" "$WK_OUT/av/libonyxav.a" $FFLIBS $LIBS $GL -o "$BUILD/bin/jet"
 ${ONYX_TOOLCHAIN_PREFIX}size "$BUILD/bin/jet"
-${STRIP} -o "$WK_OUT/out/jet.app/main" "$BUILD/bin/jet"
-cp "$J/app.txt" "$J/start.html" "$WK_OUT/out/jet.app/"
+${STRIP} -o "$JET_OUT/main" "$BUILD/bin/jet"
+cp "$J/app.txt" "$J/start.html" "$JET_OUT/"
 # (les sondes pour un rapport, en /etc/web-probe.js : frame-probe.js, docs/WEBKIT.md « hCaptcha » ; login-probe.js,
 # « Connexion à Facebook »)
-cp "$HERE/tests/frame-probe.js" "$HERE/tests/login-probe.js" "$WK_OUT/out/jet.app/"
-ls -l "$WK_OUT/out/jet.app"
+cp "$HERE/tests/frame-probe.js" "$HERE/tests/login-probe.js" "$JET_OUT/"
+ls -l "$JET_OUT"
