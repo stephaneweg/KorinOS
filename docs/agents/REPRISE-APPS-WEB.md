@@ -72,6 +72,10 @@ QEMU PC, et que rien d'autre n'a régressé (démarrage, `run ktest`, essais de 
   `ui_window_top`, `ui_maximize`).
 - Le mode app passe `WEV_RESIZE` à UIKit (`ui_w_event`) : sans cela ni les bords ni le bouton agrandir ne suivent.
 - Jet ignore Ctrl+Q ; une app web le prend (quitter).
+- **Un patch de WebKit appliqué à la main** doit aussi être noté dans le `.armpi-patches` de chaque arbre (`webkit`,
+  `webkit-gl`) : sinon `fetch.sh` (par `build-webkit.sh`) le réapplique, échoue (« Reversed (or previously applied)
+  patch detected », un `.rej`) et arrête la construction. Arrivé avec 0011 le 20/11 ; réparé par la session Widevine
+  (noté dans les deux, `.rej` retiré), et jet 1.4.2 est parti en publication ensuite.
 
 ## 3. Dans le cloud
 
