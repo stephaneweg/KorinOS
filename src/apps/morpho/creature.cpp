@@ -194,7 +194,13 @@ static void layout (const Genome &g, float breathe, float t, Body &b)
 		k[n++] = { front, R * 0.62f, R * 0.62f * g.bodyH, K_NECK };
 		b.hd = V3 (0, 0, 1); b.up = V3 (0, 1, 0); b.headRx = b.headRy = R; b.snoutR = R * 0.5f;
 	}
-	else headKeys (g, nb, rn, be, k, n, b);
+	else
+	{
+		// (trois têtes : celle du milieu, sur un cou plus long, dépasse des deux autres)
+		Genome hg = g;
+		if (headCount (g) == 3) hg.neckLen = fmaxf (g.neckLen, 0.2f) + 0.22f;
+		headKeys (hg, nb, rn, be, k, n, b);
+	}
 	finishBody (k, n, b);
 }
 
@@ -204,7 +210,7 @@ static void layoutHead (const Genome &g, Body &b)
 	Key k[K_N]; int n = 0;
 	float rn = g.bodyR * fmaxf (g.neckR, 0.55f) * 0.9f;
 	// (un cou un peu plus long que celui d'une tête seule : les têtes s'écartent)
-	Genome h = g; h.neckLen = fmaxf (g.neckLen, 0.12f) + 0.06f;
+	Genome h = g; h.neckLen = fmaxf (g.neckLen, 0.2f) + 0.16f;
 	k[n++] = { V3 (0, 0, -rn * 0.6f), rn * 1.1f, rn * 1.1f, K_SH };
 	headKeys (h, V3 (), rn, neckLift (g) + 0.1f, k, n, b);
 	finishBody (k, n, b);
