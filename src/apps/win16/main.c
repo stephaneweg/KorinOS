@@ -11,6 +11,9 @@
 #include <string.h>
 #include <strings.h>
 #include <ctype.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
 #include "w16.h"
 #include "be.h"
 #include "dos.h"
@@ -34,21 +37,42 @@ static void dos_path (const char *path, char *out, size_t cap)
 }
 
 /* un exécutable de Windows (MZ suivi d'un en-tête NE) ; sinon, un programme DOS */
+/* n octets du fichier à la position off (lseek, read en boucle, comme ne_load) -> le nombre lu */
+static size_t read_at (int fd, uint32_t off, uint8_t *buf, size_t n)
+{
+	if (lseek (fd, (off_t) off, SEEK_SET) != (off_t) off)
+		return 0;
+	size_t got = 0;
+	while (got < n)
+	{
+		ssize_t r = read (fd, buf + got, n - got);
+		if (r <= 0)
+			break;
+		got += (size_t) r;
+	}
+	return got;
+}
+
+/* un exécutable de Windows : MZ, et un en-tête NE à l'adresse de 3Ch (le champ 18h n'est pas regardé : des éditeurs de
+ * liens de Windows y laissent moins de 40h) ; sinon, un programme DOS. Le choix est écrit sur stderr. */
 static int is_windows (const char *path)
 {
-	FILE *f = fopen (path, "rb");
-	if (!f)
+	int fd = open (path, O_RDONLY);
+	if (fd < 0)
 		return 1;	/* (ne_load dira qu'il ne peut pas le lire) */
 	uint8_t h[0x40], ne[2] = { 0, 0 };
-	size_t n = fread (h, 1, sizeof h, f);
+	size_t n = read_at (fd, 0, h, sizeof h);
 	int win = 0;
-	if (n == sizeof h && h[0] == 'M' && h[1] == 'Z' && (h[0x18] | h[0x19] << 8) >= 0x40)
+	uint32_t off = 0;
+	if (n == sizeof h && ((h[0] == 'M' && h[1] == 'Z') || (h[0] == 'Z' && h[1] == 'M')))
 	{
-		uint32_t off = (uint32_t) (h[0x3c] | h[0x3d] << 8 | h[0x3e] << 16 | (uint32_t) h[0x3f] << 24);
-		if (!fseek (f, (long) off, SEEK_SET) && fread (ne, 1, 2, f) == 2)
+		off = (uint32_t) (h[0x3c] | h[0x3d] << 8 | h[0x3e] << 16 | (uint32_t) h[0x3f] << 24);
+		if (off >= 0x40 && read_at (fd, off, ne, 2) == 2)
 			win = ne[0] == 'N' && ne[1] == 'E';
 	}
-	fclose (f);
+	close (fd);
+	fprintf (stderr, "win16 : %s : %s (en-tête lu : %zu octets, %c%c en %x)\n", path, win ? "Windows 3.x" : "DOS", n,
+		ne[0] >= 32 ? ne[0] : '.', ne[1] >= 32 ? ne[1] : '.', off);
 	return win;
 }
 
@@ -79,6 +103,7 @@ int main (int argc, char **argv)
 	}
 	if (getenv ("W16_TRACE"))
 		w16_trace = atoi (getenv ("W16_TRACE"));
+	snprintf (w16_self, sizeof w16_self, "%s", argv[0]);	/* (WinExec relance ce programme) */
 	int ui = be_init ();
 	/* Z: : le dossier dos/ à côté du programme (COMMAND.COM), ou W16_DOSDIR */
 	{

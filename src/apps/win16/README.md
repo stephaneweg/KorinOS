@@ -35,6 +35,7 @@
 | `dialog.c` | dialogues des ressources, DefDlgProc, IsDialogMessage |
 | `ctrl.c` | contrôles BUTTON, STATIC, EDIT, LISTBOX, COMBOBOX, SCROLLBAR : widgets de UIKit (mode natif), sinon dessinés au thème |
 | `gdi.c`, `gdi.h` | GDI : DC, objets, polices, bitmaps, BitBlt, DIB, formes, régions, palettes, icônes |
+| `lz.c` | les fichiers compressés SZDD (FICHIER.EX_) : LZEXPAND, VerFindFile, VerInstallFile ; WinExec et LoadModule (un autre win16) |
 | `commdlg.c` | Ouvrir, Enregistrer, Couleur (dialogues de Korin) |
 | `mmsystem.c` | sortie MIDI (sans son), minuteries multimédia |
 | `misc.c` | WIN87EM, KEYBOARD, TOOLHELP |

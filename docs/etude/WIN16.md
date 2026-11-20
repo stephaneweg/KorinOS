@@ -105,6 +105,12 @@ sinus par DMA auto-init avec ses IRQ) ; **FM-Song 1.3.2** démarre, trouve la ca
 de **FM-Lib** (sa propre source, compilée par BC) joue `ACTION.FMS` par la Sound Blaster (211 notes en 14 s,
 enregistrées). Sous QEMU PC : l'essai OPL va au bout (pas d'écoute possible). Reste : l'écoute sur le ZBook.
 
+**Installer (20/11)** : `lz.c` décompresse les fichiers SZDD des disquettes (VerInstallFile, LZEXPAND) et WinExec
+lance un autre win16 (posix_spawn, même D: que le parent). Le SETUP.EXE d'Art Song 2.0 copie ainsi SETUP1.EXE,
+VER.DLL et SETUPKIT.DLL dans C:WINDOWS et lance SETUP1.EXE ; mais SETUP1 est un programme Visual Basic 3 qui
+demande VBRUN300.DLL (le moteur de Microsoft, absent de l'archive). La détection Windows ou DOS lit maintenant
+l'en-tête par lseek et read et l'écrit sur stderr.
+
 **Pour l'utilisateur** : `win16.app` déclare `.exe`, `.com` et `.bat` ; un double-clic dans Fichiers lance win16, qui
 choisit seul Windows 3.x (en-tête NE) ou DOS. Les `.bat` sont aussi déclarés par l'Éditeur (`/etc/fileassoc.ini`
 tranche).

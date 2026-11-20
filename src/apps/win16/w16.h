@@ -30,6 +30,7 @@ uint32_t sel_limit (uint16_t sel);
 int sel_valid (uint16_t sel);
 extern int w16_realmode;	/* la machine DOS (dos.c) : sel_base (s) = s × 16 */
 extern char w16_dosdir[512];	/* le dossier du lecteur Z: (win16.app/dos), main.c */
+extern char w16_self[512];	/* le chemin de win16 lui-même, pour WinExec (lz.c) */
 
 /* le tas global (GlobalAlloc) : un bloc a un sélecteur, poignée = sélecteur */
 uint16_t global_alloc (uint32_t size, int code);

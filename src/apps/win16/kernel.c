@@ -436,6 +436,15 @@ int kernel_fh_close (int h)
 	return 0;
 }
 
+/* pour lz.c : une poignée DOS sur un fichier de l'hôte ; le descripteur POSIX d'une poignée */
+int kernel_open_host (const char *host, int flags)
+{
+	int fd = open (host, flags, 0644);
+	return fd < 0 ? -1 : fh_new (fd);
+}
+
+int kernel_fh_fd (int h) { return fh_fd (h); }
+
 int32_t kernel_write (int h, const void *p, uint32_t n)
 {
 	int fd = fh_fd (h);
