@@ -1,5 +1,5 @@
 //
-// scene.h -- Morpho : la scène 3D (prairie, créature, objets, ombre) et son dessin par gk_draw : par le GPU quand il
+// scene.h -- Morpho : la scène 3D (le studio : fond sombre, socle, créature, objets, ombre) et son dessin par gk_draw : par le GPU quand il
 // est là (V3D du Pi, Intel du PC), sinon au processeur, alors à demi-taille quand l'image coûte trop, puis agrandie.
 //
 #ifndef MORPHO_SCENE_H
@@ -14,9 +14,9 @@ struct GkFrame { uint32_t *px; int w, h, stride; unsigned clear, flags, pad; };
 
 struct Scene
 {
-	Mesh ground, decor, blades, shadow, props, propsSheets, propsAlpha;
+	Mesh shadow, props, propsSheets, propsAlpha;
 	CreatureMeshes cm;
-	std::vector<uint32_t> skin, shadowTex, grassTex, low;
+	std::vector<uint32_t> skin, shadowTex, low;
 	GkTex tex[TEX_N];
 	DrawList dl;
 	Camera cam;
@@ -25,13 +25,13 @@ struct Scene
 	int half = 0;			// au processeur : 1 = demi-taille
 	bool fixedSize = false;		// (essais : pas de passage automatique)
 	float lastMs = 0;		// le temps du dernier rendu 3D
-	float clouds = 1;
 	V3 shadowAt; float shadowR = 0.5f, shadowK = 1;
+	V3 focus, ringC; float ringR = 0.8f;	// le halo (derrière l'animal), le socle
 
-	void init (uint32_t seed);
+	void init ();
 	void setSkin (const uint32_t *px);	// SKIN_W × SKIN_H (envoyée au GPU)
 	void begin () { cm.body.clear (); cm.parts.clear (); cm.sheets.clear (); cm.alpha.clear (); props.clear (); propsSheets.clear (); propsAlpha.clear (); }
-	// dessine le ciel puis la 3D dans px (w × h, pas en pixels)
+	// dessine le fond du studio puis la 3D dans px (w × h, pas en pixels)
 	void draw (uint32_t *px, int w, int h, int stride, float t);
 };
 

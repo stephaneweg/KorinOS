@@ -6,7 +6,7 @@
 // processeur) ; l'interface est en 2D, aux couleurs du thème (hud.cpp). README.md du dossier.
 //
 //   Souris : glisser sur l'animal pour le caresser ; glisser ailleurs (ou clic droit) pour tourner autour ; molette
-//   pour s'approcher ; clic sur une crotte pour la ramasser ; pendant le jeu, clic dans la prairie pour lancer la balle.
+//   pour s'approcher ; clic sur une crotte pour la ramasser ; pendant le jeu, clic dans la scène pour lancer la balle.
 //   Clavier : N nourrir (1 2 3 : le repas), J jouer, L laver, O soigner, E lumière, C câliner, I fiche, Échap ferme.
 //   Ligne de commande (essais) : new (un nouvel œuf), speed=N, hour=H (heure fixe), stage=N (aller au stade N), seed=N.
 //
@@ -38,7 +38,7 @@ static Actor g_act;
 static Scene g_scene;
 static Hud g_hud;
 static ga::Snd g_snd;
-static float g_camYaw = 0.35f, g_camPitch = 0.3f, g_camZoom = 1, g_camDist = 3;
+static float g_camYaw = 0.35f, g_camPitch = 0.2f, g_camZoom = 1, g_camDist = 3, g_ringR = 0.8f;
 static V3 g_camAt (0, 0.4f, 0);
 static float g_hourFixed = -1;
 static long g_clockOff = 0;
@@ -208,7 +208,7 @@ static void action (int a)
 		if (r == RS_OK)
 		{
 			g_act.start (A_PLAY, g_pet);
-			if (g_firstPlay) { say (TR ("Cliquez dans la prairie pour lancer la balle !"), -1); g_firstPlay = false; }
+			if (g_firstPlay) { say (TR ("Cliquez dans la scène pour lancer la balle !"), -1); g_firstPlay = false; }
 		}
 		else if (r == RS_TOOTIRED) { say (TR ("%s est trop fatigué pour jouer."), N_ENERGY); g_act.start (A_REFUSE, g_pet); }
 		else if (r == RS_REFUSED) { say (TR ("%s est trop malade pour jouer."), N_HEALTH); g_act.start (A_REFUSE, g_pet); }
@@ -316,6 +316,8 @@ static bool groundAt (const V3 &o, const V3 &d, V3 &p)
 	return true;
 }
 static bool g_trace = false;
+// un point de la fenêtre -> un rayon de la caméra (la vue 3D est le cadre du milieu)
+static V3 viewRay (int x, int y) { return g_scene.cam.ray ((float) (x - g_hud.vx), (float) (y - g_hud.vy)); }
 static void onMouse (int kind, int x, int y, int buttons)
 {
 	if (g_trace && kind) fprintf (stderr, "morpho : souris %d (%d, %d) boutons %d, interface %d\n", kind, x, y, buttons, g_hud.hit (x, y));
@@ -325,15 +327,16 @@ static void onMouse (int kind, int x, int y, int buttons)
 		if ((g_dragCam && g_down) || g_rdown)
 		{
 			g_camYaw -= (float) (x - g_mx) * 0.008f;
-			g_camPitch = clampf (g_camPitch + (float) (y - g_my) * 0.005f, 0.06f, 0.95f);
+			g_camPitch = clampf (g_camPitch + (float) (y - g_my) * 0.005f, 0.0f, 0.9f);
 		}
 		if (g_dragPet && g_down && (x != g_mx || y != g_my)) g_strokeFor = 0.3f;
 		g_mx = x; g_my = y;
 		g_hud.hover = g_hud.hit (x, y);
-		V3 d = g_scene.cam.ray ((float) x, (float) y);
+		bool inv = g_hud.inView (x, y) && !g_hud.over (x, y);
+		V3 d = viewRay (x, y);
 		g_cursor = g_scene.cam.eye + d * len (g_act.out.head - g_scene.cam.eye);
-		g_cursorFor = g_hud.over (x, y) ? 0 : 1.5f;
-		ui_cursor (g_hud.hover != H_NONE ? UC_HAND : (g_dragCam || g_rdown) ? UC_MOVE : g_act.hitPet (g_scene.cam.eye, d) ? UC_HAND : UC_ARROW);
+		g_cursorFor = inv ? 1.5f : 0;
+		ui_cursor (g_hud.hover != H_NONE ? UC_HAND : (g_dragCam || g_rdown) ? UC_MOVE : inv && g_act.hitPet (g_scene.cam.eye, d) ? UC_HAND : UC_ARROW);
 		return;
 	}
 	if (kind == 1)
@@ -343,9 +346,9 @@ static void onMouse (int kind, int x, int y, int buttons)
 		if (!(buttons & 1)) return;
 		g_down = true; g_downX = x; g_downY = y; g_dragCam = false; g_dragPet = false;
 		g_downHud = g_hud.hit (x, y);
-		if (g_downHud != H_NONE || g_hud.over (x, y)) { if (g_downHud == H_NONE) g_downHud = -1; return; }
+		if (g_downHud != H_NONE || g_hud.over (x, y) || !g_hud.inView (x, y)) { if (g_downHud == H_NONE) g_downHud = -1; return; }
 		if (g_hud.feedOpen) { g_hud.feedOpen = false; }
-		V3 d = g_scene.cam.ray ((float) x, (float) y);
+		V3 d = viewRay (x, y);
 		if (g_act.clickPoop (g_scene.cam.eye, d) && g_pet.poops > 0)
 		{
 			g_pet.poops--; g_pet.st[N_CLEAN] = fminf (100, g_pet.st[N_CLEAN] + 5);
@@ -365,7 +368,7 @@ static void onMouse (int kind, int x, int y, int buttons)
 		if (g_downHud > H_NONE && h == g_downHud) action (h);
 		else if (g_downHud == H_NONE && !g_dragCam && !g_dragPet && g_act.ballOn && !g_hud.card)
 		{
-			V3 d = g_scene.cam.ray ((float) x, (float) y), p;
+			V3 d = viewRay (x, y), p;
 			if (groundAt (g_scene.cam.eye, d, p))
 			{
 				V3 from = g_scene.cam.eye + d * 1.2f;
@@ -448,13 +451,16 @@ void app_frame (float dt, float realDt)
 	for (int i = 0; i < g_act.nsnd; i++) playSound (g_act.snd[i]);
 	g_snd.tick ();
 	g_hud.update (dt);
+	// la mise en page : la vue 3D au milieu du châssis
+	g_hud.layout ((int) ui.w, (int) ui.h);
+	g_scene.cam.setup (g_hud.vw, g_hud.vh);
 	// la caméra : elle suit l'animal, s'éloigne quand il grandit
 	{
 		V3 c = g_act.out.center;
-		V3 want (c.x * 0.7f, fmaxf (0.2f, c.y * 0.75f + 0.08f), c.z * 0.7f);
+		V3 want (c.x * 0.8f, fmaxf (0.18f, c.y * 0.85f + g_act.out.radius * 0.12f), c.z * 0.8f);
 		float k = 1 - expf (-dt * 2.5f);
 		g_camAt = g_camAt + (want - g_camAt) * k;
-		float d = (1.45f + g_act.out.radius * 3.2f) * g_camZoom;
+		float d = (1.1f + g_act.out.radius * 2.5f) * g_camZoom;
 		g_camDist += (d - g_camDist) * k;
 		float yaw = g_camYaw + 0.04f * sinf (g_t * 0.13f);
 		V3 dir (sinf (yaw) * cosf (g_camPitch), sinf (g_camPitch), cosf (yaw) * cosf (g_camPitch));
@@ -475,9 +481,14 @@ void app_frame (float dt, float realDt)
 	g_scene.shadowAt = V3 (g_act.out.center.x, 0, g_act.out.center.z);
 	g_scene.shadowR = g_act.out.footprint * 1.2f;
 	g_scene.shadowK = g_act.act == A_GONE ? 0 : clampf (1 - g_act.pose.hop * 1.6f, 0.3f, 1);
-	g_scene.light = lightAt (hour, g_pet.lampOff, 0);
+	g_scene.light = studioLight (hour, g_pet.lampOff);
+	keyFrom (g_scene.light, g_scene.cam);
+	// le socle : un anneau au sol, à la taille de l'animal ; le halo derrière lui
+	g_ringR += (clampf (g_act.out.footprint * 1.9f, 0.45f, 1.7f) - g_ringR) * (1 - expf (-dt * 2));
+	g_scene.ringC = V3 (); g_scene.ringR = g_ringR;
+	g_scene.focus = g_act.out.center;
 	g_px = ui.surf; g_W = (int) ui.w; g_H = (int) ui.h;
-	g_scene.draw (g_px, g_W, g_H, g_W, g_t);
+	g_scene.draw (g_px + (long) g_hud.vy * g_W + g_hud.vx, g_hud.vw, g_hud.vh, g_W, g_t);
 	ga::Img im = ga::window ();
 	g_hud.draw (im, g_pet, g_act, g_scene.cam, g_scene.light);
 	g_saveIn -= dt;
@@ -508,7 +519,7 @@ void app_init (int argc, char **argv)
 	g_pet.speed = 1;
 	testArgs (argc, argv, fresh, stage, seed);
 	speedArg = g_pet.speed;
-	g_scene.init (12345);
+	g_scene.init ();
 	g_snd.open ();
 	bool loaded = !fresh && g_pet.load (SAVE);
 	if (!loaded)
@@ -527,7 +538,7 @@ void app_init (int argc, char **argv)
 		if (stage <= 0)
 		{
 			char t[400];
-			snprintf (t, sizeof t, "%s\n%s\n%s", TR ("Un œuf mystérieux vient d'apparaître dans la prairie."),
+			snprintf (t, sizeof t, "%s\n%s\n%s", TR ("Un œuf mystérieux vient d'apparaître."),
 				  TR ("Il va bientôt éclore : la créature qui en sortira"), TR ("est unique, et changera à chaque stade de sa vie."));
 			g_hud.showCard (C_WELCOME, TR ("Un œuf !"), t);
 		}

@@ -1,6 +1,6 @@
 # Morpho
 
-An egg has appeared in the meadow. A small, unique creature will hatch from it and grow up with you: **baby**,
+An egg has just appeared. A small, unique creature will hatch from it and grow up with you: **baby**,
 **child**, **teenager**, **adult**, then **elder**. At each stage it changes: legs, horns, ears, mouth, back, wings and
 colours are drawn at random, from what it was and the care it received. A well cared-for creature often has brighter
 colours, and sometimes wings.
@@ -24,8 +24,8 @@ When it needs something, a bubble appears above its head.
 ## Actions
 
 - **Feed** (N), then **Meal**, **Fruit** or **Treat** (1, 2, 3).
-- **Play** (J): a ball appears; click in the meadow to throw it, it runs to catch it and brings it back.
-- **Wash** (L): a bubble bath, and the meadow cleaned up.
+- **Play** (J): a ball appears; click in the scene to throw it, it runs to catch it and brings it back.
+- **Wash** (L): a bubble bath, and everything cleaned up.
 - **Heal** (O): medicine (it does not like it, but it cures it).
 - **Bedtime / Light on** (E): switch the light off for the night, or back on.
 - **Cuddle** (C), or drag the mouse over it: it closes its eyes with pleasure.

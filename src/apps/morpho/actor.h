@@ -1,5 +1,5 @@
 //
-// actor.h -- Morpho : l'animal sur la prairie. Ce qu'il fait (flâner, regarder, manger, jouer à la balle, dormir,
+// actor.h -- Morpho : l'animal sur son socle. Ce qu'il fait (flâner, regarder, manger, jouer à la balle, dormir,
 // bouder, se faire câliner, éclore, se métamorphoser) devient une pose (creature.h) à chaque image ; les objets
 // (nourriture, balle, crottes, pilule, bulles, coquille) et les particules 2D (cœurs, étoiles, Zzz) qui vont avec.
 //

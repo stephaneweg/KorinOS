@@ -135,5 +135,5 @@
 - [TerraCube](armpi-terracube.md) — 19/11 : bac à sable de blocs sur GlKit (PC), scripts Python/BASIC port 4730, MCP 7312 ; QEMU seulement
 - [Noyau Linux écarté](armpi-noyau-linux.md) — 20/11 : Korin sur Linux (Elegant sur DRM) seulement en cas de vrai blocage ; on garde le micronoyau from scratch
 - [Relics](armpi-relics.md) — jeu à la Rick Dangerous en C sur gamefb (19/11) : 7 mondes, 21 niveaux de tools/relics/mklevels.py vérifiés par run.sh, musique (music.h), fuites devant le rocher ; PC 1.1.2 publié
-- [Morpho](armpi-morpho.md) — animal de compagnie à la Tamagotchi (20/11) : créature 3D paramétrique façon Spore, C++ sur gk_draw, stades tirés au hasard ; banc hôte tools/morpho ; QEMU PC seulement, pas publié
+- [Morpho](armpi-morpho.md) — animal de compagnie à la Tamagotchi (20/11) : créature 3D paramétrique façon Spore, C++ sur gk_draw, vue « studio » sombre encadrée, stades tirés au hasard ; banc hôte tools/morpho ; QEMU PC seulement, pas publié
 - [Win16](armpi-win16.md) — 20/11 : apps Windows 3.x d'après winevdm, couche maison sur UIKit, GPL-2 accepté, Open Watcom ; src/apps/win16, docs/etude/WIN16.md

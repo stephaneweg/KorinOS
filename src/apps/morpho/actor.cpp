@@ -1,5 +1,5 @@
 //
-// actor.cpp -- Morpho : l'animal sur la prairie (actor.h).
+// actor.cpp -- Morpho : l'animal dans son studio (actor.h).
 //
 #include "actor.h"
 #include <stdlib.h>
@@ -10,7 +10,6 @@ static float frand () { return (float) rand () / (float) RAND_MAX; }
 static float wrapA (float a) { while (a > PI) a -= 2 * PI; while (a < -PI) a += 2 * PI; return a; }
 static float approach (float v, float to, float rate, float dt) { float k = 1 - expf (-rate * dt); return v + (to - v) * k; }
 static V3 fwdOf (float yaw) { return V3 (sinf (yaw), 0, cosf (yaw)); }
-static const float CLEARING = 1.15f;
 
 void Actor::reset (const Pet &p)
 {
@@ -86,7 +85,7 @@ void Actor::throwBall (const V3 &from_, const V3 &to_)
 	if (!ballOn) return;
 	V3 dst = to_;
 	float r = sqrtf (dst.x * dst.x + dst.z * dst.z);
-	if (r > 2.2f) dst = dst * (2.2f / r);
+	if (r > 1.4f) dst = dst * (1.4f / r);
 	ballHeld = false;
 	ball = from_;
 	const float T = 0.95f;
@@ -209,7 +208,7 @@ void Actor::update (float dt, Pet &p, const V3 &camEye, const V3 *cursor)
 			float sadK = moodS < -0.3f ? 1.8f : 1;
 			if (r < 0.42f / sadK)
 			{
-				float a = frand () * 2 * PI, d = sqrtf (frand ()) * CLEARING;
+				float a = frand () * 2 * PI, d = sqrtf (frand ()) * (0.15f + 0.3f * fmaxf (size, 0.5f));	// (il reste sur son socle)
 				target = V3 (cosf (a) * d, 0, sinf (a) * d);
 				walking = len (target - pos) > 0.25f;
 			}
@@ -317,7 +316,7 @@ void Actor::update (float dt, Pet &p, const V3 &camEye, const V3 *cursor)
 				float k = expf (-1.6f * dt); ballV.x *= k; ballV.z *= k;
 			}
 			float r = sqrtf (ball.x * ball.x + ball.z * ball.z);
-			if (r > 2.4f) { V3 n = V3 (ball.x, 0, ball.z) * (1 / r); float vn = dot (ballV, n); if (vn > 0) ballV -= n * (vn * 1.6f); ball.x = n.x * 2.4f; ball.z = n.z * 2.4f; }
+			if (r > 1.5f) { V3 n = V3 (ball.x, 0, ball.z) * (1 / r); float vn = dot (ballV, n); if (vn > 0) ballV -= n * (vn * 1.6f); ball.x = n.x * 1.5f; ball.z = n.z * 1.5f; }
 			ballSpin += len (V3 (ballV.x, 0, ballV.z)) * dt / R;
 			ballIdle += dt;
 			// il court après
@@ -339,7 +338,7 @@ void Actor::update (float dt, Pet &p, const V3 &camEye, const V3 *cursor)
 			{
 				// (personne ne lance : il pousse la balle lui-même)
 				float a = frand () * 2 * PI;
-				ballV = V3 (cosf (a) * 1.6f, 2.2f, sinf (a) * 1.6f); ballIdle = 0;
+				ballV = V3 (cosf (a) * 1.1f, 2.2f, sinf (a) * 1.1f); ballIdle = 0;
 				sound (SND_BOUNCE);
 			}
 			if (ballIdle > 4 && actT > 25) { ballOn = false; act = A_IDLE; }
@@ -430,7 +429,7 @@ void Actor::update (float dt, Pet &p, const V3 &camEye, const V3 *cursor)
 		if (fabsf (diff) > 0.6f || (act != A_IDLE)) yaw += clampf (diff, -1.6f * dt, 1.6f * dt);
 	}
 	float r = sqrtf (pos.x * pos.x + pos.z * pos.z);
-	if (r > 2.3f) pos = pos * (2.3f / r);
+	if (r > 1.5f) pos = pos * (1.5f / r);
 
 	// ---- la tête regarde
 	if (lookFree)
@@ -497,7 +496,7 @@ void Actor::update (float dt, Pet &p, const V3 &camEye, const V3 *cursor)
 	while ((int) poops.size () < p.poops)
 	{
 		V3 b = pos - fwdOf (yaw) * (0.3f + 0.25f * size) + V3 ((frand () - 0.5f) * 0.2f, 0, (frand () - 0.5f) * 0.2f);
-		float rr = sqrtf (b.x * b.x + b.z * b.z); if (rr > 2.0f) b = b * (2.0f / rr);
+		float rr = sqrtf (b.x * b.x + b.z * b.z); if (rr > 1.2f) b = b * (1.2f / rr);
 		poops.push_back ({ b, 0, 0 });
 		sound (SND_POP);
 	}

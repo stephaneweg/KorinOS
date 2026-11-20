@@ -5,6 +5,11 @@ soigner, coucher et câliner. Il vit en temps réel (même l'app fermée) de l'�
 chaque stade. Jeu original : les créatures sont **paramétriques**, sur le principe de celles de Spore (un corps sur une
 colonne, des pièces posées dessus), sans en reprendre aucune.
 
+L'app est un « studio » (direction proposée par Gemini à partir de `tools/morpho`, le 20/11) : la vue 3D, sombre dans les
+deux thèmes, est encadrée au milieu de la fenêtre, sans décor (un dégradé, un halo, un anneau de socle, l'ombre) ; autour,
+aux jetons du thème : l'en-tête (nom, stade, caractère, Fiche), les cinq jauges en cartes, la rangée des six soins. La
+fiche glisse en tiroir depuis la droite de la vue ; messages et bulle restent dans la vue, en verre fumé.
+
     sh tools/pc/apps.sh morpho                 # Korin PC (avec GlKit construit : le GPU Intel, sinon le processeur)
     sh tools/office/build.sh morpho            # le Pi (gk_draw : le V3D, sinon le processeur)
     sh tools/morpho/run.sh gallery 4 1 4 3 out.png   # sur l'hôte Linux : des créatures adultes au hasard
@@ -21,11 +26,11 @@ Sauvegarde : `HOME:/morpho/pet.ini`. Essais : `main new` (nouvel œuf), `speed=N
 | `genome.h` | le génome : corps, membres, face, dos, ailes, couleurs, caractère ; `evolve` tire le stade suivant d'après le précédent et les soins ; `blend` (la métamorphose) |
 | `creature.cpp` | la créature : surface balayée le long d'une colonne (sections elliptiques lissées), pièces posées par lancer de rayon contre une distance signée, jambes et bras en cinématique inverse à deux os ; la texture de la peau (motifs) et de la coquille |
 | `mesh.h` | maillages indexés et primitives : ellipsoïdes, tubes lissés (repères transportés, bouts arrondis), feuilles à deux faces |
-| `render.cpp` | éclairage par sommet (soleil enveloppant, ciel et sol, reflet, contre-jour, brouillard), lumière de l'heure, ciel 2D (soleil, lune, étoiles, nuages), prairie et décor |
-| `scene.cpp` | le dessin par `gk_draw` ; au processeur, demi-taille quand une image dépasse 45 ms, et pas de texture d'herbe |
+| `render.cpp` | éclairage par sommet (lumière de studio qui suit la caméra, ciel et sol, reflet, contre-jour) ; l'heure ne fait que teinter le fond et la lumière (nuit plus bleue, aube et crépuscule plus chauds, lampe éteinte : lune) ; le fond 2D (dégradé tramé, halo, socle) |
+| `scene.cpp` | le dessin par `gk_draw` dans le cadre de la vue ; au processeur, demi-taille quand une image dépasse 45 ms |
 | `pet.cpp` | la vie : besoins, sommeil, crottes, maladie, poids, stades, départ ; rattrapage du temps passé app fermée (plus doux, au plus 3 jours) ; sauvegarde |
 | `actor.cpp` | ce que fait l'animal (flâner, regarder, manger, jouer à la balle, dormir, bain, médicament, câlin, éclosion, métamorphose) -> une pose ; les objets 3D et les particules |
-| `hud.cpp` | l'interface 2D aux jetons du thème : carte et jauges, barre des soins à icônes dessinées, choix du repas, fiche, messages, bulle au-dessus de la tête, cartes des grands moments |
+| `hud.cpp` | la mise en page (`layout` : la place de la vue ; compacte sous 700 × 500, des icônes seules) et l'interface 2D aux jetons du thème : en-tête, jauges, soins à icônes dessinées, choix du repas, tiroir de la fiche, messages, bulle, cartes des grands moments |
 | `main.cpp` | fenêtre, boucle (30 images/s au plus, `WEV_FRAME`), souris, clavier, menus, sons (voix FM d'AudioKit, plus aiguë quand il est petit) |
 
 ## Les stades

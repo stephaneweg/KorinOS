@@ -1,6 +1,6 @@
 # Morpho
 
-Un œuf est apparu dans la prairie. Il en sortira une petite créature, unique, qui grandira avec vous : **bébé**,
+Un œuf vient d'apparaître. Il en sortira une petite créature, unique, qui grandira avec vous : **bébé**,
 **enfant**, **adolescent**, **adulte**, puis **ancien**. À chaque stade, elle change : pattes, cornes, oreilles,
 bouche, dos, ailes et couleurs sont tirés au hasard, d'après ce qu'elle était et les soins qu'elle a reçus. Une
 créature bien soignée a souvent des couleurs plus franches, et parfois des ailes.
@@ -24,8 +24,8 @@ Quand quelque chose lui manque, une bulle apparaît au-dessus de sa tête.
 ## Les gestes
 
 - **Nourrir** (N), puis **Repas**, **Fruit** ou **Friandise** (1, 2, 3).
-- **Jouer** (J) : une balle apparaît ; cliquez dans la prairie pour la lancer, il court l'attraper et la rapporte.
-- **Laver** (L) : un bain moussant, et la prairie nettoyée.
+- **Jouer** (J) : une balle apparaît ; cliquez dans la scène pour la lancer, il court l'attraper et la rapporte.
+- **Laver** (L) : un bain moussant, et tout est nettoyé.
 - **Soigner** (O) : un médicament (il n'aime pas ça, mais ça le guérit).
 - **Coucher / Allumer** (E) : éteindre la lumière pour la nuit, la rallumer.
 - **Câliner** (C), ou glisser la souris sur lui : il ferme les yeux de plaisir.

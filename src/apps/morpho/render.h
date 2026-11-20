@@ -1,7 +1,7 @@
 //
 // render.h -- Morpho : la caméra, la lumière du moment (heure du jour, lampe éteinte), l'éclairage des maillages
-// (par sommet : soleil enveloppant, ciel et sol, reflet, contre-jour, brouillard) en sommets de GpuKit, le ciel en 2D,
-// la prairie et son décor.
+// (par sommet : lumière principale enveloppante, ciel et sol, reflet, contre-jour) en sommets de GpuKit, le fond du
+// studio en 2D (dégradé sombre, halo, anneau du socle).
 //
 #ifndef MORPHO_RENDER_H
 #define MORPHO_RENDER_H
@@ -44,19 +44,21 @@ struct Camera
 
 struct Light
 {
-	V3 sun = V3 (0.4f, 0.8f, 0.45f);
+	V3 sun = V3 (0.4f, 0.8f, 0.45f);	// la lumière principale (vers elle)
 	Col sunC, skyC, groundC, rimC, fog;
-	Col skyTop, skyHor, skyLow;		// le ciel en 2D
-	Col sunDisc;
-	float amb = 0.6f, fogNear = 7, fogFar = 22;
-	float night = 0;			// 0 jour, 1 nuit (étoiles, lune)
-	float sunUp = 1;			// le disque du soleil est-il au ciel
+	float amb = 0.6f, rimK = 0.3f, fogNear = 1e4f, fogFar = 2e4f;
+	float night = 0;			// 0 jour, 1 nuit
 	float hour = 12;
+	// le studio : le fond (dégradé) et le halo derrière l'animal
+	Col bgTop, bgBot, glow;
+	float glowK = 1;
 };
-// l'heure (0..24) et la lampe (true : éteinte) -> la lumière
-Light lightAt (float hour, bool lampOff, float overcast);
+// la lumière du studio : l'heure teinte le fond et la lumière ; lampOff : la nuit, lumière éteinte. La lumière
+// principale est placée par rapport à la caméra (keyFrom)
+Light studioLight (float hour, bool lampOff);
+void keyFrom (Light &L, const Camera &C);
 
-enum { TEX_SKIN, TEX_SHADOW, TEX_GRASS, TEX_N };
+enum { TEX_SKIN, TEX_SHADOW, TEX_N };
 
 struct DrawList
 {
@@ -67,12 +69,10 @@ struct DrawList
 	void add (const Mesh &m, const Light &L, const Camera &C);
 };
 
-// la prairie, les fleurs, les arbres au loin (une fois)
-void buildWorld (Mesh &ground, Mesh &decor, Mesh &grassBlades, uint32_t seed);
 void makeShadowTex (uint32_t *px, int n);
-void makeGrassTex (uint32_t *px, int n);
-// le ciel dans les pixels (0x00RRGGBB), avec le soleil, la lune, les étoiles, les nuages
-void drawSky (uint32_t *px, int w, int h, int stride, const Camera &C, const Light &L, float t, float clouds);
+// le fond du studio dans les pixels (0x00RRGGBB) : le dégradé, le halo derrière l'animal (at, en monde), l'anneau du
+// socle au sol (centre, rayon)
+void drawStudio (uint32_t *px, int w, int h, int stride, const Camera &C, const Light &L, const V3 &at, const V3 &ringC, float ringR, float t);
 
 }	// namespace mo
 #endif

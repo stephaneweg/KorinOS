@@ -175,6 +175,7 @@ void Hud::update (float dt)
 		else i++;
 	}
 	if (card) cardT += dt;
+	infoT = clampf (infoT + (infoOpen ? dt : -dt) * 5, 0, 1);
 }
 int Hud::hit (int x, int y) const
 {
@@ -195,35 +196,87 @@ bool Hud::over (int x, int y) const
 	return false;
 }
 
+// ==== la mise en page =================================================================================================
+// Le châssis : l'en-tête en haut (le nom, la fiche), la vue 3D encadrée au milieu, puis les jauges et la rangée des soins.
+// Rien ne mord sur la vue, sauf ce qui parle de l'animal (messages, bulle) et le tiroir de la fiche.
+static const int MARGIN = 12;
+void Hud::layout (int W, int H)
+{
+	w = W; h = H;
+	compact = W < 700 || H < 500;
+	k = clampf (fminf ((float) W / 960, (float) H / 660), 0.85f, 1.3f);
+	auto K = [&] (float v) { return (int) (v * k + 0.5f); };
+	int head = compact ? K (40) : K (58), gauges = compact ? K (30) : K (50), dock = compact ? K (64) : K (60);
+	vx = MARGIN; vy = head;
+	vw = W - 2 * MARGIN;
+	vh = H - head - K (10) - gauges - K (10) - dock;
+	if (vh < 80) vh = 80;
+}
+
 // ==== le dessin =======================================================================================================
-static void panel (Img &im, int x, int y, int w, int h, int r, int a = 242)
+static unsigned cardFill () { return darkTheme () ? ga::mix (tok (TJ_SURFACE), tok (TJ_RAISED), 150) : tok (TJ_SURFACE); }
+static void panel (Img &im, int x, int y, int w, int h, int r, int a = 250)
 {
 	bool dk = darkTheme ();
-	// l'ombre portée, douce
-	for (int i = 3; i >= 1; i--) im.rbox (x - i + 1, y + i * 2 - 1, w + 2 * i - 2, h + 2 * i - 1, r + i, 0, 0, dk ? 34 : 16);
-	unsigned s = tok (TJ_SURFACE);
-	im.rbox (x, y, w, h, r, s, ga::mix (s, tok (TJ_FACE), 90), a, tok (TJ_LINE));
+	for (int i = 3; i >= 1; i--) im.rbox (x - i + 1, y + i * 2 - 1, w + 2 * i - 2, h + 2 * i - 1, r + i, 0, 0, dk ? 40 : 18);
+	unsigned s = cardFill ();
+	im.rbox (x, y, w, h, r, s, s, a, tok (TJ_LINE));
 }
 static void pill (Img &im, int x, int y, int w, int h, unsigned bg, int a = 256) { im.rbox (x, y, w, h, h / 2, bg, bg, a); }
+// ce qui est dans la vue (toujours sombre) : un verre fumé, quel que soit le thème
+static const unsigned GLASS = 0x252931, GLASS_LINE = 0x3A3F49, GLASS_TEXT = 0xECEEF2, GLASS_DIM = 0xA8AFBA;
+static void glassPill (Img &im, int x, int y, int w, int h, int a = 236)
+{
+	for (int i = 2; i >= 1; i--) im.rbox (x - i + 1, y + i * 2 - 1, w + 2 * i - 2, h + 2 * i - 1, h / 2 + i, 0, 0, 50);
+	im.rbox (x, y, w, h, h / 2, GLASS, GLASS, a, GLASS_LINE);
+}
+// les coins arrondis de la vue : le châssis repeint au-delà du rayon (anticrénelé), puis un liseré
+static void frameView (Img &im, int x, int y, int w, int h, int r, unsigned outer, unsigned line)
+{
+	for (int j = 0; j < r; j++)
+		for (int i = 0; i < r; i++)
+		{
+			float dx = (float) (r - i) - 0.5f, dy = (float) (r - j) - 0.5f;
+			float d = sqrtf (dx * dx + dy * dy);
+			float out = clampf (d - (float) r + 0.5f, 0, 1);		// hors du coin
+			float edge = clampf (1 - fabsf (d - (float) r + 1), 0, 1);	// le liseré
+			int px[4] = { x + i, x + w - 1 - i, x + i, x + w - 1 - i }, py[4] = { y + j, y + j, y + h - 1 - j, y + h - 1 - j };
+			for (int c = 0; c < 4; c++)
+			{
+				if (edge > 0) im.put (px[c], py[c], line, (int) (edge * 256));
+				if (out > 0) im.put (px[c], py[c], outer, (int) (out * 256));
+			}
+		}
+	im.rect (x + r, y, w - 2 * r, 1, line); im.rect (x + r, y + h - 1, w - 2 * r, 1, line);
+	im.rect (x, y + r, 1, h - 2 * r, line); im.rect (x + w - 1, y + r, 1, h - 2 * r, line);
+}
 
 void Hud::draw (Img &im, const Pet &p, const Actor &a, const Camera &cam, const Light &L)
 {
-	w = im.w; h = im.h;
-	k = clampf (fminf ((float) w / 960, (float) h / 660), 0.72f, 1.45f);
+	(void) L;
 	auto K = [&] (float v) { return (int) (v * k + 0.5f); };
 	nh = 0;
 	auto addHit = [&] (int act, int x, int y, int ww, int hh, bool on) { if (nh < 32) hits[nh++] = { act, x, y, ww, hh, on }; };
 	unsigned T1 = tok (TJ_TEXT1), T2 = tok (TJ_TEXT2), T3 = tok (TJ_TEXT3), ACC = tok (TJ_ACCENT);
+	unsigned CH = darkTheme () ? tok (TJ_SURFACE) : tok (TJ_FACE);			// le châssis
+	unsigned CARD = cardFill (), LINE = tok (TJ_LINE);
 	char b[256], b2[128];
-	int m = K (14);
 	bool egg = p.g.stage == ST_EGG;
+	const int R = K (14);
 
-	// ---- les particules (sous l'interface)
+	// ---- le châssis autour de la vue, ses coins arrondis
+	im.rect (0, 0, w, vy, CH); im.rect (0, vy + vh, w, h - vy - vh, CH);
+	im.rect (0, vy, vx, vh, CH); im.rect (vx + vw, vy, w - vx - vw, vh, CH);
+	frameView (im, vx, vy, vw, vh, R, CH, darkTheme () ? 0x2C313A : ga::mix (LINE, tok (TJ_LINE_STRONG), 128));
+
+	// ---- dans la vue : les particules, l'éclair, la bulle
+	im.clip (vx + 1, vy + 1, vx + vw - 1, vy + vh - 1);
 	for (const Particle &q : a.parts)
 	{
 		if (q.kind == P_BUBBLE) continue;
 		float sx, sy, d;
 		if (!cam.project (q.p, sx, sy, &d)) continue;
+		sx += (float) vx; sy += (float) vy;
 		float sc = k * clampf (3.2f / d, 0.45f, 1.7f);
 		float life = q.life / q.max;
 		int al = (int) (256 * clampf (life * 2.5f, 0, 1));
@@ -239,9 +292,9 @@ void Hud::draw (Img &im, const Pet &p, const Actor &a, const Camera &cam, const 
 		case P_SPARK: im.glow (sx, sy, 10 * sc * q.size, ga::shade (q.col, 140)); im.disc (sx, sy, 2 * sc, q.col, al); break;
 		case P_Z:
 		{
+			if (!inView ((int) sx, (int) sy - 10)) break;
 			int px = (int) (10 * sc + (1 - life) * 9 * sc);
-			ga::text ((int) sx + 1, (int) sy + 1, "z", 0x203040, px, true);
-			ga::text ((int) sx, (int) sy, "z", 0xFFFFFF, px, true);
+			ga::text ((int) sx, (int) sy, "z", ga::mix (0x0E1015, 0xDDE6FF, al), px, true);
 			break;
 		}
 		case P_DROP: drop (im, sx, sy, 5 * sc * q.size, q.col, al); break;
@@ -266,220 +319,282 @@ void Hud::draw (Img &im, const Pet &p, const Actor &a, const Camera &cam, const 
 		default: break;
 		}
 	}
-	// l'éclair blanc
-	if (a.flash > 0.01f) im.rect (0, 0, w, h, 0xFFFFFF, (int) (a.flash * 220));
-
-	// ---- la bulle au-dessus de la tête : ce qu'il lui faut
+	if (a.flash > 0.01f) im.rect (vx, vy, vw, vh, 0xFFFFFF, (int) (a.flash * 200));
 	int need = p.worst ();
-	if (need >= 0 && a.act == A_IDLE && !p.asleep && !a.ballOn)
+	if (need >= 0 && a.act == A_IDLE && !p.asleep && !a.ballOn && infoT < 0.5f)
 	{
 		float sx, sy;
 		if (cam.project (a.out.top, sx, sy))
 		{
+			sx += (float) vx; sy += (float) vy;
 			float bob = sinf (t * 3) * 3 * k;
-			int R = K (17);
-			float cy = sy - K (26) + bob;
-			unsigned bg = tok (TJ_SURFACE);
-			im.disc (sx + 2, cy + 3, (float) R + 1, 0, 40);
-			im.disc (sx, cy, (float) R + 1.5f, tok (TJ_LINE));
-			im.disc (sx, cy, (float) R, bg);
-			float tri[6] = { sx - R * 0.35f, cy + R * 0.8f, sx + R * 0.15f, cy + R * 0.8f, sx - R * 0.3f, cy + R * 1.45f };
-			im.poly (tri, 3, bg);
+			int Rb = K (16);
+			float cy = sy - K (24) + bob;
+			float top = (float) (vy + K (12) + (nt ? K (40) : 0) + Rb);	// (sous les messages, dans la vue)
+			if (cy < top) { cy = top; sx += (float) K (46); }
+			im.disc (sx, cy + 2, (float) Rb + 2, 0, 70);
+			im.disc (sx, cy, (float) Rb + 1, GLASS_LINE);
+			im.disc (sx, cy, (float) Rb, GLASS);
+			float tri[6] = { sx - Rb * 0.35f, cy + Rb * 0.82f, sx + Rb * 0.15f, cy + Rb * 0.82f, sx - Rb * 0.32f, cy + Rb * 1.42f };
+			im.poly (tri, 3, GLASS);
 			int ic = need == N_FOOD ? I_FOOD : need == N_FUN ? I_FUN : need == N_ENERGY ? I_ENERGY : need == N_CLEAN ? (p.poops >= 2 ? I_POOP : I_CLEAN) : I_HEALTH;
-			unsigned c = need == N_CLEAN && p.poops >= 2 ? 0x8A5A30 : NEED_C[need];
-			if (need == N_HEALTH && p.sick) c = 0x47BE78;
-			icon (im, ic, sx, cy, (float) R * 0.62f, c, t);
-			if (p.sick && need == N_HEALTH) { im.disc (sx + R * 0.7f, cy - R * 0.7f, (float) R * 0.32f, tok (TJ_DANGER)); ga::textC ((int) (sx + R * 0.7f), (int) (cy - R * 0.7f + R * 0.22f), "!", 0xFFFFFF, K (11), true); }
+			unsigned c = need == N_CLEAN && p.poops >= 2 ? 0xB07A48 : NEED_C[need];
+			icon (im, ic, sx, cy, (float) Rb * 0.6f, c, t);
+			if (p.sick && need == N_HEALTH) im.disc (sx + Rb * 0.72f, cy - Rb * 0.72f, (float) Rb * 0.28f, tok (TJ_DANGER));
+		}
+	}
+	im.noClip ();
+
+	// ---- dans la vue : les messages en haut, ce qui se passe en bas
+	{
+		int y = vy + K (12);
+		for (int i = 0; i < nt && i < 2; i++)
+		{
+			const Toast &q = toasts[i];
+			float in = smooth (0, 0.25f, q.t), out = 1 - smooth (q.life - 0.5f, q.life, q.t);
+			float al = fminf (in, out);
+			int th = K (32);
+			int tw = ga::textW (q.text, K (13), true) + K (32) + (q.icon >= 0 ? K (20) : 0);
+			int x = vx + (vw - tw) / 2, yy = y - (int) ((1 - in) * (float) K (10));
+			glassPill (im, x, yy, tw, th, (int) (al * 236));
+			int tx = x + K (16);
+			if (q.icon >= 0) { icon (im, q.icon, (float) (tx + K (7)), (float) (yy + th / 2), (float) K (7), q.icon < N_COUNT ? NEED_C[q.icon] : ACC, t); tx += K (20); }
+			if (al > 0.4f) ga::text (tx, yy + K (21), q.text, ga::mix (GLASS, GLASS_TEXT, (int) (al * 256)), K (13), true);
+			y += K (40);
+		}
+		const char *hint = 0;
+		if (p.gone) hint = 0;
+		else if (p.asleep) hint = p.lampOff ? TR ("Chut… il dort. Zzz") : TR ("Il dort : éteignez la lumière pour qu'il se repose mieux.");
+		else if (a.ballOn) { snprintf (b2, sizeof b2, TR ("Cliquez dans la scène pour lancer la balle · attrapées : %d"), a.catches); hint = b2; }
+		else if (egg && a.act != A_HATCH) hint = TR ("L'œuf frémit… il va bientôt éclore.");
+		if (hint && !(feedOpen && !compact))
+		{
+			int tw = ga::textW (hint, K (12), false) + K (28), th = K (28);
+			if (tw > vw - K (20)) tw = vw - K (20);
+			int x = vx + (vw - tw) / 2, y2 = vy + vh - th - K (12);
+			glassPill (im, x, y2, tw, th, 220);
+			ga::textC (vx + vw / 2, y2 + K (19), hint, GLASS_DIM, K (12), false);
 		}
 	}
 
-	// ---- la carte de l'animal
+	// ---- l'en-tête : le nom, le stade, le caractère ; la fiche à droite (avant les boutons de la fenêtre)
 	{
-		int cw = K (244), x = m, y = m;
-		int ch = egg || p.gone ? K (92) : K (214);
-		panel (im, x, y, cw, ch, K (14));
-		addHit (H_INFO, x, y, cw, ch, true);
-		ga::text (x + K (16), y + K (30), p.name, T1, K (19), true);
-		int nx = x + K (16) + ga::textW (p.name, K (19), true) + K (8);
+		int x = MARGIN + K (6);
+		int base = compact ? K (27) : K (27);
+		ga::text (x, base, p.name, T1, K (compact ? 16 : 18), true);
+		int nx = x + ga::textW (p.name, K (compact ? 16 : 18), true) + K (10);
 		const char *sn = p.gone ? TR ("Parti") : stageName (p.g.stage);
-		int pw = ga::textW (sn, K (11), true) + K (16);
-		pill (im, nx, y + K (16), pw, K (19), ga::mix (tok (TJ_SURFACE), ACC, 50));
-		ga::text (nx + K (8), y + K (30), sn, ga::mix (ACC, T1, 60), K (11), true);
+		int pw = ga::textW (sn, K (11), true) + K (18), ph = K (20);
+		pill (im, nx, base - K (15), pw, ph, ga::mix (CH, ACC, darkTheme () ? 70 : 40));
+		ga::text (nx + K (9), base - K (1), sn, darkTheme () ? tok (TJ_ACCENT_VIVID) : tok (TJ_ACCENT_DARK), K (11), true);
+		nx += pw + K (8);
 		if (p.speed > 1)
 		{
 			snprintf (b, sizeof b, "×%d", p.speed);
-			int sw = ga::textW (b, K (11), true) + K (12);
-			pill (im, x + cw - sw - K (12), y + K (16), sw, K (19), ga::mix (tok (TJ_SURFACE), tok (TJ_WARNING), 70));
-			ga::text (x + cw - sw - K (6), y + K (30), b, T1, K (11), true);
+			int sw = ga::textW (b, K (11), true) + K (14);
+			pill (im, nx, base - K (15), sw, ph, ga::mix (CH, tok (TJ_WARNING), 60));
+			ga::text (nx + K (7), base - K (1), b, T1, K (11), true);
 		}
-		formatAge (p.age, b2, sizeof b2);
-		if (egg) snprintf (b, sizeof b, TR ("Génération %d · éclosion bientôt"), p.generation);
-		else snprintf (b, sizeof b, TR ("%s · génération %d"), b2, p.generation);
-		ga::text (x + K (16), y + K (50), b, T2, K (12), false);
-		if (egg || p.gone)
+		if (!compact)
 		{
-			// la barre de l'éclosion
-			int bx = x + K (16), by = y + K (64), bw = cw - K (32), bh = K (10);
-			im.rbox (bx, by, bw, bh, bh / 2, tok (TJ_SUNKEN), tok (TJ_SUNKEN));
-			float f = p.gone ? 1 : sat (p.stageProgress ());
-			if (f > 0.02f) im.rbox (bx, by, (int) ((float) bw * f), bh, bh / 2, ga::shade (ACC, 300), ACC);
+			formatAge (p.age, b2, sizeof b2);
+			if (egg) snprintf (b, sizeof b, TR ("Génération %d · éclosion bientôt"), p.generation);
+			else snprintf (b, sizeof b, "%s · %s · %s %d", traitName (p.g.trait), b2, TR ("génération"), p.generation);
+			im.disc ((float) (x + K (5)), (float) (base + K (14)), (float) K (4), T3);
+			ga::text (x + K (14), base + K (18), b, T3, K (12), false);
 		}
-		else
+		// la fiche
+		int bh = K (32), bw = compact ? bh : ga::textW (TR ("Fiche"), K (13), true) + K (44);
+		int bx = w - FRAME_CAP_W - MARGIN - bw, by = (vy - bh) / 2;
+		if (bx > nx + K (60))
 		{
-			static const char *const NAMES[N_COUNT] = { "Satiété", "Bonheur", "Énergie", "Propreté", "Santé" };
-			static const int ICONS[N_COUNT] = { I_FOOD, I_FUN, I_ENERGY, I_CLEAN, I_HEALTH };
-			im.rect (x + K (14), y + K (62), cw - K (28), 1, tok (TJ_LINE));
-			for (int i = 0; i < N_COUNT; i++)
-			{
-				int ry = y + K (72) + i * K (27);
-				float v = p.st[i];
-				bool low = v < 25;
-				unsigned c = NEED_C[i];
-				im.disc ((float) (x + K (28)), (float) (ry + K (11)), (float) K (11), ga::mix (tok (TJ_SURFACE), c, 50));
-				icon (im, ICONS[i], (float) (x + K (28)), (float) (ry + K (11)), (float) K (7), c, t);
-				ga::text (x + K (46), ry + K (10), TR (NAMES[i]), T2, K (11), false);
-				int bx = x + K (46), by = ry + K (14), bw = cw - K (46) - K (16), bh = K (7);
-				im.rbox (bx, by, bw, bh, bh / 2, tok (TJ_SUNKEN), tok (TJ_SUNKEN));
-				int fw = (int) ((float) bw * v / 100);
-				unsigned fc = low ? tok (TJ_DANGER) : c;
-				int al = low ? (int) (180 + 76 * sinf (t * 6)) : 256;
-				if (fw > bh / 2) im.rbox (bx, by, fw, bh, bh / 2, ga::shade (fc, 290), fc, al);
-				snprintf (b, sizeof b, "%d", (int) (v + 0.5f));
-				ga::textR (x + cw - K (16), ry + K (10), b, low ? tok (TJ_DANGER) : T3, K (10), true);
-			}
-			if (p.sick)
-			{
-				snprintf (b, sizeof b, "%s", TR ("Malade"));
-				int sw = ga::textW (b, K (10), true) + K (14);
-				pill (im, x + cw - sw - K (14) - K (24), y + K (72) + 4 * K (27) - K (3), sw, K (15), tok (TJ_DANGER));
-				ga::text (x + cw - sw - K (14) - K (24) + K (7), y + K (72) + 4 * K (27) + K (8), b, 0xFFFFFF, K (10), true);
-			}
+			bool hov = hover == H_INFO, sel = infoOpen;
+			unsigned bg = sel ? ga::mix (CARD, ACC, 60) : hov ? tok (TJ_HOVER) : CARD;
+			im.rbox (bx, by, bw, bh, K (8), bg, bg, 256, sel ? ACC : LINE);
+			float icx = (float) (bx + (compact ? bw / 2 : K (18))), icy = (float) (by + bh / 2);
+			// (une feuille au coin plié)
+			float fw = (float) K (6), fh = (float) K (8);
+			float sheet[10] = { icx - fw, icy - fh, icx + fw * 0.35f, icy - fh, icx + fw, icy - fh * 0.45f, icx + fw, icy + fh, icx - fw, icy + fh };
+			im.poly (sheet, 5, T2);
+			im.rect ((int) (icx - fw * 0.55f), (int) (icy - fh * 0.15f), (int) (fw * 1.1f), 1 + (int) k, CARD);
+			im.rect ((int) (icx - fw * 0.55f), (int) (icy + fh * 0.35f), (int) (fw * 1.1f), 1 + (int) k, CARD);
+			if (!compact) ga::text (bx + K (32), by + K (21), TR ("Fiche"), T1, K (13), true);
+			addHit (H_INFO, bx, by, bw, bh, true);
 		}
 	}
 
-	// ---- la barre des soins
+	// ---- les jauges, en cartes sous la vue
+	{
+		int gy = vy + vh + K (10), gh = compact ? K (30) : K (50);
+		int total = vw > K (900) ? K (900) : vw, gx = vx + (vw - total) / 2;
+		static const char *const NAMES[N_COUNT] = { "Satiété", "Bonheur", "Énergie", "Propreté", "Santé" };
+		static const int ICONS[N_COUNT] = { I_FOOD, I_FUN, I_ENERGY, I_CLEAN, I_HEALTH };
+		auto bar = [&] (int x, int y, int bw, float v, unsigned c, bool pulse) {
+			int bh = K (6);
+			im.rbox (x, y, bw, bh, bh / 2, tok (TJ_SUNKEN), tok (TJ_SUNKEN));
+			int fw = (int) ((float) bw * clampf (v, 0, 100) / 100);
+			int al = pulse ? (int) (170 + 86 * sinf (t * 6)) : 256;
+			if (fw >= bh) im.rbox (x, y, fw, bh, bh / 2, c, c, al);
+		};
+		if (egg || p.gone)
+		{
+			im.rbox (gx, gy, total, gh, K (10), CARD, CARD, 256, LINE);
+			float f = p.gone ? 1 : sat (p.stageProgress ());
+			if (!compact)
+			{
+				icon (im, I_EGG, (float) (gx + K (20)), (float) (gy + K (17)), (float) K (8), 0xF4EEDF, t);
+				ga::text (gx + K (34), gy + K (22), p.gone ? TR ("Parti") : TR ("Éclosion"), T1, K (12), true);
+				snprintf (b, sizeof b, "%d %%", (int) (f * 100));
+				ga::textR (gx + total - K (14), gy + K (22), b, ACC, K (12), true);
+				bar (gx + K (14), gy + K (32), total - K (28), f * 100, ACC, false);
+			}
+			else bar (gx + K (12), gy + gh / 2 - K (3), total - K (24), f * 100, ACC, false);
+		}
+		else
+		{
+			int gap = K (8), cw = (total - 4 * gap) / 5;
+			for (int i = 0; i < N_COUNT; i++)
+			{
+				int x = gx + i * (cw + gap);
+				float v = p.st[i];
+				bool low = v < 25 || (i == N_HEALTH && p.sick);
+				unsigned c = NEED_C[i], vc = low ? tok (TJ_DANGER) : c;
+				im.rbox (x, gy, cw, gh, K (10), CARD, CARD, 256, low ? ga::mix (LINE, tok (TJ_DANGER), 140) : LINE);
+				if (compact)
+				{
+					icon (im, ICONS[i], (float) (x + K (13)), (float) (gy + gh / 2), (float) K (6), c, t);
+					bar (x + K (24), gy + gh / 2 - K (3), cw - K (32), v, vc, low);
+					continue;
+				}
+				icon (im, ICONS[i], (float) (x + K (17)), (float) (gy + K (17)), (float) K (7), c, t);
+				const char *nm = TR (NAMES[i]);
+				bool roomy = cw > K (128);
+				if (roomy || ga::textW (nm, K (12), true) < cw - K (70)) ga::text (x + K (30), gy + K (22), nm, T1, K (12), true);
+				if (i == N_HEALTH && p.sick) snprintf (b, sizeof b, "%s", TR ("Malade"));
+				else snprintf (b, sizeof b, "%d %%", (int) (v + 0.5f));
+				ga::textR (x + cw - K (12), gy + K (22), b, vc, K (12), true);
+				bar (x + K (12), gy + K (32), cw - K (24), v, vc, low);
+			}
+		}
+		addHit (H_NONE, gx, gy, total, gh, true);
+	}
+
+	// ---- la rangée des soins
 	if (!p.gone)
 	{
+		int dy = vy + vh + K (10) + (compact ? K (30) : K (50)) + K (10);
+		im.rect (0, dy, w, 1, LINE);
 		struct B { int act, icon; const char *label; bool on; unsigned c; };
-		bool can = p.canAct ();
-		bool awake = can && !p.asleep;
-		B bs[7] = {
+		bool can = p.canAct (), awake = can && !p.asleep;
+		B bs[6] = {
 			{ H_FEED, I_BOWL, "Nourrir", awake, 0x45A8E6 },
 			{ H_PLAY, I_BALL, a.ballOn ? "Arrêter" : "Jouer", awake, 0 },
 			{ H_CLEAN, I_SOAP, "Laver", can, 0x45A8E6 },
 			{ H_HEAL, I_PILL, "Soigner", awake, 0 },
-			{ H_LAMP, p.lampOff ? I_SUN : I_MOON, p.lampOff ? "Allumer" : "Coucher", can, 0x6C7BD8 },
+			{ H_LAMP, p.lampOff ? I_SUN : I_MOON, p.lampOff ? "Allumer" : "Coucher", can, 0x8C98F0 },
 			{ p.asleep ? H_WAKE : H_CARESS, p.asleep ? I_ZZZ : I_HAND, p.asleep ? "Réveiller" : "Câliner", can, 0xEC5B8F },
-			{ H_INFO, I_INFO, "Fiche", true, T2 },
 		};
-		const int N = 7;
-		float kb = k;
-		int bd0 = 54, gap0 = 16, pad0 = 16;
-		int need0 = N * bd0 + (N - 1) * gap0 + 2 * pad0;
-		if ((float) need0 * kb > (float) (w - 2 * m)) kb = (float) (w - 2 * m) / (float) need0;
-		auto KB = [&] (float v) { return (int) (v * kb + 0.5f); };
-		int bd = KB ((float) bd0), gap = KB ((float) gap0), pad = KB ((float) pad0);
-		int bw = N * bd + (N - 1) * gap + 2 * pad, bh = bd + KB (34);
-		int bx = (w - bw) / 2, by = h - m - bh;
-		panel (im, bx, by, bw, bh, KB (20));
+		const int N = 6;
+		int bh = K (38), gap = K (8), pad = K (14), isz = K (8);
+		int bwid[N], tot = 0;
+		bool icons = compact;
+		for (int i = 0; i < N; i++) { bwid[i] = pad * 2 + isz * 2 + K (8) + ga::textW (TR (bs[i].label), K (13), true); tot += bwid[i] + (i ? gap : 0); }
+		if (tot > w - 2 * MARGIN) icons = true;
+		if (icons)
+		{
+			bh = K (46); tot = 0;
+			for (int i = 0; i < N; i++) { bwid[i] = bh; tot += bh + (i ? gap : 0); }
+		}
+		int x = (w - tot) / 2, y = dy + 1 + (h - dy - 1 - bh) / 2;
+		int feedX = x;
 		for (int i = 0; i < N; i++)
 		{
 			const B &q = bs[i];
-			int x = bx + pad + i * (bd + gap), y = by + KB (10);
-			float cx = (float) x + (float) bd / 2, cy = (float) y + (float) bd / 2;
 			bool hov = hover == q.act && q.on;
-			bool sel = (q.act == H_FEED && feedOpen) || (q.act == H_INFO && infoOpen) || (q.act == H_PLAY && a.ballOn);
-			unsigned bg = sel ? ga::mix (tok (TJ_SURFACE), ACC, 70) : hov ? tok (TJ_HOVER) : tok (TJ_RAISED);
-			int al = q.on ? 256 : 110;
-			im.disc (cx, cy + 1.5f, (float) bd / 2 + 0.5f, 0, darkTheme () ? 60 : 26);
-			im.disc (cx, cy, (float) bd / 2, sel ? ACC : tok (TJ_LINE), al);
-			im.disc (cx, cy, (float) bd / 2 - 1.2f, bg, al);
-			float s = (float) bd * 0.27f * (hov ? 1.08f : 1);
+			bool sel = (q.act == H_FEED && feedOpen) || (q.act == H_PLAY && a.ballOn) || (q.act == H_LAMP && p.lampOff);
+			unsigned bg = sel ? ga::mix (CARD, ACC, darkTheme () ? 80 : 50) : hov ? tok (TJ_HOVER) : CARD;
+			int al = q.on ? 256 : 120;
+			im.rbox (x, y, bwid[i], bh, K (icons ? 12 : 8), bg, bg, al, sel ? ACC : LINE);
+			float icx = icons ? (float) x + (float) bwid[i] / 2 : (float) (x + pad + isz), icy = (float) y + (float) bh / 2;
+			float s = (float) (icons ? K (12) : isz) * (hov ? 1.08f : 1);
 			unsigned ic = q.c ? q.c : T2;
-			if (q.icon == I_MOON)
-			{
-				im.disc (cx, cy, s * 0.8f, 0x6C7BD8, al);
-				im.disc (cx + s * 0.36f, cy - s * 0.25f, s * 0.68f, bg, al);
-			}
-			else if (q.on) icon (im, q.icon, cx, cy, s, ic, t);
-			else { icon (im, q.icon, cx, cy, s, ic, t); im.disc (cx, cy, (float) bd / 2 - 1.2f, bg, 150); }
-			ga::textC ((int) cx, by + bh - KB (11), TR (q.label), q.on ? (hov ? T1 : T2) : T3, KB (11), hov);
-			addHit (q.act, x - gap / 2, by, bd + gap, bh, q.on);
+			if (q.icon == I_MOON) { im.disc (icx, icy, s * 0.8f, ic, al); im.disc (icx + s * 0.36f, icy - s * 0.25f, s * 0.68f, bg, 256); }
+			else icon (im, q.icon, icx, icy, s, ic, t);
+			if (!q.on) im.rbox (x + 1, y + 1, bwid[i] - 2, bh - 2, K (8), bg, bg, 140);
+			if (!icons) ga::text (x + pad + isz * 2 + K (8), y + bh / 2 + K (5), TR (q.label), q.on ? T1 : T3, K (13), true);
+			if (i == 0) feedX = x;
+			addHit (q.act, x, y, bwid[i], bh, q.on);
+			x += bwid[i] + gap;
 		}
-		// le choix du repas
+		// le choix du repas : au-dessus de « Nourrir »
 		if (feedOpen && awake)
 		{
-			int tw = KB (104), th = KB (118), tg = KB (10);
-			int pw = 3 * tw + 2 * tg + 2 * KB (12), ph = th + KB (24);
-			int px = bx + pad + bd / 2 - KB (12) - tw / 2, py = by - ph - KB (10);
-			if (px < m) px = m;
-			panel (im, px, py, pw, ph, KB (16), 250);
 			static const char *const FN[3] = { "Repas", "Fruit", "Friandise" };
 			static const char *const FH[3] = { "+ satiété", "+ santé", "+ bonheur" };
 			static const int FI[3] = { I_BOWL, I_APPLE, I_CAKE };
+			int tw = K (112), th = K (52), tg = K (6), pp = K (8);
+			int pw = 3 * tw + 2 * tg + 2 * pp, phh = th + 2 * pp;
+			int px = feedX, py = y - phh - K (8);
+			if (px + pw > w - MARGIN) px = w - MARGIN - pw;
+			if (px < MARGIN) px = MARGIN;
+			panel (im, px, py, pw, phh, K (12));
 			for (int i = 0; i < 3; i++)
 			{
-				int x = px + KB (12) + i * (tw + tg), y = py + KB (12);
+				int tx = px + pp + i * (tw + tg), ty = py + pp;
 				bool hov = hover == H_MEAL + i;
-				im.rbox (x, y, tw, th, KB (12), hov ? tok (TJ_HOVER) : tok (TJ_RAISED), hov ? tok (TJ_HOVER) : tok (TJ_RAISED), 256, tok (TJ_LINE));
-				icon (im, FI[i], (float) (x + tw / 2), (float) (y + KB (40)), (float) KB (20), 0x45A8E6, t);
-				ga::textC (x + tw / 2, y + KB (84), TR (FN[i]), T1, KB (12), true);
-				ga::textC (x + tw / 2, y + KB (102), TR (FH[i]), T3, KB (10), false);
-				addHit (H_MEAL + i, x, y, tw, th, true);
+				if (hov) im.rbox (tx, ty, tw, th, K (8), tok (TJ_HOVER), tok (TJ_HOVER));
+				icon (im, FI[i], (float) (tx + K (20)), (float) (ty + th / 2), (float) K (10), 0x45A8E6, t);
+				ga::text (tx + K (38), ty + K (22), TR (FN[i]), T1, K (13), true);
+				ga::text (tx + K (38), ty + K (39), TR (FH[i]), T3, K (11), false);
+				snprintf (b, sizeof b, "%d", i + 1);
+				ga::textR (tx + tw - K (8), ty + K (22), b, T3, K (10), false);
+				addHit (H_MEAL + i, tx, ty, tw, th, true);
 			}
-		}
-		// ce qu'il se passe en bas : il dort, on joue
-		const char *hint = 0;
-		if (p.asleep) hint = p.lampOff ? TR ("Chut… il dort. Zzz") : TR ("Il dort : éteignez la lumière pour qu'il se repose mieux.");
-		else if (a.ballOn) { snprintf (b2, sizeof b2, TR ("Cliquez dans la prairie pour lancer la balle · attrapées : %d"), a.catches); hint = b2; }
-		else if (egg && a.act != A_HATCH) hint = TR ("L'œuf frémit… il va bientôt éclore.");
-		if (hint)
-		{
-			int tw2 = ga::textW (hint, K (12), false) + K (28);
-			int hx = (w - tw2) / 2, hy = by - K (40);
-			if (!(feedOpen && awake)) { panel (im, hx, hy, tw2, K (30), K (15), 235); ga::textC (w / 2, hy + K (20), hint, T2, K (12), false); }
+			addHit (H_NONE, px, py, pw, phh, true);
 		}
 	}
 
-	// ---- la fiche
-	if (infoOpen)
+	// ---- la fiche : un tiroir qui glisse depuis la droite de la vue
+	if (infoT > 0.01f)
 	{
-		int pw = K (300), x = w - m - pw, y = m + K (40);
-		int ph = K (420);
-		if (y + ph > h - m - K (100)) ph = h - m - K (100) - y;
-		if (ph < K (260)) ph = K (260);
-		if (x < m + K (250)) x = w - m - pw;
-		panel (im, x, y, pw, ph, K (16), 250);
-		addHit (H_NONE, x, y, pw, ph, true);
-		int cx = x + K (18), cy = y + K (34);
-		ga::text (cx, cy, p.name, T1, K (20), true);
-		// fermer
+		float e = smooth (0, 1, infoT);
+		int dw = compact ? vw : (int) fminf ((float) K (320), (float) vw);
+		int x = vx + vw - (int) ((float) dw * e), y = vy, dh = vh;
+		im.clip (vx, vy, vx + vw, vy + vh);
+		for (int i = 6; i >= 1; i--) im.rect (x - i, y, 1, dh, 0, 18 + 6 * (6 - i));
+		unsigned F = tok (TJ_SURFACE);
+		im.rbox (x, y, dw, dh, R, F, F, 256, darkTheme () ? 0x2C313A : LINE);
+		im.rect (x, y, R, dh, F); im.rect (x, y, 1, dh, darkTheme () ? 0x2C313A : LINE);
+		im.noClip ();
+		addHit (H_NONE, x, y, dw, dh, true);
+		int cx = x + K (20), cy = y + K (36);
+		ga::text (cx, cy, p.name, T1, K (19), true);
 		{
-			int bx2 = x + pw - K (36), by2 = y + K (12);
+			int bx2 = x + dw - K (38), by2 = y + K (14);
 			bool hov = hover == H_CLOSE;
-			im.disc ((float) (bx2 + K (12)), (float) (by2 + K (12)), (float) K (12), hov ? tok (TJ_HOVER) : tok (TJ_RAISED));
-			float c0 = (float) (bx2 + K (12)), c1 = (float) (by2 + K (12)), r = (float) K (5);
+			im.disc ((float) (bx2 + K (13)), (float) (by2 + K (13)), (float) K (13), hov ? tok (TJ_HOVER) : CARD);
+			float c0 = (float) (bx2 + K (13)), c1 = (float) (by2 + K (13)), r = (float) K (5);
 			im.line (c0 - r, c1 - r, c0 + r, c1 + r, 1.6f * k, T2); im.line (c0 - r, c1 + r, c0 + r, c1 - r, 1.6f * k, T2);
-			addHit (H_CLOSE, bx2, by2, K (24), K (24), true);
+			addHit (H_CLOSE, bx2, by2, K (26), K (26), true);
 		}
 		speciesName (p.g, b, sizeof b);
 		ga::text (cx, cy + K (20), b, T3, K (12), false);
-		cy += K (44);
-		im.rect (cx, cy, pw - K (36), 1, tok (TJ_LINE));
-		cy += K (22);
+		cy += K (40);
+		im.rect (cx, cy, dw - K (40), 1, LINE);
+		cy += K (24);
+		int rowH = vh < K (420) ? K (21) : K (25);
 		auto row = [&] (const char *k1, const char *v) {
 			ga::text (cx, cy, k1, T2, K (12), false);
-			ga::textR (x + pw - K (18), cy, v, T1, K (12), true);
-			cy += K (24);
+			ga::textR (x + dw - K (20), cy, v, T1, K (12), true);
+			cy += rowH;
 		};
 		row (TR ("Stade"), p.gone ? TR ("Parti") : stageName (p.g.stage));
 		formatAge (p.age, b2, sizeof b2); row (TR ("Âge"), b2);
-		if (!p.gone && p.g.stage < ST_ELDER)
+		if (!p.gone)
 		{
 			formatDur ((double) (p.stageLen () - p.stageAge) / (double) p.speed, b2, sizeof b2);
-			row (TR ("Prochain stade dans"), b2);
+			row (p.g.stage < ST_ELDER ? TR ("Prochain stade dans") : TR ("Encore"), b2);
 		}
-		else if (!p.gone) { formatDur ((double) (p.stageLen () - p.stageAge) / (double) p.speed, b2, sizeof b2); row (TR ("Encore"), b2); }
 		if (!egg)
 		{
 			row (TR ("Caractère"), traitName (p.g.trait));
@@ -487,100 +602,75 @@ void Hud::draw (Img &im, const Pet &p, const Actor &a, const Camera &cam, const 
 			snprintf (b2, sizeof b2, TR ("%.1f kg"), (double) kg); row (TR ("Poids"), b2);
 		}
 		snprintf (b2, sizeof b2, "%d", p.generation); row (TR ("Génération"), b2);
-		// les soins : des étoiles
 		{
 			ga::text (cx, cy, TR ("Soins reçus"), T2, K (12), false);
-			int n = (int) (p.care () * 5 + 0.5f) - p.mistakes / 2;
-			n = clampi (n, 0, 5);
-			for (int i = 0; i < 5; i++) star (im, (float) (x + pw - K (18) - K (8) - (4 - i) * K (17)), (float) (cy - K (4)), (float) K (7), i < n ? 0xF0BE2E : tok (TJ_SUNKEN), 256, 0);
-			cy += K (28);
+			int n = clampi ((int) (p.care () * 5 + 0.5f) - p.mistakes / 2, 0, 5);
+			for (int i = 0; i < 5; i++) star (im, (float) (x + dw - K (20) - K (7) - (4 - i) * K (17)), (float) (cy - K (4)), (float) K (7), i < n ? 0xF0BE2E : tok (TJ_SUNKEN), 256, 0);
+			cy += rowH + K (4);
 		}
-		// le chemin des stades
-		im.rect (cx, cy - K (10), pw - K (36), 1, tok (TJ_LINE));
+		im.rect (cx, cy - K (10), dw - K (40), 1, LINE);
 		cy += K (10);
 		ga::text (cx, cy, TR ("Évolution"), T2, K (12), false);
 		cy += K (18);
-		int step = (pw - K (36)) / (ST_COUNT - 1);
+		int step = (dw - K (48)) / (ST_COUNT - 1);
 		for (int i = 0; i < ST_COUNT; i++)
 		{
-			float dx = (float) (cx + i * step), dy = (float) (cy + K (6));
-			if (i < ST_COUNT - 1) im.line (dx, dy, dx + (float) step, dy, 2 * k, i < p.g.stage ? ACC : tok (TJ_LINE));
-			bool done = i <= p.g.stage;
-			im.disc (dx, dy, (float) K (i == p.g.stage ? 7 : 5), done ? ACC : tok (TJ_SUNKEN));
-			if (i == p.g.stage) im.disc (dx, dy, (float) K (3), 0xFFFFFF);
+			float ddx = (float) (cx + K (4) + i * step), ddy = (float) (cy + K (6));
+			if (i < ST_COUNT - 1) im.line (ddx, ddy, ddx + (float) step, ddy, 2 * k, i < p.g.stage ? ACC : LINE);
+			im.disc (ddx, ddy, (float) K (i == p.g.stage ? 7 : 5), i <= p.g.stage ? ACC : tok (TJ_SUNKEN));
+			if (i == p.g.stage) im.disc (ddx, ddy, (float) K (3), 0xFFFFFF);
 		}
 		cy += K (30);
-		ga::textC (cx + (pw - K (36)) / 2, cy, stageName (p.g.stage), T3, K (10), false);
-		// renommer
+		ga::textC (cx + (dw - K (40)) / 2, cy, stageName (p.g.stage), T3, K (11), false);
 		{
-			int rw = K (130), rh = K (30), rx = x + (pw - rw) / 2, ry = y + ph - rh - K (16);
-			bool hov = hover == H_RENAME;
-			im.rbox (rx, ry, rw, rh, rh / 2, hov ? tok (TJ_HOVER) : tok (TJ_RAISED), hov ? tok (TJ_HOVER) : tok (TJ_RAISED), 256, tok (TJ_LINE));
-			ga::textC (rx + rw / 2, ry + K (20), TR ("Renommer…"), T1, K (12), true);
-			addHit (H_RENAME, rx, ry, rw, rh, true);
-		}
-	}
-
-	// ---- les messages
-	{
-		int y = m + K (6);
-		for (int i = 0; i < nt; i++)
-		{
-			const Toast &q = toasts[i];
-			float in = smooth (0, 0.25f, q.t), out = 1 - smooth (q.life - 0.5f, q.life, q.t);
-			float al = fminf (in, out);
-			int tw = ga::textW (q.text, K (13), true) + K (36) + (q.icon >= 0 ? K (22) : 0);
-			int x = (w - tw) / 2;
-			int yy = y - (int) ((1 - in) * (float) K (12));
-			int A = (int) (al * 245);
-			for (int s = 3; s >= 1; s--) im.rbox (x - s + 1, yy + s * 2 - 1, tw + 2 * s - 2, K (34) + 2 * s - 1, K (17) + s, 0, 0, (int) (al * 14));
-			im.rbox (x, yy, tw, K (34), K (17), tok (TJ_SURFACE), tok (TJ_SURFACE), A, tok (TJ_LINE));
-			int tx = x + K (18);
-			if (q.icon >= 0) { icon (im, q.icon, (float) (tx + K (8)), (float) (yy + K (17)), (float) K (8), q.icon < N_COUNT ? NEED_C[q.icon] : ACC, t); tx += K (22); }
-			if (al > 0.5f) ga::text (tx, yy + K (22), q.text, T1, K (13), true);
-			y += K (42);
+			int rw = K (140), rh = K (32), rx = x + (dw - rw) / 2, ry = y + dh - rh - K (16);
+			if (ry > cy + K (10))
+			{
+				bool hov = hover == H_RENAME;
+				im.rbox (rx, ry, rw, rh, K (8), hov ? tok (TJ_HOVER) : CARD, hov ? tok (TJ_HOVER) : CARD, 256, LINE);
+				ga::textC (rx + rw / 2, ry + K (21), TR ("Renommer…"), T1, K (12), true);
+				addHit (H_RENAME, rx, ry, rw, rh, true);
+			}
 		}
 	}
 
 	// ---- les cartes des grands moments
 	if (card)
 	{
-		im.rect (0, 0, w, h, darkTheme () ? 0x000000 : 0x10141C, (int) (smooth (0, 0.3f, cardT) * 110));
-		int cw = (int) fminf ((float) K (440), (float) (w - 2 * m));
+		im.rect (0, 0, w, h, 0x000000, (int) (smooth (0, 0.3f, cardT) * (darkTheme () ? 130 : 90)));
+		int cw = (int) fminf ((float) K (400), (float) (w - 2 * MARGIN));
 		int lines = 1; for (const char *s = cardText; *s; s++) if (*s == '\n') lines++;
-		int ch = K (150) + lines * K (22) + K (56);
-		int x = (w - cw) / 2, y = (h - ch) / 2 - (int) ((1 - smooth (0, 0.3f, cardT)) * (float) K (20));
-		panel (im, x, y, cw, ch, K (20), 252);
+		int chh = K (150) + lines * K (22) + K (56);
+		int x = (w - cw) / 2, y = (h - chh) / 2 - (int) ((1 - smooth (0, 0.3f, cardT)) * (float) K (16));
+		panel (im, x, y, cw, chh, K (16), 256);
+		im.rbox (x + K (24), y, cw - K (48), K (3), K (1), ACC, ACC);
 		addHit (H_NONE, 0, 0, w, h, true);
-		// l'emblème
-		float ex = (float) (x + cw / 2), ey = (float) (y + K (46));
-		im.glow (ex, ey, (float) K (44), ga::shade (ACC, 60));
-		im.disc (ex, ey, (float) K (28), ga::mix (tok (TJ_SURFACE), ACC, 60));
+		float ex = (float) (x + cw / 2), ey = (float) (y + K (48));
+		im.glow (ex, ey, (float) K (44), ga::shade (ACC, 50));
+		im.disc (ex, ey, (float) K (28), ga::mix (CARD, ACC, 60));
 		int ic = card == C_GONE ? I_STAR : card == C_HATCHED || card == C_WELCOME ? I_EGG : card == C_BACK ? I_FUN : I_STAR;
 		icon (im, ic, ex, ey, (float) K (15), card == C_EVOLVED || card == C_GONE ? 0xF0BE2E : ic == I_EGG ? 0xF4EEDF : 0xEC5B8F, t);
 		if (ic == I_EGG) { im.disc (ex - K (5), ey, (float) K (3), 0xEC5B8F); im.disc (ex + K (5), ey + K (8), (float) K (3), 0x45A8E6); }
-		ga::textC (x + cw / 2, y + K (106), cardTitle, T1, K (20), true);
+		ga::textC (x + cw / 2, y + K (106), cardTitle, T1, K (19), true);
 		int ly = y + K (136);
 		const char *s = cardText;
 		while (*s)
 		{
-			const char *e = strchr (s, '\n');
-			int n = e ? (int) (e - s) : (int) strlen (s);
+			const char *e2 = strchr (s, '\n');
+			int n = e2 ? (int) (e2 - s) : (int) strlen (s);
 			char ln[200]; snprintf (ln, sizeof ln, "%.*s", n, s);
 			ga::textC (x + cw / 2, ly, ln, T2, K (13), false);
 			ly += K (22);
 			s += n; if (*s) s++;
 		}
-		int bw2 = K (170), bh2 = K (36), bx2 = x + (cw - bw2) / 2, by2 = y + ch - bh2 - K (18);
+		int bw2 = K (170), bh2 = K (36), bx2 = x + (cw - bw2) / 2, by2 = y + chh - bh2 - K (18);
 		int act = card == C_GONE ? H_NEWEGG : H_CARD;
 		bool hov = hover == act;
-		unsigned bc = hov ? tok (TJ_ACCENT_LIGHT) : ACC;
-		if (darkTheme () && hov) bc = tok (TJ_ACCENT_VIVID);
-		im.rbox (bx2, by2, bw2, bh2, bh2 / 2, ga::shade (bc, 280), bc);
+		unsigned bc = hov ? (darkTheme () ? tok (TJ_ACCENT_VIVID) : tok (TJ_ACCENT_DARK)) : ACC;
+		im.rbox (bx2, by2, bw2, bh2, K (8), bc, bc);
 		ga::textC (bx2 + bw2 / 2, by2 + K (23), card == C_GONE ? TR ("Couver l'œuf") : TR ("Continuer"), (unsigned) ui_ink (bc) & 0xFFFFFF, K (13), true);
 		addHit (act, bx2, by2, bw2, bh2, true);
 	}
-	(void) L;
 }
 
 }	// namespace mo

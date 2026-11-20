@@ -4,5 +4,5 @@ category = Jeux
 description = Morpho, un animal de compagnie en 3D à nourrir, faire jouer, laver, soigner, coucher et câliner. Il grandit en temps réel, même l'app fermée, de l'œuf à l'âge d'ancien : à chaque stade, sa forme (pattes, cornes, oreilles, bouche, ailes…) et ses couleurs sont tirées au hasard, d'après les soins reçus.
 keywords = jeu animal compagnie virtuel tamagotchi créature évolution 3d nourrir soigner élever œuf bébé
 help = Les boutons du bas : Nourrir (repas, fruit ou friandise), Jouer (la balle), Laver, Soigner, Coucher (éteindre la lumière) ou Allumer, Câliner, Fiche. Les jauges à gauche disent ce qui lui manque ; une bulle au-dessus de sa tête aussi.
-help = Souris : glisser sur l'animal pour le caresser, glisser ailleurs (ou clic droit) pour tourner autour, molette pour s'approcher, clic sur une crotte pour la ramasser ; pendant le jeu, clic dans la prairie pour lancer la balle.
+help = Souris : glisser sur l'animal pour le caresser, glisser ailleurs (ou clic droit) pour tourner autour, molette pour s'approcher, clic sur une crotte pour la ramasser ; pendant le jeu, clic dans la scène pour lancer la balle.
 help = Clavier : N nourrir (puis 1, 2, 3), J jouer, L laver, O soigner, E lumière, C câliner, I fiche, F2 renommer, Échap ferme. Menu Rythme : le temps réel, ou plus vite (×10, ×60) pour le voir grandir.

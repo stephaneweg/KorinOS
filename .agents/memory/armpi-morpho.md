@@ -15,13 +15,16 @@ différents stades, et les couleurs » ; puis « ça doit être soigné ». Bran
 lancer de rayon + IK), éclairage par sommet, `gk_draw` (GPU ou processeur) ; interface aux jetons du thème ; vie en temps
 réel avec rattrapage app fermée ; six stades tirés au hasard d'après les soins ; générations.
 
+**Refonte « studio » (20/11, demandée par l'utilisateur : « une app moderne, vue 3D fond foncé, pas de décor, juste
+le personnage, les menus autour »)** : direction de Gemini (prompt écrit ici, maquette « Studio Frame ») ; plus de
+prairie ni de ciel ; la vue sombre dans les deux thèmes ; au processeur la 3D tombe de ~25 ms à ~4 ms (hôte).
+
 **How to apply:**
 - Voir sans Korin : `sh tools/morpho/run.sh gallery|shot`, `tools/morpho/sheet.sh` (FreeType + polices Inter de
   sdcard/fonts, GpuKit du PC compilé pour l'hôte par host_gk.c). C'est ce qui a servi à régler le rendu.
 - Pièges vus : `R_OK` est une macro de unistd.h (d'où RS_OK) ; `Rng` mélange la graine (graines voisines = couleurs
   voisines sinon) ; le regard borné en angle (sinon l'iris passe derrière) ; le temps de la vie suit le temps réel,
   l'animation est bornée à 0,1 s par image ; dans QEMU, laisser le pointeur arriver avant `btn:left 1`.
-- Au processeur la texture d'herbe coûtait 35 ms/image : coupée sans GPU. QEMU : ~3 images/s en demi-taille.
 - Intégré : listes de tools/office/build.sh et tools/pc/apps.sh (`-DMORPHO_GL` quand GlKit du PC est construit),
   `[app.morpho]` des deux packages*.ini, icône dans tools/icons/art.py. Pas publié, pas essayé sur le Pi ni le ZBook.
 - Cloud : `tools/sys/build_c.sh` sans argument casse sur linuxhost (aarch64, liblinux) : lui passer la liste sans

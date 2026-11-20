@@ -14,16 +14,12 @@ static double nowMs ()
 	return (double) t.tv_sec * 1000.0 + (double) t.tv_nsec / 1e6;
 }
 
-void Scene::init (uint32_t seed)
+void Scene::init ()
 {
-	buildWorld (ground, decor, blades, seed);
-	decor.flags = MF_CULL;
 	skin.assign ((size_t) SKIN_W * SKIN_H, 0xFFFFFFFFu);
 	shadowTex.assign (64 * 64, 0); makeShadowTex (shadowTex.data (), 64);
-	grassTex.assign (128 * 128, 0); makeGrassTex (grassTex.data (), 128);
 	tex[TEX_SKIN] = { skin.data (), SKIN_W, SKIN_H, -1, 0 };
 	tex[TEX_SHADOW] = { shadowTex.data (), 64, 64, -1, 0 };
-	tex[TEX_GRASS] = { grassTex.data (), 128, 128, -1, 0 };
 	gpu = gk_info (0) == 1;
 	if (gpu)
 		for (int i = 0; i < TEX_N; i++)
@@ -33,8 +29,6 @@ void Scene::init (uint32_t seed)
 			tex[i].id = (int) id;
 		}
 	if (!gpu) for (int i = 0; i < TEX_N; i++) tex[i].id = -1;
-	// (au processeur, la texture de l'herbe coûte plus que tout le reste : les couleurs des sommets suffisent)
-	ground.tex = gpu ? TEX_GRASS : -1;
 	cm.body.tex = TEX_SKIN; cm.body.flags = MF_CULL;
 	cm.parts.flags = MF_CULL; cm.sheets.flags = 0; cm.alpha.flags = MF_ALPHA;
 	props.flags = MF_CULL; propsSheets.flags = 0; propsAlpha.flags = MF_ALPHA;
@@ -61,7 +55,7 @@ void Scene::draw (uint32_t *px, int w, int h, int stride, float t)
 		dst = low.data ();
 	}
 	cam.setup (dw, dh);
-	drawSky (dst, dw, dh, ds, cam, light, t, clouds);
+	drawStudio (dst, dw, dh, ds, cam, light, focus, ringC, ringR, t);
 	// l'ombre sous la créature
 	shadow.clear ();
 	{
@@ -69,24 +63,13 @@ void Scene::draw (uint32_t *px, int w, int h, int stride, float t)
 		float R = shadowR;
 		V3 o = shadowAt; o.y = 0.006f;
 		Col c (0, 0, 0);
-		B.alpha = clampf (shadowK * (0.55f + 0.45f * (1 - light.night)), 0, 1);
+		B.alpha = clampf (shadowK * 0.9f, 0, 1);
 		int a = B.add (o + V3 (-R, 0, -R), V3 (0, 1, 0), c, 0, 0), b = B.add (o + V3 (R, 0, -R), V3 (0, 1, 0), c, 1, 0);
 		int cc = B.add (o + V3 (R, 0, R), V3 (0, 1, 0), c, 1, 1), d = B.add (o + V3 (-R, 0, R), V3 (0, 1, 0), c, 0, 1);
 		B.tri (a, cc, b); B.tri (a, d, cc);
 	}
 	dl.clear ();
-#ifdef MORPHO_HOST
-	const char *skip = getenv ("MORPHO_SKIP") ? getenv ("MORPHO_SKIP") : "";
-	if (!strstr (skip, "ground")) dl.add (ground, light, cam);
 	dl.add (shadow, light, cam);
-	if (!strstr (skip, "decor")) dl.add (decor, light, cam);
-	if (!strstr (skip, "blades")) dl.add (blades, light, cam);
-#else
-	dl.add (ground, light, cam);
-	dl.add (shadow, light, cam);
-	dl.add (decor, light, cam);
-	dl.add (blades, light, cam);
-#endif
 	dl.add (cm.body, light, cam);
 	dl.add (cm.parts, light, cam);
 	dl.add (cm.sheets, light, cam);

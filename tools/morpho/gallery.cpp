@@ -29,8 +29,7 @@ int main (int argc, char **argv)
 	int W = CW * cols, H = CH * rows;
 	std::vector<uint32_t> img ((size_t) W * H, 0), cell ((size_t) CW * CH);
 	Scene sc;
-	sc.init (5);
-	sc.light = lightAt (hour, false, 0);
+	sc.init ();
 	std::vector<uint32_t> skin ((size_t) SKIN_W * SKIN_H);
 	for (int k = 0; k < cols * rows; k++)
 	{
@@ -48,6 +47,9 @@ int main (int argc, char **argv)
 		sc.cam.at = V3 (0, o.center.y * 0.8f + 0.1f, 0);
 		sc.cam.eye = sc.cam.at + norm (V3 (0.9f, 0.45f, 1.6f)) * d;
 		sc.half = 0;
+		sc.cam.setup (CW, CH);
+		sc.light = studioLight (hour, false); keyFrom (sc.light, sc.cam);
+		sc.focus = o.center; sc.ringR = clampf (o.footprint * 1.9f, 0.45f, 1.7f);
 		sc.draw (cell.data (), CW, CH, CW, P.t);
 		int ox = (k % cols) * CW, oy = (k / cols) * CH;
 		for (int y = 0; y < CH; y++) memcpy (&img[(size_t) (oy + y) * W + ox], &cell[(size_t) y * CW], CW * 4);
