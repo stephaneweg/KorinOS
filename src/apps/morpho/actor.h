@@ -17,7 +17,8 @@ enum PKind { P_HEART, P_STAR, P_Z, P_NOTE, P_DROP, P_STINK, P_BUBBLE, P_CRUMB, P
 struct Particle { int kind; V3 p, v; float life, max, size, spin; unsigned col; };
 
 struct Poop { V3 p; float age, scale; };
-enum { SND_HAPPY, SND_SAD, SND_EAT, SND_BOUNCE, SND_CATCH, SND_POP, SND_EVOLVE, SND_HATCH, SND_YUCK, SND_SPLASH, SND_CLEAN, SND_PURR, SND_CRACK };
+enum { SND_HAPPY, SND_SAD, SND_EAT, SND_BOUNCE, SND_CATCH, SND_POP, SND_EVOLVE, SND_HATCH, SND_YUCK, SND_SPLASH, SND_CLEAN, SND_PURR, SND_CRACK,
+       SND_YUM, SND_REFUSE };
 
 struct Actor
 {

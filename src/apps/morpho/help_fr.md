@@ -43,6 +43,7 @@ trop longtemps sans soins, il part plus tôt, et laisse aussi un œuf.
 ## Le rythme
 
 Le menu **Rythme** accélère le temps (×10, ×60), pour le voir grandir sans attendre des jours. **Partie > Nouvel œuf**
-recommence tout ; **Renommer** (F2) lui donne un autre nom.
+recommence tout ; **Renommer** (F2) lui donne un autre nom ; **Son** et **Musique** coupent les bruitages ou la
+musique (une musique douce, jamais tout à fait la même, qui suit son humeur : le jour, la nuit, la tristesse).
 
 La sauvegarde est dans `HOME:/morpho/pet.ini`.

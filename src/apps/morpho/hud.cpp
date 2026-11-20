@@ -590,6 +590,7 @@ void Hud::draw (Img &im, const Pet &p, const Actor &a, const Camera &cam, const 
 			if (px + pw > w - MARGIN) px = w - MARGIN - pw;
 			if (px < MARGIN) px = MARGIN;
 			panel (im, px, py, pw, phh, K (12));
+			addHit (H_NONE, px, py, pw, phh, true);		// (le fond d'abord : hit cherche du dernier au premier)
 			for (int i = 0; i < 3; i++)
 			{
 				int tx = px + pp + i * (tw + tg), ty = py + pp;
@@ -602,7 +603,6 @@ void Hud::draw (Img &im, const Pet &p, const Actor &a, const Camera &cam, const 
 				ga::textR (tx + tw - K (8), ty + K (22), b, T3, K (10), false);
 				addHit (H_MEAL + i, tx, ty, tw, th, true);
 			}
-			addHit (H_NONE, px, py, pw, phh, true);
 		}
 	}
 

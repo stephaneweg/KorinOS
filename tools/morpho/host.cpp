@@ -169,6 +169,13 @@ int main (int argc, char **argv)
 				dos[i].done = true;
 				int a = actOf (dos[i].what);
 				if (a >= 0) action (a);
+				else if (!strncmp (dos[i].what, "click=", 6))
+				{
+					// (un vrai clic : déplacement, appui, relâchement, par onMouse)
+					int x = 0, y = 0; sscanf (dos[i].what + 6, "%d,%d", &x, &y);
+					onMouse (0, x, y, 0); onMouse (1, x, y, 1); onMouse (2, x, y, 0);
+					fprintf (stderr, "clic (%d, %d) : interface %d, repas ouvert %d, acte %d\n", x, y, g_hud.hit (x, y), g_hud.feedOpen, g_act.act);
+				}
 				else if (!strcmp (dos[i].what, "throw")) g_act.throwBall (g_scene.cam.eye + V3 (0, -0.4f, -0.5f), V3 (0.6f, 0, 0.4f));
 				else if (!strcmp (dos[i].what, "stroke")) g_caressHold = 3;
 				else if (!strcmp (dos[i].what, "evolve")) { g_pet.stageAge = g_pet.stageLen () - 0.01; }

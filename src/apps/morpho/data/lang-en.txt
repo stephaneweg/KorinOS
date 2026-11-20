@@ -145,3 +145,4 @@ Un long corps de serpent ! = A long serpent body!
 Une carapace couvre son dos ! = A shell covers its back!
 La carapace tombe. = The shell falls off.
 Des pattes à la place des anneaux. = Legs instead of coils.
+Musique = Music

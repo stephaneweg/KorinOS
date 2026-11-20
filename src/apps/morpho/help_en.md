@@ -43,6 +43,7 @@ it leaves earlier, and also leaves an egg.
 ## Pace
 
 The **Pace** menu speeds time up (×10, ×60) to watch it grow without waiting for days. **Game > New egg** starts over;
-**Rename** (F2) gives it another name.
+**Rename** (F2) gives it another name; **Sound** and **Music** turn the effects or the music off (a gentle music,
+never quite the same, that follows its mood: day, night, sadness).
 
 The save file is `HOME:/morpho/pet.ini`.

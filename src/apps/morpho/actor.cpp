@@ -73,7 +73,7 @@ void Actor::start (int a, Pet &p)
 		from = p.prev; to = p.g; walking = false; hatchCrack = 0.3f;
 		break;
 	case A_HAPPY: sound (SND_HAPPY); break;
-	case A_REFUSE: sound (SND_SAD); break;
+	case A_REFUSE: sound (SND_REFUSE); break;
 	case A_BATH: sound (SND_SPLASH); break;
 	case A_GONE: ballOn = false; break;
 	default: break;
@@ -252,7 +252,7 @@ void Actor::update (float dt, Pet &p, const V3 &camEye, const V3 *cursor)
 		{
 			if (med) { emit (P_STAR, out.top, 6, 0x9CF0A0, 0.2f); act = A_IDLE; }
 			else if (food == FOOD_TREAT) { start (A_HAPPY, p); emit (P_HEART, out.top, 3, 0xFF5A8A, 0.15f); }
-			else { act = A_IDLE; emit (P_HEART, out.top, 1, 0xFF5A8A, 0.1f); }
+			else { act = A_IDLE; emit (P_HEART, out.top, 1, 0xFF5A8A, 0.1f); sound (SND_YUM); }
 		}
 		break;
 	}

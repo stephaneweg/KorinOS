@@ -26,6 +26,12 @@ quand la fenêtre est élargie) et un dégradé bien visible dans la vue (ardois
 tirés à l'enfance puis gardés à 70 % ; `shapePlan` (genome.h) fixe leurs contraintes. Onyx Noir forcé pour l'app
 (`ui_theme_text`, réappliqué sur WEV_THEME). Essais : `plan=N heads=N stage=N` ; galerie : MORPHO_PLAN, MORPHO_HEADS.
 
+**Son, scintillement, repas (21/11, demandés)** : sound.h (synthé GM d'AudioKit dans un fil, musique générée qui suit
+l'humeur, bruitages en couches, limiteur tanh ×4 ; menus Son / Musique, HOME:/morpho/prefs.ini) ; le scintillement :
+Elegant composait l'image à moitié dessinée -> image finie dans ui.surf puis recopiée dans une surface de deux images
+(ui_surface_source, comme GF_DOUBLE) ; le repas : le fond du menu des repas était ajouté APRÈS ses tuiles (hit cherche
+du dernier au premier). Écoute sans Korin : `run.sh sound` ; dans QEMU : `-audiodev wav,path=…` + intel-hda enregistre.
+
 **How to apply:**
 - Voir sans Korin : `sh tools/morpho/run.sh gallery|shot`, `tools/morpho/sheet.sh` (FreeType + polices Inter de
   sdcard/fonts, GpuKit du PC compilé pour l'hôte par host_gk.c). C'est ce qui a servi à régler le rendu.
