@@ -39,7 +39,10 @@ l'ancien dessin.
 
 **DOS demandé le 20/11** (« quickbasic 4, modes cga, vga et svga (futurelib) », FreeCOM, Sound Blaster/OPL,
 essai OPL = FM-Song d'Asher256, redistribuable) : architecture dans WIN16.md §9. **Choix de l'utilisateur (20/11)** :
-voie intégrée à win16 (pas DOSBox), Nuked OPL3, FreeCOM 0.86. Étapes D1-D7 du §9.8. QB 4.5 et FutureLib 3.5 = copies de
+voie intégrée à win16 (pas DOSBox), Nuked OPL3, FreeCOM 0.86. Étapes D1-D7 du §9.8. **D1 faite le 20/11
+(20430286, hôte et QEMU PC)** : dos.c/bios.c/vga.c, tests/dos/dostest.c. Pièges : en mode réel, CS garde la base
+FFF00000 tant que m_performed_intersegment_jump est 0 ; sel_base rend seg×16 quand w16_realmode ; un gestionnaire
+qui attend le clavier rend WAIT (CS:IP reste sur le point d'arrêt F000:vecteur, IF mis, les IRQ passent). QB 4.5 et FutureLib 3.5 = copies de
 l'utilisateur, jamais au dépôt ni en paquet (FutureLib : licence muette), extraites dans WSL ~/korin-win16, image
 QEMU effacée après l'essai. Dans les commits : « QuickBASIC 4.5, copie de l'utilisateur ».
 
