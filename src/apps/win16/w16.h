@@ -119,6 +119,7 @@ struct ne_module
 	int is_dll, refs, nsegs, autodata;
 	uint16_t hmodule, hinstance;
 	uint16_t cs, ip, ss, sp, heap_size, stack_size;
+	int heap_last;		/* DGROUP = données, pile, tas local à la fin (SP posé par le chargeur) */
 	uint16_t segs[256];
 	uint32_t sizes[256];
 	uint8_t ent_seg[NE_MAX_ENTRY];

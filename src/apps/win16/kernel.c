@@ -956,6 +956,16 @@ void api_InitTask16 (struct w16call *c)
 		extern void local_init (uint16_t sel, uint16_t start, uint16_t end);
 		uint32_t size = task.main->sizes[task.main->autodata];
 		uint32_t end = size > bx ? size - bx : size, start = end > cx ? end - cx : 16;
+		if (task.main->heap_last)
+		{
+			/* (données, pile, tas : le tas à la fin, au-dessus de la pile ; LocalAlloc le fait grandir ; la fin
+			   est celle du segment, arrondi à 32 octets comme les blocs globaux) */
+			size = sel_limit (cpu_sreg (S_DS)) + 1;
+			end = size;
+			start = size > cx ? size - cx : 16;
+			if (start < (uint32_t) task.sp)
+				start = task.sp;
+		}
 		local_init (cpu_sreg (S_DS), (uint16_t) start, (uint16_t) (end > 0xffff ? 0xffff : end));
 	}
 	uint8_t *psp = lin_ptr (sel_base (task.psp));

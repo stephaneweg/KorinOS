@@ -357,8 +357,14 @@ static struct ne_module *load (const char *path, int is_main)
 		if (s == autodata)
 		{
 			msize += heap + (m->is_dll ? 0 : stack);
+			/* (comme Windows : données, pile, puis le tas local à la fin du segment, qui peut grandir ;
+			   SP juste après la pile) */
 			if (!m->is_dll && s == ss && sp == 0)
-				m->sp = (uint16_t) (msize > 0xfffe ? 0xfffe : msize & ~1u);
+			{
+				uint32_t top = minalloc + stack;
+				m->sp = (uint16_t) (top > 0xfffe ? 0xfffe : top & ~1u);
+				m->heap_last = 1;
+			}
 			if (msize > 0x10000)
 				msize = 0x10000;
 		}

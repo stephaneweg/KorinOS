@@ -65,3 +65,36 @@ void api_TerminateApp16 (struct w16call *c)
 
 void api_GlobalEntryHandle16 (struct w16call *c) { (void) c; c->ret = 0; }
 void api_ModuleFindHandle16 (struct w16call *c) { (void) c; c->ret = 0; }
+
+/* ---- SHELL : le registre (REG.DAT de Windows 3.1) ; ici un registre vide : la racine s'ouvre, aucune
+ * sous-clé n'existe, l'énumération est finie tout de suite ; créer et écrire réussissent sans rien garder
+ * (le Gestionnaire de fichiers énumère HKEY_CLASSES_ROOT : un « succès » à chaque RegEnumKey bouclait) ---- */
+#define REG_ERROR_BADKEY	2
+#define REG_ERROR_NO_MORE_ITEMS	259
+void api_RegOpenKey16 (struct w16call *c)
+{
+	const char *sub = c->a[1] ? w16_raw (c->a[1]) : "";
+	if (sub[0])
+	{
+		c->ret = REG_ERROR_BADKEY;
+		return;
+	}
+	if (c->a[2])
+		wr32 (far_lin (c->a[2]), c->a[0]);
+	c->ret = 0;
+}
+void api_RegCreateKey16 (struct w16call *c)
+{
+	static uint32_t next = 0x100;
+	if (c->a[2])
+		wr32 (far_lin (c->a[2]), next++);
+	c->ret = 0;
+}
+void api_RegCloseKey16 (struct w16call *c) { c->ret = 0; }
+void api_RegDeleteKey16 (struct w16call *c) { c->ret = 0; }
+void api_RegSetValue16 (struct w16call *c) { c->ret = 0; }
+void api_RegQueryValue16 (struct w16call *c) { c->ret = REG_ERROR_BADKEY; }
+void api_RegEnumKey16 (struct w16call *c) { c->ret = REG_ERROR_NO_MORE_ITEMS; }
+
+/* DragAcceptFiles : le glisser-déposer du Gestionnaire de fichiers ; pas de dépôt vers un programme Win16 */
+void api_DragAcceptFiles16 (struct w16call *c) { (void) c; }
