@@ -207,6 +207,8 @@ static void drives_init (const char *home)
 	drive_set (3, drive_c);
 	drive_set (4, task.dir);
 	drive_set (5, "/");
+	if (w16_dosdir[0])	/* Z: : les fichiers DOS de win16 (COMMAND.COM de FreeCOM) */
+		drive_set (26, w16_dosdir);
 	char ini[600];
 	snprintf (ini, sizeof ini, "%s/win16/drives.ini", home);
 	FILE *f = fopen (ini, "r");
@@ -294,11 +296,11 @@ int dos_to_host (const char *dos, char *out, size_t cap)
 
 /* ======================================================================== fichiers (handles DOS) */
 #define MAX_FH 64
-static int fh[MAX_FH];		/* descripteur POSIX + 1 (0 : libre) ; 0..4 : la console */
+static int fh[MAX_FH] = { -1, -1, -1, -3, -3 };	/* descripteur POSIX + 1 (0 : libre) ; < 0 : un périphérique (-1 CON, -2 NUL, -3 AUX/PRN) */
 
 static int fh_new (int fd)
 {
-	for (int i = 5; i < MAX_FH; i++)
+	for (int i = 0; i < MAX_FH; i++)	/* (la plus basse libre, comme DOS : FreeCOM redirige ainsi) */
 		if (!fh[i])
 		{
 			fh[i] = fd + 1;
@@ -366,7 +368,7 @@ static int32_t do_read (int h, uint32_t buf, uint32_t n)
 static int32_t do_write (int h, uint32_t buf, uint32_t n)
 {
 	int fd = fh_fd (h);
-	if (h == 1 || h == 2)
+	if ((h == 1 || h == 2) && fd < 0)
 	{
 		fwrite (far_ptr (buf), 1, n, stderr);
 		return (int32_t) n;
@@ -378,6 +380,75 @@ static int32_t do_write (int h, uint32_t buf, uint32_t n)
 	ssize_t r = write (fd, lin_ptr (far_lin (buf)), n);
 	return (int32_t) r;
 }
+
+/* ---- pour la machine DOS (dos.c) : les poignées de périphériques (CON, NUL, AUX, PRN) et la redirection ---- */
+/* le périphérique derrière une poignée : 1 CON, 2 NUL, 3 AUX/PRN ; 0 : un fichier ou rien */
+int kernel_fh_dev (int h)
+{
+	if (h < 0 || h >= MAX_FH)
+		return 0;
+	return fh[h] < 0 ? -fh[h] : 0;
+}
+
+int kernel_fh_newdev (int dev)
+{
+	for (int i = 0; i < MAX_FH; i++)
+		if (!fh[i])
+		{
+			fh[i] = -dev;
+			return i;
+		}
+	return -1;
+}
+
+int kernel_fh_valid (int h)
+{
+	return kernel_fh_dev (h) || fh_fd (h) >= 0;
+}
+
+/* dupliquer h (dans to, ou la première libre si to < 0) -> la nouvelle poignée, -1 */
+int kernel_fh_dup (int h, int to)
+{
+	int dev = kernel_fh_dev (h), fd = fh_fd (h);
+	if (!dev && fd < 0)
+		return -1;
+	if (to >= 0)
+	{
+		if (to >= MAX_FH)
+			return -1;
+		if (fh[to] > 0)
+			close (fh[to] - 1);
+		fh[to] = dev ? -dev : dup (fd) + 1;
+		return to;
+	}
+	if (dev)
+		return kernel_fh_newdev (dev);
+	return fh_new (dup (fd));
+}
+
+int kernel_fh_close (int h)
+{
+	if (h < 0 || h >= MAX_FH || !fh[h])
+		return -1;
+	if (fh[h] > 0)
+		close (fh[h] - 1);
+	fh[h] = 0;
+	return 0;
+}
+
+int32_t kernel_write (int h, const void *p, uint32_t n)
+{
+	int fd = fh_fd (h);
+	return fd < 0 ? -1 : (int32_t) write (fd, p, n);
+}
+
+int32_t kernel_read (int h, void *p, uint32_t n)
+{
+	int fd = fh_fd (h);
+	return fd < 0 ? -1 : (int32_t) read (fd, p, n);
+}
+
+void kernel_set_dta (uint32_t segptr);
 
 void api_WIN16_lread (struct w16call *c) { int32_t r = do_read ((int) c->a[0], c->a[1], c->a[2]); c->ret = (uint16_t) r; }
 void api_WIN16_hread (struct w16call *c) { c->ret = (uint32_t) do_read ((int) c->a[0], c->a[1], c->a[2]); }
@@ -730,7 +801,8 @@ void api_WriteProfileString16 (struct w16call *c)
 /* ======================================================================== la tâche */
 static uint16_t builtin_hmod[MAX_BUILTIN];
 
-void kernel_init (void)
+/* les lecteurs (C:, D:, E:, drives.ini) et le dossier courant D:\ ; aussi pour la machine DOS (dos.c) */
+void kernel_drives_init (void)
 {
 	/* C: et son WINDOWS */
 	const char *home = getenv ("HOME");
@@ -759,6 +831,11 @@ void kernel_init (void)
 	}
 	cur_drive = 4;
 	cur_dir[0] = 0;
+}
+
+void kernel_init (void)
+{
+	kernel_drives_init ();
 	/* le PSP et l'environnement, comme sous DOS : la ligne de commande en 0x80, le chemin après l'environnement */
 	task.env = global_alloc (512, 0);
 	uint8_t *e = lin_ptr (sel_base (task.env));
@@ -1443,6 +1520,115 @@ static int wild_match (const char *pat, const char *name)
 	return !*name;
 }
 
+void kernel_set_dta (uint32_t segptr) { dta = segptr; }
+
+/* ---- les noms courts (8.3) des fichiers de Korin, comme Windows 95 : « Mon document.txt » -> MONDOC~1.TXT ;
+ * le numéro suit l'ordre du dossier, il reste le même tant que le dossier ne change pas ---- */
+static int ok83 (int c)
+{
+	return (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || (c >= 128 && c != 0xff) || strchr ("!#$%&'()-@^_`{}~", c);
+}
+
+/* un nom déjà en 8.3 (aux minuscules près) */
+static int is_83 (const char *n)
+{
+	const char *dot = strchr (n, '.');
+	size_t bl = dot ? (size_t) (dot - n) : strlen (n);
+	if (!bl || bl > 8 || (dot && (strchr (dot + 1, '.') || strlen (dot + 1) > 3)))
+		return 0;
+	for (const char *p = n; *p; p++)
+		if (p != dot && !ok83 (toupper ((unsigned char) *p)))
+			return 0;
+	return 1;
+}
+
+/* la base (6 caractères) et l'extension (3) d'un nom long */
+static void short_key (const char *n, char *base, char *ext)
+{
+	const char *dot = strrchr (n, '.');
+	if (dot == n)
+		dot = 0;
+	int k = 0;
+	for (const char *p = n; *p && p != dot && k < 6; p++)
+	{
+		int c = toupper ((unsigned char) *p);
+		if (c == ' ' || c == '.')
+			continue;
+		base[k++] = (char) (ok83 (c) ? c : '_');
+	}
+	base[k] = 0;
+	k = 0;
+	for (const char *p = dot ? dot + 1 : ""; *p && k < 3; p++)
+	{
+		int c = toupper ((unsigned char) *p);
+		if (c != ' ')
+			ext[k++] = (char) (ok83 (c) ? c : '_');
+	}
+	ext[k] = 0;
+}
+
+void kernel_short_name (const char *dir, const char *name, char *out)
+{
+	if (is_83 (name))
+	{
+		int k = 0;
+		for (; name[k] && k < 12; k++)
+			out[k] = (char) toupper ((unsigned char) name[k]);
+		out[k] = 0;
+		return;
+	}
+	char base[8], ext[4];
+	short_key (name, base, ext);
+	int n = 1;
+	DIR *d = opendir (dir && *dir ? dir : ".");
+	if (d)
+	{
+		struct dirent *e;
+		while ((e = readdir (d)) && strcmp (e->d_name, name))
+		{
+			if (!strcmp (e->d_name, ".") || !strcmp (e->d_name, "..") || is_83 (e->d_name))
+				continue;
+			char b2[8], e2[4];
+			short_key (e->d_name, b2, e2);
+			if (!strcmp (b2, base) && !strcmp (e2, ext))
+				n++;
+		}
+		closedir (d);
+	}
+	char tail[8];
+	snprintf (tail, sizeof tail, "~%d", n);
+	int keep = 8 - (int) strlen (tail);
+	if ((int) strlen (base) > keep)
+		base[keep] = 0;
+	snprintf (out, 13, "%s%s%s%s", base, tail, ext[0] ? "." : "", ext);
+}
+
+/* le nom long d'un dossier dont le nom court est name -> 1 (out = dir/nom) */
+int kernel_find_short (const char *dir, const char *name, char *out, size_t cap)
+{
+	if (!strchr (name, '~'))
+		return 0;
+	DIR *d = opendir (dir && *dir ? dir : ".");
+	if (!d)
+		return 0;
+	struct dirent *e;
+	int ok = 0;
+	char sn[13];
+	while (!ok && (e = readdir (d)))
+	{
+		if (!strcmp (e->d_name, ".") || !strcmp (e->d_name, "..") || is_83 (e->d_name))
+			continue;
+		kernel_short_name (dir, e->d_name, sn);
+		if (!strcasecmp (sn, name))
+		{
+			snprintf (out, cap, "%s/%s", dir && *dir ? dir : ".", e->d_name);
+			ok = 1;
+		}
+	}
+	closedir (d);
+	return ok;
+}
+
 static int find_next (void)
 {
 	struct dirent *e;
@@ -1450,7 +1636,9 @@ static int find_next (void)
 	{
 		if (!strcmp (e->d_name, ".") || !strcmp (e->d_name, ".."))
 			continue;
-		if (strlen (e->d_name) > 12 || !wild_match (find_pat, e->d_name))
+		char sn[13];
+		kernel_short_name (find_dir, e->d_name, sn);
+		if (!wild_match (find_pat, sn))
 			continue;
 		char p[1000];
 		struct stat st;
@@ -1458,19 +1646,16 @@ static int find_next (void)
 		if (stat (p, &st))
 			continue;
 		int dir = S_ISDIR (st.st_mode);
-		if (dir && !(find_attr & 0x10))
+		int hidden = e->d_name[0] == '.';	/* (les fichiers cachés de Korin : cachés pour DOS aussi) */
+		if ((dir && !(find_attr & 0x10)) || (hidden && !(find_attr & 0x02)))
 			continue;
 		uint8_t *d = lin_ptr (far_lin (dta));
-		d[0x15] = (uint8_t) (dir ? 0x10 : 0x20);
+		d[0x15] = (uint8_t) ((dir ? 0x10 : 0x20) | (hidden ? 0x02 : 0));
 		struct tm *tm = localtime (&st.st_mtime);
 		wr16 (far_lin (dta) + 0x16, (uint16_t) (tm->tm_hour << 11 | tm->tm_min << 5 | tm->tm_sec / 2));
 		wr16 (far_lin (dta) + 0x18, (uint16_t) ((tm->tm_year - 80) << 9 | (tm->tm_mon + 1) << 5 | tm->tm_mday));
 		wr32 (far_lin (dta) + 0x1a, (uint32_t) st.st_size);
-		char up[13];
-		snprintf (up, sizeof up, "%s", e->d_name);
-		for (char *q = up; *q; q++)
-			*q = (char) toupper ((unsigned char) *q);
-		memcpy (d + 0x1e, up, strlen (up) + 1);
+		memcpy (d + 0x1e, sn, strlen (sn) + 1);
 		return 1;
 	}
 	return 0;
@@ -1608,7 +1793,7 @@ void dos_int21 (void)
 	}
 	case 0x3f:	/* lire */
 	{
-		if (BX == 0)
+		if (BX == 0 && fh_fd (0) < 0)
 		{
 			set16 (R_EAX, 0);
 			break;
@@ -1707,6 +1892,16 @@ void dos_int21 (void)
 				closedir (find_d);
 			find_d = opendir (find_dir);
 			find_attr = CX;
+		}
+		if (AH == 0x4e && CX == 0x08)
+		{
+			/* (l'étiquette du volume seule : KORIN) */
+			uint8_t *d = lin_ptr (far_lin (dta));
+			d[0x15] = 0x08;
+			wr32 (far_lin (dta) + 0x16, 0);
+			wr32 (far_lin (dta) + 0x1a, 0);
+			memcpy (d + 0x1e, "KORIN", 6);
+			break;
 		}
 		if (!find_next ())
 			dos_err (AH == 0x4e ? 2 : 18);

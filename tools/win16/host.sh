@@ -10,7 +10,7 @@ S=$ROOT/src/apps/win16
 B=$ROOT/build/win16/host
 mkdir -p "$B"
 OBJS=""
-for f in "$S"/*.c "$S"/cpu.cpp "$ROOT/tools/win16/host_be.c"; do
+for f in "$S"/*.c "$S"/nuked/*.c "$S"/cpu.cpp "$ROOT/tools/win16/host_be.c"; do
 	n=$(basename "$f" | sed 's/\.[a-z]*$//')
 	[ "$n" != be_uikit ] || continue
 	o=$B/$n.o
@@ -22,6 +22,6 @@ for f in "$S"/*.c "$S"/cpu.cpp "$ROOT/tools/win16/host_be.c"; do
 	fi
 	OBJS="$OBJS $o"
 done
-g++ -o "$B/win16" $OBJS -lm
+g++ -o "$B/win16" $OBJS -lm -lpthread
 [ $# -gt 0 ] || exit 0
 exec "$B/win16" "$@"

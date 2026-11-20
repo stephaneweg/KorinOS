@@ -1,45 +1,52 @@
 # Spotify
 
-Écouter Spotify dans Korin : vos titres aimés, vos playlists et la recherche. La musique est jouée par **librespot**,
-le client libre du protocole de Spotify. Il faut un compte **Premium** (un compte Famille l'est).
+Écouter Spotify dans Korin : le **lecteur web de Spotify** (open.spotify.com) dans sa propre fenêtre, avec son icône,
+sur le moteur de Jet. Tout ce que fait le lecteur web y est : accueil, recherche, bibliothèque, playlists, podcasts.
+Rien à déclarer chez Spotify : pas de Client ID, c'est le client web de Spotify, connecté avec votre compte.
 
-## Se connecter (une fois)
+Korin PC seulement : Spotify protège sa musique par **Widevine**, le module de Google que Jet sait faire tourner sur
+le PC.
 
-Deux connexions, comme ncspot : le **lecteur** se présente avec l'identifiant du client de bureau de Spotify (le seul
-qu'il accepte), et les **listes et la recherche** avec celui de votre app (Spotify limite très vite le client de
-bureau, partagé par tous : « 429 »).
+## La première fois
 
-1. Sur [developer.spotify.com](https://developer.spotify.com/dashboard), **Create app** ; dans **Redirect URIs**,
-   ajoutez exactement `http://127.0.0.1:8898/` (avec la barre finale) ; cochez **Web API** ; enregistrez ; copiez le
-   **Client ID**.
-2. **Fichier > Se connecter à Spotify…** : Jet s'ouvre, acceptez (le lecteur).
-3. L'app demande ensuite le Client ID de votre app : collez-le, puis acceptez de nouveau dans Jet (les listes).
+1. **Le module Widevine** : s'il n'est pas encore là, Spotify propose de le télécharger chez Google (environ 22 Mo,
+   empreinte vérifiée) et de l'installer dans votre dossier personnel. C'est le même que celui de Jet (Réglages,
+   « Lire les contenus protégés ») : un seul téléchargement pour les deux.
+2. **Votre compte** : connectez-vous dans la fenêtre, comme sur le site de Spotify. L'app garde sa session (ses
+   cookies sont à elle, à part de ceux de Jet) : les fois suivantes, rien à refaire.
 
-Korin garde la connexion (le service oauthd, dans le coffre à secrets) : les fois suivantes, rien à refaire.
-**Fichier > Se déconnecter** l'oublie.
+Les connexions qui ouvrent une autre fenêtre (certains boutons « Continuer avec… ») s'ouvrent dans Jet, qui n'a pas la
+session de l'app : préférez l'adresse e-mail et le mot de passe, ou le code envoyé par Spotify.
 
 ## Écouter
 
-- À gauche : **Titres aimés**, et vos **playlists**.
-- En haut : la **recherche** (titres, artistes, albums), puis **Entrée**.
-- **Double-clic** ou **Entrée** sur un titre : il joue ; à la fin, le suivant de la liste.
+Comme sur le site : cliquez un titre, une playlist, un album. Le menu **Lecture** et la carte pilotent la barre de
+lecture de la page.
 
 | Touche | Effet |
 |---|---|
-| Espace | lecture ou pause |
-| Ctrl+→, Ctrl+← | titre suivant, précédent |
-| Ctrl+F | la recherche |
-| Ctrl+W | fermer |
+| Espace | lecture ou pause (raccourci de Spotify) |
+| Ctrl+R, F5 | recharger la page |
+| Alt+← | page précédente |
+| Ctrl+W | réduire en carte pendant la lecture, sinon fermer |
+| Ctrl+Q | quitter |
 
 ## La carte
 
 Fermer la fenêtre pendant la lecture la réduit en **carte** en bas à droite de l'écran, au-dessus des autres
-fenêtres : la musique continue. Le bouton en haut à droite de la carte rend la fenêtre ; fermer la carte arrête la
-musique.
+fenêtres : la musique continue. La carte montre le titre, l'artiste et la position ; ses boutons : précédent, lecture
+ou pause, suivant. Le bouton en haut à droite rend la fenêtre ; fermer la carte arrête la musique et l'app.
+**Lecture > Réduire en carte** la montre à tout moment.
+
+## Le menu Fichier
+
+- **Recharger**, **Précédente** : la page.
+- **Ouvrir dans Jet** : Spotify dans le navigateur (avec la session de Jet).
+- **Se déconnecter (effacer les données)…** : efface la session de l'app (cookies, stockage) ; celle de Jet ne change
+  pas.
 
 ## Bon à savoir
 
-- librespot n'est pas un produit de Spotify : un changement de Spotify peut l'empêcher de jouer quelque temps, le
-  temps qu'il suive.
-- **Spotify Connect** : une fois connecté, Korin apparaît dans la liste des appareils de l'app Spotify de votre
-  téléphone (« Korin (nom de la machine) ») : choisissez-le, la musique joue ici, pilotée depuis le téléphone.
+- Sur les sites protégés, le moteur se présente comme Chrome sous Linux : Spotify le traite comme un navigateur
+  ordinaire (qualité de son du lecteur web).
+- Sans compte Premium, le lecteur web de Spotify joue avec des publicités, comme ailleurs.

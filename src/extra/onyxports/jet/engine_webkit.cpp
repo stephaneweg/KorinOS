@@ -584,7 +584,7 @@ static const char MOBILE_UA[] = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleW
 // $HOME/.jet/widevine/libwidevinecdm.so); without it, nothing changes.
 static const char WIDEVINE_UA[] = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
 static const char *const WIDEVINE_SITES[] = { "netflix.com", "spotify.com", "disneyplus.com", "primevideo.com",
-	"amazon.com", "deezer.com", "max.com", "hulu.com", "canalplus.com", "mycanal.fr", "tf1.fr", "france.tv",
+	"amazon.com", "amazon.fr", "deezer.com", "max.com", "hulu.com", "canalplus.com", "mycanal.fr", "tf1.fr", "france.tv",
 	"bitmovin.com", "shaka-player-demo.appspot.com", nullptr };
 
 // (looked at each time: the settings' box installs or removes it while Jet runs)
@@ -846,9 +846,21 @@ static void set_dir (void (*set) (WKWebsiteDataStoreConfigurationRef, WKStringRe
 	WKRelease (s);
 }
 
+static std::string s_helperPath;		// (engine_set_helper_path)
+
+void engine_set_helper_path (const char *path) { s_helperPath = path ? path : ""; }
+
+static std::string s_dataName = "jet";		// (engine_set_data_name: a web app's own)
+
+void engine_set_data_name (const char *name)
+{
+	if (name && *name && !strchr (name, '/') && strcmp (name, ".") && strcmp (name, ".."))
+		s_dataName = name;
+}
+
 static WKWebsiteDataStoreRef make_data_store ()
 {
-	std::string h = home_dir (), j = h + "/jet";
+	std::string h = home_dir (), j = h + "/" + s_dataName;
 	s_data = j + "/webkit";
 	s_cache = j + "/cache";
 	mkdir (h.c_str (), 0755);
@@ -961,8 +973,8 @@ int engine_tab_new (const char *typed)
 	t->zoom = 1;
 
 	WKContextConfigurationRef cc = WKContextConfigurationCreate ();
-	// The web and the network process: this same program (its role by an argument).
-	WKStringRef self = WKStringCreateWithUTF8CString (self_path ());
+	// The web and the network process: this same program (its role by an argument), or a web app's launcher.
+	WKStringRef self = WKStringCreateWithUTF8CString (s_helperPath.empty () ? self_path () : s_helperPath.c_str ());
 	WKContextConfigurationSetWebProcessPath (cc, self);
 	WKContextConfigurationSetNetworkProcessPath (cc, self);
 	WKRelease (self);
@@ -1334,6 +1346,27 @@ void engine_load (const char *typed)
 	WKURLRef u = WKURLCreateWithUTF8CString (url.c_str ());
 	WKPageLoadURL (s_page, u);
 	WKRelease (u);
+}
+
+// engine_run_script: the answer of WebKit (from the run loop: engine_cycle)
+struct ScriptCall { void (*done) (void *, const char *); void *ctx; };
+
+static void script_done (WKTypeRef result, WKErrorRef, void *context)
+{
+	ScriptCall *c = (ScriptCall *) context;
+	std::string r;
+	if (result && WKGetTypeID (result) == WKStringGetTypeID ())
+		r = str ((WKStringRef) result);
+	if (c->done) c->done (c->ctx, r.c_str ());
+	delete c;
+}
+
+void engine_run_script (const char *js, void (*done) (void *, const char *), void *ctx)
+{
+	if (!s_page || !js) return;
+	WKStringRef s = WKStringCreateWithUTF8CString (js);
+	WKPageEvaluateJavaScriptInMainFrame (s_page, s, new ScriptCall { done, ctx }, script_done);
+	WKRelease (s);
 }
 
 void engine_back () { if (s_page && WKPageCanGoBack (s_page)) WKPageGoBack (s_page); }

@@ -9,9 +9,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <ctype.h>
 #include "w16.h"
 #include "be.h"
+#include "dos.h"
 
 void kernel_set_cmdline (const char *args);
 
@@ -31,12 +33,41 @@ static void dos_path (const char *path, char *out, size_t cap)
 		*p = (char) toupper ((unsigned char) *p);
 }
 
+/* un exécutable de Windows (MZ suivi d'un en-tête NE) ; sinon, un programme DOS */
+static int is_windows (const char *path)
+{
+	FILE *f = fopen (path, "rb");
+	if (!f)
+		return 1;	/* (ne_load dira qu'il ne peut pas le lire) */
+	uint8_t h[0x40], ne[2] = { 0, 0 };
+	size_t n = fread (h, 1, sizeof h, f);
+	int win = 0;
+	if (n == sizeof h && h[0] == 'M' && h[1] == 'Z' && (h[0x18] | h[0x19] << 8) >= 0x40)
+	{
+		uint32_t off = (uint32_t) (h[0x3c] | h[0x3d] << 8 | h[0x3e] << 16 | (uint32_t) h[0x3f] << 24);
+		if (!fseek (f, (long) off, SEEK_SET) && fread (ne, 1, 2, f) == 2)
+			win = ne[0] == 'N' && ne[1] == 'E';
+	}
+	fclose (f);
+	return win;
+}
+
+char w16_dosdir[512];
+
+static int is_batch (const char *path)
+{
+	size_t l = strlen (path);
+	return l > 4 && !strcasecmp (path + l - 4, ".bat");
+}
+
 int main (int argc, char **argv)
 {
-	int i = 1;
+	int i = 1, dos_prompt = 0;
 	for (; i < argc && argv[i][0] == '-' && argv[i][1] == '-'; i++)
 	{
-		if (!strcmp (argv[i], "--trace"))
+		if (!strcmp (argv[i], "--dos"))
+			dos_prompt = 1;
+		else if (!strcmp (argv[i], "--trace"))
 			w16_trace = 1;
 		else if (!strcmp (argv[i], "--trace-cpu"))
 			w16_trace = 2;
@@ -49,6 +80,50 @@ int main (int argc, char **argv)
 	if (getenv ("W16_TRACE"))
 		w16_trace = atoi (getenv ("W16_TRACE"));
 	int ui = be_init ();
+	/* Z: : le dossier dos/ à côté du programme (COMMAND.COM), ou W16_DOSDIR */
+	{
+		const char *e = getenv ("W16_DOSDIR");
+		if (e && *e)
+			snprintf (w16_dosdir, sizeof w16_dosdir, "%s", e);
+		else
+		{
+			snprintf (w16_dosdir, sizeof w16_dosdir, "%s", argv[0]);
+			char *sl = strrchr (w16_dosdir, '/');
+			if (sl)
+				snprintf (sl, sizeof w16_dosdir - (size_t) (sl - w16_dosdir), "/dos");
+			else
+				snprintf (w16_dosdir, sizeof w16_dosdir, "dos");
+		}
+	}
+	if (dos_prompt || (i < argc && is_batch (argv[i])))
+	{
+		/* l'invite du DOS (--dos), ou un .BAT : COMMAND.COM (FreeCOM) sur Z:, D: = le dossier courant ou celui du .BAT */
+		char comspec[600], args[300] = "";
+		snprintf (comspec, sizeof comspec, "%s/COMMAND.COM", w16_dosdir);
+		if (i < argc && is_batch (argv[i]))
+		{
+			snprintf (task.dir, sizeof task.dir, "%s", argv[i]);
+			char *sl = strrchr (task.dir, '/');
+			if (sl)
+				*sl = 0;
+			else
+				snprintf (task.dir, sizeof task.dir, ".");
+			const char *b = strrchr (argv[i], '/');
+			snprintf (args, sizeof args, "/C %s", b ? b + 1 : argv[i]);
+			for (int k = i + 1; k < argc; k++)
+			{
+				strncat (args, " ", sizeof args - strlen (args) - 1);
+				strncat (args, argv[k], sizeof args - strlen (args) - 1);
+			}
+		}
+		else
+		{
+			const char *h = getenv ("HOME");
+			snprintf (task.dir, sizeof task.dir, "%s", h && *h ? h : ".");
+		}
+		dos_hold = !dos_prompt;
+		return dos_main (comspec, "Z:\\COMMAND.COM", args);
+	}
 	if (i >= argc)
 	{
 		if (ui)
@@ -58,6 +133,24 @@ int main (int argc, char **argv)
 	}
 	if (!ui)
 		fprintf (stderr, "win16 : pas d'affichage\n");
+	if (!is_windows (argv[i]))
+	{
+		/* un programme DOS (MZ sans en-tête NE, .COM) : la machine DOS (dos.c) */
+		char args[256] = "";
+		for (int k = i + 1; k < argc; k++)
+		{
+			if (k > i + 1)
+				strncat (args, " ", sizeof args - strlen (args) - 1);
+			strncat (args, argv[k], sizeof args - strlen (args) - 1);
+		}
+		snprintf (task.dir, sizeof task.dir, "%s", argv[i]);
+		char *sl = strrchr (task.dir, '/');
+		if (sl)
+			*sl = 0;
+		else
+			snprintf (task.dir, sizeof task.dir, ".");
+		return dos_main (argv[i], 0, args);
+	}
 	if (!cpu_init ())
 	{
 		fprintf (stderr, "win16 : pas assez de mémoire\n");

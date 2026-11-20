@@ -1,0 +1,35 @@
+[package]
+# l'eframe de Korin (docs/EGUI.md) : les noms d'eframe 0.37 (App, Frame, NativeOptions, CreationContext, run_native),
+# sur l'hôte egui-korin ; un programme fait pour eframe le prend par [patch] (tools/craft/build.sh)
+name = "eframe"
+version = "0.37.99"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "eframe pour Korin OS : les apps eframe dans une fenêtre UIKit, dessinées par le CPU (egui-korin)"
+publish = false
+
+[features]
+# celles d'eframe, sans effet ici (les dépendances les demandent)
+default = []
+accesskit = []
+default_fonts = ["egui/default_fonts"]
+experimental = []
+glow = []
+persistence = []
+wayland = []
+x11 = []
+system_fonts = []
+web_screen_reader = []
+wgpu = []
+wgpu_no_default_features = []
+__screenshot = []
+inspection = []
+links = []
+clipboard = []
+
+[dependencies]
+egui = { version = "0.37", default-features = false }
+egui-korin = { path = "../egui-korin" }
+raw-window-handle = "0.6"
+image = { version = "0.25", default-features = false, features = ["png"] }
+log = "0.4"

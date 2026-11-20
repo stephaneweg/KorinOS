@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-20 14:03
+date = 2026-11-20 19:36
 abi = 626
 packages = 115
 board = pc
@@ -437,18 +437,18 @@ content = 7354880489ca7b2d5f12bb8a6546c35c0b7fddbdf42c7c6807eb7d015e508b0e
 
 [python]
 title = Python
-version = 1.0.4
+version = 1.0.5
 category = Développement
 author = Korin OS
 summary = CPython 3.14 : l'interpréteur python3, la bibliothèque standard, pip et setuptools (/devtools/python)
-size = 23261450
+size = 23261449
 installed = 49035837
-sha256 = 6a11dadefcc63620eb53d8b4e786ef8a72410c2898814a95e1ab636b553aa1fa
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-python-1.0.4.opk
+sha256 = 415626014473b899d1eee1db7be46b6bd22871f452f9a7c892d75ef9889d4aaf
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-python-1.0.5.opk
 needs = pc, abi >= 626
 required = 0
 restart = 0
-content = cb99d49768c9dba0378cf075bc302950e1001beaf7ac9567b4a63b8ab6f5182b
+content = a50ab76c8a7a51009d8ae52d350ea54617bb7028b3c984e6fa8707b7c95b871d
 
 [claude]
 title = Claude (API)
@@ -679,18 +679,18 @@ content = e6369709297bf0a54e239033bae2c28313f0aa6195924cc6626808b82350f612
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.63
+version = 2026.11.64
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 32063430
-installed = 96477657
-sha256 = 26bc2942384e7487b7e4b96bbc788c4c3b4bf061156000b28400a260087bceeb
-file = pkgs/pc-2026.11.63.opk
+size = 32021840
+installed = 96349481
+sha256 = 6abdab8b7f5aef35fdc2e8b551bc36cd46b561b369e4122de92e9e178bab06dc
+file = pkgs/pc-2026.11.64.opk
 needs = 
 required = 1
 restart = 1
-content = ce75a982b935d40d288d12f0c7a452451ec155129f0a980c588e8604b4511628
+content = 83027325be9ef7e18511845c3fbb3648a73ee8d49cad81b0051102e33195e6d2
 
 [2048]
 title = 2048
@@ -1159,18 +1159,18 @@ content = 9dcc6ae967cf3770ce2c99171be88fcde48a3415e593ca9e6fbeae8163173869
 
 [jet]
 title = Jet
-version = 1.4.0
+version = 1.4.1
 category = Internet
 author = Korin OS
 summary = Le navigateur, sur WebKit
-size = 55624204
-installed = 139355199
-sha256 = 3022924f3e4b87727f5523bac9ba7147103aa2723a9535f6bf185642e677ebea
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.0.opk
+size = 55658503
+installed = 139420959
+sha256 = aea3cb8c79152604094c6fc9925198b4fbfa11f2739b40eda025f33560f014af
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.1.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = e7c91615d04db16bf87f7dc2977f10cd7518cdd1776f99de8d7b9c68c0b47dbc
+content = 515580f079efc79306b620c6500eb39abb5f86fee75c5bbc0595dc357368ff01
 
 [koton]
 title = Koton
@@ -1609,18 +1609,18 @@ content = bcc565a5cb90bc0a6168ccb2abf71fd8086c6e49a0b226a39dbe0bd687842b5f
 
 [spotify]
 title = Spotify
-version = 1.0.7
+version = 1.1.0
 category = Multimédia
 author = Korin OS
-summary = Spotify (compte Premium) : titres aimés, playlists, recherche, joués par librespot
-size = 4378906
-installed = 10242687
-sha256 = 36197e46c22a14c835d5097f255c757671e05c5265ae9b0fcc325b3bed72809e
-file = pkgs/spotify-1.0.7.opk
-needs = abi >= 626
+summary = Spotify : le lecteur web de Spotify dans sa fenêtre (Widevine, sans Client ID), avec la carte de lecture
+size = 126132
+installed = 265555
+sha256 = 43c60642b4d0d2559c680cfd5d965d4c2cc28ad270c7855f92c844279e0acd78
+file = pkgs/spotify-1.1.0.opk
+needs = jet, abi >= 626
 required = 0
 restart = 0
-content = 6bb5ce7c0b21da832755ce011d0ebab66186608ed1d690d26ede582ff8444f66
+content = b57a4a85cba3d597e4a7b3ba6596d9ba7219495472518734c6f2a061be2c554a
 
 [studio]
 title = Studio
@@ -1741,3 +1741,18 @@ needs = abi >= 626
 required = 0
 restart = 0
 content = 65b7348a488c5b8ec86aed20cb76355a92b2db56c7e8ac616ec39b32268ad863
+
+[win16]
+title = Windows 3.x
+version = 1.0.0
+category = Émulateurs
+author = Korin OS
+summary = 
+size = 666288
+installed = 1515798
+sha256 = 2408c58e90bb81295a367103cfcebb71f3e0a8634eefbcac9230940ec69c0497
+file = pkgs/win16-1.0.0.opk
+needs = abi >= 626
+required = 0
+restart = 0
+content = 5763aa3fabee2a6c4a5427ed20a95425ff8f09f81f16c468665d5f5cb52077fe

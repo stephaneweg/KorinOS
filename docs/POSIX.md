@@ -478,6 +478,29 @@ et la page n'envoyait pas le mot de passe ([WEBKIT.md](WEBKIT.md), « Connexion 
 * **Jet** initialise de plus OpenSSL au départ, sans `atexit` (`OPENSSL_INIT_NO_ATEXIT`, `main.cpp`) : cela ne
   dépend plus de la table.
 
+## stdio et st_blksize (20/11/2026)
+
+* **Le défaut** : la newlib de Korin (4.4.0) n'est pas construite avec `HAVE_BLKSIZE` ; le tampon de chaque `FILE`
+  faisait toujours `BUFSIZ`, 1024 octets sur le PC. Un `fread` de gros fichier devenait un `read ()` de 1 Ko par
+  remplissage, autant d'allers-retours avec `vfs`. Trouvé par `cdmhost`, qui mettait 11 s à lire le module Widevine
+  (21,7 Mo) ; tout programme qui lit ou écrit de gros fichiers par stdio en souffrait (Python, GCC, les apps).
+* **La correction** : `stdiobuf.c` remplace `__smakebuf_r` et `__swhatbuf_r` de `makebuf.o` (même code que
+  newlib 4.4.0, même repli sans mémoire) : un **fichier régulier** reçoit un tampon de `st_blksize`, que `stat` et
+  `fstat` annoncent maintenant à **64 Ko** (`stat.c`, `POSIX_BLKSIZE`) ; terminal, tube, socket gardent `BUFSIZ`.
+  `start.c` y fait référence, pour que la version de libposix soit toujours liée avant que la libc ne demande la
+  sienne (sinon, selon l'ordre des objets de `libc.a`, l'éditeur de liens pouvait prendre celle de la libc).
+  `st_blocks` reste en blocs de 512 octets.
+* **Mesure** (`src/lib/posix/test/fbench.c`, QEMU PC, fichier de 21,7 Mo) :
+
+  | Lecture | Avant | Après |
+  |---|---|---|
+  | `fread` par blocs de 64 Ko, tampon par défaut | 4,1 à 7,1 s (3 à 5 Mo/s) | **0,58 s (36 Mo/s)** |
+  | `fread` après `setvbuf` de 64 Ko | 0,20 s | 0,18 s |
+  | `read ()` par blocs de 4 Mo | 0,06 s | 0,05 s |
+
+* `posixtest` (groupes `mem`, `thread`, `file`, `io`, `time`, `proc`, `ipc`, `signal`, `misc`) passe avec cette
+  libposix. Elle ne vaut que pour les programmes reliés ensuite : libposix est liée statiquement.
+
 ## Ce qui manque (ENOSYS, ou sans effet)
 
 * **Processus** : `exec*` garde le pid (section « exec » ; repli : lancer, attendre, finir) ;

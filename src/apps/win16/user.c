@@ -152,7 +152,7 @@ uint32_t user_sys_color (int i)
 	case 10: case 11: return user_theme_ref (BT_LINE);	/* bords */
 	case 13: return user_theme_ref (BT_ACCENT);		/* HIGHLIGHT */
 	case 14: return user_theme_ref (BT_ACCENT_INK);		/* HIGHLIGHTTEXT */
-	case 15: return user_theme_ref (BT_SURFACE);		/* BTNFACE */
+	case 15: return user_theme_ref (BT_FACE);		/* BTNFACE : le fond des fenêtres de UIKit */
 	case 16: return user_theme_ref (BT_LINE_STRONG);	/* BTNSHADOW */
 	case 17: case 19: return user_theme_ref (BT_TEXT3);	/* GRAYTEXT, INACTIVECAPTIONTEXT */
 	case 20: return user_theme_ref (BT_RAISED);		/* BTNHIGHLIGHT */
@@ -656,6 +656,7 @@ void api_ShowWindow16 (struct w16call *c)
 		}
 	}
 	user_send (hwnd, WM_SHOWWINDOW, (uint16_t) show, 0);
+	ctrl_native_sync_tree (hwnd);	/* (les widgets de UIKit des filles suivent) */
 	w = wnd_get (hwnd);
 	if (!w)
 		return;
@@ -691,7 +692,10 @@ void api_UpdateWindow16 (struct w16call *c)
 	uint16_t h = (uint16_t) c->a[0];
 	struct wnd *w = wnd_get (h);
 	if (w && w->invalid && w->visible)
+	{
 		user_send (h, WM_PAINT, 0, 0);
+		ctrl_native_redraw_under (h);
+	}
 	/* (et les filles) */
 	for (int i = 0; i < MAX_WND; i++)
 		if (wnds[i].used && wnds[i].parent == h && (wnds[i].style & WS_CHILD) && wnds[i].visible && wnds[i].invalid)
@@ -1219,6 +1223,10 @@ static void translate_event (const struct be_event *e)
 		if (!blocked (top))
 			menu_command (top->hwnd, e->key);
 		break;
+	case BE_WIDGET:
+		if (!blocked (top))
+			ctrl_native_event (e->key, e->x);
+		break;
 	case BE_RESIZE:
 	{
 		int pw, ph, stride;
@@ -1615,6 +1623,8 @@ uint32_t user_dispatch (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp, u
 	struct wnd *w = wnd_get (hwnd);
 	if (msg == WM_PAINT && w && w->invalid)
 		w->invalid = w->erase = 0;	/* (une procédure qui ne peint pas : Windows valide pour elle) */
+	if (msg == WM_PAINT && w)
+		ctrl_native_redraw_under (hwnd);	/* (les widgets des filles par-dessus le fond) */
 	if (msg == WM_COMMAND)
 		menu_init_popups (0);
 	return r;
@@ -1929,6 +1939,8 @@ static void move_window (struct wnd *w, int x, int y, int cw, int ch, int repain
 	w = wnd_get (h);
 	if (w && (repaint || sized))
 		invalidate_tree (w);
+	if (w)
+		ctrl_native_sync_tree (h);	/* (les widgets des filles se déplacent avec elle) */
 }
 
 void api_MoveWindow16 (struct w16call *c)

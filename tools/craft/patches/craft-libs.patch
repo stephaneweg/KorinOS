@@ -1,0 +1,111 @@
+diff -ruN cl-a/crates/font-store/Cargo.toml cl-b/crates/font-store/Cargo.toml
+--- a/crates/font-store/Cargo.toml
++++ b/crates/font-store/Cargo.toml
+@@ -23,7 +23,6 @@
+ 
+ # The store and the network are native only; the web keeps fonts elsewhere.
+ [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+-cap-primitives = "4.0.3"
+ craft-atomic = { workspace = true }
+ craft-font-catalog = { workspace = true }
+ log = "0.4"
+@@ -34,6 +33,10 @@
+ # Blocking HTTPS with rustls and webpki roots: no async runtime, no OpenSSL.
+ ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] }
+ 
++# Korin : PackRemovalRoot par chemins (src/language_packs/removal.rs)
++[target.'cfg(not(any(target_arch = "wasm32", target_os = "korin")))'.dependencies]
++cap-primitives = "4.0.3"
++
+ [dev-dependencies]
+ write-fonts = "0.54"
+ 
+diff -ruN cl-a/crates/font-store/src/language_packs/removal.rs cl-b/crates/font-store/src/language_packs/removal.rs
+--- a/crates/font-store/src/language_packs/removal.rs
++++ b/crates/font-store/src/language_packs/removal.rs
+@@ -127,6 +127,7 @@
+ /// Keep recovery ancestors open until cleanup ends. Unix operations use directory-relative
+ /// handles; Windows directory handles deny deletion and renaming while they remain open.
+ /// The caller-selected store is the ambient authority boundary, not an untrusted child path.
++#[cfg(not(target_os = "korin"))]
+ pub(crate) struct PackRemovalRoot {
+     _store: std::fs::File,
+     packs: std::fs::File,
+@@ -134,6 +135,7 @@
+     stage: Option<std::fs::File>,
+ }
+ 
++#[cfg(not(target_os = "korin"))]
+ impl PackRemovalRoot {
+     /// Open each named child without following a symlink; preserve every ancestor handle.
+     pub(super) fn open(store: &Path) -> std::io::Result<Self> {
+@@ -224,3 +226,69 @@
+     // The record committed the removal; dropping the stage cleans up its old files.
+     Ok(())
+ }
++
++/// Korin : pas de liens symboliques ni de `openat` complet ; les mêmes étapes par chemins.
++#[cfg(target_os = "korin")]
++pub(crate) struct PackRemovalRoot {
++    packs: std::path::PathBuf,
++    recovery: std::path::PathBuf,
++    stage: Option<std::path::PathBuf>,
++}
++
++#[cfg(target_os = "korin")]
++impl PackRemovalRoot {
++    pub(super) fn open(store: &Path) -> std::io::Result<Self> {
++        let packs = store.join(LANGUAGE_PACKS);
++        let recovery = packs.join(".removing");
++        for dir in [store, packs.as_path(), recovery.as_path()] {
++            if !std::fs::metadata(dir)?.is_dir() {
++                return Err(std::io::Error::other(format!("{} is not a folder", dir.display())));
++            }
++        }
++        Ok(Self { packs, recovery, stage: None })
++    }
++
++    pub(crate) fn create_stage(&self, id: &str) -> std::io::Result<()> {
++        std::fs::create_dir(self.recovery.join(id))
++    }
++
++    pub(crate) fn with_stage(mut self, id: &str) -> std::io::Result<Self> {
++        let dir = self.recovery.join(id);
++        match std::fs::metadata(&dir) {
++            Ok(meta) if meta.is_dir() => {
++                self.stage = Some(dir);
++                Ok(self)
++            }
++            other => {
++                let _ = std::fs::remove_dir(&dir);
++                Err(other.err().unwrap_or_else(|| std::io::Error::other("recovery stage is not a folder")))
++            }
++        }
++    }
++
++    fn move_pack(&self, locale: &str) -> std::io::Result<()> {
++        let stage = self.stage.as_ref().ok_or_else(|| std::io::Error::other("missing recovery stage"))?;
++        std::fs::rename(self.packs.join(locale), stage.join(locale))
++    }
++
++    fn restore_pack(&self, locale: &str) -> std::io::Result<()> {
++        let stage = self.stage.as_ref().ok_or_else(|| std::io::Error::other("missing recovery stage"))?;
++        std::fs::rename(stage.join(locale), self.packs.join(locale))
++    }
++
++    pub(super) fn retains_receipt(&self, id: &str) -> bool {
++        !matches!(
++            std::fs::symlink_metadata(self.recovery.join(id)),
++            Err(error) if error.kind() == std::io::ErrorKind::NotFound
++        )
++    }
++
++    pub(crate) fn remove_stage(mut self, id: &str, display_parent: &Path) -> std::io::Result<()> {
++        drop(self.stage.take());
++        self.remove(id, display_parent)
++    }
++
++    pub(crate) fn remove(&self, id: &str, _display_parent: &Path) -> std::io::Result<()> {
++        std::fs::remove_dir_all(self.recovery.join(id))
++    }
++}

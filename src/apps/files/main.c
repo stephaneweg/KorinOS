@@ -3683,14 +3683,92 @@ static void paste (void)
 		ui_clip_done_cut ();		/* deplaces : le presse-papiers ne les garde plus */
 }
 
+/* le dossier dir parmi les acces rapides -> son rang, sinon -1 */
+static long place_find (const char *dir)
+{
+	for (long i = 0; i < pl_n; i++)
+		if (!strcmp (places[i].path, dir))
+			return i;
+	return -1;
+}
+
+/* epingler (pin = 1) ou retirer (0) le dossier dir des acces rapides : places.ini (personnel, sinon celui de /etc
+ * comme depart) relu tel quel, une ligne « nom = dossier » ajoutee a la fin ou celles de ce dossier retirees
+ * (commentaires et autres lignes gardes), ecrit dans le places.ini personnel ; puis menu Aller et panneau refaits */
+static void place_pin (const char *dir, int pin)
+{
+	static char raw[PL_BUF], out[PL_BUF + 200];
+	char cp_[160];
+	if (pin && (pl_n >= PL_MAX || strlen (dir) >= sizeof places[0].path))
+	{
+		ui_message ((long) TR ("Accès rapides"), (long) TR (pl_n >= PL_MAX ? "Les accès rapides sont pleins : retirez-en un d'abord."
+				: "Ce chemin est trop long pour les accès rapides."), UM_OK);
+		return;
+	}
+	long n = 0;
+	int fd = open (korin_conf_path ("places.ini", cp_, sizeof cp_, 0), O_RDONLY);
+	if (fd >= 0)
+	{
+		n = read (fd, raw, PL_BUF - 1);
+		close (fd);
+		if (n < 0)
+			n = 0;
+	}
+	raw[n] = 0;
+	char *o = out;
+	for (char *line = raw; *line;)
+	{
+		char *e = line;
+		while (*e && *e != 10)
+			e++;
+		long len = e - line;
+		int keep = 1;
+		if (!pin)
+		{				/* « nom = dossier » de ce dossier : retiree */
+			char tmp[300];
+			long l = len < (long) sizeof tmp - 1 ? len : (long) sizeof tmp - 1;
+			memcpy (tmp, line, (size_t) l);
+			tmp[l] = 0;
+			char *q = strchr (tmp, '=');
+			if (tmp[0] != '#' && q && !strcmp (ini_trim (q + 1), dir))
+				keep = 0;
+		}
+		if (keep)
+		{
+			memcpy (o, line, (size_t) len);
+			o += len;
+			*o++ = 10;
+		}
+		line = *e ? e + 1 : e;
+	}
+	if (pin)
+	{
+		const char *nm = base_name (dir);
+		o += snprintf (o, 200, "%s = %s\n", *nm ? nm : dir, dir);
+	}
+	fd = open (korin_conf_path ("places.ini", cp_, sizeof cp_, 1), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (fd < 0)
+	{
+		ui_message ((long) TR ("Accès rapides"), (long) TR ("Les accès rapides ne peuvent pas être enregistrés."), UM_OK);
+		return;
+	}
+	write (fd, out, (size_t) (o - out));
+	close (fd);
+	places_load ();
+	menu_build ();
+	ui_menu ((long) menu_buf);
+	menu_states ();
+	draw ();
+}
+
 /* point de la fenetre : menu de l'entree selectionnee (Ouvrir, Ouvrir avec... pour un fichier,
  * Couper, Copier, Renommer..., Supprimer) ; dans le vide : Coller, Nouveau dossier */
 static void ctx_menu (long x, long y)
 {
-	enum { A_OPEN, A_WITH, A_CUT, A_COPY, A_RENAME, A_DELETE, A_PASTE, A_NEWDIR, A_COPYTO, A_MOVETO };
+	enum { A_OPEN, A_WITH, A_CUT, A_COPY, A_RENAME, A_DELETE, A_PASTE, A_NEWDIR, A_COPYTO, A_MOVETO, A_PIN };
 	static const char *const lab[] = { "Ouvrir", "Ouvrir avec…", "Couper", "Copier", "Renommer…", "Supprimer",
-		"Coller", "Nouveau dossier", "Copier vers « %s »", "Déplacer vers « %s »" };
-	int act[10], n = 0;
+		"Coller", "Nouveau dossier", "Copier vers « %s »", "Déplacer vers « %s »", "Épingler aux accès rapides" };
+	int act[12], n = 0;
 	if (cursel < 0 || !nsel)
 	{
 		act[n++] = A_PASTE;
@@ -3711,6 +3789,8 @@ static void ctx_menu (long x, long y)
 		if (nsel == 1)
 			act[n++] = A_RENAME;
 		act[n++] = A_DELETE;
+		if (nsel == 1 && ent_ptr (cursel)->kind == K_DIR && place_find (make_full (cursel)) < 0)
+			act[n++] = A_PIN;	/* (un dossier pas encore epingle ; Retirer : clic droit dans le panneau) */
 	}
 	const char *other = base_name (panes[!act_pane ()].path);
 	char *e = popbuf;
@@ -3740,6 +3820,7 @@ static void ctx_menu (long x, long y)
 	case A_DELETE: delete_sel (); break;
 	case A_PASTE: paste (); break;
 	case A_NEWDIR: new_folder (); break;
+	case A_PIN: place_pin (make_full (cursel), 1); break;
 	}
 }
 
@@ -4532,6 +4613,17 @@ static void on_mouse (void)
 		if (y < PAN_Y0)			/* panneau : acces rapides puis volumes */
 			return;
 		long r = (y - PAN_Y0) / PROW_H;
+		if (r < pl_n && (ui_ev_field (&ui, EV_CODE) & 2))
+		{				/* bouton droit sur un acces rapide : Retirer */
+			char *e = tr_cat (popbuf, "Retirer") + 1;
+			*e = 0;
+			char dir[sizeof places[0].path];
+			str_copy_n (dir, places[r].path, sizeof dir);
+			if (ui_popup_local (x, y, (long) popbuf, 200) == 0)
+				place_pin (dir, 0);
+			draw ();
+			return;
+		}
 		if (r < pl_n)
 			go_dir (places[r].path);
 		else

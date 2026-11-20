@@ -1,0 +1,5 @@
+# TF1+ : une app web sur le moteur de Jet (src/extra/onyxports/jet/webapp.cpp ; lanceur : src/lib/webapp/launcher.c)
+title    = TF1+
+url      = https://www.tf1.fr/
+sites    = tf1.fr
+maximize = 1

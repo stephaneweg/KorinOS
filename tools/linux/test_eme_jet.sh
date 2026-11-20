@@ -106,12 +106,12 @@ spec.loader.exec_module(pt)
 pt.W, pt.IMG = os.path.abspath(w), os.path.abspath(img)
 a = types.SimpleNamespace(port=2395, hostfwd=[], smp=4, mem="4G", boot=150, shot=os.path.join(w, "fin.png"),
     qemu="-device usb-tablet,bus=xhci.0" if clicks else "",
-    cmd=["sleep:20"] + ([pre] if pre else []) + ["( /apps/jet.app/main http://10.0.2.2:8642/index.html > /tmp/jet.log 2>&1 & ) ; echo Jet lancé",
+    cmd=["sleep:20"] + ([pre] if pre else []) + ["( /apps/jet.app/main http://10.0.2.2:8642/index.html%s > /tmp/jet.log 2>&1 & ) ; echo Jet lancé" % os.environ.get("QUERY", ""),
          "sleep:" + wait, "shot:eme"]
     + sum([["( /apps/jet.app/main %s > /dev/null 2>&1 & ) ; echo ouvert" % u, "sleep:60", "shot:site%d" % (i + 1)]
            for i, u in enumerate(sites)], [])
     + clicks.split ()
-    + ["grep agent /tmp/jet.log", "sysstat", "sleep:5", "sysstat", "sysstat cdmhost", "tail -n 60 /tmp/jet.log"])
+    + ["grep agent /tmp/jet.log", "grep -c \"cdmhost : module\" /tmp/jet.log", "sysstat", "sleep:5", "sysstat", "sysstat cdmhost", "tail -n 60 /tmp/jet.log"])
 pt.run(a)
 PY
 

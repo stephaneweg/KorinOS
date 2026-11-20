@@ -1266,6 +1266,8 @@ static unsigned clip_serial ()
 	return h ? h : 1;
 }
 
+int webapp_main (const char *name, const char *title, const char *url, bool gpu);	// (webapp.cpp)
+
 int main (int argc, char **argv)
 {
 	// Le cache DNS de curl garde un nom introuvable la moitie de sa duree (5 min chez WebKit) : ouvert
@@ -1318,6 +1320,18 @@ int main (int argc, char **argv)
 			gpu = false;
 		else if (strncmp (argv[i], "--", 2) != 0)
 			urls.push_back (argv[i]);
+	// --app=<nom> [--title=<titre>] ADRESSE : une app web sur ce moteur (webapp.cpp : le lecteur web de Spotify)
+	const char *appName = nullptr, *appTitle = nullptr;
+	for (int i = 1; i < argc; i++)
+		if (!strncmp (argv[i], "--app=", 6))
+			appName = argv[i] + 6;
+		else if (!strncmp (argv[i], "--title=", 8))
+			appTitle = argv[i] + 8;
+	if (appName && *appName)
+	{
+		engine_set_clipboard (clip_write, clip_read, clip_serial);
+		return webapp_main (appName, appTitle, urls.empty () ? nullptr : urls[0], gpu);
+	}
 	if (urls.empty ())
 		urls.push_back (HOME);
 	engine_set_compositing (gpu);

@@ -76,6 +76,22 @@ v.addEventListener("timeupdate", () => {
     log("chargé : " + (t ? t.width + "x" + t.height + " " + t.videoCodec + " / " + t.audioCodec : "?") + ", clés : " + (player.keySystem ? player.keySystem() : "?"));
     await v.play();
     log("play : en cours");
+    // ?switch=1 : après 8 s, une autre résolution H.264 (comme Netflix quand le débit change) : un nouveau segment
+    // d'initialisation sur la même piste, que le lecteur doit suivre (av-patches/0003)
+    if (new URLSearchParams(location.search).get("switch")) {
+      const switchAt = () => {
+        if (v.currentTime < 8) return;
+        v.removeEventListener("timeupdate", switchAt);
+        const cur = player.getVariantTracks().find((x) => x.active);
+        const other = player.getVariantTracks().filter((x) => x.videoCodec && x.videoCodec.startsWith("avc1") && x.height !== cur.height)
+          .sort((a, b) => b.height - a.height)[0];
+        if (!other) { log("changement : pas d'autre résolution H.264"); return; }
+        player.selectVariantTrack(other, false);
+        log("changement : " + cur.height + "p -> " + other.height + "p à " + v.currentTime.toFixed(1) + " s");
+      };
+      v.addEventListener("timeupdate", switchAt);
+      v.addEventListener("resize", () => log("taille de la vidéo : " + v.videoWidth + "x" + v.videoHeight + " à " + v.currentTime.toFixed(1) + " s"));
+    }
     setTimeout(() => { if (!done) fail("la lecture n'a pas atteint 20 s en 200 s (temps " + v.currentTime.toFixed(1) + ")"); }, 200000);
   } catch (e) {
     fail(describe(e));

@@ -1,0 +1,18 @@
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -256,6 +256,15 @@
+ 
+         self.set_textures(textures_delta);
+ 
++        // Korin (tools/craft/patches/hdrshot-egui-backend-0.2.0.patch) : une texture a changé (les pages de WordCraft,
++        // l'atlas des glyphes) ; les primitives en cache qui la lisent sont fausses, et le cache est indexé sur le
++        // maillage, pas sur la texture : tout est redessiné.
++        if !textures_delta.set.is_empty() && !self.redraw_everything_this_frame {
++            self.redraw_everything_this_frame = true;
++            self.canvas.clear();
++            self.cached_primitives.clear();
++        }
++
+         self.render_prims_to_cache(paint_jobs, pixels_per_point);
+ 
+         self.update_dirty_tiles();

@@ -118,12 +118,62 @@ static UINT8 *mem;
 #define MEMMASK (W16_MEM_SIZE - 1)
 
 static void *read_ptr (offs_t a) { return mem + (a & MEMMASK); }
-static inline UINT8 read_byte (offs_t a) { return mem[a & MEMMASK]; }
-static inline UINT16 read_word (offs_t a) { UINT16 v; memcpy (&v, mem + (a & MEMMASK), 2); return v; }
-static inline UINT32 read_dword (offs_t a) { UINT32 v; memcpy (&v, mem + (a & MEMMASK), 4); return v; }
-static inline void write_byte (offs_t a, UINT8 v) { mem[a & MEMMASK] = v; }
-static inline void write_word (offs_t a, UINT16 v) { memcpy (mem + (a & MEMMASK), &v, 2); }
-static inline void write_dword (offs_t a, UINT32 v) { memcpy (mem + (a & MEMMASK), &v, 4); }
+/* la mémoire de la VGA (A0000-AFFFF) quand elle est en plans (machine DOS : vga.c) : par des fonctions */
+extern "C" {
+int cpu_vga_on;
+uint8_t (*cpu_vga_rd) (uint32_t a);
+void (*cpu_vga_wr) (uint32_t a, uint8_t v);
+}
+#define IN_VGA(a, n) (cpu_vga_on && ((a) & MEMMASK) - 0xa0000u < 0x10000u - ((n) - 1))
+static inline UINT8 read_byte (offs_t a)
+{
+	if (IN_VGA (a, 1))
+		return cpu_vga_rd (a & MEMMASK);
+	return mem[a & MEMMASK];
+}
+static inline UINT16 read_word (offs_t a)
+{
+	if (IN_VGA (a, 1) || IN_VGA (a + 1, 1))
+		return (UINT16) (read_byte (a) | read_byte (a + 1) << 8);
+	UINT16 v;
+	memcpy (&v, mem + (a & MEMMASK), 2);
+	return v;
+}
+static inline UINT32 read_dword (offs_t a)
+{
+	if (IN_VGA (a, 1) || IN_VGA (a + 3, 1))
+		return read_word (a) | (UINT32) read_word (a + 2) << 16;
+	UINT32 v;
+	memcpy (&v, mem + (a & MEMMASK), 4);
+	return v;
+}
+static inline void write_byte (offs_t a, UINT8 v)
+{
+	if (IN_VGA (a, 1))
+		cpu_vga_wr (a & MEMMASK, v);
+	else
+		mem[a & MEMMASK] = v;
+}
+static inline void write_word (offs_t a, UINT16 v)
+{
+	if (IN_VGA (a, 1) || IN_VGA (a + 1, 1))
+	{
+		write_byte (a, (UINT8) v);
+		write_byte (a + 1, (UINT8) (v >> 8));
+		return;
+	}
+	memcpy (mem + (a & MEMMASK), &v, 2);
+}
+static inline void write_dword (offs_t a, UINT32 v)
+{
+	if (IN_VGA (a, 1) || IN_VGA (a + 3, 1))
+	{
+		write_word (a, (UINT16) v);
+		write_word (a + 2, (UINT16) (v >> 16));
+		return;
+	}
+	memcpy (mem + (a & MEMMASK), &v, 4);
+}
 
 #define read_decrypted_byte read_byte
 #define read_decrypted_word read_word
@@ -136,12 +186,28 @@ static inline void write_dword (offs_t a, UINT32 v) { memcpy (mem + (a & MEMMASK
 #define write_io_word_unaligned write_io_word
 
 /* les ports d'E/S : rien derrière (un programme Win16 n'y touche pas ; les rares le font par les VxD) */
-static UINT8 read_io_byte (offs_t a) { (void) a; return 0xff; }
-static UINT16 read_io_word (offs_t a) { (void) a; return 0xffff; }
-static UINT32 read_io_dword (offs_t a) { (void) a; return 0xffffffff; }
-static void write_io_byte (offs_t a, UINT8 v) { (void) a; (void) v; }
-static void write_io_word (offs_t a, UINT16 v) { (void) a; (void) v; }
-static void write_io_dword (offs_t a, UINT32 v) { (void) a; (void) v; }
+/* les ports d'E/S : la machine DOS les branche (bios.c) ; sans elle, FF et rien */
+extern "C" {
+uint32_t (*cpu_io_in) (uint16_t port, int size);
+void (*cpu_io_out) (uint16_t port, uint32_t v, int size);
+}
+static UINT8 read_io_byte (offs_t a) { return cpu_io_in ? (UINT8) cpu_io_in ((uint16_t) a, 1) : 0xff; }
+static UINT16 read_io_word (offs_t a)
+{
+	if (!cpu_io_in)
+		return 0xffff;
+	return (UINT16) (cpu_io_in ((uint16_t) a, 1) | cpu_io_in ((uint16_t) (a + 1), 1) << 8);
+}
+static UINT32 read_io_dword (offs_t a) { return read_io_word (a) | (UINT32) read_io_word (a + 2) << 16; }
+static void write_io_byte (offs_t a, UINT8 v) { if (cpu_io_out) cpu_io_out ((uint16_t) a, v, 1); }
+static void write_io_word (offs_t a, UINT16 v)
+{
+	if (!cpu_io_out)
+		return;
+	cpu_io_out ((uint16_t) a, v & 0xff, 1);
+	cpu_io_out ((uint16_t) (a + 1), v >> 8, 1);
+}
+static void write_io_dword (offs_t a, UINT32 v) { write_io_word (a, (UINT16) v); write_io_word (a + 2, (UINT16) (v >> 16)); }
 
 #define ARRAY_LENGTH(x)     (sizeof(x) / sizeof(x[0]))
 
@@ -223,6 +289,15 @@ uint32_t cpu_eip (void) { return m_eip; }
 
 void cpu_jump (uint16_t cs, uint32_t eip)
 {
+	if (!PROTECTED_MODE)	/* (le mode réel de la machine DOS : CS = paragraphe) */
+	{
+		m_performed_intersegment_jump = 1;	/* (sinon CS garde la base FFF00000 du démarrage) */
+		m_sreg[CS].selector = cs;
+		i386_load_segment_descriptor (CS);
+		m_eip = eip & 0xffff;
+		CHANGE_PC (m_eip);
+		return;
+	}
 	try
 	{
 		i386_protected_mode_jump (cs, eip, 1, 0);
@@ -242,6 +317,32 @@ void cpu_step (void)
 {
 	CPU_EXECUTE_CALL (i386);
 }
+
+/* une interruption matérielle ou logicielle (mode réel : par la table de 0:0) */
+void cpu_interrupt (int vec)
+{
+	try
+	{
+		i386_trap (vec, 1, 0);
+	}
+	catch (UINT64 e)
+	{
+		w16_fatal ("interruption %02x impossible (faute %u)", vec, (unsigned) (e & 0xff));
+	}
+	m_halted = 0;
+}
+
+/* HLT vient d'être exécutée (le cœur continue : à l'appelant d'attendre une interruption) */
+int cpu_take_halt (void)
+{
+	int h = m_halted;
+	m_halted = 0;
+	return h;
+}
+
+void cpu_set_a20 (int on) { i386_set_a20_line (on ? ASSERT_LINE : CLEAR_LINE); }
+int cpu_a20 (void) { return m_a20_mask == ~0u; }
+int cpu_protected (void) { return PROTECTED_MODE ? 1 : 0; }
 
 /* recharge les descripteurs déjà chargés (après un changement de la LDT) */
 void cpu_reload_segments (void)

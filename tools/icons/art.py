@@ -501,6 +501,56 @@ def spotify(ic):
         ic.fill(bar, Grad(0x5BEA92, 0x1DA557, 100))
 
 
+@icon('netflix', 0xE5414A, 0x8E1219)
+def netflix(ic):
+    # un écran et le bouton lecture : les films et les séries en flux (pas le logo de la marque)
+    video_screen(ic)
+    ic.fill(ic.poly([(44, 35), (44, 55), (60, 45)]), 0xF0444C)
+
+
+def video_screen(ic):
+    # l'écran des apps de vidéo (Netflix, Disney+, TF1+, Prime Video) : un téléviseur sombre, son pied
+    scr = ic.rr(16, 22, 68, 46, 7)
+    ic.shadow(scr, 1.2, 1.6, .3)
+    ic.fill(scr, Grad(0xFFFFFF, 0xE6E9EE, 100))
+    ic.fill(ic.rr(21, 27, 58, 36, 4), Grad(0x2A2F36, 0x14171B, 100))
+    if not ic.small:
+        ic.fill(ic.rr(38, 72, 24, 5, 2.5), 0xFFFFFF, .85)
+
+
+@icon('disneyplus', 0x3C7BE0, 0x0E2A6B)
+def disneyplus(ic):
+    # un écran, une étoile et un arc : la magie des dessins animés (pas le logo de la marque)
+    video_screen(ic)
+    if not ic.small:
+        ic.fill(ic.arc(50, 62, 22, 220, 320, 2.2), 0x8FD0FF)
+    pts = []
+    for i in range(10):
+        r = 10 if i % 2 == 0 else 4.2
+        a = math.radians(i * 36)
+        pts.append((50 + r * math.sin(a), 44 - r * math.cos(a)))
+    ic.fill(ic.poly(pts), 0xFFFFFF)
+
+
+@icon('tf1plus', 0x3A8DFF, 0x123C9C)
+def tf1plus(ic):
+    # un écran, son antenne et un plus : la télévision en direct et en replay (pas le logo de la marque)
+    if not ic.small:
+        ic.fill(ic.line([(50, 22), (38, 10)], 2.4), 0xFFFFFF)
+        ic.fill(ic.line([(50, 22), (62, 10)], 2.4), 0xFFFFFF)
+    video_screen(ic)
+    ic.fill(ic.rr(46, 33, 8, 24, 2), 0xFFD23F)
+    ic.fill(ic.rr(38, 41, 24, 8, 2), 0xFFD23F)
+
+
+@icon('primevideo', 0x2FB4F0, 0x0B5C8E)
+def primevideo(ic):
+    # un écran, un disque et le bouton lecture : la vidéo à la demande (pas le logo de la marque)
+    video_screen(ic)
+    ic.fill(ic.circ(50, 45, 12), 0x29A8E8)
+    ic.fill(ic.poly([(46, 38), (46, 52), (57, 45)]), 0xFFFFFF)
+
+
 @icon('weather', 0x63C0F7, 0x2A7BD8)
 def weather(ic):
     # le soleil derriere un nuage

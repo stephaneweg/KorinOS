@@ -78,6 +78,7 @@
 - [CPython](armpi-cpython.md) — 3.14.10 étapes 1-2 dans main (59c119e8) ; étape 3 (tree-sitter, cffi, pip) sur claude/python-step3-fd7473 ; QEMU seulement
 - [Rust pour Korin](armpi-rust.md) — cible aarch64-unknown-korin (croisée, WSL), branche claude/rust-target-06eed0 (12/11), QEMU seulement ; pièges build-std, dérouleur partagé
 - [Modules Rust de Python](armpi-python-rust-ext.md) — étape 5 dans main (e68c0a7d, 12/11) : cdylib pyo3, build-rust-ext.sh, caisses patchées, OpenSSL exporté ; QEMU seulement
+- [Apps Craft](armpi-craft.md) — apps Rust de storytold (egui) : wordcraft-cli et hôte egui (démo) marchent sous QEMU PC (20/11), PC seulement ; suite : eframe pour Korin
 - [Python et Vibe](armpi-python-vibe.md) — étapes 0 à 5 dans main, étape 6 (harness, arbre POSIX /sd0) aussi, poussé (12/11), QEMU seulement
 - [Pas de C pour le Pi seul](armpi-pas-de-c-pour-pi-seul.md) — ce qui ne sert qu'au Pi (GPU, DMA, GpuKit) reste en asm
 - [Ordre des pilotes du PC](armpi-pc-ordre-pilotes.md) — pas de réseau par téléphone, le Wi-Fi AX201 avant l'Ethernet
@@ -128,7 +129,7 @@
 - [Identification GitHub](armpi-gh.md) — au plan le 18/11 : code d'appareil dans git-credential-korin (oauthd) ; pas de gh, pas de PR ; docs/etude/GH.md §5
 - [Sécurité contre le web](armpi-securite.md) — plan du 18/11 : enforce, SMEP/SMAP, unveil pour Jet, ASLR, pledge ; docs/etude/SECURITE.md, rien de fait
 - [Ports construits dans Korin](armpi-ports-dans-korin.md) — plan du 18/11 : libs tierces en .so/.a, outils de construction, puis tous les ports (SDL, STK, Python, Godot, WebKit…) dans Korin sur le ZBook ; rien de fait
-- [Spotify et Jamendo](armpi-musique.md) — au plan le 18/11 : librespot (Rust) en bibliothèque C + app UIKit, client Jamendo d'abord ; docs/etude/MUSIQUE.md, rien de fait
+- [Spotify et Jamendo](armpi-musique.md) — Jamendo fait (18/11) ; Spotify = le lecteur web dans sa fenêtre sur le moteur de Jet (mode app, Widevine), librespot retiré (20/11) ; docs/etude/MUSIQUE.md
 - [Widevine dans Jet](armpi-widevine.md) — hôte Linux, jalon 1 fait (QEMU PC) ; compatibilité glibc, canal de Google, ClearKey d'abord (19/11) ; étapes 2 à 7 faites (QEMU) : licence réelle, cdmhost, Widevine et Shaka jouent dans Jet, UA Chrome Linux, case des réglages et cdmupdate ; publié dans jet 1.4.0 et pc 2026.11.63 (20/11)
 - [Suivi du plan](armpi-suivi-plan.md) — artefact « Plan Korin OS » (18/11), base items à tenir à jour par ArtifactData quand un chantier bouge
 - [ImageKit](armpi-imagekit.md) — au plan le 18/11 : traducteurs d'images, document à calques canonique, UIKit s'appuie dessus ; docs/etude/IMAGEKIT.md
@@ -137,3 +138,4 @@
 - [Relics](armpi-relics.md) — jeu à la Rick Dangerous en C sur gamefb (19/11) : 7 mondes, 21 niveaux de tools/relics/mklevels.py vérifiés par run.sh, musique (music.h), fuites devant le rocher ; PC 1.1.2 publié
 - [Morpho](armpi-morpho.md) — animal de compagnie à la Tamagotchi (20/11) : créature 3D paramétrique façon Spore, C++ sur gk_draw, vue « studio » sombre encadrée, stades tirés au hasard ; banc hôte tools/morpho ; QEMU PC seulement, pas publié
 - [Win16](armpi-win16.md) — 20/11 : apps Windows 3.x d'après winevdm, couche maison sur UIKit, GPL-2 accepté, Open Watcom ; src/apps/win16, docs/etude/WIN16.md
+- [Tampon de stdio](armpi-stdio-tampon.md) — fread lent (tampon newlib 1 Ko) corrigé dans libposix le 20/11 (stdiobuf.c, 64 Ko) ; seulement pour les programmes reliés ensuite

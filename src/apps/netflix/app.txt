@@ -1,0 +1,8 @@
+# Manifeste de Netflix (le site de Netflix sur le moteur de Jet : src/extra/onyxports/jet/webapp.cpp ; docs/etude/WIDEVINE.md)
+name     = Netflix
+category = Multimédia
+description = Regarder Netflix : le site de Netflix dans sa propre fenêtre, avec votre compte (Widevine, Korin PC).
+keywords = netflix film série vidéo regarder streaming
+help = Au premier lancement, Netflix propose de télécharger le module Widevine de Google (contenus protégés) ; puis connectez-vous à votre compte Netflix dans la fenêtre, une fois : l'app garde sa session (à part de celle de Jet).
+help = Tout se fait dans la page de Netflix : profils, recherche, lecture. F11 (Fichier, Agrandir) agrandit la fenêtre.
+help = Fichier, Se déconnecter efface la session de l'app ; Ouvrir dans Jet ouvre Netflix dans le navigateur.

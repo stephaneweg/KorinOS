@@ -25,11 +25,95 @@ de 1996, fourni par l'utilisateur, jamais dans le dépôt) démarre dans Korin, 
 système (`/res/soundfonts/GeneralUser-GS.sf2`), joué par un fil comme dans Arabesque (choix de l'utilisateur, § 8) ;
 Art Song compose sous QEMU (plus de mille messages MIDI, la mesure avance), son pas encore écouté sur le ZBook.
 
+**Mode natif (20/11, demande de l'utilisateur)** : les contrôles standard (boutons, cases, boutons radio, cadres de
+groupe, textes, champs, zones de texte, listes, listes déroulantes, barres de défilement) sont des **widgets de
+UIKit** posés à leur place : dessin, survol, focus, clavier et thème de Korin, comme une app native ; les dialogues
+des ressources prennent alors la police de UIKit pour leurs unités (comme les « grandes polices » de Windows).
+Restent dessinés par win16 : les contrôles owner-draw (les `TBitBtn` de Delphi), les listes à choix multiple, tout
+sur l'hôte, et tout avec `W16_NATIVE=0`. UIKit traduit de lui-même les mots courants (« Cancel » → « Annuler »).
+
+**Comparaison avec winevdm (20/11)** : Art Song sous OTVDM 0.9.0 (Windows 11) commence par trois « Cannot Find IFS
+Codes... » et ses listes de motifs et de styles restent vides ; dans win16 il les trouve (D: = son dossier). Mise en
+page proche ; écarts : menus dans la barre de Korin, polices de Korin (un peu plus larges : quelques contrôles
+rognés à droite), boîte « About » sans le mot « UNREGISTERED » (texte plus large que son étiquette).
+
 **Lecteurs** (réglages de chaque utilisateur) : C: = `HOME:/win16/c` (avec `C:\WINDOWS\WIN.INI`), D: = le dossier
 du programme, E: = tout l'arbre de Korin ; `HOME:/win16/drives.ini` (section `[drives]`, `C=/dossier`) et l'option
 `--drive C=/dossier` les changent.
 
-Pas encore : le Pi (même code, à construire), MDI, métafichiers, impression, WinHelp, crochets, les barres de
+**Programmes DOS, étape D1 (20/11, § 9)** : un `.exe` sans en-tête NE ou un `.COM` part dans la machine DOS de
+win16 (`dos.c`, `bios.c`, `vga.c`) : mode réel du cœur de MAME, MCB, PSP, environnement, chargeur MZ, EXEC avec
+retour et code (4Dh), console du DOS dans l'écran texte, INT 10h texte (polices de la ROM, 25/28/50 lignes), INT
+16h et clavier par le port 60h et l'INT 9 (codes de balayage, caractère de Korin), PIC, PIT et INT 8/1Ch, CMOS,
+A20. `tools/win16/tests/dos/dostest.c` (Open Watcom) : texte et couleurs en B800, mémoire, fichiers, horloge,
+`spawnl` d'un enfant qui rend 42, touche lue.
+
+**Étape D2 (20/11)** : **FreeCOM 0.86** en français (`tools/win16/build-freecom.sh`, Open Watcom, sans échange
+XMS) est COMMAND.COM, sur un lecteur **Z:** (`win16.app/dos`, avec sa licence GPL-2 et le lien des sources) ;
+`COMSPEC=Z:\COMMAND.COM`, `PATH=Z:\;C:\;D:\`. `win16 --dos` ouvre l'invite (D: = le dossier personnel), `win16
+FICHIER.BAT` le lance par `COMMAND /C` et garde la fenêtre ouverte à la fin (« terminé »). Le DOS a gagné : poignées
+de périphériques (CON, NUL, AUX, PRN), la plus basse poignée libre (redirection `>` de FreeCOM), duplication (45h,
+46h), ouverture étendue (6Ch), **noms courts 8.3** (`LONGNO~1.TXT` à la Windows 95, dans la recherche et dans les
+chemins), fichiers cachés pour les noms en « . », étiquette de volume. Essai `tools/win16/tests/dos/essai.bat` :
+`dir /w > LISTE.TXT`, `type`, EXEC de `dostest.exe`, `if errorlevel`, `set` et `%VAR%`, `del`, `if not exist`
+(hôte et QEMU PC). Reste : fermer les fichiers d'un processus à sa fin, Ctrl-C.
+
+**Étape D3 (20/11) : QuickBASIC 4.5, copie de l'utilisateur** (extraite dans WSL hors du dépôt, copiée seulement
+dans l'image de QEMU, effacée après). L'éditeur démarre tel quel en français ; on y tape un programme et F5 le lance
+(« Appuyez sur une touche pour continuer ») ; `BC /O` compile, `LINK` lie avec BCOM45.LIB, l'`.EXE` tourne et son
+`SHELL "dir"` revient (hôte). Ajouts : **pilote de souris INT 33h** (`mouse.c` : fonctions 0 à 0Ch, 14h, 21h, 24h ;
+coordonnées virtuelles du mode ; curseur du mode texte dessiné par le rendu avec les masques du programme ;
+gestionnaire 0Ch appelé par l'IRQ 12), les touches qui attendent quand le tampon du BIOS est plein, un peu de repos
+pour Korin quand un programme sonde la souris. Un clic ouvre les menus de QB (hôte) ; sous QEMU PC, QB s'affiche et
+suit la souris. Les programmes BASIC de l'utilisateur qui appelaient CTMOUSE par l'INT 33h marcheront ; pas ceux
+qui liraient la mémoire interne du pilote. Reste : l'éditeur de QB sonde le clavier sans attendre (un cœur occupé).
+
+**Étape D4 (20/11) : le graphisme.** `vga.c` : la mémoire de la VGA en 4 plans de 64 Ko derrière A0000 (le cœur
+passe par `cpu_vga_rd`/`cpu_vga_wr` quand les plans sont en jeu : modes 0Dh-12h et Mode X), modes d'écriture 0-3,
+verrous, set/reset, masque de bits, rotation et fonctions logiques, lecture par plan et comparaison de couleurs ;
+CGA 4/5/6 (mémoire entrelacée, palettes, port 3D9h), EGA 0Dh/0Eh/0Fh/10h, VGA 11h/12h, 13h chaîné, **Mode X**
+(déchaîné par le séquenceur : la mémoire passe dans les plans ; hauteur et pas lus dans le CRTC : 320 × 240) ;
+palette de 256 couleurs du BIOS, DAC, palette « CGA » des modes de 200 lignes ; INT 10h 0Bh, 0Ch, 0Dh, texte et
+défilement en mode graphique (police de l'INT 43h), 1Bh (la table des modes, que QuickBASIC lit avant SCREEN 12 et
+13) ; rendu agrandi (320 × 200 -> 640 × 400) avec le curseur de la souris. Essais : `tools/win16/tests/dos/gfxtest.c`
+(modes 4, 6, D, E, 10, 12, 13, X) sur l'hôte, 12h et X sous QEMU PC ; un programme QuickBASIC compilé (LINE, BF,
+CIRCLE, PAINT, PRINT) en SCREEN 1, 2, 7, 9, 12 et 13 sur l'hôte. Sous QEMU, le dessin en plans est lent (deux
+émulations l'une dans l'autre) ; à mesurer sur le ZBook.
+
+**Étape D5 (20/11) : SVGA, XMS, EMS ; FutureLib 3.5 (copie de l'utilisateur, hors du dépôt).** `svga.c` : VESA
+BIOS Extension 2.0 (4F00h-4F09h), 8 Mo de mémoire vidéo à 16 Mo dans l'arène (aussi l'adresse du tampon linéaire),
+fenêtre A de 64 Ko en A0000 par banques (4F05h et WinFuncPtr), 45 modes de 320 × 200 à 1280 × 1024 en 8, 15, 16, 24
+et 32 bits, début d'affichage par 4F07h ou par le CRTC (FutureLib change de page ainsi). `xms.c` : **XMS 3.0**
+(INT 2Fh 4300h/4310h, point d'entrée lointain : allocation, copie 0Bh, verrou, A20 ; de 1 Mo + 64 Ko à 16 Mo) et
+**EMS 4.0** (INT 67h derrière un faux « EMMXXXX0 », cadre de 4 pages en D000, 8 Mo, fonctions 40h-4Eh, 50h, 51h,
+53h, 57h, 58h). Les copies de XMS et d'EMS qui touchent A0000-AFFFF passent par la carte (banques, plans).
+FutureLib : sa bibliothèque est faite dans la machine DOS par LIB.EXE à partir de ses `.OBJ`, puis BC et LINK ; un
+petit programme à nous (640 × 480 en 16 bits : texte, boîtes, cercle plein, lignes) et ses exemples TCOLOR (32
+bits), SPRITES, ANIGIF, PUTXMS et PUTEMS (pages, souris) marchent sur l'hôte, le nôtre aussi sous QEMU PC. Reste : un
+fichier lu par DOS directement dans la fenêtre vidéo (BLOAD en SVGA ou en plans) ne passe pas encore par la carte.
+
+**Étape D6 (20/11) : le son.** `sound.c`, un fil qui mélange à 44,1 kHz stéréo dans un flux d'AudioKit
+(`be_pcm_start` ; sur l'hôte, `W16_WAV` l'enregistre) et ne démarre qu'au premier son : le **haut-parleur** (canal 2
+du PIT, port 61h), l'**OPL3** par **Nuked OPL3** 1.8 (`nuked/`, LGPL-2.1+) aux ports de l'AdLib (388h-38Bh) et de la
+Sound Blaster (220h-223h, 228h-229h), avec ses minuteries (chaque lecture du port d'état compte 2 µs, comme sur le
+bus ISA : sinon les boucles de détection finissent avant les 80 µs) ; la **Sound Blaster 16** (DSP 4.05 : reset,
+version, sortie directe, DMA 8 et 16 bits simple et auto-init, haute vitesse, stéréo de la SB Pro, commandes
+Bxh/Cxh, pause, IRQ forcée ; mélangeur 224h/225h, volumes général, voix et FM), les **deux contrôleurs DMA 8237** et
+leurs pages ; l'IRQ 5 à chaque fin de bloc ; `BLASTER=A220 I5 D1 H5 T6` dans l'environnement. Essais (hôte) :
+`tools/win16/tests/dos/sndtest.c` (gamme sur l'OPL après la détection par minuteries, gamme sur le haut-parleur,
+sinus par DMA auto-init avec ses IRQ) ; **FM-Song 1.3.2** démarre, trouve la carte FM et ouvre son éditeur ; la démo
+de **FM-Lib** (sa propre source, compilée par BC) joue `ACTION.FMS` par la Sound Blaster (211 notes en 14 s,
+enregistrées). Sous QEMU PC : l'essai OPL va au bout (pas d'écoute possible). Reste : l'écoute sur le ZBook.
+
+**Pour l'utilisateur** : `win16.app` déclare `.exe`, `.com` et `.bat` ; un double-clic dans Fichiers lance win16, qui
+choisit seul Windows 3.x (en-tête NE) ou DOS. Les `.bat` sont aussi déclarés par l'Éditeur (`/etc/fileassoc.ini`
+tranche).
+
+**Après D6, à envisager (question de l'utilisateur, 20/11)** : les premiers Tomb Raider (DOS/4GW) demandent le DPMI
+(INT 31h), un lecteur de CD (MSCDEX, image ISO/CUE et pistes audio) et beaucoup de vitesse (Pentium avec FPU, rendu
+logiciel) : peut-être un recompilateur pour le cœur.
+
+Pas encore : MDI, métafichiers, impression, WinHelp, crochets, les barres de
 défilement des fenêtres (seulement les contrôles), le son ; pas de paquet.
 
 ## 1. Ce qu'il faut faire tourner
@@ -268,6 +352,159 @@ AudioKit a un synthé General MIDI (`ak_synth_*`) avec la SoundFont du système 
 (port d'Art Song) et de Koton. win16 le tient dans un fil (`be_uikit.c`), blocs de 256 trames à 44,1 kHz, comme
 `src/apps/arabesque/audio.h`.
 
+## 9. Les programmes DOS (étude du 20/11/2026, rien d'engagé)
+
+Demande de l'utilisateur : « dans la couche win16, ça doit faire fonctionner quickbasic 4, les modes graphiques
+cga, vga et svga (futurelib) », à la manière de NTVDM : un programme MZ (`.EXE`, `.COM`, `.BAT`) se lance depuis le
+Terminal ou Fichiers et s'ouvre dans une fenêtre de UIKit. Essais prévus : **QuickBASIC 4.5, copie de
+l'utilisateur** (éditeur, compilation, exécution, `SHELL`), **FutureLib 3.5** (copie de l'utilisateur, essai
+principal du SVGA), **FM-Song 1.3.2** d'Asher256 (essai principal de l'OPL), et nos propres programmes compilés
+par Open Watcom (`wcl -bt=dos`).
+
+### 9.1 Ce que le processeur de winevdm couvre déjà
+
+* Le cœur i486 de MAME (`mame/`, BSD-3) fait le **mode réel**, le **mode V86** et le mode protégé 16/32 bits, avec
+  le x87 : tout ce que demandent QuickBASIC, FutureLib (instructions du 386) et FM-Song. Un vieux programme DOS
+  peut tourner en mode réel pur, sans V86 : plus simple, rien à piéger par le moniteur.
+* Les accès à la mémoire et aux ports passent par des fonctions de `cpu.cpp` (`read_byte`, `write_byte`,
+  `read_io_byte`…) : aujourd'hui la mémoire est un tableau plat et les ports rendent `FF`. C'est là que se
+  branchent la VGA (plage `A0000-BFFFF`), la page EMS (`D0000-DFFFF`) et tous les ports.
+* winevdm a aussi, dans `krnl386`, la partie DOS de Wine (**LGPL-2.1**, compatible avec la GPL-2 de win16) :
+  `dosexe.c` (chargeur MZ), `dosvm.c`, `dosmem.c` (MCB), `int21.c` (dont EXEC 4B00h), `int10.c` (BIOS vidéo et
+  VESA), `vga.c`/`vga.h` (VGA), `int09.c`/`int16.c` (clavier), `int33.c` (souris), `int67.c` (EMS), `int2f.c`
+  (XMS « pas tout à fait fait »), `ioports.c`, `timer.c`, `dma.c`, `soundblaster.c`, `int31.c` (DPMI). Mais ce
+  code s'appuie sur Win32 (un fil par machine virtuelle, `DOSVM_*` rangés autour des API de Windows, DirectSound,
+  écran par DirectDraw) : il **sert de référence** et on en reprend des morceaux, on ne le compile pas tel quel,
+  comme pour USER et GDI.
+* Le KERNEL de win16 a déjà une bonne part de l'INT 21h (fichiers, dossiers, recherche, date) et les lecteurs
+  (`drives.ini`) : le DOS les partage. Noms courts : les fichiers de Korin ont des noms longs ; DOS ne voit que du
+  8.3, il faut donc un nom court par fichier (`LONGNO~1.TXT`, stable dans un dossier), comme Wine.
+
+### 9.2 La machine DOS
+
+* **Un programme DOS = une instance de win16 en mode DOS** (comme une NTVDM par console) : mémoire du mode réel au
+  bas de l'arène (640 Ko + zone haute + HMA), XMS au-dessus de 1 Mo dans l'arène. Les enfants (`SHELL`, `EXEC`)
+  tournent dans la même machine, comme sous DOS. `win16 PROG.EXE` regarde l'en-tête : MZ seul → DOS, NE → Windows.
+* **DOS** : PSP, bloc d'environnement (`COMSPEC`, `PATH`, `BLASTER`), chaîne de MCB (48h/49h/4Ah), EXEC 4B00h/4B03h
+  avec retour et code (4Dh), fin et reste résident (31h), INT 20h/22h/23h/24h, IOCTL (4400h : la console est un
+  périphérique), FCB minimaux, `CON`/`NUL`/`PRN`. La console DOS écrit dans l'écran texte (comme un vrai PC) : la
+  sortie est dans la fenêtre, pas dans le Terminal.
+* **BIOS** : zone de données `40:xx` (compteur `40:6C`, tampon du clavier, mode, curseur : QuickBASIC la lit),
+  INT 10h, 11h, 12h, 15h (A20, mémoire étendue), 16h, 1Ah, polices 8×8/8×14/8×16 dans la « ROM » (INT 43h, 1130h).
+  Il faut une police VGA libre (point à trancher à la construction).
+* **Interruptions matérielles** : un PIC 8259 émulé (20h/21h, A0h/A1h) ; la boucle du processeur injecte IRQ 0
+  (minuterie), IRQ 1 (clavier), IRQ 5/7 (Sound Blaster), IRQ 12 non (souris par INT 33h) entre deux instructions
+  quand IF est mis. Les programmes qui détournent l'INT 8 ou l'INT 9 (FM-Lib joue en tâche de fond par l'INT 8)
+  marchent alors comme sur un PC.
+* **Temps** : le PIT 8253 (40h-43h) donne l'INT 8 à la fréquence que le programme programme, d'après l'horloge de
+  Korin (pas de comptage de cycles) ; port 61h (haut-parleur, bit de rafraîchissement que des boucles d'attente
+  lisent) ; CMOS 70h/71h (date).
+* **Clavier** : les touches de UIKit deviennent des codes de balayage (jeu 1, positions du clavier US) au port 60h
+  avec l'IRQ 1, et notre INT 9 remplit le tampon du BIOS avec le caractère que donne Korin (AZERTY compris).
+* **Souris** : un pilote INT 33h maison (fonctions 0 à 0Ch, 0Fh, 14h, 1Ah, gestionnaire d'événements 0Ch appelé
+  par rappel 16 bits), coordonnées virtuelles du mode en cours, curseur dessiné par-dessus l'image en texte et
+  dans les modes standard (en SVGA, FutureLib dessine le sien).
+* **XMS** (INT 2Fh 4300h/4310h, point d'entrée lointain : versions, allocation, copie 0Bh, verrou) et **EMS**
+  (INT 67h, cadre de pages en `D000`) : FutureLib s'en sert. DPMI (jeux DOS/4GW) : plus tard, si l'on veut.
+
+### 9.3 La VGA émulée
+
+Le cœur : une VGA de 256 Ko de mémoire vidéo (4 plans) plus une SVGA de 4 Mo, rendue dans la fenêtre.
+
+| Mode | Ce qu'il faut |
+|---|---|
+| texte 0-3, 7 | caractère + attribut à `B8000`/`B0000`, police de la ROM, clignotement, curseur (3D4h 0Ah-0Fh), 40/80 colonnes, 25/43/50 lignes |
+| CGA 4, 5, 6 | 320×200×4 et 640×200×2, mémoire entrelacée (lignes paires à `B8000`, impaires à `BA000`), palettes CGA (3D9h) |
+| EGA 0Dh, 0Eh, 10h, VGA 11h, 12h | **mode planaire** : registres du séquenceur (3C4h, masque des plans) et du contrôleur graphique (3CEh : modes d'écriture 0-3, verrous, set/reset, masque de bits, rotation, lecture par plan et comparaison de couleurs) |
+| 13h | 320×200×256 chaîné, direct |
+| Mode X | 13h « déchaîné » (séquenceur 04h), 320×240 et autres par le CRTC, pages, défilement (début d'affichage) |
+| VESA VBE 1.2/2.0 | INT 10h 4F00h-4F0Ah ; fenêtre de 64 Ko à `A0000` déplacée par 4F05h (et par un appel lointain) ; **tampon linéaire** placé dans l'arène (son adresse « physique » est son décalage) ; 640×480 à 1280×1024 en 8, 15, 16, 24 et 32 bits |
+
+* Ports : 3C0h (attributs), 3C2h/3CCh, 3C4h/3C5h, 3C6h-3C9h (**DAC**, palette 6 bits), 3CEh/3CFh, 3D4h/3D5h
+  (CRTC), 3DAh (**retour de balayage** : beaucoup de programmes l'attendent ; il bat au rythme de 60/70 Hz réels).
+* Affichage : à chaque image (60 Hz, ou dès qu'il y a eu des écritures), le mode en cours est converti en pixels
+  32 bits dans la surface de la fenêtre, **agrandi en nombre entier** (320×200 → 640×400, ou 640×480 avec le
+  rapport 4:3) avec la palette du DAC ; plein écran par F9 comme les émulateurs. La fenêtre prend la taille du mode.
+* Coût : chaque accès dans `A0000-BFFFF` passe par une fonction (les modes planaires l'exigent) ; le mode 13h et le
+  tampon linéaire peuvent rester des écritures directes dans l'arène.
+
+### 9.4 L'interpréteur de commandes : FreeCOM
+
+**FreeCOM** (COMMAND.COM de FreeDOS, github.com/FDOS/freecom, **GPL-2**, version 0.86 du 31/12/2024, encore
+entretenu) : `DIR`, `COPY`, `SET`, `.BAT` complets, `COMMAND /C`. Il se construit avec **Open Watcom** (déjà dans
+WSL) et NASM ; on prend la variante sans échange XMS. Il demande à notre DOS : EXEC avec retour, environnement et
+`COMSPEC`, INT 2Eh, INT 2Fh AE00h/AE01h (commandes installables : répondre « non »), et `BLASTER` dans son
+environnement. `SHELL "dir"`, `SHELL` seul et « Sortir sous DOS » de QuickBASIC passent alors par lui. Un
+COMMAND maison serait plus petit mais devrait refaire les `.BAT` : FreeCOM est recommandé, livré avec sa licence
+et le lien vers ses sources.
+
+### 9.5 Le son
+
+Tout se mélange dans un seul flux d'AudioKit (`ak_open (44100, 2, 16, 0)`, `ak_write_all`), dans un fil comme le
+synthé MIDI. Les écritures du programme dans les ports sont datées par l'horloge de Korin et rejouées par le fil du
+son avec 20 à 40 ms de retard : le tempo suit l'INT 8 du programme.
+
+* **Haut-parleur** : canal 2 du PIT + bits 0-1 du port 61h → onde carrée (`SOUND`, `PLAY`, `BEEP` de QuickBASIC).
+* **OPL (AdLib, 388h-38Bh ; Sound Blaster 220h-223h et 228h-229h)** : un émulateur de l'OPL au niveau des
+  registres. Les **minuteries** de l'OPL (registres 02h-04h, état en 388h) sont indispensables : tous les
+  programmes s'en servent pour détecter la carte. **FM Tracker** de Korin et le `ak_fm.c` d'AudioKit ne sont pas
+  réutilisables : c'est une FM à deux opérateurs « à la OPL2 », pas une puce émulée registre par registre.
+  Candidats :
+  * **Nuked OPL3** (github.com/nukeykt/Nuked-OPL3, **LGPL-2.1**, C, un fichier) : le plus fidèle (OPL2 et OPL3),
+    le plus coûteux en calcul ; à mesurer sur le Pi 4.
+  * **ymfm** (Aaron Giles, **BSD-3**, C++) : très fidèle aussi, plus rapide, couvre OPL, OPL2, OPL3.
+  * **DBOPL** de DOSBox (**GPL-2+**) : rapide, un peu moins fidèle.
+* **Sound Blaster** à 220h, IRQ 5 (ou 7), DMA 1 (8 bits) / 5 (16 bits) : DSP (reset 226h, lecture 22Ah, écriture
+  22Ch, état 22Eh), d'abord **SB 2.0** (DSP 2.01, 8 bits mono, transferts simples et auto-init, haute vitesse),
+  puis **SB Pro** (DSP 3.02, stéréo, mélangeur 224h/225h, OPL3) et **SB16** (DSP 4.05, 16 bits, commandes Bxh/Cxh)
+  si possible. Contrôleur DMA 8237 émulé (00h-0Fh, 81h-8Fh, C0h-DFh) : le DSP lit les octets dans l'arène et lève
+  son IRQ en fin de bloc. `BLASTER=A220 I5 D1 H5 T6` (T4 tant qu'il n'y a pas le SB16).
+* **FM-Song** (github.com/Asher256/asher256-legacy, dossier `fmsong` : `FMSONG.EXE` 1.3.2 compilé et la source
+  de FM-Lib 1.5) : licence de l'auteur « distribué gratuitement, peut être utilisé, copié et distribué librement,
+  avec cette licence » (vérifié le 20/11) ; on peut donc s'en servir comme essai et même le garder dans les essais
+  avec sa licence. Le dépôt n'a pas de fichier de licence global : seul `fmsong` est vérifié.
+
+### 9.6 Licences des essais
+
+* **QuickBASIC 4.5** : logiciel propriétaire de Microsoft, copie de l'utilisateur : hors du dépôt, extrait dans
+  WSL `~/korin-win16/qb45`, copié seulement dans l'image de test de QEMU, effacée après l'essai.
+* **FutureLib 3.5** : « Copyright © 1999-2000, Future Software » ; sa documentation ne dit rien de la
+  redistribution (vérifié le 20/11) : même règle que QuickBASIC, jamais dans un commit ni un paquet.
+* **FM-Song** : redistribuable (9.5). **FreeCOM** : GPL-2. Programmes d'essai : les nôtres (Open Watcom, QBasic
+  écrits par nous).
+
+### 9.7 Les voies
+
+1. **Intégrée à win16 (recommandée)** : la machine DOS ci-dessus dans `src/apps/win16` (GPL-2), même processeur,
+   mêmes lecteurs, fenêtre et clavier de UIKit ; un programme Windows peut lancer un programme DOS et
+   inversement. On écrit la VGA, le DOS, le BIOS, le Sound Blaster (références : `krnl386` de winevdm en LGPL), on
+   reprend un émulateur d'OPL tel quel. Plus de travail, tout est à nous et à la manière de Korin.
+2. **Porter DOSBox (Staging)** comme application à part (GPL-2+, SDL 2, que Korin a par `sdl2-compat`) : VGA,
+   VESA, Sound Blaster et OPL complets d'un coup, cœur dynamique bien plus rapide (et pour l'ARM64). Mais c'est
+   un autre monde que win16 (ses propres lecteurs montés, son propre DOS, fenêtre SDL et non UIKit), et la demande
+   était « dans la couche win16 ».
+3. **Hybride** : la voie 1, mais en copiant le code VGA et Sound Blaster de DOSBox (GPL-2+, compatible) ; ce code
+   est tissé dans les structures de DOSBox, l'adapter coûte presque autant que l'écrire.
+
+Le point faible de la voie 1 : la vitesse. Le cœur de MAME est un interpréteur ; il suffit pour l'éditeur de
+QuickBASIC et les programmes QBasic, à mesurer sur le Pi 4 pour les démos SVGA.
+
+### 9.8 Étapes (voie 1)
+
+| Étape | Contenu | Essai | Durée |
+|---|---|---|---|
+| D1 | chargeur MZ/COM, PSP, environnement, MCB, INT 21h de base, INT 10h texte dans la fenêtre, police, clavier (INT 9/16h), BDA, PIT et INT 8 | programmes Open Watcom | 2-3 j |
+| D2 | FreeCOM construit par Open Watcom, EXEC avec retour, `.BAT`, noms courts | `DIR`, un `.BAT` | 1-2 j |
+| D3 | souris INT 33h, ports et retour de balayage, ce qui manque à QuickBASIC | QB 4.5 : édition, compilation (BC et LINK par EXEC), exécution, `SHELL` | 2-3 j |
+| D4 | CGA 4/5/6, EGA/VGA planaire, 13h, Mode X, DAC | `SCREEN 1, 2, 7, 9, 12, 13` | 3-4 j |
+| D5 | VESA VBE (fenêtre et tampon linéaire), XMS, EMS | FutureLib 3.5 | 2-3 j |
+| D6 | haut-parleur, OPL et ses minuteries, Sound Blaster (DSP, DMA, IRQ, mélangeur) | FM-Song, `PLAY` | 3-4 j |
+
+**Choix de l'utilisateur (20/11/2026)** : la voie **intégrée à win16** (9.7, voie 1), **Nuked OPL3** pour l'OPL,
+**FreeCOM 0.86** pour COMMAND.COM. **Le PC seulement** : « pas besoin le pi pour l'instant » (l'étape D7, la
+construction et la mesure sur le Pi, est retirée ; rien n'est construit ni essayé pour le Pi, ni pour Win16 ni pour
+le DOS).
+
 ## Sources (consultées le 20/11/2026)
 
 * winevdm : https://github.com/otya128/winevdm (README, `LICENSE`, versions, commits, `CMakeLists.txt`,
@@ -275,3 +512,7 @@ AudioKit a un synthé General MIDI (`ak_synth_*`) avec la SoundFont du système 
   `user/message.c`, `gdi/gdi.c`).
 * Wine et le 16 bits en WoW64 : bogues 54670 et 58760 (list.winehq.org, wine-bugs) ; CodeWeavers, « Cannot create
   16-bit LDT segments » (support.codeweavers.com/en_US/brokenldt16).
+* DOS (§9) : `krnl386` de winevdm (dosexe, dosvm, int10, vga, int21, int2f, int33, int67, soundblaster, dma) ;
+  FreeCOM (github.com/FDOS/freecom, licence et versions) ; Nuked OPL3 (github.com/nukeykt/Nuked-OPL3, licence) ;
+  asher256-legacy (github.com/Asher256/asher256-legacy, `README.md`, `fmsong/README.MD`) ; documentation de
+  FutureLib 3.5 (copie de l'utilisateur).

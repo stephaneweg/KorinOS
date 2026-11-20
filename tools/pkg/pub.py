@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """pub.py -- publier un seul paquet de Korin OS, a partir de son archive publiee (docs/PAQUETS.md, « Publier un paquet »).
 
-    python tools/pkg/pub.py NOM [--pi] [--tree DOSSIER] [--dry-run] [--yes] [--only MOTIF...] [--add-new] [--abi N]
+    python tools/pkg/pub.py NOM [--pi] [--tree DOSSIER] [--dry-run] [--yes] [--only MOTIF...] [--add-new] [--new] [--abi N]
+
+--new : un paquet absent de l'index publie (pas d'archive de base) : tous ses fichiers sont pris dans l'arbre,
+version de versions.ini ou 1.0.0, section ajoutee a la fin de l'index.
 
 Le chemin sur des publications partielles des 4-20/11 (.agents/memory/armpi-paquets.md), en un outil :
   1. git fetch ; la base est l'index d'origin/main (packages/pc/index.txt, ou packages/index.txt avec --pi) : jamais
@@ -152,6 +155,7 @@ def main ():
 	ap.add_argument ("--yes", action = "store_true", help = "sans demander confirmation")
 	ap.add_argument ("--only", nargs = "+", default = [], help = "remplacer seulement ces fichiers (motifs de packages.ini)")
 	ap.add_argument ("--add-new", action = "store_true", help = "ajouter les fichiers du paquet absents de l'archive")
+	ap.add_argument ("--new", action = "store_true", help = "un paquet absent de l'index publie : tous ses fichiers, pris dans l'arbre")
 	ap.add_argument ("--abi", type = int, help = "le besoin abi >= N du manifeste (defaut : celui du publie)")
 	ap.add_argument ("--force", action = "store_true", help = "continuer si le content publie ne se recalcule pas")
 	ap.add_argument ("--key", help = "la cle privee (defaut : ONYX_PKG_KEY_FILE, %s, OnyxPkgKey)" % DEFAULT_KEY)
@@ -183,16 +187,21 @@ def main ():
 	if idx_bytes is None: die ("pas de %s/index.txt dans %s" % (repo_rel, a.base))
 	idx_text = idx_bytes.decode ("utf-8")
 	idx = read_cfg (idx_text)
-	if not idx.has_section (name):
-		die ("%s n'est pas dans l'index publie (%s) : un nouveau paquet se publie par publish.sh" % (name, repo_rel))
-	o = idx[name]
+	is_new = not idx.has_section (name)
+	if is_new and not a.new:
+		die ("%s n'est pas dans l'index publie (%s) : --new pour un nouveau paquet (ou publish.sh)" % (name, repo_rel))
+	if a.new and not is_new:
+		die ("%s est deja dans l'index publie (%s) : sans --new" % (name, repo_rel))
+	o = {} if is_new else idx[name]
 	if o.get ("arch") == "any": die ("%s est l'archive du Pi citee par le PC (arch = any) : publier avec --pi" % name)
 	if o.get ("part"): say ("pub: note : %s est une partie de %s" % (name, o["part"]))
-	oldver, oldfile = o["version"], o["file"]
-	is_release = "://" in oldfile
+	oldver, oldfile = (None, None) if is_new else (o["version"], o["file"])
+	is_release = not is_new and "://" in oldfile
 
-	# ---- 2. l'archive publiee ----
-	if is_release:
+	# ---- 2. l'archive publiee (un nouveau paquet : aucune) ----
+	if is_new:
+		base_bytes = None
+	elif is_release:
 		local = os.path.join (release_dir, os.path.basename (oldfile))
 		if not (os.path.isfile (local) and mkrepo.sha256_file (local) == o["sha256"]):
 			say ("pub: gh release download %s" % os.path.basename (oldfile))
@@ -203,22 +212,24 @@ def main ():
 	else:
 		base_bytes = git_blob (a.base, repo_rel + "/" + oldfile)
 		if base_bytes is None: die ("%s absente de %s" % (oldfile, a.base))
-	if sha256 (base_bytes) != o["sha256"]: die ("l'archive publiee n'a pas le SHA-256 de l'index (%s)" % oldfile)
+	if not is_new and sha256 (base_bytes) != o["sha256"]: die ("l'archive publiee n'a pas le SHA-256 de l'index (%s)" % oldfile)
 
 	shutil.rmtree (TMP, ignore_errors = True)
 	stage = os.path.join (TMP, "files")
 	os.makedirs (stage)
-	base_zip = os.path.join (TMP, "base.opk")
-	open (base_zip, "wb").write (base_bytes)
-	with zipfile.ZipFile (base_zip) as z:
-		order = [n for n in z.namelist () if n != "PKG/manifest.ini" and not n.endswith ("/")]
-		base_man = z.read ("PKG/manifest.ini").decode ("utf-8")
-		base_data = { n: z.read (n) for n in order }
-	for n in order:
-		p = os.path.join (stage, n); os.makedirs (os.path.dirname (p), exist_ok = True)
-		open (p, "wb").write (base_data[n])
-	m = re.search (r"^needs = .*?abi >= (\d+)", base_man, re.M)
-	base_abi = int (m.group (1)) if m else None
+	order, base_data, base_abi = [], {}, None
+	if not is_new:
+		base_zip = os.path.join (TMP, "base.opk")
+		open (base_zip, "wb").write (base_bytes)
+		with zipfile.ZipFile (base_zip) as z:
+			order = [n for n in z.namelist () if n != "PKG/manifest.ini" and not n.endswith ("/")]
+			base_man = z.read ("PKG/manifest.ini").decode ("utf-8")
+			base_data = { n: z.read (n) for n in order }
+		for n in order:
+			p = os.path.join (stage, n); os.makedirs (os.path.dirname (p), exist_ok = True)
+			open (p, "wb").write (base_data[n])
+		m = re.search (r"^needs = .*?abi >= (\d+)", base_man, re.M)
+		base_abi = int (m.group (1)) if m else None
 
 	# ---- 3. le paquet selon packages.ini, et le content publie recalcule ----
 	pkgs, _ = mkrepo.plan (tree, None, ini)
@@ -230,12 +241,14 @@ def main ():
 		if P["boot_pats"]: desc += "boot %s\n" % P["boot_pats"]
 		return hashlib.sha256 ((desc + "".join ("%s %s\n" % (f, sha256 (data[f])) for f in files)).encode ()).hexdigest ()
 	rank = { f: i for i, f in enumerate (P["files"]) }
-	got = content (order, base_data)
+	got = content (order, base_data) if not is_new else None
 	how = "dans l'ordre de l'archive"
-	if got != o["content"]:
+	if is_new: say ("pub: %s : nouveau paquet, %d fichier(s) pris dans l'arbre" % (name, len (P["files"])))
+	elif got != o["content"]:
 		got = content (sorted (order, key = lambda f: rank.get (f, len (rank))), base_data)
 		how = "dans l'ordre de mkrepo.plan"
-	if got == o["content"]: say ("pub: %s %s : content publie recalcule a l'identique (%s)" % (name, oldver, how))
+	if is_new: pass
+	elif got == o["content"]: say ("pub: %s %s : content publie recalcule a l'identique (%s)" % (name, oldver, how))
 	elif a.force: say ("pub: ATTENTION : le content publie ne se recalcule pas (%s a change ?), --force" % os.path.basename (ini))
 	else: die ("le content publie de %s %s ne se recalcule pas : %s a change depuis (besoins, config...) ? (--force)" % (name, oldver, os.path.basename (ini)))
 
@@ -262,7 +275,7 @@ def main ():
 	extra = [f for f in P["files"] if f not in base_data]
 	added = []
 	for f in extra:
-		if a.add_new and wanted (f, pc and f in GUARDED): added.append ((f, open (os.path.join (P["src"][f], f), "rb").read (), False, os.path.join (P["src"][f], f)))
+		if (a.add_new or is_new) and wanted (f, pc and f in GUARDED): added.append ((f, open (os.path.join (P["src"][f], f), "rb").read (), False, os.path.join (P["src"][f], f)))
 	def when (tp): return datetime.datetime.fromtimestamp (os.path.getmtime (tp)).strftime ("%d/%m %H:%M")
 	say ("")
 	say ("%s %s (%s), arbre %s :" % (name, oldver, "Release" if is_release else repo_rel + "/pkgs", os.path.relpath (tree, ROOT)))
@@ -272,7 +285,7 @@ def main ():
 		say ("  ajoute    %-60s %10d  %s" % (f, len (new), when (tp)))
 	for f, guarded in skipped:
 		say ("  garde     %s (differe : %s)" % (f, "une reconstruction brute l'abime, --only pour le prendre" if guarded else "hors de --only"))
-	if extra and not a.add_new:
+	if extra and not a.add_new and not is_new:
 		say ("  %d fichier(s) du paquet absents de l'archive (--add-new pour les ajouter) :" % len (extra))
 		for f in extra[:15]: say ("            " + f)
 		if len (extra) > 15: say ("            ...")
@@ -286,13 +299,17 @@ def main ():
 	# ---- 5. la nouvelle version, l'archive, l'index ----
 	vtext = (git_blob ("HEAD", "tools/pkg/versions.ini") or b"").decode ("utf-8")
 	vini = versions_get (vtext, [vsection, vbase], name)
-	ver = mkrepo.bump (oldver)
-	if vini and mkrepo.vkey (vini) > mkrepo.vkey (oldver): ver = vini
+	if is_new:
+		ver = vini or "1.0.0"
+	else:
+		ver = mkrepo.bump (oldver)
+		if vini and mkrepo.vkey (vini) > mkrepo.vkey (oldver): ver = vini
 	abi = a.abi or base_abi or mkrepo.abi_level ()
 	src_abi = mkrepo.abi_level ()
 	if P["restart"] != "1" and src_abi > abi and not a.abi:
 		say ("pub: note : les kits du source sont a abi %d, le paquet garde abi >= %d (--abi %d si ses programmes en ont besoin ; le systeme publie doit les avoir)" % (src_abi, abi, src_abi))
 	for f, new, merged, tp in changed + added:
+		os.makedirs (os.path.dirname (os.path.join (stage, f)), exist_ok = True)
 		open (os.path.join (stage, f), "wb").write (new)
 		if f not in order: order.append (f)
 	files = list (order)
@@ -325,9 +342,13 @@ def main ():
 	    + (["replaces = " + ", ".join (P["replaces"])] if P["replaces"] else []) \
 	    + (["part = " + P["part"]] if P["part"] else []) + ["content = " + newcontent]
 	lines = idx_text.split ("\n")
-	s = lines.index ("[%s]" % name); e = s + 1
-	while e < len (lines) and lines[e] != "": e += 1
-	lines[s:e] = sec
+	if is_new:
+		while lines and lines[-1] == "": lines.pop ()
+		lines += [""] + sec + [""]
+	else:
+		s = lines.index ("[%s]" % name); e = s + 1
+		while e < len (lines) and lines[e] != "": e += 1
+		lines[s:e] = sec
 	r0 = lines.index ("[repo]")
 	for i in range (r0 + 1, len (lines)):
 		if lines[i].startswith ("["): break
@@ -414,7 +435,7 @@ def main ():
 	paths[repo_rel + "/index.sig"] = sig.encode ()
 	if not is_release:
 		paths[repo_rel + "/" + fn] = open (opk, "rb").read ()
-		paths[repo_rel + "/" + oldfile] = None
+		if oldfile: paths[repo_rel + "/" + oldfile] = None
 	if icon_changed: paths["%s/icons/%s.bmp" % (repo_rel, name)] = icon_new
 	vnew = versions_edit (vtext, vsection, vbase, name, ver)
 	if vnew != vtext: paths["tools/pkg/versions.ini"] = vnew.encode ("utf-8")
@@ -427,7 +448,7 @@ def main ():
 		git ("update-index", "--add", "--cacheinfo", "100644,%s,%s" % (blob, p), env = env)
 	npk = sum (1 for l in new_idx.decode ("utf-8").split ("\n") if l.startswith ("file = "))
 	title = "Paquets%s : %s %s (%d paquets)%s, depuis %s" % (" PC" if pc else "", name, ver, npk, (", " + a.message) if a.message else "", head)
-	body = "Publication par tools/pkg/pub.py, sur %s %s publie :\n\n" % (name, oldver) + "\n".join ("- %s %s" % ("ajoute" if f in [x[0] for x in added] else "remplace", f) for f, *_ in changed + added)
+	body = ("Publication par tools/pkg/pub.py, nouveau paquet :\n\n" if is_new else "Publication par tools/pkg/pub.py, sur %s %s publie :\n\n" % (name, oldver)) + "\n".join ("- %s %s" % ("ajoute" if f in [x[0] for x in added] else "remplace", f) for f, *_ in changed + added)
 	git ("commit", "-q", "-m", title, "-m", body, env = env)
 	git ("reset", "-q", "HEAD", "--", *paths.keys (), check = False)	# (l'index du dossier suit, pour ces chemins seulement)
 	for p, b in paths.items ():			# (le dossier : les memes octets ; versions.ini garde ce que d'autres y changent)

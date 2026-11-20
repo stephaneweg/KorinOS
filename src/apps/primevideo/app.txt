@@ -1,0 +1,8 @@
+# Manifeste de Prime Video (le site de Prime Video sur le moteur de Jet : src/extra/onyxports/jet/webapp.cpp ; docs/etude/WIDEVINE.md)
+name     = Prime Video
+category = Multimédia
+description = Regarder Prime Video : le site de Prime Video dans sa propre fenêtre, avec votre compte (Widevine, Korin PC).
+keywords = prime video amazon film série vidéo streaming
+help = Au premier lancement, Prime Video propose de télécharger le module Widevine de Google (contenus protégés) ; puis connectez-vous à votre compte Prime Video dans la fenêtre, une fois : l'app garde sa session (à part de celle de Jet).
+help = Tout se fait dans la page de Prime Video : profils, recherche, lecture. F11 (Fichier, Agrandir) agrandit la fenêtre.
+help = Fichier, Se déconnecter efface la session de l'app ; Ouvrir dans Jet ouvre Prime Video dans le navigateur.

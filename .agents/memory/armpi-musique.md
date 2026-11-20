@@ -1,6 +1,6 @@
 ---
 name: armpi-musique
-description: "18/11 : les 4 étapes faites et construites (UIKit/Elegant, mini-lecteur, Jamendo, Spotify avec librespot pour Korin et Connect), pas encore essayées : il faut les client_id"
+description: "18/11 : UIKit/Elegant, mini-lecteur, Jamendo ; Spotify refait le 20/11 : le lecteur web dans sa fenêtre sur le moteur de Jet (mode app, Widevine), librespot retiré"
 metadata:
   type: project
 ---
@@ -23,3 +23,12 @@ du Media Player, ui_window_pos), 040227ce (Jamendo), acae5d5b et 75c8c47b (Spoti
 x86_64-unknown-korin, src/lib/korinspot, tools/spotify/build.sh avec 7 caisses patchées ; l'app, OAuth par oauthd,
 Connect par le nuage). Pour essayer : un client_id Jamendo (devportal.jamendo.com) et une app Spotify (retour
 http://127.0.0.1:8898/). Reste : pochettes, touches multimédia, pièces communes dans les kits (§3), korinspot pour le Pi.
+
+**20/11, Spotify refait (décisions de l'utilisateur)** : le lecteur web open.spotify.com dans sa propre fenêtre, sur
+le moteur de Jet (`--app=spotify` : src/extra/onyxports/jet/webapp.cpp ; src/apps/spotify/main.c n'est qu'un execv) ;
+session à part (HOME/spotify/webkit) ; interface UIKit, librespot (korinspot, tools/spotify) et Connect **supprimés**
+du dépôt (« Tout supprimer »). Carte : état lu par script (data-testid de Spotify), page derrière (ui_surface_overlay).
+Le paquet spotify demande jet. Essai : tools/linux/test_webapp.sh ; la connexion au compte est faite par
+l'utilisateur. docs/etude/MUSIQUE.md (début).
+**Publié le 20/11** (jet 1.4.1, spotify 1.1.0, ce77e2a7) ; **essayé par l'utilisateur sur le ZBook** : l'app tourne, la carte réduite marche.
+**Netflix (20/11)** : src/apps/netflix, même coquille (lanceur commun src/lib/webapp/launcher.c, webapp.txt maximize = 1) ; jet 1.4.2 (F11, Agrandir, WEV_RESIZE passé à UIKit : sans lui ni les bords ni agrandir ne suivaient). Puis Disney+, TF1+, Prime Video (disneyplus, tf1plus, primevideo), même coquille ; essai : APP=… tools/linux/test_webapp.sh.

@@ -1,0 +1,20 @@
+--- a/src/rand.rs
++++ b/src/rand.rs
+@@ -132,6 +132,7 @@
+     target_os = "hurd",
+     target_os = "horizon",
+     target_os = "illumos",
++    target_os = "korin",
+     target_os = "linux",
+     target_os = "netbsd",
+     target_os = "openbsd",
+--- a/build.rs
++++ b/build.rs
+@@ -249,6 +249,7 @@
+     "haiku",
+     "hurd",
+     "illumos",
++    "korin",
+     "netbsd",
+     "openbsd",
+     "linux",

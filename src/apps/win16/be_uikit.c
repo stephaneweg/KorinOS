@@ -229,6 +229,23 @@ int be_wait (int ms, struct be_event *ev)
 	if (t <= 0)
 		return 0;
 	ev->win = ui_ev_field (&ui, EV_WIN);
+	/* les widgets d'abord : un événement qu'ils prennent devient BE_WIDGET (ou rien) */
+	{
+		struct bewin *bw = find (ev->win);
+		if (bw)
+			use (bw->h);
+		long code = 0, taken = 0;
+		long wd = uikit_w_event (&code, &taken);
+		if (wd && code)
+		{
+			ev->type = BE_WIDGET;
+			ev->key = (int) wd;
+			ev->x = (int) code;
+			return 1;
+		}
+		if (taken)
+			return 0;
+	}
 	static int evlog = -1;
 	if (evlog < 0)
 		evlog = getenv ("W16_EVLOG") != 0;
@@ -349,6 +366,59 @@ int be_clip_take (char *buf, int cap)
 	return (int) ui_clip_get ((long) buf, cap);
 }
 
+/* ---- les widgets de UIKit (ctrl.c, mode natif) : posés dans la fenêtre de Korin sous le bandeau ---- */
+long be_w_create (long win, int kind, int x, int y, int w, int h, const char *text, long extra)
+{
+	if (!find (win))
+		return 0;
+	use (win);
+	y += BAND_H;
+	long t = (long) (text ? text : "");
+	if (kind == BW_TEXT || kind == BW_PASSWORD || kind == BW_TEXTAREA)
+		extra = ((extra & BWF_READONLY) ? UTF_READONLY : 0) | ((extra & BWF_VSCROLL) ? UTA_VSCROLL : 0)
+			| ((extra & BWF_HSCROLL) ? UTA_HSCROLL : 0);
+	switch (kind)
+	{
+	case BW_PUSH: return ui_pushbutton (x, y, w, h, t, 0);
+	case BW_DEFPUSH: return ui_pushbutton (x, y, w, h, t, UB_DEFAULT);
+	case BW_CHECK: return ui_checkbox (x, y, w, h, t, extra);
+	case BW_RADIO: return ui_radio (x, y, w, h, t, extra);
+	case BW_TEXT: { long wd = ui_textbox (x, y, w, h, extra); if (wd) ui_w_set_text (wd, t); return wd; }
+	case BW_PASSWORD: { long wd = ui_textbox (x, y, w, h, UTF_PASSWORD | extra); if (wd) ui_w_set_text (wd, t); return wd; }
+	case BW_TEXTAREA: { long wd = ui_textarea (x, y, w, h, extra); if (wd) ui_w_set_text (wd, t); return wd; }
+	case BW_LIST: return ui_list (x, y, w, h, UL_NOSORT);
+	case BW_DROPDOWN: return ui_dropdown (x, y, w, h, t);
+	case BW_COMBO: return ui_combobox (x, y, w, h, t);
+	case BW_VSCROLL: return ui_scrollbar (x, y, w, h, 0);
+	case BW_HSCROLL: return ui_scrollbar (x, y, w, h, USB_HORIZONTAL);
+	case BW_LABEL: return ui_label (x, y, w, h, t, ULB_WRAP);
+	case BW_LABEL_CENTER: return ui_label (x, y, w, h, t, ULB_WRAP | ULB_CENTER);
+	case BW_LABEL_RIGHT: return ui_label (x, y, w, h, t, ULB_WRAP | ULB_RIGHT);
+	case BW_GROUP: return ui_groupbox (x, y, w, h, t);
+	}
+	return 0;
+}
+
+int be_ui_metric (int what)
+{
+	return (int) ui_metric (what == BEM_CTL ? UMT_CTL : what == BEM_ROW ? UMT_ROW : UMT_PX);
+}
+
+static void wuse (long wd) { long win = ui_w_window (wd); if (win) use (win); }
+void be_w_move (long wd, int x, int y, int w, int h) { wuse (wd); ui_w_move (wd, x, y + BAND_H, w, h); }
+void be_w_show (long wd, int show) { wuse (wd); ui_w_show (wd, show); }
+void be_w_enable (long wd, int on) { wuse (wd); ui_w_enable (wd, on); }
+void be_w_focus (long wd) { wuse (wd); ui_w_focus (wd); }
+void be_w_set_text (long wd, const char *text) { wuse (wd); ui_w_set_text (wd, (long) text); }
+const char *be_w_get_text (long wd) { wuse (wd); return (const char *) ui_w_get_text (wd); }
+void be_w_set_value (long wd, long v) { wuse (wd); ui_w_set_value (wd, v); }
+long be_w_get_value (long wd) { wuse (wd); return ui_w_get_value (wd); }
+void be_w_set_range (long wd, long mn, long mx, long page, long step) { wuse (wd); ui_w_set_range (wd, mn, mx, page, step); }
+void be_w_list_add (long wd, const char *text) { wuse (wd); ui_list_add (wd, (long) text, 0); }
+void be_w_list_clear (long wd) { wuse (wd); ui_list_clear (wd); }
+void be_w_draw (long wd) { wuse (wd); ui_w_draw (wd); }
+void be_w_destroy (long wd) { wuse (wd); ui_w_destroy (wd); }
+
 /* ---- le synthé (comme src/apps/arabesque/audio.h) : un fil tient le synthé General MIDI d'AudioKit et nourrit le
  * flux bloc après bloc ; la SoundFont se charge dans le fil, la fenêtre n'attend jamais. Les messages MIDI du
  * programme arrivent sous g_lk, entre deux blocs. ---- */
@@ -411,6 +481,37 @@ void be_synth_reset (void)
 			ak_synth_midi (g_synth, c, 0xB0, 123, 0);
 		}
 	pthread_mutex_unlock (&g_lk);
+}
+
+/* la sortie PCM de la machine DOS (son.c) : un fil remplit des blocs de 44,1 kHz stéréo, AudioKit les joue */
+static void (*pcm_fill) (int16_t *buf, int frames);
+
+static void *pcm_main (void *arg)
+{
+	(void) arg;
+	if (!audiokit_kit_open ())
+		return 0;
+	long out = ak_open (RATE, 2, 16, 0);
+	if (out < 0)
+		return 0;
+	static int16_t buf[BLOCK * 2];
+	for (;;)
+	{
+		pcm_fill (buf, BLOCK);
+		((long (*) (long, long, long)) ak_write_all) (out, (long) buf, sizeof buf);
+	}
+	return 0;
+}
+
+int be_pcm_start (void (*fill) (int16_t *buf, int frames))
+{
+	static int started;
+	pthread_t t;
+	if (started)
+		return started > 0;
+	pcm_fill = fill;
+	started = pthread_create (&t, 0, pcm_main, 0) == 0 ? 1 : -1;
+	return started > 0;
 }
 
 void be_fatal (const char *msg)

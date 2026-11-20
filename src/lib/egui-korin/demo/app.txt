@@ -1,0 +1,6 @@
+# Manifeste de la démo d'egui (src/lib/egui-korin, docs/EGUI.md) : l'hôte egui de Korin, essayé par les fenêtres de
+# démonstration d'egui.
+name     = Démo egui
+category = Développement
+description = Les fenêtres de démonstration d'egui (la bibliothèque d'interface en Rust des apps Craft), dessinées par le CPU dans une fenêtre de Korin.
+keywords = egui rust démo widgets interface craft

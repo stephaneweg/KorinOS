@@ -1,9 +1,9 @@
-# Manifeste de Spotify (librespot pour Korin : src/lib/korinspot ; docs/etude/MUSIQUE.md)
+# Manifeste de Spotify (le lecteur web de Spotify sur le moteur de Jet : src/extra/onyxports/jet/webapp.cpp ; docs/etude/MUSIQUE.md)
 name     = Spotify
 category = Multimédia
-description = Écouter Spotify (compte Premium) : vos titres aimés, vos playlists et la recherche, joués par librespot.
-keywords = musique spotify écouter playlist titres aimés premium artiste album
-help = Il faut un compte Premium (Famille l'est) et une app à vous sur developer.spotify.com (retour http://127.0.0.1:8898/) : Fichier, Se connecter à Spotify, acceptez dans Jet (le lecteur), puis donnez le Client ID de l'app et acceptez de nouveau (les listes).
-help = L'accord se donne dans Jet ; Korin garde la connexion (oauthd, le coffre). Fichier, Se déconnecter l'oublie.
-help = À gauche : vos titres aimés et vos playlists ; en haut, la recherche. Double-clic ou Entrée sur un titre : il joue ; Espace : lecture ou pause ; Ctrl+→, Ctrl+← : suivant, précédent.
+description = Écouter Spotify : le lecteur web de Spotify dans sa propre fenêtre, avec votre compte (Widevine, Korin PC).
+keywords = musique spotify écouter playlist titres aimés podcast artiste album
+help = Au premier lancement, Spotify propose de télécharger le module Widevine de Google (contenus protégés) ; puis connectez-vous à votre compte Spotify dans la fenêtre, une fois : l'app garde sa session (à part de celle de Jet).
+help = Tout se fait dans la page de Spotify : accueil, recherche, bibliothèque, lecture. Le menu Lecture : lecture ou pause, suivant, précédent.
 help = Fermer la fenêtre pendant la lecture la réduit en carte en bas à droite, au-dessus des autres ; la musique continue. Fermer la carte l'arrête.
+help = Fichier, Se déconnecter efface la session de l'app ; Ouvrir dans Jet ouvre Spotify dans le navigateur.

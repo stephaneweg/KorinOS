@@ -1,0 +1,279 @@
+diff -ruN a/av/av_player.c b/av/av_player.c
+--- a/av/av_player.c	2026-11-20 18:27:40.809579500 +0100
++++ b/av/av_player.c	2026-11-20 18:59:02.569319400 +0100
+@@ -89,6 +89,7 @@
+ 	av_us v_next;
+ 	int v_first;
+ 	av_us v_skip;			/* frames before this not shown (a seek) */
++	unsigned v_cfg;			/* the version of the track's description the video decoder was made for */
+ 	int v_starved, v_eof;
+ 	struct vslot slot[NSLOT];
+ 	unsigned serial;
+@@ -306,9 +307,9 @@
+ 		 * that time is buffered */
+ 		av_us start = p->a_trim - 80000;
+ 		r = av__store_ahead(p->store, p->a_trim) > 0 || av__store_ended(p->store, p->a_src) ?
+-			av__store_next(p->store, p->a_src, p->a_track, start > 0 ? start : 0, 1, 0, &pk) : AV_AGAIN;
++			av__store_next(p->store, p->a_src, p->a_track, start > 0 ? start : 0, 1, 0, &pk, NULL) : AV_AGAIN;
+ 	} else {
+-		r = av__store_next(p->store, p->a_src, p->a_track, p->a_next, 0, 500000, &pk);
++		r = av__store_next(p->store, p->a_src, p->a_track, p->a_next, 0, 500000, &pk, NULL);
+ 	}
+ 	av__store_unlock(p->store);
+ 	if (r != AV_OK)
+@@ -501,6 +502,7 @@
+ 	t = av__store_track_info(p->store, src, tr);
+ 	av_decoder_free(p->vdec);
+ 	p->vdec = decoder_for(p, t);
++	p->v_cfg = av__store_track_cfg(p->store, src, tr);
+ 	av__store_unlock(p->store);
+ 	p->v_src = src;
+ 	p->v_track = tr;
+@@ -671,6 +673,7 @@
+ 		struct av_packet pk;
+ 		struct av_frame f;
+ 		int r, i;
++		unsigned cfg = 0;
+ 		av_us t0;
+ 
+ 		av_lock(&p->lock);
+@@ -703,14 +706,51 @@
+ 			continue;
+ 		}
+ 		av__store_lock(p->store);
++		{
++			/* frames not decoded yet removed (MSE: another quality put over them, a remove): the decoder
++			 * would go on from frames that are no longer the ones it decoded (smeared, green pictures until
++			 * the next random access point) -- it starts again from the random access point before */
++			av_us gone;
++			if (av__store_take_removed(p->store, p->v_src, p->v_track, &gone) && !p->v_first && gone > p->v_next) {
++				av__store_unlock(p->store);
++				av_decoder_flush(p->vdec);
++				p->v_first = 1;
++				p->v_skip = p->v_next;
++				continue;
++			}
++		}
+ 		if (p->v_first) {
+ 			/* from the random access point before the target, once the target is buffered */
+ 			av_us rap = av__store_ahead(p->store, p->v_skip) > 0 || av__store_ended(p->store, p->v_src) ?
+ 				av__store_rap_before(p->store, p->v_src, p->v_track, p->v_skip) : AV_NOTIME;
+ 			r = rap == AV_NOTIME ? (av__store_ended(p->store, p->v_src) ? AV_EOF : AV_AGAIN) :
+-				av__store_next(p->store, p->v_src, p->v_track, rap, 1, 0, &pk);
++				av__store_next(p->store, p->v_src, p->v_track, rap, 1, 0, &pk, &cfg);
+ 		} else {
+-			r = av__store_next(p->store, p->v_src, p->v_track, p->v_next, 0, 500000, &pk);
++			r = av__store_next(p->store, p->v_src, p->v_track, p->v_next, 0, 500000, &pk, &cfg);
++		}
++		if (r == AV_OK && cfg != p->v_cfg) {
++			/* a frame of another version of the track's description (another quality: its size, its
++			 * H.264 parameters): the decoder's last pictures out, then a decoder made for it */
++			const struct av_track *t;
++			av__store_unlock(p->store);
++			av_decoder_send(p->vdec, NULL);
++			while (av_decoder_receive(p->vdec, &f) == AV_OK)
++				if (video_frame(p, &f, seek) < 0)
++					break;
++			av__store_lock(p->store);
++			t = av__store_track_info_cfg(p->store, p->v_src, p->v_track, cfg);
++			av_decoder_free(p->vdec);
++			p->vdec = decoder_for(p, t);
++			p->v_cfg = cfg;
++			if (p->vdec == NULL) {
++				av__store_unlock(p->store);
++				av_pkt_free(&pk);
++				av_lock(&p->lock);
++				if (!p->error)
++					p->error = AV_EUNSUP;
++				av_unlock(&p->lock);
++				continue;
++			}
+ 		}
+ 		av__store_unlock(p->store);
+ 		if (r == AV_EOF && !p->v_eof) {
+diff -ruN a/av/av_store.c b/av/av_store.c
+--- a/av/av_store.c	2026-11-20 18:27:40.839125200 +0100
++++ b/av/av_store.c	2026-11-20 18:59:02.623695000 +0100
+@@ -26,6 +26,7 @@
+ 	av_us pts, dts, dur;
+ 	int key;
+ 	unsigned gen;		/* its coded frame group */
++	unsigned cfg;		/* the version of its track's description (a queue: av_store_queue_track) */
+ 	uint8_t *data;
+ 	size_t size;
+ 	struct av_crypt *crypt;	/* EME: how it is encrypted (NULL: clear) */
+@@ -38,8 +39,15 @@
+ 	av_us last_dts, last_dur;	/* AV_NOTIME: unset */
+ 	int need_rap;
+ 	size_t bytes;
++	/* frames removed (replaced by others, removed by the page, evicted) since the player last asked:
++	 * the latest decode time among them (av__store_take_removed) */
++	int removed;
++	av_us removed_dts;
+ };
+ 
++#define NCFG 4			/* the descriptions kept per track (a quality switch with frames of the
++				   previous one still buffered) */
++
+ struct source {
+ 	int used;
+ 	int fmt;
+@@ -58,6 +66,13 @@
+ 	struct av_track qt[AV_MAX_TRACKS];
+ 	int nq;
+ 	int q_end[AV_MAX_TRACKS];	/* the track's frames are all there (the stream's end) */
++	/* the versions of each track's description: a new initialization segment that changes it (another
++	 * quality: its size, its codec setup) makes a new one; the frames keep theirs, the player starts a
++	 * decoder for it (av__store_track_info_cfg) */
++	unsigned qcfg[AV_MAX_TRACKS];
++	struct av_track qhist[AV_MAX_TRACKS][NCFG];
++	unsigned qhist_cfg[AV_MAX_TRACKS][NCFG];
++	int qhist_set[AV_MAX_TRACKS][NCFG];
+ };
+ 
+ struct av_store {
+@@ -103,6 +118,10 @@
+ 		track_clear(&so->tr[k]);
+ 	for (k = 0; k < so->nq; k++)
+ 		free(so->qt[k].extra);
++	for (k = 0; k < AV_MAX_TRACKS; k++)
++		for (int h = 0; h < NCFG; h++)
++			if (so->qhist_set[k][h])
++				free(so->qhist[k][h].extra);
+ 	if (so->dx != NULL)
+ 		av_demux_free(so->dx);
+ 	memset(so, 0, sizeof *so);
+@@ -202,6 +221,9 @@
+ {
+ 	so->bytes -= t->f[i].size;
+ 	t->bytes -= t->f[i].size;
++	if (!t->removed || t->f[i].dts > t->removed_dts)
++		t->removed_dts = t->f[i].dts;
++	t->removed = 1;
+ 	free(t->f[i].data);
+ 	free(t->f[i].crypt);
+ 	memmove(&t->f[i], &t->f[i + 1], (size_t) (t->n - i - 1) * sizeof t->f[0]);
+@@ -246,6 +268,7 @@
+ 	t->f[i].dur = dur;
+ 	t->f[i].key = p->key;
+ 	t->f[i].gen = so->gen;
++	t->f[i].cfg = so->qcfg[t - so->tr];
+ 	t->f[i].data = p->data;
+ 	t->f[i].size = p->size;
+ 	t->f[i].crypt = p->crypt;
+@@ -807,8 +830,41 @@
+ 	return so != NULL ? so_track(so, track) : NULL;
+ }
+ 
++unsigned av__store_track_cfg(struct av_store *s, int src, int track)
++{
++	struct source *so = get(s, src);
++	return so != NULL && so->queue && track >= 0 && track < AV_MAX_TRACKS ? so->qcfg[track] : 0;
++}
++
++const struct av_track *av__store_track_info_cfg(struct av_store *s, int src, int track, unsigned cfg)
++{
++	struct source *so = get(s, src);
++	int h = (int) (cfg % NCFG);
++
++	if (so == NULL)
++		return NULL;
++	if (so->queue && track >= 0 && track < AV_MAX_TRACKS && so->qhist_set[track][h] && so->qhist_cfg[track][h] == cfg)
++		return &so->qhist[track][h];
++	return so_track(so, track);
++}
++
++int av__store_take_removed(struct av_store *s, int src, int track, av_us *dts)
++{
++	struct source *so = get(s, src);
++	struct strack *t;
++
++	if (so == NULL || track < 0 || track >= AV_MAX_TRACKS)
++		return 0;
++	t = &so->tr[track];
++	if (!t->removed)
++		return 0;
++	*dts = t->removed_dts;
++	t->removed = 0;
++	return 1;
++}
++
+ int av__store_next(struct av_store *s, int src, int track, av_us after, int inclusive, av_us gap,
+-		struct av_packet *p)
++		struct av_packet *p, unsigned *cfg)
+ {
+ 	struct source *so = get(s, src);
+ 	struct strack *t;
+@@ -835,6 +891,8 @@
+ 	p->key = t->f[i].key;
+ 	p->size = t->f[i].size;
+ 	p->pos = -1;
++	if (cfg != NULL)
++		*cfg = t->f[i].cfg;
+ 	p->data = (uint8_t *) malloc(p->size ? p->size : 1);
+ 	if (p->data == NULL)
+ 		return AV_ENOMEM;
+@@ -971,8 +1029,14 @@
+ 		return AV_EFULL;
+ 	}
+ 	q = &so->qt[k];
+-	if (k < so->nq)
++	if (k < so->nq) {
++		int same = q->codec == t->codec && q->width == t->width && q->height == t->height &&
++			q->rate == t->rate && q->channels == t->channels && q->extra_len == t->extra_len &&
++			(q->extra_len == 0 || (q->extra != NULL && t->extra != NULL && !memcmp(q->extra, t->extra, q->extra_len)));
++		if (!same)
++			so->qcfg[k]++;
+ 		free(q->extra);
++	}
+ 	*q = *t;
+ 	q->extra = NULL;
+ 	q->extra_len = 0;
+@@ -980,6 +1044,22 @@
+ 		memcpy(q->extra, t->extra, t->extra_len);
+ 		q->extra_len = t->extra_len;
+ 	}
++	{
++		/* (this version kept for the frames that will carry it) */
++		int h = (int) (so->qcfg[k] % NCFG);
++		struct av_track *c = &so->qhist[k][h];
++		if (so->qhist_set[k][h])
++			free(c->extra);
++		*c = *t;
++		c->extra = NULL;
++		c->extra_len = 0;
++		if (t->extra != NULL && t->extra_len > 0 && (c->extra = (uint8_t *) malloc(t->extra_len)) != NULL) {
++			memcpy(c->extra, t->extra, t->extra_len);
++			c->extra_len = t->extra_len;
++		}
++		so->qhist_cfg[k][h] = so->qcfg[k];
++		so->qhist_set[k][h] = 1;
++	}
+ 	if (k == so->nq)
+ 		so->nq++;
+ 	so->tr[k].kind = t->kind;
+diff -ruN a/av/av_store.h b/av/av_store.h
+--- a/av/av_store.h	2026-11-20 18:27:40.865641000 +0100
++++ b/av/av_store.h	2026-11-20 18:59:02.623695000 +0100
+@@ -14,10 +14,18 @@
+ /* the first source / track of a kind whose init segment came: 1 found (*info: a copy, no extra) */
+ int av__store_pick(struct av_store *s, int kind, int *src, int *track, struct av_track *info);
+ const struct av_track *av__store_track_info(struct av_store *s, int src, int track);
+-/* the first frame with dts > after (>= when inclusive; after AV_NOTIME: the first): a copy.
+- * AV_AGAIN: not there yet (or a hole of more than gap after `after`), AV_EOF: ended */
++/* a queue's track: the version of its description now, and the description of a version (that of a
++ * frame: av__store_next's cfg) when it is still kept, else the current one */
++unsigned av__store_track_cfg(struct av_store *s, int src, int track);
++const struct av_track *av__store_track_info_cfg(struct av_store *s, int src, int track, unsigned cfg);
++/* frames of the track removed since the last call (replaced by another quality, removed, evicted) -> 1, and
++ * the latest decode time among them in *dts; 0 none */
++int av__store_take_removed(struct av_store *s, int src, int track, av_us *dts);
++/* the first frame with dts > after (>= when inclusive; after AV_NOTIME: the first): a copy, and the version of
++ * its track's description in *cfg (NULL: not wanted). AV_AGAIN: not there yet (or a hole of more than gap
++ * after `after`), AV_EOF: ended */
+ int av__store_next(struct av_store *s, int src, int track, av_us after, int inclusive, av_us gap,
+-		struct av_packet *p);
++		struct av_packet *p, unsigned *cfg);
+ /* the decode time of the random access point to start from to show time t */
+ av_us av__store_rap_before(struct av_store *s, int src, int track, av_us t);
+ int av__store_ended(struct av_store *s, int src);

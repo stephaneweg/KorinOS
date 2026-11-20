@@ -33,8 +33,20 @@ Delphi se sert du presse-papiers (format privé) pour cloner : tous les formats 
 « regarde Arabesque, c'est un portage d'Art Song »). Art Song compose sous QEMU ; écoute sur le ZBook à faire.
 Pièges : BeginPaint doit découper à la zone invalide et WS_CLIPCHILDREN exclure les filles (sinon le fond d'un
 parent efface ses filles) ; lire les événements de Korin à chaque GetMessage (double-clics sous émulation lente) ;
-pctest.py a « dblclick:X,Y ». Demandes du 20/11 à faire : comparer avec winevdm sous Windows ; contrôles dessinés
-par UIKit lui-même (thème des apps natives).
+pctest.py a « dblclick:X,Y ». Fait le 20/11 : comparaison avec winevdm (OTVDM 0.9.0 sous Windows, captures dans
+build/win16/compare) ; **mode natif** : contrôles standard = widgets de UIKit (ctrl.c, native_*), W16_NATIVE=0 pour
+l'ancien dessin.
+
+**DOS demandé le 20/11** (« quickbasic 4, modes cga, vga et svga (futurelib) », FreeCOM, Sound Blaster/OPL,
+essai OPL = FM-Song d'Asher256, redistribuable) : architecture dans WIN16.md §9. **Choix de l'utilisateur (20/11)** :
+voie intégrée à win16 (pas DOSBox), Nuked OPL3, FreeCOM 0.86. Étapes D1-D6 du §9.8 ; **le PC seulement** (l'utilisateur, 20/11 : « pas besoin le pi pour l'instant » : rien pour le Pi). **D1 faite le 20/11
+(20430286, hôte et QEMU PC)** : dos.c/bios.c/vga.c, tests/dos/dostest.c. Pièges : en mode réel, CS garde la base
+FFF00000 tant que m_performed_intersegment_jump est 0 ; sel_base rend seg×16 quand w16_realmode ; un gestionnaire
+qui attend le clavier rend WAIT (CS:IP reste sur le point d'arrêt F000:vecteur, IF mis, les IRQ passent). **D2 faite le 20/11** : FreeCOM sur Z: (build-freecom.sh,
+sources dans WSL ~/korin-win16/freecom), noms courts, redirection. Piège : FreeCOM ferme la poignée 1 et attend que
+le fichier créé la reçoive (la plus basse libre) ; host_be.c sautait les mots après un « type: ». **D3 faite le 20/11** : QB 4.5 (éditeur, F5, BC, LINK, SHELL), souris INT 33h (mouse.c). QB et ses fichiers : WSL ~/korin-win16/qb45 (archive) et ~/korin-win16/qbtest (copie de travail). Après D6 : Tomb Raider demandé (DPMI, CD, vitesse). **D4 faite le 20/11** : graphisme (plans de la VGA par cpu_vga_rd/wr, CGA, EGA, 12h, 13h, Mode X) ; QB lit l'INT 10h 1Bh avant SCREEN 12/13 ; les modes de 200 lignes ont la palette « CGA » (bit 4 = intensité). **D5 faite le 20/11** : VESA (svga.c), XMS et EMS (xms.c) ; FutureLib 3.5 (WSL ~/korin-win16/fl35, copie de travail ~/korin-win16/fltest : FUTURE45.LIB faite par LIB.EXE). Pièges : FutureLib change de page par le CRTC (pas 4F07h) et copie l'écran vers XMS/EMS par les fonctions de copie (0Bh, 57h) : elles doivent passer par la carte. **Paquet PC win16 1.0.0 publié le 20/11** (7733638d, à la demande de l'utilisateur) par `pub.py win16 --new --tree build/pub-win16-tree` (option ajoutée : un nouveau paquet sans publish.sh) ; l'arbre du PC n'avait pas encore win16.app. **D6 faite le 20/11** : son (sound.c, Nuked OPL3 dans nuked/, SB16, DMA) ; FM-Song et FM-Lib dans WSL ~/korin-win16/asher256-legacy, copie de travail ~/korin-win16/fmtest. Pièges : les minuteries de l'OPL doivent avancer à chaque lecture du port d'état ; l'eofms de FM-Lib répond « fini » tout de suite (ne pas s'en servir) ; sur l'hôte, W16_REALTIME=1 pour que les attentes durent. QB 4.5 et FutureLib 3.5 = copies de
+l'utilisateur, jamais au dépôt ni en paquet (FutureLib : licence muette), extraites dans WSL ~/korin-win16, image
+QEMU effacée après l'essai. Dans les commits : « QuickBASIC 4.5, copie de l'utilisateur ».
 
 **How to apply:** code dans src/apps/win16 (cœur de MAME copié de vm86/mame, mémoire émulée à part, sélecteur réservé
 aux points d'entrée de l'API) ; sources de winevdm dans WSL ~/win16/winevdm. Même code pour le Pi. Voir

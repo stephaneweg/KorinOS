@@ -55,6 +55,8 @@ static int strip_amp (const char *s, char *out, int cap)
 	return k;
 }
 
+static uint32_t listbox_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp);
+
 /* ======================================================================== BUTTON */
 #define BM_GETCHECK (WM_USER + 0)
 #define BM_SETCHECK (WM_USER + 1)
@@ -204,7 +206,7 @@ static void btn_click (struct wnd *w)
 	user_notify (h, 0);	/* BN_CLICKED */
 }
 
-uint32_t ctrl_button_proc (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp)
+static uint32_t button_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp)
 {
 	struct wnd *w = wnd_get (hwnd);
 	if (!w)
@@ -295,7 +297,7 @@ uint32_t ctrl_button_proc (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp
 }
 
 /* ======================================================================== STATIC */
-uint32_t ctrl_static_proc (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp)
+static uint32_t static_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp)
 {
 	struct wnd *w = wnd_get (hwnd);
 	if (!w)
@@ -601,7 +603,7 @@ static void edit_changed (struct wnd *w)
 	user_notify (h, 0x300);	/* EN_CHANGE */
 }
 
-uint32_t ctrl_edit_proc (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp)
+static uint32_t edit_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp)
 {
 	struct wnd *w = wnd_get (hwnd);
 	if (!w)
@@ -1080,7 +1082,7 @@ static void lb_dir (struct wnd *w, struct listbox *l, uint16_t attr, const char 
 	global_free (sel);
 }
 
-uint32_t ctrl_listbox_proc (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp)
+static uint32_t listbox_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp)
 {
 	struct wnd *w = wnd_get (hwnd);
 	if (!w)
@@ -1373,7 +1375,7 @@ static void cb_select (struct wnd *w, struct combo *cb, int i, int notify)
 	struct wnd *lw = wnd_get (cb->lb);
 	if (!lw)
 		return;
-	ctrl_listbox_proc (cb->lb, LB_SETCURSEL, (uint16_t) i, 0);
+	listbox_impl (cb->lb, LB_SETCURSEL, (uint16_t) i, 0);
 	struct listbox *l = lb_of (lw);
 	if (i >= 0 && i < l->n)
 		snprintf (cb->text, sizeof cb->text, "%s", l->it[i].text);
@@ -1412,7 +1414,7 @@ static void cb_drop (struct wnd *w, struct combo *cb)
 	user_notify (w->hwnd, 8);	/* CBN_CLOSEUP */
 }
 
-uint32_t ctrl_combo_proc (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp)
+static uint32_t combo_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp)
 {
 	struct wnd *w = wnd_get (hwnd);
 	if (!w)
@@ -1514,24 +1516,24 @@ uint32_t ctrl_combo_proc (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp)
 	}
 	case WM_GETTEXTLENGTH:
 		return (uint32_t) strlen (cb->text);
-	case CB_ADDSTRING: return ctrl_listbox_proc (cb->lb, LB_ADDSTRING, wp, lp);
-	case CB_INSERTSTRING: return ctrl_listbox_proc (cb->lb, LB_INSERTSTRING, wp, lp);
-	case CB_DELETESTRING: return ctrl_listbox_proc (cb->lb, LB_DELETESTRING, wp, lp);
-	case CB_DIR: return ctrl_listbox_proc (cb->lb, LB_DIR, wp, lp);
-	case CB_GETCOUNT: return ctrl_listbox_proc (cb->lb, LB_GETCOUNT, wp, lp);
-	case CB_GETCURSEL: return ctrl_listbox_proc (cb->lb, LB_GETCURSEL, wp, lp);
-	case CB_GETLBTEXT: return ctrl_listbox_proc (cb->lb, LB_GETTEXT, wp, lp);
-	case CB_GETLBTEXTLEN: return ctrl_listbox_proc (cb->lb, LB_GETTEXTLEN, wp, lp);
-	case CB_RESETCONTENT: cb->text[0] = 0; user_invalidate (hwnd, 0); return ctrl_listbox_proc (cb->lb, LB_RESETCONTENT, wp, lp);
-	case CB_FINDSTRING: return ctrl_listbox_proc (cb->lb, LB_FINDSTRING, wp, lp);
-	case CB_FINDSTRINGEXACT: return ctrl_listbox_proc (cb->lb, LB_FINDSTRINGEXACT, wp, lp);
-	case CB_GETITEMDATA: return ctrl_listbox_proc (cb->lb, LB_GETITEMDATA, wp, lp);
-	case CB_SETITEMDATA: return ctrl_listbox_proc (cb->lb, LB_SETITEMDATA, wp, lp);
+	case CB_ADDSTRING: return listbox_impl (cb->lb, LB_ADDSTRING, wp, lp);
+	case CB_INSERTSTRING: return listbox_impl (cb->lb, LB_INSERTSTRING, wp, lp);
+	case CB_DELETESTRING: return listbox_impl (cb->lb, LB_DELETESTRING, wp, lp);
+	case CB_DIR: return listbox_impl (cb->lb, LB_DIR, wp, lp);
+	case CB_GETCOUNT: return listbox_impl (cb->lb, LB_GETCOUNT, wp, lp);
+	case CB_GETCURSEL: return listbox_impl (cb->lb, LB_GETCURSEL, wp, lp);
+	case CB_GETLBTEXT: return listbox_impl (cb->lb, LB_GETTEXT, wp, lp);
+	case CB_GETLBTEXTLEN: return listbox_impl (cb->lb, LB_GETTEXTLEN, wp, lp);
+	case CB_RESETCONTENT: cb->text[0] = 0; user_invalidate (hwnd, 0); return listbox_impl (cb->lb, LB_RESETCONTENT, wp, lp);
+	case CB_FINDSTRING: return listbox_impl (cb->lb, LB_FINDSTRING, wp, lp);
+	case CB_FINDSTRINGEXACT: return listbox_impl (cb->lb, LB_FINDSTRINGEXACT, wp, lp);
+	case CB_GETITEMDATA: return listbox_impl (cb->lb, LB_GETITEMDATA, wp, lp);
+	case CB_SETITEMDATA: return listbox_impl (cb->lb, LB_SETITEMDATA, wp, lp);
 	case CB_SETITEMHEIGHT: return 0;
-	case CB_GETITEMHEIGHT: return ctrl_listbox_proc (cb->lb, LB_GETITEMHEIGHT, wp, lp);
+	case CB_GETITEMHEIGHT: return listbox_impl (cb->lb, LB_GETITEMHEIGHT, wp, lp);
 	case CB_SELECTSTRING:
 	{
-		uint32_t r = ctrl_listbox_proc (cb->lb, LB_SELECTSTRING, wp, lp);
+		uint32_t r = listbox_impl (cb->lb, LB_SELECTSTRING, wp, lp);
 		if (r != 0xffff)
 			cb_select (w, cb, (int) r, 0);
 		return r;
@@ -1584,7 +1586,7 @@ static void sb_send (struct wnd *w, int code, int pos)
 		user_send (w->parent, msg, (uint16_t) code, MAKESEGPTR (w->hwnd, pos));
 }
 
-uint32_t ctrl_scroll_proc (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp)
+static uint32_t scroll_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp)
 {
 	struct wnd *w = wnd_get (hwnd);
 	if (!w)
@@ -1691,6 +1693,583 @@ uint32_t ctrl_scroll_proc (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp
 	}
 	return user_def_window_proc (hwnd, msg, wp, lp);
 }
+
+/* ======================================================================== mode natif : les widgets de UIKit
+ * (demande de l'utilisateur, 20/11 : « utiliser l'uikit y compris pour le theming, comme ça ça ressemblera à des
+ * apps natives »). Un contrôle standard devient un widget de UIKit posé à sa place dans la fenêtre de Korin : UIKit
+ * le dessine et le fait vivre (survol, focus, clavier, thème) ; nos structures restent la vérité pour le programme
+ * (LB_GETTEXT, BM_GETCHECK…), poussée vers le widget, et ce que fait l'utilisateur revient en notifications
+ * (BN_CLICKED, EN_CHANGE, LBN_SELCHANGE, CBN_SELCHANGE, WM_VSCROLL). Restent à nous : cadres de groupe, contrôles
+ * dessinés par le programme (owner-draw), listes à choix multiple, et tout si W16_NATIVE=0 (ou sur l'hôte). */
+#define MAX_NAT 512
+struct nat { uint16_t hwnd; long wd, be; int kind, items_dirty, shown, enabled, x, y, w, h; };
+static struct nat nats[MAX_NAT];
+static int native_off = -1;
+
+static struct nat *nat_of (uint16_t hwnd, int make)
+{
+	struct nat *fr = 0;
+	for (int i = 0; i < MAX_NAT; i++)
+	{
+		if (nats[i].hwnd == hwnd)
+			return &nats[i];
+		if (!nats[i].hwnd && !fr)
+			fr = &nats[i];
+	}
+	if (!make || !fr)
+		return 0;
+	memset (fr, 0, sizeof *fr);
+	fr->hwnd = hwnd;
+	fr->kind = -2;	/* (pas encore décidé) */
+	return fr;
+}
+
+/* le genre de widget de ce contrôle, -1 : dessiné par nous */
+static int native_kind (struct wnd *w)
+{
+	if (native_off < 0)
+	{
+		const char *e = getenv ("W16_NATIVE");
+		native_off = e && e[0] == '0';
+	}
+	if (native_off)
+		return -1;
+	const char *c = w->clsname;
+	uint32_t st = w->style;
+	struct wnd *base = w;
+	(void) base;
+	/* (les classes du programme qui reprennent une classe du système : TButton de Delphi… ; le type vient de
+	 * la procédure de fenêtre d'origine, ici retrouvée par le nom de la classe système passé à ctrl_*_proc) */
+	if (!strcasecmp (c, "BUTTON") || w->cdata_kind == 1)
+	{
+		int k = (int) (st & 0x0f);
+		if (k == 0) return BW_PUSH;
+		if (k == 1) return BW_DEFPUSH;
+		if (k == 2 || k == 3 || k == 5 || k == 6) return BW_CHECK;
+		if (k == 4 || k == 9) return BW_RADIO;
+		if (k == 7) return BW_GROUP;
+		return -1;
+	}
+	if (!strcasecmp (c, "STATIC") || w->cdata_kind == 2)
+	{
+		int k = (int) (st & 0x1f);
+		if (k == 0 || k == 0x0b || k == 0x0c) return BW_LABEL;
+		if (k == 1) return BW_LABEL_CENTER;
+		if (k == 2) return BW_LABEL_RIGHT;
+		return -1;
+	}
+	if (!strcasecmp (c, "EDIT") || w->cdata_kind == 3)
+		return (st & ES_MULTILINE) ? BW_TEXTAREA : (st & ES_PASSWORD) ? BW_PASSWORD : BW_TEXT;
+	if (!strcasecmp (c, "LISTBOX") || w->cdata_kind == 4)
+	{
+		struct listbox *l = w->cdata;
+		if ((st & (LBS_OWNERDRAW | LBS_MULTIPLESEL | LBS_EXTENDEDSEL)) || (l && l->combo))
+			return -1;
+		return BW_LIST;
+	}
+	if (!strcasecmp (c, "COMBOBOX") || w->cdata_kind == 5)
+	{
+		if (st & 0x30)	/* owner-draw */
+			return -1;
+		return (st & 3) == 3 ? BW_DROPDOWN : BW_COMBO;
+	}
+	if (!strcasecmp (c, "SCROLLBAR") || w->cdata_kind == 6)
+		return (st & 1) ? BW_VSCROLL : BW_HSCROLL;
+	return -1;
+}
+
+static int all_visible (struct wnd *w)
+{
+	for (; w; w = (w->style & WS_CHILD) ? wnd_get (w->parent) : 0)
+		if (!w->visible)
+			return 0;
+	return 1;
+}
+
+static void utf8_of (const char *cp, char *out, int cap, int amp)
+{
+	char tmp[1024];
+	if (amp)
+	{
+		strip_amp (cp, tmp, sizeof tmp);
+		cp = tmp;
+	}
+	w16_to_utf8 ((const uint8_t *) cp, -1, out, cap);
+}
+
+/* les éléments d'une liste ou d'une liste déroulante, au format de UIKit */
+static void items_text (struct wnd *w, char *out, int cap, char sep)
+{
+	struct listbox *l = 0;
+	if (w->cdata_kind == 4 || !strcasecmp (w->clsname, "LISTBOX"))
+		l = w->cdata;
+	else
+	{
+		struct combo *cb = w->cdata;
+		struct wnd *lw = cb ? wnd_get (cb->lb) : 0;
+		l = lw ? lw->cdata : 0;
+	}
+	int o = 0;
+	out[0] = 0;
+	for (int i = 0; l && i < l->n && o < cap - 260; i++)
+	{
+		char u[256];
+		w16_to_utf8 ((const uint8_t *) l->it[i].text, -1, u, sizeof u);
+		for (char *q = u; *q; q++)
+			if (*q == sep)
+				*q = '/';
+		o += snprintf (out + o, (size_t) (cap - o), "%s%s", i ? (char[2]) { sep, 0 } : "", u);
+	}
+}
+
+/* le mode natif est-il là (UIKit, et pas W16_NATIVE=0) ? */
+int native_enabled (void)
+{
+	if (native_off < 0)
+	{
+		const char *e = getenv ("W16_NATIVE");
+		native_off = e && e[0] == '0';
+	}
+	return !native_off && be_ui_metric (BEM_PX) > 0;
+}
+
+static int list_cur (struct wnd *w)
+{
+	if (w->cdata_kind == 4 || !strcasecmp (w->clsname, "LISTBOX"))
+		return w->cdata ? ((struct listbox *) w->cdata)->cur : -1;
+	struct combo *cb = w->cdata;
+	struct wnd *lw = cb ? wnd_get (cb->lb) : 0;
+	return lw && lw->cdata ? ((struct listbox *) lw->cdata)->cur : -1;
+}
+
+/* le widget du contrôle : créé, placé, montré ou caché selon le contrôle et ses parents ; 1 s'il est là */
+static int native_sync (uint16_t hwnd)
+{
+	struct wnd *w = wnd_get (hwnd);
+	if (!w)
+		return 0;
+	struct nat *n = nat_of (hwnd, 1);
+	if (!n)
+		return 0;
+	if (n->kind == -2)
+		n->kind = native_kind (w);
+	if (n->kind < 0)
+		return 0;
+	int ox = 0, oy = 0, cw = 0, ch = 0;
+	long be = 0;
+	int have = wnd_client_geometry (hwnd, &ox, &oy, &cw, &ch, &be);
+	if (!have)
+		be = 0;
+	if (n->wd && n->be != be)
+		n->wd = 0;	/* (la fenêtre de Korin a été fermée : ses widgets avec elle) */
+	int vis = have && all_visible (w);
+	if (!vis)
+	{
+		if (n->wd && n->shown)
+			be_w_show (n->wd, 0);
+		n->shown = 0;
+		return 0;
+	}
+	int x = ox - w->cx, y = oy - w->cy, ww = w->w, hh = w->h;
+	/* (une liste déroulante de Win16 compte son menu ouvert dans sa hauteur : le widget n'a que son champ) */
+	if ((n->kind == BW_DROPDOWN || n->kind == BW_COMBO) && be_ui_metric (BEM_CTL) > 0 && hh > be_ui_metric (BEM_CTL))
+		hh = be_ui_metric (BEM_CTL);
+	if (n->wd && n->items_dirty && n->kind == BW_DROPDOWN)
+	{
+		be_w_destroy (n->wd);	/* (les éléments d'une liste déroulante sont donnés à sa création) */
+		n->wd = 0;
+	}
+	if (!n->wd)
+	{
+		char text[4096];
+		long extra = 0;
+		switch (n->kind)
+		{
+		case BW_DROPDOWN:
+		case BW_COMBO:
+			items_text (w, text, sizeof text, n->kind == BW_DROPDOWN ? '|' : '\n');
+			break;
+		case BW_CHECK:
+			extra = btn_of (w)->check != 0;
+			utf8_of (w->text, text, sizeof text, 1);
+			break;
+		case BW_RADIO:
+		{
+			/* (le groupe : le premier bouton du groupe, comme WS_GROUP) */
+			uint16_t first = hwnd;
+			for (uint16_t h = hwnd; h >= 0x1000; h -= 4)
+			{
+				struct wnd *k = wnd_get (h);
+				if (!k || k->parent != w->parent || !(k->style & WS_CHILD))
+					continue;
+				first = h;
+				if (k->style & WS_GROUP)
+					break;
+			}
+			extra = first;
+			utf8_of (w->text, text, sizeof text, 1);
+			break;
+		}
+		case BW_TEXT:
+		case BW_PASSWORD:
+		case BW_TEXTAREA:
+		{
+			struct edit *e = edit_of (w);
+			w16_to_utf8 ((const uint8_t *) e->buf, e->len, text, sizeof text);
+			extra = (w->style & ES_READONLY) ? BWF_READONLY : 0;
+			if (n->kind == BW_TEXTAREA)
+				extra |= ((w->style & WS_VSCROLL) ? BWF_VSCROLL : 0) | ((w->style & WS_HSCROLL) ? BWF_HSCROLL : 0);
+			break;
+		}
+		default:
+			utf8_of (w->text, text, sizeof text, n->kind >= BW_LABEL && n->kind <= BW_LABEL_RIGHT ? !(w->style & 0x80) : 1);
+			break;
+		}
+		n->wd = be_w_create (be, n->kind, x, y, ww, hh, text, extra);
+		if (!n->wd)
+		{
+			n->kind = -1;	/* (UIKit refuse : nous dessinons) */
+			return 0;
+		}
+		n->be = be;
+		n->x = x; n->y = y; n->w = ww; n->h = hh;
+		n->shown = 1;
+		n->enabled = 1;
+		n->items_dirty = 1;
+		if (n->kind == BW_RADIO && btn_of (w)->check)
+			be_w_set_value (n->wd, 1);
+	}
+	if (n->x != x || n->y != y || n->w != ww || n->h != hh)
+	{
+		be_w_move (n->wd, x, y, ww, hh);
+		n->x = x; n->y = y; n->w = ww; n->h = hh;
+	}
+	if (n->items_dirty)
+	{
+		n->items_dirty = 0;
+		if (n->kind == BW_LIST)
+		{
+			struct listbox *l = w->cdata;
+			be_w_list_clear (n->wd);
+			for (int i = 0; l && i < l->n; i++)
+			{
+				char u[256];
+				w16_to_utf8 ((const uint8_t *) l->it[i].text, -1, u, sizeof u);
+				be_w_list_add (n->wd, u);
+			}
+		}
+		if (n->kind == BW_LIST || n->kind == BW_DROPDOWN || n->kind == BW_COMBO)
+			be_w_set_value (n->wd, list_cur (w));
+		if (n->kind == BW_COMBO)
+		{
+			char u[512];
+			w16_to_utf8 ((const uint8_t *) cb_of (w)->text, -1, u, sizeof u);
+			be_w_set_text (n->wd, u);
+		}
+	}
+	int en = !w->disabled;
+	if (en != n->enabled)
+	{
+		be_w_enable (n->wd, en);
+		n->enabled = en;
+	}
+	if (!n->shown)
+	{
+		be_w_show (n->wd, 1);
+		n->shown = 1;
+	}
+	return 1;
+}
+
+static void native_forget (uint16_t hwnd)
+{
+	struct nat *n = nat_of (hwnd, 0);
+	if (!n)
+		return;
+	long be;
+	int ox, oy, cw, ch;
+	if (n->wd && wnd_client_geometry (hwnd, &ox, &oy, &cw, &ch, &be) && be == n->be)
+		be_w_destroy (n->wd);
+	memset (n, 0, sizeof *n);
+}
+
+/* un contrôle natif : son widget le dessine */
+static int native_has (uint16_t hwnd)
+{
+	struct nat *n = nat_of (hwnd, 0);
+	return n && n->wd && n->kind >= 0;
+}
+
+/* ce que le programme change : poussé vers le widget */
+static void native_after (uint16_t hwnd, uint16_t msg, uint16_t wp)
+{
+	struct nat *n = nat_of (hwnd, 0);
+	struct wnd *w = wnd_get (hwnd);
+	if (!n || n->kind < 0 || !w)
+		return;
+	if (!n->wd)
+	{
+		if (msg == WM_SHOWWINDOW || msg == WM_MOVE || msg == WM_SIZE)
+			native_sync (hwnd);
+		return;
+	}
+	switch (msg)
+	{
+	case WM_SHOWWINDOW:
+	case WM_MOVE:
+	case WM_SIZE:
+	case WM_ENABLE:
+		native_sync (hwnd);
+		break;
+	case WM_SETTEXT:
+		if (n->kind == BW_TEXT || n->kind == BW_PASSWORD || n->kind == BW_TEXTAREA)
+		{
+			struct edit *e = edit_of (w);
+			char u[8192];
+			w16_to_utf8 ((const uint8_t *) e->buf, e->len, u, sizeof u);
+			be_w_set_text (n->wd, u);
+		}
+		else if (n->kind == BW_COMBO)
+		{
+			char u[512];
+			w16_to_utf8 ((const uint8_t *) cb_of (w)->text, -1, u, sizeof u);
+			be_w_set_text (n->wd, u);
+		}
+		else if (n->kind != BW_LIST && n->kind != BW_DROPDOWN)
+		{
+			char u[1024];
+			utf8_of (w->text, u, sizeof u, 1);
+			be_w_set_text (n->wd, u);
+		}
+		break;
+	case BM_SETCHECK:
+		if (n->kind == BW_CHECK || n->kind == BW_RADIO)
+			be_w_set_value (n->wd, wp != 0);
+		break;
+	case WM_USER + 0x60:	/* (SetScrollPos) */
+	case WM_USER + 0x62:	/* (SetScrollRange) */
+	{
+		struct sbar *s = sb_of (w);
+		be_w_set_range (n->wd, s->min, s->max, (s->max - s->min) / 10 + 1, 1);
+		be_w_set_value (n->wd, s->pos);
+		break;
+	}
+	default:
+		if (n->kind == BW_LIST && msg >= LB_ADDSTRING && msg <= LB_FINDSTRINGEXACT && msg != LB_GETTEXT
+			&& msg != LB_GETTEXTLEN && msg != LB_GETCOUNT && msg != LB_GETCURSEL && msg != LB_GETITEMDATA)
+		{
+			n->items_dirty = 1;
+			native_sync (hwnd);
+		}
+		if ((n->kind == BW_DROPDOWN || n->kind == BW_COMBO) && msg >= CB_ADDSTRING && msg <= CB_FINDSTRINGEXACT
+			&& msg != CB_GETCOUNT && msg != CB_GETCURSEL && msg != CB_GETLBTEXT && msg != CB_GETLBTEXTLEN && msg != CB_GETITEMDATA)
+		{
+			n->items_dirty = 1;
+			if (msg == CB_SETCURSEL || msg == CB_SELECTSTRING)
+			{
+				be_w_set_value (n->wd, list_cur (w));
+				n->items_dirty = 0;
+			}
+		}
+		break;
+	}
+}
+
+/* ce que fait l'utilisateur dans un widget (user.c, BE_WIDGET) */
+void ctrl_native_event (long wd, int code)
+{
+	struct nat *n = 0;
+	for (int i = 0; i < MAX_NAT && !n; i++)
+		if (nats[i].hwnd && nats[i].wd == wd)
+			n = &nats[i];
+	if (!n)
+		return;
+	uint16_t hwnd = n->hwnd;
+	struct wnd *w = wnd_get (hwnd);
+	if (!w)
+		return;
+	if (user_get_focus () != hwnd && n->kind != BW_LABEL && n->kind != BW_LABEL_CENTER && n->kind != BW_LABEL_RIGHT)
+		user_set_focus (hwnd);
+	switch (n->kind)
+	{
+	case BW_PUSH:
+	case BW_DEFPUSH:
+		if (code == BWN_ACTIVATE)
+			user_notify (hwnd, 0);	/* BN_CLICKED */
+		break;
+	case BW_CHECK:
+	{
+		int k = (int) (w->style & 0x0f);
+		long v = be_w_get_value (n->wd);
+		if (k == 3 || k == 6)	/* automatiques : l'état suit le widget */
+			btn_of (w)->check = (int) v;
+		else
+			be_w_set_value (n->wd, btn_of (w)->check);	/* (le programme décide, par BM_SETCHECK) */
+		user_notify (hwnd, 0);
+		break;
+	}
+	case BW_RADIO:
+		if ((w->style & 0x0f) == 9)
+		{
+			/* (les autres boutons du groupe : décochés par UIKit, nos états suivent) */
+			for (int i = 0; i < MAX_NAT; i++)
+				if (nats[i].hwnd && nats[i].kind == BW_RADIO && nats[i].wd)
+				{
+					struct wnd *k = wnd_get (nats[i].hwnd);
+					if (k && k->parent == w->parent)
+						btn_of (k)->check = (int) be_w_get_value (nats[i].wd);
+				}
+			btn_of (w)->check = 1;
+		}
+		else
+			be_w_set_value (n->wd, btn_of (w)->check);
+		user_notify (hwnd, 0);
+		break;
+	case BW_TEXT:
+	case BW_PASSWORD:
+	case BW_TEXTAREA:
+		if (code == BWN_CHANGE)
+		{
+			struct edit *e = edit_of (w);
+			const char *t = be_w_get_text (n->wd);
+			uint8_t raw[8192];
+			int len = w16_from_utf8 (t ? t : "", raw, sizeof raw);
+			if (len + 1 > e->cap)
+			{
+				e->cap = len + 256;
+				e->buf = realloc (e->buf, (size_t) e->cap);
+			}
+			memcpy (e->buf, raw, (size_t) len + 1);
+			e->len = len;
+			e->caret = e->anchor = len;
+			e->modified = 1;
+			user_notify (hwnd, 0x400);	/* EN_UPDATE */
+			user_notify (hwnd, 0x300);	/* EN_CHANGE */
+		}
+		else if (code == BWN_ACTIVATE)
+			user_post (hwnd, WM_KEYDOWN, 0x0d, 1);	/* (Entrée : au dialogue, le bouton par défaut) */
+		break;
+	case BW_LIST:
+	{
+		struct listbox *l = w->cdata;
+		if (l)
+			l->cur = (int) be_w_get_value (n->wd);
+		if (w->style & LBS_NOTIFY)
+			user_notify (hwnd, code == BWN_ACTIVATE ? 2 : 1);	/* LBN_DBLCLK, LBN_SELCHANGE */
+		break;
+	}
+	case BW_DROPDOWN:
+	case BW_COMBO:
+	{
+		struct combo *cb = cb_of (w);
+		struct wnd *lw = wnd_get (cb->lb);
+		struct listbox *l = lw ? lw->cdata : 0;
+		long v = be_w_get_value (n->wd);
+		if (n->kind == BW_COMBO && code == BWN_CHANGE)
+		{
+			const char *t = be_w_get_text (n->wd);
+			w16_from_utf8 (t ? t : "", (uint8_t *) cb->text, sizeof cb->text);
+		}
+		if (l && v >= 0 && v < l->n && v != l->cur)
+		{
+			l->cur = (int) v;
+			snprintf (cb->text, sizeof cb->text, "%s", l->it[v].text);
+			user_notify (hwnd, 1);	/* CBN_SELCHANGE */
+		}
+		else if (n->kind == BW_COMBO && code == BWN_CHANGE)
+			user_notify (hwnd, 5);	/* CBN_EDITCHANGE */
+		break;
+	}
+	case BW_VSCROLL:
+	case BW_HSCROLL:
+	{
+		struct sbar *s = sb_of (w);
+		s->pos = (int) be_w_get_value (n->wd);
+		sb_send (w, 5, s->pos);	/* SB_THUMBTRACK */
+		sb_send (w, 4, s->pos);	/* SB_THUMBPOSITION */
+		sb_send (w, 8, 0);	/* SB_ENDSCROLL */
+		break;
+	}
+	}
+}
+
+/* après le WM_PAINT d'une fenêtre : les widgets de ses filles par-dessus (le fond du parent a pu les couvrir) */
+void ctrl_native_redraw_under (uint16_t hwnd)
+{
+	for (int i = 0; i < MAX_NAT; i++)
+	{
+		if (!nats[i].hwnd || !nats[i].wd || !nats[i].shown)
+			continue;
+		struct wnd *k = wnd_get (nats[i].hwnd);
+		int under = 0;
+		while (k && (k->style & WS_CHILD) && !under)
+		{
+			under = k->parent == hwnd;
+			k = wnd_get (k->parent);
+		}
+		if (under)
+			be_w_draw (nats[i].wd);
+	}
+}
+
+/* une fenêtre montrée, cachée ou fermée : les widgets de ses filles suivent */
+void ctrl_native_sync_tree (uint16_t hwnd)
+{
+	for (int i = 0; i < MAX_NAT; i++)
+	{
+		if (!nats[i].hwnd || nats[i].kind < 0)
+			continue;
+		struct wnd *k = wnd_get (nats[i].hwnd);
+		int under = nats[i].hwnd == hwnd;
+		while (k && (k->style & WS_CHILD) && !under)
+		{
+			under = k->parent == hwnd;
+			k = wnd_get (k->parent);
+		}
+		if (under)
+			native_sync (nats[i].hwnd);
+	}
+}
+
+/* le focus du programme sur un contrôle natif : le widget le prend */
+void ctrl_native_focus (uint16_t hwnd)
+{
+	struct nat *n = nat_of (hwnd, 0);
+	if (n && n->wd && n->kind >= 0)
+		be_w_focus (n->wd);
+}
+
+/* les procédures des classes du système : le mode natif autour des nôtres */
+static uint32_t native_wrap (int ck, native_wndproc impl, uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp)
+{
+	struct wnd *w = wnd_get (hwnd);
+	if (w && !w->cdata_kind)
+		w->cdata_kind = ck;
+	if (msg == WM_PAINT && native_sync (hwnd))
+	{
+		struct nat *n = nat_of (hwnd, 0);
+		uint16_t hdc = user_begin (hwnd);	/* (valide la fenêtre) */
+		user_end (hdc);
+		be_w_draw (n->wd);
+		return 0;
+	}
+	if (msg == WM_ERASEBKGND && native_has (hwnd))
+		return 1;
+	if (msg == WM_NCDESTROY)
+		native_forget (hwnd);
+	uint32_t r = impl (hwnd, msg, wp, lp);
+	if (msg == WM_SETFOCUS)
+		ctrl_native_focus (hwnd);
+	native_after (hwnd, msg, wp);
+	return r;
+}
+
+uint32_t ctrl_button_proc (uint16_t h, uint16_t m, uint16_t wp, uint32_t lp) { return native_wrap (1, button_impl, h, m, wp, lp); }
+uint32_t ctrl_static_proc (uint16_t h, uint16_t m, uint16_t wp, uint32_t lp) { return native_wrap (2, static_impl, h, m, wp, lp); }
+uint32_t ctrl_edit_proc (uint16_t h, uint16_t m, uint16_t wp, uint32_t lp) { return native_wrap (3, edit_impl, h, m, wp, lp); }
+uint32_t ctrl_listbox_proc (uint16_t h, uint16_t m, uint16_t wp, uint32_t lp) { return native_wrap (4, listbox_impl, h, m, wp, lp); }
+uint32_t ctrl_combo_proc (uint16_t h, uint16_t m, uint16_t wp, uint32_t lp) { return native_wrap (5, combo_impl, h, m, wp, lp); }
+uint32_t ctrl_scroll_proc (uint16_t h, uint16_t m, uint16_t wp, uint32_t lp) { return native_wrap (6, scroll_impl, h, m, wp, lp); }
 
 void ctrl_register (void)
 {
