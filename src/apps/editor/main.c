@@ -21,6 +21,7 @@
 #include <unistd.h>
 #include <spawn.h>
 #include <sys/stat.h>
+#include <pwd.h>
 #include <uikit.h>
 
 #define WIN_W		720
@@ -78,6 +79,7 @@ static const char menus[] =
 
 static void status (void);
 static void paint (void);
+static const char *user_home (void);
 
 /* d = destination, s = morceau de texte -> la fin : copie traduite. Les espaces autour du morceau restent
  * ici (un dictionnaire ne garde pas ceux d'une cle). */
@@ -201,8 +203,8 @@ static void do_new (void)
 	ui_w_set_text (w_area, (long) "");
 	modified = 0;
 	has_file = 0;				/* jamais enregistre */
-	pathbuf[0] = 0;
-	tr_cat (pathbuf, s_default);
+	snprintf (pathbuf, sizeof pathbuf, "%s", user_home ());	/* (« /home/<compte>/sans titre.txt ») */
+	tr_cat (pathbuf + strlen (pathbuf), s_default);
 	path_to_field ();
 	set_style ();
 	set_title ();
@@ -323,6 +325,19 @@ static void do_assemble (void)
 	msg = TR ("PiBuild ouvert");
 }
 
+/* le dossier personnel, en vrai chemin (/home/<compte>) pour que les dialogues le montrent : le home du
+ * compte (users.ini), sinon $HOME, sinon l'alias HOME: */
+static const char *user_home (void)
+{
+	struct passwd *pw = getpwuid (getuid ());
+	if (pw && pw->pw_dir && pw->pw_dir[0] == '/' && pw->pw_dir[1])
+		return pw->pw_dir;
+	const char *h = getenv ("HOME");
+	if (h && h[0] == '/' && h[1])
+		return h;
+	return "HOME:";
+}
+
 /* Fichier > Enregistrer sous... : le dialogue (nom proposé : celui du fichier), puis l'enregistrement
  * -> 1 si enregistré */
 static int do_save_as (void)
@@ -330,7 +345,7 @@ static int do_save_as (void)
 	/* (un fichier déjà là : son chemin, le dialogue s'ouvre dans son dossier ; un nouveau texte : le dossier
 	   personnel) */
 	long ok = has_file ? ui_file_save (0, (long) pathbuf, (long) dlgbuf, 256)
-			   : ui_file_save ((long) "HOME:", (long) base_name (pathbuf), (long) dlgbuf, 256);
+			   : ui_file_save ((long) user_home (), (long) base_name (pathbuf), (long) dlgbuf, 256);
 	if (!ok)
 		return 0;			/* (Annuler) */
 	dlg_to_path ();
@@ -390,7 +405,7 @@ static void on_command (int c)
 		{
 			/* (le dossier du fichier ouvert, sinon le dossier personnel) */
 			char dir[260];
-			strcpy (dir, "HOME:");
+			snprintf (dir, sizeof dir, "%s", user_home ());
 			if (has_file && strchr (pathbuf, '/'))
 			{
 				snprintf (dir, sizeof dir, "%s", pathbuf);
@@ -542,7 +557,13 @@ int main (int argc, char **argv)
 	w_area = ui_textarea (4, TB_H + 2, WIN_W - 8, WIN_H - TB_H - SB_H - 6, AREA_FLAGS);	/* le texte */
 	ui_textarea_font (w_area, FONT_PX);
 	ui_w_focus (w_area);
-	strcpy (pathbuf, arg[0] ? arg : TR (s_default));	/* chemin : argument ou defaut */
+	if (arg[0])					/* chemin : argument, ou le texte sans titre du home */
+		strcpy (pathbuf, arg);
+	else
+	{
+		snprintf (pathbuf, sizeof pathbuf, "%s", user_home ());
+		tr_cat (pathbuf + strlen (pathbuf), s_default);
+	}
 	path_to_field ();
 	paint ();
 	if (arg[0])
