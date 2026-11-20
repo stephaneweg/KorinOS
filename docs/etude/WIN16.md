@@ -38,8 +38,11 @@ page proche ; écarts : menus dans la barre de Korin, polices de Korin (un peu p
 rognés à droite), boîte « About » sans le mot « UNREGISTERED » (texte plus large que son étiquette).
 
 **Lecteurs** (réglages de chaque utilisateur) : C: = `HOME:/win16/c` (avec `C:\WINDOWS\WIN.INI`), D: = le dossier
-du programme, E: = tout l'arbre de Korin ; `HOME:/win16/drives.ini` (section `[drives]`, `C=/dossier`) et l'option
-`--drive C=/dossier` les changent.
+du programme, E: = tout l'arbre de Korin ; `HOME:/win16/drives.ini` (`C=/dossier`, aussi `C = /dossier` ou
+`C: = "/dossier"`, avec ou sans section `[drives]`) et l'option `--drive C=/dossier` les changent. `HOME:` est
+`/home/<utilisateur>` : win16 prend `$HOME` quand il désigne un dossier de compte, sinon l'alias `HOME:` de vfs (le
+home de l'uid, même quand `HOME` est resté à `/home`). Au démarrage, win16 écrit sur stderr le `drives.ini` lu et
+chaque lecteur.
 
 **Programmes DOS, étape D1 (20/11, § 9)** : un `.exe` sans en-tête NE ou un `.COM` part dans la machine DOS de
 win16 (`dos.c`, `bios.c`, `vga.c`) : mode réel du cœur de MAME, MCB, PSP, environnement, chargeur MZ, EXEC avec

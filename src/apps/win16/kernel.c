@@ -214,12 +214,15 @@ static void drives_init (const char *home)
 	FILE *f = fopen (ini, "r");
 	if (f)
 	{
+		/* « C=/chemin », « C = /chemin », « C: = /chemin » ; sans section, ou dans [drives] ; « ; » et « # » :
+		   des commentaires ; une valeur vide retire le lecteur */
 		char line[700];
-		int in = 0;
+		int in = 1, n = 0;
 		while (fgets (line, sizeof line, f))
 		{
 			char *s = line;
-			while (*s == ' ' || *s == '\t')
+			while (*s == ' ' || *s == '\t' || (unsigned char) *s == 0xef || (unsigned char) *s == 0xbb
+				|| (unsigned char) *s == 0xbf)	/* (et la marque UTF-8 d'un éditeur) */
 				s++;
 			s[strcspn (s, "\r\n")] = 0;
 			if (*s == '[')
@@ -227,14 +230,35 @@ static void drives_init (const char *home)
 				in = !strncasecmp (s, "[drives]", 8);
 				continue;
 			}
-			if (!in || !s[0] || s[0] == ';' || s[1] != '=')
+			if (!in || !isalpha ((unsigned char) s[0]))
 				continue;
+			char *q = s + 1;
+			if (*q == ':')
+				q++;
+			while (*q == ' ' || *q == '\t')
+				q++;
+			if (*q != '=')
+				continue;
+			q++;
+			while (*q == ' ' || *q == '\t')
+				q++;
+			size_t l = strlen (q);
+			while (l && (q[l - 1] == ' ' || q[l - 1] == '\t'))
+				q[--l] = 0;
+			if (l >= 2 && (q[0] == '"' || q[0] == '\'') && q[l - 1] == q[0])
+			{
+				q[l - 1] = 0;
+				q++;
+			}
 			int d = toupper ((unsigned char) s[0]) - 'A' + 1;
-			if (d >= 1 && d <= 26)
-				drive_set (d, s[2] ? s + 2 : 0);
+			drive_set (d, *q ? q : 0);
+			n++;
 		}
 		fclose (f);
+		fprintf (stderr, "win16 : %s lu (%d lecteur%s)\n", ini, n, n > 1 ? "s" : "");
 	}
+	else
+		fprintf (stderr, "win16 : pas de %s (lecteurs par défaut)\n", ini);
 	for (int d = 1; d <= 26; d++)
 		if (drive_arg[d])
 			drive_set (d, drive_arg[d][0] ? drive_arg[d] : 0);
@@ -243,6 +267,9 @@ static void drives_init (const char *home)
 		snprintf (drive_c, sizeof drive_c, "%s", drives[3]);
 		mkdir (drive_c, 0755);
 	}
+	for (int d = 1; d <= 26; d++)
+		if (drives[d])
+			fprintf (stderr, "win16 : %c: = %s\n", 'A' + d - 1, drives[d][0] ? drives[d] : "/");
 }
 
 /* un nom DOS -> chemin de l'hôte ; les composants existants sont pris avec leur casse réelle */
@@ -825,17 +852,33 @@ void api_WriteProfileString16 (struct w16call *c)
 /* ======================================================================== la tâche */
 static uint16_t builtin_hmod[MAX_BUILTIN];
 
-/* les lecteurs (C:, D:, E:, drives.ini) et le dossier courant D:\ ; aussi pour la machine DOS (dos.c) */
+/* le dossier de l'utilisateur : $HOME quand c'est un vrai dossier de compte (/home/<nom>) ; sinon, dans Korin,
+ * l'alias HOME: de vfs (le home de l'uid de l'appelant, même quand HOME est resté le « /home » d'un père sans
+ * compte) ; sur l'hôte, $HOME tel quel */
+const char *kernel_user_home (void)
+{
+	const char *h = getenv ("HOME");
+#ifdef W16_HOST
+	return h && *h ? h : "/home";
+#else
+	if (h && !strncmp (h, "/home/", 6) && h[6] && h[6] != '/')
+		return h;
+	return "HOME:";
+#endif
+}
+
+/* les lecteurs (C:, D:, E:, drives.ini) et le dossier courant D:\ ; aussi pour la machine DOS (dos.c) :
+ * C: = <home>/win16/c, drives.ini dans <home>/win16 */
 void kernel_drives_init (void)
 {
 	/* C: et son WINDOWS */
-	const char *home = getenv ("HOME");
-	snprintf (drive_c, sizeof drive_c, "%s/win16/c", home && *home ? home : "/home");
+	const char *home = kernel_user_home ();
+	snprintf (drive_c, sizeof drive_c, "%s/win16/c", home);
 	char p[700];
-	snprintf (p, sizeof p, "%s/win16", home && *home ? home : "/home");
+	snprintf (p, sizeof p, "%s/win16", home);
 	mkdir (p, 0755);
 	mkdir (drive_c, 0755);
-	drives_init (home && *home ? home : "/home");
+	drives_init (home);
 	snprintf (p, sizeof p, "%s/WINDOWS", drive_c);
 	mkdir (p, 0755);
 	snprintf (p, sizeof p, "%s/WINDOWS/SYSTEM", drive_c);

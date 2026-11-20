@@ -143,8 +143,8 @@ int main (int argc, char **argv)
 		}
 		else
 		{
-			const char *h = getenv ("HOME");
-			snprintf (task.dir, sizeof task.dir, "%s", h && *h ? h : ".");
+			extern const char *kernel_user_home (void);
+			snprintf (task.dir, sizeof task.dir, "%s", kernel_user_home ());
 		}
 		dos_hold = !dos_prompt;
 		return dos_main (comspec, "Z:\\COMMAND.COM", args);
