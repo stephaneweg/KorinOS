@@ -19,5 +19,11 @@ for f in "$ROOT"/tools/win16/tests/*.c; do
 	n=$(basename "$f" .c)
 	wcl -q -bt=windows -l=windows -ms -zW -fe="$n.exe" "$f" >"$n.log" 2>&1 || { cat "$n.log" >&2; exit 1; }
 	rm -f "$n.o" "$n.obj"
+	# (les ressources : <nom>.rc à côté du .c, compilées par wrc et ajoutées à l'exécutable)
+	if [ -f "${f%.c}.rc" ]; then
+		wrc -q -bt=windows -r -i="$(dirname "$f")" -fo="$n.res" "${f%.c}.rc" >>"$n.log" 2>&1 || { cat "$n.log" >&2; exit 1; }
+		wrc -q -bt=windows "$n.res" "$n.exe" >>"$n.log" 2>&1 || { cat "$n.log" >&2; exit 1; }
+		rm -f "$n.res"
+	fi
 	echo "$n.exe : $(stat -c %s "$n.exe") octets"
 done

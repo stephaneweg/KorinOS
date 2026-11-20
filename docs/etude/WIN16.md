@@ -11,8 +11,24 @@ revivre les vieux logiciels de Windows 3.1 (`.exe` au format **NE**, API **Win16
 (classe, `CreateWindow`, boucle des messages, `WM_PAINT` avec `Rectangle` et `TextOut`) s'ouvre, se dessine et se
 ferme par le ✕ d'Elegant (`WM_SYSCOMMAND` → `WM_CLOSE` → `WM_DESTROY` → `PostQuitMessage`, code 0) ; `msgbox.c`
 montre une boîte de message de Korin. Choix de l'utilisateur au § 7 ; fichiers et licences dans
-`src/apps/win16/README.md`. Pas encore : le Pi (même code, à construire), les ressources (menus, dialogues, icônes),
-les contrôles, les fichiers (`C:` = `HOME:/win16/c`), le tas local, les DLL des programmes ; pas de paquet.
+`src/apps/win16/README.md`.
+
+**Étape 3 faite, et plus (20/11, QEMU PC)** : menus (dans la barre globale de Korin, états grisé et coché),
+accélérateurs, minuteries, dialogues des ressources, contrôles (BUTTON, STATIC, EDIT, LISTBOX, COMBOBOX, SCROLLBAR)
+dessinés aux couleurs du thème, DLL des programmes (LibMain), ressources par nom, segments itérés, tas local,
+mémoire globale et sélecteurs, fichiers et INI (lecteurs ci-dessous), presse-papiers (tous les formats), COMMDLG
+(Ouvrir, Enregistrer, Couleur sur les dialogues de Korin), GDI (polices, bitmaps et DC mémoire, BitBlt et ses
+opérations raster, DIB, polygones, régions, projections, palettes, icônes), MMSYSTEM (sortie MIDI sans son,
+minuteries multimédia). Essais : `tools/win16/tests/dialogs.c` sous QEMU ; **Art Song 2.0** (shareware Delphi 1
+de 1996, fourni par l'utilisateur, jamais dans le dépôt) démarre dans Korin, sa fenêtre principale et sa boîte
+« About » s'affichent. Il lui manque **le son** (un synthétiseur MIDI, à choisir : § 8).
+
+**Lecteurs** (réglages de chaque utilisateur) : C: = `HOME:/win16/c` (avec `C:\WINDOWS\WIN.INI`), D: = le dossier
+du programme, E: = tout l'arbre de Korin ; `HOME:/win16/drives.ini` (section `[drives]`, `C=/dossier`) et l'option
+`--drive C=/dossier` les changent.
+
+Pas encore : le Pi (même code, à construire), MDI, métafichiers, impression, WinHelp, crochets, les barres de
+défilement des fenêtres (seulement les contrôles), le son ; pas de paquet.
 
 ## 1. Ce qu'il faut faire tourner
 
@@ -241,6 +257,14 @@ Le dossier est `src/apps/win16/` (construit par la règle générique de `tools/
    License) installé dans WSL depuis ses versions sur GitHub ; ou un petit **éditeur de liens NE maison** en Python
    (code assemblé par `nasm` en 16 bits) : plus long, mais aucun outil à télécharger. Des programmes libres de
    l'époque (avec leur source) viendront ensuite ; jamais de logiciel propriétaire fourni par nous.
+
+## 8. Le son MIDI (à décider)
+
+Les programmes musicaux de l'époque (Art Song, et tout ce qui joue des `.MID`) envoient des messages MIDI à
+`midiOutShortMsg` ; Windows 3.1 les jouait par la carte son (FM OPL, ou General MIDI). Korin n'a pas de synthétiseur
+General MIDI. Voies : un synthé à banque de sons (SoundFont, par TinySoundFont, MIT) avec une banque libre ; un
+synthé FM façon OPL3 (pas de fichier de sons, le timbre de l'époque) ; ou le moteur de Koton ou de FM Tracker. À
+présenter à l'utilisateur.
 
 ## Sources (consultées le 20/11/2026)
 

@@ -142,28 +142,77 @@ static uint32_t lin_size (uint32_t lin)
 	return 0;
 }
 
+static uint32_t gsize[LDT_ENTRIES];	/* taille demandée de chaque bloc global (par son premier sélecteur) */
+
 uint16_t global_alloc (uint32_t size, int code)
 {
 	uint32_t lin = lin_alloc (size ? size : 1);
 	if (!lin)
 		return 0;
-	return sel_alloc (lin, size ? size : 1, code);
+	uint16_t sel = sel_alloc (lin, size ? size : 1, code);
+	gsize[SEL_INDEX (sel)] = size ? size : 1;
+	return sel;
 }
 
 void global_free (uint16_t sel)
 {
-	if (!sel_valid (sel))
+	if (!sel_valid (sel) || !gsize[SEL_INDEX (sel)])
 		return;
-	uint32_t lin = sel_base (sel), size = lin_size (lin);
+	uint32_t lin = sel_base (sel), size = gsize[SEL_INDEX (sel)];
 	int count = (int) ((size + 0xffff) >> 16);
 	for (int k = 0; k < (count ? count : 1); k++)
 		sel_free ((uint16_t) (sel + (k << 3)));
+	gsize[SEL_INDEX (sel)] = 0;
 	lin_free (lin);
 }
 
 uint32_t global_size (uint16_t sel)
 {
-	return sel_valid (sel) ? sel_limit (sel) + 1 : 0;
+	if (!sel_valid (sel))
+		return 0;
+	return gsize[SEL_INDEX (sel)] ? gsize[SEL_INDEX (sel)] : sel_limit (sel) + 1;
+}
+
+/* change la taille d'un bloc global en gardant son sélecteur (les suivants, s'il en faut plus, doivent être libres) */
+int global_realloc (uint16_t sel, uint32_t size)
+{
+	int i = SEL_INDEX (sel);
+	if (!sel_valid (sel) || !gsize[i])
+		return 0;
+	if (!size)
+		size = 1;
+	uint32_t old = gsize[i];
+	int oc = (int) ((old + 0xffff) >> 16), nc = (int) ((size + 0xffff) >> 16);
+	if (!oc) oc = 1;
+	if (!nc) nc = 1;
+	for (int k = oc; k < nc; k++)
+		if (i + k >= LDT_ENTRIES || sel_used[i + k])
+			return 0;
+	uint32_t lin = lin_alloc (size);
+	if (!lin)
+		return 0;
+	uint32_t olin = sel_base (sel);
+	memcpy (lin_ptr (lin), lin_ptr (olin), old < size ? old : size);
+	lin_free (olin);
+	int code = (lin_ptr (LDT_LIN + (uint32_t) i * 8)[5] & 0x08) != 0;
+	for (int k = nc; k < oc; k++)
+		sel_free (SEL (i + k));
+	for (int k = 0; k < nc; k++)
+		sel_set (SEL (i + k), lin + ((uint32_t) k << 16), size - ((uint32_t) k << 16), code);
+	gsize[i] = size;
+	cpu_reload_segments ();
+	return 1;
+}
+
+/* un sélecteur de plus sur le même bloc (alias) : code ou données */
+uint16_t sel_alias (uint16_t sel, int code)
+{
+	return sel_alloc (sel_base (sel), sel_limit (sel) + 1, code);
+}
+
+int sel_is_code (uint16_t sel)
+{
+	return (lin_ptr (LDT_LIN + (sel & ~7u))[5] & 0x08) != 0;
 }
 
 void mem_init (void)

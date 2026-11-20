@@ -13,7 +13,11 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC = os.path.join(ROOT, 'src', 'apps', 'win16')
-SPECS = [('KERNEL', 'krnl386.exe16.spec'), ('USER', 'user.exe16.spec'), ('GDI', 'gdi.exe16.spec')]
+SPECS = [('KERNEL', 'krnl386.exe16.spec'), ('USER', 'user.exe16.spec'), ('GDI', 'gdi.exe16.spec'),
+         ('MMSYSTEM', 'mmsystem.dll16.spec'), ('COMMDLG', 'commdlg.dll16.spec'), ('KEYBOARD', 'keyboard.drv16.spec'),
+         ('TOOLHELP', 'toolhelp.dll16.spec'), ('WIN87EM', 'win87em.dll16.spec'), ('SHELL', 'shell.dll16.spec'),
+         ('VER', 'ver.dll16.spec'), ('LZEXPAND', 'lzexpand.dll16.spec'), ('SYSTEM', 'system.drv16.spec'),
+         ('SOUND', 'sound.drv16.spec')]
 ARGS = {'word': 'w', 's_word': 's', 'long': 'l', 'ptr': 'p', 'str': 't', 'segptr': 'P', 'segstr': 'T',
         'double': 'd'}
 LINE = re.compile(r'^\s*(\d+|@)\s+(pascal|cdecl|varargs|stub|register|variable|equate|extern)\s*(.*)$')
@@ -34,8 +38,12 @@ def parse(path):
             rest = rest.lstrip()
         if '-register' in flags:
             conv = 'register'
-        if conv in ('stub', 'variable', 'equate', 'extern'):
-            name = rest.split()[0] if rest else f'Ord{ordinal}'
+        if conv == 'equate':
+            parts = rest.split()
+            out.append((ordinal, parts[0], 'equate', int(parts[1], 0) if len(parts) > 1 else 0, None, False))
+            continue
+        if conv in ('stub', 'variable', 'extern'):
+            name = re.split(r'[\s(]', rest)[0] if rest else f'Ord{ordinal}'
             out.append((ordinal, name, 'stub', None, None, False))
             continue
         fm = re.match(r'(\w+)\s*\(([^)]*)\)\s*(\S*)', rest)
@@ -51,7 +59,7 @@ def parse(path):
 
 
 def main():
-    conv_ids = {'pascal': 0, 'register': 1, 'cdecl': 2, 'varargs': 2, 'stub': 3}
+    conv_ids = {'pascal': 0, 'register': 1, 'cdecl': 2, 'varargs': 2, 'stub': 3, 'equate': 4}
     impls = set()
     tables = []
     for mod, spec in SPECS:
@@ -63,20 +71,29 @@ def main():
     o = ['/* api_table.c -- GÉNÉRÉ par tools/win16/spec2c.py depuis les .spec de spec/ (winevdm, format de Wine) :',
          ' * ne pas modifier à la main. */',
          '#include "w16.h"', '']
+    counts = {}
     for i in sorted(impls):
         o.append(f'extern void api_{i} (struct w16call *c) __attribute__ ((weak));')
     o.append('')
     for mod, entries in tables:
         o.append(f'static const struct w16_api api_{mod.lower()}[] = {{')
-        for ordinal, name, conv, code, impl, ret16 in sorted(entries):
+        seen = set()
+        for ordinal, name, conv, code, impl, ret16 in sorted(entries, key=lambda e: e[0]):
+            if ordinal in seen:
+                continue
+            seen.add(ordinal)
             fn = f'api_{impl}' if impl else '0'
+            if conv == 'equate':
+                o.append(f'\t{{ {ordinal}, 4, 0, "{name}", 0, 0, {code} }},')
+                continue
             args = f'"{code}"' if code is not None else '0'
-            o.append(f'\t{{ {ordinal}, {conv_ids[conv]}, {int(ret16)}, "{name}", {args}, {fn} }},')
+            o.append(f'\t{{ {ordinal}, {conv_ids[conv]}, {int(ret16)}, "{name}", {args}, {fn}, 0 }},')
+        counts[mod] = len(seen)
         o.append('};')
         o.append('')
     o.append('const struct w16_module w16_modules[] = {')
     for mod, entries in tables:
-        o.append(f'\t{{ "{mod}", api_{mod.lower()}, {len(entries)} }},')
+        o.append(f'\t{{ "{mod}", api_{mod.lower()}, {counts[mod]} }},')
     o.append('\t{ 0, 0, 0 }')
     o.append('};')
     path = os.path.join(SRC, 'api_table.c')

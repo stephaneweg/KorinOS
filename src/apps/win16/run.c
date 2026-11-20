@@ -12,11 +12,76 @@
 #include "w16.h"
 
 int w16_exit, w16_exit_code, w16_trace;
-static uint16_t sel_mod[8];	/* le sélecteur des points d'entrée de chaque DLL intégrée */
+static uint16_t sel_mod[MAX_BUILTIN];	/* le sélecteur des points d'entrée de chaque DLL intégrée */
 static int nmods;
-static uint16_t sel_int, sel_ret;
+static uint16_t sel_native, sel_int, sel_ret;
+
+/* les procédures de fenêtre écrites en C (contrôles, dialogues) : une adresse 16 bits chacune (sel_native:n), pour
+ * que le programme puisse les garder, les sous-classer et les rappeler (CallWindowProc) */
+#define MAX_NATIVE 64
+static native_wndproc natives[MAX_NATIVE];
+static int nnatives;
+
+uint32_t native_register (native_wndproc fn)
+{
+	for (int i = 0; i < nnatives; i++)
+		if (natives[i] == fn)
+			return MAKESEGPTR (sel_native, i);
+	if (nnatives >= MAX_NATIVE)
+		w16_fatal ("trop de procédures natives");
+	natives[nnatives] = fn;
+	return MAKESEGPTR (sel_native, nnatives++);
+}
+
+native_wndproc native_get (uint32_t proc)
+{
+	if (SELECTOROF (proc) != sel_native || OFFSETOF (proc) >= nnatives)
+		return 0;
+	return natives[OFFSETOF (proc)];
+}
+
+/* appelée par le code 16 bits (une procédure native rangée par le programme) : Pascal, hwnd msg wParam lParam */
+static void native_dispatch (int n)
+{
+	uint32_t ss = cpu_sreg_base (S_SS);
+	uint16_t sp = (uint16_t) cpu_reg (R_ESP);
+	uint16_t ret_ip = rd16 (ss + sp), ret_cs = rd16 (ss + sp + 2);
+	uint32_t lp = rd32 (ss + sp + 4);
+	uint16_t wp = rd16 (ss + sp + 8), msg = rd16 (ss + sp + 10), hwnd = rd16 (ss + sp + 12);
+	uint32_t si = cpu_reg (R_ESI), di = cpu_reg (R_EDI), bp = cpu_reg (R_EBP), esp = cpu_reg (R_ESP);
+	uint16_t ds = cpu_sreg (S_DS), ssel = cpu_sreg (S_SS);
+	uint32_t r = n < nnatives ? natives[n] (hwnd, msg, wp, lp) : 0;
+	if (w16_exit)
+		return;
+	cpu_set_sreg (S_SS, ssel);
+	cpu_set_reg (R_ESI, si);
+	cpu_set_reg (R_EDI, di);
+	cpu_set_reg (R_EBP, bp);
+	cpu_set_sreg (S_DS, sel_valid (ds) ? ds : 0);
+	cpu_set_reg (R_ESP, (esp & 0xffff0000u) | (uint16_t) (sp + 14));
+	cpu_set_reg (R_EAX, (cpu_reg (R_EAX) & 0xffff0000u) | (r & 0xffff));
+	cpu_set_reg (R_EDX, (cpu_reg (R_EDX) & 0xffff0000u) | (r >> 16));
+	cpu_jump (ret_cs, ret_ip);
+}
 static int depth;
-static const struct w16_api *ord_index[8][1024];
+
+/* la table est triée par ordinal (spec2c.py) */
+const struct w16_api *api_lookup (int mod, int ord)
+{
+	const struct w16_module *m = &w16_modules[mod];
+	int lo = 0, hi = m->count - 1;
+	while (lo <= hi)
+	{
+		int mid = (lo + hi) / 2;
+		if (m->api[mid].ord == ord)
+			return &m->api[mid];
+		if (m->api[mid].ord < ord)
+			lo = mid + 1;
+		else
+			hi = mid - 1;
+	}
+	return 0;
+}
 
 void w16_log (const char *fmt, ...)
 {
@@ -61,6 +126,9 @@ int api_find_name (int mod, const char *name)
 
 uint32_t api_entry (int mod, int ord)
 {
+	const struct w16_api *e = api_lookup (mod, ord);
+	if (e && e->conv == 4)	/* une constante (__AHINCR…) : la valeur, comme décalage et comme sélecteur */
+		return MAKESEGPTR (e->value, e->value);
 	return MAKESEGPTR (sel_mod[mod], ord);
 }
 
@@ -88,27 +156,34 @@ static int arg_size (char t)
  * les arguments */
 static void api_dispatch (int mod, int ord)
 {
-	const struct w16_api *e = ord < 1024 ? ord_index[mod][ord] : 0;
+	const struct w16_api *e = api_lookup (mod, ord);
 	uint32_t ss = cpu_sreg_base (S_SS);
 	uint16_t sp = (uint16_t) cpu_reg (R_ESP);
 	uint16_t ret_ip = rd16 (ss + sp), ret_cs = rd16 (ss + sp + 2);
-	if (!e || !e->fn)
+	if (!e || e->conv == 3 || (!e->fn && e->conv == 1))
 		w16_fatal ("fonction pas encore écrite : %s.%d (%s), appelée de %04x:%04x", w16_modules[mod].name, ord,
 			e ? e->name : "?", ret_cs, ret_ip);
+	static uint8_t warned[MAX_BUILTIN][8192];
+	if (!e->fn && !warned[mod][ord & 8191])
+	{
+		/* (pas encore écrite : notée une fois, rend 0 ; le programme continue, souvent sans dommage) */
+		warned[mod][ord & 8191] = 1;
+		fprintf (stderr, "win16 : %s.%s pas encore écrite (rend 0)\n", w16_modules[mod].name, e->name);
+	}
 	struct w16call c;
 	memset (&c, 0, sizeof c);
 	c.mod = mod;
 	c.ord = ord;
 	int total = 0;
-	if (e->conv == 0 || e->conv == 2)
+	if ((e->conv == 0 || e->conv == 1 || e->conv == 2) && e->args)
 	{
 		for (const char *t = e->args; *t; t++)
 			total += arg_size (*t);
-		uint32_t p = e->conv == 0 ? ss + sp + 4 + (uint32_t) total : ss + sp + 4;
+		uint32_t p = e->conv != 2 ? ss + sp + 4 + (uint32_t) total : ss + sp + 4;
 		for (const char *t = e->args; *t && c.n < 16; t++)
 		{
 			int s = arg_size (*t);
-			if (e->conv == 0)
+			if (e->conv != 2)
 				p -= (uint32_t) s;
 			uint32_t v = s == 2 ? rd16 (p) : rd32 (p);
 			if (*t == 's')
@@ -127,17 +202,25 @@ static void api_dispatch (int mod, int ord)
 	}
 	if (e->conv == 1)
 	{
-		/* (une fonction « register » lit et règle les registres elle-même ; c.ret = mots à empiler après) */
+		/* (une fonction « register » lit et règle les registres elle-même ; ses arguments sont dépilés) */
 		e->fn (&c);
-		cpu_set_reg (R_ESP, (cpu_reg (R_ESP) & 0xffff0000u) | (uint16_t) (cpu_reg (R_ESP) + 4));
-		for (int i = 0; i < (int) c.ret; i++)
+		if (w16_exit)
+			return;
+		cpu_set_reg (R_ESP, (cpu_reg (R_ESP) & 0xffff0000u) | (uint16_t) (cpu_reg (R_ESP) + 4 + total));
+		for (int i = 0; i < c.push_words; i++)
 			push16 (0);
+		if (c.retset)
+		{
+			cpu_set_reg (R_EAX, (cpu_reg (R_EAX) & 0xffff0000u) | (c.ret & 0xffff));
+			cpu_set_reg (R_EDX, (cpu_reg (R_EDX) & 0xffff0000u) | (c.ret >> 16));
+		}
 		cpu_jump (ret_cs, ret_ip);
 		return;
 	}
 	uint32_t si = cpu_reg (R_ESI), di = cpu_reg (R_EDI), bp = cpu_reg (R_EBP), esp = cpu_reg (R_ESP);
 	uint16_t ds = cpu_sreg (S_DS), ssel = cpu_sreg (S_SS);
-	e->fn (&c);
+	if (e->fn)
+		e->fn (&c);
 	if (w16_exit)
 		return;
 	cpu_set_sreg (S_SS, ssel);
@@ -145,7 +228,7 @@ static void api_dispatch (int mod, int ord)
 	cpu_set_reg (R_EDI, di);
 	cpu_set_reg (R_EBP, bp);
 	cpu_set_sreg (S_DS, sel_valid (ds) ? ds : 0);
-	cpu_set_reg (R_ESP, (esp & 0xffff0000u) | (uint16_t) (sp + 4 + (e->conv == 0 ? total : 0)));
+	cpu_set_reg (R_ESP, (esp & 0xffff0000u) | (uint16_t) (sp + 4 + (e->conv != 2 ? total : 0)));
 	cpu_set_reg (R_EAX, (cpu_reg (R_EAX) & 0xffff0000u) | (c.ret & 0xffff));
 	if (!e->ret16)
 		cpu_set_reg (R_EDX, (cpu_reg (R_EDX) & 0xffff0000u) | (c.ret >> 16));
@@ -189,13 +272,50 @@ static void int_dispatch (int vec)
 	cpu_set_flags ((cpu_flags () & ~0xffffu) | f | 0x200);
 }
 
+/* débogage : W16_WATCH=sel:off signale chaque changement des 4 octets à cette adresse */
+static int watch_on;
+static uint16_t watch_sel, watch_off;
+static uint32_t watch_val, watch_cs, watch_ip;
+
+static void watch_check (void)
+{
+	if (!sel_valid (watch_sel))
+		return;
+	uint32_t v = rd32 (sel_base (watch_sel) + watch_off);
+	if (v != watch_val)
+	{
+		fprintf (stderr, "[surveillance] %04x:%04x : %08x -> %08x après %04x:%04x\n", watch_sel, watch_off, watch_val, v,
+			watch_cs, watch_ip);
+		watch_val = v;
+	}
+	watch_cs = cpu_sreg (S_CS);
+	watch_ip = cpu_eip ();
+}
+
 static int run_loop (int stop_off)
 {
 	for (;;)
 	{
 		if (w16_exit)
 			return 0;
+		if (watch_on)
+			watch_check ();
 		uint16_t cs = cpu_sreg (S_CS);
+		if (cs > sel_ret || cs < sel_mod[0])	/* (les sélecteurs des points d'entrée se suivent : un seul test) */
+		{
+			if (w16_trace > 1)
+			{
+				char buf[128];
+				uint32_t ip = cpu_eip ();
+				cpu_disasm (buf, cs, ip);
+				fprintf (stderr, "%04x:%04x %-32s AX=%04x BX=%04x CX=%04x DX=%04x SI=%04x DI=%04x BP=%04x SP=%04x DS=%04x ES=%04x\n",
+					cs, ip, buf, cpu_reg (R_EAX) & 0xffff, cpu_reg (R_EBX) & 0xffff, cpu_reg (R_ECX) & 0xffff,
+					cpu_reg (R_EDX) & 0xffff, cpu_reg (R_ESI) & 0xffff, cpu_reg (R_EDI) & 0xffff, cpu_reg (R_EBP) & 0xffff,
+					cpu_reg (R_ESP) & 0xffff, cpu_sreg (S_DS), cpu_sreg (S_ES));
+			}
+			cpu_step ();
+			continue;
+		}
 		uint32_t ip = cpu_eip ();
 		if (cs == sel_ret)
 		{
@@ -206,6 +326,11 @@ static int run_loop (int stop_off)
 		if (cs == sel_int)
 		{
 			int_dispatch ((int) ip);
+			continue;
+		}
+		if (cs == sel_native)
+		{
+			native_dispatch ((int) ip);
 			continue;
 		}
 		int handled = 0;
@@ -235,8 +360,21 @@ int run_until_return (uint16_t ret_off)
 	return run_loop (ret_off);
 }
 
+static uint32_t call16_in (uint32_t target, const uint16_t *args, int nwords, uint16_t ds, const uint16_t *regs);
+
 /* appelle une fonction 16 bits (convention Pascal : les mots empilés dans l'ordre), DS = AX = ds ; rend DX:AX */
 uint32_t call16 (uint32_t target, const uint16_t *args, int nwords, uint16_t ds)
+{
+	return call16_in (target, args, nwords, ds, 0);
+}
+
+/* sans arguments, avec DI, CX, SI, ES donnés (LibMain d'une DLL) */
+uint32_t call16_regs (uint32_t target, uint16_t ds, const uint16_t *r)
+{
+	return call16_in (target, 0, 0, ds, r);
+}
+
+static uint32_t call16_in (uint32_t target, const uint16_t *args, int nwords, uint16_t ds, const uint16_t *init)
 {
 	uint32_t regs[8];
 	for (int r = 0; r < 8; r++)
@@ -253,9 +391,16 @@ uint32_t call16 (uint32_t target, const uint16_t *args, int nwords, uint16_t ds)
 		push16 (args[i]);
 	push16 (sel_ret);
 	push16 (ret_off);
-	cpu_set_sreg (S_DS, ds);
+	cpu_set_sreg (S_DS, sel_valid (ds) ? ds : 0);
 	cpu_set_sreg (S_ES, 0);
 	cpu_set_reg (R_EAX, ds);
+	if (init)
+	{
+		cpu_set_reg (R_EDI, init[0]);
+		cpu_set_reg (R_ECX, init[1]);
+		cpu_set_reg (R_ESI, init[2]);
+		cpu_set_sreg (S_ES, sel_valid (init[3]) ? init[3] : 0);
+	}
 	cpu_jump (SELECTOROF (target), OFFSETOF (target));
 	run_loop (ret_off);
 	uint32_t ret = (cpu_reg (R_EAX) & 0xffff) | (cpu_reg (R_EDX) & 0xffff) << 16;
@@ -275,16 +420,17 @@ uint32_t call16 (uint32_t target, const uint16_t *args, int nwords, uint16_t ds)
 void run_init (void)
 {
 	/* les points d'entrée : 64 Ko de zéros partagés, un sélecteur de code par DLL intégrée */
-	for (nmods = 0; w16_modules[nmods].name && nmods < 8; nmods++)
-	{
+	for (nmods = 0; w16_modules[nmods].name && nmods < MAX_BUILTIN; nmods++)
 		sel_mod[nmods] = sel_alloc (THUNK_LIN, 0x10000, 1);
-		for (int i = 0; i < w16_modules[nmods].count; i++)
-		{
-			const struct w16_api *e = &w16_modules[nmods].api[i];
-			if (e->ord < 1024)
-				ord_index[nmods][e->ord] = e;
-		}
+	const char *wv = getenv ("W16_WATCH");
+	unsigned ws, wo;
+	if (wv && sscanf (wv, "%x:%x", &ws, &wo) == 2)
+	{
+		watch_on = 1;
+		watch_sel = (uint16_t) ws;
+		watch_off = (uint16_t) wo;
 	}
+	sel_native = sel_alloc (THUNK_LIN, 0x10000, 1);
 	sel_int = sel_alloc (THUNK_LIN, 0x10000, 1);
 	sel_ret = sel_alloc (THUNK_LIN, 0x10000, 1);
 	/* l'IDT : 256 portes d'interruption 16 bits (type 6), DPL 3, vers sel_int:vecteur */

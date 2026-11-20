@@ -199,18 +199,38 @@ void cpu_set_reg (int r, uint32_t v) { REG32 (r) = v; }
 uint16_t cpu_sreg (int s) { return m_sreg[s].selector; }
 uint32_t cpu_sreg_base (int s) { return m_sreg[s].base; }
 
-/* charge un registre de segment (pas CS : cpu_jump) ; 0 est permis pour ES, FS, GS (et DS) */
+void w16_fatal (const char *fmt, ...) __attribute__ ((noreturn));
+
+/* charge un registre de segment (pas CS : cpu_jump) ; 0 est permis pour ES, FS, GS (et DS) ; un sélecteur
+ * invalide devient 0 (le cœur lève sinon une exception C++ hors de sa boucle) */
 void cpu_set_sreg (int s, uint16_t sel)
 {
-	m_sreg[s].selector = sel;
-	i386_load_segment_descriptor (s);
+	try
+	{
+		m_sreg[s].selector = sel;
+		i386_load_segment_descriptor (s);
+	}
+	catch (UINT64 e)
+	{
+		if (s == SS)
+			w16_fatal ("pile invalide (sélecteur %04x)", sel);
+		m_sreg[s].selector = 0;
+		i386_load_segment_descriptor (s);
+	}
 }
 
 uint32_t cpu_eip (void) { return m_eip; }
 
 void cpu_jump (uint16_t cs, uint32_t eip)
 {
-	i386_protected_mode_jump (cs, eip, 1, 0);
+	try
+	{
+		i386_protected_mode_jump (cs, eip, 1, 0);
+	}
+	catch (UINT64 e)
+	{
+		w16_fatal ("saut vers %04x:%04x impossible (faute %u)", cs, (unsigned) eip, (unsigned) (e & 0xff));
+	}
 	m_eip = eip;
 	CHANGE_PC (m_eip);
 }
@@ -228,7 +248,7 @@ void cpu_reload_segments (void)
 {
 	for (int s = ES; s <= GS; s++)
 		if (s != CS && m_sreg[s].selector)
-			i386_load_segment_descriptor (s);
+			cpu_set_sreg (s, m_sreg[s].selector);
 }
 
 int cpu_disasm (char *buf, uint16_t cs, uint32_t eip)

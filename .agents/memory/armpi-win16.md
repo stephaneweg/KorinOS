@@ -22,6 +22,13 @@ Choix de l'utilisateur (20/11) :
 (QEMU, CLICKS="click:X,Y …"). Pièges : depuis PowerShell, passer à `wsl` un script écrit dans le scratchpad (les
 guillemets et `$` se perdent) ; depuis Git Bash, `wsl sh /mnt/...` est réécrit en chemin Windows.
 
+**Étape 3 et plus faites le 20/11 (QEMU PC)** : menus dans la barre globale, dialogues, contrôles au thème, DLL des
+programmes, GDI large, COMMDLG, MMSYSTEM sans son. **Art Song 2.0** (shareware Delphi 1 de l'utilisateur, dans
+build/win16/artsong, jamais commité) démarre dans Korin. Suite : le son MIDI (choix à présenter : SoundFont, FM, ou
+moteur de Koton), le Pi. Lecteurs réglables par utilisateur : HOME:/win16/drives.ini, --drive (demande du 20/11).
+Pièges : wrc d'Open Watcom ignore AUTOCHECKBOX/AUTORADIOBUTTON (écrire CONTROL) ; segments NE itérés (0x0008) ;
+Delphi se sert du presse-papiers (format privé) pour cloner : tous les formats doivent être gardés.
+
 **How to apply:** code dans src/apps/win16 (cœur de MAME copié de vm86/mame, mémoire émulée à part, sélecteur réservé
 aux points d'entrée de l'API) ; sources de winevdm dans WSL ~/win16/winevdm. Même code pour le Pi. Voir
 [[armpi-emulateurs]], [[armpi-uikit-fenetres]].

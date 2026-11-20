@@ -17,22 +17,34 @@ void be_window_resize (long win, int w, int h);
 /* les pixels de la zone cliente (0x00RRGGBB), pas en pixels */
 uint32_t *be_pixels (long win, int *w, int *h, int *stride);
 void be_present (long win, int x, int y, int w, int h);
-/* le texte (UTF-8) : y = haut de la cellule ; rend l'avance ; découpé au rectangle donné */
-int be_text (long win, int x, int y, const char *s, uint32_t color, int cx, int cy, int cw, int ch);
-int be_text_width (const char *s);
-int be_font_height (void);
-int be_font_ascent (void);
-/* le thème du bureau (jetons de ui_tokens) : 0 fond, 1 texte, 2 trait, 3 accent */
+/* le texte (UTF-8) : y = haut de la cellule ; px = taille, style 0 normal, 1 gras, 2 chasse fixe ; rend l'avance ;
+ * découpé au rectangle donné ; dst = pixels où écrire (0 : la fenêtre), dw × dh, pas dw */
+int be_text (long win, int x, int y, const char *s, uint32_t color, int cx, int cy, int cw, int ch, int px, int style);
+int be_text_buf (uint32_t *dst, int dw, int dh, int x, int y, const char *s, uint32_t color, int cx, int cy, int cw,
+	int ch, int px, int style);
+int be_text_width (const char *s, int px, int style);
+int be_font_height (int px);
+int be_font_ascent (int px);
+/* les menus de la fenêtre dans la barre de Korin (texte de ui_menu ; 0 : aucun) ; états : id, UMS_* */
+void be_menu_set (long win, const char *text);
+void be_menu_state (long win, int id, int state);
+/* menu surgissant en (x, y) de la zone cliente : libellés à la suite (« - » séparateur ; 0x01 grisé, 0x02 coché),
+ * une chaîne vide à la fin -> numéro choisi, -1 sinon */
+int be_popup (long win, int x, int y, const char *labels, int w);
+/* le thème du bureau (jetons de ui_tokens) */
+enum { BT_SURFACE, BT_TEXT, BT_LINE_STRONG, BT_ACCENT, BT_RAISED, BT_SUNKEN, BT_LINE, BT_ACCENT_INK, BT_TEXT3, BT_FACE,
+	BT_ACCENT_LIGHT, BT_HOVER };
 uint32_t be_theme (int what);
 
-enum { BE_NONE, BE_CLOSE, BE_MOUSE_MOVE, BE_MOUSE_DOWN, BE_MOUSE_UP, BE_KEY_DOWN, BE_KEY_UP, BE_RESIZE, BE_FOCUS };
+enum { BE_NONE, BE_CLOSE, BE_MOUSE_MOVE, BE_MOUSE_DOWN, BE_MOUSE_UP, BE_KEY_DOWN, BE_KEY_UP, BE_RESIZE, BE_FOCUS,
+	BE_MENU, BE_WHEEL };
 struct be_event
 {
 	int type;
 	long win;
 	int x, y;		/* dans la zone cliente */
 	int button;		/* 1 gauche, 2 droit, 4 milieu */
-	int key;		/* code HID (KEY_*) */
+	int key;		/* code HID (KEY_*) ; BE_MENU : l'id de l'entrée ; BE_WHEEL : crans */
 	int ch;			/* caractère Unicode, 0 sinon */
 	int mods;		/* 1 Ctrl, 2 Maj, 4 Alt */
 };
@@ -42,6 +54,12 @@ uint32_t be_ticks (void);
 /* boîte de message : type MB_* de Windows (bas : 0 OK, 1 OK/Annuler, 3 Oui/Non/Annuler, 4 Oui/Non) -> ID* */
 int be_message (const char *title, const char *text, int type);
 void be_fatal (const char *msg);
+/* dialogues de Korin : fichier à ouvrir, à enregistrer (filtre « *.a;*.b », 0 : tous) -> 1 et le chemin ; couleur */
+int be_file_open (const char *dir, const char *filter, char *out, int cap);
+int be_file_save (const char *dir, const char *name, const char *filter, char *out, int cap);
+long be_color (const char *title, uint32_t rgb);
+void be_clip_put (const char *utf8);
+int be_clip_take (char *buf, int cap);
 
 #ifdef __cplusplus
 }

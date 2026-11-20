@@ -18,7 +18,16 @@ NAME=${1:-hello}
 OUT=build/win16
 APP=build/pc/apps/sdroot/apps/win16.app
 [ -f "$APP/main" ] || { echo "d'abord : sh tools/pc/apps.sh win16" >&2; exit 1; }
-[ -f "$OUT/tests/$NAME.exe" ] || { echo "d'abord : sh tools/win16/build-tests.sh" >&2; exit 1; }
+# (un chemin vers un .exe : tout son dossier est copié dans /home/win16/app ; sinon un programme d'essai)
+PROGDIR=
+if [ -f "$NAME" ]; then
+	PROGDIR=$(dirname "$NAME")
+	EXE=/home/win16/app/$(basename "$NAME")
+	NAME=$(basename "$NAME" | sed 's/\.[A-Za-z]*$//' | tr 'A-Z' 'a-z')
+else
+	EXE=/home/win16/$NAME.exe
+	[ -f "$OUT/tests/$NAME.exe" ] || { echo "d'abord : sh tools/win16/build-tests.sh" >&2; exit 1; }
+fi
 T=$OUT/pcroot
 rm -rf "$T"
 mkdir -p "$T"
@@ -30,6 +39,7 @@ mkdir -p "$T/apps" "$T/home/win16"
 for a in files terminal; do [ ! -d "build/pc/sysroot/apps/$a.app" ] || cp -r "build/pc/sysroot/apps/$a.app" "$T/apps/"; done
 cp -r "$APP" "$T/apps/win16.app"
 cp "$OUT"/tests/*.exe "$T/home/win16/"
+[ -z "$PROGDIR" ] || cp -r "$PROGDIR" "$T/home/win16/app"
 printf 'password = essai\n' >"$T/etc/remote.txt"
 grep -q "/sys/svc/telnetd" "$T/etc/services.txt" || printf '# essai win16 : telnet\n/sys/svc/telnetd\n' >>"$T/etc/services.txt"
 MB=$(( $(du -sm "$T" | cut -f1) + 100 ))
@@ -40,9 +50,9 @@ timeout = 0' >/dev/null
 echo "disque : $IMG ($MB Mo pour KORIN OS)"
 W=$OUT/pctest
 mkdir -p "$W"
-python3 -I - "$ROOT" "$W" "$IMG" "$NAME" > "$W/run.txt" 2>&1 <<'PY' || true
+python3 -I - "$ROOT" "$W" "$IMG" "$NAME" "$EXE" "${WAIT:-8}" > "$W/run.txt" 2>&1 <<'PY' || true
 import importlib.util, os, sys, types
-root, w, img, name = sys.argv[1:5]
+root, w, img, name, exe, wait = sys.argv[1:7]
 spec = importlib.util.spec_from_file_location("pctest", os.path.join(root, "tools", "python", "pctest.py"))
 pt = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pt)
@@ -51,8 +61,8 @@ clicks = os.environ.get("CLICKS", "").split()
 a = types.SimpleNamespace(port=2397, hostfwd=[], smp=4, mem="2G", boot=150, shot=os.path.join(w, "fin.png"),
     qemu="-device usb-tablet,bus=xhci.0" if clicks else "",
     cmd=["sleep:20",
-         "( W16_TRACE=1 /apps/win16.app/main /home/win16/%s.exe > /tmp/w16.log 2>&1 & ) ; echo lancé" % name,
-         "sleep:8", "shot:" + name] + clicks + ["cat /tmp/w16.log | tail -n 40"])
+         "( W16_TRACE=%s /apps/win16.app/main %s > /tmp/w16.log 2>&1 & ) ; echo lancé" % (os.environ.get ("W16T", "1"), exe),
+         "sleep:" + wait, "shot:" + name] + clicks + ["cat /tmp/w16.log | tail -n 40"])
 pt.run(a)
 PY
 cat "$W/run.txt" | tail -n 100

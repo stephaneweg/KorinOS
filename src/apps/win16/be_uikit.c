@@ -67,8 +67,12 @@ long be_window_open (int x, int y, int w, int h, const char *title)
 	if (hw <= 0)
 		return 0;
 	b->h = hw;
-	b->w = w;
-	b->ch = h;
+	use (hw);
+	/* (le cadre d'Elegant peut prendre quelques pixels : la zone doit avoir la taille demandée) */
+	if (ui.w != w || ui.h != h + BAND_H)
+		ui_resize (w + (w - ui.w), h + BAND_H + (h + BAND_H - ui.h));
+	b->w = (int) ui.w;
+	b->ch = (int) ui.h - BAND_H;
 	snprintf (b->title, sizeof b->title, "%s", title);
 	draw_band (b);
 	return hw;
@@ -126,29 +130,90 @@ void be_present (long win, int x, int y, int w, int h)
 	ui_update (x, y + BAND_H, w, h);
 }
 
-int be_text (long win, int x, int y, const char *s, uint32_t color, int cx, int cy, int cw, int ch)
+static long font_of (int style)
+{
+	switch (style)
+	{
+	case 1: return (long) ui.font_b;
+	case 2: return (long) ui.font_m;
+	case 3: return ui_font_get (UFN_SERIF);
+	case 4: return ui_font_get (UFN_SERIFBOLD);
+	case 5: return ui_font_get (UFN_ITALIC);
+	default: return (long) ui.font;
+	}
+}
+
+int be_text (long win, int x, int y, const char *s, uint32_t color, int cx, int cy, int cw, int ch, int px, int style)
 {
 	if (!find (win))
 		return 0;
 	use (win);
+	if (px <= 0)
+		px = TEXT_PX;
 	ui_clip (cx, cy + BAND_H, cw, ch);
-	ui_text ((long) s, x, y + BAND_H + be_font_ascent (), color, TEXT_PX, (long) ui.font, 0);
+	ui_text ((long) s, x, y + BAND_H + be_font_ascent (px), color, px, font_of (style), 0);
 	ui_clip (0, 0, 0, 0);
-	return (int) ui_text_width ((long) s, TEXT_PX, (long) ui.font);
+	return (int) ui_text_width ((long) s, px, font_of (style));
 }
 
-int be_text_width (const char *s)
+/* du texte dans un tampon à part (un bitmap) : UIKit écrit dans les pixels de ui_vars, échangés le temps du tracé */
+int be_text_buf (uint32_t *dst, int dw, int dh, int x, int y, const char *s, uint32_t color, int cx, int cy, int cw,
+	int ch, int px, int style)
 {
-	return (int) ui_text_width ((long) s, TEXT_PX, (long) ui.font);
+	if (px <= 0)
+		px = TEXT_PX;
+	uint32_t *ssurf = ui.surf;
+	long sw = ui.w, sh = ui.h;
+	ui.surf = dst;
+	ui.w = dw;
+	ui.h = dh;
+	ui_clip (cx, cy, cw, ch);
+	ui_text ((long) s, x, y + be_font_ascent (px), color, px, font_of (style), 0);
+	ui_clip (0, 0, 0, 0);
+	ui.surf = ssurf;
+	ui.w = sw;
+	ui.h = sh;
+	return (int) ui_text_width ((long) s, px, font_of (style));
 }
 
-int be_font_height (void) { return 16; }
-int be_font_ascent (void) { return 12; }
+int be_text_width (const char *s, int px, int style)
+{
+	return (int) ui_text_width ((long) s, px > 0 ? px : TEXT_PX, font_of (style));
+}
+
+int be_font_height (int px) { return ((px > 0 ? px : TEXT_PX) * 5 + 3) / 4; }
+int be_font_ascent (int px) { return ((px > 0 ? px : TEXT_PX) * 15 + 8) / 16; }
+
+void be_menu_set (long win, const char *text)
+{
+	if (!find (win))
+		return;
+	use (win);
+	ui_menu ((long) (text && *text ? text : 0));
+}
+
+void be_menu_state (long win, int id, int state)
+{
+	if (!find (win))
+		return;
+	use (win);
+	ui_menu_state (id, state);
+}
+
+int be_popup (long win, int x, int y, const char *labels, int w)
+{
+	if (!find (win))
+		return -1;
+	use (win);
+	long r = uikit_call3 ((long (*) ()) ui_popup_local, x, y + BAND_H, (long) labels, w, 0, 0);
+	return r >= 0 ? (int) r : -1;
+}
 
 uint32_t be_theme (int what)
 {
-	static const int t[] = { TJ_SURFACE, TJ_TEXT1, TJ_LINE_STRONG, TJ_ACCENT };
-	return tok (t[what & 3]);
+	static const int t[] = { TJ_SURFACE, TJ_TEXT1, TJ_LINE_STRONG, TJ_ACCENT, TJ_RAISED, TJ_SUNKEN, TJ_LINE,
+		TJ_ACCENT_INK, TJ_TEXT3, TJ_FACE, TJ_ACCENT_LIGHT, TJ_HOVER };
+	return tok (t[what >= 0 && what < 12 ? what : 0]);
 }
 
 int be_wait (int ms, struct be_event *ev)
@@ -208,6 +273,14 @@ int be_wait (int ms, struct be_event *ev)
 		ev->type = BE_FOCUS;
 		ev->x = ui_ev_field (&ui, EV_KIND);
 		return 1;
+	case WEV_MENU:
+		ev->type = BE_MENU;
+		ev->key = ui_ev_field (&ui, EV_CODE);
+		return 1;
+	case WEV_WHEEL:
+		ev->type = BE_WHEEL;
+		ev->key = ui_ev_field (&ui, EV_Y);
+		return 1;
 	}
 	return 0;
 }
@@ -231,6 +304,37 @@ int be_message (const char *title, const char *text, int type)
 	if (kind == 1)
 		return r == 1 ? 1 : 2;	/* IDOK, IDCANCEL */
 	return 1;
+}
+
+int be_file_open (const char *dir, const char *filter, char *out, int cap)
+{
+	ui_file_filter ((long) filter);
+	long r = ui_file_open ((long) dir, (long) out, cap);
+	ui_file_filter (0);
+	return r == 1;
+}
+
+int be_file_save (const char *dir, const char *name, const char *filter, char *out, int cap)
+{
+	ui_file_filter ((long) filter);
+	long r = ui_file_save ((long) dir, (long) name, (long) out, cap);
+	ui_file_filter (0);
+	return r == 1;
+}
+
+long be_color (const char *title, uint32_t rgb)
+{
+	return ui_color_dialog ((long) title, rgb);
+}
+
+void be_clip_put (const char *utf8)
+{
+	ui_clip_set ((long) utf8, -1);
+}
+
+int be_clip_take (char *buf, int cap)
+{
+	return (int) ui_clip_get ((long) buf, cap);
 }
 
 void be_fatal (const char *msg)

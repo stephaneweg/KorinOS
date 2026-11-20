@@ -21,9 +21,15 @@
 | `mem.c` | LDT émulée, sélecteurs, tas global |
 | `run.c` | boucle du processeur, points d'entrée des DLL intégrées, interruptions, rappels 16 bits |
 | `ne.c` | chargeur NE : segments, relocations, points d'entrée, ressources |
-| `kernel.c` | KERNEL, INT 21h, chaînes CP1252 → UTF-8 |
-| `user.c`, `user.h` | USER : classes, fenêtres, messages |
-| `gdi.c` | GDI : contextes de dessin, plumes, brosses, formes, texte |
+| `kernel.c` | KERNEL : mémoire, sélecteurs, tas local, ressources, modules, fichiers, INI, lecteurs ; INT 21h |
+| `user.c`, `user.h` | USER : classes, fenêtres, messages, minuteries, focus, rectangles, atomes, presse-papiers |
+| `menu.c` | menus (barre globale de Korin) et accélérateurs |
+| `dialog.c` | dialogues des ressources, DefDlgProc, IsDialogMessage |
+| `ctrl.c` | contrôles BUTTON, STATIC, EDIT, LISTBOX, COMBOBOX, SCROLLBAR (thème de Korin) |
+| `gdi.c`, `gdi.h` | GDI : DC, objets, polices, bitmaps, BitBlt, DIB, formes, régions, palettes, icônes |
+| `commdlg.c` | Ouvrir, Enregistrer, Couleur (dialogues de Korin) |
+| `mmsystem.c` | sortie MIDI (sans son), minuteries multimédia |
+| `misc.c` | WIN87EM, KEYBOARD, TOOLHELP |
 | `be.h`, `be_uikit.c` | l'affichage sur UIKit (`tools/win16/host_be.c` : l'hôte, pour les essais) |
 
 ## Construire et essayer
@@ -32,4 +38,10 @@
 * Programmes d'essai : `sh tools/win16/build-tests.sh` (Open Watcom v2 dans `~/win16/watcom`).
 * Sur l'hôte, sans Korin : `W16_TRACE=1 sh tools/win16/host.sh build/win16/tests/hello.exe`.
 * Sous QEMU PC : `sh tools/win16/test_pc.sh hello` (après `. ~/korin-cloud/env.sh`).
-* Ce qu'un `.exe` importe : `python3 -I tools/win16/nedump.py PROG.EXE`.
+* Ce qu'un `.exe` importe : `python3 -I tools/win16/nedump.py PROG.EXE` ; ce qui n'est pas encore écrit :
+  `python3 -I tools/win16/checkimpl.py PROG.EXE`.
+* Fichiers compressés des disquettes (`FICHIER.EX_`) : `python3 -I tools/win16/expand.py *_`.
+* Sur l'hôte : `W16_SCRIPT="menu:101 click:20,48 type:abc key:40,13 wait:3 shot"` joue des événements,
+  `W16_SHOT=dossier` fait les images, `W16_WATCH=sel:off` signale qui change une adresse.
+* Sous QEMU, un programme à soi : `sh tools/win16/test_pc.sh chemin/PROG.EXE` (son dossier est copié ;
+  `WAIT=40`, `W16T=0` sans trace, `CLICKS="click:X,Y sleep:S shot:nom"`).
