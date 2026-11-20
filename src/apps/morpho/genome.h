@@ -20,12 +20,17 @@ enum Wing { WING_NONE, WING_FEATHER, WING_MEMBRANE, WING_INSECT, WING_COUNT };
 enum Tip { TIP_NONE, TIP_TUFT, TIP_CLUB, TIP_FIN, TIP_COUNT };
 enum Pattern { PAT_PLAIN, PAT_SPOTS, PAT_STRIPES, PAT_PATCHES, PAT_SADDLE, PAT_RINGS, PAT_SPECKLE, PAT_COUNT };
 enum Trait { TR_PLAYFUL, TR_GLUTTON, TR_SLEEPY, TR_CUDDLY, TR_CURIOUS, TR_COUNT };
+// le plan du corps : ordinaire, serpent (sans pattes, long, qui ondule), à carapace
+enum Plan { PLAN_NORMAL, PLAN_SERPENT, PLAN_SHELL, PLAN_COUNT };
 
 struct Genome
 {
 	uint32_t seed;
 	int stage;
 	float size;			// échelle d'ensemble
+	int plan;			// PLAN_*
+	int heads;			// 1 à 3 têtes (0 : 1, les anciennes sauvegardes)
+	float shellH;			// la hauteur de la carapace
 	// le corps : une colonne de la queue au museau
 	float bodyLen, bodyR, bodyH, belly, hump, upright;
 	float neckLen, neckR, headR, snout, headFlat, headW;
@@ -114,7 +119,35 @@ static inline Genome makeEgg (uint32_t seed)
 	g.voice = r.range (0.8f, 1.35f);
 	g.trait = r.irange (0, TR_COUNT - 1);
 	g.eyes = 2; g.eyeR = 0.1f;
+	g.plan = PLAN_NORMAL; g.heads = 1; g.shellH = 1;
 	return g;
+}
+
+// les contraintes d'un plan du corps : le serpent (long, fin, sans pattes, à plat), la carapace (trapue, courte)
+static inline void shapePlan (Genome &g, Rng &r, bool adult)
+{
+	if (g.plan == PLAN_SERPENT)
+	{
+		g.upright = 0; g.legs = 0; g.arms = 0;
+		g.bodyLen = r.range (adult ? 0.8f : 0.55f, adult ? 1.2f : 0.9f); g.bodyR = r.range (0.16f, 0.22f) * (adult ? 1 : 1.1f);
+		g.bodyH = r.range (0.82f, 0.95f); g.belly = 0; g.hump = 0;
+		g.tailLen = r.range (adult ? 0.7f : 0.45f, adult ? 1.2f : 0.8f); g.tailR = r.range (0.45f, 0.62f); g.tailCurl = 0;
+		g.neckLen = r.range (0.18f, 0.36f); g.neckR = r.range (0.85f, 1.0f);
+		g.headR = r.range (0.18f, 0.24f); g.snout = fmaxf (g.snout, 0.12f); g.headFlat = r.range (0.72f, 0.88f);
+		if (g.back == BACK_PLATES || g.back == BACK_TUFTS) g.back = r.chance (0.5f) ? BACK_SAIL : BACK_NONE;
+	}
+	else if (g.plan == PLAN_SHELL)
+	{
+		g.upright = 0; g.arms = 0; g.legs = 2;
+		g.legLen = r.range (0.24f, adult ? 0.4f : 0.32f); g.legR = r.range (0.08f, 0.11f);
+		if (g.foot == FOOT_HOOF) g.foot = FOOT_PAW;
+		g.bodyLen = r.range (0.42f, 0.72f); g.bodyR = r.range (0.26f, 0.33f); g.belly = 0; g.hump = 0;
+		g.neckLen = r.range (0.08f, 0.3f); g.tailLen = r.range (0.08f, 0.35f);
+		if (g.back != BACK_SPIKES) g.back = BACK_NONE;
+		g.wing = WING_NONE;
+		g.shellH = r.range (0.85f, 1.3f);
+	}
+	if (g.heads < 1) g.heads = 1;
 }
 
 // le stade suivant : care 0..1 (la moyenne des soins pendant le stade)
@@ -143,6 +176,7 @@ static inline Genome evolve (const Genome &p, uint32_t seed, float care)
 		g.mouth = MOUTH_SMILE; g.mouthSize = r.range (0.8f, 1.1f);
 		g.horn = HORN_NONE; g.ear = r.chance (0.35f) ? EAR_ROUND : EAR_NONE; g.earSize = r.range (0.5f, 0.8f);
 		g.back = BACK_NONE; g.wing = WING_NONE; g.tip = TIP_NONE;
+		g.plan = PLAN_NORMAL; g.heads = 1; g.shellH = 1;
 		g.pattern = r.chance (0.6f) ? PAT_PLAIN : (r.chance (0.5f) ? PAT_SPOTS : PAT_SADDLE);
 		g.patScale = r.range (0.8f, 1.3f); g.blush = r.range (0.5f, 1);
 		if (r.chance (0.5f)) mutatePalette (g, r, vivid);
@@ -172,6 +206,9 @@ static inline Genome evolve (const Genome &p, uint32_t seed, float care)
 		if (!(p.pattern && r.chance (keep))) g.pattern = r.irange (0, PAT_COUNT - 1);
 		g.patScale = r.range (0.7f, 1.4f); g.blush = p.blush * 0.6f;
 		mutatePalette (g, r, vivid);
+		{ static const float WP[3] = { 7.6f, 1.2f, 1.2f }; g.plan = r.pick (WP, 3); }
+		g.heads = r.chance (0.05f) ? 2 : 1;
+		shapePlan (g, r, false);
 		break;
 	case ST_TEEN:	// le corps s'allonge, les pièces prennent leur forme
 	case ST_ADULT:	// tout pousse ; des ailes, parfois
@@ -217,6 +254,14 @@ static inline Genome evolve (const Genome &p, uint32_t seed, float care)
 		tweak (g.gloss, 0.1f, 0.85f, 0.4f);
 		g.blush = 0;
 		mutatePalette (g, r, vivid);
+		// le plan du corps : gardé le plus souvent ; le nombre de têtes : rarement plus d'une
+		if (!r.chance (0.7f)) { static const float WP[3] = { 6, 1.6f, 1.6f }; g.plan = r.pick (WP, 3); }
+		if (!(g.heads > 1 && r.chance (keep)))
+		{
+			float x = r.f ();
+			g.heads = x < (ad ? 0.12f : 0.08f) ? 2 : x < (ad ? 0.19f : 0.12f) ? 3 : 1;
+		}
+		shapePlan (g, r, ad);
 		break;
 	}
 	case ST_ELDER:	// le grand âge : plus pâle, un peu voûté, plus rond
@@ -240,7 +285,7 @@ static inline Genome blend (const Genome &a, const Genome &b, float t)
 #define L(f) g.f = lerpg (a.f, b.f, t)
 	L (bodyLen); L (bodyR); L (bodyH); L (belly); L (hump); L (upright); L (neckLen); L (neckR); L (headR); L (snout);
 	L (headFlat); L (headW); L (tailLen); L (tailR); L (tailCurl); L (eyeR); L (eyeSpread); L (mouthSize);
-	L (gloss); L (blush); L (patScale);
+	L (gloss); L (blush); L (patScale); L (shellH);
 #undef L
 	g.base = mixc (a.base, b.base, t); g.bellyC = mixc (a.bellyC, b.bellyC, t); g.pat = mixc (a.pat, b.pat, t);
 	g.accent = mixc (a.accent, b.accent, t); g.iris = mixc (a.iris, b.iris, t); g.membrane = mixc (a.membrane, b.membrane, t);

@@ -10,7 +10,7 @@
 namespace mo {
 
 // la taille des pièces pendant une métamorphose (0 : disparue, 1 : entière)
-struct PartScale { float horn = 1, ear = 1, back = 1, wing = 1, tip = 1, legs = 1, arms = 1, eyes = 1, mouth = 1, brows = 1; };
+struct PartScale { float horn = 1, ear = 1, back = 1, wing = 1, tip = 1, legs = 1, arms = 1, eyes = 1, mouth = 1, brows = 1, heads = 1, shell = 1; };
 
 struct Pose
 {

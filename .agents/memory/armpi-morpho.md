@@ -21,6 +21,11 @@ prairie ni de ciel ; la vue sombre dans les deux thèmes ; au processeur la 3D t
 fenêtre en portrait par défaut (maquette portrait de Gemini : jauges 2 colonnes, soins 3 × 2 ; la mise en page large
 quand la fenêtre est élargie) et un dégradé bien visible dans la vue (ardoise bleutée -> noir, vignettage).
 
+**Plans du corps (20/11, demandés)** : serpent (sans pattes, à plat, vague latérale dans ringXf), carapace (dôme à
+écailles par sommet, piquants dessus), une à trois têtes (layoutHead + buildFace réutilisés, posées sur les épaules) ;
+tirés à l'enfance puis gardés à 70 % ; `shapePlan` (genome.h) fixe leurs contraintes. Onyx Noir forcé pour l'app
+(`ui_theme_text`, réappliqué sur WEV_THEME). Essais : `plan=N heads=N stage=N` ; galerie : MORPHO_PLAN, MORPHO_HEADS.
+
 **How to apply:**
 - Voir sans Korin : `sh tools/morpho/run.sh gallery|shot`, `tools/morpho/sheet.sh` (FreeType + polices Inter de
   sdcard/fonts, GpuKit du PC compilé pour l'hôte par host_gk.c). C'est ce qui a servi à régler le rendu.

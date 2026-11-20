@@ -151,6 +151,8 @@ void Actor::update (float dt, Pet &p, const V3 &camEye, const V3 *cursor)
 		if (a.eyes != b.eyes || a.eyeStalk != b.eyeStalk) ps.eyes = fmaxf (s, 0.25f);
 		if (a.mouth != b.mouth) ps.mouth = s;
 		if (a.brows != b.brows) ps.brows = s;
+		if ((a.heads < 1 ? 1 : a.heads) != (b.heads < 1 ? 1 : b.heads)) ps.heads = s;
+		if (a.plan != b.plan && (a.plan == PLAN_SHELL || b.plan == PLAN_SHELL)) ps.shell = s;
 		skinT -= dt;
 		if (skinT <= 0) { skinDirty = true; skinT = 0.12f; }
 	}
@@ -476,7 +478,7 @@ void Actor::update (float dt, Pet &p, const V3 &camEye, const V3 *cursor)
 	phase += dt * speedNow / stride * 2.2f;
 	P.walkPhase = phase;
 	P.walkAmt = clampf (speedNow / fmaxf (0.3f * fmaxf (size, 0.5f), 0.05f), 0, 1);
-	if (!shown.legs && speedNow > 0.02f) { hop += fabsf (sinf (phase)) * 0.06f * size; squash *= 1 + 0.07f * sinf (phase * 2); }
+	if (!shown.legs && shown.plan != PLAN_SERPENT && speedNow > 0.02f) { hop += fabsf (sinf (phase)) * 0.06f * size; squash *= 1 + 0.07f * sinf (phase * 2); }
 	P.hop = hop;
 	P.squash = squash * (sleeping ? 1 - 0.02f * sinf (t * 1.5f) : 1);
 	P.wave = act == A_HAPPY || (act == A_EVOLVE && actT > 3.6f) ? wave : 0;

@@ -8,7 +8,8 @@
 //   Souris : glisser sur l'animal pour le caresser ; glisser ailleurs (ou clic droit) pour tourner autour ; molette
 //   pour s'approcher ; clic sur une crotte pour la ramasser ; pendant le jeu, clic dans la scène pour lancer la balle.
 //   Clavier : N nourrir (1 2 3 : le repas), J jouer, L laver, O soigner, E lumière, C câliner, I fiche, Échap ferme.
-//   Ligne de commande (essais) : new (un nouvel œuf), speed=N, hour=H (heure fixe), stage=N (aller au stade N), seed=N.
+//   Ligne de commande (essais) : new (un nouvel œuf), speed=N, hour=H (heure fixe), stage=N (aller au stade N), seed=N,
+//   plan=N (0 ordinaire, 1 serpent, 2 carapace) et heads=N (1 à 3) avec stage=N.
 //
 // MIT License -- Copyright (c) 2026 Stéphane Wegener (docs/LICENSING.md).
 //
@@ -53,6 +54,37 @@ static bool g_down = false, g_dragCam = false, g_dragPet = false, g_rdown = fals
 static float g_cursorFor = 0, g_strokeFor = 0, g_caressHold = 0;
 static V3 g_cursor;
 static float g_t = 0;
+
+// Onyx Noir, toujours : le studio sombre rend mieux dans un châssis sombre. Le reste du thème de l'utilisateur (accent,
+// échelle, densité...) est gardé : son theme.txt relu, la ligne « theme » remplacée (ui_theme_text : pour cette app seule)
+static void forceDark ()
+{
+	static const char *const PATHS[3] = { "HOME:/etc/theme.txt", "HOME:/.config/korin/theme.txt", "/etc/theme.txt" };
+	char in[2048] = "", out[2200] = "";
+	for (const char *pth : PATHS)
+	{
+		FILE *f = fopen (pth, "r");
+		if (!f) continue;
+		size_t n = fread (in, 1, sizeof in - 1, f);
+		in[n] = 0;
+		fclose (f);
+		break;
+	}
+	size_t o = 0;
+	for (char *l = in; *l; )
+	{
+		char *e = strchr (l, '\n');
+		size_t n = e ? (size_t) (e - l) + 1 : strlen (l);
+		const char *q = l;
+		while (*q == ' ' || *q == '\t') q++;
+		bool themeLine = !strncmp (q, "theme", 5) && (q[5] == ' ' || q[5] == '\t' || q[5] == '=');
+		if (!themeLine && o + n < sizeof out - 32) { memcpy (out + o, l, n); o += n; }
+		l += n;
+	}
+	if (o && out[o - 1] != '\n') out[o++] = '\n';
+	snprintf (out + o, sizeof out - o, "theme = Onyx Noir\n");
+	ui_theme_text ((long) out);
+}
 
 static float hourNow ()
 {
@@ -316,6 +348,7 @@ static bool groundAt (const V3 &o, const V3 &d, V3 &p)
 	return true;
 }
 static bool g_trace = false;
+static int g_forcePlan = -1, g_forceHeads = 0;		// (essais : plan=N, heads=N avec stage=N)
 // un point de la fenêtre -> un rayon de la caméra (la vue 3D est le cadre du milieu)
 static V3 viewRay (int x, int y) { return g_scene.cam.ray ((float) (x - g_hud.vx), (float) (y - g_hud.vy)); }
 static void onMouse (int kind, int x, int y, int buttons)
@@ -404,6 +437,7 @@ static void oneEvent (long t)
 {
 	if (t == WEV_CLOSE) { g_quit = true; return; }
 	if (t == WEV_MENU) { command ((int) ui_ev_field (&ui, EV_CODE)); return; }
+	if (t == WEV_THEME) { forceDark (); return; }		// (le bureau a changé de thème : UIKit l'a relu)
 	if (t == WEV_FOCUS && ui_ev_field (&ui, EV_KIND) == 0) { g_down = g_rdown = g_dragCam = g_dragPet = false; return; }
 	if (t == WEV_WHEEL) { g_camZoom = clampf (g_camZoom * (ui_ev_field (&ui, EV_Y) > 0 ? 0.9f : 1.11f), 0.55f, 1.9f); return; }
 	if (t == WEV_KEY)
@@ -507,6 +541,8 @@ static void testArgs (int argc, char **argv, bool &fresh, int &stage, uint32_t &
 		else if (!strncmp (p, "stage=", 6)) { stage = clampi (atoi (p + 6), 0, ST_COUNT - 1); fresh = true; }
 		else if (!strncmp (p, "seed=", 5)) seed = (uint32_t) strtoul (p + 5, 0, 10);
 		else if (!strcmp (p, "trace")) g_trace = true;
+		else if (!strncmp (p, "plan=", 5)) g_forcePlan = atoi (p + 5);
+		else if (!strncmp (p, "heads=", 6)) g_forceHeads = atoi (p + 6);
 	}
 }
 
@@ -531,6 +567,13 @@ void app_init (int argc, char **argv)
 		{
 			// (aller tout droit à un stade, pour les essais)
 			for (int s = 1; s <= stage; s++) { g_pet.prev = g_pet.g; g_pet.g = evolve (g_pet.g, hash32 (g_pet.g.seed + (uint32_t) s), 0.8f); g_pet.hist[s] = 1; g_pet.histSeed[s] = g_pet.g.seed; }
+			if (g_forcePlan >= 0 || g_forceHeads > 0)
+			{
+				Rng r (g_pet.g.seed + 5);
+				if (g_forcePlan >= 0) g_pet.g.plan = clampi (g_forcePlan, 0, PLAN_COUNT - 1);
+				if (g_forceHeads > 0) g_pet.g.heads = clampi (g_forceHeads, 1, 3);
+				shapePlan (g_pet.g, r, stage >= ST_ADULT);
+			}
 			g_pet.age = 3600.0 * stage * stage; g_pet.stageAge = 60;
 			for (int i = 0; i < N_COUNT; i++) g_pet.st[i] = 75;
 		}
@@ -586,7 +629,8 @@ int main (int argc, char **argv)
 	long w = h * 56 / 100;
 	if (w < 420) w = 420;
 	if (w > scr[0] - 40) w = scr[0] - 40;
-	if (ui_window_ex (-1, -1, w, h, (long) "Morpho", WF_RESIZABLE) <= 0) return 1;
+	forceDark ();
+	if (ui_window_ex (-1, -1, w, h, (long) "Morpho", WF_RESIZABLE | WF_BODY_DARK | WF_GLYPH_LIGHT) <= 0) return 1;
 	ui_min_size (380, 440);
 	app_init (argc, argv);
 	ui_menu ((long) MENU);

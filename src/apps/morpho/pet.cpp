@@ -291,7 +291,7 @@ struct Field { const char *key; int kind; size_t off; };	// kind : 0 float, 1 in
 #define GI(k, f) { k, 1, offsetof (Genome, f) }
 #define GC(k, f) { k, 2, offsetof (Genome, f) }
 static const Field GFIELDS[] = {
-	GI ("seed", seed), GI ("stage", stage), GF ("size", size),
+	GI ("seed", seed), GI ("stage", stage), GF ("size", size), GI ("plan", plan), GI ("heads", heads), GF ("shellH", shellH),
 	GF ("bodyLen", bodyLen), GF ("bodyR", bodyR), GF ("bodyH", bodyH), GF ("belly", belly), GF ("hump", hump), GF ("upright", upright),
 	GF ("neckLen", neckLen), GF ("neckR", neckR), GF ("headR", headR), GF ("snout", snout), GF ("headFlat", headFlat), GF ("headW", headW),
 	GF ("tailLen", tailLen), GF ("tailR", tailR), GF ("tailCurl", tailCurl),
@@ -421,6 +421,10 @@ void speciesName (const Genome &g, char *out, int cap)
 {
 	const char *genus = "Morphus";
 	if (g.stage == ST_EGG) genus = "Ovum";
+	else if (g.heads == 3) genus = "Tricephalus";
+	else if (g.heads == 2) genus = "Dicephalus";
+	else if (g.plan == PLAN_SERPENT) genus = "Ophidius";
+	else if (g.plan == PLAN_SHELL) genus = "Testudo";
 	else if (g.wing == WING_INSECT) genus = "Libellus";
 	else if (g.wing) genus = "Pteryx";
 	else if (g.mouth == MOUTH_TRUNK) genus = "Proboscis";
@@ -480,6 +484,11 @@ void evolutionText (const Genome &a, const Genome &b, char *out, int cap)
 		snprintf (out + L, (size_t) cap - L, "%s%s", L ? "\n" : "", TR (s));
 		n++;
 	};
+	int ha = a.heads < 1 ? 1 : a.heads, hb = b.heads < 1 ? 1 : b.heads;
+	if (hb > ha) line (hb == 3 ? "Trois têtes !" : "Une deuxième tête pousse !");
+	if (hb < ha) line (hb == 1 ? "Une seule tête, à nouveau." : "Plus que deux têtes.");
+	if (a.plan != b.plan)
+		line (b.plan == PLAN_SERPENT ? "Un long corps de serpent !" : b.plan == PLAN_SHELL ? "Une carapace couvre son dos !" : a.plan == PLAN_SHELL ? "La carapace tombe." : "Des pattes à la place des anneaux.");
 	if (!a.wing && b.wing) line ("Des ailes apparaissent !");
 	if (a.horn != b.horn && b.horn) line (b.horn == HORN_ANTENNAE ? "Des antennes poussent." : b.horn == HORN_UNI ? "Une corne pousse sur le front." : "Des cornes poussent.");
 	if (a.horn && !b.horn) line ("Les cornes tombent.");

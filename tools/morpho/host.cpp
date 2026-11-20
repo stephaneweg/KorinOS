@@ -7,7 +7,7 @@
 //   MORPHO_SECS=4                       le temps joué avant l'image (images de 1/30 s)
 //   MORPHO_DO="1:feed 1.2:meal 3:info"  des gestes à des instants (s) : feed play clean heal lamp caress info meal
 //                                       fruit treat close card throw wake menu (la barre des soins, la fiche...)
-//   MORPHO_THEME=dark                   le thème Onyx Noir (sinon Givre)
+//   MORPHO_THEME=light                  le thème Givre (l'app force Onyx Noir : celui-ci par défaut)
 //   MORPHO_W=960 MORPHO_H=660           la taille de la fenêtre ; MORPHO_MOUSE=x,y : le pointeur (survol)
 //
 
@@ -129,7 +129,7 @@ static int actOf (const char *s)
 int main (int argc, char **argv)
 {
 	const char *out = argc > 1 ? argv[1] : "shot.ppm";
-	tokens (getenv ("MORPHO_THEME") && !strcmp (getenv ("MORPHO_THEME"), "dark"));
+	tokens (!(getenv ("MORPHO_THEME") && !strcmp (getenv ("MORPHO_THEME"), "light")));	// (l'app force Onyx Noir)
 	uikit_open (&ui);
 	gpukit_kit_open ();
 	int W = getenv ("MORPHO_W") ? atoi (getenv ("MORPHO_W")) : 960, H = getenv ("MORPHO_H") ? atoi (getenv ("MORPHO_H")) : 660;

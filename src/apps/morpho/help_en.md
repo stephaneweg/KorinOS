@@ -3,7 +3,8 @@
 An egg has just appeared. A small, unique creature will hatch from it and grow up with you: **baby**,
 **child**, **teenager**, **adult**, then **elder**. At each stage it changes: legs, horns, ears, mouth, back, wings and
 colours are drawn at random, from what it was and the care it received. A well cared-for creature often has brighter
-colours, and sometimes wings.
+colours, and sometimes wings. Some become **serpents** (a long, legless, undulating body), others grow a **shell**,
+others still have **two or three heads**.
 
 Time really passes, even while Morpho is closed (a little more gently).
 

@@ -40,56 +40,13 @@ static Ring ringAt (const Body &b, float s)
 	return g;
 }
 
-static void layout (const Genome &g, float breathe, float t, Body &b)
+// les clés -> les anneaux : les clés trop proches se fondent, échantillons fins (Catmull-Rom), longueur d'arc, anneaux à
+// pas égal ; les clés absentes (pas de tête, une tête seule) prennent l'abscisse de la plus proche
+static void finishBody (const Key *k, int nk, Body &b)
 {
-	Key k[K_N];
-	float a = g.upright * 1.22f;
-	V3 T (0, sinf (a), cosf (a)), U (0, cosf (a), -sinf (a));
-	float R = g.bodyR, L = g.bodyLen;
-	V3 hip (0, 0, 0);
-	// la queue : vers l'arrière, elle s'enroule vers le haut (tailCurl > 0) ou le bas
-	float tl = fmaxf (g.tailLen, 0.04f);
-	V3 tb = hip - T * (R * 0.45f);
-	float el = lerpf (0.12f, -0.3f, g.upright) + g.tailCurl * 0.15f;
-	V3 tp[4]; tp[0] = tb;
-	for (int i = 1; i < 4; i++)
-	{
-		el += g.tailCurl * 0.42f;
-		tp[i] = tp[i - 1] + V3 (0, sinf (el), -cosf (el)) * (tl / 3);
-	}
-	float tr = R * g.tailR;
-	k[K_TAILBASE] = { tb, R * 0.82f, R * 0.82f * g.bodyH, K_TAILBASE };
-	k[K_TAIL1] = { tp[1], lerpf (R * 0.7f, tr * 0.8f, smooth (0, 0.3f, tl)), 0, K_TAIL1 };
-	k[K_TAIL2] = { tp[2], lerpf (R * 0.5f, tr * 0.55f, smooth (0, 0.3f, tl)), 0, K_TAIL2 };
-	k[K_TAILTIP] = { tp[3], lerpf (R * 0.3f, tr * 0.28f, smooth (0, 0.3f, tl)), 0, K_TAILTIP };
-	for (int i = K_TAILTIP; i <= K_TAIL1; i++) k[i].ry = k[i].rx;
-	// le tronc ; il respire
-	float br = 1 + 0.028f * breathe * sinf (t * 2.3f);
-	k[K_HIP] = { hip, R * 0.95f * br, R * 0.95f * g.bodyH * br, K_HIP };
-	k[K_MID] = { hip + T * (L * 0.5f) + U * (g.hump * L * 0.55f - g.belly * R * 0.2f), R * (1 + g.belly * 0.55f) * br,
-		     R * (1 + g.belly * 0.7f) * g.bodyH * br, K_MID };
-	k[K_SH] = { hip + T * L, R * 0.93f * br, R * 0.93f * g.bodyH * br, K_SH };
-	// le cou, la tête, le museau
-	float be = lerpf (0.62f, 1.32f, g.upright);
-	V3 dn (0, sinf (be), cosf (be));
-	V3 nb = k[K_SH].p + T * (R * 0.3f) + dn * (R * 0.22f);
-	float rn = R * lerpf (0.82f, g.neckR, smooth (0, 0.22f, g.neckLen));
-	k[K_NECK] = { nb, rn, rn, K_NECK };
-	V3 nt = nb + dn * (g.neckLen + 0.02f);
-	float rnt = lerpf (R * g.neckR, g.headR, 0.45f) * 0.86f;
-	k[K_NECKTOP] = { nt, rnt, rnt, K_NECKTOP };
-	V3 hd = norm (V3 (0, -0.1f - g.snout * 0.15f, 1));
-	V3 hc = nt + dn * (g.headR * 0.42f) + hd * (g.headR * 0.22f);
-	k[K_HEAD] = { hc, g.headR * g.headW, g.headR * g.headFlat, K_HEAD };
-	float rs = g.headR * lerpf (0.66f, 0.36f, sat (g.snout / 0.45f));
-	V3 sn = hc + hd * (g.headR * 0.55f + g.snout * 0.72f) - V3 (0, g.snout * 0.06f, 0);
-	k[K_SNOUT] = { sn, rs * g.headW, rs * g.headFlat, K_SNOUT };
-	k[K_NOSE] = { sn + hd * (rs * 0.55f), rs * 0.5f * g.headW, rs * 0.5f * g.headFlat, K_NOSE };
-
-	// les clés trop proches se fondent (le bébé : presque une boule)
 	Key kk[K_N]; int n = 0;
 	int map[K_N];
-	for (int i = 0; i < K_N; i++)
+	for (int i = 0; i < nk; i++)
 	{
 		if (n > 0 && len (k[i].p - kk[n - 1].p) < 0.035f)
 		{
@@ -100,7 +57,7 @@ static void layout (const Genome &g, float breathe, float t, Body &b)
 		}
 		kk[n] = k[i]; map[i] = n; n++;
 	}
-	// échantillons fins (Catmull-Rom), longueur d'arc
+	if (n < 2) { kk[n] = kk[0]; kk[n].p = kk[0].p + V3 (0, 0, 0.05f); n++; }
 	const int SUB = 14;
 	std::vector<V3> P; std::vector<float> RX, RY, S; std::vector<int> kat (n);
 	for (int i = 0; i < n - 1; i++)
@@ -124,9 +81,26 @@ static void layout (const Genome &g, float breathe, float t, Body &b)
 	S.assign (P.size (), 0);
 	for (size_t i = 1; i < P.size (); i++) S[i] = S[i - 1] + len (P[i] - P[i - 1]);
 	float tot = fmaxf (S.back (), 1e-4f);
-	for (int i = 0; i < K_N; i++) { b.sk[i] = S[kat[map[i]]] / tot; b.kp[i] = k[i].p; b.kr[i] = (k[i].rx + k[i].ry) * 0.5f; }
-	// les anneaux, à pas égal (plus serrés quand le corps est court)
-	int NR = clampi ((int) (tot / 0.042f), 22, 60);
+	bool seen[K_N] = { false };
+	for (int i = 0; i < nk; i++)
+	{
+		int t = k[i].tag;
+		b.sk[t] = S[kat[map[i]]] / tot; b.kp[t] = k[i].p; b.kr[t] = (k[i].rx + k[i].ry) * 0.5f; seen[t] = true;
+	}
+	for (int t = 0; t < K_N; t++)
+		if (!seen[t])
+		{
+			// (la clé présente la plus proche dans l'ordre de la colonne)
+			int best = -1;
+			for (int d = 1; d < K_N && best < 0; d++)
+			{
+				if (t - d >= 0 && seen[t - d]) best = t - d;
+				else if (t + d < K_N && seen[t + d]) best = t + d;
+			}
+			if (best < 0) best = 0;
+			b.sk[t] = b.sk[best]; b.kp[t] = b.kp[best]; b.kr[t] = b.kr[best];
+		}
+	int NR = clampi ((int) (tot / 0.042f), 18, 64);
 	b.r.resize ((size_t) NR);
 	size_t j = 0;
 	for (int i = 0; i < NR; i++)
@@ -144,16 +118,96 @@ static void layout (const Genome &g, float breathe, float t, Body &b)
 		Ring &g2 = b.r[(size_t) i];
 		const Ring &p0 = b.r[(size_t) (i > 0 ? i - 1 : 0)], &p1 = b.r[(size_t) (i < NR - 1 ? i + 1 : NR - 1)];
 		g2.T = norm (p1.c - p0.c);
-		g2.X = V3 (1, 0, 0);
+		g2.X = norm (V3 (1, 0, 0) - g2.T * g2.T.x);
 		g2.N = norm (cross (g2.T, g2.X));
 		g2.dr = ((p1.rx + p1.ry) - (p0.rx + p0.ry)) * 0.5f / fmaxf (len (p1.c - p0.c), 1e-4f);
 	}
-	b.hd = hd; b.up = norm (cross (hd, V3 (1, 0, 0)));
-	b.headRx = g.headR * g.headW; b.headRy = g.headR * g.headFlat; b.snoutR = rs;
 	float mn = 1e9f;
-	for (const Ring &g2 : b.r) mn = fminf (mn, g2.c.y - fabsf (g2.N.y) * g2.ry - fabsf (g2.T.y) * 0.0f);
+	for (const Ring &g2 : b.r) mn = fminf (mn, g2.c.y - fabsf (g2.N.y) * g2.ry);
 	mn = fminf (mn, b.r[0].c.y - (b.r[0].rx + b.r[0].ry) * 0.5f);
 	b.minY = mn;
+}
+
+// le cou et la tête, depuis la base du cou nb (rayon rn), le cou levé de be : les clés K_NECK..K_NOSE
+static void headKeys (const Genome &g, const V3 &nb, float rn, float be, Key *k, int &n, Body &b)
+{
+	V3 dn (0, sinf (be), cosf (be));
+	float R = g.bodyR;
+	k[n++] = { nb, rn, rn, K_NECK };
+	V3 nt = nb + dn * (g.neckLen + 0.02f);
+	float rnt = lerpf (R * g.neckR, g.headR, 0.45f) * 0.86f;
+	k[n++] = { nt, rnt, rnt, K_NECKTOP };
+	V3 hd = norm (V3 (0, -0.1f - g.snout * 0.15f, 1));
+	V3 hc = nt + dn * (g.headR * 0.42f) + hd * (g.headR * 0.22f);
+	k[n++] = { hc, g.headR * g.headW, g.headR * g.headFlat, K_HEAD };
+	float rs = g.headR * lerpf (0.66f, 0.36f, sat (g.snout / 0.45f));
+	V3 sn = hc + hd * (g.headR * 0.55f + g.snout * 0.72f) - V3 (0, g.snout * 0.06f, 0);
+	k[n++] = { sn, rs * g.headW, rs * g.headFlat, K_SNOUT };
+	k[n++] = { sn + hd * (rs * 0.55f), rs * 0.5f * g.headW, rs * 0.5f * g.headFlat, K_NOSE };
+	b.hd = hd; b.up = norm (cross (hd, V3 (1, 0, 0)));
+	b.headRx = g.headR * g.headW; b.headRy = g.headR * g.headFlat; b.snoutR = rs;
+}
+static float neckLift (const Genome &g) { return g.plan == PLAN_SERPENT ? 1.0f : lerpf (0.62f, 1.32f, g.upright); }
+static int headCount (const Genome &g) { return clampi (g.heads, 1, 3); }
+
+// le corps entier : la queue, le tronc, puis le cou et la tête (sauf à deux têtes : elles poussent des épaules)
+static void layout (const Genome &g, float breathe, float t, Body &b)
+{
+	Key k[K_N]; int n = 0;
+	bool serpent = g.plan == PLAN_SERPENT;
+	float a = g.upright * 1.22f;
+	V3 T (0, sinf (a), cosf (a)), U (0, cosf (a), -sinf (a));
+	float R = g.bodyR, L = g.bodyLen;
+	V3 hip (0, 0, 0);
+	// la queue : vers l'arrière, elle s'enroule vers le haut (tailCurl > 0) ou le bas ; le serpent : à plat
+	float tl = fmaxf (g.tailLen, 0.04f);
+	V3 tb = hip - T * (R * 0.45f);
+	float curl = serpent ? 0 : g.tailCurl;
+	float el = serpent ? 0.0f : lerpf (0.12f, -0.3f, g.upright) + curl * 0.15f;
+	V3 tp[4]; tp[0] = tb;
+	for (int i = 1; i < 4; i++)
+	{
+		el += curl * 0.42f;
+		tp[i] = tp[i - 1] + V3 (0, sinf (el), -cosf (el)) * (tl / 3);
+	}
+	float tr = R * g.tailR;
+	k[n++] = { tp[3], lerpf (R * 0.3f, tr * 0.28f, smooth (0, 0.3f, tl)), 0, K_TAILTIP };
+	k[n++] = { tp[2], lerpf (R * 0.5f, tr * 0.55f, smooth (0, 0.3f, tl)), 0, K_TAIL2 };
+	k[n++] = { tp[1], lerpf (R * 0.7f, tr * 0.8f, smooth (0, 0.3f, tl)), 0, K_TAIL1 };
+	for (int i = 0; i < 3; i++) k[i].ry = k[i].rx * (serpent ? g.bodyH : 1);
+	k[n++] = { tb, R * 0.82f, R * 0.82f * g.bodyH, K_TAILBASE };
+	// le tronc ; il respire
+	float br = 1 + 0.028f * breathe * sinf (t * 2.3f);
+	k[n++] = { hip, R * 0.95f * br, R * 0.95f * g.bodyH * br, K_HIP };
+	k[n++] = { hip + T * (L * 0.5f) + U * (g.hump * L * 0.55f - g.belly * R * 0.2f), R * (1 + g.belly * 0.55f) * br,
+		   R * (1 + g.belly * 0.7f) * g.bodyH * br, K_MID };
+	k[n++] = { hip + T * L, R * 0.93f * br, R * 0.93f * g.bodyH * br, K_SH };
+	// le cou, la tête, le museau
+	float be = neckLift (g);
+	V3 dn (0, sinf (be), cosf (be));
+	V3 nb = k[n - 1].p + T * (R * 0.3f) + dn * (R * 0.22f);
+	float rn = R * lerpf (0.82f, g.neckR, smooth (0, 0.22f, g.neckLen));
+	if (headCount (g) == 2)
+	{
+		// (deux têtes : le tronc s'arrête en une épaule arrondie)
+		V3 front = k[n - 1].p + T * (R * 0.55f);
+		k[n++] = { front, R * 0.62f, R * 0.62f * g.bodyH, K_NECK };
+		b.hd = V3 (0, 0, 1); b.up = V3 (0, 1, 0); b.headRx = b.headRy = R; b.snoutR = R * 0.5f;
+	}
+	else headKeys (g, nb, rn, be, k, n, b);
+	finishBody (k, n, b);
+}
+
+// une tête de plus : son cou et sa tête seuls, la base du cou à l'origine (placés ensuite sur les épaules)
+static void layoutHead (const Genome &g, Body &b)
+{
+	Key k[K_N]; int n = 0;
+	float rn = g.bodyR * fmaxf (g.neckR, 0.55f) * 0.9f;
+	// (un cou un peu plus long que celui d'une tête seule : les têtes s'écartent)
+	Genome h = g; h.neckLen = fmaxf (g.neckLen, 0.12f) + 0.06f;
+	k[n++] = { V3 (0, 0, -rn * 0.6f), rn * 1.1f, rn * 1.1f, K_SH };
+	headKeys (h, V3 (), rn, neckLift (g) + 0.1f, k, n, b);
+	finishBody (k, n, b);
 }
 
 // la distance (approchée) à la surface du corps au repos : l'union des ellipsoïdes des anneaux
@@ -340,191 +394,50 @@ static V3 ik (const V3 &h, const V3 &f, float l1, float l2, const V3 &pole)
 static Col dark (const Col &c, float k) { return c * k; }
 static Col beakColor (const Genome &g) { return luma (g.accent) < 0.35f ? Col (0.96f, 0.64f, 0.22f) : g.accent; }
 
-void buildCreature (const Genome &g, const Pose &P, CreatureMeshes &M, CreatureOut &out)
+// ==== les anneaux d'un corps en maillage : bouts arrondis, texture u = u0..u1 le long, v = le tour ; xf (s) : où va
+// l'anneau d'abscisse s
+template <class F> static void meshBody (Builder &B, const Body &b, F xf, float u0, float u1, bool caps)
 {
-	Body b; layout (g, P.breathe, P.t, b);
-	const PartScale &ps = P.ps;
-	float sHip = b.sk[K_HIP], sMid = b.sk[K_MID], sSh = b.sk[K_SH], sNeck = b.sk[K_NECK], sHead = b.sk[K_HEAD];
-	V3 hipP = b.kp[K_HIP], nb = b.kp[K_NECK], hc = b.kp[K_HEAD], sn = b.kp[K_SNOUT];
-
-	// ---- les jambes d'abord : la hauteur du corps
-	struct Leg { V3 h; float side; bool arm; };
-	Leg legs[8]; int nl = 0;
-	float legL = g.legLen * ps.legs, legR = g.legR * (0.4f + 0.6f * ps.legs);
-	float footH = legR * 0.7f;
-	if (g.legs > 0 && ps.legs > 0.02f)
-		for (int i = 0; i < g.legs; i++)
-		{
-			float s;
-			if (g.legs == 1) s = g.upright > 0.5f ? sHip + (sMid - sHip) * 0.15f : lerpf (sHip, sMid, 0.55f);
-			else s = lerpf (sHip + (sMid - sHip) * 0.12f, sSh - (sSh - sMid) * 0.1f, (float) i / (float) (g.legs - 1));
-			Ring rg = ringAt (b, s);
-			for (int side = -1; side <= 1; side += 2)
-			{
-				Leg &l = legs[nl++];
-				l.h = rg.c + rg.X * (rg.rx * 0.6f * (float) side) - rg.N * (rg.ry * 0.42f);
-				l.side = (float) side; l.arm = false;
-			}
-		}
-	float rest = -b.minY - 0.012f;
-	float lift = rest;
-	if (nl)
+	const int SEG = 26;
+	struct R2 { Ring g; float sc, off, nt; float u; };
+	std::vector<R2> rr;
+	const int CAP = caps ? 4 : 0;
+	for (int q = CAP; q >= 1; q--)
 	{
-		float best = 1e9f;
-		for (int i = 0; i < nl; i++) best = fminf (best, legL * 0.9f + footH - legs[i].h.y);
-		lift = fmaxf (best, rest);
+		float ph = (PI / 2) * (float) q / (float) CAP;
+		rr.push_back ({ b.r.front (), cosf (ph), -sinf (ph), -sinf (ph), 0 });
 	}
-	lift = lerpf (lift, rest - 0.02f, P.lie);
-
-	// ---- la place dans le monde
-	float sz = g.size;
-	float sy = P.squash, sxz = 1 / sqrtf (fmaxf (P.squash, 0.2f));
-	Xf G = Xf::trans (P.pos + V3 (P.shiver * 0.012f * sinf (P.t * 61), P.hop, P.shiver * 0.008f * sinf (P.t * 47)))
-	     * Xf::rotY (P.yaw) * Xf::scale (sz * sxz, sz * sy, sz * sxz) * Xf::trans (V3 (0, lift, 0));
-	// la tête tourne autour de la base du cou ; la queue frétille autour de la hanche
-	auto headXf = [&] (float w) {
-		Xf r = Xf::rotY (P.headYaw * w) * Xf::rotX (-P.headPitch * w) * Xf::rotZ (P.headRoll * w);
-		return Xf::about (nb, r);
-	};
-	float wagT = P.t * 7.5f;
-	auto tailXf = [&] (float s) {
-		float w = 1 - smooth (0, sHip, s);
-		float ang = (P.wag * 0.55f * sinf (wagT + w * 2.2f) + 0.06f * sinf (P.t * 1.3f)) * w;
-		return Xf::about (hipP, Xf::rotY (ang));
-	};
-	auto ringXf = [&] (float s) {
-		float wh = smooth (sNeck - 0.02f, sHead, s);
-		return G * headXf (wh) * tailXf (s);
-	};
-	Xf HX = G * headXf (1);
-
-	Col tint = mixc (Col (1, 1, 1), Col (0.72f, 0.92f, 0.55f), P.sick * 0.6f);
-	tint = mixc (tint, Col (0.75f, 0.66f, 0.55f), P.dirt * 0.35f);
-
-	// ---- le corps : anneaux + bouts arrondis, texture u = s, v = le tour
+	for (const Ring &x : b.r) rr.push_back ({ x, 1, 0, 0, x.s });
+	for (int q = 1; q <= CAP; q++)
 	{
-		Builder B (&M.body);
-		B.tint = tint; B.gloss = g.gloss;
-		const int SEG = 26;
-		struct R2 { Ring g; float sc, off, nt; float u; };
-		std::vector<R2> rr;
-		const int CAP = 4;
-		for (int q = CAP; q >= 1; q--)
-		{
-			float ph = (PI / 2) * (float) q / CAP;
-			rr.push_back ({ b.r.front (), cosf (ph), -sinf (ph), -sinf (ph), 0 });
-		}
-		for (const Ring &x : b.r) rr.push_back ({ x, 1, 0, 0, x.s });
-		for (int q = 1; q <= CAP; q++)
-		{
-			float ph = (PI / 2) * (float) q / CAP;
-			rr.push_back ({ b.r.back (), cosf (ph), sinf (ph), sinf (ph), 1 });
-		}
-		int base = (int) M.body.v.size ();
-		for (size_t i = 0; i < rr.size (); i++)
-		{
-			const R2 &q = rr[i];
-			B.xf = ringXf (q.g.s);
-			float rz = (q.g.rx + q.g.ry) * 0.5f;
-			for (int j = 0; j <= SEG; j++)
-			{
-				float th = 2 * PI * (float) j / SEG, st = sinf (th), ct = cosf (th);
-				V3 p = q.g.c + q.g.X * (q.g.rx * st * q.sc) - q.g.N * (q.g.ry * ct * q.sc) + q.g.T * (q.off * rz);
-				V3 en = norm (q.g.X * (st / q.g.rx) - q.g.N * (ct / q.g.ry));
-				V3 n = q.off != 0 ? norm (en * q.sc + q.g.T * q.nt) : norm (en - q.g.T * clampf (q.g.dr, -2.5f, 2.5f));
-				B.add (p, n, Col (1, 1, 1), q.u, (float) j / SEG);
-			}
-		}
-		B.grid (base, (int) rr.size () - 1, SEG);
+		float ph = (PI / 2) * (float) q / (float) CAP;
+		rr.push_back ({ b.r.back (), cosf (ph), sinf (ph), sinf (ph), 1 });
 	}
+	int base = (int) B.m->v.size ();
+	for (size_t i = 0; i < rr.size (); i++)
+	{
+		const R2 &q = rr[i];
+		B.xf = xf (q.g.s);
+		float rz = (q.g.rx + q.g.ry) * 0.5f;
+		for (int j = 0; j <= SEG; j++)
+		{
+			float th = 2 * PI * (float) j / SEG, st = sinf (th), ct = cosf (th);
+			V3 p = q.g.c + q.g.X * (q.g.rx * st * q.sc) - q.g.N * (q.g.ry * ct * q.sc) + q.g.T * (q.off * rz);
+			V3 en = norm (q.g.X * (st / q.g.rx) - q.g.N * (ct / q.g.ry));
+			V3 n = q.off != 0 ? norm (en * q.sc + q.g.T * q.nt) : norm (en - q.g.T * clampf (q.g.dr, -2.5f, 2.5f));
+			B.add (p, n, Col (1, 1, 1), u0 + (u1 - u0) * q.u, (float) j / SEG);
+		}
+	}
+	B.grid (base, (int) rr.size () - 1, SEG);
+}
 
-	Builder B (&M.parts);
-	B.tint = tint;
-	Builder S (&M.sheets); S.tint = tint;
-	Builder A (&M.alpha); A.tint = tint;
-	Col skin = g.base, skinLo = mixc (g.base, g.pat, 0.25f) * 0.86f;
+// ==== la face d'une tête : yeux, bouche, cornes, oreilles, posés sur la surface de b (repos) ; HX : la tête dans le
+// monde -> la bouche (repos)
+static V3 buildFace (const Genome &g, const Pose &P, const PartScale &ps, const Body &b, const Xf &HX, Builder &B, Builder &S, Builder &A,
+		     const Col &skin, const Col &skinLo)
+{
 	V3 X (1, 0, 0);
-	V3 hd = b.hd, up = b.up;
-
-	// ---- les jambes (la hauteur du corps est dans leurs points : G sans elle)
-	Xf G0 = G * Xf::trans (V3 (0, -lift, 0));
-	B.xf = G0;
-	for (int i = 0; i < nl; i++)
-	{
-		Leg &l = legs[i];
-		V3 h = l.h + V3 (0, 0, 0);
-		int pair = i / 2;
-		float ph = P.walkPhase + (l.side > 0 ? 0 : PI) + (float) pair * PI;
-		float stride = legL * 0.32f * P.walkAmt;
-		V3 hw = h + V3 (0, lift, 0);					// (la hanche, hauteur comprise)
-		V3 f (h.x * 1.12f, 0, h.z + sinf (ph) * stride);
-		f.y = fmaxf (0, cosf (ph)) * legL * 0.22f * P.walkAmt;
-		if (P.lie > 0)
-		{
-			V3 fl (h.x + l.side * legL * 0.35f, 0.02f, h.z + legL * 0.45f);
-			f = lerp (f, fl, P.lie);
-		}
-		f.y -= 0;	// (le sol est à y = 0 : le saut emporte tout, pieds compris)
-		V3 ft = f + V3 (0, footH, 0);
-		V3 pole = lerp (V3 (l.side * 0.25f, 0, 1), V3 (l.side, 0.3f, 0.4f), P.lie);
-		V3 knee = ik (hw, ft, legL * 0.52f, legL * 0.48f, pole);
-		// (si la jambe est trop courte, le pied pend sous le genou)
-		V3 dk = ft - knee; if (len (dk) > legL * 0.48f) ft = knee + norm (dk) * (legL * 0.48f);
-		V3 in = hw - V3 (l.side * legR * 0.9f, -legR * 0.4f, 0);
-		V3 pts[4] = { in, hw, knee, ft };
-		float rad[4] = { legR * 1.55f, legR * 1.3f, legR * 0.95f, legR * 0.78f };
-		Col cols[4] = { skin, skin, mixc (skin, skinLo, 0.5f), skinLo };
-		B.gloss = g.gloss * 0.8f;
-		B.tube (pts, rad, cols, 4, 10, 4, 0, X, 3);
-		// le pied
-		Frame ff = frameLook (ft + V3 (0, -footH * 0.25f, legR * 0.45f), V3 (l.side * 0.08f, 0, 1), V3 (0, 1, 0));
-		Col fc = g.foot == FOOT_HOOF ? dark (g.accent, 0.7f) : skinLo;
-		if (g.foot == FOOT_HOOF) B.ellipsoid (ff, V3 (legR * 1.05f, footH * 1.05f, legR * 1.15f), fc, dark (fc, 0.7f), 12, 6);
-		else
-		{
-			B.ellipsoid (ff, V3 (legR * 1.18f, footH * 0.95f, legR * 1.65f), fc, dark (fc, 0.8f), 12, 7);
-			for (int t = -1; t <= 1; t++)
-			{
-				V3 tp = ff.at (V3 ((float) t * legR * 0.62f, -footH * 0.2f, legR * 1.35f));
-				if (g.foot == FOOT_CLAW)
-				{
-					V3 cp[2] = { tp, tp + ff.dir (V3 ((float) t * 0.1f, -0.35f, 1)) * (legR * 1.1f) };
-					float cr[2] = { legR * 0.32f, legR * 0.04f };
-					Col cc[2] = { g.accent, mixc (g.accent, Col (1, 1, 1), 0.3f) };
-					B.gloss = 0.7f; B.tube (cp, cr, cc, 2, 6, 3, 0, X, 1);
-				}
-				else B.sphere (tp, legR * 0.45f, fc, 8, 5);
-			}
-		}
-	}
-
-	// ---- les bras (créatures debout)
-	if (g.arms && ps.arms > 0.02f)
-	{
-		Ring rg = ringAt (b, sSh - (sSh - sMid) * 0.25f);
-		float al = g.armLen * ps.arms, ar = g.legR * 0.8f * (0.4f + 0.6f * ps.arms);
-		for (int side = -1; side <= 1; side += 2)
-		{
-			V3 sh = rg.c + rg.X * (rg.rx * 0.78f * (float) side) + rg.N * (rg.ry * 0.05f);
-			V3 shw = sh + V3 (0, lift, 0);
-			V3 hand = shw + V3 ((float) side * 0.1f, -al * 0.82f, 0.1f + 0.03f * sinf (P.t * 1.7f + (float) side));
-			if (P.wave > 0 && side > 0)
-				hand = lerp (hand, shw + V3 (al * 0.4f + 0.06f * sinf (P.t * 11), al * 0.55f, 0.12f), P.wave);
-			if (P.reach > 0)
-				hand = lerp (hand, shw + V3 (-(float) side * 0.06f, -al * 0.1f, al * 0.85f), P.reach);
-			B.xf = G0;
-		V3 elbow = ik (shw, hand, al * 0.5f, al * 0.5f, V3 ((float) side * 0.6f, -0.2f, -1));
-			V3 in = shw - V3 ((float) side * ar, 0, 0);
-			V3 pts[4] = { in, shw, elbow, hand };
-			float rad[4] = { ar * 1.5f, ar * 1.25f, ar * 0.95f, ar * 0.8f };
-			Col cols[4] = { skin, skin, mixc (skin, skinLo, 0.4f), skinLo };
-			B.gloss = g.gloss * 0.8f;
-			B.tube (pts, rad, cols, 4, 9, 4, 0, X, 3);
-			B.sphere (hand + norm (hand - elbow) * (ar * 0.6f), ar * 1.25f, skinLo, 10, 7);
-		}
-	}
-
-	// ---- la tête : yeux, bouche, cornes, oreilles (tout suit la tête)
+	V3 hd = b.hd, up = b.up, hc = b.kp[K_HEAD], sn = b.kp[K_SNOUT];
 	B.xf = HX; S.xf = HX; A.xf = HX;
 	float es = ps.eyes;
 	// les yeux
@@ -858,9 +771,264 @@ void buildCreature (const Genome &g, const Pose &P, CreatureMeshes &M, CreatureO
 		}
 	}
 
+	return mouthP;
+}
+
+void buildCreature (const Genome &g, const Pose &P, CreatureMeshes &M, CreatureOut &out)
+{
+	Body b; layout (g, P.breathe, P.t, b);
+	const PartScale &ps = P.ps;
+	float sHip = b.sk[K_HIP], sMid = b.sk[K_MID], sSh = b.sk[K_SH], sNeck = b.sk[K_NECK], sHead = b.sk[K_HEAD];
+	V3 hipP = b.kp[K_HIP], nb = b.kp[K_NECK];
+
+	// ---- les jambes d'abord : la hauteur du corps
+	struct Leg { V3 h; float side; bool arm; };
+	Leg legs[8]; int nl = 0;
+	float legL = g.legLen * ps.legs, legR = g.legR * (0.4f + 0.6f * ps.legs);
+	float footH = legR * 0.7f;
+	if (g.legs > 0 && ps.legs > 0.02f)
+		for (int i = 0; i < g.legs; i++)
+		{
+			float s;
+			if (g.legs == 1) s = g.upright > 0.5f ? sHip + (sMid - sHip) * 0.15f : lerpf (sHip, sMid, 0.55f);
+			else s = lerpf (sHip + (sMid - sHip) * 0.12f, sSh - (sSh - sMid) * 0.1f, (float) i / (float) (g.legs - 1));
+			Ring rg = ringAt (b, s);
+			for (int side = -1; side <= 1; side += 2)
+			{
+				Leg &l = legs[nl++];
+				l.h = rg.c + rg.X * (rg.rx * 0.6f * (float) side) - rg.N * (rg.ry * 0.42f);
+				l.side = (float) side; l.arm = false;
+			}
+		}
+	float rest = -b.minY - 0.012f;
+	float lift = rest;
+	if (nl)
+	{
+		float best = 1e9f;
+		for (int i = 0; i < nl; i++) best = fminf (best, legL * 0.9f + footH - legs[i].h.y);
+		lift = fmaxf (best, rest);
+	}
+	lift = lerpf (lift, rest - 0.02f, P.lie);
+
+	// ---- la place dans le monde
+	float sz = g.size;
+	float sy = P.squash, sxz = 1 / sqrtf (fmaxf (P.squash, 0.2f));
+	Xf G = Xf::trans (P.pos + V3 (P.shiver * 0.012f * sinf (P.t * 61), P.hop, P.shiver * 0.008f * sinf (P.t * 47)))
+	     * Xf::rotY (P.yaw) * Xf::scale (sz * sxz, sz * sy, sz * sxz) * Xf::trans (V3 (0, lift, 0));
+	// la tête tourne autour de la base du cou ; la queue frétille autour de la hanche
+	auto headXf = [&] (float w) {
+		Xf r = Xf::rotY (P.headYaw * w) * Xf::rotX (-P.headPitch * w) * Xf::rotZ (P.headRoll * w);
+		return Xf::about (nb, r);
+	};
+	float wagT = P.t * 7.5f;
+	auto tailXf = [&] (float s) {
+		float w = 1 - smooth (0, sHip, s);
+		float ang = (P.wag * 0.55f * sinf (wagT + w * 2.2f) + 0.06f * sinf (P.t * 1.3f)) * w;
+		return Xf::about (hipP, Xf::rotY (ang));
+	};
+	// le serpent ondule : une vague de côté le long du corps (plus ample en rampant), nulle au cou
+	bool serpent = g.plan == PLAN_SERPENT;
+	float waveA = (0.07f + 0.06f * P.walkAmt) * (1 - P.lie * 0.5f), waveK = 2 * PI / fmaxf (0.9f, g.bodyLen * 0.8f), waveP = P.walkPhase * 0.9f + P.t * 0.7f;
+	float totLen = g.bodyLen + g.tailLen + g.bodyR;
+	auto waveXf = [&] (float s) {
+		if (!serpent) return Xf ();
+		float w = 1 - smooth (sSh, sNeck + 0.02f, s);
+		float u = s * totLen;
+		float off = waveA * w * sinf (u * waveK - waveP), slope = waveA * w * waveK * cosf (u * waveK - waveP) / fmaxf (totLen, 0.1f) * totLen;
+		Ring rg = ringAt (b, s);
+		return Xf::trans (V3 (off, 0, 0)) * Xf::about (rg.c, Xf::rotY (atanf (slope) * 0.8f));
+	};
+	auto ringXf = [&] (float s) {
+		float wh = smooth (sNeck - 0.02f, sHead, s);
+		return G * headXf (wh) * waveXf (s) * tailXf (s);
+	};
+	Xf HX = G * headXf (1);
+
+	Col tint = mixc (Col (1, 1, 1), Col (0.72f, 0.92f, 0.55f), P.sick * 0.6f);
+	tint = mixc (tint, Col (0.75f, 0.66f, 0.55f), P.dirt * 0.35f);
+
+	// ---- le corps : anneaux + bouts arrondis, texture u = s, v = le tour
+	{
+		Builder BB (&M.body);
+		BB.tint = tint; BB.gloss = g.gloss;
+		meshBody (BB, b, ringXf, 0, 1, true);
+	}
+
+	Builder B (&M.parts);
+	B.tint = tint;
+	Builder S (&M.sheets); S.tint = tint;
+	Builder A (&M.alpha); A.tint = tint;
+	Col skin = g.base, skinLo = mixc (g.base, g.pat, 0.25f) * 0.86f;
+	V3 X (1, 0, 0);
+
+	// ---- les jambes (la hauteur du corps est dans leurs points : G sans elle)
+	Xf G0 = G * Xf::trans (V3 (0, -lift, 0));
+	B.xf = G0;
+	for (int i = 0; i < nl; i++)
+	{
+		Leg &l = legs[i];
+		V3 h = l.h + V3 (0, 0, 0);
+		int pair = i / 2;
+		float ph = P.walkPhase + (l.side > 0 ? 0 : PI) + (float) pair * PI;
+		float stride = legL * 0.32f * P.walkAmt;
+		V3 hw = h + V3 (0, lift, 0);					// (la hanche, hauteur comprise)
+		V3 f (h.x * 1.12f, 0, h.z + sinf (ph) * stride);
+		f.y = fmaxf (0, cosf (ph)) * legL * 0.22f * P.walkAmt;
+		if (P.lie > 0)
+		{
+			V3 fl (h.x + l.side * legL * 0.35f, 0.02f, h.z + legL * 0.45f);
+			f = lerp (f, fl, P.lie);
+		}
+		f.y -= 0;	// (le sol est à y = 0 : le saut emporte tout, pieds compris)
+		V3 ft = f + V3 (0, footH, 0);
+		V3 pole = lerp (V3 (l.side * 0.25f, 0, 1), V3 (l.side, 0.3f, 0.4f), P.lie);
+		V3 knee = ik (hw, ft, legL * 0.52f, legL * 0.48f, pole);
+		// (si la jambe est trop courte, le pied pend sous le genou)
+		V3 dk = ft - knee; if (len (dk) > legL * 0.48f) ft = knee + norm (dk) * (legL * 0.48f);
+		V3 in = hw - V3 (l.side * legR * 0.9f, -legR * 0.4f, 0);
+		V3 pts[4] = { in, hw, knee, ft };
+		float rad[4] = { legR * 1.55f, legR * 1.3f, legR * 0.95f, legR * 0.78f };
+		Col cols[4] = { skin, skin, mixc (skin, skinLo, 0.5f), skinLo };
+		B.gloss = g.gloss * 0.8f;
+		B.tube (pts, rad, cols, 4, 10, 4, 0, X, 3);
+		// le pied
+		Frame ff = frameLook (ft + V3 (0, -footH * 0.25f, legR * 0.45f), V3 (l.side * 0.08f, 0, 1), V3 (0, 1, 0));
+		Col fc = g.foot == FOOT_HOOF ? dark (g.accent, 0.7f) : skinLo;
+		if (g.foot == FOOT_HOOF) B.ellipsoid (ff, V3 (legR * 1.05f, footH * 1.05f, legR * 1.15f), fc, dark (fc, 0.7f), 12, 6);
+		else
+		{
+			B.ellipsoid (ff, V3 (legR * 1.18f, footH * 0.95f, legR * 1.65f), fc, dark (fc, 0.8f), 12, 7);
+			for (int t = -1; t <= 1; t++)
+			{
+				V3 tp = ff.at (V3 ((float) t * legR * 0.62f, -footH * 0.2f, legR * 1.35f));
+				if (g.foot == FOOT_CLAW)
+				{
+					V3 cp[2] = { tp, tp + ff.dir (V3 ((float) t * 0.1f, -0.35f, 1)) * (legR * 1.1f) };
+					float cr[2] = { legR * 0.32f, legR * 0.04f };
+					Col cc[2] = { g.accent, mixc (g.accent, Col (1, 1, 1), 0.3f) };
+					B.gloss = 0.7f; B.tube (cp, cr, cc, 2, 6, 3, 0, X, 1);
+				}
+				else B.sphere (tp, legR * 0.45f, fc, 8, 5);
+			}
+		}
+	}
+
+	// ---- les bras (créatures debout)
+	if (g.arms && ps.arms > 0.02f)
+	{
+		Ring rg = ringAt (b, sSh - (sSh - sMid) * 0.25f);
+		float al = g.armLen * ps.arms, ar = g.legR * 0.8f * (0.4f + 0.6f * ps.arms);
+		for (int side = -1; side <= 1; side += 2)
+		{
+			V3 sh = rg.c + rg.X * (rg.rx * 0.78f * (float) side) + rg.N * (rg.ry * 0.05f);
+			V3 shw = sh + V3 (0, lift, 0);
+			V3 hand = shw + V3 ((float) side * 0.1f, -al * 0.82f, 0.1f + 0.03f * sinf (P.t * 1.7f + (float) side));
+			if (P.wave > 0 && side > 0)
+				hand = lerp (hand, shw + V3 (al * 0.4f + 0.06f * sinf (P.t * 11), al * 0.55f, 0.12f), P.wave);
+			if (P.reach > 0)
+				hand = lerp (hand, shw + V3 (-(float) side * 0.06f, -al * 0.1f, al * 0.85f), P.reach);
+			B.xf = G0;
+		V3 elbow = ik (shw, hand, al * 0.5f, al * 0.5f, V3 ((float) side * 0.6f, -0.2f, -1));
+			V3 in = shw - V3 ((float) side * ar, 0, 0);
+			V3 pts[4] = { in, shw, elbow, hand };
+			float rad[4] = { ar * 1.5f, ar * 1.25f, ar * 0.95f, ar * 0.8f };
+			Col cols[4] = { skin, skin, mixc (skin, skinLo, 0.4f), skinLo };
+			B.gloss = g.gloss * 0.8f;
+			B.tube (pts, rad, cols, 4, 9, 4, 0, X, 3);
+			B.sphere (hand + norm (hand - elbow) * (ar * 0.6f), ar * 1.25f, skinLo, 10, 7);
+		}
+	}
+
+	// ---- la carapace : un dôme sur le tronc, découpé en écailles (couleur par sommet), le bord retroussé
+	if (g.plan == PLAN_SHELL && ps.shell > 0.02f)
+	{
+		Builder C (&M.parts); C.tint = tint; C.gloss = 0.55f;
+		C.xf = ringXf (sMid);
+		Ring rm = ringAt (b, sMid);
+		float sc = ps.shell;
+		float rx = (g.bodyR * 1.42f + 0.02f) * sc, ry = g.bodyR * 1.2f * g.shellH * sc, rz = (g.bodyLen * 0.52f + g.bodyR * 0.95f) * sc;
+		V3 c = rm.c + rm.N * (g.bodyR * 0.28f);
+		Col top = luma (g.accent) > 0.25f && luma (g.accent) < 0.85f ? g.accent : mixc (g.pat, g.base, 0.3f);
+		Col groove = top * 0.45f, rim = mixc (g.bellyC, top, 0.35f);
+		const int SEG = 48, RN = 22;
+		int base = (int) M.parts.v.size ();
+		for (int i = 0; i <= RN; i++)
+		{
+			float f = (float) i / RN;					// 0 : le dessous, 1 : le sommet
+			float ph = -0.32f + f * (PI / 2 + 0.32f), cp = cosf (ph), sp = sinf (ph);
+			float flare = 1 + 0.07f * expf (-ph * ph / 0.02f);		// (le bord)
+			float ys = sp < 0 ? 0.55f : 1;
+			for (int j = 0; j <= SEG; j++)
+			{
+				float th = 2 * PI * (float) j / SEG;
+				V3 l (cp * sinf (th) * flare, sp * ys, cp * cosf (th) * flare);
+				V3 p = c + rm.X * (l.x * rx) + rm.N * (l.y * ry) + rm.T * (l.z * rz);
+				V3 n = norm (rm.X * (l.x / rx) + rm.N * (l.y / (ry * ys)) + rm.T * (l.z / rz));
+				// les écailles : trois rangées, six (puis quatre) secteurs ; une rainure sombre à leurs bords
+				float band = fmaxf (0, (ph - 0.08f) / (PI / 2 - 0.08f)) * 3;
+				int bi = (int) floorf (band);
+				float sectors = bi >= 2 ? 1 : bi == 1 ? 4 : 7;
+				float sx = th / (2 * PI) * sectors + (bi == 1 ? 0.5f : 0);
+				float eb = fminf (band - floorf (band), 1 - (band - floorf (band))) * (bi >= 2 ? 3 : 1);
+				float es2 = fminf (sx - floorf (sx), 1 - (sx - floorf (sx))) * cp * 1.6f;
+				float gr = 1 - smooth (0.0f, 0.09f, fminf (eb, sectors > 1 ? es2 : 1));
+				Col col = ph < 0.1f ? rim : mixc (top * (0.9f + 0.18f * hashf (bi, (int) floorf (sx), 4)), groove, gr * 0.85f);
+				C.add (p, n, col);
+			}
+		}
+		C.grid (base, RN, SEG);
+		// les piquants de la carapace : sur l'arête du dos
+		if (g.back == BACK_SPIKES && ps.back > 0.02f)
+			for (int q = 0; q < g.backCount; q++)
+			{
+				float f = ((float) q + 0.5f) / (float) g.backCount * 1.5f - 0.75f;
+				V3 tp = c + rm.N * (ry * sqrtf (fmaxf (0, 1 - f * f)) * 0.98f) + rm.T * (f * rz);
+				V3 d = norm (rm.N - rm.T * (f * 0.6f));
+				float h = (0.06f + 0.06f * g.backSize) * ps.back * (1 - fabsf (f) * 0.5f);
+				V3 pts[2] = { tp - d * 0.02f, tp + d * h };
+				float rad[2] = { h * 0.38f, 0.002f };
+				Col cols[2] = { dark (g.accent, 0.8f), mixc (g.accent, Col (1, 1, 1), 0.35f) };
+				C.gloss = 0.7f; C.tube (pts, rad, cols, 2, 8, 2, 0, X, 1);
+			}
+	}
+
+	// ---- la tête principale (sauf à deux têtes), puis les têtes de plus
+	V3 mouthP = b.kp[K_SH];
+	int nh = headCount (g);
+	if (nh != 2) mouthP = buildFace (g, P, ps, b, HX, B, S, A, skin, skinLo);
+	V3 headW = HX.p (b.kp[K_HEAD]), topW = HX.p (b.kp[K_HEAD] + b.up * (g.headR * 1.25f + (g.horn ? g.hornLen * 0.8f : 0) + (g.ear == EAR_LONG ? 0.2f * g.earSize : 0)));
+	V3 mouthW = HX.p (mouthP);
+	if (nh > 1 && ps.heads > 0.02f)
+	{
+		Body hb; layoutHead (g, hb);
+		Ring rg = ringAt (b, sSh);
+		float hs = (nh == 3 ? 0.82f : 0.95f) * ps.heads;
+		float hsNeck = hb.sk[K_NECK], hsHead = hb.sk[K_HEAD];
+		Builder HB (&M.body); HB.tint = tint; HB.gloss = g.gloss;
+		for (int side = -1; side <= 1; side += 2)
+		{
+			float fs = (float) side;
+			// (sur l'épaule, de chaque côté ; chaque tête a son balancement, un peu en décalé)
+			V3 base = rg.c + rg.X * (rg.rx * (nh == 3 ? 0.72f : 0.55f) * fs) + rg.N * (rg.ry * (nh == 3 ? 0.15f : 0.3f)) + rg.T * (g.bodyR * (nh == 3 ? 0.0f : 0.15f));
+			float sway = 0.1f * sinf (P.t * 1.1f + fs * 1.7f);
+			Xf place = G * Xf::trans (base) * Xf::rotY (fs * (nh == 3 ? 0.62f : 0.42f) + sway) * Xf::rotZ (-fs * (nh == 3 ? 0.55f : 0.38f)) * Xf::scale (hs, hs, hs);
+			auto look = [&] (float w) {
+				Xf r = Xf::rotY ((P.headYaw * 0.8f - fs * 0.12f) * w) * Xf::rotX ((-P.headPitch + 0.06f * sinf (P.t * 1.3f + fs)) * w) * Xf::rotZ (P.headRoll * w);
+				return r;
+			};
+			auto hxf = [&] (float s2) { return place * look (smooth (hsNeck, hsHead, s2)); };
+			meshBody (HB, hb, hxf, 0.82f, 1, true);
+			Xf SX = place * look (1);
+			V3 m2 = buildFace (g, P, ps, hb, SX, B, S, A, skin, skinLo);
+			if (nh == 2 && side < 0) { headW = SX.p (hb.kp[K_HEAD]); mouthW = SX.p (m2); }
+			V3 tw = SX.p (hb.kp[K_HEAD] + hb.up * (g.headR * 1.25f + (g.horn ? g.hornLen * 0.8f : 0)));
+			if (tw.y > topW.y || nh == 2) topW = V3 ((topW.x + tw.x) * 0.5f, fmaxf (topW.y, tw.y), (topW.z + tw.z) * 0.5f);
+		}
+	}
+
 	// ---- le dos, la queue, les ailes : suivent le corps
 	float bks = ps.back;
-	if (g.back && bks > 0.02f)
+	if (g.back && bks > 0.02f && g.plan != PLAN_SHELL)
 	{
 		float sA = lerpf (b.sk[K_TAIL1], sHip, 0.4f), sB = lerpf (sSh, sNeck, 0.6f);
 		if (g.back == BACK_SAIL)
@@ -1069,9 +1237,9 @@ void buildCreature (const Genome &g, const Pose &P, CreatureMeshes &M, CreatureO
 	}
 
 	// ---- ce que la scène veut savoir
-	out.head = HX.p (hc);
-	out.top = HX.p (hc + up * (g.headR * 1.25f + (g.horn ? g.hornLen * 0.8f : 0) + (g.ear == EAR_LONG ? 0.2f * g.earSize : 0)));
-	out.mouth = HX.p (mouthP);
+	out.head = headW;
+	out.top = topW;
+	out.mouth = mouthW;
 	out.center = G.p (b.kp[K_MID]);
 	float ext = (g.bodyLen + g.tailLen * 0.6f + g.headR * 2 + g.neckLen * 0.6f) * 0.5f;
 	out.radius = (ext + g.bodyR) * g.size;

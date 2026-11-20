@@ -34,6 +34,14 @@ int main (int argc, char **argv)
 	for (int k = 0; k < cols * rows; k++)
 	{
 		Genome g = chain (seed + (uint32_t) k * 101, stage);
+		// (essais : un plan du corps, un nombre de têtes imposés)
+		if (getenv ("MORPHO_PLAN") || getenv ("MORPHO_HEADS"))
+		{
+			Rng r (g.seed + 5);
+			if (getenv ("MORPHO_PLAN")) g.plan = atoi (getenv ("MORPHO_PLAN"));
+			if (getenv ("MORPHO_HEADS")) g.heads = atoi (getenv ("MORPHO_HEADS"));
+			shapePlan (g, r, stage >= ST_ADULT);
+		}
 		if (stage == 0) makeShell (g, skin.data ()); else makeSkin (g, skin.data ());
 		sc.setSkin (skin.data ());
 		sc.begin ();

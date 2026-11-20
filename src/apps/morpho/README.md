@@ -26,8 +26,8 @@ Sauvegarde : `HOME:/morpho/pet.ini`. Essais : `main new` (nouvel œuf), `speed=N
 
 | Fichier | Rôle |
 |---|---|
-| `genome.h` | le génome : corps, membres, face, dos, ailes, couleurs, caractère ; `evolve` tire le stade suivant d'après le précédent et les soins ; `blend` (la métamorphose) |
-| `creature.cpp` | la créature : surface balayée le long d'une colonne (sections elliptiques lissées), pièces posées par lancer de rayon contre une distance signée, jambes et bras en cinématique inverse à deux os ; la texture de la peau (motifs) et de la coquille |
+| `genome.h` | le génome : plan du corps (ordinaire, serpent, carapace), une à trois têtes, corps, membres, face, dos, ailes, couleurs, caractère ; `evolve` tire le stade suivant d'après le précédent et les soins ; `blend` (la métamorphose) |
+| `creature.cpp` | la créature : surface balayée le long d'une colonne (sections elliptiques lissées ; le serpent y ondule), les têtes de plus sur les épaules (leur propre cou, la même face), la carapace en dôme à écailles, pièces posées par lancer de rayon contre une distance signée, jambes et bras en cinématique inverse à deux os ; la texture de la peau (motifs) et de la coquille |
 | `mesh.h` | maillages indexés et primitives : ellipsoïdes, tubes lissés (repères transportés, bouts arrondis), feuilles à deux faces |
 | `render.cpp` | éclairage par sommet (lumière de studio qui suit la caméra, ciel et sol, reflet, contre-jour) ; l'heure ne fait que teinter le fond et la lumière (nuit plus bleue, aube et crépuscule plus chauds, lampe éteinte : lune) ; le fond 2D (dégradé tramé, halo, socle) |
 | `scene.cpp` | le dessin par `gk_draw` dans le cadre de la vue ; au processeur, demi-taille quand une image dépasse 45 ms |

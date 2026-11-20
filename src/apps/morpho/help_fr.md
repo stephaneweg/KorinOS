@@ -3,7 +3,8 @@
 Un œuf vient d'apparaître. Il en sortira une petite créature, unique, qui grandira avec vous : **bébé**,
 **enfant**, **adolescent**, **adulte**, puis **ancien**. À chaque stade, elle change : pattes, cornes, oreilles,
 bouche, dos, ailes et couleurs sont tirés au hasard, d'après ce qu'elle était et les soins qu'elle a reçus. Une
-créature bien soignée a souvent des couleurs plus franches, et parfois des ailes.
+créature bien soignée a souvent des couleurs plus franches, et parfois des ailes. Certaines deviennent des **serpents**
+(un long corps sans pattes, qui ondule), d'autres ont une **carapace**, d'autres encore **deux ou trois têtes**.
 
 Le temps passe pour de vrai, même quand Morpho est fermé (un peu plus doucement).
 
