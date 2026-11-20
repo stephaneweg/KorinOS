@@ -6,7 +6,8 @@
 // processeur) ; l'interface est en 2D, aux couleurs du thème (hud.cpp). README.md du dossier.
 //
 //   Souris : glisser sur l'animal pour le caresser ; glisser ailleurs (ou clic droit) pour tourner autour ; molette
-//   pour s'approcher ; clic sur une crotte pour la ramasser ; pendant le jeu, clic dans la scène pour lancer la balle.
+//   pour s'approcher ; clic sur une crotte pour la ramasser ; pendant le jeu (la balle rebondit, il saute pour
+//   l'attraper), clic sur la balle pour la frapper, ailleurs pour l'envoyer vers ce point.
 //   Clavier : N nourrir (1 2 3 : le repas), J jouer, L laver, O soigner, E lumière, C câliner, I fiche, Échap ferme.
 //   Ligne de commande (essais) : new (un nouvel œuf), speed=N, hour=H (heure fixe), stage=N (aller au stade N), seed=N,
 //   plan=N (0 ordinaire, 1 serpent, 2 carapace) et heads=N (1 à 3) avec stage=N.
@@ -114,7 +115,7 @@ static void playSx (int sx) { g_sound.play (sx, voiceShift ()); }
 static void playSound (int id)
 {
 	static const int MAP[] = { SX_HAPPY, SX_SAD, SX_EAT, SX_BOUNCE, SX_CATCH, SX_POP, SX_EVOLVE, SX_HATCH, SX_YUCK, SX_SPLASH, SX_CLEAN,
-				   SX_PURR, SX_CRACK, SX_YUM, SX_REFUSE };
+				   SX_PURR, SX_CRACK, SX_YUM, SX_REFUSE, SX_MISS };
 	if (id >= 0 && id < (int) (sizeof MAP / sizeof *MAP)) playSx (MAP[id]);
 }
 static void blip () { playSx (SX_BLIP); }
@@ -268,7 +269,7 @@ static void action (int a)
 		if (r == RS_OK)
 		{
 			g_act.start (A_PLAY, g_pet);
-			if (g_firstPlay) { say (TR ("Cliquez dans la scène pour lancer la balle !"), -1); g_firstPlay = false; }
+			if (g_firstPlay) { say (TR ("La balle rebondit : il essaie de l'attraper !"), -1); g_firstPlay = false; }
 		}
 		else if (r == RS_TOOTIRED) { say (TR ("%s est trop fatigué pour jouer."), N_ENERGY); g_act.start (A_REFUSE, g_pet); }
 		else if (r == RS_REFUSED) { say (TR ("%s est trop malade pour jouer."), N_HEALTH); g_act.start (A_REFUSE, g_pet); }
@@ -420,7 +421,7 @@ static void onMouse (int kind, int x, int y, int buttons)
 			g_down = false;
 			return;
 		}
-		if (g_act.hitPet (g_scene.cam.eye, d) && g_pet.canAct ()) { g_dragPet = true; g_strokeFor = 0.3f; }
+		if (!g_act.hitBall (g_scene.cam.eye, d) && g_act.hitPet (g_scene.cam.eye, d) && g_pet.canAct ()) { g_dragPet = true; g_strokeFor = 0.3f; }
 		return;
 	}
 	if (kind == 2)
@@ -432,13 +433,10 @@ static void onMouse (int kind, int x, int y, int buttons)
 		if (g_downHud > H_NONE && h == g_downHud) action (h);
 		else if (g_downHud == H_NONE && !g_dragCam && !g_dragPet && g_act.ballOn && !g_hud.card)
 		{
+			// (sur la balle : elle file ; ailleurs : elle part vers le point du sol visé)
 			V3 d = viewRay (x, y), p;
-			if (groundAt (g_scene.cam.eye, d, p))
-			{
-				V3 from = g_scene.cam.eye + d * 1.2f;
-				from.y = fmaxf (from.y, 0.6f);
-				g_act.throwBall (from, p);
-			}
+			if (g_act.hitBall (g_scene.cam.eye, d)) g_act.smackBall (d);
+			else if (groundAt (g_scene.cam.eye, d, p)) g_act.throwBall (g_scene.cam.eye, p);
 		}
 		g_dragCam = false; g_dragPet = false; g_downHud = H_NONE;
 	}
@@ -534,9 +532,13 @@ void app_frame (float dt, float realDt)
 	{
 		V3 c = g_act.out.center;
 		V3 want (c.x * 0.8f, fmaxf (0.18f, c.y * 0.85f + g_act.out.radius * 0.12f), c.z * 0.8f);
+		// (pendant le jeu de balle : toute l'arène, un peu plus loin)
+		static float playK = 0;
+		playK += ((g_act.ballOn ? 1.0f : 0.0f) - playK) * (1 - expf (-dt * 2));
+		want = lerp (want, V3 (c.x * 0.25f, fmaxf (0.25f, c.y * 0.8f), c.z * 0.25f), playK);
 		float k = 1 - expf (-dt * 2.5f);
 		g_camAt = g_camAt + (want - g_camAt) * k;
-		float d = (1.1f + g_act.out.radius * 2.5f) * g_camZoom;
+		float d = (1.1f + g_act.out.radius * 2.5f) * g_camZoom * (1 + 0.45f * playK) + playK * 0.6f;
 		g_camDist += (d - g_camDist) * k;
 		float yaw = g_camYaw + 0.04f * sinf (g_t * 0.13f);
 		V3 dir (sinf (yaw) * cosf (g_camPitch), sinf (g_camPitch), cosf (yaw) * cosf (g_camPitch));
@@ -557,6 +559,9 @@ void app_frame (float dt, float realDt)
 	g_scene.shadowAt = V3 (g_act.out.center.x, 0, g_act.out.center.z);
 	g_scene.shadowR = g_act.out.footprint * 1.2f;
 	g_scene.shadowK = g_act.act == A_GONE ? 0 : clampf (1 - g_act.pose.hop * 1.6f, 0.3f, 1);
+	// (l'ombre de la balle : plus petite et plus pâle quand elle est haute ; elle dit où elle est)
+	if (g_act.ballOn) { float hb = fmaxf (0, g_act.ball.y - 0.09f); g_scene.shadow2At = V3 (g_act.ball.x, 0, g_act.ball.z); g_scene.shadow2R = 0.13f * (1 + hb * 0.5f); g_scene.shadow2K = clampf (0.75f - hb * 0.35f, 0.2f, 0.75f); }
+	else g_scene.shadow2K = 0;
 	g_scene.light = studioLight (hour, g_pet.lampOff);
 	keyFrom (g_scene.light, g_scene.cam);
 	// le socle : un anneau au sol, à la taille de l'animal ; le halo derrière lui

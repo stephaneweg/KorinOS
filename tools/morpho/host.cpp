@@ -188,7 +188,7 @@ int main (int argc, char **argv)
 		if (g_mx >= 0) g_hud.hover = g_hud.hit (g_mx, g_my);
 		struct timespec a0, a1; clock_gettime (CLOCK_MONOTONIC, &a0);
 		app_frame (dt, dt);
-		if (getenv ("MORPHO_TRACE") && f % 15 == 0) fprintf (stderr, "t=%.1f act=%d actT=%.2f ball=%d held=%d (%.2f %.2f %.2f) pos=(%.2f %.2f) fun=%.0f\n", (double) tt, g_act.act, (double) g_act.actT, g_act.ballOn, g_act.ballHeld, (double) g_act.ball.x, (double) g_act.ball.y, (double) g_act.ball.z, (double) g_act.pos.x, (double) g_act.pos.z, (double) g_pet.st[N_FUN]);
+		if (getenv ("MORPHO_TRACE") && f % 15 == 0) fprintf (stderr, "t=%.1f act=%d actT=%.2f ball=%d held=%d (%.2f %.2f %.2f) pos=(%.2f %.2f) fun=%.0f att=%d rat=%d saut=%.2f\n", (double) tt, g_act.act, (double) g_act.actT, g_act.ballOn, g_act.ballHeld, (double) g_act.ball.x, (double) g_act.ball.y, (double) g_act.ball.z, (double) g_act.pos.x, (double) g_act.pos.z, (double) g_pet.st[N_FUN], g_act.catches, g_act.misses, (double) g_act.jumpT);
 		clock_gettime (CLOCK_MONOTONIC, &a1);
 		sum += (double) (a1.tv_sec - a0.tv_sec) * 1000 + (double) (a1.tv_nsec - a0.tv_nsec) / 1e6;
 	}

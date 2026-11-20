@@ -25,7 +25,8 @@ Quand quelque chose lui manque, une bulle apparaît au-dessus de sa tête.
 ## Les gestes
 
 - **Nourrir** (N), puis **Repas**, **Fruit** ou **Friandise** (1, 2, 3).
-- **Jouer** (J) : une balle apparaît ; cliquez dans la scène pour la lancer, il court l'attraper et la rapporte.
+- **Jouer** (J) : une balle tombe et rebondit ; il court sous elle et saute pour l'attraper (plus ou moins adroit selon
+  sa forme, son énergie et son caractère). Cliquez sur la balle pour la frapper, ou sur le sol pour l'y envoyer.
 - **Laver** (L) : un bain moussant, et tout est nettoyé.
 - **Soigner** (O) : un médicament (il n'aime pas ça, mais ça le guérit).
 - **Coucher / Allumer** (E) : éteindre la lumière pour la nuit, la rallumer.

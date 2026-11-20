@@ -383,7 +383,7 @@ void Hud::draw (Img &im, const Pet &p, const Actor &a, const Camera &cam, const 
 		const char *hint = 0;
 		if (p.gone) hint = 0;
 		else if (p.asleep) hint = p.lampOff ? TR ("Chut… il dort. Zzz") : TR ("Il dort : éteignez la lumière pour qu'il se repose mieux.");
-		else if (a.ballOn) { snprintf (b2, sizeof b2, TR ("Cliquez dans la scène pour lancer la balle · attrapées : %d"), a.catches); hint = b2; }
+		else if (a.ballOn) { snprintf (b2, sizeof b2, TR ("Cliquez pour relancer la balle · attrapées : %d · ratées : %d"), a.catches, a.misses); hint = b2; }
 		else if (egg && a.act != A_HATCH) hint = TR ("L'œuf frémit… il va bientôt éclore.");
 		if (hint && !(feedOpen && !compact))
 		{

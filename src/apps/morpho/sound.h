@@ -23,7 +23,7 @@ namespace mo {
 
 enum { MU_NONE, MU_DAY, MU_NIGHT, MU_SAD, MU_EGG, MU_EVOLVE };
 enum { SX_HAPPY, SX_SAD, SX_EAT, SX_BOUNCE, SX_CATCH, SX_POP, SX_EVOLVE, SX_HATCH, SX_YUCK, SX_SPLASH, SX_CLEAN, SX_PURR,
-       SX_CRACK, SX_BLIP, SX_CHIRP, SX_SNORE, SX_SICK, SX_YUM, SX_WAKE, SX_SLEEP, SX_REFUSE, SX_GONE };
+       SX_CRACK, SX_BLIP, SX_CHIRP, SX_SNORE, SX_SICK, SX_YUM, SX_WAKE, SX_SLEEP, SX_REFUSE, SX_GONE, SX_MISS };
 
 struct Sound
 {
@@ -313,7 +313,11 @@ struct Sound
 			voice (520, v + 4, 78, 160, 1800);
 			note (600, C_GLOCK, 96, 50, 300);
 			break;
-		case SX_BOUNCE: note (0, C_DRUM, 77, 66, 80); note (0, C_DRUM, 45, 44, 120); break;
+		case SX_BOUNCE: { int r = srng.irange (0, 2); note (0, C_DRUM, r ? 77 : 76, 50 + srng.irange (0, 10), 80); note (0, C_DRUM, r == 2 ? 47 : 45, 30, 120); break; }
+		case SX_MISS:		// raté : « boing » sur la tête, un petit « oh » qui tombe
+			note (0, C_DRUM, 45, 70, 120); note (40, C_DRUM, 77, 60, 80);
+			voice (90, v + 4, 74, 260, -3000, 200);
+			break;
 		case SX_CATCH:		// « hop ! » et deux notes claires
 			voice (0, v + 7, 90, 70, 2000); note (0, C_DRUM, 39, 50, 60);
 			note (60, C_GLOCK, 84, 72, 140); note (140, C_GLOCK, 91, 74, 260);

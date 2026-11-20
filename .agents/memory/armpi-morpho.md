@@ -32,6 +32,11 @@ Elegant composait l'image à moitié dessinée -> image finie dans ui.surf puis 
 (ui_surface_source, comme GF_DOUBLE) ; le repas : le fond du menu des repas était ajouté APRÈS ses tuiles (hit cherche
 du dernier au premier). Écoute sans Korin : `run.sh sound` ; dans QEMU : `-audiodev wav,path=…` + intel-hda enregistre.
 
+**Jeu de balle (21/11, demandé : « une balle qui rebondit et il essaie de l'attraper »)** : actor.cpp A_PLAY, la balle
+rebondit dans une arène (rayon 1,3), l'animal court au point de chute prévu et saute ; réussite tirée d'après énergie,
+caractère, embonpoint ; clic sur la balle = la frapper (hitBall/smackBall), sur le sol = l'y envoyer ; ombre de la balle
+(Scene::shadow2*) ; la caméra recule pendant le jeu ; compteurs attrapées / ratées dans l'indication.
+
 **How to apply:**
 - Voir sans Korin : `sh tools/morpho/run.sh gallery|shot`, `tools/morpho/sheet.sh` (FreeType + polices Inter de
   sdcard/fonts, GpuKit du PC compilé pour l'hôte par host_gk.c). C'est ce qui a servi à régler le rendu.
