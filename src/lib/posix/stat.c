@@ -32,6 +32,12 @@
 #include <sys/time.h>
 #include <sys/statvfs.h>
 #include <sys/statfs.h>
+
+/* st_blksize : la taille des tampons de stdio. newlib dimensionne celui de chaque FILE d'après lui ; à 512, un fread
+ * de gros fichier devenait un read () de 512 octets par remplissage, autant d'allers-retours avec vfs : 21,7 Mo en
+ * 7 s sous QEMU PC, contre 0,2 s avec 64 Ko (src/lib/posix/test/fbench.c, 20/11/2026). st_blocks reste en blocs de
+ * 512 octets, comme partout. */
+#define POSIX_BLKSIZE	65536
 #include "posix_internal.h"
 
 static unsigned long long hash (const char *s, size_t n)
@@ -54,7 +60,7 @@ static void fill (struct stat *st, const char *abs, long long size, int dir, int
 	st->st_uid = getuid ();
 	st->st_size = dir ? 0 : size;
 	st->st_nlink = dir ? 2 : 1;
-	st->st_blksize = 512;
+	st->st_blksize = POSIX_BLKSIZE;
 	st->st_blocks = (st->st_size + 511) / 512;
 	if (abs)
 	{
@@ -160,7 +166,7 @@ int __posix_path_is_dir (const char *path)
 int __posix_fstat (struct __posix_ofd *d, struct stat *st)
 {
 	memset (st, 0, sizeof *st);
-	st->st_blksize = 512;
+	st->st_blksize = POSIX_BLKSIZE;
 	st->st_nlink = 1;
 	switch (d->type)
 	{

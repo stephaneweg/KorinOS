@@ -81,6 +81,13 @@ static void self_relocate (void)
 /* `struct object' de libgcc (unwind-dw2-fde.h) : 6 mots ; un peu plus ne gene pas */
 static void *s_ehObject[8];
 
+/* (le tampon des FILE de stdiobuf.c, et pas celui de makebuf.o de la libc : cette reference le fait lier avant que
+ * la libc ne le demande) */
+struct _reent;
+struct __sFILE;
+void __smakebuf_r (struct _reent *ptr, struct __sFILE *fp);
+void *const __posix_stdiobuf_keep __attribute__ ((used)) = (void *) __smakebuf_r;
+
 void __posix_start (const char *line) __attribute__ ((noreturn));
 void __posix_start (const char *line)
 {
