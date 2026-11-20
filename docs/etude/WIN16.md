@@ -58,7 +58,7 @@ chemins), fichiers cachés pour les noms en « . », étiquette de volume. Essai
 `dir /w > LISTE.TXT`, `type`, EXEC de `dostest.exe`, `if errorlevel`, `set` et `%VAR%`, `del`, `if not exist`
 (hôte et QEMU PC). Reste : fermer les fichiers d'un processus à sa fin, Ctrl-C.
 
-Pas encore : le Pi (même code, à construire), MDI, métafichiers, impression, WinHelp, crochets, les barres de
+Pas encore : MDI, métafichiers, impression, WinHelp, crochets, les barres de
 défilement des fenêtres (seulement les contrôles), le son ; pas de paquet.
 
 ## 1. Ce qu'il faut faire tourner
@@ -444,10 +444,11 @@ QuickBASIC et les programmes QBasic, à mesurer sur le Pi 4 pour les démos SVGA
 | D4 | CGA 4/5/6, EGA/VGA planaire, 13h, Mode X, DAC | `SCREEN 1, 2, 7, 9, 12, 13` | 3-4 j |
 | D5 | VESA VBE (fenêtre et tampon linéaire), XMS, EMS | FutureLib 3.5 | 2-3 j |
 | D6 | haut-parleur, OPL et ses minuteries, Sound Blaster (DSP, DMA, IRQ, mélangeur) | FM-Song, `PLAY` | 3-4 j |
-| D7 | construction pour le Pi, mesure de la vitesse | les mêmes | 1-2 j |
 
 **Choix de l'utilisateur (20/11/2026)** : la voie **intégrée à win16** (9.7, voie 1), **Nuked OPL3** pour l'OPL,
-**FreeCOM 0.86** pour COMMAND.COM.
+**FreeCOM 0.86** pour COMMAND.COM. **Le PC seulement** : « pas besoin le pi pour l'instant » (l'étape D7, la
+construction et la mesure sur le Pi, est retirée ; rien n'est construit ni essayé pour le Pi, ni pour Win16 ni pour
+le DOS).
 
 ## Sources (consultées le 20/11/2026)
 
