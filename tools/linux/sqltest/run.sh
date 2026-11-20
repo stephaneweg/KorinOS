@@ -3,7 +3,9 @@
 # telnetd), puis :
 #   1. sqltest /home/sqltest.db         écrire, fermer, rouvrir, relire (doit montrer « yes » deux fois) ;
 #   2. sqltest /home/hold.db hold &      écrire puis garder le fichier ouvert 25 s, et sortir sans le fermer ;
-#   3. pendant et après : grep -a -c holdperm (lecture en gros morceaux) et sqltest … read (lecture par SQLite).
+#   3. pendant et après : grep -a -c holdperm, sqltest … scan (le fichier lu par 1 Mo : FS_READ_DIRECT, par 4 Ko et par
+#      100 octets, sans grep) et sqltest … read (lecture par SQLite) ;
+#   4. grep sur une ligne qui contient un octet nul avant le motif.
 # Le 20/11 : SQLite voit « holdperm », grep ne le voit pas (0), ni pendant ni après : le défaut de fatfs à corriger
 # (docs/agents/REPRISE-APPS-WEB.md). PORT : telnet (QMP = PORT + 1000), 2391 par défaut. Sortie : build/sqltest/run/run.txt.
 set -eu
@@ -29,8 +31,9 @@ pt = importlib.util.module_from_spec(spec); spec.loader.exec_module(pt)
 pt.W, pt.IMG = os.path.abspath(w), os.path.abspath(img)
 a = types.SimpleNamespace(port=int(port), hostfwd=[], smp=2, mem="2G", boot=150, shot=os.path.join(w, "fin.png"), qemu="",
     cmd=["sleep:10", "/bin/sqltest /home/sqltest.db", "( /bin/sqltest /home/hold.db hold > /tmp/hold.log 2>&1 & ) ; echo ok", "sleep:8",
-         "cat /tmp/hold.log", "ls -l /home", "grep -a -c holdperm /home/hold.db", "/bin/sqltest /home/hold.db read",
-         "sleep:30", "ls -l /home", "grep -a -c holdperm /home/hold.db", "/bin/sqltest /home/hold.db read"])
+         "cat /tmp/hold.log", "ls -l /home", "grep -a -c holdperm /home/hold.db", "/bin/sqltest /home/hold.db scan", "/bin/sqltest /home/hold.db read",
+         "sleep:30", "ls -l /home", "grep -a -c holdperm /home/hold.db", "/bin/sqltest /home/hold.db scan",
+         "/bin/sqltest /home/hold.db read", "printf 'a\\0holdperm\\n' > /tmp/nul.txt ; grep -c holdperm /tmp/nul.txt"])
 pt.run(a)
 PY
 rm -rf "$T" "$IMG"

@@ -3,6 +3,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <fcntl.h>
+#include <stdlib.h>
 static int cb (void *u, int n, char **v, char **c) { printf ("  row: %s\n", v[0] ? v[0] : "(null)"); return 0; }
 static void ex (sqlite3 *db, const char *sql)
 {
@@ -11,9 +13,37 @@ static void ex (sqlite3 *db, const char *sql)
 	printf ("%s -> %d %s (autocommit %d)\n", sql, r, err ? err : "", sqlite3_get_autocommit (db));
 	sqlite3_free (err);
 }
+/* compte les « holdperm » du fichier, lu par morceaux de taille donnée (sans grep : le grep de Korin coupe une
+ * ligne au premier octet nul) ; 1 Mo passe par FS_READ_DIRECT, 4 Ko par les messages et le tampon partagé */
+static void scan (const char *p, size_t chunk)
+{
+	static char buf[1 << 21];
+	int fd = open (p, O_RDONLY);
+	if (fd < 0) { printf ("scan %zu: open %s failed\n", chunk, p); return; }
+	size_t n = 0;
+	for (;;)
+	{
+		ssize_t r = read (fd, buf + n, chunk);
+		if (r <= 0) break;
+		n += (size_t) r;
+		if (n + chunk > sizeof buf) break;
+	}
+	close (fd);
+	int c = 0;
+	for (size_t i = 0; i + 8 <= n; i++)
+		if (!memcmp (buf + i, "holdperm", 8)) c++;
+	printf ("scan %zu: %zu bytes, holdperm x%d\n", chunk, n, c);
+}
 int main (int argc, char **argv)
 {
 	const char *p = argc > 1 ? argv[1] : "/home/sqltest.db";
+	if (argc > 2 && !strcmp (argv[2], "scan"))
+	{
+		scan (p, 1 << 20);
+		scan (p, 4096);
+		scan (p, 100);
+		return 0;
+	}
 	if (argc > 2 && !strcmp (argv[2], "read"))
 	{
 		sqlite3 *h;
