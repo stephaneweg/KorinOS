@@ -65,8 +65,12 @@ oimompecagnajdejgnnjijobebaeigek), .crx3 vérifié (SHA-256), installé dans HOM
 importe 11 fonctions de plus (glibc_misc.c) : une mise à jour de Google peut en demander d'autres (cdmhost le dit).
 Essais : test_eme_jet.sh KS=update, CLICKS=… (clics sous QEMU). **Jet ordinaire avec EME le 20/11** : 0008 et 0009
 dans webkit et webkit-gl, webcore reconstruit (build-webkit.sh force -DENABLE_ENCRYPTED_MEDIA=ON : le cache CMake
-gardait OFF), out/jet.app joue ; copies *-eme effacées. Reste : ZBook, compte, WebM chiffré, versions jet et pc à
-monter avant leur publication.
+gardait OFF), out/jet.app joue ; copies *-eme effacées. **Publié le 20/11** (847c988a, demande de l'utilisateur) :
+jet 1.4.0, pc 2026.11.63 (noyau du PC refait avec la capture et l'arène haute : build/pc/esp était du 19/11 au matin),
+python 1.0.4 et claude 1.0.7 (changements d'autres sessions, accord de l'utilisateur) ; mai 1.0.0 écarté à sa demande
+(publish = 0 dans une copie de packages-pc.ini) ; MKREPO_EXTRA=--keep-unbuilt (koton-samples, wallpapers,
+home-samples pas construits) ; gh absent de WSL : la Release envoyée par le gh de Windows, puis git push. Reste :
+ZBook, compte, WebM chiffré.
 
 Pièges : `linux` est une macro prédéfinie de gcc sous Linux (pas comme nom de champ) ; le canari de pile du code
 Linux (%fs:0x28) tombe dans le TCB de 64 octets de libposix, stable. Le module ne va jamais dans nos paquets.
