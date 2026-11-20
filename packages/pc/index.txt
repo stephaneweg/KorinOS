@@ -1,9 +1,9 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-20 20:37
+date = 2026-11-20 21:28
 abi = 626
-packages = 115
+packages = 117
 board = pc
 
 [avdemo]
@@ -112,20 +112,80 @@ required = 0
 restart = 0
 content = 652f4b562d4309c2ae55b5a291082aba5838093197e4c2b76099b8444b662146
 
+[jet]
+title = Jet
+version = 1.4.1
+category = Internet
+author = Korin OS
+summary = Le navigateur, sur WebKit
+size = 55658503
+installed = 139420959
+sha256 = aea3cb8c79152604094c6fc9925198b4fbfa11f2739b40eda025f33560f014af
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.1.opk
+needs = abi >= 626
+required = 0
+restart = 0
+content = 515580f079efc79306b620c6500eb39abb5f86fee75c5bbc0595dc357368ff01
+
+[spotify]
+title = Spotify
+version = 1.1.0
+category = Multimédia
+author = Korin OS
+summary = Spotify : le lecteur web de Spotify dans sa fenêtre (Widevine, sans Client ID), avec la carte de lecture
+size = 126132
+installed = 265555
+sha256 = 43c60642b4d0d2559c680cfd5d965d4c2cc28ad270c7855f92c844279e0acd78
+file = pkgs/spotify-1.1.0.opk
+needs = jet, abi >= 626
+required = 0
+restart = 0
+content = b57a4a85cba3d597e4a7b3ba6596d9ba7219495472518734c6f2a061be2c554a
+
+[win16]
+title = Windows 3.x
+version = 1.0.0
+category = Émulateurs
+author = Korin OS
+summary = 
+size = 666288
+installed = 1515798
+sha256 = 2408c58e90bb81295a367103cfcebb71f3e0a8634eefbcac9230940ec69c0497
+file = pkgs/win16-1.0.0.opk
+needs = abi >= 626
+required = 0
+restart = 0
+content = 5763aa3fabee2a6c4a5427ed20a95425ff8f09f81f16c468665d5f5cb52077fe
+
+[morpho]
+title = Morpho
+version = 1.0.0
+category = Jeux
+author = Korin OS
+summary = Un animal de compagnie en 3D à nourrir, soigner et faire jouer, qui évolue de l'œuf à l'âge d'ancien, différent à chaque stade
+size = 379389
+installed = 767438
+sha256 = 03270ed63f9c2fba698cae356b0e7bf8935e8dbf8b1efbf919339921659f2b08
+file = pkgs/morpho-1.0.0.opk
+needs = abi >= 626
+required = 0
+restart = 0
+content = 6b3325bb0e73d20b8b024fce31c314b1660d12f773726498c50362365f73e1ec
+
 [pkgman]
 title = Logiciels
-version = 1.0.18
+version = 1.0.19
 category = Système
 author = Korin OS
 summary = Les paquets : la commande pkg, le gestionnaire Logiciels (et son volet dans Réglages), le service pkgd
-size = 4627926
-installed = 11836659
-sha256 = ebcbca0fc7707885b81f966ae09a1ed7253d3b11e46ffcb6a6290bb5701ead9d
-file = pkgs/pkgman-1.0.18.opk
+size = 4603188
+installed = 11770523
+sha256 = 5774415939fb434e4da0c7a49f851a34a4d89b0c0d4dfff98870330f473ffc90
+file = pkgs/pkgman-1.0.19.opk
 needs = abi >= 626
 required = 1
 restart = 0
-content = 4c8d91b96490ef8bf5290b085f821d18bab7c87e365273cd30c901aea9e17f8b
+content = 95bb30244774fa9865acfd0d1dd46331dd3f71188fbd8c04fed7dbda04bedd40
 
 [soundfonts]
 title = Banque de sons General MIDI
@@ -649,33 +709,33 @@ content = 4d093df519910dcb66bd4cba30f8ddf6bd8b179b41f69cf9a8966dcc1c01d1dc
 
 [webd]
 title = Serveur web
-version = 1.0.5
+version = 1.0.6
 category = Internet
 author = Korin OS
 summary = Le serveur web de Korin (webd) : sites, liaisons http et https, certificats, et son volet dans Réglages
-size = 4414400
+size = 4414717
 installed = 11414096
-sha256 = 2d1132392b03b2d3fae6e481c1f3c8a63855d1319e75889defaf274ad602350a
-file = pkgs/webd-1.0.5.opk
+sha256 = 61929ccc6f7d4b77859aadcfe398d21270fc156c29d0b55e3556bd85d5c7ee41
+file = pkgs/webd-1.0.6.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = ce4cace444ac68fb28f9860373edcbfcd086ea2b490125298b72fba543d02007
+content = 43ef104aa371a2b55fa3cec3156193f8e68880be158faea63a464f81f9173a92
 
 [smbd]
 title = Partage de fichiers (SMB)
-version = 1.0.4
+version = 1.0.5
 category = Internet
 author = Korin OS
 summary = Partage des dossiers de Korin avec Windows, macOS et Linux (SMB 2 et 3) : le serveur smbd et le volet Partages de Réglages
-size = 381543
+size = 381617
 installed = 764680
-sha256 = 2837ecd011d9a83675c999be358094fe716d3aedc7e50b2830cd62e5f19a2fa9
-file = pkgs/smbd-1.0.4.opk
+sha256 = bcbfa587918c7991f6ddf80064dcaccf05814a2ac29094dd0b30b95f84e0003e
+file = pkgs/smbd-1.0.5.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = e6369709297bf0a54e239033bae2c28313f0aa6195924cc6626808b82350f612
+content = 9651f661dbc590aad6e129adcd1ae6d847f34a7ac621233890d8a89895498bd1
 
 [pc]
 title = Système Korin OS pour PC
@@ -1157,21 +1217,6 @@ required = 0
 restart = 0
 content = 9dcc6ae967cf3770ce2c99171be88fcde48a3415e593ca9e6fbeae8163173869
 
-[jet]
-title = Jet
-version = 1.4.1
-category = Internet
-author = Korin OS
-summary = Le navigateur, sur WebKit
-size = 55658503
-installed = 139420959
-sha256 = aea3cb8c79152604094c6fc9925198b4fbfa11f2739b40eda025f33560f014af
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.1.opk
-needs = abi >= 626
-required = 0
-restart = 0
-content = 515580f079efc79306b620c6500eb39abb5f86fee75c5bbc0595dc357368ff01
-
 [koton]
 title = Koton
 version = 1.0.10
@@ -1607,21 +1652,6 @@ required = 0
 restart = 0
 content = bcc565a5cb90bc0a6168ccb2abf71fd8086c6e49a0b226a39dbe0bd687842b5f
 
-[spotify]
-title = Spotify
-version = 1.1.0
-category = Multimédia
-author = Korin OS
-summary = Spotify : le lecteur web de Spotify dans sa fenêtre (Widevine, sans Client ID), avec la carte de lecture
-size = 126132
-installed = 265555
-sha256 = 43c60642b4d0d2559c680cfd5d965d4c2cc28ad270c7855f92c844279e0acd78
-file = pkgs/spotify-1.1.0.opk
-needs = jet, abi >= 626
-required = 0
-restart = 0
-content = b57a4a85cba3d597e4a7b3ba6596d9ba7219495472518734c6f2a061be2c554a
-
 [studio]
 title = Studio
 version = 1.0.4
@@ -1741,33 +1771,3 @@ needs = abi >= 626
 required = 0
 restart = 0
 content = 65b7348a488c5b8ec86aed20cb76355a92b2db56c7e8ac616ec39b32268ad863
-
-[win16]
-title = Windows 3.x
-version = 1.0.0
-category = Émulateurs
-author = Korin OS
-summary = 
-size = 666288
-installed = 1515798
-sha256 = 2408c58e90bb81295a367103cfcebb71f3e0a8634eefbcac9230940ec69c0497
-file = pkgs/win16-1.0.0.opk
-needs = abi >= 626
-required = 0
-restart = 0
-content = 5763aa3fabee2a6c4a5427ed20a95425ff8f09f81f16c468665d5f5cb52077fe
-
-[morpho]
-title = Morpho
-version = 1.0.0
-category = Jeux
-author = Korin OS
-summary = Un animal de compagnie en 3D à nourrir, soigner et faire jouer, qui évolue de l'œuf à l'âge d'ancien, différent à chaque stade
-size = 379389
-installed = 767438
-sha256 = 03270ed63f9c2fba698cae356b0e7bf8935e8dbf8b1efbf919339921659f2b08
-file = pkgs/morpho-1.0.0.opk
-needs = abi >= 626
-required = 0
-restart = 0
-content = 6b3325bb0e73d20b8b024fce31c314b1660d12f773726498c50362365f73e1ec
