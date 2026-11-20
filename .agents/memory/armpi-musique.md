@@ -30,3 +30,4 @@ session à part (HOME/spotify/webkit) ; interface UIKit, librespot (korinspot, t
 du dépôt (« Tout supprimer »). Carte : état lu par script (data-testid de Spotify), page derrière (ui_surface_overlay).
 Le paquet spotify demande jet. Essai : tools/linux/test_spotify_app.sh ; la connexion au compte est faite par
 l'utilisateur. docs/etude/MUSIQUE.md (début).
+**Publié le 20/11** (jet 1.4.1, spotify 1.1.0, ce77e2a7) ; **essayé par l'utilisateur sur le ZBook** : l'app tourne, la carte réduite marche.
