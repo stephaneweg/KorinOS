@@ -1,9 +1,10 @@
 /* mmsystem.c -- win16 : MMSYSTEM (sortie MIDI, minuteries multimédia, temps).
  *
- * Une sortie MIDI (« Korin MIDI ») : les messages vont à synth_midi (le synthétiseur, à venir : sans lui, ils sont
- * notés avec W16_TRACE=1). Pas d'entrée MIDI. Les minuteries de timeSetEvent sont appelées pendant l'attente des
- * messages (user.c) : sous Windows, elles le seraient pendant une interruption. */
+ * Une sortie MIDI (« Korin MIDI ») : les messages vont au synthé General MIDI d'AudioKit avec la SoundFont du système
+ * (be_synth_*, comme Arabesque). Pas d'entrée MIDI. Les minuteries de timeSetEvent sont appelées pendant l'attente
+ * des messages (user.c) : sous Windows, elles le seraient pendant une interruption. */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "w16.h"
 #include "be.h"
@@ -15,9 +16,23 @@
 #define MM_MOM_CLOSE 0x3c8
 #define MM_MOM_DONE 0x3c9
 
-/* le synthétiseur (pas encore là : une fonction faible) */
-void synth_midi (uint32_t msg) __attribute__ ((weak));
-void synth_sysex (const uint8_t *p, int n) __attribute__ ((weak));
+/* un message court vers le synthé d'AudioKit (be_synth_*) ; un premier octet sans bit 7 reprend le dernier statut */
+static uint8_t last_status;
+
+static void synth_midi (uint32_t msg)
+{
+	uint8_t st = (uint8_t) msg, a = (uint8_t) (msg >> 8), b = (uint8_t) (msg >> 16);
+	if (!(st & 0x80))
+	{
+		b = a;
+		a = st;
+		st = last_status;
+	}
+	if (st < 0x80 || st >= 0xf0)	/* (messages du système : rien à jouer) */
+		return;
+	last_status = st;
+	be_synth_midi (st & 15, st & 0xf0, a & 0x7f, b & 0x7f);
+}
 
 static struct { int open; uint32_t cb, inst, flags; } mout;
 
@@ -68,6 +83,7 @@ void api_midiOutOpen16 (struct w16call *c)
 	}
 	if (c->a[0])
 		wr16 (far_lin (c->a[0]), 1);
+	be_synth_start ();
 	mout.open = 1;
 	mout.cb = c->a[2];
 	mout.inst = c->a[3];
@@ -88,10 +104,14 @@ void api_midiOutClose16 (struct w16call *c)
 void api_midiOutShortMsg16 (struct w16call *c)
 {
 	uint32_t m = c->a[1];
-	if (synth_midi)
-		synth_midi (m);
-	else
-		w16_log ("   MIDI %02x %02x %02x\n", m & 0xff, (m >> 8) & 0xff, (m >> 16) & 0xff);
+	w16_log ("   MIDI %02x %02x %02x\n", m & 0xff, (m >> 8) & 0xff, (m >> 16) & 0xff);
+	static long count;
+	static int show = -1;
+	if (show < 0)
+		show = getenv ("W16_MIDI") != 0;
+	if (show && ++count % 50 == 1)	/* (W16_MIDI : un repère tous les 50 messages, pour les essais) */
+		fprintf (stderr, "win16 : MIDI, %ld messages (dernier %06x)\n", count, (unsigned) m);
+	synth_midi (m);
 	c->ret = MMSYSERR_NOERROR;
 }
 
@@ -113,9 +133,7 @@ void api_midiOutUnprepareHeader16 (struct w16call *c)
 void api_midiOutLongMsg16 (struct w16call *c)
 {
 	uint32_t h = far_lin (c->a[1]);
-	uint32_t data = rd32 (h), len = rd32 (h + 4);
-	if (synth_sysex && data && len < 65536)
-		synth_sysex (far_ptr (data), (int) len);
+	/* (le système exclusif : le synthé d'AudioKit n'en a pas besoin, il est seulement rendu fait) */
 	wr32 (h + 16, rd32 (h + 16) | 1);	/* MHDR_DONE */
 	mout_callback (MM_MOM_DONE, c->a[1]);
 	c->ret = MMSYSERR_NOERROR;
@@ -124,15 +142,7 @@ void api_midiOutLongMsg16 (struct w16call *c)
 void api_midiOutReset16 (struct w16call *c)
 {
 	(void) c;
-	/* (toutes les notes coupées : All Notes Off sur chaque canal) */
-	for (uint32_t ch = 0; ch < 16; ch++)
-	{
-		if (synth_midi)
-		{
-			synth_midi (0xb0 | ch | 123u << 8);
-			synth_midi (0xb0 | ch | 121u << 8);
-		}
-	}
+	be_synth_reset ();	/* (toutes les notes coupées, comme Arabesque : pédale levée, All Notes Off) */
 	c->ret = MMSYSERR_NOERROR;
 }
 

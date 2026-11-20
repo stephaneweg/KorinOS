@@ -356,3 +356,14 @@ void be_clip_put (const char *s) { snprintf (clip, sizeof clip, "%s", s); }
 int be_clip_take (char *buf, int cap) { snprintf (buf, (size_t) cap, "%s", clip); return (int) strlen (clip); }
 
 void be_fatal (const char *msg) { (void) msg; }
+
+/* le synthé : sur l'hôte, les messages sont seulement comptés et notés (W16_MIDI=1) */
+static long midi_count;
+int be_synth_start (void) { return 1; }
+void be_synth_midi (int ch, int cmd, int a, int b)
+{
+	midi_count++;
+	if (getenv ("W16_MIDI"))
+		fprintf (stderr, "[hôte] MIDI %ld : canal %d, %02x %d %d\n", midi_count, ch, cmd, a, b);
+}
+void be_synth_reset (void) { if (getenv ("W16_MIDI")) fprintf (stderr, "[hôte] MIDI : tout se tait\n"); }

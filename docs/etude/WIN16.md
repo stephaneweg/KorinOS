@@ -21,7 +21,9 @@ mémoire globale et sélecteurs, fichiers et INI (lecteurs ci-dessous), presse-p
 opérations raster, DIB, polygones, régions, projections, palettes, icônes), MMSYSTEM (sortie MIDI sans son,
 minuteries multimédia). Essais : `tools/win16/tests/dialogs.c` sous QEMU ; **Art Song 2.0** (shareware Delphi 1
 de 1996, fourni par l'utilisateur, jamais dans le dépôt) démarre dans Korin, sa fenêtre principale et sa boîte
-« About » s'affichent. Il lui manque **le son** (un synthétiseur MIDI, à choisir : § 8).
+« About » s'affichent. **Son (20/11)** : la sortie MIDI va au synthé General MIDI d'AudioKit avec la SoundFont du
+système (`/res/soundfonts/GeneralUser-GS.sf2`), joué par un fil comme dans Arabesque (choix de l'utilisateur, § 8) ;
+Art Song compose sous QEMU (plus de mille messages MIDI, la mesure avance), son pas encore écouté sur le ZBook.
 
 **Lecteurs** (réglages de chaque utilisateur) : C: = `HOME:/win16/c` (avec `C:\WINDOWS\WIN.INI`), D: = le dossier
 du programme, E: = tout l'arbre de Korin ; `HOME:/win16/drives.ini` (section `[drives]`, `C=/dossier`) et l'option
@@ -258,13 +260,13 @@ Le dossier est `src/apps/win16/` (construit par la règle générique de `tools/
    (code assemblé par `nasm` en 16 bits) : plus long, mais aucun outil à télécharger. Des programmes libres de
    l'époque (avec leur source) viendront ensuite ; jamais de logiciel propriétaire fourni par nous.
 
-## 8. Le son MIDI (à décider)
+## 8. Le son MIDI
 
 Les programmes musicaux de l'époque (Art Song, et tout ce qui joue des `.MID`) envoient des messages MIDI à
-`midiOutShortMsg` ; Windows 3.1 les jouait par la carte son (FM OPL, ou General MIDI). Korin n'a pas de synthétiseur
-General MIDI. Voies : un synthé à banque de sons (SoundFont, par TinySoundFont, MIT) avec une banque libre ; un
-synthé FM façon OPL3 (pas de fichier de sons, le timbre de l'époque) ; ou le moteur de Koton ou de FM Tracker. À
-présenter à l'utilisateur.
+`midiOutShortMsg`. **Choix de l'utilisateur (20/11) : SoundFont General MIDI**, et en fait celui qui existe déjà :
+AudioKit a un synthé General MIDI (`ak_synth_*`) avec la SoundFont du système (GeneralUser GS), celui d'Arabesque
+(port d'Art Song) et de Koton. win16 le tient dans un fil (`be_uikit.c`), blocs de 256 trames à 44,1 kHz, comme
+`src/apps/arabesque/audio.h`.
 
 ## Sources (consultées le 20/11/2026)
 

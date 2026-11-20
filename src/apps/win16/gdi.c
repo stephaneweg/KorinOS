@@ -70,6 +70,7 @@ static void obj_free (struct obj *o)
 /* ======================================================================== DC */
 #define MAX_DC 128
 #define MAX_SAVE 8
+#define MAX_EXCL 48
 struct dcstate
 {
 	uint16_t pen, brush, font, bitmap, palette;
@@ -78,7 +79,7 @@ struct dcstate
 	int cur_x, cur_y;
 	int wox, woy, wex, wey, vox, voy, vex, vey;
 	int clip_on, cl, ct, cr, cb;	/* découpe (coordonnées de l'appareil) */
-	int nex, ex[8][4];		/* rectangles exclus */
+	int nex, ex[MAX_EXCL][4];	/* rectangles exclus (ExcludeClipRect, filles de WS_CLIPCHILDREN) */
 };
 struct dc
 {
@@ -272,17 +273,30 @@ static void dfill (struct surf *s, int x0, int y0, int x1, int y1, uint32_t rgb,
 	if (y1 > s->cy1) y1 = s->cy1;
 	if (x1 <= x0 || y1 <= y0)
 		return;
-	int ex = s->d->s.nex;
+	/* (les rectangles exclus qui touchent ce rectangle ; aucun : le chemin rapide) */
+	struct dcstate *st = &s->d->s;
+	int hits[MAX_EXCL], nh = 0;
+	for (int i = 0; i < st->nex; i++)
+		if (st->ex[i][0] + s->ox < x1 && st->ex[i][2] + s->ox > x0 && st->ex[i][1] + s->oy < y1 && st->ex[i][3] + s->oy > y0)
+			hits[nh++] = i;
 	for (int y = y0; y < y1; y++)
 	{
 		uint32_t *p = s->px + (size_t) y * (size_t) s->stride;
-		if (!ex && rop == 13)
+		if (!nh && rop == 13)
 			for (int x = x0; x < x1; x++)
 				p[x] = rgb;
 		else
 			for (int x = x0; x < x1; x++)
-				if (!ex || !excluded (s, x, y))
+			{
+				int out = 0;
+				for (int k = 0; k < nh && !out; k++)
+				{
+					int *e = st->ex[hits[k]];
+					out = x >= e[0] + s->ox && x < e[2] + s->ox && y >= e[1] + s->oy && y < e[3] + s->oy;
+				}
+				if (!out)
 					p[x] = rop2 (rop, rgb, p[x] & 0xffffff);
+			}
 	}
 	touch (s, x0, y0, x1, y1);
 }
@@ -416,9 +430,27 @@ static uint16_t dc_new (int kind, uint16_t hwnd)
 	w16_fatal ("plus de contextes de dessin libres");
 }
 
+int user_child_rects (uint16_t hwnd, int (*r)[4], int max);
+
 uint16_t gdi_dc_for_window (uint16_t hwnd)
 {
-	return dc_new (0, hwnd);
+	uint16_t h = dc_new (0, hwnd);
+	/* WS_CLIPCHILDREN : les fenêtres filles visibles sont exclues du dessin du parent */
+	struct dc *d = dc_get (h);
+	d->s.nex = user_child_rects (hwnd, d->s.ex, MAX_EXCL);
+	return h;
+}
+
+void gdi_dc_clip (uint16_t hdc, int l, int t, int r, int b)
+{
+	struct dc *d = dc_get (hdc);
+	if (!d)
+		return;
+	d->s.clip_on = 1;
+	d->s.cl = l;
+	d->s.ct = t;
+	d->s.cr = r;
+	d->s.cb = b;
 }
 
 static void flush (struct dc *d)
@@ -1346,7 +1378,7 @@ void api_ExcludeClipRect16 (struct w16call *c)
 	struct dc *d = dc_get ((uint16_t) c->a[0]);
 	if (!d)
 		return;
-	if (d->s.nex < 8)
+	if (d->s.nex < MAX_EXCL)
 	{
 		int *e = d->s.ex[d->s.nex++];
 		e[0] = lx (d, (int16_t) c->a[1]); e[1] = ly (d, (int16_t) c->a[2]); e[2] = lx (d, (int16_t) c->a[3]); e[3] = ly (d, (int16_t) c->a[4]);

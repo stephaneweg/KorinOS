@@ -60,6 +60,11 @@ int be_file_save (const char *dir, const char *name, const char *filter, char *o
 long be_color (const char *title, uint32_t rgb);
 void be_clip_put (const char *utf8);
 int be_clip_take (char *buf, int cap);
+/* la sortie MIDI : le synthé General MIDI d'AudioKit (la SoundFont du système), joué par un fil à part comme dans
+ * Arabesque ; be_synth_start le lance, be_synth_midi y envoie un message (canal, commande, données) */
+int be_synth_start (void);
+void be_synth_midi (int ch, int cmd, int a, int b);
+void be_synth_reset (void);
 
 #ifdef __cplusplus
 }

@@ -856,6 +856,9 @@ void api_BeginPaint16 (struct w16call *c)
 	int x1 = w->invalid ? w->ix1 : 0, y1 = w->invalid ? w->iy1 : 0;
 	int erase = w->erase;
 	w->invalid = w->erase = 0;
+	/* (comme Windows : le DC de BeginPaint est découpé à la zone à repeindre ; sinon le fond d'un parent recouvre
+	 * ses filles, qui ne se repeignent pas) */
+	gdi_dc_clip (hdc, x0, y0, x1, y1);
 	int ferase = 0;
 	if (erase)
 		ferase = !user_send (hwnd, WM_ERASEBKGND, hdc, 0);
@@ -1048,6 +1051,8 @@ uint32_t user_def_window_proc (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_
 		/* (comme Windows : BeginPaint/EndPaint, l'effacement compris) */
 		uint16_t hdc = gdi_dc_for_window (hwnd);
 		int erase = w->erase;
+		if (w->invalid)
+			gdi_dc_clip (hdc, w->ix0, w->iy0, w->ix1, w->iy1);
 		w->invalid = w->erase = 0;
 		if (erase)
 			user_send (hwnd, WM_ERASEBKGND, hdc, 0);
@@ -1257,7 +1262,8 @@ static void translate_event (const struct be_event *e)
 		mouse_y = e->y;
 		mouse_be = e->win;
 		struct wnd *w;
-		if (capture_hwnd && wnd_get (capture_hwnd))
+		/* (une capture tenue dans une autre fenêtre principale, désactivée, ne vole pas les clics) */
+		if (capture_hwnd && wnd_get (capture_hwnd) && (wnd_top (wnd_get (capture_hwnd)) == top || !is_disabled (wnd_get (capture_hwnd))))
 		{
 			w = wnd_get (capture_hwnd);
 			int ox, oy, cw, ch;
@@ -1488,6 +1494,13 @@ int user_take (struct qmsg *m, uint16_t hwnd, uint16_t lo, uint16_t hi, int remo
 		menu_publish_pending ();
 		mm_poll ();
 		timers_due ();
+		/* (les événements de Korin sont lus à chaque appel, pas seulement file vide : ils sont datés à leur
+		 * arrivée, un double-clic reste un double-clic même si le programme a été long entre les deux) */
+		{
+			struct be_event e0;
+			while (be_wait (0, &e0))
+				translate_event (&e0);
+		}
 		for (int i = qhead; i != qtail; i = (i + 1) % QMAX)
 			if (msg_match (&queue[i], hwnd, lo, hi))
 			{
@@ -1662,11 +1675,21 @@ void api_EnableWindow16 (struct w16call *c)
 	}
 	int was = w->disabled;
 	w->disabled = !c->a[1];
-	if (was != w->disabled)
+	uint16_t h = w->hwnd;
+	if (w->disabled && !was)
 	{
-		user_send (w->hwnd, WM_ENABLE, (uint16_t) !w->disabled, 0);
-		invalidate (w, 0, 0, w->cw, w->ch, 1);
+		/* (comme Wine : une fenêtre désactivée rend la capture et le focus qu'elle ou ses filles tiennent) */
+		for (struct wnd *k = wnd_get (capture_hwnd); k; k = (k->style & WS_CHILD) ? wnd_get (k->parent) : 0)
+			if (k->hwnd == h)
+			{
+				user_send (capture_hwnd, 0x001f, 0, 0);	/* WM_CANCELMODE */
+				capture_hwnd = 0;
+				break;
+			}
 	}
+	/* (comme Windows : pas de repeint ; les contrôles se repeignent à WM_ENABLE) */
+	if (was != w->disabled)
+		user_send (h, WM_ENABLE, (uint16_t) !w->disabled, 0);
 	c->ret = (uint32_t) was;
 }
 
@@ -2772,6 +2795,27 @@ void api_ExitWindows16 (struct w16call *c) { (void) c; exit (0); }
 void api_DefFrameProc16 (struct w16call *c) { c->ret = user_def_window_proc ((uint16_t) c->a[0], (uint16_t) c->a[2], (uint16_t) c->a[3], c->a[4]); }
 void api_DefMDIChildProc16 (struct w16call *c) { c->ret = user_def_window_proc ((uint16_t) c->a[0], (uint16_t) c->a[1], (uint16_t) c->a[2], c->a[3]); }
 void api_TranslateMDISysAccel16 (struct w16call *c) { (void) c; c->ret = 0; }
+
+/* WS_CLIPCHILDREN : les rectangles (zone cliente du parent) des filles visibles, que son dessin évite */
+int user_child_rects (uint16_t hwnd, int (*r)[4], int max)
+{
+	struct wnd *p = wnd_get (hwnd);
+	int n = 0;
+	if (!p || !(p->style & 0x02000000u))
+		return 0;
+	for (int i = 0; i < MAX_WND && n < max; i++)
+	{
+		struct wnd *k = &wnds[i];
+		if (!k->used || !k->visible || k->parent != hwnd || !(k->style & WS_CHILD))
+			continue;
+		r[n][0] = k->x;
+		r[n][1] = k->y;
+		r[n][2] = k->x + k->w;
+		r[n][3] = k->y + k->h;
+		n++;
+	}
+	return n;
+}
 
 int user_window_count (void)
 {

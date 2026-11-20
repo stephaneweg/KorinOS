@@ -29,6 +29,13 @@ moteur de Koton), le Pi. Lecteurs réglables par utilisateur : HOME:/win16/drive
 Pièges : wrc d'Open Watcom ignore AUTOCHECKBOX/AUTORADIOBUTTON (écrire CONTROL) ; segments NE itérés (0x0008) ;
 Delphi se sert du presse-papiers (format privé) pour cloner : tous les formats doivent être gardés.
 
+**Son fait le 20/11** : MIDI -> synthé GM d'AudioKit (SoundFont du système), un fil comme Arabesque (l'utilisateur :
+« regarde Arabesque, c'est un portage d'Art Song »). Art Song compose sous QEMU ; écoute sur le ZBook à faire.
+Pièges : BeginPaint doit découper à la zone invalide et WS_CLIPCHILDREN exclure les filles (sinon le fond d'un
+parent efface ses filles) ; lire les événements de Korin à chaque GetMessage (double-clics sous émulation lente) ;
+pctest.py a « dblclick:X,Y ». Demandes du 20/11 à faire : comparer avec winevdm sous Windows ; contrôles dessinés
+par UIKit lui-même (thème des apps natives).
+
 **How to apply:** code dans src/apps/win16 (cœur de MAME copié de vm86/mame, mémoire émulée à part, sélecteur réservé
 aux points d'entrée de l'API) ; sources de winevdm dans WSL ~/win16/winevdm. Même code pour le Pi. Voir
 [[armpi-emulateurs]], [[armpi-uikit-fenetres]].

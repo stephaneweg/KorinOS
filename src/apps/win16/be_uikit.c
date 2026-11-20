@@ -7,7 +7,11 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <pthread.h>
 #include <uikit.h>
+#include <audiokit_abi.h>
 #include "be.h"
 
 #define BAND_H 30
@@ -68,6 +72,8 @@ long be_window_open (int x, int y, int w, int h, const char *title)
 		return 0;
 	b->h = hw;
 	use (hw);
+	if (getenv ("W16_EVLOG"))
+		fprintf (stderr, "win16 : fenêtre de Korin %ld « %s »\n", hw, title);
 	/* (le cadre d'Elegant peut prendre quelques pixels : la zone doit avoir la taille demandée) */
 	if (ui.w != w || ui.h != h + BAND_H)
 		ui_resize (w + (w - ui.w), h + BAND_H + (h + BAND_H - ui.h));
@@ -223,6 +229,12 @@ int be_wait (int ms, struct be_event *ev)
 	if (t <= 0)
 		return 0;
 	ev->win = ui_ev_field (&ui, EV_WIN);
+	static int evlog = -1;
+	if (evlog < 0)
+		evlog = getenv ("W16_EVLOG") != 0;
+	if (evlog)	/* (W16_EVLOG : les événements de UIKit, pour les essais) */
+		fprintf (stderr, "win16 : événement %ld, fenêtre %ld, sorte %d, %d,%d, code %d\n", t, ev->win,
+			ui_ev_field (&ui, EV_KIND), ui_ev_field (&ui, EV_X), ui_ev_field (&ui, EV_Y), ui_ev_field (&ui, EV_CODE));
 	struct bewin *b = find (ev->win);
 	int x = ui_ev_field (&ui, EV_X), y = ui_ev_field (&ui, EV_Y) - BAND_H;
 	int mods = ui_ev_field (&ui, EV_MODS);
@@ -335,6 +347,70 @@ void be_clip_put (const char *utf8)
 int be_clip_take (char *buf, int cap)
 {
 	return (int) ui_clip_get ((long) buf, cap);
+}
+
+/* ---- le synthé (comme src/apps/arabesque/audio.h) : un fil tient le synthé General MIDI d'AudioKit et nourrit le
+ * flux bloc après bloc ; la SoundFont se charge dans le fil, la fenêtre n'attend jamais. Les messages MIDI du
+ * programme arrivent sous g_lk, entre deux blocs. ---- */
+enum { BLOCK = 256, RATE = 44100 };
+static pthread_mutex_t g_lk = PTHREAD_MUTEX_INITIALIZER;
+static pthread_t g_tid;
+static volatile int g_started, g_synth_ok;
+static long g_synth;
+
+static void *synth_main (void *arg)
+{
+	(void) arg;
+	if (!audiokit_kit_open ())
+		return 0;
+	/* (les numéros d'AudioKit commencent à 0 : seul un résultat négatif est une erreur) */
+	long s = ak_synth_new (0, 0);
+	if (s < 0)
+		return 0;
+	long out = ak_open (RATE, 2, 16, 0);
+	pthread_mutex_lock (&g_lk);
+	g_synth = s;
+	g_synth_ok = 1;
+	pthread_mutex_unlock (&g_lk);
+	static short buf[BLOCK * 2];
+	for (;;)
+	{
+		pthread_mutex_lock (&g_lk);
+		ak_synth_render (s, (long) buf, BLOCK);
+		pthread_mutex_unlock (&g_lk);
+		if (out >= 0)
+			((long (*) (long, long, long)) ak_write_all) (out, (long) buf, sizeof buf);
+		else
+			usleep (5000);
+	}
+	return 0;
+}
+
+int be_synth_start (void)
+{
+	if (!g_started)
+		g_started = pthread_create (&g_tid, 0, synth_main, 0) == 0 ? 1 : -1;
+	return g_started > 0;
+}
+
+void be_synth_midi (int ch, int cmd, int a, int b)
+{
+	pthread_mutex_lock (&g_lk);
+	if (g_synth_ok)
+		ak_synth_midi (g_synth, ch, cmd, a, b);
+	pthread_mutex_unlock (&g_lk);
+}
+
+void be_synth_reset (void)
+{
+	pthread_mutex_lock (&g_lk);
+	if (g_synth_ok)
+		for (int c = 0; c < 16; c++)
+		{
+			ak_synth_midi (g_synth, c, 0xB0, 64, 0);
+			ak_synth_midi (g_synth, c, 0xB0, 123, 0);
+		}
+	pthread_mutex_unlock (&g_lk);
 }
 
 void be_fatal (const char *msg)
