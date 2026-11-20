@@ -587,7 +587,24 @@ l'essai sur le ZBook ; les images passent par la socket (pas encore de mémoire 
   `cdmhost` (le fil lecteur de Jet reçoit l'événement, puis le fil principal le traite en 9 ms). Pendant ce temps,
   le début en clair de l'audio fait avancer la lecture, et la vidéo attend sa clé. Chrome, lui, met toute la lecture
   en pause : à reprendre si cela se voit sur le ZBook.
-* Reste : le WebM chiffré (§ 13) ; la lecture qui avance sans la vidéo pendant l'attente d'une clé.
+* **Correction (20/11 au soir) : ce n'était pas la charge.** Les temps de `cdmhost` (journal : « module lu en …,
+  chargé en … ») montrent que **la lecture du fichier du module (21,7 Mo) prenait 11 s** : `fread` de la bibliothèque
+  C lit les gros fichiers par petits blocs, autant d'allers-retours avec `vfs`. Avec `read ()` en gros morceaux :
+  **1,02 s** ; `ipctest` repasse. (Un défaut général de Korin pour les programmes qui lisent de gros fichiers par
+  `fread` : à voir dans libposix.)
+* **L'image qui se brouille au changement de qualité (ZBook : Netflix, et déjà YouTube avant)**, correctif
+  `tools/webkit/av-patches/0003-track-config-resync.patch` :
+  * un nouveau segment d'initialisation qui change la description d'une piste (taille, paramètres H.264 de
+    `avcC`) en fait une nouvelle version ; chaque image stockée garde la sienne (`av_store`, 4 versions gardées par
+    piste). Le fil vidéo, à la première image d'une autre version, vide le décodeur puis en crée un pour elle.
+    Avant, le décodeur de Widevine remettait les SPS/PPS de la première qualité devant chaque image clé : image
+    floue, artefacts verts ;
+  * des images pas encore décodées retirées du magasin (une autre qualité posée dessus, un `remove`, l'éviction) : le
+    fil vidéo repart de l'image clé d'avant (comme un saut), au lieu de décoder la suite sur des références qui ne
+    sont plus les siennes (image qui « s'étire » jusqu'à la prochaine image clé ; YouTube aussi).
+  * Essai : `eme-shaka.html?switch=1` (`QUERY=?switch=1 KS=shaka`) : 144p puis 576p à 8 s, la vidéo continue en
+    768×576, image nette (captures), « EME-SHAKA : RÉUSSI ».
+* Reste : le WebM chiffré (§ 13) ; la lecture qui avance sans la vidéo pendant l'attente d'une clé ; `fread` lent.
 
 ## Sources (19/11/2026)
 

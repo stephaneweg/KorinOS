@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <string>
@@ -31,7 +32,16 @@ struct IpcClient : CdmClient
 		if (!cdm_send (s_control, m))
 			exit (0);	// (le client est parti)
 	}
-	void initialized (bool ok) override { CdmOut m (CDM_EV_INITIALIZED); send (m.u32 (ok)); }
+	void initialized (bool ok) override
+	{
+		struct timespec t;
+		clock_gettime (CLOCK_MONOTONIC, &t);
+		fprintf (stderr, "cdmhost : module initialisé en %.2f s (%s)\n",
+			 (double) (t.tv_sec - init_start.tv_sec) + (t.tv_nsec - init_start.tv_nsec) / 1e9, ok ? "prêt" : "échec");
+		CdmOut m (CDM_EV_INITIALIZED);
+		send (m.u32 (ok));
+	}
+	struct timespec init_start = {};		// (cdm->Initialize : le temps jusqu'à OnInitialized)
 	void new_session (uint32_t p, const std::string &s) override { CdmOut m (CDM_EV_NEW_SESSION); send (m.u32 (p).str (s)); }
 	void resolved (uint32_t p) override { CdmOut m (CDM_EV_RESOLVED); send (m.u32 (p)); }
 	void rejected (uint32_t p, uint32_t e, uint32_t code, const std::string &msg) override
@@ -107,14 +117,20 @@ static void control (CdmIn &m)
 	{
 		std::string ks = m.str ();
 		uint32_t distinctive = m.u32 (), persistent = m.u32 ();
+		struct timespec t0, t1;
+		clock_gettime (CLOCK_MONOTONIC, &t0);
 		if (!cdm && cdm_module_load (s_module_path.c_str ()))
 			s_host->cdm = cdm = cdm_module_create (ks.c_str (), get_host, nullptr);
+		clock_gettime (CLOCK_MONOTONIC, &t1);
+		fprintf (stderr, "cdmhost : module chargé et créé en %.2f s\n",
+			 (double) (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec) / 1e9);
 		if (!cdm)
 		{
 			s_client.initialized (false);
 			return;
 		}
 		fprintf (stderr, "cdmhost : module %s, %s\n", cdm_module_version (), ks.c_str ());
+		clock_gettime (CLOCK_MONOTONIC, &s_client.init_start);
 		cdm->Initialize (distinctive != 0, persistent != 0, false);
 		return;
 	}

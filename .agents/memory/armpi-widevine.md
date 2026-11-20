@@ -74,8 +74,10 @@ home-samples pas construits) ; gh absent de WSL : la Release envoyée par le gh 
 des images perdues : la lenteur vient du tracé de Jet sur un seul fil et du compositeur à vide (session « Jet plus
 fluide sur PC »), pas de Widevine (cdmhost au repos : 10 appels/s). Netflix lançait 6 cdmhost : corrigé le
 20/11 au soir (certificat gardé jusqu'au démarrage de l'hôte ; page ?sondes=5 : un seul cdmhost ; traces horodatées
-« Widevine: [t s] » dans le journal du process web). Piège : sous QEMU avec le PC chargé (autres sessions), le module
-met 40 à 60 s à s'initialiser (moins de 2 s au calme) : les essais échouent, sans régression du code. Reste : WebM
+« Widevine: [t s] » dans le journal du process web). Le démarrage lent (40-60 s) venait de la lecture
+du module par fread (11 s pour 21,7 Mo sous QEMU), pas de la charge : read () en gros morceaux, 1 s (cdmhost
+module.cpp, 20/11 soir). Image brouillée au changement de qualité (Netflix, YouTube) : av-patches/0003 (versions de
+la description par image, reprise sur une image clé après un retrait) ; essai eme-shaka.html?switch=1. Reste : WebM
 chiffré ; la lecture avance sans la vidéo pendant l'attente d'une clé (Chrome se met en pause).
 **Publié le 20/11 au soir (ce77e2a7)** : jet 1.4.1 (tracé multi-cœurs de l'autre session + un seul cdmhost) et
 spotify 1.1.0 (le lecteur web, session Spotify), mai toujours écarté. Piège : build/pc/sysroot ne reçoit pas les apps
