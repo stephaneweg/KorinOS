@@ -351,6 +351,17 @@ date restent. **Réglages > Effacer les cookies et données des sites…** (et l
 `engine_clear_site_data` (cookies, localStorage, IndexedDB, service workers, Cache Storage, cache HTTP,
 caches en mémoire).
 
+**Cookies perdus en quittant (corrigé le 20/11, `tools/webkit/patches/0011-cookies-commit.patch`)** : on ne
+restait pas connecté à Spotify. `CookieJarDB::hasCookies` et `hasHttpOnlyCookie` (curl) laissaient leur requête
+préparée sur sa ligne trouvée, sans `reset()` : l'instruction restait active, et SQLite repousse le commit de toute
+écriture de la connexion jusqu'à la fin de cette instruction. Les pages voyaient leurs cookies, mais rien n'allait
+dans `cookies.db` tant que l'instruction n'était pas reprise, et tout était perdu en quittant. Cela arrive dès qu'un
+script réécrit un cookie qui existe déjà en HttpOnly (Spotify, entre autres), ou qu'une ressource d'un autre site
+lit des cookies existants. Essai : `tools/linux/test_webapp.sh` avec `SESSION=1` (quitter, puis relancer), `PROBE=1`
+et `PROBE_JS` (un cookie HttpOnly réécrit par script, puis un cookie reçu du réseau : ce dernier reste après la
+relance). Piège de l'essai : `grep` sur `cookies.db` pendant que le process réseau la garde ouverte ne voit pas
+les écritures (les grosses lectures de fatfs vont au disque sans passer par son cache) ; lire par SQLite.
+
 ### Vérifié (QEMU q35 + OVMF, 4 cœurs, TCG, 2 Go, Korin PC ; 13/11/2026)
 
 Disque de `mkkorindisk.py --layout zbook --no-windows --korin-mb 600`, sur une copie de l'arbre de

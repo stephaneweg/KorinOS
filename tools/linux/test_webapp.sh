@@ -36,8 +36,9 @@ cp -r "$APPDIR" "$T/apps/$APP.app"
 grep -qx /apps/jet.app/libexec "$T/etc/exec.txt" || echo /apps/jet.app/libexec >>"$T/etc/exec.txt"
 touch "$T/etc/web-console"
 # (PROBE=1 : chaque page écrit ses cookies lisibles dans la console, 5 s après son début)
-[ -z "${PROBE:-}" ] || printf "setTimeout(function(){console.log('PROBE-COOKIES ['+location.host+'] '+document.cookie)},5000);
-" >"$T/etc/web-probe.js"
+# PROBE_JS : un script de plus, au début de chaque page (avant la ligne des cookies)
+[ -z "${PROBE_JS:-}" ] || printf '%s\n' "$PROBE_JS" >>"$T/etc/web-probe.js"
+[ -z "${PROBE:-}" ] || printf '%s\n' "setTimeout(function(){console.log('PROBE-COOKIES ['+location.host+'] '+document.cookie)},5000);" >>"$T/etc/web-probe.js"
 printf 'password = essai\n' >"$T/etc/remote.txt"
 grep -q "/sys/svc/telnetd" "$T/etc/services.txt" || printf '# essai : telnet\n/sys/svc/telnetd\n' >>"$T/etc/services.txt"
 MB=$(( $(du -sm "$T" | cut -f1) + 200 ))
@@ -66,12 +67,12 @@ a = types.SimpleNamespace(port=int (os.environ.get ("PORT", "2399")),	# (PORT : 
     + clicks.split ()
     # SESSION=1 : quitter l'app (Ctrl+Q), voir ce qui reste et la base des cookies, la relancer : la session est-elle gardée ?
     + (["key:ctrl-q", "sleep:20", "sysstat", "ls -l /home/%s/webkit" % app,
-        "grep -a -o -E '[a-z0-9-]+[.](com|net|fr|org|co)' /home/%s/webkit/cookies.db | sort -u | head -n 30" % app, "grep -a -c %s /home/%s/webkit/cookies.db" % (token, app),
-        "( /apps/%s.app/main '%s' > /tmp/app2.log 2>&1 & ) ; echo relancé" % (app, url), "sleep:" + wait, "shot:%s-2" % app,
-        "sysstat", "ls -l /home/%s/webkit" % app, "grep -a -i -E 'cookie|sqlite|database' /tmp/app2.log | head -n 20"]
+        "grep -a -o -E '[a-z0-9-]+[.](com|net|fr|org|co)' /home/%s/webkit/cookies.db | sort -u | head -n 30" % app, "grep -a -c %s /home/%s/webkit/cookies.db" % (token, app), "grep -r -a -l jetperm /home /tmp 2>/dev/null | head", 
+        "( /apps/%s.app/main '%s' > /tmp/app2.log 2>&1 & ) ; echo relancé" % (app, os.environ.get ("URL2", url)), "sleep:" + wait, "shot:%s-2" % app,
+        "sysstat", "ls -l /home/%s/webkit" % app, "grep -a -i -E 'cookie|sqlite|database|PROBE' /tmp/app2.log | head -n 20"]
        if os.environ.get ("SESSION") else [])
     + ["grep -a -E 'webapp|agent|sites. data|widevine|cdmhost' /tmp/app.log | head -n 40", "ls /home/%s /home/%s/webkit" % (app, app),
-       "sysstat", "grep -a -E 'CONSOLE|FAILED|tab 1|player|PROBE' /tmp/app.log | grep -v woff2 | head -n 100"])
+       "sysstat", "grep -a -E 'CONSOLE|FAILED|tab 1|player|PROBE|cookiejar' /tmp/app.log | grep -v woff2 | head -n 100"])
 pt.run(a)
 PY
 

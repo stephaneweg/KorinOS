@@ -1,0 +1,26 @@
+--- a/Source/WebCore/platform/network/curl/CookieJarDB.cpp
++++ b/Source/WebCore/platform/network/curl/CookieJarDB.cpp
+@@ -364,7 +364,11 @@
+         statement.bindText(2, makeString("*."_s, registrableDomain.string()));
+     }
+ 
+-    return statement.step() == SQLITE_ROW;
++    // Korin: reset at once. A statement left on its row stays active, and SQLite defers the commit of every
++    // write of the connection until it ends: the cookies were seen by the pages but never reached the file.
++    bool found = statement.step() == SQLITE_ROW;
++    statement.reset();
++    return found;
+ }
+ 
+ std::optional<Vector<Cookie>> CookieJarDB::searchCookies(const URL& firstParty, const URL& requestUrl, const std::optional<bool>& httpOnly, const std::optional<bool>& secure, const std::optional<bool>& session)
+@@ -484,7 +488,9 @@
+     statement.bindText(2, domain);
+     statement.bindText(3, path);
+ 
+-    return statement.step() == SQLITE_ROW;
++    bool found = statement.step() == SQLITE_ROW;
++    statement.reset();				// (Korin: see hasCookies)
++    return found;
+ }
+ 
+ static bool checkSecureCookie(const Cookie& cookie)
