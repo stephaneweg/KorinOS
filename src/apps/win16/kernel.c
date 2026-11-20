@@ -1724,10 +1724,14 @@ static int wild_match (const char *pat, const char *name)
 		{
 			if (!pat[1])
 				return 1;
-			for (const char *n = name; *n; n++)
+			/* (toutes les suites du nom, la vide comprise : « *.* » doit prendre « WIN16 ») */
+			for (const char *n = name;; n++)
+			{
 				if (wild_match (pat + 1, n))
 					return 1;
-			return wild_match (pat + 1, name);
+				if (!*n)
+					return 0;
+			}
 		}
 		if (!*name)
 			return !strcmp (pat, ".*") || !strcmp (pat, "*") ;
