@@ -55,12 +55,12 @@ GL="-Wl,--start-group $BUILD/lib/libANGLE.a $BUILD/lib/libGLESv2.a $GLKIT $S/lib
 # la bibliothèque media d'av (src/extra/onyx-libs/av, avec tools/webkit/av-patches) : WebCore l'utilise par ses
 # en-têtes (av_packet, av_track : leur forme compte) ; un av.h plus récent que libWebCore.a : WebKit d'abord
 # (tools/mesa/build-webkit.sh), sinon Jet lierait deux formes de ces structures ; des sources d'av plus récentes que
-# libonyxav.a : elle est refaite
+# libonyxav.a (ou du client de cdmhost, src/sys/cdmhost) : elle est refaite
 if [ "$EXTRA/onyx-libs/av/av.h" -nt "$BUILD/lib/libWebCore.a" ]; then
 	echo "build-jet.sh : av.h a changé depuis $BUILD/lib/libWebCore.a : d'abord tools/mesa/build-webkit.sh" >&2
 	exit 1
 fi
-if [ ! -f "$WK_OUT/av/libonyxav.a" ] || [ -n "$(find "$EXTRA/onyx-libs/av" -name '*.[ch]' -newer "$WK_OUT/av/libonyxav.a" | head -n 1)" ]; then
+if [ ! -f "$WK_OUT/av/libonyxav.a" ] || [ -n "$(find "$EXTRA/onyx-libs/av" "$ARMPI/src/sys/cdmhost" -name '*.[ch]*' -newer "$WK_OUT/av/libonyxav.a" | head -n 1)" ]; then
 	sh "$HERE/build-media.sh"
 fi
 # FFmpeg dans la bibliotheque media (LGPL, build-media.sh) : ses bibliotheques apres libonyxav.a
@@ -89,4 +89,14 @@ cp "$J/app.txt" "$J/start.html" "$JET_OUT/"
 # (les sondes pour un rapport, en /etc/web-probe.js : frame-probe.js, docs/WEBKIT.md « hCaptcha » ; login-probe.js,
 # « Connexion à Facebook »)
 cp "$HERE/tests/frame-probe.js" "$HERE/tests/login-probe.js" "$JET_OUT/"
+# l'hôte du module Widevine (src/sys/cdmhost, docs/etude/WIDEVINE.md ; PC seulement : le module est Linux x86-64),
+# que CDMWidevineOnyx lance (/apps/jet.app/cdmhost) ; construit par tools/linux/build.sh. Le module n'est pas là :
+# l'utilisateur le met dans HOME:/.jet/widevine (jamais dans nos paquets)
+if [ "$ONYX_ARCH" = x86_64 ]; then
+	if [ -f "$ARMPI/build/pc/linux/cdmhost" ]; then
+		${STRIP} -o "$JET_OUT/cdmhost" "$ARMPI/build/pc/linux/cdmhost"
+	else
+		echo "build-jet.sh : pas de build/pc/linux/cdmhost (sh tools/linux/build.sh) : Jet sans Widevine" >&2
+	fi
+fi
 ls -l "$JET_OUT"

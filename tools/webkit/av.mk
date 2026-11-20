@@ -61,7 +61,17 @@ DAV1D_OBJ := $(patsubst $(DAV1D)/%.c,$(O)/dav1d/%.o,$(DAV1D_SRC)) $(patsubst $(D
 TMPL_OBJ := $(patsubst $(DAV1D)/%.c,$(O)/dav1d/%.o,$(DAV1D_TMPL_SRC))
 CODEC_OBJ := $(OPUS_OBJ) $(VPX_OBJ) $(DAV1D_OBJ) $(TMPL_OBJ)
 
-$(O)/libonyxav.a: $(AV_OBJ) $(GLUE_OBJ) $(CODEC_OBJ)
+# EME : le client de cdmhost, l'hote du module Widevine (src/sys/cdmhost, docs/etude/WIDEVINE.md) : WebCore le
+# prend par ses en-tetes (CDMWidevineOnyx), son code est ici
+CDMHOST := $(abspath $(GLUE)/../../../src/sys/cdmhost)
+CXX := $(TC)g++ -specs=$(S)/lib/onyx.specs $(CPU) -ffunction-sections -fdata-sections
+CDM_OBJ := $(patsubst $(CDMHOST)/%.cpp,$(O)/cdmhost/%.o,$(addprefix $(CDMHOST)/,cdmclient.cpp proto.cpp cenc.cpp))
+
+$(O)/cdmhost/%.o: $(CDMHOST)/%.cpp
+	@mkdir -p $(@D)
+	$(CXX) -std=gnu++17 -O2 -Wall -Wno-unused-result -MMD -MP -c $< -o $@
+
+$(O)/libonyxav.a: $(AV_OBJ) $(GLUE_OBJ) $(CODEC_OBJ) $(CDM_OBJ)
 	rm -f $@
 	$(AR) rcs $@ $^
 
@@ -98,4 +108,4 @@ $(O)/dav1d/%.o: $(DAV1D)/%.S
 	@mkdir -p $(@D)
 	$(CC) $(DAV1D_CF) -MMD -MP -c $< -o $@
 
--include $(AV_OBJ:.o=.d) $(GLUE_OBJ:.o=.d) $(CODEC_OBJ:.o=.d)
+-include $(AV_OBJ:.o=.d) $(GLUE_OBJ:.o=.d) $(CODEC_OBJ:.o=.d) $(CDM_OBJ:.o=.d)

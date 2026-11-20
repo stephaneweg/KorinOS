@@ -1,0 +1,141 @@
+diff -ruN a/av/av.h b/av/av.h
+--- a/av/av.h	2026-11-20 04:08:06.773385700 +0100
++++ b/av/av.h	2026-11-20 05:13:47.326481800 +0100
+@@ -196,6 +196,16 @@
+ struct av_decoder;
+ /* NULL: the track's codec is not supported (av_decoder_supported_track says why) */
+ struct av_decoder *av_decoder_new(const struct av_track *t);
++/* EME: a decoder given by the host (a CDM that decrypts and decodes, Widevine's video): its calls, its context
++ * (close () frees it); the packets keep their p->crypt */
++struct av_decoder_ops {
++	const char *name;
++	int (*send)(void *c, const struct av_packet *p);	/* p NULL: drain */
++	int (*receive)(void *c, struct av_frame *f);
++	void (*flush)(void *c);
++	void (*close)(void *c);
++};
++struct av_decoder *av_decoder_external(const struct av_decoder_ops *ops, void *c);
+ /* 1 if this build decodes the track (its codec, FFmpeg's ff_id; encrypted: once decrypted) */
+ int av_decoder_supported_track(const struct av_track *t);
+ void av_decoder_free(struct av_decoder *d);
+@@ -377,6 +387,11 @@
+  * are skipped. */
+ typedef int (*av_decrypt_fn)(void *ctx, const struct av_track *t, struct av_packet *p);
+ void av_player_set_decryptor(struct av_player *p, av_decrypt_fn fn, void *ctx);
++/* EME: the host's decoders for encrypted tracks (a CDM that decodes itself: Widevine's video, which never leaves
++ * it in the clear) : called by the player's threads when such a track starts -> av_decoder_external (), NULL : the
++ * built-in decoder (after the decryptor). The decryptor may then leave p->crypt set (AV_OK): the decoder takes it. */
++typedef struct av_decoder *(*av_decoder_factory)(void *ctx, const struct av_track *t);
++void av_player_set_decoder_factory(struct av_player *p, av_decoder_factory fn, void *ctx);
+ /* The host's turn (its UI thread, every ~10-30 ms while playing): the status, and the video
+  * frame to show now if a new one is due (*v filled, returns 1). */
+ int av_player_poll(struct av_player *p, struct av_player_status *st, struct av_video_out *v);
+diff -ruN a/av/av_codec.c b/av/av_codec.c
+--- a/av/av_codec.c	2026-11-20 04:08:06.778929800 +0100
++++ b/av/av_codec.c	2026-11-20 05:13:47.295457800 +0100
+@@ -124,6 +124,27 @@
+ 	return d;
+ }
+ 
++struct av_decoder *av_decoder_external(const struct av_decoder_ops *ops, void *c)
++{
++	/* (the decoder and its own table in one block: av_decoder_free frees both) */
++	struct ext {
++		struct av_decoder d;
++		struct av_codec_impl impl;
++	} *e;
++
++	if (ops == NULL || c == NULL || (e = (struct ext *) calloc(1, sizeof *e)) == NULL)
++		return NULL;
++	e->impl.name = ops->name ? ops->name : "external";
++	e->impl.library = "host";
++	e->impl.send = ops->send;
++	e->impl.receive = ops->receive;
++	e->impl.flush = ops->flush;
++	e->impl.close = ops->close;
++	e->d.impl = &e->impl;
++	e->d.c = c;
++	return &e->d;
++}
++
+ void av_decoder_free(struct av_decoder *d)
+ {
+ 	if (d != NULL) {
+diff -ruN a/av/av_player.c b/av/av_player.c
+--- a/av/av_player.c	2026-11-20 04:08:06.820009300 +0100
++++ b/av/av_player.c	2026-11-20 05:13:47.299257700 +0100
+@@ -39,6 +39,8 @@
+ 	/* EME: the host's decryptor (av_player_set_decryptor) */
+ 	av_decrypt_fn dec_fn;
+ 	void *dec_ctx;
++	av_decoder_factory factory_fn;	/* the host's decoders for encrypted tracks */
++	void *factory_ctx;
+ 	int waiting_key;		/* a thread waits for a key (status: waiting) */
+ 	int out_pix;
+ 	const struct av_audio_out *ao;
+@@ -112,6 +114,9 @@
+ 	return av_os_now_us();
+ }
+ 
++/* a track's decoder (EME: the host's for an encrypted track) */
++static struct av_decoder *decoder_for(struct av_player *p, const struct av_track *t);
++
+ static int (*s_offload)(void (*fn)(void *), void *arg);
+ 
+ void av_set_offload(int (*run)(void (*fn)(void *), void *arg))
+@@ -220,7 +225,7 @@
+ 	}
+ 	t = av__store_track_info(p->store, src, tr);
+ 	av_decoder_free(p->adec);
+-	p->adec = av_decoder_new(t);
++	p->adec = decoder_for(p, t);
+ 	av__store_unlock(p->store);
+ 	p->a_src = src;
+ 	p->a_track = tr;
+@@ -232,9 +237,9 @@
+ 	return p->adec != NULL;
+ }
+ 
+-/* EME: an encrypted packet through the host's decryptor, in place -> 1 (clear now), 0 (skipped: no
+- * decryptor, an error, a seek or the end while its key was awaited) ; the thread waits here for a key
+- * (the decryptor's AV_AGAIN) */
++/* EME: an encrypted packet through the host's decryptor, in place -> 1 (clear now, or still encrypted for the
++ * host's own decoder), 0 (skipped: no decryptor, an error, a seek or the end while its key was awaited) ; the
++ * thread waits here for a key (the decryptor's AV_AGAIN) */
+ static int decrypt_packet(struct av_player *p, int src, int track, struct av_packet *pk, unsigned seek)
+ {
+ 	struct av_track t;
+@@ -263,7 +268,23 @@
+ 		av_sleep_ms(20);
+ 	}
+ 	p->waiting_key = 0;
+-	return r == AV_OK && pk->crypt == NULL;
++	return r == AV_OK;
++}
++
++/* a track's decoder: the host's for an encrypted track when it gives one, else the library's */
++static struct av_decoder *decoder_for(struct av_player *p, const struct av_track *t)
++{
++	struct av_decoder *d = NULL;
++
++	if (t != NULL && t->encrypted && p->factory_fn != NULL)
++		d = p->factory_fn(p->factory_ctx, t);
++	return d != NULL ? d : av_decoder_new(t);
++}
++
++void av_player_set_decoder_factory(struct av_player *p, av_decoder_factory fn, void *ctx)
++{
++	p->factory_ctx = ctx;
++	p->factory_fn = fn;
+ }
+ 
+ void av_player_set_decryptor(struct av_player *p, av_decrypt_fn fn, void *ctx)
+@@ -479,7 +500,7 @@
+ 	}
+ 	t = av__store_track_info(p->store, src, tr);
+ 	av_decoder_free(p->vdec);
+-	p->vdec = av_decoder_new(t);
++	p->vdec = decoder_for(p, t);
+ 	av__store_unlock(p->store);
+ 	p->v_src = src;
+ 	p->v_track = tr;

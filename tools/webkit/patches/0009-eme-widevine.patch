@@ -1,0 +1,1259 @@
+diff -ruN a/Source/WebCore/PlatformOnyx.cmake b/Source/WebCore/PlatformOnyx.cmake
+--- a/Source/WebCore/PlatformOnyx.cmake	2026-11-20 04:15:19.468371500 +0100
++++ b/Source/WebCore/PlatformOnyx.cmake	2026-11-20 04:15:32.853874300 +0100
+@@ -22,6 +22,11 @@
+ if (ENABLE_VIDEO)
+     list(APPEND WebCore_PRIVATE_INCLUDE_DIRECTORIES "${ONYX_AV_INCLUDE_DIR}")
+ endif ()
++# "cdmclient.h", the client of Korin's CDM host (cdmhost: Widevine), whose code is linked with the program
++# (src/sys/cdmhost of the Korin sources, in libonyxav.a: tools/webkit/av.mk)
++if (ENABLE_ENCRYPTED_MEDIA)
++    list(APPEND WebCore_PRIVATE_INCLUDE_DIRECTORIES "${ONYX_SOURCE_DIR}/user/Libs/cdmhost")
++endif ()
+ 
+ list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
+     platform/graphics/onyx/GraphicsLayerOnyx.h
+@@ -61,6 +66,7 @@
+     platform/generic/KeyedEncoderGeneric.cpp
+ 
+     platform/graphics/onyx/CDMOnyx.cpp
++    platform/graphics/onyx/CDMWidevineOnyx.cpp
+     platform/graphics/onyx/GraphicsLayerOnyx.cpp
+     platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp
+     platform/graphics/onyx/MediaSourcePrivateOnyx.cpp
+diff -ruN a/Source/WebCore/platform/encryptedmedia/CDMInstance.h b/Source/WebCore/platform/encryptedmedia/CDMInstance.h
+--- a/Source/WebCore/platform/encryptedmedia/CDMInstance.h	2026-11-20 04:15:19.435308200 +0100
++++ b/Source/WebCore/platform/encryptedmedia/CDMInstance.h	2026-11-20 04:15:32.753762800 +0100
+@@ -104,6 +104,9 @@
+ #if ENABLE(THUNDER)
+         Thunder,
+ #endif
++#if PLATFORM(ONYX)
++        Onyx, // a key system whose CDM runs in a host process (Widevine through cdmhost: CDMWidevineOnyx)
++#endif
+     };
+     virtual ImplementationType implementationType() const = 0;
+ 
+diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMOnyx.cpp b/Source/WebCore/platform/graphics/onyx/CDMOnyx.cpp
+--- a/Source/WebCore/platform/graphics/onyx/CDMOnyx.cpp	2026-11-20 04:15:19.293659400 +0100
++++ b/Source/WebCore/platform/graphics/onyx/CDMOnyx.cpp	2026-11-20 04:15:52.566974100 +0100
+@@ -24,6 +24,7 @@
+ 
+ #include "CDMClearKey.h"
+ #include "CDMFactory.h"
++#include "CDMWidevineOnyx.h"
+ #include <wtf/NeverDestroyed.h>
+ 
+ namespace WebCore {
+@@ -42,6 +43,26 @@
+     return true;
+ }
+ 
++bool CDMProxyOnyx::hasUsableKey(std::span<const uint8_t, 16> keyID) const
++{
++    KeyIDType id;
++    id.append(std::span<const uint8_t> { keyID });
++    RefPtr handle = keyHandle(id);
++    return handle && handle->isStatusCurrentlyValid();
++}
++
++void CDMProxyOnyx::setHost(std::shared_ptr<CdmHostClient> host)
++{
++    Locker locker { m_hostLock };
++    m_host = WTF::move(host);
++}
++
++std::shared_ptr<CdmHostClient> CDMProxyOnyx::host() const
++{
++    Locker locker { m_hostLock };
++    return m_host;
++}
++
+ void CDMProxyOnyx::setWaitingForKey(bool waiting) const
+ {
+     if (!instance())
+@@ -52,7 +73,8 @@
+         stoppedWaitingForKey();
+ }
+ 
+-// the key systems of the Onyx engine: Clear Key (WebKit's CDM, keys decrypted in the page's process)
++// the key systems of the Onyx engine: Clear Key (WebKit's CDM, keys decrypted in the page's process) and
++// Widevine (Google's CDM in Korin's CDM host, when its module is installed: CDMWidevineOnyx)
+ class CDMProxyFactoryOnyx final : public CDMProxyFactory {
+ protected:
+     RefPtr<CDMProxy> createCDMProxy(const String& keySystem) final
+@@ -61,12 +83,16 @@
+             return CDMProxyOnyx::create();
+         return nullptr;
+     }
+-    bool supportsKeySystem(const String& keySystem) final { return keySystem == "org.w3.clearkey"_s; }
++    bool supportsKeySystem(const String& keySystem) final
++    {
++        return keySystem == "org.w3.clearkey"_s || keySystem == "com.widevine.alpha"_s;
++    }
+ };
+ 
+ void CDMFactory::platformRegisterFactories(Vector<WeakRef<CDMFactory>>& factories)
+ {
+     factories.append(CDMFactoryClearKey::singleton());
++    factories.append(CDMFactoryWidevineOnyx::singleton());
+ }
+ 
+ Vector<CDMProxyFactory*> CDMProxyFactory::platformRegisterFactories()
+diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMOnyx.h b/Source/WebCore/platform/graphics/onyx/CDMOnyx.h
+--- a/Source/WebCore/platform/graphics/onyx/CDMOnyx.h	2026-11-20 04:15:19.246413200 +0100
++++ b/Source/WebCore/platform/graphics/onyx/CDMOnyx.h	2026-11-20 04:15:52.408705200 +0100
+@@ -22,25 +22,40 @@
+ #if ENABLE(ENCRYPTED_MEDIA) && PLATFORM(ONYX)
+ 
+ #include "CDMProxy.h"
++#include <memory>
+ #include <span>
++#include <wtf/Lock.h>
++
++class CdmHostClient; // (src/sys/cdmhost/cdmclient.h of the Korin sources)
+ 
+ namespace WebCore {
+ 
+ // EME for the Onyx media engine (Korin OS, docs/etude/WIDEVINE.md): the decryptor's side of a CDM
+-// instance. The page's sessions (WebKit's Clear Key CDM, CDMClearKey) give their keys to this proxy;
+-// the player's decoding threads read them (MediaPlayerPrivateOnyx's decryptor, av_decrypt).
++// instance. Clear Key: the page's sessions (WebKit's CDMClearKey) give their keys to this proxy; the
++// player's decoding threads read them (MediaPlayerPrivateOnyx's decryptor, av_decrypt). Widevine: the keys
++// stay in the CDM host (cdmhost, CDMWidevineOnyx); the proxy knows their IDs and statuses, and the host,
++// which decrypts the audio and decodes the video.
+ class CDMProxyOnyx final : public CDMProxy {
+ public:
+     static Ref<CDMProxyOnyx> create() { return adoptRef(*new CDMProxyOnyx); }
+ 
+     // Any thread: the 16-byte AES key of a key ID -> true; false: no usable key for it (yet).
+     bool copyKey(std::span<const uint8_t, 16> keyID, std::span<uint8_t, 16> key) const;
++    // Any thread: a usable key for this ID (its value in the proxy or in the host)
++    bool hasUsableKey(std::span<const uint8_t, 16> keyID) const;
+     // Any thread: a decoding thread starts / stops waiting for a key (the media element's
+     // waitingforkey, MediaPlayer::waitingForKeyChanged).
+     void setWaitingForKey(bool) const;
+ 
++    // The CDM host of a key system that runs in one (Widevine); null: the keys are here (Clear Key).
++    void setHost(std::shared_ptr<CdmHostClient>);
++    std::shared_ptr<CdmHostClient> host() const;
++
+ private:
+     CDMProxyOnyx() = default;
++
++    mutable Lock m_hostLock;
++    std::shared_ptr<CdmHostClient> m_host WTF_GUARDED_BY_LOCK(m_hostLock);
+ };
+ 
+ } // namespace WebCore
+diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp
+--- a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp	1970-01-01 01:00:00.000000000 +0100
++++ b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp	2026-11-20 05:08:58.558257800 +0100
+@@ -0,0 +1,738 @@
++/*
++ * Copyright (C) 2026 Stéphane Wegener (Korin OS).
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
++ * EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES.
++ */
++
++#include "config.h"
++#include "CDMWidevineOnyx.h"
++
++#if ENABLE(ENCRYPTED_MEDIA) && PLATFORM(ONYX)
++
++#include "CDMKeySystemConfiguration.h"
++#include "CDMOnyx.h"
++#include "CDMRestrictions.h"
++#include "CDMSessionType.h"
++#include "InitDataRegistry.h"
++#include <av.h>
++#include <poll.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/stat.h>
++#include <unistd.h>
++#include <wtf/MainThread.h>
++#include <wtf/NeverDestroyed.h>
++#include <wtf/TZoneMallocInlines.h>
++#include <wtf/Threading.h>
++#include <wtf/text/CString.h>
++#include <wtf/ThreadSafeRefCounted.h>
++
++#include "cdmclient.h"
++#include "cenc.h"
++
++namespace WebCore {
++
++WTF_MAKE_TZONE_ALLOCATED_IMPL(CDMFactoryWidevineOnyx);
++WTF_MAKE_TZONE_ALLOCATED_IMPL(CDMPrivateWidevineOnyx);
++WTF_MAKE_TZONE_ALLOCATED_IMPL(CDMInstanceWidevineOnyx);
++
++// the values of Google's content_decryption_module.h (cdm::) that go through cdmhost's protocol
++namespace Cdm {
++enum : uint32_t { Success = 0, NeedMoreData = 1, NoKey = 2 };
++enum : uint32_t { Unencrypted = 0, Cenc = 1, Cbcs = 2 };
++enum : uint32_t { CodecVp8 = 1, CodecH264 = 2, CodecVp9 = 3, CodecAv1 = 4 };
++enum : uint32_t { ProfileNotNeeded = 1, H264Baseline = 2, H264Main = 3, H264Extended = 4, H264High = 5, H264High10 = 6,
++    H264High422 = 7, H264High444 = 8, Vp9Profile0 = 9, Av1Main = 13 };
++enum : uint32_t { Yv12 = 1, I420 = 2 };
++}
++
++static const char* keySystemName = "com.widevine.alpha";
++
++static std::string homeDirectory()
++{
++    const char* home = getenv("HOME");
++    return home && *home ? home : "/home";
++}
++
++static std::string modulePath()
++{
++    if (const char* path = getenv("JET_WIDEVINE_CDM"); path && *path)
++        return path;
++    return homeDirectory() + "/.jet/widevine/libwidevinecdm.so";
++}
++
++static std::string hostPath()
++{
++    if (const char* path = getenv("JET_CDMHOST"); path && *path)
++        return path;
++    return "/apps/jet.app/cdmhost";
++}
++
++static std::string storagePath()
++{
++    std::string jet = homeDirectory() + "/.jet";
++    mkdir(jet.c_str(), 0700);
++    mkdir((jet + "/widevine").c_str(), 0700);
++    std::string storage = jet + "/widevine/storage";
++    mkdir(storage.c_str(), 0700);
++    return storage;
++}
++
++static std::vector<uint8_t> toStd(std::span<const uint8_t> data)
++{
++    return std::vector<uint8_t>(data.begin(), data.end());
++}
++
++static std::string toStdString(const String& string)
++{
++    CString utf8 = string.utf8();
++    return std::string(reinterpret_cast<const char*>(utf8.data()), utf8.length());
++}
++
++static Vector<uint8_t> toWTF(const std::vector<uint8_t>& data)
++{
++    return Vector<uint8_t>(std::span<const uint8_t> { data.data(), data.size() });
++}
++
++// ---- the factory, the CDM ----
++
++CDMFactoryWidevineOnyx& CDMFactoryWidevineOnyx::singleton()
++{
++    static NeverDestroyed<CDMFactoryWidevineOnyx> factory;
++    return factory;
++}
++
++std::unique_ptr<CDMPrivate> CDMFactoryWidevineOnyx::createCDM(const String&, const String&, const CDMPrivateClient&)
++{
++    return makeUnique<CDMPrivateWidevineOnyx>();
++}
++
++bool CDMFactoryWidevineOnyx::supportsKeySystem(const String& keySystem)
++{
++    // (offered only when Google's module and the host are installed: the page then picks another way)
++    return equalLettersIgnoringASCIICase(keySystem, "com.widevine.alpha"_s)
++        && !access(modulePath().c_str(), R_OK) && !access(hostPath().c_str(), X_OK);
++}
++
++Vector<String> CDMPrivateWidevineOnyx::supportedInitDataTypes() const
++{
++    return { InitDataRegistry::cencName(), InitDataRegistry::keyidsName(), InitDataRegistry::webmName() };
++}
++
++Vector<String> CDMPrivateWidevineOnyx::supportedRobustnesses() const
++{
++    // the software CDM (L3): no hardware robustness
++    return { emptyString(), "SW_SECURE_CRYPTO"_s, "SW_SECURE_DECODE"_s };
++}
++
++static bool wantsPersistentLicense(const CDMKeySystemConfiguration& configuration)
++{
++    return configuration.sessionTypes.contains(CDMSessionType::PersistentLicense);
++}
++
++bool CDMPrivateWidevineOnyx::supportsConfiguration(const CDMKeySystemConfiguration& configuration) const
++{
++    // (the Linux module keeps no license: temporary sessions only; no distinctive identifier, as Chromium on Linux)
++    return configuration.distinctiveIdentifier != CDMRequirement::Required && !wantsPersistentLicense(configuration);
++}
++
++bool CDMPrivateWidevineOnyx::supportsConfigurationWithRestrictions(const CDMKeySystemConfiguration& configuration, const CDMRestrictions& restrictions) const
++{
++    if (configuration.persistentState == CDMRequirement::Required && restrictions.persistentStateDenied)
++        return false;
++    return supportsConfiguration(configuration);
++}
++
++bool CDMPrivateWidevineOnyx::supportsSessionTypeWithConfiguration(const CDMSessionType& sessionType, const CDMKeySystemConfiguration& configuration) const
++{
++    return sessionType == CDMSessionType::Temporary && supportsConfiguration(configuration);
++}
++
++CDMRequirement CDMPrivateWidevineOnyx::distinctiveIdentifiersRequirement(const CDMKeySystemConfiguration&, const CDMRestrictions&) const
++{
++    return CDMRequirement::NotAllowed;
++}
++
++CDMRequirement CDMPrivateWidevineOnyx::persistentStateRequirement(const CDMKeySystemConfiguration&, const CDMRestrictions& restrictions) const
++{
++    return restrictions.persistentStateDenied ? CDMRequirement::NotAllowed : CDMRequirement::Optional;
++}
++
++RefPtr<CDMInstance> CDMPrivateWidevineOnyx::createInstance()
++{
++    return adoptRef(new CDMInstanceWidevineOnyx);
++}
++
++bool CDMPrivateWidevineOnyx::supportsInitData(const String& initDataType, const SharedBuffer& initData) const
++{
++    return !initData.isEmpty() && supportedInitDataTypes().containsIf([&](auto& type) { return equalIgnoringASCIICase(type, initDataType); });
++}
++
++RefPtr<SharedBuffer> CDMPrivateWidevineOnyx::sanitizeResponse(const SharedBuffer& response) const
++{
++    return response.makeContiguous();
++}
++
++std::optional<String> CDMPrivateWidevineOnyx::sanitizeSessionId(const String& sessionId) const
++{
++    if (sessionId.isEmpty() || sessionId.length() > 512)
++        return std::nullopt;
++    return sessionId;
++}
++
++// ---- the instance: the host and its events ----
++
++// the host's events, from the instance's reading thread to the main thread (the instance may be gone)
++class CDMWidevineEventSink : public ThreadSafeRefCounted<CDMWidevineEventSink> {
++public:
++    static Ref<CDMWidevineEventSink> create(CDMInstanceWidevineOnyx& instance) { return adoptRef(*new CDMWidevineEventSink(instance)); }
++
++    CDMInstanceWidevineOnyx* instance { nullptr }; // main thread
++    std::atomic<bool> stop { false };
++
++private:
++    explicit CDMWidevineEventSink(CDMInstanceWidevineOnyx& instance)
++        : instance(&instance) { }
++};
++
++CDMInstanceWidevineOnyx::CDMInstanceWidevineOnyx()
++    : CDMInstanceProxy(String::fromLatin1(keySystemName))
++{
++}
++
++CDMInstanceWidevineOnyx::~CDMInstanceWidevineOnyx()
++{
++    if (m_sink) {
++        m_sink->instance = nullptr;
++        m_sink->stop = true; // (the thread ends within its poll's wait, and lets the host go: cdmhost ends)
++    }
++    if (RefPtr cdmProxy = proxy())
++        static_cast<CDMProxyOnyx&>(*cdmProxy).setHost(nullptr);
++}
++
++const String& CDMInstanceWidevineOnyx::keySystem() const
++{
++    static NeverDestroyed<String> name { String::fromLatin1(keySystemName) };
++    return name;
++}
++
++void CDMInstanceWidevineOnyx::initializeWithConfiguration(const CDMKeySystemConfiguration&, AllowDistinctiveIdentifiers distinctiveIdentifiers, AllowPersistentState persistentState, SuccessCallback&& callback)
++{
++    if (m_host) {
++        callback(SuccessValue::Succeeded);
++        return;
++    }
++    std::unique_ptr<CdmHostClient> host = CdmHostClient::spawn(hostPath(), modulePath(), storagePath());
++    if (!host || !host->init(keySystemName, distinctiveIdentifiers == AllowDistinctiveIdentifiers::Yes, persistentState == AllowPersistentState::Yes)) {
++        WTFLogAlways("Widevine: the CDM host (%s) did not start", hostPath().c_str());
++        callback(SuccessValue::Failed);
++        return;
++    }
++    m_host = std::shared_ptr<CdmHostClient>(host.release());
++    m_initCallback = WTF::move(callback);
++    m_sink = CDMWidevineEventSink::create(*this);
++    Thread::create("CDM host events"_s, [sink = Ref { *m_sink }, host = m_host]() mutable {
++        while (!sink->stop) {
++            struct pollfd fd = { host->control_fd(), POLLIN, 0 };
++            int ready = poll(&fd, 1, 200);
++            if (ready <= 0)
++                continue;
++            CdmIn event;
++            bool gone = !host->read_event(event);
++            if (gone)
++                event.type = 0; // (the host is gone: everything awaited fails)
++            callOnMainThread([sink, event = WTF::move(event)]() mutable {
++                if (sink->instance)
++                    sink->instance->handleEvent(event);
++            });
++            if (gone)
++                break;
++        }
++    })->detach();
++    if (RefPtr cdmProxy = proxy())
++        static_cast<CDMProxyOnyx&>(*cdmProxy).setHost(m_host);
++}
++
++void CDMInstanceWidevineOnyx::setServerCertificate(Ref<SharedBuffer>&& certificate, SuccessCallback&& callback)
++{
++    if (!m_host) {
++        callback(SuccessValue::Failed);
++        return;
++    }
++    uint32_t promise = addPromise([callback = WTF::move(callback)](bool resolved, const String&) mutable {
++        callback(resolved ? SuccessValue::Succeeded : SuccessValue::Failed);
++    });
++    if (!m_host->set_server_certificate(promise, toStd(certificate->span())))
++        handleEvent(*std::make_unique<CdmIn>()); // (the host is gone)
++}
++
++RefPtr<CDMInstanceSession> CDMInstanceWidevineOnyx::createSession()
++{
++    return adoptRef(new CDMInstanceSessionWidevineOnyx(*this));
++}
++
++uint32_t CDMInstanceWidevineOnyx::addPromise(PromiseHandler&& handler)
++{
++    uint32_t promise = m_nextPromise++;
++    if (!m_nextPromise)
++        m_nextPromise = 1;
++    m_promises.set(promise, WTF::move(handler));
++    return promise;
++}
++
++void CDMInstanceWidevineOnyx::addSession(const String& sessionId, CDMInstanceSessionWidevineOnyx& session)
++{
++    m_sessions.set(sessionId, WeakPtr { session });
++}
++
++void CDMInstanceWidevineOnyx::removeSession(const String& sessionId)
++{
++    m_sessions.remove(sessionId);
++    m_earlyMessages.remove(sessionId);
++}
++
++std::optional<std::pair<uint32_t, Vector<uint8_t>>> CDMInstanceWidevineOnyx::takeEarlyMessage(const String& sessionId)
++{
++    auto it = m_earlyMessages.find(sessionId);
++    if (it == m_earlyMessages.end())
++        return std::nullopt;
++    auto message = WTF::move(it->value);
++    m_earlyMessages.remove(it);
++    return message;
++}
++
++void CDMInstanceWidevineOnyx::handleEvent(CdmIn& event)
++{
++    auto settle = [&](uint32_t promise, bool resolved, const String& sessionId) {
++        if (auto handler = m_promises.take(promise))
++            handler(resolved, sessionId);
++    };
++    auto sessionOf = [&](const std::string& id) -> std::pair<String, CDMInstanceSessionWidevineOnyx*> {
++        String sessionId = String::fromUTF8(id.c_str());
++        auto it = m_sessions.find(sessionId);
++        return { sessionId, it == m_sessions.end() ? nullptr : it->value.get() };
++    };
++
++    switch (event.type) {
++    case CDM_EV_INITIALIZED: {
++        bool ok = event.u32();
++        if (m_initCallback)
++            m_initCallback(ok ? SuccessValue::Succeeded : SuccessValue::Failed);
++        break;
++    }
++    case CDM_EV_RESOLVED:
++        settle(event.u32(), true, { });
++        break;
++    case CDM_EV_REJECTED: {
++        uint32_t promise = event.u32();
++        uint32_t exception = event.u32();
++        uint32_t code = event.u32();
++        std::string message = event.str();
++        WTFLogAlways("Widevine: promise %u rejected (%u, %u): %s", promise, exception, code, message.c_str());
++        settle(promise, false, { });
++        break;
++    }
++    case CDM_EV_NEW_SESSION: {
++        uint32_t promise = event.u32();
++        std::string id = event.str();
++        settle(promise, event.ok, String::fromUTF8(id.c_str()));
++        break;
++    }
++    case CDM_EV_MESSAGE: {
++        auto [sessionId, session] = sessionOf(event.str());
++        uint32_t type = event.u32();
++        Vector<uint8_t> message = toWTF(event.blk());
++        if (session)
++            session->message(type, WTF::move(message));
++        else if (!sessionId.isEmpty())
++            m_earlyMessages.set(sessionId, std::pair { type, WTF::move(message) });
++        break;
++    }
++    case CDM_EV_KEYS_CHANGE: {
++        auto [sessionId, session] = sessionOf(event.str());
++        event.u32(); // (a new usable key)
++        uint32_t count = event.u32();
++        Vector<std::pair<Vector<uint8_t>, uint32_t>> keys;
++        for (uint32_t i = 0; event.ok && i < count && i < 1024; i++) {
++            Vector<uint8_t> keyID = toWTF(event.blk());
++            uint32_t status = event.u32();
++            keys.append({ WTF::move(keyID), status });
++        }
++        if (session && event.ok)
++            session->keysChanged(WTF::move(keys));
++        break;
++    }
++    case CDM_EV_CLOSED: {
++        auto [sessionId, session] = sessionOf(event.str());
++        if (session)
++            session->closedByHost();
++        break;
++    }
++    case CDM_EV_EXPIRATION:
++        break;
++    default: {
++        // the host is gone (or said something unknown): what was awaited fails
++        WTFLogAlways("Widevine: the CDM host is gone");
++        auto promises = std::exchange(m_promises, { });
++        for (auto& handler : promises.values())
++            handler(false, { });
++        if (m_initCallback)
++            m_initCallback(SuccessValue::Failed);
++        break;
++    }
++    }
++}
++
++// ---- the sessions ----
++
++static CDMKeyStatus keyStatusOf(uint32_t status)
++{
++    switch (status) {
++    case 0: return CDMKeyStatus::Usable;
++    case 2: return CDMKeyStatus::Expired;
++    case 3: return CDMKeyStatus::OutputRestricted;
++    case 4: return CDMKeyStatus::OutputDownscaled;
++    case 5: return CDMKeyStatus::StatusPending;
++    case 6: return CDMKeyStatus::Released;
++    default: return CDMKeyStatus::InternalError;
++    }
++}
++
++CDMInstanceSessionWidevineOnyx::~CDMInstanceSessionWidevineOnyx()
++{
++    if (auto* parent = parentInstance(); parent && !m_sessionId.isEmpty()) {
++        parent->unrefAllKeysFrom(m_keyStore);
++        parent->removeSession(m_sessionId);
++    }
++}
++
++CDMInstanceWidevineOnyx* CDMInstanceSessionWidevineOnyx::parentInstance() const
++{
++    return static_cast<CDMInstanceWidevineOnyx*>(cdmInstanceProxy().get());
++}
++
++void CDMInstanceSessionWidevineOnyx::requestLicense(LicenseType type, KeyGroupingStrategy, const String& initDataType, Ref<SharedBuffer>&& initData, LicenseCallback&& callback)
++{
++    auto* parent = parentInstance();
++    if (!parent || !parent->host() || type != LicenseType::Temporary) {
++        callback(SharedBuffer::create(), emptyString(), false, SuccessValue::Failed);
++        return;
++    }
++    uint32_t dataType = equalLettersIgnoringASCIICase(initDataType, "keyids"_s) ? 1 : equalLettersIgnoringASCIICase(initDataType, "webm"_s) ? 2 : 0;
++    m_licenseCallback = WTF::move(callback);
++    uint32_t promise = parent->addPromise([weakThis = WeakPtr<CDMInstanceSessionProxy> { *this }](bool resolved, const String& sessionId) {
++        auto* session = static_cast<CDMInstanceSessionWidevineOnyx*>(weakThis.get());
++        if (!session)
++            return;
++        auto* parent = session->parentInstance();
++        if (!resolved || sessionId.isEmpty() || !parent) {
++            if (auto licenseCallback = WTF::move(session->m_licenseCallback))
++                licenseCallback(SharedBuffer::create(), emptyString(), false, SuccessValue::Failed);
++            return;
++        }
++        session->m_sessionId = sessionId;
++        parent->addSession(sessionId, *session);
++        if (auto early = parent->takeEarlyMessage(sessionId))
++            session->message(early->first, WTF::move(early->second));
++    });
++    if (!parent->host()->create_session(promise, 0, dataType, toStd(initData->span())))
++        parent->handleEvent(*std::make_unique<CdmIn>());
++}
++
++void CDMInstanceSessionWidevineOnyx::message(uint32_t type, Vector<uint8_t>&& message)
++{
++    // the first is the license request that generateRequest awaits; the others (renewals) go to the page
++    if (auto licenseCallback = WTF::move(m_licenseCallback)) {
++        licenseCallback(SharedBuffer::create(WTF::move(message)), m_sessionId, false, SuccessValue::Succeeded);
++        return;
++    }
++    if (m_client)
++        m_client->sendMessage(static_cast<CDMMessageType>(type <= 3 ? type : 0), SharedBuffer::create(WTF::move(message)));
++}
++
++void CDMInstanceSessionWidevineOnyx::updateLicense(const String& sessionId, LicenseType, Ref<SharedBuffer>&& response, LicenseUpdateCallback&& callback)
++{
++    auto* parent = parentInstance();
++    if (!parent || !parent->host()) {
++        callback(false, std::nullopt, std::nullopt, std::nullopt, SuccessValue::Failed);
++        return;
++    }
++    m_updating = true;
++    uint32_t promise = parent->addPromise([weakThis = WeakPtr<CDMInstanceSessionProxy> { *this }, callback = WTF::move(callback)](bool resolved, const String&) mutable {
++        auto* session = static_cast<CDMInstanceSessionWidevineOnyx*>(weakThis.get());
++        if (!session || !resolved) {
++            if (session)
++                session->m_updating = false;
++            callback(false, std::nullopt, std::nullopt, std::nullopt, SuccessValue::Failed);
++            return;
++        }
++        session->m_updating = false;
++        // (the module gives the keys before it resolves the update: they are in the store)
++        callback(false, session->m_keyStore.convertToJSKeyStatusVector(), std::nullopt, std::nullopt, SuccessValue::Succeeded);
++    });
++    if (!parent->host()->update_session(promise, toStdString(sessionId), toStd(response->span())))
++        parent->handleEvent(*std::make_unique<CdmIn>());
++}
++
++void CDMInstanceSessionWidevineOnyx::keysChanged(Vector<std::pair<Vector<uint8_t>, uint32_t>>&& keys)
++{
++    auto* parent = parentInstance();
++    if (parent)
++        parent->unrefAllKeysFrom(m_keyStore);
++    m_keyStore.clear();
++    // (the values stay in the host: the proxy knows the IDs and their statuses)
++    for (auto& [keyID, status] : keys)
++        m_keyStore.add(KeyHandle::create(keyStatusOf(status), WTF::move(keyID), KeyHandleValueVariant { Vector<uint8_t> { } }));
++    if (parent)
++        parent->mergeKeysFrom(m_keyStore);
++    if (!m_updating && m_client)
++        m_client->updateKeyStatuses(m_keyStore.convertToJSKeyStatusVector());
++}
++
++void CDMInstanceSessionWidevineOnyx::closedByHost()
++{
++    if (auto* parent = parentInstance())
++        parent->unrefAllKeysFrom(m_keyStore);
++    m_keyStore.clear();
++    if (m_client)
++        m_client->updateKeyStatuses({ });
++}
++
++void CDMInstanceSessionWidevineOnyx::closeSession(const String& sessionId, CloseSessionCallback&& callback)
++{
++    auto* parent = parentInstance();
++    if (!parent || !parent->host()) {
++        callback();
++        return;
++    }
++    parent->unrefAllKeysFrom(m_keyStore);
++    m_keyStore.clear();
++    uint32_t promise = parent->addPromise([callback = WTF::move(callback)](bool, const String&) mutable {
++        callback();
++    });
++    bool sent = parent->host()->close_session(promise, toStdString(sessionId));
++    parent->removeSession(sessionId);
++    if (!sent)
++        parent->handleEvent(*std::make_unique<CdmIn>());
++}
++
++void CDMInstanceSessionWidevineOnyx::loadSession(LicenseType, const String&, const String&, LoadSessionCallback&& callback)
++{
++    callback(std::nullopt, std::nullopt, std::nullopt, SuccessValue::Failed, SessionLoadFailure::Other);
++}
++
++void CDMInstanceSessionWidevineOnyx::removeSessionData(const String&, LicenseType, RemoveSessionDataCallback&& callback)
++{
++    callback({ }, nullptr, SuccessValue::Failed);
++}
++
++// ---- the player's side ----
++
++// a packet's encryption for the host (cdm::InputBuffer_2) ; false: a scheme the module does not know
++static bool cryptOf(const av_crypt& crypt, av_us pts, CdmCrypt& out)
++{
++    switch (crypt.scheme) {
++    case 0x63656e63: // 'cenc'
++        out.scheme = Cdm::Cenc;
++        break;
++    case 0x63626373: // 'cbcs'
++        out.scheme = Cdm::Cbcs;
++        break;
++    default:
++        return false;
++    }
++    out.kid.assign(crypt.kid, crypt.kid + 16);
++    out.iv.assign(crypt.iv, crypt.iv + 16);
++    out.crypt_blocks = crypt.crypt_blocks;
++    out.skip_blocks = crypt.skip_blocks;
++    out.clear.assign(crypt.clear, crypt.clear + crypt.nsub);
++    out.cipher.assign(crypt.cipher, crypt.cipher + crypt.nsub);
++    out.timestamp = pts;
++    return true;
++}
++
++int widevineDecryptPacket(CdmHostClient& host, const av_track&, av_packet& packet)
++{
++    CdmCrypt crypt;
++    if (!packet.crypt || !cryptOf(*packet.crypt, packet.pts, crypt))
++        return AV_ERR;
++    std::vector<uint8_t> clear;
++    int status = host.decrypt(crypt, packet.data, packet.size, clear);
++    if (status == Cdm::NoKey)
++        return AV_AGAIN;
++    if (status != Cdm::Success || clear.size() != packet.size)
++        return AV_ERR;
++    memcpy(packet.data, clear.data(), clear.size());
++    free(packet.crypt);
++    packet.crypt = nullptr;
++    return AV_OK;
++}
++
++namespace {
++
++// an encrypted video track decoded by the module (av_decoder_external): the frames it gives (I420)
++struct WidevineVideo {
++    std::shared_ptr<CdmHostClient> host;
++    bool h264 { false };
++    CencTrack track;        // (H.264: its avcC, for the Annex B of each packet)
++    CdmFrame frame;         // the frame given, valid until the next call
++    bool haveFrame { false };
++    bool draining { false };
++};
++
++int widevineSend(void* context, const av_packet* packet)
++{
++    auto& video = *static_cast<WidevineVideo*>(context);
++    video.haveFrame = false;
++    if (!packet) {
++        video.draining = true; // (the frames the module still holds: empty inputs, in receive)
++        return AV_OK;
++    }
++    video.draining = false;
++    CdmCrypt crypt;
++    if (packet->crypt) {
++        if (!cryptOf(*packet->crypt, packet->pts, crypt))
++            return AV_ERR;
++    } else {
++        crypt.scheme = Cdm::Unencrypted; // (the clear start of a stream: the module decodes it too)
++        crypt.timestamp = packet->pts;
++    }
++    const uint8_t* data = packet->data;
++    size_t size = packet->size;
++    std::vector<uint8_t> annexB;
++    if (video.h264) {
++        CencSample sample;
++        sample.encrypted = packet->crypt;
++        sample.clear = crypt.clear;
++        sample.cipher = crypt.cipher;
++        if (!cenc_to_annexb(video.track, packet->data, packet->size, sample, annexB, crypt.clear, crypt.cipher))
++            return AV_ERR;
++        data = annexB.data();
++        size = annexB.size();
++    }
++    int status = video.host->decode_video(crypt, data, size, video.frame);
++    if (status == Cdm::Success)
++        video.haveFrame = true;
++    else if (status != Cdm::NeedMoreData)
++        return AV_ERR;
++    return AV_OK;
++}
++
++int widevineReceive(void* context, av_frame* out)
++{
++    auto& video = *static_cast<WidevineVideo*>(context);
++    if (!video.haveFrame && video.draining) {
++        CdmCrypt none;
++        if (video.host->decode_video(none, nullptr, 0, video.frame) == Cdm::Success)
++            video.haveFrame = true;
++        else
++            video.draining = false;
++    }
++    if (!video.haveFrame)
++        return AV_AGAIN;
++    video.haveFrame = false;
++    const CdmFrame& frame = video.frame;
++    if ((frame.format != Cdm::I420 && frame.format != Cdm::Yv12) || !frame.width || !frame.height)
++        return AV_AGAIN;
++    // (the offsets are the Y, U and V planes' whatever their order in memory)
++    for (int plane = 0; plane < 3; plane++) {
++        size_t rows = plane ? (frame.height + 1) / 2 : frame.height;
++        if (frame.offset[plane] + (rows - 1) * frame.stride[plane] + (plane ? (frame.width + 1) / 2 : frame.width) > frame.pixels.size())
++            return AV_AGAIN;
++    }
++    memset(out, 0, sizeof *out);
++    out->kind = AV_VIDEO;
++    out->pts = frame.timestamp;
++    out->pix = AV_PIX_I420;
++    out->width = frame.width;
++    out->height = frame.height;
++    for (int plane = 0; plane < 3; plane++) {
++        out->plane[plane] = const_cast<uint8_t*>(frame.pixels.data()) + frame.offset[plane];
++        out->stride[plane] = frame.stride[plane];
++    }
++    out->colorspace = frame.height >= 720 ? AV_CS_BT709 : AV_CS_BT601;
++    return AV_OK;
++}
++
++void widevineFlush(void* context)
++{
++    auto& video = *static_cast<WidevineVideo*>(context);
++    video.haveFrame = false;
++    video.draining = false;
++    video.host->reset_video();
++}
++
++void widevineClose(void* context)
++{
++    auto* video = static_cast<WidevineVideo*>(context);
++    video->host->reset_video();
++    delete video;
++}
++
++const av_decoder_ops widevineOps = { "widevine", widevineSend, widevineReceive, widevineFlush, widevineClose };
++
++} // namespace
++
++av_decoder* widevineVideoDecoder(std::shared_ptr<CdmHostClient> host, const av_track& track)
++{
++    uint32_t codec, profile;
++    std::vector<uint8_t> extra;
++    if (track.extra && track.extra_len)
++        extra.assign(track.extra, track.extra + track.extra_len);
++    switch (track.codec) {
++    case AV_C_H264: {
++        codec = Cdm::CodecH264;
++        int idc = extra.size() > 1 ? extra[1] : 100;
++        profile = idc == 66 ? Cdm::H264Baseline : idc == 77 ? Cdm::H264Main : idc == 88 ? Cdm::H264Extended
++            : idc == 110 ? Cdm::H264High10 : idc == 122 ? Cdm::H264High422 : idc == 244 ? Cdm::H264High444 : Cdm::H264High;
++        break;
++    }
++    case AV_C_VP9:
++        codec = Cdm::CodecVp9;
++        profile = Cdm::Vp9Profile0;
++        break;
++    case AV_C_VP8:
++        codec = Cdm::CodecVp8;
++        profile = Cdm::ProfileNotNeeded;
++        break;
++    case AV_C_AV1:
++        codec = Cdm::CodecAv1;
++        profile = Cdm::Av1Main;
++        break;
++    default:
++        return nullptr;
++    }
++    if (!host || host->init_video(codec, profile, track.width, track.height, extra) != Cdm::Success) {
++        WTFLogAlways("Widevine: the module does not decode this video (%s, %dx%d)", track.codec_str, track.width, track.height);
++        return nullptr;
++    }
++    auto* video = new WidevineVideo;
++    video->host = WTF::move(host);
++    video->h264 = codec == Cdm::CodecH264;
++    video->track.avcc = extra;
++    video->track.width = track.width;
++    video->track.height = track.height;
++    av_decoder* decoder = av_decoder_external(&widevineOps, video);
++    if (!decoder) {
++        video->host->reset_video();
++        delete video;
++    }
++    return decoder;
++}
++
++} // namespace WebCore
++
++#endif // ENABLE(ENCRYPTED_MEDIA) && PLATFORM(ONYX)
+diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h
+--- a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h	1970-01-01 01:00:00.000000000 +0100
++++ b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h	2026-11-20 04:16:25.674442000 +0100
+@@ -0,0 +1,172 @@
++/*
++ * Copyright (C) 2026 Stéphane Wegener (Korin OS).
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
++ * EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES.
++ */
++
++#pragma once
++
++#if ENABLE(ENCRYPTED_MEDIA) && PLATFORM(ONYX)
++
++#include "CDMFactory.h"
++#include "CDMInstanceSession.h"
++#include "CDMPrivate.h"
++#include "CDMProxy.h"
++#include "SharedBuffer.h"
++#include <memory>
++#include <wtf/Function.h>
++#include <wtf/HashMap.h>
++#include <wtf/TZoneMalloc.h>
++#include <wtf/WeakPtr.h>
++#include <wtf/text/StringHash.h>
++
++class CdmHostClient;
++struct CdmIn;
++struct av_decoder;
++struct av_packet;
++struct av_track;
++
++namespace WebCore {
++
++// Widevine (com.widevine.alpha) for the Onyx engine (Korin OS, docs/etude/WIDEVINE.md, step 5): Google's
++// CDM module (Linux x86-64, never ours to ship) runs in Korin's CDM host, cdmhost, a process of its own that
++// the instance starts (CdmHostClient, src/sys/cdmhost). The sessions go to it on its control socket; its
++// events come back on a thread of the instance, then to the main thread. The keys never leave the host:
++// the audio is decrypted there (widevineDecryptPacket), the video decoded there (widevineVideoDecoder).
++//
++// Where things are: the module at $JET_WIDEVINE_CDM, else $HOME/.jet/widevine/libwidevinecdm.so (the key
++// system is offered only when it is there); the host at $JET_CDMHOST, else /apps/jet.app/cdmhost; the
++// module's storage in $HOME/.jet/widevine/storage.
++
++class CDMFactoryWidevineOnyx final : public CDMFactory {
++    WTF_MAKE_TZONE_ALLOCATED(CDMFactoryWidevineOnyx);
++public:
++    static CDMFactoryWidevineOnyx& singleton();
++
++    void ref() const final { }
++    void deref() const final { }
++
++    std::unique_ptr<CDMPrivate> createCDM(const String& keySystem, const String& mediaKeysHashSalt, const CDMPrivateClient&) final;
++    bool supportsKeySystem(const String&) final;
++};
++
++class CDMPrivateWidevineOnyx final : public CDMPrivate {
++    WTF_MAKE_TZONE_ALLOCATED(CDMPrivateWidevineOnyx);
++    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(CDMPrivateWidevineOnyx);
++public:
++    CDMPrivateWidevineOnyx() = default;
++
++    Vector<String> supportedInitDataTypes() const final;
++    Vector<String> supportedRobustnesses() const final;
++    bool supportsConfiguration(const CDMKeySystemConfiguration&) const final;
++    bool supportsConfigurationWithRestrictions(const CDMKeySystemConfiguration&, const CDMRestrictions&) const final;
++    bool supportsSessionTypeWithConfiguration(const CDMSessionType&, const CDMKeySystemConfiguration&) const final;
++    CDMRequirement distinctiveIdentifiersRequirement(const CDMKeySystemConfiguration&, const CDMRestrictions&) const final;
++    CDMRequirement persistentStateRequirement(const CDMKeySystemConfiguration&, const CDMRestrictions&) const final;
++    bool distinctiveIdentifiersAreUniquePerOriginAndClearable(const CDMKeySystemConfiguration&) const final { return false; }
++    RefPtr<CDMInstance> createInstance() final;
++    void loadAndInitialize() final { }
++    bool supportsServerCertificates() const final { return true; }
++    bool supportsSessions() const final { return true; }
++    bool supportsInitData(const String&, const SharedBuffer&) const final;
++    RefPtr<SharedBuffer> sanitizeResponse(const SharedBuffer&) const final;
++    std::optional<String> sanitizeSessionId(const String&) const final;
++};
++
++class CDMInstanceSessionWidevineOnyx;
++class CDMWidevineEventSink;
++
++class CDMInstanceWidevineOnyx final : public CDMInstanceProxy {
++    WTF_MAKE_TZONE_ALLOCATED(CDMInstanceWidevineOnyx);
++    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(CDMInstanceWidevineOnyx);
++public:
++    CDMInstanceWidevineOnyx();
++    virtual ~CDMInstanceWidevineOnyx();
++
++    ImplementationType implementationType() const final { return ImplementationType::Onyx; }
++    void initializeWithConfiguration(const CDMKeySystemConfiguration&, AllowDistinctiveIdentifiers, AllowPersistentState, SuccessCallback&&) final;
++    void setServerCertificate(Ref<SharedBuffer>&&, SuccessCallback&&) final;
++    void setStorageDirectory(const String&) final { }
++    const String& keySystem() const final;
++    RefPtr<CDMInstanceSession> createSession() final;
++
++    // the sessions' side (main thread)
++    CdmHostClient* host() const { return m_host.get(); }
++    // a request to the host: its promise's number, and what to do with its answer (resolved / rejected, the
++    // session ID of a new session)
++    using PromiseHandler = Function<void(bool resolved, const String& sessionId)>;
++    uint32_t addPromise(PromiseHandler&&);
++    void addSession(const String& sessionId, CDMInstanceSessionWidevineOnyx&);
++    void removeSession(const String& sessionId);
++    // the host's messages for a session not known yet (a license request before its new-session promise)
++    std::optional<std::pair<uint32_t, Vector<uint8_t>>> takeEarlyMessage(const String& sessionId);
++
++    void handleEvent(CdmIn&);
++
++private:
++    std::shared_ptr<CdmHostClient> m_host;
++    RefPtr<CDMWidevineEventSink> m_sink;
++    SuccessCallback m_initCallback;
++    uint32_t m_nextPromise { 1 };
++    HashMap<uint32_t, PromiseHandler> m_promises;
++    HashMap<String, WeakPtr<CDMInstanceSessionWidevineOnyx>> m_sessions;
++    HashMap<String, std::pair<uint32_t, Vector<uint8_t>>> m_earlyMessages;
++};
++
++class CDMInstanceSessionWidevineOnyx final : public CDMInstanceSessionProxy {
++public:
++    explicit CDMInstanceSessionWidevineOnyx(CDMInstanceWidevineOnyx& parent)
++        : CDMInstanceSessionProxy(parent) { }
++    virtual ~CDMInstanceSessionWidevineOnyx();
++
++    void setClient(WeakPtr<CDMInstanceSessionClient>&& client) final { m_client = WTF::move(client); }
++    void clearClient() final { m_client = nullptr; }
++
++    void requestLicense(LicenseType, KeyGroupingStrategy, const String& initDataType, Ref<SharedBuffer>&& initData, LicenseCallback&&) final;
++    void updateLicense(const String&, LicenseType, Ref<SharedBuffer>&&, LicenseUpdateCallback&&) final;
++    void loadSession(LicenseType, const String&, const String&, LoadSessionCallback&&) final;
++    void closeSession(const String&, CloseSessionCallback&&) final;
++    void removeSessionData(const String&, LicenseType, RemoveSessionDataCallback&&) final;
++    void storeRecordOfKeyUsage(const String&) final { }
++
++    // the host's events for this session (main thread)
++    void message(uint32_t type, Vector<uint8_t>&&);
++    void keysChanged(Vector<std::pair<Vector<uint8_t>, uint32_t>>&&);
++    void closedByHost();
++
++private:
++    CDMInstanceWidevineOnyx* parentInstance() const;
++
++    String m_sessionId;
++    LicenseCallback m_licenseCallback;	// a license request awaited (generateRequest)
++    bool m_updating { false };		// an update awaited: its keys go to its callback
++    KeyStore m_keyStore;
++    WeakPtr<CDMInstanceSessionClient> m_client;
++};
++
++// The player's side (its decoding threads):
++// an encrypted packet of an audio track decrypted in place by the host -> AV_OK, AV_AGAIN (no key yet), AV_ERR
++int widevineDecryptPacket(CdmHostClient&, const av_track&, av_packet&);
++// a decoder of an encrypted video track that sends its packets, still encrypted, to the host (the module's
++// DecryptAndDecodeFrame; H.264 in Annex B as Chromium gives it) -> av_decoder_external; null: not a codec
++// the module decodes, or the host refused it
++av_decoder* widevineVideoDecoder(std::shared_ptr<CdmHostClient>, const av_track&);
++
++} // namespace WebCore
++
++SPECIALIZE_TYPE_TRAITS_CDM_INSTANCE(WebCore::CDMInstanceWidevineOnyx, WebCore::CDMInstance::ImplementationType::Onyx);
++
++#endif // ENABLE(ENCRYPTED_MEDIA) && PLATFORM(ONYX)
+diff -ruN a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp b/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp
+--- a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp	2026-11-20 04:15:19.400599400 +0100
++++ b/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp	2026-11-20 04:20:10.025197600 +0100
+@@ -48,7 +48,9 @@
+ #if ENABLE(ENCRYPTED_MEDIA)
+ #include "CDMInstance.h"
+ #include "CDMOnyx.h"
++#include "CDMWidevineOnyx.h"
+ #include <JavaScriptCore/ArrayBuffer.h>
++#include <vector>
+ #endif
+ #include <unistd.h>
+ #include <wtf/MainThread.h>
+@@ -362,6 +364,7 @@
+     av_player_set_rate(m_av, m_rate);
+ #if ENABLE(ENCRYPTED_MEDIA)
+     av_player_set_decryptor(m_av, decryptPacket, this);
++    av_player_set_decoder_factory(m_av, createDecoder, this);
+ #endif
+     return true;
+ }
+@@ -1152,7 +1155,8 @@
+ void MediaPlayerPrivateOnyx::cdmInstanceAttached(CDMInstance& instance)
+ {
+     // (the instances of the key systems the Onyx engine registers are proxies: CDMOnyx.cpp)
+-    if (instance.implementationType() != CDMInstance::ImplementationType::ClearKey)
++    if (instance.implementationType() != CDMInstance::ImplementationType::ClearKey
++        && instance.implementationType() != CDMInstance::ImplementationType::Onyx)
+         return;
+     auto& proxyInstance = static_cast<CDMInstanceProxy&>(instance);
+     if (RefPtr player = m_player.get())
+@@ -1181,13 +1185,39 @@
+ 
+ // The player's audio and video threads: an encrypted packet decrypted in place with the key its CDM
+ // instance received -> AV_OK ; AV_AGAIN: no key yet (the thread asks again; the element is told it waits)
+-int MediaPlayerPrivateOnyx::decryptPacket(void* context, const av_track*, av_packet* packet)
++RefPtr<CDMProxyOnyx> MediaPlayerPrivateOnyx::currentCDMProxy() const
++{
++    Locker locker { m_cdmLock };
++    return m_cdmProxy;
++}
++
++int MediaPlayerPrivateOnyx::decryptPacket(void* context, const av_track* track, av_packet* packet)
+ {
+     auto* self = static_cast<MediaPlayerPrivateOnyx*>(context);
+-    RefPtr<CDMProxyOnyx> proxy;
+-    {
+-        Locker locker { self->m_cdmLock };
+-        proxy = self->m_cdmProxy;
++    RefPtr<CDMProxyOnyx> proxy = self->currentCDMProxy();
++    auto waitForKey = [&] {
++        if (proxy && !self->m_waitingForKey.exchange(true))
++            proxy->setWaitingForKey(true);
++        return AV_AGAIN;
++    };
++    auto keyFound = [&] {
++        if (self->m_waitingForKey.exchange(false))
++            proxy->setWaitingForKey(false);
++    };
++    // Widevine: the keys are in the CDM host; the video goes to it still encrypted (its decoder:
++    // EncryptedVideoDecoderOnyx), the audio comes back from it in the clear
++    if (std::shared_ptr<CdmHostClient> host = proxy && packet->crypt && track ? proxy->host() : nullptr) {
++        if (track->kind == AV_VIDEO) {
++            if (!proxy->hasUsableKey(std::span<const uint8_t, 16> { packet->crypt->kid, 16 }))
++                return waitForKey();
++            keyFound();
++            return AV_OK;
++        }
++        int result = widevineDecryptPacket(*host, *track, *packet);
++        if (result == AV_AGAIN)
++            return waitForKey();
++        keyFound();
++        return result;
+     }
+     uint8_t key[16];
+     if (!proxy || !packet->crypt || !proxy->copyKey(std::span<const uint8_t, 16> { packet->crypt->kid, 16 }, std::span<uint8_t, 16> { key, 16 })) {
+@@ -1202,6 +1232,77 @@
+     return result == AV_OK ? AV_OK : AV_ERR;
+ }
+ 
++// The decoder of an encrypted video track (the player's factory, av_player_set_decoder_factory): which one
++// is known only when its packets come, after the page has given its MediaKeys -- the CDM host's
++// (Widevine: the packets come still encrypted), else the library's (Clear Key: they come decrypted).
++struct EncryptedVideoDecoderOnyx {
++    MediaPlayerPrivateOnyx* player;
++    av_track track;                 // (a copy, with its own codec setup)
++    std::vector<uint8_t> extra;
++    av_decoder* inner { nullptr };
++    bool inHost { false };
++
++    void bind(bool wantHost)
++    {
++        if (inner)
++            av_decoder_free(inner);
++        inner = nullptr;
++        inHost = false;
++        RefPtr<CDMProxyOnyx> proxy = wantHost ? player->currentCDMProxy() : nullptr;
++        if (std::shared_ptr<CdmHostClient> host = proxy ? proxy->host() : nullptr) {
++            inner = widevineVideoDecoder(WTF::move(host), track);
++            inHost = inner;
++        }
++        if (!inner)
++            inner = av_decoder_new(&track);
++    }
++
++    static int send(void* context, const av_packet* packet)
++    {
++        auto& self = *static_cast<EncryptedVideoDecoderOnyx*>(context);
++        // (a packet left encrypted is the host's; the clear start of a stream, anyone's)
++        if (!self.inner || (packet && packet->crypt && !self.inHost))
++            self.bind(true);
++        return self.inner ? av_decoder_send(self.inner, packet) : AV_ERR;
++    }
++    static int receive(void* context, av_frame* frame)
++    {
++        auto& self = *static_cast<EncryptedVideoDecoderOnyx*>(context);
++        return self.inner ? av_decoder_receive(self.inner, frame) : AV_AGAIN;
++    }
++    static void flush(void* context)
++    {
++        auto& self = *static_cast<EncryptedVideoDecoderOnyx*>(context);
++        if (self.inner)
++            av_decoder_flush(self.inner);
++    }
++    static void close(void* context)
++    {
++        auto* self = static_cast<EncryptedVideoDecoderOnyx*>(context);
++        if (self->inner)
++            av_decoder_free(self->inner);
++        delete self;
++    }
++};
++
++av_decoder* MediaPlayerPrivateOnyx::createDecoder(void* context, const av_track* track)
++{
++    static const av_decoder_ops ops = { "encrypted", EncryptedVideoDecoderOnyx::send, EncryptedVideoDecoderOnyx::receive,
++        EncryptedVideoDecoderOnyx::flush, EncryptedVideoDecoderOnyx::close };
++    // (the audio: the library's decoder, after the decryptor -- the CDM host's Decrypt for Widevine)
++    if (!track || track->kind != AV_VIDEO)
++        return nullptr;
++    auto* decoder = new EncryptedVideoDecoderOnyx { static_cast<MediaPlayerPrivateOnyx*>(context), *track, { } };
++    if (track->extra && track->extra_len)
++        decoder->extra.assign(track->extra, track->extra + track->extra_len);
++    decoder->track.extra = decoder->extra.empty() ? nullptr : decoder->extra.data();
++    decoder->track.extra_len = decoder->extra.size();
++    av_decoder* external = av_decoder_external(&ops, decoder);
++    if (!external)
++        delete decoder;
++    return external;
++}
++
+ #endif // ENABLE(ENCRYPTED_MEDIA)
+ 
+ } // namespace WebCore
+diff -ruN a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h b/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h
+--- a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h	2026-11-20 04:15:19.356826600 +0100
++++ b/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h	2026-11-20 05:08:58.558257800 +0100
+@@ -43,6 +43,7 @@
+ struct av_player;
+ struct av_packet;
+ struct av_track;
++struct av_decoder;
+ struct av_store;
+ struct av_player_status;
+ 
+@@ -51,6 +52,7 @@
+ class MediaSourcePrivateOnyx;
+ #if ENABLE(ENCRYPTED_MEDIA)
+ class CDMProxyOnyx;
++struct EncryptedVideoDecoderOnyx;
+ #endif
+ class NativeImage;
+ class PlatformMediaResource;
+@@ -153,13 +155,17 @@
+     void ensureImage();
+     MediaPlayer::MovieLoadType movieLoadType() const final;
+ #if ENABLE(ENCRYPTED_MEDIA)
+-    // EME (Korin OS): the media element's CDM instance (Clear Key) gives the keys; the player's decoding
+-    // threads decrypt each encrypted packet with them (decryptPacket, av_player_set_decryptor)
++    // EME (Korin OS): the media element's CDM instance gives the keys. Clear Key: the player's decoding
++    // threads decrypt each encrypted packet with them (decryptPacket, av_player_set_decryptor). Widevine: the
++    // CDM host decrypts the audio, and decodes the video itself (createDecoder, av_player_set_decoder_factory)
+     void cdmInstanceAttached(CDMInstance&) final;
+     void cdmInstanceDetached(CDMInstance&) final;
+     void attemptToDecryptWithInstance(CDMInstance&) final;
+     bool waitingForKey() const final { return m_waitingForKey; }
+     static int decryptPacket(void* context, const av_track*, av_packet*);
++    static av_decoder* createDecoder(void* context, const av_track*);
++    RefPtr<CDMProxyOnyx> currentCDMProxy() const;
++    friend struct EncryptedVideoDecoderOnyx;
+ #endif
+     std::optional<VideoPlaybackQualityMetrics> videoPlaybackQualityMetrics() final;
+     String engineDescription() const final { return "Onyx"_s; }
