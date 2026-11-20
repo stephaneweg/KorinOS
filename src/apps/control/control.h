@@ -40,7 +40,7 @@ enum
 	AP_TITLE_Y = 32,			/* sa ligne de base (20 px) */
 	AP_SUB_Y = 50,				/* celle du sous-titre (12 px) */
 	AP_BOTTOM = 56,				/* message + bouton */
-	SIDE_W = 160,				/* la liste des volets */
+	SIDE_W = 190,				/* la liste des volets (comme le panneau de Fichiers, PAN_W) */
 	SIDE_H = 40,				/* une ligne de la liste */
 	SIDE_IC = 24,
 	BTN_W = 96,
