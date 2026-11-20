@@ -153,21 +153,33 @@ class Fat32:
     def raw_entry(sn, attr, cl, size, d, t):
         return struct.pack("<11sBBBHHHHHHHI", sn, attr, 0, 0, t, d, d, cl >> 16, t, d, cl & 0xFFFF, size)
 
-    def add_tree(self, host_dir, self_cl=None, parent_cl=None):
-        """Ajoute un dossier ; renvoie le premier cluster de son repertoire."""
+    @staticmethod
+    def dir_bytes(names):
+        """Taille du repertoire qui tient ces noms : par nom, son entree courte et ses entrees LFN
+        (13 caracteres UTF-16 chacune, le 0 final compris), plus etiquette, « . », « .. » et une fin.
+        Une estimation trop courte faisait deborder le repertoire sur le fichier suivant (anthropic/
+        types/beta : des noms de plus de 39 caracteres, le debut de __init__.py ecrase)."""
+        n = 4
+        for name in names:
+            n += 1 + (len(name.encode("utf-16-le")) // 2 + 1 + 12) // 13
+        return n * 32
+
+    def add_tree(self, host_dir, self_cl=None, parent_cl=None, reserved=64 * 1024):
+        """Ajoute un dossier ; renvoie le premier cluster de son repertoire. reserved : la place
+        deja reservee quand self_cl est donne (la racine : 64 Ko)."""
         items = sorted(os.listdir(host_dir)) if host_dir else []
-        # taille estimee du repertoire : on reserve large (1 cluster / 32 entrees ~ LFN)
-        est = (len(items) * 4 + 4) * 32
         is_root = parent_cl is None
         if self_cl is None:
-            self_cl, _ = self.alloc_chain(est)
+            reserved = self.dir_bytes(items)
+            self_cl, n = self.alloc_chain(reserved)
+            reserved = n * self.csize
         entries = []
         for it in items:
             p = os.path.join(host_dir, it)
             st = os.stat(p)
             if os.path.isdir(p):
-                sub, _ = self.alloc_chain((len(os.listdir(p)) * 4 + 4) * 32)
-                self.add_tree(p, sub, self_cl)
+                sub, n = self.alloc_chain(self.dir_bytes(os.listdir(p)))
+                self.add_tree(p, sub, self_cl, n * self.csize)
                 entries.append((it, 0x10, sub, 0, st.st_mtime))
             else:
                 payload = open(p, "rb").read()
@@ -178,6 +190,9 @@ class Fat32:
         blob = self.dir_entries(entries, None if is_root else self_cl,
                                  None if is_root else (parent_cl if parent_cl != 2 else 0),
                                  self.LABEL if is_root else None)
+        if len(blob) > reserved:
+            raise SystemExit("mkdisk : le repertoire %s demande %d octets, %d reserves" %
+                             (host_dir, len(blob), reserved))
         self.write_chain(self_cl, blob)
         return self_cl
 
