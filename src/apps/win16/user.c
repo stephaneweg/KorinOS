@@ -309,6 +309,8 @@ static void wnd_geometry (struct wnd *w)
 
 static uint16_t sel_scratch;	/* un bloc pour les structures passées aux procédures (CREATESTRUCT…) */
 
+static void size_move_msgs (struct wnd *w);
+
 static uint16_t create_window (uint32_t exstyle, int k, uint32_t cname, const char *text_raw, uint32_t wname, uint32_t style,
 	int x, int y, int cw, int ch, uint16_t parent, uint16_t menu, uint16_t hinst, uint32_t param)
 {
@@ -396,8 +398,16 @@ static uint16_t create_window (uint32_t exstyle, int k, uint32_t cname, const ch
 	w = wnd_get (hwnd);
 	if (!w)
 		return 0;
-	user_send (hwnd, WM_SIZE, 0, (uint32_t) w->cw | (uint32_t) w->ch << 16);
-	user_send (hwnd, WM_MOVE, 0, (uint32_t) (uint16_t) (w->x < 0 ? 0 : w->x) | (uint32_t) (uint16_t) (w->y < 0 ? 0 : w->y) << 16);
+	/* (comme Windows et Wine, WIN_NEED_SIZE : une fenêtre principale reçoit WM_SIZE et WM_MOVE à son premier
+	   affichage, pas ici ; Write de Windows 3.11 dimensionnait dans WM_SIZE des filles pas encore créées et
+	   s'arrêtait sur « Mémoire insuffisante ») */
+	if (style & (WS_CHILD | WS_POPUP))
+		size_move_msgs (w);
+	else
+		w->need_size = 1;
+	w = wnd_get (hwnd);
+	if (!w)
+		return 0;
 	if ((style & WS_CHILD) && parent)
 		user_send (parent, 0x0210, WM_CREATE, MAKESEGPTR (w->id, hwnd));	/* WM_PARENTNOTIFY */
 	if (style & WS_VISIBLE)
@@ -408,6 +418,17 @@ static uint16_t create_window (uint32_t exstyle, int k, uint32_t cname, const ch
 	}
 	w16_log ("fenêtre %04x (%s) « %s » : %d×%d\n", hwnd, classes[k].name, w ? w->text : "", w ? w->cw : 0, w ? w->ch : 0);
 	return hwnd;
+}
+
+/* WM_SIZE puis WM_MOVE, avec la taille et la place de la zone cliente */
+static void size_move_msgs (struct wnd *w)
+{
+	uint16_t hwnd = w->hwnd;
+	w->need_size = 0;
+	user_send (hwnd, WM_SIZE, 0, (uint32_t) w->cw | (uint32_t) w->ch << 16);
+	w = wnd_get (hwnd);
+	if (w)
+		user_send (hwnd, WM_MOVE, 0, (uint32_t) (uint16_t) (w->x < 0 ? 0 : w->x) | (uint32_t) (uint16_t) (w->y < 0 ? 0 : w->y) << 16);
 }
 
 uint16_t user_create (uint32_t exstyle, const char *cls, const char *text, uint32_t style, int x, int y, int w, int h,
@@ -656,6 +677,9 @@ void api_ShowWindow16 (struct w16call *c)
 		}
 	}
 	user_send (hwnd, WM_SHOWWINDOW, (uint16_t) show, 0);
+	w = wnd_get (hwnd);
+	if (w && show && w->need_size)
+		size_move_msgs (w);
 	ctrl_native_sync_tree (hwnd);	/* (les widgets de UIKit des filles suivent) */
 	w = wnd_get (hwnd);
 	if (!w)

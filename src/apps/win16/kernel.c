@@ -581,12 +581,34 @@ void api_GetSystemDirectory16 (struct w16call *c) { c->ret = (uint32_t) put_str 
 void api_GetDriveType16 (struct w16call *c) { c->ret = c->a[0] < 26 && drive_root ((int) c->a[0] + 1) ? 3 : 0; }	/* DRIVE_FIXED */
 void api_SetHandleCount16 (struct w16call *c) { c->ret = c->a[0] < MAX_FH ? c->a[0] : MAX_FH; }
 
+/* GetTempFileName (lecteur, préfixe, numéro, tampon) : comme Windows, un numéro 0 cherche un nom libre et CRÉE le
+ * fichier (vide) pour le réserver ; Write de Windows 3.11 l'ouvre ensuite par DOS et s'arrêtait sur « Mémoire
+ * insuffisante » quand il manquait */
 void api_GetTempFileName16 (struct w16call *c)
 {
 	static unsigned n = 1;
-	char s[80];
-	unsigned u = c->a[2] ? c->a[2] : n++;
-	snprintf (s, sizeof s, "C:\\WINDOWS\\TEMP\\%.3s%04X.TMP", w16_raw (c->a[1]), u & 0xffff);
+	char s[80], host[700];
+	unsigned u = c->a[2] ? c->a[2] : 0;
+	for (int tries = 0; tries < 0x10000; tries++)
+	{
+		if (!c->a[2])
+		{
+			u = n++ & 0xffff;
+			if (!u)
+				u = n++ & 0xffff;
+		}
+		snprintf (s, sizeof s, "C:\\WINDOWS\\TEMP\\%.3s%04X.TMP", w16_raw (c->a[1]), u & 0xffff);
+		if (c->a[2] || !dos_to_host (s, host, sizeof host))
+			break;
+		int fd = open (host, O_WRONLY | O_CREAT | O_EXCL, 0644);
+		if (fd >= 0)
+		{
+			close (fd);
+			break;
+		}
+		if (errno != EEXIST)
+			break;
+	}
 	put_str (c->a[3], s, 144);
 	c->ret = u;
 }
@@ -1590,6 +1612,15 @@ static uint16_t largest_free (uint16_t sel, int sum)
 	return (uint16_t) (best > 0xffff ? 0xffff : best);
 }
 
+/* LocalHandleDelta : combien de poignées le tas local ajoute à la fois (0 : la valeur seule) ; ici un simple réglage */
+void api_LocalHandleDelta16 (struct w16call *c)
+{
+	static uint16_t delta = 32;
+	if (c->a[0])
+		delta = (uint16_t) c->a[0];
+	c->ret = delta;
+}
+
 void api_LocalCompact16 (struct w16call *c) { c->ret = largest_free (cpu_sreg (S_DS), 0); }
 void api_LocalCountFree16 (struct w16call *c) { c->ret = largest_free (cpu_sreg (S_DS), 1); }
 void api_LocalHeapSize16 (struct w16call *c)
@@ -2103,6 +2134,8 @@ void dos_int21 (void)
 		snprintf (d, 64, "%s", drv == cur_drive ? cur_dir : "");
 		for (char *q = d; *q; q++)
 			*q = (char) toupper ((unsigned char) *q);
+		/* (comme MS-DOS : AX = 0100h en cas de succès ; Write de Windows 3.11 cherche la fin du chemin avec AL) */
+		set16 (R_EAX, 0x0100);
 		break;
 	}
 	case 0x4c:	/* fin du programme */

@@ -97,6 +97,7 @@ struct wnd
 	char text[256];		/* le titre (CP1252, comme le programme) */
 	long be;
 	int visible, destroyed, disabled, dialog, dlg_end, dlg_result;
+	int need_size;		/* WM_SIZE et WM_MOVE attendent le premier affichage (une fenêtre principale) */
 	int invalid, erase, ix0, iy0, ix1, iy1;	/* la zone à repeindre (zone cliente) */
 	uint8_t extra[64];
 	int nprops;

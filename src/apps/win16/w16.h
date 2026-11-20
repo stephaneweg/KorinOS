@@ -126,6 +126,7 @@ struct ne_module
 	uint32_t sizes[256];
 	uint8_t ent_seg[NE_MAX_ENTRY];
 	uint16_t ent_off[NE_MAX_ENTRY];
+	uint8_t ent_flags[NE_MAX_ENTRY];	/* 1 : exporté ; 2 : utilise le segment de données commun */
 	char modnames[64][16];
 };
 extern struct ne_module *ne_modules[MAX_MODULES];
