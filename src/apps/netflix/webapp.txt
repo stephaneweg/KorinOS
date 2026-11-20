@@ -1,0 +1,5 @@
+# Netflix : une app web sur le moteur de Jet (src/extra/onyxports/jet/webapp.cpp ; lanceur : src/lib/webapp/launcher.c)
+title    = Netflix
+url      = https://www.netflix.com/
+sites    = netflix.com
+maximize = 1

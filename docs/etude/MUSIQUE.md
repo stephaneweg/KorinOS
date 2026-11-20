@@ -19,12 +19,16 @@ de git, jusqu’à b71cf646) ; la session de l'app est **à part** de celle de J
 de Spotify, connecté avec le compte de l'utilisateur (le Web Playback SDK n'était pas une voie : il exige le jeton
 d'une app enregistrée, portée `streaming`, et Premium).
 
-* `src/apps/spotify/main.c` : le **lanceur commun des apps web** ; il prend le nom de son dossier et devient Jet par
+* `src/lib/webapp/launcher.c` : le **lanceur commun des apps web** (le `main.c` de chaque app l'inclut) ; il prend le nom de son dossier et devient Jet par
   `execv` (le même process : le panneau voit l'app Spotify) : `/apps/jet.app/main --app=spotify`. Le reste est dans
   `webapp.txt` de l'app (`title`, `url`, `sites` : les domaines dont les nouvelles fenêtres restent dans l'app, les
-  autres vont dans Jet ; `player` : un lecteur connu, pour la carte). Netflix et Disney+ (demandés le 20/11, à faire
-  quand la lenteur de Jet sera résolue) : un dossier `src/apps/<nom>` avec ce même `main.c`, un `webapp.txt` et un
-  `app.txt`, rien de plus.
+  autres vont dans Jet ; `player` : un lecteur connu, pour la carte ; `maximize` : la fenêtre agrandie au départ, F11
+  et Fichier > Agrandir dans toutes). **Netflix** (`src/apps/netflix`, 20/11, demandé par l'utilisateur) : ce même
+  `main.c`, un `webapp.txt` (`maximize = 1`, pas de lecteur : fermer la fenêtre arrête tout), son icône
+  (`tools/icons/art.py`, un écran et le bouton lecture). **Disney+, TF1+, Prime Video** (`src/apps/disneyplus`,
+  `tf1plus`, `primevideo`, 20/11, demandés par l'utilisateur) : la même chose, un dossier chacun ; icônes génériques
+  sur le même écran (`video_screen`), jamais les logos des marques. Prime Video garde `amazon.com` et `amazon.fr` (la
+  connexion), ajoutés aussi aux sites Widevine d'engine_webkit.cpp.
 * Le nom des process : après `execv`, le noyau nomme un process d'après son fichier (`jet`) et le panneau aurait
   montré Jet. Le lanceur appelle `korin_exec_name (nom)` de libposix (proc.c : `EXP_NAME` de `SYS_EXEC`) ; les process
   web et réseau de WebKit sont lancés par le lanceur (`engine_set_helper_path`), qui redevient Jet de la même façon :
@@ -39,7 +43,7 @@ d'une app enregistrée, portée `streaming`, et Premium).
   `ui_window_top`) ; la page reste derrière, la carte passe par-dessus sa surface (`ui_surface_overlay`).
 * Fragile : les `data-testid` de Spotify peuvent changer ; la carte montre alors le titre de la page, ses boutons ne
   font plus rien, la lecture dans la fenêtre continue de marcher.
-* Essai : `tools/linux/test_spotify_app.sh` (QEMU PC : cdmupdate, puis l'app ; sans compte). L'identification à
+* Essai : `tools/linux/test_webapp.sh` (QEMU PC : cdmupdate, puis l'app ; sans compte). L'identification à
   Spotify est faite par l'utilisateur, jamais par un essai.
 
 Ce qui suit (§ 1) est l'étude du 18/11 (voie librespot), gardée pour mémoire.

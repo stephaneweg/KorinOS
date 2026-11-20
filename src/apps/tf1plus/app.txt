@@ -1,0 +1,8 @@
+# Manifeste de TF1+ (le site de TF1+ sur le moteur de Jet : src/extra/onyxports/jet/webapp.cpp ; docs/etude/WIDEVINE.md)
+name     = TF1+
+category = Multimédia
+description = Regarder TF1+ : le site de TF1+ dans sa propre fenêtre, avec votre compte (Widevine, Korin PC).
+keywords = tf1 tf1+ télévision direct replay série film tmc tfx lci vidéo
+help = Au premier lancement, TF1+ propose de télécharger le module Widevine de Google (contenus protégés) ; puis connectez-vous à votre compte TF1+ dans la fenêtre, une fois : l'app garde sa session (à part de celle de Jet).
+help = Tout se fait dans la page de TF1+ : profils, recherche, lecture. F11 (Fichier, Agrandir) agrandit la fenêtre.
+help = Fichier, Se déconnecter efface la session de l'app ; Ouvrir dans Jet ouvre TF1+ dans le navigateur.

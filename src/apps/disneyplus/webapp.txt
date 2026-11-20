@@ -1,0 +1,5 @@
+# Disney+ : une app web sur le moteur de Jet (src/extra/onyxports/jet/webapp.cpp ; lanceur : src/lib/webapp/launcher.c)
+title    = Disney+
+url      = https://www.disneyplus.com/
+sites    = disneyplus.com
+maximize = 1

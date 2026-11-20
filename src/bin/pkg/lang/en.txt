@@ -114,3 +114,7 @@ Sources du système = System Sources
 Essais du système = System Tests
 Essais de WebKit = WebKit Tests
 Essais avant Node.js = Pre-Node.js Tests
+Netflix : le site de Netflix dans sa fenêtre (Widevine), avec votre compte = Netflix: Netflix's site in its own window (Widevine), with your account
+Disney+ : le site de Disney+ dans sa fenêtre (Widevine), avec votre compte = Disney+: Disney+'s site in its own window (Widevine), with your account
+TF1+ : le site de TF1+ (direct et replay) dans sa fenêtre (Widevine), avec votre compte = TF1+: TF1+'s site (live and catch-up) in its own window (Widevine), with your account
+Prime Video : le site de Prime Video dans sa fenêtre (Widevine), avec votre compte Amazon = Prime Video: Prime Video's site in its own window (Widevine), with your Amazon account

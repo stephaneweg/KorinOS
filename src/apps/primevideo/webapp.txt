@@ -1,0 +1,5 @@
+# Prime Video : une app web sur le moteur de Jet (src/extra/onyxports/jet/webapp.cpp ; lanceur : src/lib/webapp/launcher.c)
+title    = Prime Video
+url      = https://www.primevideo.com/
+sites    = primevideo.com amazon.com amazon.fr
+maximize = 1

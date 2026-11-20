@@ -1,0 +1,8 @@
+# Manifeste de Disney+ (le site de Disney+ sur le moteur de Jet : src/extra/onyxports/jet/webapp.cpp ; docs/etude/WIDEVINE.md)
+name     = Disney+
+category = Multimédia
+description = Regarder Disney+ : le site de Disney+ dans sa propre fenêtre, avec votre compte (Widevine, Korin PC).
+keywords = disney plus film série dessin animé marvel star wars pixar vidéo
+help = Au premier lancement, Disney+ propose de télécharger le module Widevine de Google (contenus protégés) ; puis connectez-vous à votre compte Disney+ dans la fenêtre, une fois : l'app garde sa session (à part de celle de Jet).
+help = Tout se fait dans la page de Disney+ : profils, recherche, lecture. F11 (Fichier, Agrandir) agrandit la fenêtre.
+help = Fichier, Se déconnecter efface la session de l'app ; Ouvrir dans Jet ouvre Disney+ dans le navigateur.

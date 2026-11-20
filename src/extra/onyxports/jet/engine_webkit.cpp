@@ -584,7 +584,7 @@ static const char MOBILE_UA[] = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleW
 // $HOME/.jet/widevine/libwidevinecdm.so); without it, nothing changes.
 static const char WIDEVINE_UA[] = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
 static const char *const WIDEVINE_SITES[] = { "netflix.com", "spotify.com", "disneyplus.com", "primevideo.com",
-	"amazon.com", "deezer.com", "max.com", "hulu.com", "canalplus.com", "mycanal.fr", "tf1.fr", "france.tv",
+	"amazon.com", "amazon.fr", "deezer.com", "max.com", "hulu.com", "canalplus.com", "mycanal.fr", "tf1.fr", "france.tv",
 	"bitmovin.com", "shaka-player-demo.appspot.com", nullptr };
 
 // (looked at each time: the settings' box installs or removes it while Jet runs)

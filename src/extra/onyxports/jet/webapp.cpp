@@ -10,6 +10,7 @@
 //   url    = https://open.spotify.com/       l'adresse de départ (ADRESSE la remplace)
 //   sites  = spotify.com scdn.co             les domaines dont les nouvelles fenêtres restent dans l'app
 //   player = spotify                         un lecteur connu (g_players) : la carte de lecture
+//   maximize = 1                             la fenêtre agrandie au départ (la vidéo : Netflix)
 //
 // Les données des sites (cookies, stockage) : HOME/<nom>/webkit, à part de celles de Jet (engine_set_data_name) ; le
 // module Widevine : celui de Jet (HOME/.jet/widevine), proposé au premier lancement s'il manque (cdmupdate). Les liens
@@ -82,6 +83,7 @@ static const Player g_players[] = {
 static struct ui_vars *U;
 static std::string g_name, g_title, g_url;
 static std::vector<std::string> g_sites;
+static bool g_maximize;		// (webapp.txt : maximize = 1)
 static const Player *g_player;
 static int g_winW, g_winH;			// la fenêtre
 static int g_w, g_h;				// la page (sous la bande du haut)
@@ -234,6 +236,7 @@ static void read_config (const char *name, std::string &title, std::string &url,
 		if (k == "title") title = v;
 		else if (k == "url") url = v;
 		else if (k == "player") player = v;
+		else if (k == "maximize") g_maximize = v == "1" || v == "oui" || v == "yes";
 		else if (k == "sites")
 		{
 			size_t i = 0;
@@ -632,7 +635,7 @@ static bool wv_offer ()
 
 // ---- les menus -------------------------------------------------------------------------------------------------
 
-enum { M_PLAY = 1, M_NEXT, M_PREV, M_MINI, M_RELOAD, M_INJET, M_LOGOUT, M_QUIT, M_BACK };
+enum { M_PLAY = 1, M_NEXT, M_PREV, M_MINI, M_RELOAD, M_INJET, M_LOGOUT, M_QUIT, M_BACK, M_MAXIMIZE };
 
 static void open_page ()
 {
@@ -662,6 +665,7 @@ static void command (long id)
 				"stockage) ? Celles de Jet ne changent pas.", UM_OKCANCEL) == 1)
 			engine_clear_site_data (logged_out);
 		break;
+	case M_MAXIMIZE: if (!g_mini) ui_maximize (); break;
 	case M_QUIT: g_quit = true; break;
 	}
 	if (g_mini) draw_card ();
@@ -670,9 +674,9 @@ static void command (long id)
 static void build_menu ()
 {
 	static char t[1024];
-	int n = snprintf (t, sizeof t, "MFichier\n" "I%d\tRecharger\tCtrl+R\n" "I%d\tPrécédente\tAlt+←\n" "I%d\tOuvrir dans Jet\n" "-\n"
-		"I%d\tSe déconnecter (effacer les données)…\n" "-\n" "I%d\tQuitter\tCtrl+Q\n",
-		M_RELOAD, M_BACK, M_INJET, M_LOGOUT, M_QUIT);
+	int n = snprintf (t, sizeof t, "MFichier\n" "I%d\tRecharger\tCtrl+R\n" "I%d\tPrécédente\tAlt+←\n" "I%d\tAgrandir\tF11\n"
+		"I%d\tOuvrir dans Jet\n" "-\n" "I%d\tSe déconnecter (effacer les données)…\n" "-\n" "I%d\tQuitter\tCtrl+Q\n",
+		M_RELOAD, M_BACK, M_MAXIMIZE, M_INJET, M_LOGOUT, M_QUIT);
 	if (g_player)
 		snprintf (t + n, sizeof t - (size_t) n, "MLecture\n" "I%d\tLecture / pause\n" "I%d\tSuivant\n" "I%d\tPrécédent\n" "-\n"
 			"I%d\tRéduire en carte\tCtrl+W\n", M_PLAY, M_NEXT, M_PREV, M_MINI);
@@ -736,6 +740,7 @@ int webapp_main (const char *name, const char *title, const char *url, bool gpu)
 	}
 	ui_on_resize ((long) on_resize, 0);
 	build_menu ();
+	if (g_maximize) ui_maximize ();		// (on_resize suit)
 	if (wv_offer ()) page_note ("Téléchargement du module Widevine chez Google…");
 	else open_page ();
 
@@ -772,6 +777,7 @@ int webapp_main (const char *name, const char *title, const char *url, bool gpu)
 			}
 			if ((mods & OK_MOD_CTRL) && code == 0x1A) { cb_key_not_handled (23, OK_MOD_CTRL); break; }	// Ctrl+W
 			if ((mods & OK_MOD_CTRL) && code == 0x14) { g_quit = true; break; }			// Ctrl+Q
+			if (code == 0x44 && !mods) { command (M_MAXIMIZE); break; }				// F11
 			if (g_tab)
 			{
 				long k = onyx_key (code, ch, mods);
@@ -787,6 +793,10 @@ int webapp_main (const char *name, const char *title, const char *url, bool gpu)
 			break;
 		case WEV_MENU:
 			command (code);
+			break;
+		default:
+			// (le reste à UIKit : WEV_RESIZE -- les bords, le bouton agrandir, ui_maximize -- appelle on_resize)
+			if (t > 0) ui_w_event (0);
 			break;
 		}
 		if (g_quit) break;
