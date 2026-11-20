@@ -1,0 +1,6 @@
+# le registre d'essai (tools/cargo/test/registry.py serve, port 47390), vu de QEMU
+[source.crates-io]
+replace-with = "korintest"
+
+[source.korintest]
+registry = "sparse+http://10.0.2.2:47390/index/"

@@ -9,7 +9,8 @@ Le PC (x86_64-unknown-korin) : un disque d'essai de QEMU q35, build/pc/rust/disk
 (tools/pc/mkkorindisk.py --layout zbook) : une copie de build/pc/sysroot sans apps/ ni gcc/
 (tools/pc/sysroot.sh), la console texte à la place du bureau, telnetd lancé par init2, le même mot
 de passe d'essai, et build/pc/rust/tests (ARCH=x86_64 bash tools/rust/build.sh) dans
-HOME:/rust (aussi /media/sd1/rust : /media/sd1 est /home de la partition KORIN OS). L'arbre et le volume de
+HOME:/rust (aussi /media/sd1/rust : /media/sd1 est /home de la partition KORIN OS), et cargo
+(build/pc/cargo/cargo, bash tools/cargo/build.sh) avec son projet d'essai dans HOME:/cargo. L'arbre et le volume de
 démarrage (build/pc/esp) sont copiés sous le verrou build/pc.lock ; ni l'un ni l'autre ne change.
     python -I tools/rust/testimage.py --pc
 puis, pour lancer des commandes (QEMU q35, NVMe en snapshot : l'image n'est jamais écrite ; usb-net
@@ -35,6 +36,11 @@ def pi():
     if not os.path.isdir(src):
         sys.exit("build/rust/tests absent : lancer d'abord sh tools/rust/build.sh dans WSL")
     shutil.copytree(src, os.path.join(t, "home", "rust"), dirs_exist_ok=True)
+    cargo = os.path.join(root, "build", "pc", "cargo", "cargo")	# (bash tools/cargo/build.sh, docs/CARGO.md)
+    if os.path.isfile(cargo):
+        h = os.path.join(t, "home", "cargo")
+        shutil.copytree(os.path.join(root, "tools", "cargo", "test", "proj"), os.path.join(h, "proj"))
+        shutil.copy(cargo, h)
     subprocess.check_call([sys.executable, "-I", "tools/mkdisk.py", "build/rust/sd.img", "--fat32", t,
                            "--exfat", "build/exfat_root"], stdout=subprocess.DEVNULL)
     print("build/rust/sd.img", os.path.getsize("build/rust/sd.img"))
@@ -77,6 +83,11 @@ def pc():
         f.write("# essais de Rust (tools/rust/testimage.py --pc) : telnet\n/sys/svc/telnetd\n")
     open(os.path.join(e, "remote.txt"), "w", encoding="ascii").write("password = essai\n")
     shutil.copytree(src, os.path.join(t, "home", "rust"), dirs_exist_ok=True)
+    cargo = os.path.join(root, "build", "pc", "cargo", "cargo")	# (bash tools/cargo/build.sh, docs/CARGO.md)
+    if os.path.isfile(cargo):
+        h = os.path.join(t, "home", "cargo")
+        shutil.copytree(os.path.join(root, "tools", "cargo", "test", "proj"), os.path.join(h, "proj"))
+        shutil.copy(cargo, h)
     mb = max(65, du(t) // (1 << 20) + 48)		# (de la place pour les fichiers des essais)
     img = os.path.join(out, "disk.img")
     subprocess.check_call([sys.executable, "-I", "tools/pc/mkkorindisk.py", img, "--layout", "zbook",
