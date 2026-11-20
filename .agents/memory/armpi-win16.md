@@ -37,6 +37,12 @@ pctest.py a « dblclick:X,Y ». Fait le 20/11 : comparaison avec winevdm (OTVDM 
 build/win16/compare) ; **mode natif** : contrôles standard = widgets de UIKit (ctrl.c, native_*), W16_NATIVE=0 pour
 l'ancien dessin.
 
+**DOS demandé le 20/11** (« quickbasic 4, modes cga, vga et svga (futurelib) », FreeCOM, Sound Blaster/OPL,
+essai OPL = FM-Song d'Asher256, redistribuable) : architecture dans WIN16.md §9, choix lourds (voie intégrée ou
+DOSBox, émulateur OPL, FreeCOM) à faire trancher avant tout code. QB 4.5 et FutureLib 3.5 = copies de
+l'utilisateur, jamais au dépôt ni en paquet (FutureLib : licence muette), extraites dans WSL ~/korin-win16, image
+QEMU effacée après l'essai. Dans les commits : « QuickBASIC 4.5, copie de l'utilisateur ».
+
 **How to apply:** code dans src/apps/win16 (cœur de MAME copié de vm86/mame, mémoire émulée à part, sélecteur réservé
 aux points d'entrée de l'API) ; sources de winevdm dans WSL ~/win16/winevdm. Même code pour le Pi. Voir
 [[armpi-emulateurs]], [[armpi-uikit-fenetres]].
