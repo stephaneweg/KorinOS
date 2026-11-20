@@ -55,6 +55,27 @@ quand `src/lib/posix` est plus récent ; Jet corrige `HOME` lui-même au démarr
 `/home/<app>` vers `HOME/<app>` au premier lancement (comme `/home/jet` et `/home/downloads` déjà). Jet est à
 reconstruire avant jet 1.4.2.
 
+### Publier jet 1.4.2 et les apps web (décision de l'utilisateur, 20/11 au soir)
+
+Jet se reconstruit dans le WSL de l'utilisateur (WebKit y est construit ; dans le cloud, plus de 10 h sur 4 cœurs),
+puis jet 1.4.2 et les quatre apps web neuves sont publiés (l'utilisateur : « Oui, avec jet 1.4.2 »). Netflix,
+Disney+, TF1+ et Prime Video demandent `jet >= 1.4.2` (`packages-pc.ini` : F11, Agrandir, bords). Essai à blanc de
+`pub.py netflix --new` passé dans le cloud (avec un `jet.app` dans l'arbre : sans lui, mkrepo saute l'app).
+
+```sh
+ARCH=x86_64 sh tools/webkit/build-media.sh     # seulement si /tmp/korin-ffmpeg-jet-x86_64 a disparu
+ARCH=x86_64 sh tools/webkit/build-jet.sh       # refait d'abord la libposix du sysroot (HOME)
+sh tools/pc/sysroot_webkit.sh                  # Jet dans build/pc/sysroot
+sh tools/pc/apps.sh netflix disneyplus tf1plus primevideo
+cp -r build/pc/apps/sdroot/apps/netflix.app build/pc/apps/sdroot/apps/disneyplus.app build/pc/apps/sdroot/apps/tf1plus.app build/pc/apps/sdroot/apps/primevideo.app build/pc/sysroot/apps/
+python tools/pkg/pub.py jet                    # (Python de Windows) : jet.app/main changé, Release
+python tools/pkg/pub.py netflix --new          # puis disneyplus, tf1plus, primevideo
+```
+
+Puis : l'utilisateur se reconnecte une fois à Spotify et vérifie qu'il le reste après avoir quitté l'app ; ses
+données de `/home/spotify` passent dans `/home/<compte>/spotify` au premier lancement, `/home/downloads` dans
+`/home/<compte>/downloads` au premier lancement de Jet.
+
 ## 2. Pièges rencontrés
 
 - **Échappements** : un heredoc de Git Bash vers Python transforme `\\n` en vrai retour à la ligne ; écrire les
