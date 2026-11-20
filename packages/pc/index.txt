@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-20 19:36
+date = 2026-11-20 20:37
 abi = 626
 packages = 115
 board = pc
@@ -1756,3 +1756,18 @@ needs = abi >= 626
 required = 0
 restart = 0
 content = 5763aa3fabee2a6c4a5427ed20a95425ff8f09f81f16c468665d5f5cb52077fe
+
+[morpho]
+title = Morpho
+version = 1.0.0
+category = Jeux
+author = Korin OS
+summary = Un animal de compagnie en 3D à nourrir, soigner et faire jouer, qui évolue de l'œuf à l'âge d'ancien, différent à chaque stade
+size = 379389
+installed = 767438
+sha256 = 03270ed63f9c2fba698cae356b0e7bf8935e8dbf8b1efbf919339921659f2b08
+file = pkgs/morpho-1.0.0.opk
+needs = abi >= 626
+required = 0
+restart = 0
+content = 6b3325bb0e73d20b8b024fce31c314b1660d12f773726498c50362365f73e1ec
