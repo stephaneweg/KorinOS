@@ -98,3 +98,6 @@ void api_RegEnumKey16 (struct w16call *c) { c->ret = REG_ERROR_NO_MORE_ITEMS; }
 
 /* DragAcceptFiles : le glisser-déposer du Gestionnaire de fichiers ; pas de dépôt vers un programme Win16 */
 void api_DragAcceptFiles16 (struct w16call *c) { (void) c; }
+
+/* IsDBCSLeadByte : pas de jeu de caractères sur deux octets (Windows d'Europe de l'Ouest) */
+void api_IsDBCSLeadByte (struct w16call *c) { c->ret = 0; }

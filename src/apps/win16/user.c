@@ -1401,6 +1401,7 @@ static int timers_wait_ms (int max)
 			if (d < best)
 				best = d < 0 ? 0 : d;
 		}
+	best = ws_wait_ms (best);	/* (des sockets en WSAAsyncSelect : regarder souvent) */
 	int m = mm_next_ms ();
 	if (m >= 0 && m < best)
 		best = m;
@@ -1514,6 +1515,7 @@ int user_take (struct qmsg *m, uint16_t hwnd, uint16_t lo, uint16_t hi, int remo
 		menu_publish_pending ();
 		mm_poll ();
 		timers_due ();
+		ws_poll ();	/* (WINSOCK : les messages de WSAAsyncSelect) */
 		/* (les événements de Korin sont lus à chaque appel, pas seulement file vide : ils sont datés à leur
 		 * arrivée, un double-clic reste un double-clic même si le programme a été long entre les deux) */
 		{
