@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <ctype.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -314,6 +315,149 @@ static void put_str (uint32_t buf, uint32_t lenp, const char *s)
 		snprintf (d, cap, "%s", s);
 	if (lenp)
 		wr16 (far_lin (lenp), (uint16_t) (strlen (s) + 1));
+}
+
+/* ---- les informations de version (ressource VERSIONINFO, type 16) d'un fichier NE, compressé ou non (VER.DLL
+ * passe par LZEXPAND) ; le bloc 16 bits : cbBlock, cbValue, clé terminée par 0 (alignée sur 4), valeur (alignée sur
+ * 4), enfants. D'après ver.c de Wine (LGPL-2.1). ---- */
+static uint8_t *version_block (const char *dosname, uint32_t *len)
+{
+	char host[700];
+	*len = 0;
+	if (!dos_to_host (dosname, host, sizeof host))
+		return 0;
+	int fd = open (host, O_RDONLY);
+	if (fd < 0)
+		return 0;
+	size_t n;
+	uint8_t *b = slurp_fd (fd, &n);
+	close (fd);
+	if (b && is_szdd (b, n))
+	{
+		size_t m;
+		uint8_t *x = expand (b, n, &m);
+		free (b);
+		b = x;
+		n = m;
+	}
+	uint8_t *res = 0;
+	if (b && n >= 0x40 && b[0] == 'M' && b[1] == 'Z')
+	{
+		uint32_t neo = (uint32_t) b[0x3c] | (uint32_t) b[0x3d] << 8 | (uint32_t) b[0x3e] << 16 | (uint32_t) b[0x3f] << 24;
+		if (neo + 0x40 <= n && b[neo] == 'N' && b[neo + 1] == 'E')
+		{
+			uint32_t rt = neo + (uint32_t) (b[neo + 0x24] | b[neo + 0x25] << 8);
+			uint32_t rn = neo + (uint32_t) (b[neo + 0x26] | b[neo + 0x27] << 8);
+			if (rt < rn && rt + 4 <= n)
+			{
+				int shift = b[rt] | b[rt + 1] << 8;
+				uint32_t q = rt + 2;
+				while (q + 8 <= n && (b[q] | b[q + 1] << 8))
+				{
+					uint16_t type = (uint16_t) (b[q] | b[q + 1] << 8), cnt = (uint16_t) (b[q + 2] | b[q + 3] << 8);
+					if (type == 0x8010 && cnt && q + 8 + 12 <= n)
+					{
+						uint32_t off = (uint32_t) (b[q + 8] | b[q + 9] << 8) << shift;
+						uint32_t sz = (uint32_t) (b[q + 10] | b[q + 11] << 8) << shift;
+						if (off < n && sz)
+						{
+							if (off + sz > n)
+								sz = (uint32_t) (n - off);
+							uint32_t real = (uint32_t) (b[off] | b[off + 1] << 8);	/* (cbBlock : sans le bourrage) */
+							if (real && real <= sz)
+								sz = real;
+							res = malloc (sz);
+							if (res)
+							{
+								memcpy (res, b + off, sz);
+								*len = sz;
+							}
+						}
+						break;
+					}
+					q += 8 + 12u * cnt;
+				}
+			}
+		}
+	}
+	free (b);
+	return res;
+}
+
+/* GetFileVersionInfoSize (nom, &poignée) -> taille du bloc, 0 sans VERSIONINFO */
+void api_GetFileVersionInfoSize16 (struct w16call *c)
+{
+	uint32_t len;
+	uint8_t *v = version_block (w16_raw (c->a[0]), &len);
+	free (v);
+	if (c->a[1])
+		wr32 (far_lin (c->a[1]), 0);
+	c->ret = len;
+}
+
+/* GetFileVersionInfo (nom, poignée, taille, tampon) -> 1, ou 0 */
+void api_GetFileVersionInfo16 (struct w16call *c)
+{
+	uint32_t len;
+	uint8_t *v = version_block (w16_raw (c->a[0]), &len);
+	c->ret = 0;
+	if (v && c->a[3])
+	{
+		uint32_t n = len < c->a[2] ? len : c->a[2];
+		memcpy (far_ptr (c->a[3]), v, n);
+		c->ret = 1;
+	}
+	free (v);
+}
+
+/* VerQueryValue (bloc, « \StringFileInfo\040904E4\FileVersion », &pointeur, &taille) : descend dans l'arbre */
+void api_VerQueryValue16 (struct w16call *c)
+{
+	uint32_t base = c->a[0];
+	const char *path = w16_raw (c->a[1]);
+	uint32_t blk = far_lin (base);
+	uint16_t off = 0;
+	c->ret = 0;
+	for (;;)
+	{
+		while (*path == '\\')
+			path++;
+		if (!*path)
+			break;
+		const char *e = strchr (path, '\\');
+		size_t kl = e ? (size_t) (e - path) : strlen (path);
+		/* les enfants de ce bloc : après la clé et la valeur */
+		uint16_t cb = rd16 (blk + off), cv = rd16 (blk + off + 2);
+		const char *key = (const char *) lin_ptr (blk + off + 4);
+		uint16_t child = (uint16_t) ((off + 4 + strlen (key) + 1 + 3) & ~3u);
+		child = (uint16_t) ((child + cv + 3) & ~3u);
+		uint16_t end = (uint16_t) (off + cb);
+		int found = 0;
+		while (child + 4 <= end)
+		{
+			uint16_t ccb = rd16 (blk + child);
+			if (!ccb)
+				break;
+			const char *ck = (const char *) lin_ptr (blk + child + 4);
+			if (strlen (ck) == kl && !strncasecmp (ck, path, kl))
+			{
+				off = child;
+				found = 1;
+				break;
+			}
+			child = (uint16_t) ((child + ccb + 3) & ~3u);
+		}
+		if (!found)
+			return;
+		path += kl;
+	}
+	const char *key = (const char *) lin_ptr (blk + off + 4);
+	uint16_t val = (uint16_t) ((off + 4 + strlen (key) + 1 + 3) & ~3u);
+	if (c->a[2])
+		wr32 (far_lin (c->a[2]), base + val);
+	if (c->a[3])
+		wr16 (far_lin (c->a[3]), rd16 (blk + off + 2));
+	c->ret = rd16 (blk + off + 2) != 0;
 }
 
 /* VerFindFile (flags, nom, dossier de Windows, dossier de l'app, courant, sa taille, destination, sa taille) */

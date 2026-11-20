@@ -39,6 +39,9 @@ void api__fpMath (struct w16call *c)
 	}
 }
 
+/* GetKBCodePage : la page OEM des fichiers DOS (437, comme AnsiToOem) */
+void api_GetKBCodePage16 (struct w16call *c) { c->ret = 437; }
+
 /* ---- KEYBOARD : OEM = CP437 ; ici, copie telle quelle (les accents de l'OEM ne servent qu'aux fichiers DOS) ---- */
 void api_AnsiToOem16 (struct w16call *c)
 {

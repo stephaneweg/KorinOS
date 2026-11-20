@@ -8,6 +8,7 @@ uint16_t gdi_dc_for_window (uint16_t hwnd);
 /* découpe le DC à ce rectangle (coordonnées de l'appareil, zone cliente) : la zone à repeindre de BeginPaint */
 void gdi_dc_clip (uint16_t hdc, int l, int t, int r, int b);
 void gdi_release_dc (uint16_t hdc);
+void gdi_set_rect_rgn (uint16_t hrgn, int l, int t, int r, int b);
 void gdi_fill_rect_brush (uint16_t hdc, int l, int t, int r, int b, uint16_t hbrush);
 uint32_t gdi_brush_color (uint16_t hbrush, int *hollow);	/* COLORREF */
 

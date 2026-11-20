@@ -63,7 +63,12 @@
 * Ce qu'un `.exe` importe : `python3 -I tools/win16/nedump.py PROG.EXE` ; ce qui n'est pas encore écrit :
   `python3 -I tools/win16/checkimpl.py PROG.EXE`.
 * Fichiers compressés des disquettes (`FICHIER.EX_`) : `python3 -I tools/win16/expand.py *_`.
-* Sur l'hôte : `W16_SCRIPT="menu:101 click:20,48 type:abc key:40,13 wait:3 shot"` joue des événements,
-  `W16_SHOT=dossier` fait les images, `W16_WATCH=sel:off` signale qui change une adresse.
+* Sur l'hôte : `W16_SCRIPT="menu:101 click:20,48 type:abc key:40,13 wait:3 shot"` joue des événements
+  (`win:N` choisit la fenêtre, `win:0` revient à la dernière ouverte), `W16_SHOT=dossier` fait les images,
+  `W16_WATCH=sel:off` signale qui change une adresse, `W16_DOSLOG=1` note chaque INT 21h, et
+  `W16_TRACE2_AT=Nom` / `W16_TRACE2_OFF=Nom` (avec `W16_TRACE=1`) passent à la trace des instructions entre deux
+  appels de l'API (par exemple de `GetProcAddress` à `MessageBox`).
+* Attention : script fini, `W16_IDLE` envoie « fermer » à la dernière fenêtre ; une boîte de dialogue de VB fermée
+  ainsi n'est pas validée (cliquer son bouton : `wait:60 win:3 click:X,Y win:0`).
 * Sous QEMU, un programme à soi : `sh tools/win16/test_pc.sh chemin/PROG.EXE` (son dossier est copié ;
   `WAIT=40`, `W16T=0` sans trace, `CLICKS="click:X,Y sleep:S shot:nom"`).

@@ -479,19 +479,34 @@ void api_WIN16_OpenFile16 (struct w16call *c)
 	int mode = (int) c->a[2];
 	char dos[300];
 	snprintf (dos, sizeof dos, "%s", name);
+	int builtin = 0;
 	if (!strchr (dos, '\\') && !strchr (dos, ':'))
 	{
-		/* (un nom seul : le dossier courant, puis celui du programme, puis C:\WINDOWS) */
+		/* (un nom seul : le dossier courant, celui du programme, C:\WINDOWS, puis C:\WINDOWS\SYSTEM) */
 		char path[700];
-		const char *tries[3] = { "", "D:\\", "C:\\WINDOWS\\" };
-		for (int i = 0; i < 3; i++)
+		const char *tries[4] = { "", "D:\\", "C:\\WINDOWS\\", "C:\\WINDOWS\\SYSTEM\\" };
+		int found = 0;
+		for (int i = 0; i < 4 && !found; i++)
 		{
 			char t[300];
 			snprintf (t, sizeof t, "%s%s", tries[i], name);
 			if (dos_to_host (t, path, sizeof path) && !access (path, F_OK))
 			{
 				snprintf (dos, sizeof dos, "%s", t);
-				break;
+				found = 1;
+			}
+		}
+		/* une DLL intégrée (DDEML.DLL…) n'a pas de fichier : sous Windows, elle serait dans C:\WINDOWS\SYSTEM
+		   (le moteur de VB3 vérifie par OF_EXIST que ddeml.dll existe avant de s'en servir) */
+		const char *dot = strrchr (name, '.');
+		if (!found && dot && (!strcasecmp (dot, ".dll") || !strcasecmp (dot, ".drv") || !strcasecmp (dot, ".exe")))
+		{
+			char base[80];
+			snprintf (base, sizeof base, "%.*s", (int) (dot - name), name);
+			if (api_find_module (base) >= 0)
+			{
+				snprintf (dos, sizeof dos, "C:\\WINDOWS\\SYSTEM\\%s", name);
+				builtin = 1;
 			}
 		}
 	}
@@ -513,7 +528,7 @@ void api_WIN16_OpenFile16 (struct w16call *c)
 	}
 	if (mode & 0x4000)	/* OF_EXIST */
 	{
-		c->ret = dos_to_host (dos, path, sizeof path) && !access (path, F_OK) ? 1 : 0xffff;
+		c->ret = builtin || (dos_to_host (dos, path, sizeof path) && !access (path, F_OK)) ? 1 : 0xffff;
 		if (o && c->ret == 0xffff)
 			o[2] = 2;
 		return;
@@ -875,7 +890,9 @@ void kernel_set_cmdline (const char *args)
 	if (n)
 		p[o++] = ' ';
 	memcpy (p + o, args, (size_t) n);
-	p[o + n] = 0x0d;
+	/* (comme Windows, d'après winevdm : 0Dh seulement quand la ligne est vide ; sinon la chaîne finit par 0, car
+	   ES:BX d'InitTask est le lpCmdLine de WinMain et le Command$ de Visual Basic garderait le 0Dh) */
+	p[o + n] = n ? 0 : 0x0d;
 }
 
 /* InitTask (KERNEL.91, registres) : INSTANCEDATA au début de DS, tas local, registres de retour, un mot 0 empilé */
@@ -1640,8 +1657,11 @@ static uint32_t ds_dx (void) { return MAKESEGPTR (cpu_sreg (S_DS), DX); }
 
 void w16_terminate (int code);
 
+static int dos_last_err;	/* (rendue par l'INT 21h 59h : le Dir$ de Visual Basic s'en sert) */
+
 static void dos_err (int code)
 {
+	dos_last_err = code;
 	set16 (R_EAX, (uint16_t) code);
 	set_cf (1);
 }
@@ -1817,6 +1837,14 @@ static int find_next (void)
 
 void dos_int21 (void)
 {
+	/* (débogage : W16_DOSLOG=1 note chaque appel, avec le nom de fichier quand il y en a un) */
+	static int doslog = -1;
+	if (doslog < 0)
+		doslog = getenv ("W16_DOSLOG") != 0;
+	if (doslog)
+		w16_log ("   INT 21h AX=%04x DX=%04x (%s)\n", AX, DX,
+			AH == 0x39 || AH == 0x3a || AH == 0x3b || AH == 0x3c || AH == 0x3d || AH == 0x41 || AH == 0x43 || AH == 0x4e
+				? w16_raw (ds_dx ()) : "");
 	set_cf (0);
 	switch (AH)
 	{
@@ -2057,8 +2085,10 @@ void dos_int21 (void)
 			memcpy (d + 0x1e, "KORIN", 6);
 			break;
 		}
+		/* (comme MS-DOS : 12h quand rien ne répond au motif, 3 quand le dossier n'existe pas ; le Dir$ de Visual
+		   Basic rend "" sur 12h et lève l'erreur 53 sur tout autre code) */
 		if (!find_next ())
-			dos_err (AH == 0x4e ? 2 : 18);
+			dos_err (AH == 0x4e && !find_d ? 3 : 18);
 		break;
 	case 0x51:
 	case 0x62:	/* le PSP */
@@ -2076,9 +2106,15 @@ void dos_int21 (void)
 		set16 (R_ECX, 0);
 		set16 (R_EDX, (uint16_t) ((26 << 9) | (1 << 5) | 1));
 		break;
-	case 0x59:	/* erreur étendue */
-		set16 (R_EAX, 0);
+	case 0x59:	/* erreur étendue : le code, la classe (BH), l'action conseillée (BL), le lieu (CH) */
+	{
+		int e = dos_last_err;
+		int notfound = e == 2 || e == 3 || e == 18;
+		set16 (R_EAX, (uint16_t) e);
+		set16 (R_EBX, (uint16_t) (e ? (notfound ? 8 : e == 5 ? 3 : 13) << 8 | (notfound ? 3 : 4) : 0));
+		set16 (R_ECX, (uint16_t) ((e ? 2 : 0) << 8 | (CX & 0xff)));	/* (lieu : un disque) */
 		break;
+	}
 	default:
 		w16_log ("INT 21h AH=%02xh pas prise en charge\n", AH);
 		dos_err (1);

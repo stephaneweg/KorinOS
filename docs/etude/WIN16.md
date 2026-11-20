@@ -111,6 +111,28 @@ VER.DLL et SETUPKIT.DLL dans C:WINDOWS et lance SETUP1.EXE ; mais SETUP1 est un 
 demande VBRUN300.DLL (le moteur de Microsoft, absent de l'archive). La détection Windows ou DOS lit maintenant
 l'en-tête par lseek et read et l'écrit sur stderr.
 
+**L'installation d'Art Song va au bout (20/11, hôte)**, avec le VBRUN300.DLL de l'utilisateur dans
+`C:\WINDOWS\SYSTEM` : SETUP.EXE, puis SETUP1 (VB3), le dossier `C:\ARTSNG20` choisi, les 17 fichiers décompressés
+(MUSICLAB.DLL dans `C:\WINDOWS\SYSTEM`), « ART SONG Installation is Complete! » ; l'ARTSNG20.EXE installé (le même,
+octet pour octet, que celui de `expand.py`) démarre. Ce qu'il a fallu :
+
+* `OpenFile` (OF_EXIST | OF_SEARCH) cherche aussi dans `C:\WINDOWS\SYSTEM`, et une DLL intégrée (`ddeml.dll`) y
+  compte comme présente : VB3 vérifie que le fichier existe avant d'utiliser DDEML (« DDE requires ddeml.dll ») ;
+* la ligne de commande d'InitTask (ES:BX, le `lpCmdLine` de WinMain) finit par 0, pas par 0Dh (0Dh seulement quand
+  elle est vide, comme winevdm) : le `Command$` de VB gardait le 0Dh et le chemin source devenait `D:<CR>\…` ;
+* INT 21h : FindFirst sans résultat rend 12h (« plus de fichiers ») et 3 si le dossier manque, comme MS-DOS (le
+  `Dir$` de VB rend "" sur 12h et lève l'erreur 53 sur tout autre code) ; 59h rend le dernier code d'erreur (avec la
+  classe, l'action et le lieu) au lieu de 0 ;
+* les blocs globaux vont par 32 octets et `GlobalSize` rend la taille arrondie (comme Windows et Wine) : le tas de
+  la bibliothèque C de VBRUN300 posait sa fin d'après une taille impaire et sortait du segment (exception 13) ;
+* écrites : GetFileVersionInfoSize, GetFileVersionInfo, VerQueryValue (la VERSIONINFO d'un NE, compressé ou non),
+  GetWindowTask, GetUpdateRgn, GetCaretPos, SetBrushOrg, TabbedTextOut, GetTabbedTextExtent, GetKBCodePage ;
+* les INT 34h à 3Dh de l'émulation flottante de Microsoft sont remplacées par FWAIT et l'instruction x87, comme
+  Wine (VBRUN300 se sert de l'INT 3Dh).
+
+Pas de serveur DDE (PROGMAN) : VB l'accepte, le groupe de programmes n'est pas créé. Pas encore essayé sous QEMU PC
+ni dans Korin.
+
 **Pour l'utilisateur** : `win16.app` déclare `.exe`, `.com` et `.bat` ; un double-clic dans Fichiers lance win16, qui
 choisit seul Windows 3.x (en-tête NE) ou DOS. Les `.bat` sont aussi déclarés par l'Éditeur (`/etc/fileassoc.ini`
 tranche).

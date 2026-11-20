@@ -195,6 +195,19 @@ static void api_dispatch (int mod, int ord)
 	}
 	if (w16_trace)
 	{
+		/* (débogage : W16_TRACE2_AT=Nom passe à la trace des instructions à cet appel, W16_TRACE2_OFF=Nom en revient) */
+		static const char *t2_at, *t2_off;
+		static int t2_init;
+		if (!t2_init)
+		{
+			t2_at = getenv ("W16_TRACE2_AT");
+			t2_off = getenv ("W16_TRACE2_OFF");
+			t2_init = 1;
+		}
+		if (t2_at && !strcmp (t2_at, e->name))
+			w16_trace = 2;
+		if (t2_off && !strcmp (t2_off, e->name))
+			w16_trace = 1;
 		fprintf (stderr, "-> %s.%s(", w16_modules[mod].name, e->name);
 		for (int i = 0; i < c.n; i++)
 			fprintf (stderr, i ? ", %x" : "%x", c.a[i]);
@@ -259,6 +272,28 @@ static void int_dispatch (int vec)
 		break;
 	case 0x2f:	/* multiplex : rien d'installé */
 		break;
+	case 0x34: case 0x35: case 0x36: case 0x37: case 0x38: case 0x39: case 0x3a: case 0x3b: case 0x3c: case 0x3d:
+	{
+		/* l'émulation flottante des compilateurs de Microsoft (sans OSFIXUP appliqué) : comme Wine, le « CD 3x » est
+		   remplacé par FWAIT et l'instruction x87, puis réexécuté (INT 3Ch xy : préfixe de segment d'après les deux
+		   bits hauts de xy, 00 DS, 01 SS, 10 CS, 11 ES ; INT 3Dh : FWAIT seul) */
+		uint16_t rip = rd16 (ss + sp), rcs = rd16 (ss + sp + 2);
+		uint32_t at = sel_base (rcs) + rip - 2;
+		uint8_t *code = lin_ptr (at);
+		code[0] = 0x9b;
+		if (vec == 0x3d)
+			code[1] = 0x90;
+		else if (vec == 0x3c)
+		{
+			static const uint8_t pre[4] = { 0x3e, 0x36, 0x2e, 0x26 };
+			code[1] = pre[code[2] >> 6];
+			code[2] |= 0xc0;
+		}
+		else
+			code[1] = (uint8_t) (0xd8 + vec - 0x34);
+		wr16 (ss + sp, (uint16_t) (rip - 2));
+		break;
+	}
 	default:
 		w16_log ("INT %02xh ignorée (AX=%04x)\n", vec, cpu_reg (R_EAX) & 0xffff);
 		break;

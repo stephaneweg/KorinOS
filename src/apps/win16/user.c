@@ -743,6 +743,18 @@ void api_ValidateRect16 (struct w16call *c)
 
 void api_ValidateRgn16 (struct w16call *c) { api_ValidateRect16 (c); }
 
+/* GetUpdateRgn : la zone à repeindre est un rectangle ; rend NULLREGION (1) ou SIMPLEREGION (2) */
+void api_GetUpdateRgn16 (struct w16call *c)
+{
+	struct wnd *w = wnd_get ((uint16_t) c->a[0]);
+	int inv = w && w->invalid;
+	gdi_set_rect_rgn ((uint16_t) c->a[1], inv ? w->ix0 : 0, inv ? w->iy0 : 0, inv ? w->ix1 : 0, inv ? w->iy1 : 0);
+	c->ret = w ? (inv ? 2 : 1) : 0;
+}
+
+/* GetWindowTask : un seul programme par win16 (un autre programme est un autre win16) : la tâche courante */
+void api_GetWindowTask16 (struct w16call *c) { c->ret = wnd_get ((uint16_t) c->a[0]) || c->a[0] == HWND_DESKTOP ? task.psp : 0; }
+
 void api_GetUpdateRect16 (struct w16call *c)
 {
 	struct wnd *w = wnd_get ((uint16_t) c->a[0]);
@@ -2783,7 +2795,16 @@ void api_CreateCaret16 (struct w16call *c) { (void) c; }
 void api_DestroyCaret16 (struct w16call *c) { (void) c; }
 void api_ShowCaret16 (struct w16call *c) { (void) c; }
 void api_HideCaret16 (struct w16call *c) { (void) c; }
-void api_SetCaretPos16 (struct w16call *c) { (void) c; }
+static int caret_x, caret_y;
+void api_SetCaretPos16 (struct w16call *c) { caret_x = (int16_t) c->a[0]; caret_y = (int16_t) c->a[1]; }
+void api_GetCaretPos16 (struct w16call *c)
+{
+	if (c->a[0])
+	{
+		wr16 (far_lin (c->a[0]), (uint16_t) caret_x);
+		wr16 (far_lin (c->a[0]) + 2, (uint16_t) caret_y);
+	}
+}
 
 /* crochets (SetWindowsHook) : acceptés, jamais appelés */
 void api_SetWindowsHook16 (struct w16call *c) { (void) c; c->ret = 0; }
