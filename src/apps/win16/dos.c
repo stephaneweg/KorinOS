@@ -1267,10 +1267,8 @@ int dos_trap (int vec)
 		return DONE;
 	case 0x2f:
 		return int2f ();
-	case 0x33:	/* la souris : à l'étape D3 */
-		if (rAX == 0)
-			set16 (R_EAX, 0);
-		return DONE;
+	case 0x33:
+		return mouse_int33 ();
 	}
 	return -1;
 }

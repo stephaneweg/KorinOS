@@ -58,6 +58,20 @@ chemins), fichiers cachés pour les noms en « . », étiquette de volume. Essai
 `dir /w > LISTE.TXT`, `type`, EXEC de `dostest.exe`, `if errorlevel`, `set` et `%VAR%`, `del`, `if not exist`
 (hôte et QEMU PC). Reste : fermer les fichiers d'un processus à sa fin, Ctrl-C.
 
+**Étape D3 (20/11) : QuickBASIC 4.5, copie de l'utilisateur** (extraite dans WSL hors du dépôt, copiée seulement
+dans l'image de QEMU, effacée après). L'éditeur démarre tel quel en français ; on y tape un programme et F5 le lance
+(« Appuyez sur une touche pour continuer ») ; `BC /O` compile, `LINK` lie avec BCOM45.LIB, l'`.EXE` tourne et son
+`SHELL "dir"` revient (hôte). Ajouts : **pilote de souris INT 33h** (`mouse.c` : fonctions 0 à 0Ch, 14h, 21h, 24h ;
+coordonnées virtuelles du mode ; curseur du mode texte dessiné par le rendu avec les masques du programme ;
+gestionnaire 0Ch appelé par l'IRQ 12), les touches qui attendent quand le tampon du BIOS est plein, un peu de repos
+pour Korin quand un programme sonde la souris. Un clic ouvre les menus de QB (hôte) ; sous QEMU PC, QB s'affiche et
+suit la souris. Les programmes BASIC de l'utilisateur qui appelaient CTMOUSE par l'INT 33h marcheront ; pas ceux
+qui liraient la mémoire interne du pilote. Reste : l'éditeur de QB sonde le clavier sans attendre (un cœur occupé).
+
+**Après D6, à envisager (question de l'utilisateur, 20/11)** : les premiers Tomb Raider (DOS/4GW) demandent le DPMI
+(INT 31h), un lecteur de CD (MSCDEX, image ISO/CUE et pistes audio) et beaucoup de vitesse (Pentium avec FPU, rendu
+logiciel) : peut-être un recompilateur pour le cœur.
+
 Pas encore : MDI, métafichiers, impression, WinHelp, crochets, les barres de
 défilement des fenêtres (seulement les contrôles), le son ; pas de paquet.
 

@@ -44,7 +44,7 @@ voie intégrée à win16 (pas DOSBox), Nuked OPL3, FreeCOM 0.86. Étapes D1-D6 d
 FFF00000 tant que m_performed_intersegment_jump est 0 ; sel_base rend seg×16 quand w16_realmode ; un gestionnaire
 qui attend le clavier rend WAIT (CS:IP reste sur le point d'arrêt F000:vecteur, IF mis, les IRQ passent). **D2 faite le 20/11** : FreeCOM sur Z: (build-freecom.sh,
 sources dans WSL ~/korin-win16/freecom), noms courts, redirection. Piège : FreeCOM ferme la poignée 1 et attend que
-le fichier créé la reçoive (la plus basse libre) ; host_be.c sautait les mots après un « type: ». QB 4.5 et FutureLib 3.5 = copies de
+le fichier créé la reçoive (la plus basse libre) ; host_be.c sautait les mots après un « type: ». **D3 faite le 20/11** : QB 4.5 (éditeur, F5, BC, LINK, SHELL), souris INT 33h (mouse.c). QB et ses fichiers : WSL ~/korin-win16/qb45 (archive) et ~/korin-win16/qbtest (copie de travail). Après D6 : Tomb Raider demandé (DPMI, CD, vitesse). QB 4.5 et FutureLib 3.5 = copies de
 l'utilisateur, jamais au dépôt ni en paquet (FutureLib : licence muette), extraites dans WSL ~/korin-win16, image
 QEMU effacée après l'essai. Dans les commits : « QuickBASIC 4.5, copie de l'utilisateur ».
 

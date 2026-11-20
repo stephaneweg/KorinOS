@@ -210,8 +210,15 @@ int be_wait (int ms, struct be_event *ev)
 	memset (ev, 0, sizeof *ev);
 	if (script_wait > 0)
 	{
-		if (ms)
+		/* (une attente par appel qui attend ; un programme qui ne fait que sonder, comme l'éditeur de QuickBASIC,
+		 * avance aussi : une toutes les 100 ms) */
+		static uint32_t last;
+		uint32_t now = be_ticks ();
+		if (ms || now - last >= 100)
+		{
 			script_wait--;
+			last = now;
+		}
 		return 0;
 	}
 	char *w;
@@ -296,7 +303,14 @@ int be_wait (int ms, struct be_event *ev)
 		}
 	}
 	if (ms == 0)
-		return 0;
+	{
+		/* (un programme qui ne fait que sonder sans jamais attendre : une attente par seconde) */
+		static uint32_t last_idle;
+		uint32_t now = be_ticks ();
+		if (now - last_idle < 1000)
+			return 0;
+		last_idle = now;
+	}
 	if (++idle < idle_max)
 		return 0;
 	idle = 0;

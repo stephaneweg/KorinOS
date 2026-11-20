@@ -39,6 +39,7 @@
 | `be.h`, `be_uikit.c` | l'affichage sur UIKit (`tools/win16/host_be.c` : l'hôte, pour les essais) |
 | `dos.h`, `dos.c` | la machine DOS (un `.exe` sans en-tête NE, un `.COM`) : MCB, PSP, chargeur MZ, EXEC, console, INT 21h, la boucle |
 | `bios.c` | son BIOS : zone 40:00, INT 10h-1Ah, PIC, PIT, clavier (port 60h, INT 9), CMOS, ports, fenêtre |
+| `mouse.c` | son pilote de souris (INT 33h, IRQ 12 vers le gestionnaire du programme) |
 | `vga.c` | sa VGA : modes texte, registres, DAC, rendu dans la fenêtre (les modes graphiques : étape D4) |
 
 ## Construire et essayer

@@ -278,6 +278,10 @@ static void kbd_deliver (void)
 {
 	if (kbd_obf || !kq_n || (pic[0].isr & 2) || (pic[0].irr & 2))
 		return;
+	/* (le tampon du BIOS presque plein : les touches attendent ici, comme on tape, au lieu d'être perdues) */
+	int used = ((int) rd16 (BDA (0x1c)) - (int) rd16 (BDA (0x1a)) + 32) % 32 / 2;
+	if (used >= 12)
+		return;
 	kbd_latch = kq[kq_head].code;
 	kbd_latch_ascii = kq[kq_head].ascii;
 	kq_head = (kq_head + 1) % KQ;
@@ -531,6 +535,11 @@ static void handle_event (const struct be_event *e)
 	case BE_KEY_UP:
 		kbd_event (e);
 		break;
+	case BE_MOUSE_MOVE:
+	case BE_MOUSE_DOWN:
+	case BE_MOUSE_UP:
+		mouse_event (e, vga_width, vga_height);
+		break;
 	}
 }
 
@@ -602,6 +611,9 @@ void bios_far (int n)
 		break;
 	case FAR_KBD:
 		kbd_int9 (rAL);
+		break;
+	case FAR_MOUSE:
+		mouse_far ();
 		break;
 	}
 }
@@ -824,4 +836,5 @@ void bios_init (void)
 	cpu_io_out = io_out;
 	cpu_set_a20 (0);
 	vga_init ();
+	mouse_init ();
 }

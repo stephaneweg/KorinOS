@@ -18,7 +18,7 @@ extern "C" {
 #define ROM_SEG		0xf000
 #define TRAP_END	0x200
 #define FAR_BASE	0x100
-enum { FAR_TICK = 0x100, FAR_KBD, FAR_NULL };
+enum { FAR_TICK = 0x100, FAR_KBD, FAR_NULL, FAR_MOUSE };
 #define ROM_CODE	0x1000
 #define VROM_SEG	0xc000		/* les polices de la « ROM » vidéo */
 #define FONT16_OFF	0x1000
@@ -68,6 +68,15 @@ void bios_set_title (const char *title);
 extern long bios_win;
 extern int dos_hold, dos_closed;
 
+/* mouse.c */
+struct be_event;
+void mouse_init (void);
+void mouse_event (const struct be_event *e, int win_w, int win_h);
+void mouse_far (void);
+int mouse_int33 (void);
+int mouse_text_cursor (int *col, int *row, uint16_t *and_mask, uint16_t *xor_mask);
+int mouse_graphic_cursor (int *x, int *y);
+
 /* vga.c */
 void vga_init (void);
 void vga_set_mode (int mode, int clear);
@@ -76,6 +85,7 @@ void vga_tty (uint8_t ch);
 void vga_render (void);
 uint32_t vga_in (uint16_t port);
 void vga_out (uint16_t port, uint8_t v);
+void vga_mouse_space (int *w, int *h);	/* les coordonnées virtuelles de la souris dans ce mode */
 extern int vga_width, vga_height;	/* la taille de l'image rendue */
 
 #ifdef __cplusplus

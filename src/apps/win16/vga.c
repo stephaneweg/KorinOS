@@ -530,8 +530,12 @@ void vga_render (void)
 	int cpos = (crtc[0x0e] << 8 | crtc[0x0f]) - (int) (start / 2);
 	int cs = crtc[0x0a] & 0x1f, ce = crtc[0x0b] & 0x1f, cvis = !(crtc[0x0a] & 0x20) && cs <= ce;
 	/* rien de changé : pas de rendu */
+	int mcol = -1, mrow = -1;
+	uint16_t mand = 0xffff, mxor = 0;
+	if (!mouse_text_cursor (&mcol, &mrow, &mand, &mxor))
+		mcol = mrow = -1;
 	uint8_t state[16] = { (uint8_t) blink_on, (uint8_t) cur_on, (uint8_t) cpos, (uint8_t) (cpos >> 8), (uint8_t) cs,
-		(uint8_t) ce, (uint8_t) cvis, (uint8_t) cols, (uint8_t) rows, (uint8_t) char_h };
+		(uint8_t) ce, (uint8_t) cvis, (uint8_t) cols, (uint8_t) rows, (uint8_t) char_h, (uint8_t) mcol, (uint8_t) mrow };
 	static int dac_dirty_frames;
 	if (!memcmp (shadow, mem, (size_t) n) && !memcmp (shadow + 0x8000, state, 16) && ++dac_dirty_frames < 30)
 		return;
@@ -547,6 +551,13 @@ void vga_render (void)
 		for (int c = 0; c < cols; c++)
 		{
 			uint8_t ch = mem[(r * cols + c) * 2], at = mem[(r * cols + c) * 2 + 1];
+			if (r == mrow && c == mcol)
+			{
+				/* (le curseur de la souris : les masques du pilote, sur le caractère et l'attribut) */
+				uint16_t cell = (uint16_t) ((ch | at << 8) & mand) ^ mxor;
+				ch = (uint8_t) cell;
+				at = (uint8_t) (cell >> 8);
+			}
 			int fg = at & 15, bg = at >> 4;
 			if (blink)
 			{
@@ -570,4 +581,13 @@ void vga_render (void)
 			}
 		}
 	be_present (bios_win, 0, 0, w, h);
+}
+
+/* les coordonnées virtuelles de la souris : 640 × 200 en texte et dans les modes de la CGA (comme MOUSE.COM) */
+void vga_mouse_space (int *w, int *h)
+{
+	*w = 640;
+	*h = graphics && (mode >= 0x0f) ? (mode == 0x13 ? 200 : 350 + (mode >= 0x11) * 130) : 200;
+	if (!graphics)
+		*h = rows * 8;
 }
