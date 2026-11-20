@@ -577,7 +577,17 @@ l'essai sur le ZBook ; les images passent par la socket (pas encore de mémoire 
   fait sur le fil principal (« no app core is free ») et le compositeur recompose une page immobile (session à part :
   « Jet plus fluide sur PC »). Netflix lance 6 `cdmhost` en quelques secondes (un `setServerCertificate` par
   `MediaKeys` de sondage) : à corriger en gardant le certificat jusqu'à la première session.
-* Reste : le WebM chiffré (§ 13) ; les 6 `cdmhost` de Netflix ; la fluidité de Jet.
+* **Les 6 `cdmhost` de Netflix, corrigé (20/11)** : `setServerCertificate` ne lance plus l'hôte. Le certificat est
+  gardé, et `hostStarted` le donne au module avant toute autre demande (l'hôte les prend dans l'ordre). Essai :
+  `eme-widevine.html?sondes=5` (5 `MediaKeys` de sondage avec un certificat, `QUERY=?sondes=5` pour
+  `test_eme_jet.sh`) : un seul `cdmhost`. Le CDM écrit ses étapes horodatées dans le journal du process web
+  (`Widevine: [t s] starting the host`, `host started`, `module initialized`, `new session`).
+* **Sous QEMU, le module met de 40 à 60 s à s'initialiser quand le PC est chargé** (mesuré le 20/11 au soir : une
+  compilation Rust d'une autre session sur 7 cœurs) ; c'est moins de 2 s sur un PC calme. Le délai est dans
+  `cdmhost` (le fil lecteur de Jet reçoit l'événement, puis le fil principal le traite en 9 ms). Pendant ce temps,
+  le début en clair de l'audio fait avancer la lecture, et la vidéo attend sa clé. Chrome, lui, met toute la lecture
+  en pause : à reprendre si cela se voit sur le ZBook.
+* Reste : le WebM chiffré (§ 13) ; la lecture qui avance sans la vidéo pendant l'attente d'une clé.
 
 ## Sources (19/11/2026)
 

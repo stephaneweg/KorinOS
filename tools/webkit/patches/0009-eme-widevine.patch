@@ -1,6 +1,6 @@
 diff -ruN a/Source/WebCore/PlatformOnyx.cmake b/Source/WebCore/PlatformOnyx.cmake
---- a/Source/WebCore/PlatformOnyx.cmake	2026-11-20 04:15:19.468371500 +0100
-+++ b/Source/WebCore/PlatformOnyx.cmake	2026-11-20 04:15:32.853874300 +0100
+--- a/Source/WebCore/PlatformOnyx.cmake	2026-11-20 15:53:00.419371200 +0100
++++ b/Source/WebCore/PlatformOnyx.cmake	2026-11-20 15:52:59.452188300 +0100
 @@ -22,6 +22,11 @@
  if (ENABLE_VIDEO)
      list(APPEND WebCore_PRIVATE_INCLUDE_DIRECTORIES "${ONYX_AV_INCLUDE_DIR}")
@@ -22,8 +22,8 @@ diff -ruN a/Source/WebCore/PlatformOnyx.cmake b/Source/WebCore/PlatformOnyx.cmak
      platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp
      platform/graphics/onyx/MediaSourcePrivateOnyx.cpp
 diff -ruN a/Source/WebCore/platform/encryptedmedia/CDMInstance.h b/Source/WebCore/platform/encryptedmedia/CDMInstance.h
---- a/Source/WebCore/platform/encryptedmedia/CDMInstance.h	2026-11-20 04:15:19.435308200 +0100
-+++ b/Source/WebCore/platform/encryptedmedia/CDMInstance.h	2026-11-20 04:15:32.753762800 +0100
+--- a/Source/WebCore/platform/encryptedmedia/CDMInstance.h	2026-11-20 15:53:00.431370700 +0100
++++ b/Source/WebCore/platform/encryptedmedia/CDMInstance.h	2026-11-20 15:52:59.577427400 +0100
 @@ -104,6 +104,9 @@
  #if ENABLE(THUNDER)
          Thunder,
@@ -35,8 +35,8 @@ diff -ruN a/Source/WebCore/platform/encryptedmedia/CDMInstance.h b/Source/WebCor
      virtual ImplementationType implementationType() const = 0;
  
 diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMOnyx.cpp b/Source/WebCore/platform/graphics/onyx/CDMOnyx.cpp
---- a/Source/WebCore/platform/graphics/onyx/CDMOnyx.cpp	2026-11-20 04:15:19.293659400 +0100
-+++ b/Source/WebCore/platform/graphics/onyx/CDMOnyx.cpp	2026-11-20 04:15:52.566974100 +0100
+--- a/Source/WebCore/platform/graphics/onyx/CDMOnyx.cpp	2026-11-20 15:53:00.442379000 +0100
++++ b/Source/WebCore/platform/graphics/onyx/CDMOnyx.cpp	2026-11-20 15:52:59.699372600 +0100
 @@ -24,6 +24,7 @@
  
  #include "CDMClearKey.h"
@@ -101,8 +101,8 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMOnyx.cpp b/Source/WebCore/p
  
  Vector<CDMProxyFactory*> CDMProxyFactory::platformRegisterFactories()
 diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMOnyx.h b/Source/WebCore/platform/graphics/onyx/CDMOnyx.h
---- a/Source/WebCore/platform/graphics/onyx/CDMOnyx.h	2026-11-20 04:15:19.246413200 +0100
-+++ b/Source/WebCore/platform/graphics/onyx/CDMOnyx.h	2026-11-20 04:15:52.408705200 +0100
+--- a/Source/WebCore/platform/graphics/onyx/CDMOnyx.h	2026-11-20 15:53:00.451519200 +0100
++++ b/Source/WebCore/platform/graphics/onyx/CDMOnyx.h	2026-11-20 15:52:59.835448700 +0100
 @@ -22,25 +22,40 @@
  #if ENABLE(ENCRYPTED_MEDIA) && PLATFORM(ONYX)
  
@@ -148,8 +148,8 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMOnyx.h b/Source/WebCore/pla
  } // namespace WebCore
 diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp
 --- a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp	1970-01-01 01:00:00.000000000 +0100
-+++ b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp	2026-11-20 10:21:30.642524000 +0100
-@@ -0,0 +1,802 @@
++++ b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp	2026-11-20 16:44:58.556118300 +0100
+@@ -0,0 +1,836 @@
 +/*
 + * Copyright (C) 2026 Stéphane Wegener (Korin OS).
 + *
@@ -187,6 +187,7 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +#include <sys/stat.h>
 +#include <unistd.h>
 +#include <wtf/MainThread.h>
++#include <wtf/MonotonicTime.h>
 +#include <wtf/NeverDestroyed.h>
 +#include <wtf/TZoneMallocInlines.h>
 +#include <wtf/Threading.h>
@@ -213,6 +214,12 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +}
 +
 +static const char* keySystemName = "com.widevine.alpha";
++
++// the steps of the host in the web process's log, with their time (seconds since the process started)
++static void trace(const char* what)
++{
++    WTFLogAlways("Widevine: [%.3f s] %s", MonotonicTime::now().secondsSinceEpoch().value(), what);
++}
 +
 +static std::string homeDirectory()
 +{
@@ -419,7 +426,9 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +    m_waitingForHost.append(WTF::move(then));
 +    if (m_host)
 +        return; // (started: its module initializes)
++    trace("starting the host");
 +    std::unique_ptr<CdmHostClient> host = CdmHostClient::spawn(hostPath(), modulePath(), storagePath());
++    trace(host ? "host started" : "host did not start");
 +    if (!host || !host->init(keySystemName, m_distinctiveIdentifiers, m_persistentState)) {
 +        WTFLogAlways("Widevine: the CDM host (%s) did not start", hostPath().c_str());
 +        hostStarted(false);
@@ -435,6 +444,8 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +                continue;
 +            CdmIn event;
 +            bool gone = !host->read_event(event);
++            if (event.type == CDM_EV_INITIALIZED)
++                trace("module initialized (read by the events thread)");
 +            if (gone)
 +                event.type = 0; // (the host is gone: everything awaited fails)
 +            callOnMainThread([sink, event = WTF::move(event)]() mutable {
@@ -457,6 +468,15 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +        if (RefPtr cdmProxy = proxy())
 +            static_cast<CDMProxyOnyx&>(*cdmProxy).setHost(nullptr);
 +    }
++    // the server certificate given before the host started: to the module first (the host takes its requests in order)
++    if (ok && !m_serverCertificate.isEmpty()) {
++        uint32_t promise = addPromise([](bool resolved, const String&) {
++            if (!resolved)
++                WTFLogAlways("Widevine: the module refused the server certificate");
++        });
++        if (!m_host->set_server_certificate(promise, toStd(m_serverCertificate.span())))
++            WTFLogAlways("Widevine: the server certificate could not be given to the host");
++    }
 +    auto waiting = std::exchange(m_waitingForHost, { });
 +    for (auto& then : waiting)
 +        then(ok ? m_host.get() : nullptr);
@@ -464,6 +484,17 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +
 +void CDMInstanceWidevineOnyx::setServerCertificate(Ref<SharedBuffer>&& certificate, SuccessCallback&& callback)
 +{
++    // Not started for a certificate alone: the sites give one to each MediaKeys of their probes (Netflix: six hosts
++    // in a few seconds, each loading the module). Kept until the host starts (hostStarted gives it first).
++    if (!m_host) {
++        if (certificate->isEmpty()) {
++            callback(SuccessValue::Failed);
++            return;
++        }
++        m_serverCertificate = Vector<uint8_t>(certificate->span());
++        callback(SuccessValue::Succeeded);
++        return;
++    }
 +    withHost([this, certificate = WTF::move(certificate), callback = WTF::move(callback)](CdmHostClient* host) mutable {
 +        if (!host) {
 +            callback(SuccessValue::Failed);
@@ -526,6 +557,7 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +
 +    switch (event.type) {
 +    case CDM_EV_INITIALIZED: {
++        trace("module initialized");
 +        bool ok = event.u32();
 +        if (!ok)
 +            WTFLogAlways("Widevine: the module did not initialize");
@@ -545,6 +577,7 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +        break;
 +    }
 +    case CDM_EV_NEW_SESSION: {
++        trace("new session");
 +        uint32_t promise = event.u32();
 +        std::string id = event.str();
 +        settle(promise, event.ok, String::fromUTF8(id.c_str()));
@@ -625,6 +658,7 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +
 +void CDMInstanceSessionWidevineOnyx::requestLicense(LicenseType type, KeyGroupingStrategy, const String& initDataType, Ref<SharedBuffer>&& initData, LicenseCallback&& callback)
 +{
++    trace("license request asked (generateRequest)");
 +    auto* parent = parentInstance();
 +    if (!parent || type != LicenseType::Temporary) {
 +        callback(SharedBuffer::create(), emptyString(), false, SuccessValue::Failed);
@@ -954,8 +988,8 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp b/Source/W
 +#endif // ENABLE(ENCRYPTED_MEDIA) && PLATFORM(ONYX)
 diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h
 --- a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h	2026-11-20 10:21:30.640515600 +0100
-@@ -0,0 +1,183 @@
++++ b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h	2026-11-20 15:53:17.562730600 +0100
+@@ -0,0 +1,184 @@
 +/*
 + * Copyright (C) 2026 Stéphane Wegener (Korin OS).
 + *
@@ -1087,6 +1121,7 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h b/Source/Web
 +    Vector<Function<void(CdmHostClient*)>> m_waitingForHost;
 +    bool m_distinctiveIdentifiers { false };
 +    bool m_persistentState { false };
++    Vector<uint8_t> m_serverCertificate;	// (given before the host started: hostStarted sends it)
 +    RefPtr<CDMWidevineEventSink> m_sink;
 +    uint32_t m_nextPromise { 1 };
 +    HashMap<uint32_t, PromiseHandler> m_promises;
@@ -1140,8 +1175,8 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.h b/Source/Web
 +
 +#endif // ENABLE(ENCRYPTED_MEDIA) && PLATFORM(ONYX)
 diff -ruN a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp b/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp
---- a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp	2026-11-20 04:15:19.400599400 +0100
-+++ b/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp	2026-11-20 04:20:10.025197600 +0100
+--- a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp	2026-11-20 15:53:00.490685300 +0100
++++ b/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp	2026-11-20 15:53:00.287896400 +0100
 @@ -48,7 +48,9 @@
  #if ENABLE(ENCRYPTED_MEDIA)
  #include "CDMInstance.h"
@@ -1294,8 +1329,8 @@ diff -ruN a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.cpp b/S
  
  } // namespace WebCore
 diff -ruN a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h b/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h
---- a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h	2026-11-20 04:15:19.356826600 +0100
-+++ b/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h	2026-11-20 05:08:58.558257800 +0100
+--- a/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h	2026-11-20 15:53:00.504713900 +0100
++++ b/Source/WebCore/platform/graphics/onyx/MediaPlayerPrivateOnyx.h	2026-11-20 15:53:00.395418300 +0100
 @@ -43,6 +43,7 @@
  struct av_player;
  struct av_packet;

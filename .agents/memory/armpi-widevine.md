@@ -72,8 +72,11 @@ python 1.0.4 et claude 1.0.7 (changements d'autres sessions, accord de l'utilisa
 home-samples pas construits) ; gh absent de WSL : la Release envoyée par le gh de Windows, puis git push.
 **ZBook (20/11)** : Spotify web joue bien (l'utilisateur) ; Netflix sans erreur ; TF1+ 720p (9-11 ms par image) mais
 des images perdues : la lenteur vient du tracé de Jet sur un seul fil et du compositeur à vide (session « Jet plus
-fluide sur PC »), pas de Widevine (cdmhost au repos : 10 appels/s). Reste : Netflix lance 6 cdmhost (un
-setServerCertificate par MediaKeys de sondage : garder le certificat jusqu'à la première session), WebM chiffré.
+fluide sur PC »), pas de Widevine (cdmhost au repos : 10 appels/s). Netflix lançait 6 cdmhost : corrigé le
+20/11 au soir (certificat gardé jusqu'au démarrage de l'hôte ; page ?sondes=5 : un seul cdmhost ; traces horodatées
+« Widevine: [t s] » dans le journal du process web). Piège : sous QEMU avec le PC chargé (autres sessions), le module
+met 40 à 60 s à s'initialiser (moins de 2 s au calme) : les essais échouent, sans régression du code. Reste : WebM
+chiffré ; la lecture avance sans la vidéo pendant l'attente d'une clé (Chrome se met en pause).
 
 Pièges : `linux` est une macro prédéfinie de gcc sous Linux (pas comme nom de champ) ; le canari de pile du code
 Linux (%fs:0x28) tombe dans le TCB de 64 octets de libposix, stable. Le module ne va jamais dans nos paquets.

@@ -33,6 +33,10 @@ function log(text) {
   document.getElementById("log").textContent += text + "\n";
   fetch("result?" + encodeURIComponent("EME-WIDEVINE : " + text)).catch(() => {});
 }
+// (avec le temps écoulé depuis le chargement de la page : où part le temps, sous QEMU)
+function tlog(text) {
+  log(text + " [" + (performance.now() / 1000).toFixed(1) + " s]");
+}
 function fail(text) {
   if (done) return;
   done = true;
@@ -48,21 +52,30 @@ async function setupKeys() {
   }];
   const access = await navigator.requestMediaKeySystemAccess("com.widevine.alpha", config);
   log("requestMediaKeySystemAccess : " + access.keySystem);
+  // comme Netflix : des MediaKeys de sondage, chacun avec un certificat de serveur ; aucun ne doit lancer cdmhost
+  // (tools/linux/test_eme_jet.sh compte les cdmhost démarrés)
+  const probes = parseInt(new URLSearchParams(location.search).get("sondes") || "0");
+  for (let i = 0; i < probes; i++) {
+    const probe = await access.createMediaKeys();
+    try { await probe.setServerCertificate(new Uint8Array([8, 5, 18, 4, 1, 2, 3, 4])); } catch (e) { log("sonde " + i + " : " + e.name); }
+  }
+  if (probes)
+    log("sondes : " + probes + " MediaKeys avec un certificat de serveur");
   const keys = await access.createMediaKeys();
   log("createMediaKeys : fait (cdmhost démarre à la première session)");
   await v.setMediaKeys(keys);
   log("setMediaKeys : fait");
   let sessions = 0;
   v.addEventListener("encrypted", async (e) => {
-    log("encrypted : " + e.initDataType + ", " + e.initData.byteLength + " octets");
+    tlog("encrypted : " + e.initDataType + ", " + e.initData.byteLength + " octets");
     if (sessions++) return;   // (une session : la licence donne les clés de l'audio et de la vidéo)
     const session = keys.createSession("temporary");
     session.addEventListener("message", async (m) => {
-      log("message : type " + m.messageType + ", " + m.message.byteLength + " octets");
+      tlog("message : type " + m.messageType + ", " + m.message.byteLength + " octets");
       try {
         const r = await fetch(LICENSE, { method: "POST", body: m.message });
         const license = await r.arrayBuffer();
-        log("licence : HTTP " + r.status + ", " + license.byteLength + " octets");
+        tlog("licence : HTTP " + r.status + ", " + license.byteLength + " octets");
         await session.update(license);
         log("update : licence donnée");
       } catch (err) {
@@ -76,7 +89,7 @@ async function setupKeys() {
     });
     try {
       await session.generateRequest(e.initDataType, e.initData);
-      log("generateRequest : fait (session " + session.sessionId + ")");
+      tlog("generateRequest : fait (session " + session.sessionId + ")");
     } catch (err) {
       fail("generateRequest : " + (err && err.name ? err.name + " : " + err.message : String(err)));
     }
@@ -104,7 +117,10 @@ v.addEventListener("timeupdate", () => {
   if (done || v.currentTime < 20) return;
   const q = v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality() : null;
   const frames = q ? q.totalVideoFrames : -1;
-  log("lecture à " + v.currentTime.toFixed(1) + " s, images décodées " + frames);
+  // (sous QEMU, la licence peut arriver après 20 s : le début en clair de l'audio fait avancer la lecture ; on attend
+  // jusqu'à 50 s que la vidéo chiffrée ait donné ses images)
+  if (frames < 100 && v.currentTime < 50) return;
+  tlog("lecture à " + v.currentTime.toFixed(1) + " s, images décodées " + frames);
   done = true;
   if (frames >= 100) {
     log("RÉUSSI");
@@ -119,7 +135,7 @@ v.addEventListener("timeupdate", () => {
     await setupKeys();
     await setupSource();
     await v.play();
-    log("play : en cours");
+    tlog("play : en cours");
     setTimeout(() => { if (!done) fail("la lecture n'a pas atteint 20 s en 150 s (temps " + v.currentTime.toFixed(1) + ")"); }, 150000);
   } catch (e) {
     fail(e && e.name ? e.name + " : " + e.message : String(e));
