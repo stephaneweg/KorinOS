@@ -120,6 +120,9 @@ int main (int argc, char **argv)
 				snprintf (w16_dosdir, sizeof w16_dosdir, "dos");
 		}
 	}
+	/* (lancé sans fichier, depuis le lanceur du bureau : l'invite du DOS, comme --dos) */
+	if (i >= argc && ui)
+		dos_prompt = 1;
 	if (dos_prompt || (i < argc && is_batch (argv[i])))
 	{
 		/* l'invite du DOS (--dos), ou un .BAT : COMMAND.COM (FreeCOM) sur Z:, D: = le dossier courant ou celui du .BAT */
