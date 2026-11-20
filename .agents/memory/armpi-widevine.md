@@ -77,6 +77,10 @@ fluide sur PC »), pas de Widevine (cdmhost au repos : 10 appels/s). Netflix lan
 « Widevine: [t s] » dans le journal du process web). Piège : sous QEMU avec le PC chargé (autres sessions), le module
 met 40 à 60 s à s'initialiser (moins de 2 s au calme) : les essais échouent, sans régression du code. Reste : WebM
 chiffré ; la lecture avance sans la vidéo pendant l'attente d'une clé (Chrome se met en pause).
+**Publié le 20/11 au soir (ce77e2a7)** : jet 1.4.1 (tracé multi-cœurs de l'autre session + un seul cdmhost) et
+spotify 1.1.0 (le lecteur web, session Spotify), mai toujours écarté. Piège : build/pc/sysroot ne reçoit pas les apps
+refaites par les autres sessions (spotify y était encore l'app native de 10 Mo) ; avant de pousser, regarder la taille
+des archives et l'index (git show), et installer l'app par tools/pc/apps.sh NOM puis copie dans l'arbre.
 
 Pièges : `linux` est une macro prédéfinie de gcc sous Linux (pas comme nom de champ) ; le canari de pile du code
 Linux (%fs:0x28) tombe dans le TCB de 64 octets de libposix, stable. Le module ne va jamais dans nos paquets.
