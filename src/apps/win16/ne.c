@@ -255,9 +255,19 @@ struct ne_module *ne_load_library (const char *name)
 	}
 	if (!dot)
 		strncat (base, ".DLL", sizeof base - strlen (base) - 1);
-	if (!ne_find_file (task.dir, base, file, sizeof file))
-		return 0;
-	return load (file, 0);
+	/* (comme Windows : le dossier du programme, le dossier courant, C:\WINDOWS, C:\WINDOWS\SYSTEM) */
+	static const char *dirs[] = { 0, ".", "C:\\WINDOWS", "C:\\WINDOWS\\SYSTEM" };
+	for (int i = 0; i < 4; i++)
+	{
+		char host[700];
+		if (!dirs[i])
+			snprintf (host, sizeof host, "%s", task.dir);
+		else if (!dos_to_host (dirs[i], host, sizeof host))
+			continue;
+		if (ne_find_file (host, base, file, sizeof file))
+			return load (file, 0);
+	}
+	return 0;
 }
 
 static struct ne_module *load (const char *path, int is_main)
@@ -329,7 +339,7 @@ static struct ne_module *load (const char *path, int is_main)
 		if (api_find_module (m->modnames[i]) < 0 && !ne_find_module (m->modnames[i]))
 		{
 			if (!ne_load_library (m->modnames[i]))
-				w16_fatal ("bibliothèque %s.DLL introuvable (dossier du programme)", m->modnames[i]);
+				w16_fatal ("bibliothèque %s.DLL introuvable (dossier du programme, C:\\WINDOWS, C:\\WINDOWS\\SYSTEM)", m->modnames[i]);
 		}
 	/* les segments */
 	for (int s = 1; s <= nseg; s++)

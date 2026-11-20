@@ -17,7 +17,7 @@ SPECS = [('KERNEL', 'krnl386.exe16.spec'), ('USER', 'user.exe16.spec'), ('GDI', 
          ('MMSYSTEM', 'mmsystem.dll16.spec'), ('COMMDLG', 'commdlg.dll16.spec'), ('KEYBOARD', 'keyboard.drv16.spec'),
          ('TOOLHELP', 'toolhelp.dll16.spec'), ('WIN87EM', 'win87em.dll16.spec'), ('SHELL', 'shell.dll16.spec'),
          ('VER', 'ver.dll16.spec'), ('LZEXPAND', 'lzexpand.dll16.spec'), ('SYSTEM', 'system.drv16.spec'),
-         ('SOUND', 'sound.drv16.spec')]
+         ('SOUND', 'sound.drv16.spec'), ('DDEML', 'ddeml.dll16.spec')]
 ARGS = {'word': 'w', 's_word': 's', 'long': 'l', 'ptr': 'p', 'str': 't', 'segptr': 'P', 'segstr': 'T',
         'double': 'd'}
 LINE = re.compile(r'^\s*(\d+|@)\s+(pascal|cdecl|varargs|stub|register|variable|equate|extern)\s*(.*)$')

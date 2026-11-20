@@ -1295,6 +1295,30 @@ static uint16_t local_alloc (uint16_t sel, uint16_t flags, uint16_t size)
 			memset (lin_ptr (sel_base (sel) + h->b[i].off), 0, size);
 		return h->b[i].off;
 	}
+	/* plein : comme Windows, le segment grandit (jusqu'à 64 Ko) quand le tas en occupe la fin (DGROUP d'une DLL) */
+	uint32_t lim = sel_limit (sel) + 1;
+	if (h->end >= lim - 16 && lim < 0x10000 && h->n < MAX_LBLK)
+	{
+		uint32_t want = lim + size + 0x800;
+		want = want > 0x10000 ? 0x10000 : (want + 0xff) & ~0xffu;
+		if (want > lim && global_realloc (sel, want))
+		{
+			cpu_reload_segments ();
+			uint16_t old_end = h->end, new_end = (uint16_t) (want > 0xffff ? 0xffff : want);
+			if (h->n && !h->b[h->n - 1].used && h->b[h->n - 1].off + h->b[h->n - 1].size == old_end)
+				h->b[h->n - 1].size = (uint16_t) (h->b[h->n - 1].size + (new_end - old_end));
+			else
+			{
+				h->b[h->n].off = old_end;
+				h->b[h->n].size = (uint16_t) (new_end - old_end);
+				h->b[h->n].used = 0;
+				h->n++;
+			}
+			h->end = new_end;
+			w16_log ("   tas local %04x agrandi : %04x..%04x\n", sel, h->start, new_end);
+			return local_alloc (sel, flags, size);
+		}
+	}
 	return 0;
 }
 
@@ -1349,40 +1373,161 @@ void api_LocalInit16 (struct w16call *c)
 	c->ret = 1;
 }
 
-void api_LocalAlloc16 (struct w16call *c) { c->ret = local_alloc (cpu_sreg (S_DS), (uint16_t) c->a[0], (uint16_t) c->a[1]); }
-void api_LocalFree16 (struct w16call *c) { local_free (cpu_sreg (S_DS), (uint16_t) c->a[0]); c->ret = 0; }
-void api_LocalLock16 (struct w16call *c) { c->ret = c->a[0] ? MAKESEGPTR (cpu_sreg (S_DS), c->a[0]) : 0; }
-void api_LocalUnlock16 (struct w16call *c) { (void) c; c->ret = 0; }
+/* les blocs déplaçables (LMEM_MOVEABLE) : comme Windows, une poignée est l'adresse d'une case de 4 octets du tas
+ * (l'adresse des données, des drapeaux, le compte des verrous), avec h & 3 == 2 ; un bloc fixe est son adresse (h & 3
+ * == 0). Des programmes lisent la case eux-mêmes (le moteur de Visual Basic 3). */
+static int lh_is (uint16_t h) { return (h & 3) == 2; }
+static uint16_t lh_data (uint16_t sel, uint16_t h) { return lh_is (h) ? rd16 (sel_base (sel) + h) : h; }
+
+static uint16_t local_alloc_h (uint16_t sel, uint16_t flags, uint16_t size)
+{
+	if (!(flags & 0x02))
+		return local_alloc (sel, flags, size);
+	uint16_t e = local_alloc (sel, 0, 8);
+	if (!e)
+		return 0;
+	uint16_t d = size ? local_alloc (sel, flags, size) : 0;
+	if (size && !d)
+	{
+		local_free (sel, e);
+		return 0;
+	}
+	uint32_t at = sel_base (sel) + e + 2;	/* (après local_alloc : le segment a pu grandir et bouger) */
+	wr16 (at, d);
+	lin_ptr (at)[2] = d ? 0 : 0x40;	/* (LMEM_DISCARDED pour un bloc de taille 0) */
+	lin_ptr (at)[3] = 0;
+	return (uint16_t) (e + 2);
+}
+
+static void local_free_h (uint16_t sel, uint16_t h)
+{
+	if (lh_is (h))
+	{
+		uint16_t d = rd16 (sel_base (sel) + h);
+		if (d)
+			local_free (sel, d);
+		local_free (sel, (uint16_t) (h - 2));
+	}
+	else
+		local_free (sel, h);
+}
+
+void api_LocalAlloc16 (struct w16call *c) { c->ret = local_alloc_h (cpu_sreg (S_DS), (uint16_t) c->a[0], (uint16_t) c->a[1]); }
+void api_LocalFree16 (struct w16call *c) { if (c->a[0]) local_free_h (cpu_sreg (S_DS), (uint16_t) c->a[0]); c->ret = 0; }
+
+void api_LocalLock16 (struct w16call *c)
+{
+	uint16_t sel = cpu_sreg (S_DS), h = (uint16_t) c->a[0], d = h ? lh_data (sel, h) : 0;
+	if (h && lh_is (h) && lin_ptr (sel_base (sel) + h)[3] < 0xff)
+		lin_ptr (sel_base (sel) + h)[3]++;
+	c->ret = d ? MAKESEGPTR (sel, d) : 0;
+}
+
+void api_LocalUnlock16 (struct w16call *c)
+{
+	uint16_t sel = cpu_sreg (S_DS), h = (uint16_t) c->a[0];
+	c->ret = 0;
+	if (h && lh_is (h))
+	{
+		uint8_t *k = lin_ptr (sel_base (sel) + h) + 3;
+		if (*k)
+			(*k)--;
+		c->ret = *k;
+	}
+}
 
 void api_LocalSize16 (struct w16call *c)
 {
-	struct lblk *b = local_find (cpu_sreg (S_DS), (uint16_t) c->a[0], 0, 0);
+	uint16_t sel = cpu_sreg (S_DS), h = (uint16_t) c->a[0];
+	struct lblk *b = h ? local_find (sel, lh_data (sel, h), 0, 0) : 0;
 	c->ret = b ? b->size : 0;
+}
+
+void api_LocalFlags16 (struct w16call *c)
+{
+	uint16_t sel = cpu_sreg (S_DS), h = (uint16_t) c->a[0];
+	c->ret = lh_is (h) ? (uint32_t) (lin_ptr (sel_base (sel) + h)[3] | (lin_ptr (sel_base (sel) + h)[2] & 0x40) << 8) : 0;
+}
+
+/* LocalHandle (adresse) -> la poignée dont la case la montre, sinon l'adresse elle-même */
+void api_LocalHandle16 (struct w16call *c)
+{
+	uint16_t sel = cpu_sreg (S_DS), p = (uint16_t) c->a[0];
+	struct lheap *h = lheap_of (sel);
+	c->ret = p;
+	for (int i = 0; h && i < h->n; i++)
+		if (h->b[i].used && h->b[i].size == 8 && rd16 (sel_base (sel) + h->b[i].off + 2) == p)
+		{
+			c->ret = (uint32_t) (h->b[i].off + 2);
+			return;
+		}
 }
 
 void api_LocalReAlloc16 (struct w16call *c)
 {
-	uint16_t sel = cpu_sreg (S_DS), off = (uint16_t) c->a[0], size = (uint16_t) c->a[1];
-	struct lblk *b = local_find (sel, off, 0, 0);
+	uint16_t sel = cpu_sreg (S_DS), h = (uint16_t) c->a[0], size = (uint16_t) c->a[1], flags = (uint16_t) c->a[2];
+	if (flags & 0x80)	/* LMEM_MODIFY : seulement les drapeaux */
+	{
+		c->ret = h;
+		return;
+	}
+	uint16_t off = lh_data (sel, h);
+	struct lblk *b = off ? local_find (sel, off, 0, 0) : 0;
+	uint16_t n;
 	if (!b)
+	{
+		if (!lh_is (h) || off)
+		{
+			c->ret = 0;
+			return;
+		}
+		n = size ? local_alloc (sel, flags, size) : 0;	/* (un bloc jeté qui revient) */
+	}
+	else if (size <= b->size)
+		n = off;
+	else
+	{
+		uint16_t old = b->size;
+		n = local_alloc (sel, flags, size);
+		if (n)
+		{
+			memmove (lin_ptr (sel_base (sel) + n), lin_ptr (sel_base (sel) + off), old);
+			local_free (sel, off);
+		}
+	}
+	if (!n && size)
 	{
 		c->ret = 0;
 		return;
 	}
-	if (size <= b->size)
+	if (lh_is (h))
 	{
-		c->ret = off;
-		return;
+		wr16 (sel_base (sel) + h, n);
+		lin_ptr (sel_base (sel) + h)[2] = n ? 0 : 0x40;
+		c->ret = h;
 	}
-	uint16_t old = b->size;
-	uint16_t n = local_alloc (sel, (uint16_t) c->a[2], size);
-	if (n)
-	{
-		memmove (lin_ptr (sel_base (sel) + n), lin_ptr (sel_base (sel) + off), old);
-		local_free (sel, off);
-	}
-	c->ret = n;
+	else
+		c->ret = n;
 }
+
+static uint16_t largest_free (uint16_t sel, int sum)
+{
+	struct lheap *h = lheap_of (sel);
+	uint32_t best = 0;
+	for (int i = 0; h && i < h->n; i++)
+		if (!h->b[i].used)
+			best = sum ? best + h->b[i].size : (h->b[i].size > best ? h->b[i].size : best);
+	return (uint16_t) (best > 0xffff ? 0xffff : best);
+}
+
+void api_LocalCompact16 (struct w16call *c) { c->ret = largest_free (cpu_sreg (S_DS), 0); }
+void api_LocalCountFree16 (struct w16call *c) { c->ret = largest_free (cpu_sreg (S_DS), 1); }
+void api_LocalHeapSize16 (struct w16call *c)
+{
+	struct lheap *h = lheap_of (cpu_sreg (S_DS));
+	c->ret = h ? (uint32_t) (h->end - h->start) : 0;
+}
+void api_LocalShrink16 (struct w16call *c) { struct lheap *h = lheap_of ((uint16_t) c->a[0] ? (uint16_t) c->a[0] : cpu_sreg (S_DS)); c->ret = h ? (uint32_t) (h->end - h->start) : 0; }
 
 /* ---- ressources ---- */
 #define MAX_RSRC 1024

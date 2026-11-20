@@ -189,6 +189,33 @@ extern void api_CreateWindowEx16 (struct w16call *c) __attribute__ ((weak));
 extern void api_DCHook16 (struct w16call *c) __attribute__ ((weak));
 extern void api_DOS3Call (struct w16call *c) __attribute__ ((weak));
 extern void api_DPtoLP16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeAbandonTransaction16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeAccessData16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeAddData16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeClientTransaction16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeCmpStringHandles16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeConnect16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeConnectList16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeCreateDataHandle16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeCreateStringHandle16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeDisconnect16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeDisconnectList16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeEnableCallback16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeFreeDataHandle16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeFreeStringHandle16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeGetData16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeGetLastError16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeInitialize16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeKeepStringHandle16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeNameService16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdePostAdvise16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeQueryConvInfo16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeQueryNextServer16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeQueryString16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeReconnect (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeSetUserHandle16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeUnaccessData16 (struct w16call *c) __attribute__ ((weak));
+extern void api_DdeUninitialize16 (struct w16call *c) __attribute__ ((weak));
 extern void api_Death16 (struct w16call *c) __attribute__ ((weak));
 extern void api_DebugBreak16 (struct w16call *c) __attribute__ ((weak));
 extern void api_DebugFillBuffer (struct w16call *c) __attribute__ ((weak));
@@ -3290,6 +3317,36 @@ static const struct w16_api api_sound[] = {
 	{ 18, 3, 0, "MYOPENSOUND", 0, 0, 0 },
 };
 
+static const struct w16_api api_ddeml[] = {
+	{ 2, 0, 1, "DdeInitialize", "pPll", api_DdeInitialize16, 0 },
+	{ 3, 0, 1, "DdeUninitialize", "l", api_DdeUninitialize16, 0 },
+	{ 4, 0, 0, "DdeConnectList", "llllp", api_DdeConnectList16, 0 },
+	{ 5, 0, 0, "DdeQueryNextServer", "ll", api_DdeQueryNextServer16, 0 },
+	{ 6, 0, 1, "DdeDisconnectList", "l", api_DdeDisconnectList16, 0 },
+	{ 7, 0, 0, "DdeConnect", "lllp", api_DdeConnect16, 0 },
+	{ 8, 0, 1, "DdeDisconnect", "l", api_DdeDisconnect16, 0 },
+	{ 9, 0, 1, "DdeQueryConvInfo", "llp", api_DdeQueryConvInfo16, 0 },
+	{ 10, 0, 1, "DdeSetUserHandle", "lll", api_DdeSetUserHandle16, 0 },
+	{ 11, 0, 0, "DdeClientTransaction", "llllwwlp", api_DdeClientTransaction16, 0 },
+	{ 12, 0, 1, "DdeAbandonTransaction", "lll", api_DdeAbandonTransaction16, 0 },
+	{ 13, 0, 1, "DdePostAdvise", "lll", api_DdePostAdvise16, 0 },
+	{ 14, 0, 0, "DdeCreateDataHandle", "lplllww", api_DdeCreateDataHandle16, 0 },
+	{ 15, 0, 0, "DdeAddData", "lpll", api_DdeAddData16, 0 },
+	{ 16, 0, 0, "DdeGetData", "lpll", api_DdeGetData16, 0 },
+	{ 17, 0, 0, "DdeAccessData", "lp", api_DdeAccessData16, 0 },
+	{ 18, 0, 1, "DdeUnaccessData", "l", api_DdeUnaccessData16, 0 },
+	{ 19, 0, 1, "DdeFreeDataHandle", "l", api_DdeFreeDataHandle16, 0 },
+	{ 20, 0, 1, "DdeGetLastError", "l", api_DdeGetLastError16, 0 },
+	{ 21, 0, 0, "DdeCreateStringHandle", "lts", api_DdeCreateStringHandle16, 0 },
+	{ 22, 0, 1, "DdeFreeStringHandle", "ll", api_DdeFreeStringHandle16, 0 },
+	{ 23, 0, 0, "DdeQueryString", "llpls", api_DdeQueryString16, 0 },
+	{ 24, 0, 1, "DdeKeepStringHandle", "ll", api_DdeKeepStringHandle16, 0 },
+	{ 26, 0, 1, "DdeEnableCallback", "llw", api_DdeEnableCallback16, 0 },
+	{ 27, 0, 0, "DdeNameService", "lllw", api_DdeNameService16, 0 },
+	{ 36, 0, 1, "DdeCmpStringHandles", "ll", api_DdeCmpStringHandles16, 0 },
+	{ 37, 0, 0, "DdeReconnect", "l", api_DdeReconnect, 0 },
+};
+
 const struct w16_module w16_modules[] = {
 	{ "KERNEL", api_kernel, 475 },
 	{ "USER", api_user, 556 },
@@ -3304,5 +3361,6 @@ const struct w16_module w16_modules[] = {
 	{ "LZEXPAND", api_lzexpand, 10 },
 	{ "SYSTEM", api_system, 11 },
 	{ "SOUND", api_sound, 18 },
+	{ "DDEML", api_ddeml, 27 },
 	{ 0, 0, 0 }
 };

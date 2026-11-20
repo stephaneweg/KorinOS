@@ -85,7 +85,7 @@ struct w16_module
 };
 extern const struct w16_module w16_modules[];
 enum { MOD_KERNEL, MOD_USER, MOD_GDI, MOD_MMSYSTEM, MOD_COMMDLG, MOD_KEYBOARD, MOD_TOOLHELP, MOD_WIN87EM, MOD_SHELL,
-	MOD_VER, MOD_LZEXPAND, MOD_SYSTEM, MOD_SOUND, MAX_BUILTIN = 16 };
+	MOD_VER, MOD_LZEXPAND, MOD_SYSTEM, MOD_SOUND, MOD_DDEML, MAX_BUILTIN = 16 };
 const struct w16_api *api_lookup (int mod, int ord);
 
 int api_find_module (const char *name);
