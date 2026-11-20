@@ -16,7 +16,7 @@ Son code sert aussi à `mai-acp`, l'agent sur une API compatible OpenAI, avec le
 ## S'en servir
 
 ```
-claude-acp --set-key          # une fois : la clé (sk-ant-...), saisie cachée, rangée dans /.claude-acp/.env
+claude-acp --set-key          # une fois : la clé (sk-ant-...), saisie cachée, rangée dans ~/.local/claude-acp/.env
 agent --claude                # le client terminal, dans le dossier de travail
 agent --claude --continue     # reprend la dernière séance de ce dossier
 ```
@@ -25,7 +25,7 @@ Ou l'app **Claude** (lanceur, catégorie Développement) : la façade graphique 
 (`src/apps/claude/main.c` inclut `src/apps/vibe/main.c` avec `KORIN_CLAUDE` défini). Sans clé, elle ouvre d'elle-même
 le dialogue « Clé d'API de Claude » (champ masqué, bouton vers la console dans Jet), qui écrit `.env` et relance
 claude-acp ; Menu Claude > Clé d'API... le rouvre. Le modèle vient de `config.toml` (pas de question à chaque séance) ;
-Menu Claude > Modèle de la séance... le change. Le journal : `/.claude-acp/logs/agent.log`.
+Menu Claude > Modèle de la séance... le change. Le journal : `~/.local/claude-acp/logs/agent.log`.
 
 Dans `agent --claude` : Entrée envoie ; Échap interrompt le tour ; Maj+Tab change le mode (`ask`, `accept-edits` :
 les fichiers sans demander, `auto-approve` : rien ne demande) ; `/model` change de modèle ; `/cost` donne les jetons
@@ -47,7 +47,11 @@ prise dans le contexte.
 | `tools/agent/agent.c` | le client terminal : `--claude` lance `claude-acp` |
 | `src/apps/claude/` | l'app Claude : le source de Vibe (`src/apps/vibe/main.c`, macros `IS_CLAUDE`, `AGENT_NAME`, `VC`), son manifeste ; icône `claude` de `tools/icons/art.py` |
 
-Le dossier de l'agent est `$CLAUDE_ACP_HOME`, par défaut `$HOME/.claude-acp` (`/.claude-acp`) :
+Le dossier de l'agent est `$CLAUDE_ACP_HOME`, par défaut `~/.local/claude-acp` (`/home/.local/claude-acp`), sous
+`~/.local/<app>` comme les données des autres apps (décision du 18/11, [etude/MULTI-UTILISATEUR.md](etude/MULTI-UTILISATEUR.md),
+question 4). L'ancien `~/.claude-acp` est ignoré depuis le 20/11 : ses séances n'y sont pas reprises. Le paquet pose
+`AGENTS.md` et `skills/` dans `/.claude-acp`, et libacp (`acp_home`) les recopie dans le dossier du compte.
+Ce dossier contient :
 
 * `.env` : `ANTHROPIC_API_KEY=...` (à l'utilisateur, jamais dans un paquet) ;
 * `config.toml` (facultatif) : `model` (`claude-opus-5-5` par défaut, ou `claude-sonnet-5-5`, `claude-haiku-5-5`,

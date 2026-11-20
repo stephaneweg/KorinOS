@@ -16,8 +16,14 @@ dans main (commits cef2a945..1e756fcd), décrit dans docs/MAI-ACP.md.
   sera accessible.
 - Rien n'a été essayé contre le vrai Foundry, faute de déploiement. Le chemin /mai/v1 et l'en-tête api-key viennent de
   la documentation de MAI-Thinking-1.
-- Le 19/11 sous QEMU PC : 44/44 contre la fausse API, et l'app s'ouvre. Mais « python3 fichier.py » plantait
-  (Segmentation fault), ce qui touche aussi /bin/claude-acp et /bin/mai-acp. Ce bug n'est pas réglé.
+- Le 19/11 sous QEMU PC : 44/44 contre la fausse API, et l'app s'ouvre. « python3 fichier.py » plantait alors
+  (Segmentation fault, /bin/claude-acp et /bin/mai-acp compris) ; corrigé le 20/11 (09347ae5, obmalloc).
+- **20/11 : les dossiers des agents sont sous ~/.local/<app>** (décision de l'utilisateur du 18/11, appliquée ce
+  jour-là) : ~/.local/vibe, ~/.local/claude-acp, ~/.local/mai-acp (libacp acp_home, claude_acp, oai_acp,
+  vibe-account, vibe-diag). Les anciens ~/.vibe, ~/.claude-acp, ~/.mai-acp sont ignorés, sans migration (« pas de
+  migration » voulait dire ne pas déplacer les séances, pas garder l'ancienne place). Les paquets posent toujours
+  AGENTS.md et skills/ dans /.vibe, /.claude-acp, /.mai-acp ; acp_home les recopie. Vérifié sous QEMU PC : oaitest
+  et acptest --installed, les trois apps. Vibe lui-même écrit encore ses messages ACP de --debug sous ~/.vibe/logs/acp.
 - Rien n'est publié. Les versions de versions.ini sont remises par mkrepo à chaque publication, donc on ne les monte
   pas à la main.
 

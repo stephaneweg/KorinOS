@@ -860,8 +860,10 @@ change (Pi et PC) :
   avec tout son journal (`initialize`, `session/new`, `--prompt` : un tour, chronométrés ; à l'échec, `SIGABRT` et la
   pile de ses fils par faulthandler dans `server.log`), puis la fin des trois journaux.
 
-**Où va le compte** : `$VIBE_HOME`, sinon `~/.vibe` ; sous Korin `HOME=/` (libposix), donc `/.vibe` = `D:\.vibe`
-sur le ZBook, pour l'app, `vibe-account` et vibe-acp (le même environnement). `config.toml` n'y est écrit que pour un
+**Où va le compte** : `$VIBE_HOME`, sinon `~/.local/vibe` depuis le 20/11 (les données d'app sous `~/.local/<app>`,
+[etude/MULTI-UTILISATEUR.md](etude/MULTI-UTILISATEUR.md), question 4 ; avant : `~/.vibe`, ignoré depuis), pour l'app,
+`vibe-account` et vibe-acp (le même environnement, posé par libacp, `acp_home`). Vibe lui-même écrit encore les
+messages ACP de `--debug` sous `~/.vibe/logs/acp` (`vibe/acp/acp_logger.py`). `config.toml` n'y est écrit que pour un
 fournisseur autre que Mistral ou un modèle ajouté : **une clé Mistral seule ne va que dans `.env`** (Vibe connaît
 déjà Mistral), d'où l'absence de `config.toml` sur le ZBook, sans erreur d'écriture.
 

@@ -9,12 +9,12 @@
  *
  * Le même source fait l'app Claude (src/apps/claude, KORIN_CLAUDE défini) : la façade de claude-acp, l'agent sur l'API
  * de Claude (docs/CLAUDE-ACP.md). Ce qui change : le nom affiché, l'agent lancé (claude-acp), le dossier
- * ($CLAUDE_ACP_HOME, ~/.claude-acp : journal logs/agent.log, le dossier de travail), « Clé d'API... » à la place de
+ * ($CLAUDE_ACP_HOME, ~/.local/claude-acp : journal logs/agent.log, le dossier de travail), « Clé d'API... » à la place de
  * l'assistant de comptes (la clé dans .env ; le dialogue s'ouvre aussi quand claude-acp dit qu'elle manque ou qu'elle
  * est refusée), pas de connexion par navigateur ni de choix du modèle à chaque séance (Modèle de la séance... le
  * change), /cost dans l'aide.
  * Et l'app MAI (src/apps/mai, KORIN_MAI défini) : la façade de mai-acp, l'agent sur les modèles MAI de Microsoft par
- * une API compatible OpenAI (docs/MAI-ACP.md) ; comme Claude, avec $MAI_ACP_HOME (~/.mai-acp) et un dialogue « Point
+ * une API compatible OpenAI (docs/MAI-ACP.md) ; comme Claude, avec $MAI_ACP_HOME (~/.local/mai-acp) et un dialogue « Point
  * d'accès et clé » (le déploiement de Microsoft Foundry : MAI_BASE_URL, MAI_API_KEY).
  *   (--account : l'assistant « Ajouter un compte » d'abord ; --debug : Vibe journalise tout, LOG_LEVEL=DEBUG et les
  *   messages ACP dans ~/.vibe/logs/acp)
@@ -136,7 +136,7 @@ static int g_ask_model;		/* une nouvelle séance : demander le modèle */
 static int g_account_at_start;	/* --account */
 static int g_need_key;			/* (Claude) pas de clé, ou refusée : la boucle ouvre « Clé d'API » */
 static char g_signin_err[300];	/* une connexion qui n'a pas abouti : la boucle propose de réessayer */
-static char g_vhome[512];		/* $VIBE_HOME (~/.vibe) */
+static char g_vhome[512];		/* $VIBE_HOME (~/.local/vibe) */
 static char g_slog[600];		/* $VIBE_HOME/logs/server.log : la sortie d'erreur de vibe-acp */
 static double g_warned_t0 = -1;	/* la requête sans réponse déjà signalée (son heure d'envoi) */
 #define WAIT_LIMIT_INIT 300	/* secondes : initialize (Python, l'import de Vibe : ~1 min sous QEMU) */
@@ -532,7 +532,7 @@ static long chat_wheel (long v, long n) { (void) v; scroll_by ((int) -n * 48); r
 static int skip_name (const char *n)
 {
 	return n[0] == '.' && (!n[1] || !strcmp (n, "..") || !strcmp (n, ".git") || !strcmp (n, ".vibe")
-		|| !strcmp (n, ".claude-acp") || !strcmp (n, ".mai-acp"));
+		|| !strcmp (n, ".claude-acp") || !strcmp (n, ".mai-acp") || !strcmp (n, ".local"));
 }
 
 static int cmp_names (const void *a, const void *b) { return strcmp (*(char *const *) a, *(char *const *) b); }
@@ -1850,18 +1850,19 @@ static void key_dialog (void)
 	if (W < 340) W = 340;
 	/* (MAI : le point d'accès du déploiement de Microsoft Foundry au-dessus de la clé) */
 	int UH = IS_MAI ? CTL + 10 : 0;
-	int H = 44 + 72 + UH + CTL + 16 + 44;
+	int NX = IS_MAI ? 24 : 0;		/* (MAI : une ligne de note de plus) */
+	int H = 44 + 72 + NX + UH + CTL + 16 + 44;
 	const char *title = IS_MAI ? TR ("Point d'accès et clé de MAI") : TR ("Clé d'API de Claude");
 	long d = ui_dialog_begin (W, H, (long) title);
 	if (!d) return;
-	ui_label (16, 44, W - 32, 64, (long) (IS_MAI
+	ui_label (16, 44, W - 32, 64 + NX, (long) (IS_MAI
 		? TR ("MAI passe par Microsoft Foundry, payé à l'usage. Déployez le modèle (MAI-Code-1.1-Flash) dans ai.azure.com, "
 			"puis collez ici le point d'accès du déploiement (https://<ressource>.services.ai.azure.com) et sa clé. "
 			"La clé est rangée dans le coffre à secrets de Korin.")
 		: TR ("Claude passe par l'API d'Anthropic, payée à l'usage. Créez une clé dans la console "
 			"(Settings > API keys), puis collez-la ici. Elle est rangée dans le coffre à secrets de Korin.")),
 		ULB_DIM | ULB_WRAP);
-	int JW = 170, y = 44 + 72;
+	int JW = 170, y = 44 + 72 + NX;
 	long url = 0;
 	if (IS_MAI)
 	{
@@ -2126,7 +2127,7 @@ int main (int argc, char **argv)
 	}
 	/* $VIBE_HOME (celui que vibe-acp et vibe-account prendront : le même environnement) et les journaux */
 	/* (Claude : $CLAUDE_ACP_HOME, celui de claude-acp, et logs/agent.log comme le client terminal) ; celui du compte,
-	   ~/.vibe, avec les compétences des paquets (/.vibe) et ce qui y était avant les comptes (libacp, home.c) */
+	   ~/.local/vibe, avec les compétences des paquets (/.vibe) et ce qui y était avant les comptes (libacp, home.c) */
 	acp_home (AGENT_PROFILE, g_vhome, sizeof g_vhome);
 	setenv (AGENT_HOME_ENV, g_vhome, 1);
 	snprintf (CFG, sizeof CFG, "%s/korin-app.txt", g_vhome);

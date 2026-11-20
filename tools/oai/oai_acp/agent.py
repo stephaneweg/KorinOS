@@ -30,7 +30,7 @@ from . import __version__
 PROFILES = {
     "mai": {
         "name": "mai-acp", "title": "MAI", "who": "MAI, un modèle de Microsoft",
-        "home_env": "MAI_ACP_HOME", "home_dir": ".mai-acp",
+        "home_env": "MAI_ACP_HOME", "home_dir": "mai-acp",          # ~/.local/mai-acp
         "key_env": "MAI_API_KEY", "url_env": "MAI_BASE_URL",
         "base_url": "",            # https://<ressource>.services.ai.azure.com/mai/v1 : celui du déploiement Foundry
         "model": "MAI-Code-1.1-Flash",
@@ -46,7 +46,7 @@ PROFILES = {
     },
     "openai": {
         "name": "oai-acp", "title": "Agent", "who": "un agent de code",
-        "home_env": "OAI_ACP_HOME", "home_dir": ".oai-acp",
+        "home_env": "OAI_ACP_HOME", "home_dir": "oai-acp",
         "key_env": "OAI_API_KEY", "url_env": "OAI_BASE_URL",
         "base_url": "https://api.openai.com/v1",
         "model": "",
@@ -61,7 +61,7 @@ P = PROFILES["mai"]
 
 
 def use_profile(name):
-    """Le profil de ce process : son dossier ($MAI_ACP_HOME, ~/.mai-acp) est pris par tout claude_acp."""
+    """Le profil de ce process : son dossier ($MAI_ACP_HOME, ~/.local/mai-acp) est pris par tout claude_acp."""
     global P
     if name not in PROFILES:
         raise SystemExit("profil inconnu : %s (connus : %s)" % (name, ", ".join(PROFILES)))

@@ -28,8 +28,8 @@ cuivre** qui marchent comme ceux des jeux du genre. Deux façons de le piloter, 
 serveur sur un jeu déjà lancé. Sans coffre, il est dans `HOME:/terracube/mcp.txt` (`token = …`). Options utiles :
 `--world nom`, `--seed n` (un monde neuf), `--api-any` (les scripts depuis le réseau).
 
-**Le MCP** : dans le `config.toml` de l'agent (`/.vibe/config.toml` pour Vibe, `/.claude-acp/config.toml` pour
-Claude) ; le demander d'abord à l'utilisateur, ne pas toucher au reste du fichier :
+**Le MCP** : dans le `config.toml` de l'agent (`~/.local/vibe/config.toml` pour Vibe,
+`~/.local/claude-acp/config.toml` pour Claude, `~/.local/mai-acp/config.toml` pour MAI) ; le demander d'abord à l'utilisateur, ne pas toucher au reste du fichier :
 
 ```toml
 [[mcp_servers]]
