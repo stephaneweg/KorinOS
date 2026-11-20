@@ -136,6 +136,14 @@ octet pour octet, que celui de `expand.py`) démarre. Ce qu'il a fallu :
 Pas de serveur DDE (PROGMAN) : VB l'accepte, le groupe de programmes n'est pas créé. Pas encore essayé sous QEMU PC
 ni dans Korin.
 
+**Le clavier du DOS sous Korin (20/11)** : l'invite de FreeCOM ne répondait à aucune touche dans Korin (sur l'hôte,
+si). Pendant une attente (INT 21h 07h, INT 16h), la boucle ne servait les IRQ qu'une fois tous les 16 tours, chaque
+tour dormant jusqu'à 20 ms : sous Korin, ces attentes sont réelles, et l'IRQ 0 du minuteur, toujours prête et plus
+prioritaire, passait chaque fois avant l'IRQ 1 du clavier. Maintenant, une attente ne dort que si aucune IRQ n'attend
+(`pic_waiting`), et les IRQ sont servies dès le tour suivant. Essayé sous QEMU PC (`ver`, `dir` tapés par sendkey).
+Aussi : le motif `*.*` prend les noms sans extension (le `DIR` de FreeCOM ne montrait ni les dossiers ni ces
+fichiers).
+
 **Pour l'utilisateur** : `win16.app` déclare `.exe`, `.com` et `.bat` ; un double-clic dans Fichiers lance win16, qui
 choisit seul Windows 3.x (en-tête NE) ou DOS. Les `.bat` sont aussi déclarés par l'Éditeur (`/etc/fileassoc.ini`
 tranche).

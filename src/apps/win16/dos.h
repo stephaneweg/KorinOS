@@ -63,6 +63,7 @@ void bios_poll (int force);
 void bios_idle (int ms);
 void pic_raise (int irq);
 int pic_pending (void);
+int pic_waiting (void);
 int kbd_get (int remove, uint16_t *key);	/* une touche du tampon du BIOS -> 1 */
 void bios_set_title (const char *title);
 extern long bios_win;
