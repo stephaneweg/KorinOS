@@ -228,6 +228,47 @@ du 14/11), `pkg check`, `pkg update -a` (ou `pkg update pc`, puis les apps), red
 redémarrages : le commit, puis le nouveau noyau) ; ou Logiciels, onglet Mises à jour. `pkg add jet python vibe …`
 installe ce qui manque.
 
+## Publier un paquet (pub.py)
+
+`publish.sh` refait tout le dépôt depuis l'arbre construit : quand le dossier porte le travail d'autres sessions, ou
+qu'une reconstruction brute régresse (`etc/exec.txt`, `etc/session`, clés de `res/lang/en.txt` ajoutées par
+d'anciennes publications), on publie un seul paquet **à partir de son archive publiée** :
+
+```powershell
+python tools/pkg/pub.py claude --dry-run       # PC ; --pi pour le dépôt du Pi
+python tools/pkg/pub.py claude                 # montre les changements, demande, publie, commite, pousse
+```
+
+Python de Windows **sans `-I`** (`cryptography`). Le script :
+
+1. `git fetch` ; la base est l'index d'**`origin/main`** (`packages/pc/index.txt`), jamais une archive plus ancienne
+   que la dernière publiée ;
+2. prend l'archive publiée : `packages/pc/pkgs/` (lue dans `origin/main`) ou, pour un paquet `release = 1`, la Release
+   « packages » (`gh release download`, copie dans `build/pkg-release-pc/`) ; son SHA-256 doit être celui de l'index ;
+3. recalcule son `content` (formule de `mkrepo.py`, dans l'ordre de l'archive, sinon dans celui de `mkrepo.plan`) :
+   il doit retomber sur celui de l'index, sinon `packages-pc.ini` a changé depuis (besoins…) et il s'arrête (`--force`) ;
+4. compare chaque fichier de l'archive à l'arbre construit (`build/pc/sysroot`, `--tree` ; le chargeur, le noyau et
+   l'initrd du paquet `pc` dans `build/pc/esp`) et ne remplace que ceux qui diffèrent. La date de chaque fichier de
+   l'arbre est montrée : **un fichier plus ancien que la publication est un arbre pas à jour**, pas un changement.
+   `res/lang/*.txt` est fusionné (clés publiées gardées, celles de l'arbre mises à jour ou ajoutées à la fin) ;
+   `etc/exec.txt` et `etc/session` ne sont pris que par `--only` ; les fichiers du paquet absents de l'archive
+   seulement avec `--add-new` ; `--only MOTIF…` restreint aux fichiers voulus ;
+5. demande confirmation (`--yes` : sans) ;
+6. monte la version (`bump` de la publiée, ou celle de `versions.ini` si elle est déjà plus haute ; `[pc]` d'abord),
+   écrit l'archive par `mkrepo.write_opk` et son manifeste par `mkrepo.manifest_text` avec l'`abi` du manifeste publié
+   (`--abi N` pour un paquet qui demande de nouvelles fonctions des kits, publiées par `pc`), réécrit la **seule section**
+   du paquet dans l'index (et la date ; l'`abi` de `[repo]` si le paquet `pc` change `etc/pkg/abi`), signe
+   (`--key`, `ONYX_PKG_KEY_FILE`, `C:\Projects\onyx_pkg-key.pem.txt`, ou `OnyxPkgKey`) ;
+7. `checkrepo.py` sur une copie du dépôt (`build/pub-tmp`, liens) : seules les archives de la Release absentes de
+   `build/pkg-release-pc/` sont tolérées. **`--dry-run` s'arrête ici** et ne laisse rien ;
+8. fusionne `origin/main`, envoie l'archive dans la Release (`release = 1` ; arrêt si le nom y est déjà), commite par un
+   index git à part les seuls `packages/pc/index.txt`, `index.sig`, la nouvelle archive (l'ancienne retirée),
+   l'icône si elle change, et la seule ligne du paquet dans `versions.ini` (ce que d'autres sessions ont changé dans
+   le dossier n'est pas emporté) ; `git fetch`, fusion, push (`--no-push` : commite seulement). Une fusion qui échoue
+   arrête tout sans rien pousser.
+
+Un paquet nouveau, ou cité du Pi (`arch = any`), passe par `publish.sh`.
+
 ## Ce qui diffère d'Onyx
 
 - Pas de `pkg assoc` ni `fileassoc.ini` / `runners.ini` : ARMPI lit `opens =` dans `app.txt`.
