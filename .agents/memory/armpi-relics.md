@@ -1,6 +1,6 @@
 ---
 name: armpi-relics
-description: "Relics (PC 1.1.1 publié), jeu de plates-formes et d'exploration à la Rick Dangerous (19/11/2026) : C sur gamefb, 7 mondes, 21 niveaux générés, musique par monde, sprites et tuiles des paquets achetés par l'utilisateur, banc d'essai sur l'hôte"
+description: "Relics (PC 1.1.2 publié), jeu de plates-formes et d'exploration à la Rick Dangerous (19/11/2026) : C sur gamefb, 7 mondes, 21 niveaux générés, musique par monde, sprites et tuiles des paquets achetés par l'utilisateur, banc d'essai sur l'hôte"
 metadata:
   node_type: memory
   type: project
@@ -64,3 +64,7 @@ booléens seulement (PEM, correspond à onyx.pub).
 - Déchirure restante après 1.1.1 (vue par l'utilisateur sur le PC) : la copie d'Elegant vers le framebuffer GOP, sans
   synchro (present_x86_64.c). Proposé : attendre le balayage (registre de ligne de l'Intel, opération de lecture dans
   intelgpu) avant flush_rect. **L'utilisateur a dit non (19/11)** : ne pas le faire sans qu'il le redemande.
+- **1.1.2 (main 9bfc277, 20/11)** : volcan du fond redessiné (mktiles volcano_bg), générique de fin (GS_END, piste 8),
+  modes normal / classique / hardcore (table s_diff, Haut/Bas au titre, record par mode, progrès « niveau record mode
+  rec-classique rec-hardcore »), rochers qui roulent (24 images, motif sans symétrie). L'utilisateur demande un fetch
+  de main avant de pousser (fait : la copie de main part d'origin/main, re-fetch juste avant le push).
