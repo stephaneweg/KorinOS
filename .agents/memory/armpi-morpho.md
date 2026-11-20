@@ -1,6 +1,6 @@
 ---
 name: armpi-morpho
-description: "Morpho (20/11/2026) : animal de compagnie à la Tamagotchi, créature 3D paramétrique façon Spore (originale), C++ sur gk_draw ; banc d'essai hôte tools/morpho ; essayé sous QEMU PC, GPU jamais vu"
+description: "Morpho (20/11/2026) : animal de compagnie à la Tamagotchi, créature 3D paramétrique façon Spore (originale), C++ sur gk_draw ; banc d'essai hôte tools/morpho ; PC 1.0.0 publié, code dans main ; essayé sous QEMU PC, GPU jamais vu"
 metadata:
   node_type: memory
   type: project
@@ -33,6 +33,9 @@ tirés à l'enfance puis gardés à 70 % ; `shapePlan` (genome.h) fixe leurs con
   voisines sinon) ; le regard borné en angle (sinon l'iris passe derrière) ; le temps de la vie suit le temps réel,
   l'animation est bornée à 0,1 s par image ; dans QEMU, laisser le pointeur arriver avant `btn:left 1`.
 - Intégré : listes de tools/office/build.sh et tools/pc/apps.sh (`-DMORPHO_GL` quand GlKit du PC est construit),
-  `[app.morpho]` des deux packages*.ini, icône dans tools/icons/art.py. Pas publié, pas essayé sur le Pi ni le ZBook.
+  `[app.morpho]` des deux packages*.ini, icône dans tools/icons/art.py. Pas essayé sur le Pi ni le ZBook.
+- **Publié pour le PC le 20/11** (demande de l'utilisateur) : morpho 1.0.0, `pub.py morpho --new --tree build/pc/sysroot`
+  (clé : `OnyxPkgKey="$ONYX_PKG_KEY"`), main 0a7a89f, code fusionné dans main par le même push. La table anglaise
+  part avec l'app (data/lang-en.txt, ui_tr_load) : le dictionnaire du système est au paquet pc. Le Pi n'est pas publié.
 - Cloud : `tools/sys/build_c.sh` sans argument casse sur linuxhost (aarch64, liblinux) : lui passer la liste sans
   linuxhost ni smbd, puis `PC_QUICK=1 sh tools/pc/sysroot.sh`.
