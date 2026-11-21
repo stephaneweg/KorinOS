@@ -2074,18 +2074,18 @@ content = 0e4d2a99a28dafea2d29ac60d1b248325e211d07413f71c1197f4392965f2073
 
 [craft-anything]
 title = Craft Anything
-version = 1.0.1
+version = 1.0.2
 category = Suite ArtCraft
 author = Korin OS
 summary = Craft Anything (storytold) : comprendre comment marche un logiciel, et faire le sien.
-size = 18699294
-installed = 43100782
-sha256 = c9eafd0346cdca81a944c8e82bd712d39a0674bf2ce4d2d1c13de5642b88c9d9
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-craft-anything-1.0.1.opk
-needs = craft, abi >= 627
+size = 18699537
+installed = 43100910
+sha256 = 24102b7a8bd68a439171c299236f4b8970db7c2b94a15409fd4db101dc2a0746
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-craft-anything-1.0.2.opk
+needs = craft, abi >= 628
 required = 0
 restart = 0
-content = 6ece06302780b3339d19e56ecc524ed39676504042306bfab0f8e0dfda7d1ace
+content = 47fef4aa7f6e0bf29968834088c098c4cd0d80d8362ebcc40e894bffe41643f6
 
 [linuxhost]
 title = Hôte Linux
