@@ -1894,18 +1894,18 @@ content = 3959306131cfa6a1ac0fb4af780d8dd803bc207b5d711cd653a810ced2180358
 
 [pdfcraft]
 title = PdfCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = L'atelier PDF libre PdfCraft (storytold) : lire, annoter, organiser, assembler, découper et protéger des PDF.
-size = 31727946
-installed = 74053148
-sha256 = e5cb1d9f603256a8a8adc3167a64ce3b65436ee6cb0c99b9e47eb1aa4250d548
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-pdfcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 31733566
+installed = 74065532
+sha256 = a7963a04010c027915325e8231da4611a86d7d906389b5c97d31d4c64e91a473
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-pdfcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = b87d2a0653d44c0e9bc834b7244ecf12b10a0e2a1998118290da3f39908abe86
+content = 12a7e7eebe324627c7cdba764f69aecf55104f2d625a6416e87b2ceaff27144d
 
 [designcraft]
 title = DesignCraft
