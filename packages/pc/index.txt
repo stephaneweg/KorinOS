@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 10:03
+date = 2026-11-21 10:04
 abi = 626
 packages = 117
 board = pc
@@ -1876,3 +1876,18 @@ needs = craft, abi >= 626
 required = 0
 restart = 0
 content = 22788e10fb26996b56854f015feb030d626ddf0c34c63d4d2806630dd1764df4
+
+[deckcraft]
+title = DeckCraft
+version = 1.0.0
+category = Suite ArtCraft
+author = Korin OS
+summary = Les présentations libres DeckCraft (storytold) : diapositives, thèmes, mode présentateur, lit et écrit le .pptx.
+size = 19023732
+installed = 46280181
+sha256 = ec88dd0a039be5e32238bc6ddf209d878f7e37b2909035e3b6a99757a5c457b8
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-deckcraft-1.0.0.opk
+needs = craft, abi >= 626
+required = 0
+restart = 0
+content = 95f49538fb8f19124c079692e21a4770c5e4d33db7542a4ee9b91f21c9f45fa6
