@@ -36,12 +36,12 @@ FreeBASIC et C#**. Rien n'est fait.
 | **Assembleur** | FASMARM (Pi) ; sur le PC, l'assembleur de gcc (`as`) | idem, NASM… | `asm-lsp` (Rust) possible partout ; les macros de Korin (`sys SYS_xxx`, `src/inc`) à lui apprendre |
 | **FreeBASIC** | `fbc` | `fbc` | aucun LSP connu : tree-sitter (une grammaire existe) et l'analyse des messages de `fbc` |
 | **C#** | Roslyn, `csbuild` (`.csproj`) | `dotnet build` | un serveur Roslyn (`csharp-ls`, Roslyn LSP) : tourne sur .NET, donc **peut-être dans Korin** (à essayer : mémoire, temps de démarrage) |
-| **Rust** | **pas de rustc dans Korin** (« hors d'atteinte », PORTS-DANS-KORIN.md : LLVM) ; la chaîne `x86_64-unknown-korin` est sur le PC (WSL) | cargo | rust-analyzer ailleurs ; dans Korin, rien de sérieux sans rustc |
+| **Rust** | **en cours** : une autre session porte rustc dans Korin, LLVM est fait (21/11) ; d'ici là, la chaîne `x86_64-unknown-korin` du PC (WSL) | cargo | rust-analyzer ailleurs ; dans Korin, rust-analyzer une fois rustc et cargo là (Rust pur) |
 
-Donc, dans Korin, l'IDE construit et lance C, asm, FreeBASIC et C# ; **Rust se construit ailleurs** : soit l'IDE
-tourne sur Windows/Linux et vise Korin (la chaîne croisée de `tools/rust`), soit, dans Korin, il confie la
-construction à une machine (ssh, ou un service sur le PC de développement), comme Craft Anything le fait déjà pour ses
-agents. Porter rustc lui-même est un chantier à part (LLVM, plusieurs Go de mémoire pour compiler).
+Donc, dans Korin, l'IDE construit et lance C, asm, FreeBASIC et C# tout de suite, et **Rust dès que le port de rustc
+(en cours dans une autre session, LLVM déjà fait le 21/11) sera là** : cargo dans `/devtools`, comme gcc et dotnet.
+L'IDE n'a donc pas à prévoir de construction déportée pour Rust ; elle peut rester une option (ssh) pour une grosse
+caisse ou un Pi trop lent.
 
 ## 3. L'architecture proposée
 
@@ -89,5 +89,5 @@ sur Linux/Windows pour aller vite, puis sous QEMU.
 - **Le nom** (en anglais, règle du dépôt).
 - **Où vit le code** : un dossier de ce dépôt (`src/apps/<nom>`, construit par une recette comme `tools/craft`) ou un
   dépôt à part (plus simple à porter ailleurs, à publier).
-- **Rust dans Korin** : construire sur une autre machine depuis l'IDE (le plus réaliste), ou attendre un port de rustc.
+- **Rust dans Korin** : le port de rustc est en cours (autre session, LLVM fait) ; l'utilisateur dira quand il est fini.
 - **Le Studio Avalonia** : il reste, ou le nouvel IDE le remplace à terme.
