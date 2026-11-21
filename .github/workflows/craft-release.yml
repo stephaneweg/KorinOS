@@ -1,0 +1,26 @@
+# Transit (session du cloud, 21/11/2026) : dépose les archives de la Suite ArtCraft (opk/*.opk) dans la Release
+# « packages » ; la session ne peut pas envoyer de binaire dans une Release. Branche à effacer après l'envoi.
+name: Suite ArtCraft vers la Release
+on:
+  push:
+    branches: [craft-opk-transit]
+permissions:
+  contents: write
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vérifier les archives
+        run: cd opk && sha256sum -c SHA256SUMS
+      - name: Envoyer dans la Release packages (sans remplacer une archive déjà là)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          have=$(gh release view packages -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name')
+          for f in opk/*.opk; do
+            n=$(basename "$f")
+            if echo "$have" | grep -qx "$n"; then echo "déjà là : $n"; continue; fi
+            gh release upload packages -R "$GITHUB_REPOSITORY" "$f"
+            echo "envoyée : $n"
+          done
