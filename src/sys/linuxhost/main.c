@@ -6,6 +6,8 @@
  *                                       TLS, syscall directs (sans rien exécuter)
  *   linuxhost FICHIER.so FONCTION [ARG…] le charge, appelle int FONCTION (int argc, char **argv)
  *                                        (argv[0] = FONCTION), rend son résultat
+ *   linuxhost run PROGRAMME [ARG…]      un exécutable de Linux x86-64 (glibc, ET_EXEC ou PIE) démarré
+ *                                       dans ce process (docs/etude/LINUX-HOST.md) ; argv[0] = PROGRAMME
  *   linuxhost --self-test               le module d'essai embarqué (lxtest.so, construit pour Linux
  *                                       par la gcc de WSL, avec glibc) : rapport, chargement,
  *                                       lx_run ; dit « linuxhost : RÉUSSI » ou « ÉCHEC »
@@ -98,7 +100,9 @@ int main (int argc, char **argv)
 	int n = 0;
 	for (int i = 1; i < argc && n < 63; i++)
 	{
-		if (!strcmp (argv[i], "--stubs"))
+		if (n >= 2 && !strcmp (args[0], "run"))	/* (après run PROGRAMME : les arguments du programme) */
+			args[n++] = argv[i];
+		else if (!strcmp (argv[i], "--stubs"))
 			flags |= LINUX_LOAD_STUBS;
 		else if (!strcmp (argv[i], "--stats"))
 			show_stats = 1;
@@ -118,6 +122,14 @@ int main (int argc, char **argv)
 		stats ();
 		printf ("linuxhost : %s (%d)\n", r == 0 ? "RÉUSSI" : "ÉCHEC", r);
 		return r;
+	}
+	if (n >= 2 && !strcmp (args[0], "run"))
+	{
+		extern char **environ;
+		char err[300];
+		linux_exec (args[1], n - 1, args + 1, environ, flags, err, sizeof err);
+		fprintf (stderr, "linuxhost : %s : %s\n", args[1], err);
+		return 127;
 	}
 	if (n >= 2 && !strcmp (args[0], "--check"))
 	{
@@ -141,6 +153,7 @@ int main (int argc, char **argv)
 			stats ();
 		return r;
 	}
-	fprintf (stderr, "linuxhost --check FICHIER.so [-v] | FICHIER.so FONCTION [ARG…] [--stubs] [--stats] | --self-test\n");
+	fprintf (stderr, "linuxhost --check FICHIER [-v] | run PROGRAMME [ARG…] | FICHIER.so FONCTION [ARG…] [--stubs] [--stats]"
+		 " | --self-test\n");
 	return 2;
 }

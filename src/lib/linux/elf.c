@@ -8,7 +8,11 @@
  * libc.so.6, puis les protections des segments et les constructeurs. Les versions des symboles
  * (memcpy@GLIBC_2.14) sont ignorées : un nom, une fonction.
  *
- * Pas encore : TLS du module (DTPMOD64, DTPOFF64, TPOFF64 : refusés, avec leur nombre), plusieurs
+ * Depuis le 21/11 (docs/etude/LINUX-HOST.md, jalon 1) : aussi un exécutable (ET_EXEC à ses adresses, par la
+ * zone basse de VM_FIXED du noyau, ou PIE), lu par morceaux dans son fichier (linux_load_file), avec ses
+ * relocations COPY ; son TLS « local exec » est posé par exec.c, son __libc_start_main est ici.
+ *
+ * Pas encore : TLS « initial exec » d'un module (TPOFF64 : refusé, avec leur nombre), plusieurs
  * bibliothèques liées entre elles (DT_NEEDED autre que la glibc : seulement nommées), dlopen depuis
  * le module.
  */
@@ -61,11 +65,15 @@ typedef struct
 	uint64_t d_val;
 } lx_dyn;
 
+#define ET_EXEC		2
 #define ET_DYN		3
 #define EM_X86_64	62
 #define PT_LOAD		1
 #define PT_DYNAMIC	2
+#define PT_INTERP	3
+#define PT_PHDR		6
 #define PT_TLS		7
+#define PT_GNU_STACK	0x6474e551
 #define PT_GNU_EH_FRAME	0x6474e550
 #define PT_GNU_RELRO	0x6474e552
 #define PF_X		1
@@ -88,6 +96,8 @@ typedef struct
 #define DT_FINI_ARRAY	26
 #define DT_INIT_ARRAYSZ	27
 #define DT_FINI_ARRAYSZ	28
+#define DT_PREINIT_ARRAY	32
+#define DT_PREINIT_ARRAYSZ	33
 #define DT_GNU_HASH	0x6ffffef5
 
 #define STB_LOCAL	0
@@ -96,6 +106,7 @@ typedef struct
 
 #define R_X86_64_NONE		0
 #define R_X86_64_64		1
+#define R_X86_64_COPY		5
 #define R_X86_64_GLOB_DAT	6
 #define R_X86_64_JUMP_SLOT	7
 #define R_X86_64_RELATIVE	8
@@ -131,12 +142,19 @@ struct linux_module
 	const lx_sym *symtab;
 	unsigned long nsyms;
 	uint64_t init, fini, init_array, init_arraysz, fini_array, fini_arraysz;
+	uint64_t preinit_array, preinit_arraysz;
+	int exe;			/* un exécutable (LINUX_LOAD_EXE) : son TLS est statique (exec.c) */
+	uint64_t entry, phdr;		/* (exécutable) e_entry, adresse des en-têtes en mémoire */
+	uint64_t stack_size;		/* (exécutable) PT_GNU_STACK, 0 : rien demandé */
+	const void *tls_init;		/* (exécutable) PT_TLS : image, tailles, alignement */
+	uint64_t tls_filesz, tls_memsz, tls_align, tls_span;
 	unsigned char *stubs;		/* les fonctions des imports absents (LINUX_LOAD_STUBS) */
 	size_t stubs_size;
 	struct linux_atexit *atexit;
 };
 
 static void linux_register (struct linux_module *m);
+void linux_module_finalize (void *dso);
 /* ce qu'une image dit d'elle-même, avant tout chargement */
 struct lx_image
 {
@@ -146,6 +164,9 @@ struct lx_image
 	const lx_phdr *ph;
 	uint64_t lo, hi;		/* étendue des PT_LOAD, en vaddr arrondies aux pages */
 	const lx_phdr *dynph, *tlsph;
+	uint64_t phdr;			/* PT_PHDR (0 : pas de segment) */
+	uint64_t stack_size;		/* PT_GNU_STACK */
+	int interp;			/* PT_INTERP : un exécutable dynamique (ET_EXEC ou PIE) */
 };
 
 static void set_err (char *err, size_t n, const char *fmt, ...)
@@ -158,21 +179,24 @@ static void set_err (char *err, size_t n, const char *fmt, ...)
 	va_end (ap);
 }
 
-static int parse_image (struct lx_image *im, const void *image, size_t size, char *err, size_t errlen)
+/* image : les avail premiers octets d'un fichier de size octets (tout le fichier, ou ses en-têtes :
+   linux_load_file) */
+static int parse_image_part (struct lx_image *im, const void *image, size_t avail, size_t size, char *err, size_t errlen)
 {
 	memset (im, 0, sizeof *im);
 	im->file = image;
 	im->size = size;
-	if (size < sizeof (lx_ehdr) || memcmp (image, "\177ELF", 4))
+	if (avail < sizeof (lx_ehdr) || memcmp (image, "\177ELF", 4))
 		return set_err (err, errlen, "pas un fichier ELF"), -1;
 	im->eh = image;
 	if (im->eh->e_ident[4] != 2 || im->eh->e_ident[5] != 1)
 		return set_err (err, errlen, "ELF 64 bits petit-boutiste attendu"), -1;
 	if (im->eh->e_machine != EM_X86_64)
 		return set_err (err, errlen, "machine %u : x86-64 (62) attendu", im->eh->e_machine), -1;
-	if (im->eh->e_type != ET_DYN)
-		return set_err (err, errlen, "type %u : une bibliothèque partagée (ET_DYN) attendue", im->eh->e_type), -1;
-	if (im->eh->e_phentsize != sizeof (lx_phdr) || im->eh->e_phoff + (uint64_t) im->eh->e_phnum * sizeof (lx_phdr) > size)
+	if (im->eh->e_type != ET_DYN && im->eh->e_type != ET_EXEC)
+		return set_err (err, errlen, "type %u : une bibliothèque partagée (ET_DYN) ou un exécutable attendu",
+				im->eh->e_type), -1;
+	if (im->eh->e_phentsize != sizeof (lx_phdr) || im->eh->e_phoff + (uint64_t) im->eh->e_phnum * sizeof (lx_phdr) > avail)
 		return set_err (err, errlen, "en-têtes de programme hors du fichier"), -1;
 	im->ph = (const lx_phdr *) (im->file + im->eh->e_phoff);
 	im->lo = UINT64_MAX;
@@ -183,6 +207,12 @@ static int parse_image (struct lx_image *im, const void *image, size_t size, cha
 			im->dynph = p;
 		else if (p->p_type == PT_TLS)
 			im->tlsph = p;
+		else if (p->p_type == PT_PHDR)
+			im->phdr = p->p_vaddr;
+		else if (p->p_type == PT_GNU_STACK)
+			im->stack_size = p->p_memsz;
+		else if (p->p_type == PT_INTERP)
+			im->interp = 1;
 		if (p->p_type != PT_LOAD)
 			continue;
 		if (p->p_offset + p->p_filesz > size || p->p_filesz > p->p_memsz)
@@ -195,8 +225,13 @@ static int parse_image (struct lx_image *im, const void *image, size_t size, cha
 	if (im->lo == UINT64_MAX)
 		return set_err (err, errlen, "aucun segment PT_LOAD"), -1;
 	if (!im->dynph)
-		return set_err (err, errlen, "pas de segment PT_DYNAMIC"), -1;
+		return set_err (err, errlen, "pas de segment PT_DYNAMIC (exécutable statique : pas servi)"), -1;
 	return 0;
+}
+
+static int parse_image (struct lx_image *im, const void *image, size_t size, char *err, size_t errlen)
+{
+	return parse_image_part (im, image, size, size, err, errlen);
 }
 
 /* vaddr du fichier -> pointeur dans le fichier lui-même (pour linux_check, sans chargement) */
@@ -220,6 +255,7 @@ struct lx_dynamic
 	const lx_rela *rela, *jmprel;
 	uint64_t relasz, pltrelsz;
 	uint64_t init, fini, init_array, init_arraysz, fini_array, fini_arraysz;
+	uint64_t preinit_array, preinit_arraysz;
 	uint64_t soname;
 	unsigned long nsyms;
 };
@@ -269,6 +305,8 @@ static void read_dynamic (struct lx_dynamic *d, const lx_dyn *dyn, lx_xlate x, v
 		case DT_INIT_ARRAYSZ: d->init_arraysz = v; break;
 		case DT_FINI_ARRAY: d->fini_array = v; break;
 		case DT_FINI_ARRAYSZ: d->fini_arraysz = v; break;
+		case DT_PREINIT_ARRAY: d->preinit_array = v; break;
+		case DT_PREINIT_ARRAYSZ: d->preinit_arraysz = v; break;
 		case DT_SONAME: d->soname = v + 1; break;	/* (+1 : 0 = absent) */
 		}
 	}
@@ -388,9 +426,36 @@ static int apply (struct reloc_state *st, const lx_rela *r, uint64_t bytes)
 		case R_X86_64_DTPOFF64:
 			*where = (symi ? st->d->symtab[symi].st_value : 0) + r[i].r_addend;
 			break;
-		case R_X86_64_TPOFF64:	/* (« initial exec » : un décalage fixe sous %fs, pas servi) */
+		case R_X86_64_TPOFF64:
+			/* « initial exec » : un décalage fixe sous %fs ; servi pour les variables d'un exécutable
+			   (son bloc finit à %fs : exec.c), pas pour un module */
+			if (st->m->exe && st->m->tls_span && (!symi || st->d->symtab[symi].st_shndx != SHN_UNDEF))
+			{
+				*where = (symi ? st->d->symtab[symi].st_value : 0) + (uint64_t) r[i].r_addend - st->m->tls_span;
+				break;
+			}
 			st->tls++;
 			break;
+		case R_X86_64_COPY:
+		{
+			/* une donnée de la libc recopiée dans l'exécutable (stdout, environ…) : sa valeur, prise dans
+			   la glibc de compatibilité (le symbole de l'exécutable est la copie elle-même) */
+			const lx_sym *sy = &st->d->symtab[symi];
+			const char *name = st->d->strtab + sy->st_name;
+			const void *src = linux_glibc_lookup (name);
+			if ((unsigned char *) where + sy->st_size > st->m->area + st->m->span)
+				return set_err (st->err, st->errlen, "relocation hors du module"), -1;
+			if (src)
+				memcpy (where, src, sy->st_size);
+			else if (!strstr (name, "environ"))	/* (environ : posé par __libc_start_main) */
+			{
+				if (st->flags & LINUX_LOAD_STUBS)
+					fprintf (stderr, "liblinux : %s : donnée absente, mise à zéro : %s\n", st->m->name, name);
+				else if (!st->missing++)
+					set_err (st->err, st->errlen, "donnée absente : %s", name);
+			}
+			break;
+		}
 		default:
 			return set_err (st->err, st->errlen, "relocation de type %u non servie", type), -1;
 		}
@@ -496,34 +561,84 @@ static void *eh_frame_of (const unsigned char *hdr)
 	return 0;
 }
 
-struct linux_module *linux_load (const void *image, size_t size, const char *name, int flags,
-				 char *err, size_t errlen)
+/* le chargement : im décrit l'image ; ses segments sont copiés de im.file (fd < 0) ou lus dans fd */
+static struct linux_module *load_common (struct lx_image *im_, int fd, const char *name, int flags,
+					 char *err, size_t errlen)
 {
-	struct lx_image im;
-	if (parse_image (&im, image, size, err, errlen))
-		return 0;
+	struct lx_image im = *im_;
+	int exe = (flags & LINUX_LOAD_EXE) != 0;
+	if (im.eh->e_type == ET_EXEC && !exe)
+		return set_err (err, errlen, "un exécutable (ET_EXEC) : linuxhost run"), (struct linux_module *) 0;
 	struct linux_module *m = calloc (1, sizeof *m);
 	if (!m)
 		return set_err (err, errlen, "mémoire"), (struct linux_module *) 0;
 	snprintf (m->name, sizeof m->name, "%s", name ? name : "?");
 	m->span = im.hi - im.lo;
-	/* une réservation d'un seul tenant, écrite d'abord, protégée ensuite */
-	unsigned char *area = mmap (0, m->span, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	m->exe = exe;
+	/* une réservation d'un seul tenant, écrite d'abord, protégée ensuite ; un ET_EXEC à ses adresses
+	   (la zone basse de VM_FIXED du noyau du PC : sous l'hôte, lié à 0x4000_0000) */
+	unsigned char *area = im.eh->e_type == ET_EXEC
+		? mmap ((void *) (uintptr_t) im.lo, m->span, PROT_READ | PROT_WRITE | PROT_EXEC,
+			MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0)
+		: mmap (0, m->span, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	if (area == MAP_FAILED)
 	{
-		set_err (err, errlen, "mmap de %zu octets : %s", m->span, strerror (errno));
+		if (im.eh->e_type == ET_EXEC)
+			set_err (err, errlen, "mmap de [%#llx, %#llx) à cette adresse : %s (noyau sans la zone basse de"
+				 " VM_FIXED, ou hôte lié trop bas)", (unsigned long long) im.lo, (unsigned long long) im.hi,
+				 strerror (errno));
+		else
+			set_err (err, errlen, "mmap de %zu octets : %s", m->span, strerror (errno));
 		free (m);
 		return 0;
 	}
 	m->area = area;
-	m->base = area - im.lo;
+	m->base = im.eh->e_type == ET_EXEC ? (unsigned char *) 0 : area - im.lo;
 	for (int i = 0; i < im.eh->e_phnum; i++)
 	{
 		const lx_phdr *p = &im.ph[i];
-		if (p->p_type == PT_LOAD)
+		if (p->p_type != PT_LOAD)
+			continue;
+		if (fd < 0)
+		{
 			memcpy (m->base + p->p_vaddr, im.file + p->p_offset, p->p_filesz);
+			continue;
+		}
+		for (uint64_t done = 0; done < p->p_filesz;)
+		{
+			uint64_t want = p->p_filesz - done;
+			ssize_t k = pread (fd, m->base + p->p_vaddr + done, want > (64u << 20) ? (64u << 20) : want,
+					   (off_t) (p->p_offset + done));
+			if (k <= 0)
+			{
+				set_err (err, errlen, "lecture du segment %d : %s", i, k < 0 ? strerror (errno) : "fin du fichier");
+				munmap (area, m->span);
+				free (m);
+				return 0;
+			}
+			done += (uint64_t) k;
+		}
 	}
-	if (im.tlsph && im.tlsph->p_memsz)
+	if (exe)
+	{
+		m->entry = (uint64_t) (uintptr_t) m->base + im.eh->e_entry;
+		/* les en-têtes en mémoire : PT_PHDR, sinon dans le premier segment s'il couvre le début du fichier */
+		m->phdr = im.phdr ? (uint64_t) (uintptr_t) m->base + im.phdr : 0;
+		for (int i = 0; !m->phdr && i < im.eh->e_phnum; i++)
+			if (im.ph[i].p_type == PT_LOAD && im.ph[i].p_offset == 0)
+				m->phdr = (uint64_t) (uintptr_t) m->base + im.ph[i].p_vaddr + im.eh->e_phoff;
+		m->stack_size = im.stack_size;
+		if (im.tlsph && im.tlsph->p_memsz)
+		{
+			uint64_t a = im.tlsph->p_align ? im.tlsph->p_align : 1;
+			m->tls_init = m->base + im.tlsph->p_vaddr;
+			m->tls_filesz = im.tlsph->p_filesz;
+			m->tls_memsz = im.tlsph->p_memsz;
+			m->tls_align = a;
+			m->tls_span = (im.tlsph->p_memsz + a - 1) & ~(a - 1);	/* (variante II : le bloc finit à %fs) */
+		}
+	}
+	else if (im.tlsph && im.tlsph->p_memsz)
 	{
 		m->tls_id = tls_add (m->base + im.tlsph->p_vaddr, im.tlsph->p_filesz, im.tlsph->p_memsz, im.tlsph->p_align);
 		if (!m->tls_id)
@@ -557,6 +672,8 @@ struct linux_module *linux_load (const void *image, size_t size, const char *nam
 	m->init_arraysz = d.init_arraysz;
 	m->fini_array = d.fini_array;
 	m->fini_arraysz = d.fini_arraysz;
+	m->preinit_array = d.preinit_array;
+	m->preinit_arraysz = d.preinit_arraysz;
 	if (flags & LINUX_LOAD_STUBS)
 	{
 		int n = count_imports (&d, d.rela, d.relasz) + count_imports (&d, d.jmprel, d.pltrelsz);
@@ -615,7 +732,7 @@ struct linux_module *linux_load (const void *image, size_t size, const char *nam
 				__register_frame (m->eh_frame);
 		}
 	linux_register (m);
-	if (!(flags & LINUX_LOAD_NOINIT))
+	if (!(flags & (LINUX_LOAD_NOINIT | LINUX_LOAD_EXE)))	/* (un exécutable : par __libc_start_main) */
 	{
 		/* comme ld-linux : DT_INIT, puis DT_INIT_ARRAY, avec (argc, argv, envp) */
 		static char *argv[] = { "linuxhost", 0 };
@@ -636,6 +753,130 @@ fail:
 	free (m->ph);
 	free (m);
 	return 0;
+}
+
+struct linux_module *linux_load (const void *image, size_t size, const char *name, int flags,
+				 char *err, size_t errlen)
+{
+	struct lx_image im;
+	if (parse_image (&im, image, size, err, errlen))
+		return 0;
+	return load_common (&im, -1, name, flags, err, errlen);
+}
+
+/* le fichier lu par morceaux : ses en-têtes, puis chaque segment à sa place (Claude Code : 381 Mo, pas de
+   copie entière en mémoire) ; les tables dynamiques sont dans les segments */
+#include <fcntl.h>
+#include <sys/stat.h>
+
+struct linux_module *linux_load_file (const char *path, int flags, char *err, size_t errlen)
+{
+	int fd = open (path, O_RDONLY);
+	if (fd < 0)
+		return set_err (err, errlen, "%s", strerror (errno)), (struct linux_module *) 0;
+	struct stat sb;
+	unsigned char *hdr = 0;
+	struct linux_module *m = 0;
+	if (fstat (fd, &sb) != 0)
+	{
+		set_err (err, errlen, "%s", strerror (errno));
+		goto out;
+	}
+	size_t avail = sb.st_size < 65536 ? (size_t) sb.st_size : 65536;
+	hdr = malloc (avail ? avail : 1);
+	if (!hdr || pread (fd, hdr, avail, 0) != (ssize_t) avail)
+	{
+		set_err (err, errlen, "lecture des en-têtes");
+		goto out;
+	}
+	struct lx_image im;
+	if (parse_image_part (&im, hdr, avail, (size_t) sb.st_size, err, errlen))
+		goto out;
+	m = load_common (&im, fd, path, flags, err, errlen);
+out:
+	free (hdr);
+	close (fd);
+	return m;
+}
+
+/* ---- exécutables : ce que exec.c lit, et __libc_start_main ---- */
+void linux_exe_info (struct linux_module *m, struct linux_exe_info *x)
+{
+	memset (x, 0, sizeof *x);
+	x->entry = m->entry;
+	x->phdr = m->phdr;
+	x->phnum = m->phnum;
+	x->stack_size = m->stack_size;
+	x->tls_init = m->tls_init;
+	x->tls_filesz = m->tls_filesz;
+	x->tls_memsz = m->tls_memsz;
+	x->tls_align = m->tls_align;
+	x->tls_span = m->tls_span;
+}
+
+static struct linux_module *s_exe;	/* l'exécutable lancé (linux_exe_start) */
+
+void linux_exe_start (struct linux_module *m)
+{
+	s_exe = m;
+}
+
+/* atexit de libposix : comme _dl_fini pour l'exécutable, après ses __cxa_atexit (glibc.c les range dans
+   le module) : DT_FINI_ARRAY à rebours, DT_FINI */
+static void exe_fini (void)
+{
+	struct linux_module *m = s_exe;
+	if (!m)
+		return;
+	linux_module_finalize (m->area);
+	uint64_t *fa = (uint64_t *) (m->base + m->fini_array);
+	for (uint64_t i = m->fini_array ? m->fini_arraysz / 8 : 0; i > 0; i--)
+		if (fa[i - 1] && fa[i - 1] != (uint64_t) -1)
+			((void (*) (void)) (uintptr_t) fa[i - 1]) ();
+	if (m->fini)
+		((void (*) (void)) (m->base + m->fini)) ();
+	fflush (0);
+}
+
+/* glibc : __libc_start_main (main, argc, argv, init, fini, rtld_fini, stack_end), appelée par _start ;
+   glibc 2.34 et après passe init = fini = NULL et lance elle-même les constructeurs de l'exécutable */
+typedef void (*lx_init_fn) (int, char **, char **);
+
+int linux_libc_start_main (int (*main_fn) (int, char **, char **), int argc, char **argv, lx_init_fn init,
+			   void (*fini) (void), void (*rtld_fini) (void), void *stack_end)
+{
+	(void) rtld_fini;
+	(void) stack_end;
+	char **envp = argv + argc + 1;
+	struct linux_module *m = s_exe;
+	if (m)
+	{
+		static const char *const env_names[] = { "environ", "__environ", "_environ" };
+		for (int i = 0; i < 3; i++)
+		{
+			char ***e = linux_sym (m, env_names[i]);
+			if (e)
+				*e = envp;
+		}
+		atexit (exe_fini);
+	}
+	if (fini)
+		atexit (fini);
+	if (init)
+		init (argc, argv, envp);
+	else if (m)
+	{
+		uint64_t *pa = (uint64_t *) (m->base + m->preinit_array);
+		for (uint64_t i = 0; m->preinit_array && i < m->preinit_arraysz / 8; i++)
+			((lx_init_fn) (uintptr_t) pa[i]) (argc, argv, envp);
+		if (m->init)
+			((lx_init_fn) (m->base + m->init)) (argc, argv, envp);
+		uint64_t *ia = (uint64_t *) (m->base + m->init_array);
+		for (uint64_t i = 0; m->init_array && i < m->init_arraysz / 8; i++)
+			if (ia[i] && ia[i] != (uint64_t) -1)
+				((lx_init_fn) (uintptr_t) ia[i]) (argc, argv, envp);
+	}
+	exit (main_fn (argc, argv, envp));
 }
 
 void *linux_sym (struct linux_module *m, const char *name)
@@ -863,7 +1104,7 @@ static void check_relocs (const struct lx_dynamic *d, const lx_rela *r, uint64_t
 		if (type == R_X86_64_DTPMOD64 || type == R_X86_64_DTPOFF64 || type == R_X86_64_TPOFF64)
 			(*tls)++;
 		else if (type != R_X86_64_NONE && type != R_X86_64_RELATIVE && type != R_X86_64_64 && type != R_X86_64_GLOB_DAT
-			 && type != R_X86_64_JUMP_SLOT && type != R_X86_64_IRELATIVE)
+			 && type != R_X86_64_JUMP_SLOT && type != R_X86_64_IRELATIVE && type != R_X86_64_COPY)
 			(*other)++;
 		if (!symi || d->symtab[symi].st_shndx != SHN_UNDEF)
 			continue;
@@ -895,8 +1136,14 @@ int linux_check (const void *image, size_t size, FILE *out, int verbose)
 		fprintf (out, "refusé : tables dynamiques incomplètes\n");
 		return -1;
 	}
-	fprintf (out, "ELF64 x86-64 ET_DYN, %llu Ko en mémoire, %lu symboles\n",
-		 (unsigned long long) ((im.hi - im.lo) / 1024), d.nsyms);
+	fprintf (out, "ELF64 x86-64 %s, [%#llx, %#llx), %llu Ko en mémoire, %lu symboles\n",
+		 im.eh->e_type == ET_EXEC ? "ET_EXEC (exécutable à adresse fixe)" : im.interp ? "ET_DYN (exécutable PIE)" : "ET_DYN",
+		 (unsigned long long) im.lo, (unsigned long long) im.hi, (unsigned long long) ((im.hi - im.lo) / 1024), d.nsyms);
+	if (im.tlsph)
+		fprintf (out, "PT_TLS : %llu octets (%llu initialisés), alignement %llu\n", (unsigned long long) im.tlsph->p_memsz,
+			 (unsigned long long) im.tlsph->p_filesz, (unsigned long long) im.tlsph->p_align);
+	if (im.stack_size)
+		fprintf (out, "PT_GNU_STACK : pile de %llu Ko demandée\n", (unsigned long long) (im.stack_size / 1024));
 	if (d.soname)
 		fprintf (out, "SONAME %s\n", d.strtab + d.soname - 1);
 	for (const lx_dyn *p = dyn; p->d_tag != DT_NULL; p++)

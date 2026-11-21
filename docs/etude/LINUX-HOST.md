@@ -30,8 +30,9 @@ Binaire officiel de ce conteneur (`/opt/claude-code/bin/claude`, 381 Mo), lu san
 * **exécutable** ELF64 `ET_EXEC` non PIE, interpréteur `ld-linux-x86-64.so.2` ; segments `LOAD` de `0x200000` à
   environ `0x16D6_C000` (365 Mo à adresse fixe) ; `PT_TLS` de 0x5d30 octets (0x25f0 initialisés) ; pile demandée :
   12,2 Mo (`GNU_STACK`) ;
-* liaison dynamique : `libc.so.6`, `libpthread.so.0`, `libdl.so.2`, `librt.so.1`, `libm.so.6` ; **519 fonctions**
-  importées (`tools`, à venir : la liste et ce que liblinux sert déjà) : stdio et ses variantes `_chk`, locale,
+* liaison dynamique : `libc.so.6`, `libpthread.so.0`, `libdl.so.2`, `librt.so.1`, `libm.so.6` ; **521 symboles**
+  importés, dont **170 servis** le 21/11 et 341 absents (`python3 -I tools/linux/imports.py BINAIRE --missing`) :
+  stdio et ses variantes `_chk`, locale,
   maths, pthread, `dlopen`, sockets, `getaddrinfo`, `getifaddrs`, **epoll**, **eventfd**, **inotify**, `pidfd_spawnp`,
   `posix_spawn*`, `fork`, `execve`, termios, `mount`, xattr, `iconv`, `backtrace`…
 * c'est **Bun** : JavaScriptCore avec son compilateur à la volée (pages RWX ou W^X par `mprotect`), beaucoup de
@@ -39,46 +40,72 @@ Binaire officiel de ce conteneur (`/opt/claude-code/bin/claude`, 381 Mo), lu san
   ramasse-miettes sous Linux), le terminal en mode brut (TUI Ink), BoringSSL intégré (TLS par sockets ordinaires),
   `/proc/self/exe` ; la connexion au compte ouvre une page (xdg-open : Jet) et attend le retour sur `localhost`.
 
-## 4. Jalon 1 : un exécutable glibc
+* il **définit lui-même** `malloc`, `free`, `realloc`, `calloc`, `strdup`… (mimalloc) et `sigaction`, `signal`,
+  `sigprocmask`, `pthread_sigmask` (ses enveloppes, qui appellent les vraies par `dlsym (RTLD_NEXT)`) : sous Linux,
+  la glibc elle-même appelle alors son malloc. La glibc de compatibilité alloue par libposix : tout ce qu'elle rend
+  à libérer par l'appelant (`strdup` interne, `getaddrinfo`, `realpath (p, NULL)`, `getline`…) devra passer par le
+  malloc de l'exécutable quand il en a un (jalon 3).
+
+## 4. Jalon 1 : un exécutable glibc (fait le 21/11)
 
 `linuxhost run PROGRAMME [arguments]` : un exécutable Linux x86-64 lié à glibc démarre dans le process de l'hôte.
-Essais : de petits programmes compilés par la gcc d'Ubuntu (`tools/linux/…`) : `hello`, threads, sockets, epoll,
-signaux ; puis la vraie liste d'imports de Claude Code.
+Essai : `sh tools/linux/exectest/run.sh` (QEMU PC, disque d'essai, telnet) : `hello` et `tlstest` compilés par la
+gcc d'Ubuntu, chacun en PIE et en ET_EXEC (`-no-pie`, à `0x400000`) : argc, argv, environnement, `getauxval`,
+constructeur, `atexit`, code de sortie, variables `__thread` dans le fil principal et 4 threads, `errno` ; tout
+**réussi** du premier coup, et `linuxhost --self-test` (les modules, Widevine) aussi.
 
 ### 4.1 La carte mémoire
 
 Un exécutable non PIE se charge **à ses adresses** : Claude Code à `0x200000`, le cas habituel des exécutables
 `x86-64` (`0x400000` par défaut de ld). Or les programmes du PC sont liés à `0x400000` (`posix.ld`), l'hôte aussi.
 
-* **L'hôte lié haut**, à `0x40_0000_0000` (comme les programmes du Pi) : `posix.ld` prend une base choisie
-  (`POSIX_BASE`), `tools/linux/build.sh` lie `linuxhost` (et plus tard cdmhost s'il faut) à cette base. Le tas de
-  `SBRK` (borné à `0x50_0000_0000`), l'arène `0x58…`–`0x68…`, les tampons et l'arène haute ne bougent pas. À vérifier :
-  le chargeur ELF du noyau du PC (`core/elf.c`) accepte cette base.
-* **Le noyau : une zone basse pour `VM_FIXED`** (`core/mm.c`, `in_arena`) : `[0x10000, 0x40_0000_0000)`, refusée si
-  elle recouvre l'image du process (la vérifier contre l'étendue de l'image, que le noyau connaît : `core/image.c`) ;
-  `find_gap` n'y cherche jamais (les adresses habituelles ne changent pas).
-* le `brk` du programme Linux : une région à part (VM_MAP), après son dernier segment.
+* **L'hôte lié à `0x4000_0000`** (1 Go) : pas plus haut, car libposix et la newlib du PC sont compilées dans le
+  modèle « small » de x86-64 (des symboles sous 2 Go). `tools/linux/build.sh` fait une copie de `posix.ld` et de
+  `posix.specs` du PC (`build/pc/linux/posix-lx.ld`, `posix-lx.specs`) avec cette base ; le reste du système ne
+  change pas. Sous l'hôte : `[0x10000, 0x4000_0000)` pour l'exécutable de Linux (Claude Code finit à 0x16D6_C000,
+  Node.js vers 0x0800_0000). Le tas de `SBRK` (après l'hôte, jusqu'à `0x50_0000_0000`), l'arène, les tampons et
+  l'arène haute ne bougent pas.
+* **Le noyau : une zone basse pour `VM_FIXED`** (`core/mm.c`, `in_fixed`) : `[VM_LOW_BASE = 0x10000, image)`, sous
+  le plus bas segment de l'image du process (`mm_note_image`, par `elf_load` et `image_map` ; copié au fork) ;
+  `VM_MAP`, `VM_UNMAP` et `SHM_MAP` fixes y sont permis, `find_gap` n'y cherche jamais (les adresses habituelles ne
+  changent pas). Pour un programme ordinaire (lié à `0x400000`), la zone est `[0x10000, 0x400000)`.
+* le `brk` du programme Linux : pas servi (sa glibc de compatibilité alloue par libposix) ; à voir avec Bun.
 
 ### 4.2 Le chargeur d'exécutables (`elf.c`)
 
-`PT_LOAD` projetés à leur adresse (`VM_FIXED`), le fichier lu dedans, puis les droits (`mprotect`) ; `PT_INTERP`
-ignoré (l'hôte est l'éditeur de liens) ; les imports (`R_X86_64_JUMP_SLOT`, `GLOB_DAT`, `COPY` : les données de la
-libc copiées dans l'exécutable, comme `stdout`, `environ`) liés à la glibc de compatibilité ; la pile du programme
-(argc, argv, envp, auxv : `AT_PHDR`, `AT_PHENT`, `AT_PHNUM`, `AT_PAGESZ`, `AT_ENTRY`, `AT_RANDOM`, `AT_SECURE`,
-`AT_EXECFN`, `AT_HWCAP`, `AT_CLKTCK`) ; l'entrée `_start` appelée sur cette pile, qui appelle `__libc_start_main` :
-servi par la glibc de compatibilité (constructeurs de l'exécutable, `main`, `exit`).
+`linux_load_file` (elf.c) : les en-têtes lus, puis chaque `PT_LOAD` lu par `pread` à sa place dans une réservation
+`MAP_FIXED_NOREPLACE` (ET_EXEC) ou quelconque (PIE), puis les droits (`mprotect`) ; `PT_INTERP` ignoré (l'hôte est
+l'éditeur de liens) ; les imports (`JUMP_SLOT`, `GLOB_DAT`, `64`) liés à la glibc de compatibilité, `COPY` (les
+données de la libc copiées dans l'exécutable : `stdout`, `stdin`, `stderr` ; `environ` posé au démarrage),
+`TPOFF64` de ses propres variables. `linux_exec` (exec.c) : la pile du programme (`PT_GNU_STACK`, 8 Mo au moins ;
+argc, argv, envp, auxv : `AT_PHDR`, `AT_PHENT`, `AT_PHNUM`, `AT_PAGESZ`, `AT_BASE`, `AT_ENTRY`, `AT_*ID`,
+`AT_PLATFORM`, `AT_HWCAP`, `AT_CLKTCK`, `AT_SECURE`, `AT_RANDOM`, `AT_EXECFN` ; `getauxval` les lit), puis un saut à
+`_start` (rsp sur argc, rdx = 0), qui appelle `__libc_start_main` (elf.c : `environ`, les constructeurs
+`DT_PREINIT_ARRAY`, `DT_INIT`, `DT_INIT_ARRAY` quand `init` est NULL comme depuis glibc 2.34, `main`, `exit` ; à la
+fin, ses `__cxa_atexit`, `DT_FINI_ARRAY`, `DT_FINI`). Le process finit avec le programme. L'exécutable est déclaré
+à la capture de syscall comme un module.
 
 ### 4.3 Le TLS de l'exécutable
 
 Un exécutable a son bloc TLS **juste sous `%fs`** (variante II ; décalages fixés à l'édition des liens : Claude Code
 lit `%fs:-0x5d30…`), et l'hôte aussi (libposix, liblinux). Les deux se recouvriraient. Solution retenue : **réserver
-dans le TLS de l'hôte, en haut, une zone vide** (un `.tbss` de 64 Ko placé en dernier par `posix.ld`) : les variables de
-l'hôte sont plus bas, le bloc de l'exécutable (au plus 64 Ko) se pose dans `[%fs - taille, %fs)`. Chaque thread : le
-`.tdata` de l'exécutable recopié là (le fil principal par le chargeur ; les autres par un tremplin du
-`pthread_create` de compatibilité). Le TCB à `%fs` est celui de libposix : `%fs:0` (soi-même), `%fs:0x28` (canari),
+dans le TLS de l'hôte, en haut, une zone vide** : `linux_exe_tls_pad` (exectls.S), 64 Ko dans une section
+`.lxexe_tls` que `posix-lx.ld` place en dernier dans `.tbss` ; exec.c vérifie qu'elle finit à `%fs`. Les variables
+de l'hôte sont plus bas, le bloc de l'exécutable (au plus 64 Ko, alignement ≤ 64) se pose dans
+`[%fs - taille, %fs)`. Chaque thread : le `.tdata` de l'exécutable recopié là (le fil principal par `linux_exec` ;
+les autres par `linux_thread_hook`, appelé par un tremplin du `pthread_create` de compatibilité). exec.o (et donc
+la réserve) n'est lié que dans un hôte qui appelle `linux_exec` : pas dans cdmhost. Le TCB à `%fs` est celui de libposix : `%fs:0` (soi-même), `%fs:0x28` (canari),
 `%fs:0x30` (garde des pointeurs) sont lus par le code Linux (déjà vrai pour Widevine).
 
 ## 5. Jalons suivants
+
+**La suite du jalon 1, puis le 2** : les 341 imports absents de Claude Code. La plupart sont des enveloppes
+d'appels système ; Bun fait aussi des `syscall` directs (la capture les envoie à `linux_syscall`). D'où la règle :
+**la traduction vit dans syscall.c** (structures de Linux : `stat`, `statx`, `dirent64`, `termios`, `sigaction`,
+`sigset_t` de 128 bits, `epoll_event`, `sockaddr`, `msghdr`…), et l'import de glibc qui n'est qu'une enveloppe
+appelle `linux_syscall` (une table nom → numéro) ; le reste (stdio, locale, maths, `getaddrinfo`, `iconv`,
+`posix_spawn`, `dlopen`) dans glibc*.c, par libposix. Les essais grandissent dans `tools/linux/exectest` (fichiers,
+sockets, epoll, eventfd, signaux, fork et exec, termios) avant Node.js.
 
 * **2. Node.js officiel** (linux-x64, glibc) : `node -e`, puis un petit serveur ; valide libuv (epoll, eventfd,
   threads, signaux) avant Bun.

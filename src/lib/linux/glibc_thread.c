@@ -248,8 +248,35 @@ static int lx_attr_destroy (struct lx_attr *a) { (void) a; return 0; }
 static int lx_attr_setdetachstate (struct lx_attr *a, int d) { a->detached = d == 1; return 0; }	/* (1 : DETACHED) */
 static int lx_attr_setstacksize (struct lx_attr *a, size_t n) { a->stacksize = n; return 0; }
 
+void (*linux_thread_hook) (void);	/* exec.c : le TLS de l'exécutable dans chaque thread */
+
+struct lx_start
+{
+	void *(*fn) (void *);
+	void *arg;
+};
+
+static void *lx_trampoline (void *p)
+{
+	struct lx_start st = *(struct lx_start *) p;
+	free (p);
+	if (linux_thread_hook)
+		linux_thread_hook ();
+	return st.fn (st.arg);
+}
+
 static int lx_create (unsigned long *t, const struct lx_attr *a, void *(*fn) (void *), void *arg)
 {
+	if (linux_thread_hook)
+	{
+		struct lx_start *st = malloc (sizeof *st);
+		if (!st)
+			return 11;	/* EAGAIN */
+		st->fn = fn;
+		st->arg = arg;
+		fn = lx_trampoline;
+		arg = st;
+	}
 	pthread_attr_t pa;
 	pthread_attr_init (&pa);
 	if (a && a->magic == LX_ATTR_MAGIC)
@@ -264,6 +291,8 @@ static int lx_create (unsigned long *t, const struct lx_attr *a, void *(*fn) (vo
 	pthread_attr_destroy (&pa);
 	if (!r)
 		*t = (unsigned long) pt;
+	else if (fn == lx_trampoline)
+		free (arg);
 	return lx_perr (r);
 }
 

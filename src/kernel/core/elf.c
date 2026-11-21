@@ -48,6 +48,7 @@ int elf_load(struct vm_space *vm, struct mm *mm, const void *image, uint64_t siz
 			return E_NOEXEC;
 		int flags = (ph->flags & PF_W ? VM_W : 0) | (ph->flags & PF_X ? VM_X : 0);
 		uint64_t first = ALIGN_DOWN(ph->vaddr, PAGE_SIZE);
+		mm_note_image(mm, first);
 		uint64_t end = ALIGN_UP(ph->vaddr + ph->memsz, PAGE_SIZE);
 		/* pages entièrement au-delà du fichier : .bss paresseux */
 		uint64_t lazy = mm ? ALIGN_UP(ph->vaddr + ph->filesz, PAGE_SIZE) : end;

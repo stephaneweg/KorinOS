@@ -23,6 +23,7 @@ struct mm;
 #define DMA_BASE 0x6A00000000ULL      /* DMA_ALLOC, puis DEV_MAP */
 #define DEV_BASE 0x6B00000000ULL
 #define HEAP_LIMIT 0x5000000000ULL
+#define VM_LOW_BASE 0x10000ULL       /* VM_FIXED sous l'image du programme (hôte Linux) */
 #define USER_STACK_TOP 0x00007FFFFFFF0000ULL
 #define USER_STACK_SIZE (64ULL << 20) /* paresseuse, sauf les 16 Ko du haut (64 Mo, comme le Pi) */
 
@@ -41,6 +42,7 @@ void mm_destroy(struct process *p); /* tampons rendus, régions libérées (pas 
 void mm_free(struct mm *mm);
 int mm_add_region(struct mm *mm, uint64_t start, uint64_t end, uint32_t prot, uint32_t kind);
 void mm_set_brk(struct mm *mm, uint64_t start);
+void mm_note_image(struct mm *mm, uint64_t lo);
 int mm_fork(struct process *parent, struct process *child);
 struct ipc_obj;
 int64_t mm_map_shared(struct ipc_obj *obj, uint64_t addr, uint64_t size, uint64_t prot, uint64_t flags,

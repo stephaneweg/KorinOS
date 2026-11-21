@@ -244,8 +244,13 @@ static char *lx_strncat_chk (char *d, const char *s, size_t n, size_t dn)
 /* ---- système ---- */
 static unsigned char s_at_random[16];
 
+const unsigned long *linux_auxv;	/* exec.c : celui de l'exécutable lancé */
+
 static unsigned long lx_getauxval (unsigned long type)
 {
+	for (const unsigned long *a = linux_auxv; a && a[0]; a += 2)
+		if (a[0] == type)
+			return a[1];
 	switch (type)
 	{
 	case 6: return 4096;					/* AT_PAGESZ */
@@ -322,7 +327,7 @@ const struct lx_entry lx_table_misc[] =
 	LX_W ("__strncat_chk", lx_strncat_chk), LX_W ("strerror", lx_strerror), LX_F (rint),
 	LX_W ("__udivti3", __udivti3),
 	/* système */
-	LX_W ("getauxval", lx_getauxval), LX_W ("prctl", lx_prctl), LX_W ("uname", lx_uname),
+	LX_W ("getauxval", lx_getauxval), LX_W ("__libc_start_main", linux_libc_start_main), LX_W ("prctl", lx_prctl), LX_W ("uname", lx_uname),
 	LX_W ("getrlimit64", lx_getrlimit64), LX_W ("getrlimit", lx_getrlimit64), LX_W ("madvise", lx_madvise),
 	LX_W ("geteuid", lx_geteuid), LX_W ("__libc_stack_end", &lx_libc_stack_end),
 	LX_W ("getpagesize", lx_getpagesize), LX_F (_exit), LX_W ("sigfillset", lx_sigfillset),

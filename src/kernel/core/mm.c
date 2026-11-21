@@ -43,6 +43,7 @@ struct mm {
 	struct region *r;
 	int n, cap;
 	uint64_t brk_start, brk;
+	uint64_t img_lo; /* la plus basse adresse de l'image du programme (0 : pas d'image) */
 	uint64_t owned, faults;
 	uint64_t dma_next, dev_next;
 	uint8_t bufs[BUF_MAX / 8];
@@ -88,6 +89,14 @@ void mm_count_owned(struct mm *mm, int64_t delta)
 {
 	if (mm)
 		__atomic_add_fetch(&mm->owned, (uint64_t)delta, __ATOMIC_RELAXED);
+}
+
+/* un segment de l'image du programme commence à lo (elf_load, image_map) : la zone basse de
+ * VM_FIXED s'arrête sous la plus basse */
+void mm_note_image(struct mm *mm, uint64_t lo)
+{
+	if (mm && (!mm->img_lo || lo < mm->img_lo))
+		mm->img_lo = lo;
 }
 
 void mm_set_brk(struct mm *mm, uint64_t start)
@@ -435,6 +444,16 @@ static int in_arena(uint64_t a, uint64_t len)
 	return (a >= VM_ARENA_BASE && a + len <= VM_ARENA_END) || (a >= VM_HIGH_BASE && a + len <= VM_HIGH_END);
 }
 
+/* VM_FIXED : l'arène, l'arène haute, et depuis le 21/11 la zone basse [VM_LOW_BASE, image[ : un
+ * exécutable Linux non PIE de l'hôte Linux (lié à 0x40_0000_0000) se charge à ses adresses
+ * (0x200000, 0x400000…) ; find_gap n'y cherche jamais */
+static int in_fixed(struct mm *mm, uint64_t a, uint64_t len)
+{
+	if (in_arena(a, len))
+		return 1;
+	return a + len > a && a >= VM_LOW_BASE && mm->img_lo && a + len <= ALIGN_DOWN(mm->img_lo, PAGE_SIZE);
+}
+
 static int overlaps(struct mm *mm, uint64_t s, uint64_t e)
 {
 	for (int i = 0; i < mm->n; i++)
@@ -494,7 +513,7 @@ int64_t sys_vm_map(uint64_t addr, uint64_t size, uint64_t prot, uint64_t flags)
 		return E_INVAL;
 	uint64_t len = ALIGN_UP(size, PAGE_SIZE);
 	int fixed = (flags & (VM_FIXED | VM_FIXED_NOREPLACE)) != 0;
-	if (fixed && ((addr & (PAGE_SIZE - 1)) || !in_arena(addr, len)))
+	if (fixed && ((addr & (PAGE_SIZE - 1)) || !in_fixed(mm, addr, len)))
 		return E_INVAL;
 	struct freelist fl = {0};
 	int shoot = 0;
@@ -539,7 +558,7 @@ int64_t sys_vm_unmap(uint64_t addr, uint64_t size)
 	struct process *p = cur_proc();
 	struct mm *mm = p->mm;
 	uint64_t len = ALIGN_UP(size, PAGE_SIZE);
-	if (!mm || (addr & (PAGE_SIZE - 1)) || !in_arena(addr, len))
+	if (!mm || (addr & (PAGE_SIZE - 1)) || !in_fixed(mm, addr, len))
 		return E_INVAL;
 	struct freelist fl = {0};
 	uint64_t f = spin_lock_irqsave(&mm->lock);
@@ -974,6 +993,7 @@ int mm_fork(struct process *parent, struct process *child)
 			}
 		cm->brk_start = pm->brk_start;
 		cm->brk = pm->brk;
+		cm->img_lo = pm->img_lo;
 		cm->dma_next = pm->dma_next;
 		cm->dev_next = pm->dev_next;
 		cm->owned = pm->owned;
@@ -1035,7 +1055,7 @@ int64_t mm_map_shared(struct ipc_obj *obj, uint64_t addr, uint64_t size, uint64_
 		return E_INVAL;
 	uint64_t len = ALIGN_UP(size, PAGE_SIZE);
 	int fixed = (flags & (VM_FIXED | VM_FIXED_NOREPLACE)) != 0;
-	if (fixed && ((addr & (PAGE_SIZE - 1)) || !in_arena(addr, len)))
+	if (fixed && ((addr & (PAGE_SIZE - 1)) || !in_fixed(mm, addr, len)))
 		return E_INVAL;
 	struct freelist fl = {0};
 	int shoot = 0;

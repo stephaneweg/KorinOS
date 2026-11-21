@@ -31,16 +31,29 @@ mkdir -p "$OUT/gen"
 		"$ROOT/src/inc/syscalls.inc"
 } | tr -d '\r' >"$OUT/gen/korin_sys_nr.h"
 CFLAGS="-specs=$POSIX/lib/posix.specs -O2 -g0 -std=gnu11 -Wall -Wextra -Wno-unused-parameter -I$OUT/gen"
-for f in elf glibc glibc_thread glibc_misc syscall capture; do
+for f in elf glibc glibc_thread glibc_misc syscall capture exec; do
 	${TC}gcc $CFLAGS -c "$SRC/$f.c" -o "$OUT/obj/$f.o"
 done
+${TC}gcc -c "$SRC/exectls.S" -o "$OUT/obj/exectls.o"
 rm -f "$OUT/liblinux.a"
-${TC}ar rcs "$OUT/liblinux.a" "$OUT/obj/elf.o" "$OUT/obj/glibc.o" "$OUT/obj/glibc_thread.o" "$OUT/obj/glibc_misc.o" "$OUT/obj/syscall.o" "$OUT/obj/capture.o"
+${TC}ar rcs "$OUT/liblinux.a" "$OUT/obj/elf.o" "$OUT/obj/glibc.o" "$OUT/obj/glibc_thread.o" "$OUT/obj/glibc_misc.o" \
+	"$OUT/obj/syscall.o" "$OUT/obj/capture.o" "$OUT/obj/exec.o" "$OUT/obj/exectls.o"
 
-# 3. linuxhost
+# 3. linuxhost, lié à 0x4000_0000 (docs/etude/LINUX-HOST.md § 4.1) : sous lui, la zone basse de VM_FIXED où
+#    se chargent les exécutables de Linux non PIE (0x200000, 0x400000…) ; plus haut, le modèle « small » de
+#    libposix et de newlib n'atteindrait plus ses symboles. Le segment TLS finit par la réserve des
+#    exécutables (exectls.S, .lxexe_tls). Une copie de posix.ld et de posix.specs du PC, changées ici.
+sed -e 's/^\t\. = 0x400000 + SIZEOF_HEADERS;.*$/\t. = 0x40000000 + SIZEOF_HEADERS;\t\/* linuxhost : sous lui, les exécutables de Linux *\//' \
+    -e 's/^\(\t\t\*(\.tcommon)\)$/\1\n\t\t*(.lxexe_tls)\t\/* la réserve des exécutables de Linux : en dernier, elle finit à %fs *\//' \
+	"$POSIX/lib/posix.ld" >"$OUT/posix-lx.ld"
+grep -q '0x40000000 + SIZEOF_HEADERS' "$OUT/posix-lx.ld" && grep -q 'lxexe_tls' "$OUT/posix-lx.ld" ||
+	{ echo "linux : posix-lx.ld, sed raté" >&2; exit 1; }
+sed -e "s#-T $POSIX/lib/posix.ld#-T $OUT/posix-lx.ld#" "$POSIX/lib/posix.specs" >"$OUT/posix-lx.specs"
+grep -q "posix-lx.ld" "$OUT/posix-lx.specs" || { echo "linux : posix-lx.specs, sed raté" >&2; exit 1; }
 ${TC}gcc $CFLAGS -c "$HOST/main.c" -o "$OUT/obj/main.o"
 ${TC}gcc -c -DLXTEST_SO="\"$OUT/lxtest.so\"" "$HOST/blob.S" -o "$OUT/obj/blob.o"
-${TC}gcc $CFLAGS "$OUT/obj/main.o" "$OUT/obj/blob.o" "$OUT/liblinux.a" -lm -o "$OUT/linuxhost"
+LXFLAGS=$(printf %s "$CFLAGS" | sed "s#-specs=$POSIX/lib/posix.specs#-specs=$OUT/posix-lx.specs#")
+${TC}gcc $LXFLAGS "$OUT/obj/main.o" "$OUT/obj/blob.o" "$OUT/liblinux.a" -lm -o "$OUT/linuxhost"
 ls -l "$OUT/lxtest.so" "$OUT/liblinux.a" "$OUT/linuxhost"
 
 # 4. (facultatif) la sonde du module Widevine pour Korin, WIDEVINE_SO=…/libwidevinecdm.so : le module de
