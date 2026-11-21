@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 16:17
+date = 2026-11-21 16:18
 abi = 626
 packages = 117
 board = pc
@@ -574,18 +574,18 @@ content = 57824ad560c30c3010c4cf4c9e1d1ae5022ec7f340d823874774cd6eb2138ca1
 
 [bash]
 title = GNU bash
-version = 1.0.5
+version = 1.0.6
 category = Développement
 author = Korin OS
 summary = Le shell de GNU (5.2.37) : édition de ligne, historique, complétion, scripts
-size = 693012
-installed = 1374194
-sha256 = 59016bf2c447759004a4961ca95315ad38a16e5a5e7484fd5123dd6c9964555e
-file = pkgs/bash-1.0.5.opk
+size = 693093
+installed = 1374384
+sha256 = f2894c39ace7cafb1c94fd12f31ca3cde62baf55fad29e788fe29e538d403d34
+file = pkgs/bash-1.0.6.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = b97c3269d5965e376944f6e1d012b15cf671a1edd3d33bb6ec4e192c8fbe1d88
+content = 9f712d034eada088e4d4948f95f6bc9ad7e65949b65225c8b18fb85244c19684
 
 [llm]
 title = llm
