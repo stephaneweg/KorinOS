@@ -243,8 +243,12 @@ python tools/pkg/pub.py win16 --new --tree DOSSIER  # un nouveau paquet (absent 
 Python de Windows **sans `-I`** (`cryptography`). Dans le cloud (pas de `gh` utilisable) : `--api`, la Release par
 l'API REST de GitHub avec `curl` (la connexion GitHub de la session est appliquée par le proxy), et la clé dans la
 variable `ONYX_PKG_KEY` (ou `OnyxPkgKey`). Le proxy GitHub du cloud refuse les envois binaires (HTTP 415) :
-`--manual-upload` prépare l'archive, attend que l'utilisateur la dépose dans la Release, la télécharge et vérifie
-son SHA-256, puis seulement commite et pousse l'index. Le script :
+`--manual-upload` prépare l'archive, attend qu'elle soit dans la Release, la télécharge et vérifie son SHA-256, puis
+seulement commite et pousse l'index. L'archive y va par le workflow « Release upload »
+(`.github/workflows/release-upload.yml`) : une branche sans historique commun `release-upload/NOM-VERSION` qui ne
+porte que `upload/<archive>.opk`, poussée, puis le workflow lancé (`workflow_dispatch`, entrée `branch`) ; il ajoute
+l'archive à la Release (jamais de remplacement) et supprime la branche (le proxy refuse aussi la suppression d'une
+branche). Le script :
 
 1. `git fetch` ; la base est l'index d'**`origin/main`** (`packages/pc/index.txt`), jamais une archive plus ancienne
    que la dernière publiée ;
