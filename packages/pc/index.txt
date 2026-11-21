@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 21:49
+date = 2026-11-21 22:00
 abi = 626
 packages = 117
 board = pc
@@ -1744,18 +1744,18 @@ content = cede316a55cdf944bafe30dd53dd4542eb6e76f66fdb23cd6306dbb247e52917
 
 [weather]
 title = Météo
-version = 1.0.1
+version = 1.0.2
 category = Accessoires
 author = Korin OS
 summary = La météo et les prévisions d'une ville (Open-Meteo), et sa carte sur le bureau
-size = 155006
-installed = 332597
-sha256 = fca60e01f8eb706b33f0adf840bad6a06b5ba055172a902f59f8da199a6493cf
-file = pkgs/weather-1.0.1.opk
+size = 158718
+installed = 340789
+sha256 = f620ebf3d81ab0a6c9fcffe485ec1dad5e8d7185244e4cfe9d483bd7f9649a04
+file = pkgs/weather-1.0.2.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 52ffb51db0987d9d52118fa44d3b3db2ec0a42ffa809faf3711909bae23a7205
+content = df1f1711272d2817a9389d1f70b8f0ac30c33009b39ead75e87b8270e7d4330c
 
 [netflix]
 title = Netflix
