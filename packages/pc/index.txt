@@ -2029,18 +2029,18 @@ content = dac035d8310ab13f94b981effd227ec519ea6b32fe50329d3f74b0dfa03d4f15
 
 [anicraft]
 title = AniCraft
-version = 1.0.1
+version = 1.0.2
 category = Suite ArtCraft
 author = Korin OS
 summary = L'animation vectorielle 2D libre AniCraft (storytold).
-size = 19047507
-installed = 44043539
-sha256 = 1ec41431aab80e405229ce4f0df647dfba554c57fc8d14f11dc6ba1dea6235b3
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-anicraft-1.0.1.opk
-needs = craft, abi >= 627
+size = 19048683
+installed = 44043667
+sha256 = e8666aa2e2dbe3a592d996b9cfe9ba6486763410f4e9c94aba53b272a5f7cb63
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-anicraft-1.0.2.opk
+needs = craft, abi >= 628
 required = 0
 restart = 0
-content = cef85e9162315e9cc127980202663958a493f3e105a4255492e9a74d75d13850
+content = b363fa1c8f101a32610aa13974b240b3d1d5ffa1bc2dfc701e5f3274a510859f
 
 [soundcraft]
 title = SoundCraft
