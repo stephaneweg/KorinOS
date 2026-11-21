@@ -9,6 +9,9 @@
 #include <string.h>
 #include <uikit.h>
 
+/* (libposix, <armpi/kit.h> : les relais de UIKit s'en servent déjà) un kit, à une version minimale -> 0 : absent */
+void *armpi_kit_open (const char *name, unsigned min_version);
+
 static struct ui_vars ui;
 
 /* la fenetre est-elle ouverte ? Avant, UIKit n'est pas charge : les menus donnes trop tot (muda les pose avant la
@@ -195,4 +198,15 @@ long kh_menu_states (const long *pairs, long n)
 }
 
 /* la touche du dernier evenement (kh_event) est-elle le raccourci d'une entree des menus ? -> son id (-1 : non) */
+/* les boutons du cadre en clair (1) ou foncés (0), selon le contenu sous eux ; seulement avec UIKit 222
+ * (ui_frame_glyphs) : sur un système plus ancien, la fonction n'est pas dans la table (adresse 0) */
+void kh_frame_glyphs (int light)
+{
+	static int have = -1;
+	if (have < 0)
+		have = armpi_kit_open ("uikit", 222) != 0;
+	if (have && kh_ready)
+		ui_frame_glyphs (light);
+}
+
 long kh_menu_key (void) { return kh_ready ? ui_menu_key (0) : -1; }

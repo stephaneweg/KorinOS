@@ -748,6 +748,7 @@ La barre ajoute d'elle-même le menu au nom de l'app (avec **Quitter**, qui arri
 | `ui_menu` | texte des menus (0 : aucun) | 0 (< 0 : plus de 2048 octets) ; les libellés passent par `ui_tr` |
 | `ui_menu_state` | id, `UMS_DISABLED` / `UMS_CHECKED` / 0 | grise, coche ou rend normale une entrée |
 | `ui_menu_states` | tableau de paires (id, état) en `long`, nombre | plusieurs états d'un coup, un seul envoi à la barre (`ui_menu_state` renvoie tout le texte à chaque appel) |
+| `ui_frame_glyphs` | 1 : clairs, 0 : foncés | les boutons du cadre (réduire, agrandir, fermer) en clair sur un contenu foncé ; le cadre n'est redessiné que si le choix change (version 222) |
 | `ui_menu_key` | 0 (l'événement de `ui.ev`) | id du raccourci (-1 : aucun) |
 | `ui_popup_local` | x, y (dans la fenêtre), libellés, largeur | menu contextuel → numéro choisi (-1 : abandon) |
 | `ui_popup` | x, y (à l'écran), libellés, largeur | menu surgissant → numéro (-1 : abandon) |

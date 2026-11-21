@@ -400,6 +400,8 @@ struct Window {
     back: Vec<[u8; 4]>,
     /// les pixels de la fenêtre ne correspondent plus à `back` (nouveau tampon) : tout recopier
     full: bool,
+    /// les boutons du cadre (dessinés par Elegant sur le contenu) sont en clair : le fond sous eux est foncé
+    glyphs_light: Option<bool>,
 }
 
 impl Window {
@@ -411,6 +413,7 @@ impl Window {
             pixels: std::ptr::null_mut(),
             back: Vec::new(),
             full: true,
+            glyphs_light: None,
             events: Vec::new(),
             modifiers: Modifiers::default(),
             buttons: 0,
@@ -648,6 +651,32 @@ impl Window {
             }
         }
         self.full = false;
+        // les boutons du cadre (réduire, agrandir, fermer) sont dessinés par Elegant sur le haut droit du contenu :
+        // en clair sur un fond foncé (la luminance moyenne sous eux, avec une marge pour ne pas basculer sans cesse)
+        if y1 > y0 && y0 < 40 {
+            let (bw, bh, m) = (102usize, 26usize, 5usize); // FRAME_CAP_W, FRAME_CAP_H, FRAME_CAP_MARGIN (uk_consts.h)
+            if w > bw + m && h > bh + m {
+                let mut sum = 0u64;
+                let mut n = 0u64;
+                for y in (m..m + bh).step_by(2) {
+                    for x in (w - m - bw..w - m).step_by(2) {
+                        let [b, g, r, _] = self.back[y * w + x];
+                        sum += (r as u64 * 299 + g as u64 * 587 + b as u64 * 114) / 1000;
+                        n += 1;
+                    }
+                }
+                let lum = sum / n.max(1);
+                let light = match self.glyphs_light {
+                    Some(true) => lum < 150,
+                    Some(false) => lum < 110,
+                    None => lum < 128,
+                };
+                if self.glyphs_light != Some(light) {
+                    self.glyphs_light = Some(light);
+                    unsafe { sys::kh_frame_glyphs(light as _) };
+                }
+            }
+        }
         if y1 > y0 {
             unsafe { sys::kh_update(0, y0 as _, w as _, (y1 - y0) as _) };
         }

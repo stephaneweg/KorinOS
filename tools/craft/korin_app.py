@@ -495,7 +495,7 @@ if name == "pdfcraft":
 if name == "designcraft":
     edit("crates/ui-egui/src/chrome/app_bar.rs", [
         ("            right: if app.custom_titlebar { 0 } else { 10 },",
-         "            right: if app.custom_titlebar { 0 } else if cfg!(target_os = \"korin\") { 112 } else { 10 },"),
+         "            right: if cfg!(target_os = \"korin\") { 112 } else if app.custom_titlebar { 0 } else { 10 },"),
         ("            let cx = full.center().x;\n            if cx - w / 2.0 > menus_end + 12.0 && cx + w / 2.0 < tools_start - 12.0 {\n"
          "                ui.painter().galley(egui::pos2(cx - w / 2.0, full.center().y - galley.size().y / 2.0), galley, t.text);",
          "            let cx = full.center().x;\n"
@@ -507,6 +507,16 @@ if name == "designcraft":
          "            };\n"
          "            if fits {\n"
          "                ui.painter().galley(egui::pos2(tx, full.center().y - galley.size().y / 2.0), galley, t.text);"),
+    ])
+if name == "soundcraft":
+    # la barre d'outils défile horizontalement, plus large que la fenêtre : sous Korin elle s'arrête 112 px avant le
+    # bord droit (les boutons du cadre d'Elegant)
+    edit("crates/ui-egui/src/toolbar.rs", [
+        ("    ui.add_space(4.0);\n    egui::ScrollArea::horizontal()\n        .id_salt(\"edit_toolbar_scroll\")",
+         "    ui.add_space(4.0);\n"
+         "    #[cfg(target_os = \"korin\")]\n"
+         "    let ui = &mut ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_max(ui.cursor().min, egui::pos2(full.max.x - 112.0, full.max.y))));\n"
+         "    egui::ScrollArea::horizontal()\n        .id_salt(\"edit_toolbar_scroll\")"),
     ])
 if name == "lightcraft":
     edit("crates/ui-egui/src/panels/topbar.rs", [
