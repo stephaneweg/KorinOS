@@ -559,18 +559,18 @@ content = 9641cbd4a85fc3389095aa190dc27cca0ff9fb21011ca03682e601d0f7486fb0
 
 [bash]
 title = GNU bash
-version = 1.0.7
+version = 1.0.8
 category = Développement
 author = Korin OS
 summary = Le shell de GNU (5.2.37) : édition de ligne, historique, complétion, scripts
-size = 693142
-installed = 1374384
-sha256 = e362250bd6562c10cc7b16f9c67e2a7c534a5ce5d19d5b08299b334b258a4328
-file = pkgs/bash-1.0.7.opk
+size = 712997
+installed = 1411248
+sha256 = aa2b547521e18d587826b9cc2f5275510059cabb045fbb227fda062b34a3632d
+file = pkgs/bash-1.0.8.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = c6172e3ef427e06e7c3ecfc5740a9ebf2e1325325663af198179d30c2e28e5f9
+content = 928ac91d105fd2b97ef0fa88b398d8c5af7710ed205e595fe9f9359decf35bd9
 
 [llm]
 title = llm
