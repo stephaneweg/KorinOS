@@ -43,13 +43,12 @@ sont **publiés** (`craft` + un par app qui en dépend, 21/11 : voir CRAFT.md, �
 
 ## Ce qui reste
 
-1. **Barre de titre** : les apps réservent la place des boutons de fenêtre de Windows ou de macOS ; sur Korin leurs
-   boutons de droite passent sous ceux de la fenêtre. Voir `craft-window` (craft-libs) : `policy` (« Use system title
-   bar », `CRAFT_TITLEBAR=system`) et `title_bar.rs` ; une variante Korin dans `korin_libs.py` (titre à gauche contre
-   l'icône, réserve à droite).
-2. **Menus dans la barre de menus de Korin** : `craft-menu` (craft-libs) décrit les menus en arbre et les confie à un
-   backend (macOS : muda). Un backend Korin sur `ui_menu`, `ui_menu_get`, `ui_menu_command`, `ui_menu_state`,
-   `ui_menu_key` (UIKit). FigCraft, PdfCraft, MaterialCraft, TextureCraft le prennent directement.
+1. **Barre de titre** : fait (21/11) pour les 17 apps : pas de boutons de fenêtre à soi, 112 px libres à droite, titre à
+   gauche (`korin_app.py`, `korin_libs.py` ; CRAFT.md, « Barre de titre et menus sur Korin »).
+2. **Menus dans la barre de menus de Korin** : fait pour neuf apps par leur chemin macOS (muda 0.21.2 a une plateforme
+   Korin, `tools/craft/crate/muda-korin.rs`). Reste PhotoCraft et PdfCraft : leur menu natif passe par `craft-menu` /
+   `craft-window` sur AppKit (`mac.rs`), un backend Korin y publierait par `egui_korin::menu`. Les six autres n'ont pas
+   de menu natif, même sur macOS.
 3. **`File::lock`** dans la std de Korin (libposix a `flock`) : LightCraft (photothèque), la récupération de
    PdfCraft et de DesignCraft.
 4. **Le son** : un hôte `cpal` pour Korin (sur AudioKit) : SoundCraft, FilmCraft, EffectCraft.

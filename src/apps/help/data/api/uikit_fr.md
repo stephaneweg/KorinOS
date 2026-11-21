@@ -737,7 +737,9 @@ Chaque app publie ses menus dans la **barre de menus** en haut de l'écran par `
 
 - `M<titre>` ouvre un menu ;
 - `I<id>\t<libellé>\t<raccourci>` une entrée (id décimal ≥ 0, raccourci facultatif) ; juste après l'id, `d` grise l'entrée et `c` la coche (`I4c\tMono`) ;
-- `-` un séparateur.
+- `-` un séparateur ;
+- `S<titre>` … `E` : un sous-menu dans un menu (ses lignes entre les deux, un seul niveau : un sous-menu dans un sous-menu est sauté). Le texte fait 16 Ko au plus, 14 menus, 160 lignes par menu ou sous-menu.
+- `M*` : un menu sans titre, dont les lignes vont dans le menu au nom de l'app, avant **Quitter** (À propos, Réglages…).
 
 La barre ajoute d'elle-même le menu au nom de l'app (avec **Quitter**, qui arrive en `WEV_CLOSE`) et le menu **Aide** quand l'app a un `help_fr.md` ou un `help_en.md`. Un choix arrive en `WEV_MENU`, l'id dans `EV_CODE`. Le raccourci n'est qu'affiché : le programme passe les touches que ses widgets n'ont pas prises à `ui_menu_key`, qui rend l'id de l'entrée dont c'est le raccourci (« Ctrl+S », « Ctrl+Maj+Z », « Alt+X », « F3 »).
 
@@ -745,6 +747,7 @@ La barre ajoute d'elle-même le menu au nom de l'app (avec **Quitter**, qui arri
 |---|---|---|
 | `ui_menu` | texte des menus (0 : aucun) | 0 (< 0 : plus de 2048 octets) ; les libellés passent par `ui_tr` |
 | `ui_menu_state` | id, `UMS_DISABLED` / `UMS_CHECKED` / 0 | grise, coche ou rend normale une entrée |
+| `ui_menu_states` | tableau de paires (id, état) en `long`, nombre | plusieurs états d'un coup, un seul envoi à la barre (`ui_menu_state` renvoie tout le texte à chaque appel) |
 | `ui_menu_key` | 0 (l'événement de `ui.ev`) | id du raccourci (-1 : aucun) |
 | `ui_popup_local` | x, y (dans la fenêtre), libellés, largeur | menu contextuel → numéro choisi (-1 : abandon) |
 | `ui_popup` | x, y (à l'écran), libellés, largeur | menu surgissant → numéro (-1 : abandon) |

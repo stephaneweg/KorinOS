@@ -1,3 +1,73 @@
+diff -ruN a/compiler/rustc/build.rs b/compiler/rustc/build.rs
+--- a/compiler/rustc/build.rs
++++ b/compiler/rustc/build.rs
+@@ -7,6 +7,22 @@
+     let target_env = env::var("CARGO_CFG_TARGET_ENV");
+     if Ok("windows") == target_os.as_deref() && Ok("msvc") == target_env.as_deref() {
+         set_windows_exe_options();
++    } else if Ok("korin") == target_os.as_deref() {
++        // Korin OS: `rustc` is the host of librustc_driver, std and the proc-macros, all loaded by
++        // libposix's `dlopen`: it exports the C library (`-rdynamic`) and libstdc++ (libposix's
++        // `dlhost-cxx.ld`, named by KORIN_DLHOST_CXX), which LLVM's C++ in librustc_driver uses.
++        // KORIN_RUSTC_LINK_ARGS: more link arguments (the TLS reserve of the shared objects).
++        println!("cargo:rerun-if-env-changed=KORIN_DLHOST_CXX");
++        println!("cargo:rerun-if-env-changed=KORIN_RUSTC_LINK_ARGS");
++        println!("cargo:rustc-link-arg-bin=rustc-main=-rdynamic");
++        if let Ok(ld) = env::var("KORIN_DLHOST_CXX") {
++            println!("cargo:rustc-link-arg-bin=rustc-main={ld}");
++        }
++        println!("cargo:rustc-link-arg-bin=rustc-main=-lstdc++");
++        for arg in env::var("KORIN_RUSTC_LINK_ARGS").unwrap_or_default().split_whitespace() {
++            println!("cargo:rustc-link-arg-bin=rustc-main={arg}");
++        }
++        println!("cargo:rerun-if-changed=build.rs");
+     } else {
+         // Avoid rerunning the build script every time.
+         println!("cargo:rerun-if-changed=build.rs");
+diff -ruN a/compiler/rustc_driver_impl/Cargo.toml b/compiler/rustc_driver_impl/Cargo.toml
+--- a/compiler/rustc_driver_impl/Cargo.toml
++++ b/compiler/rustc_driver_impl/Cargo.toml
+@@ -49,7 +49,8 @@
+     "Win32_System_Diagnostics_Debug",
+ ]
+ 
+-[target.'cfg(not(target_family = "wasm"))'.dependencies]
++# (Korin OS: no ctrlc, whose nix does not know Korin; Ctrl-C ends rustc by the signal's default action)
++[target.'cfg(not(any(target_family = "wasm", target_os = "korin")))'.dependencies]
+ # tidy-alphabetical-start
+ ctrlc = "3.4.4"
+ # tidy-alphabetical-end
+diff -ruN a/compiler/rustc_driver_impl/src/lib.rs b/compiler/rustc_driver_impl/src/lib.rs
+--- a/compiler/rustc_driver_impl/src/lib.rs
++++ b/compiler/rustc_driver_impl/src/lib.rs
+@@ -1647,7 +1647,10 @@
+ /// Install our usual `ctrlc` handler, which sets [`rustc_const_eval::CTRL_C_RECEIVED`].
+ /// Making this handler optional lets tools can install a different handler, if they wish.
+ pub fn install_ctrlc_handler() {
+-    #[cfg(all(not(miri), not(target_family = "wasm")))]
++    // Korin OS: no handler (no ctrlc there); Ctrl-C ends rustc by the signal's default action
++    #[cfg(target_os = "korin")]
++    let _ = &rustc_const_eval::CTRL_C_RECEIVED;
++    #[cfg(all(not(miri), not(target_family = "wasm"), not(target_os = "korin")))]
+     ctrlc::set_handler(move || {
+         // Indicate that we have been signaled to stop, then give the rest of the compiler a bit of
+         // time to check CTRL_C_RECEIVED and run its own shutdown logic, but after a short amount
+diff -ruN a/compiler/rustc_llvm/build.rs b/compiler/rustc_llvm/build.rs
+--- a/compiler/rustc_llvm/build.rs
++++ b/compiler/rustc_llvm/build.rs
+@@ -493,7 +493,11 @@
+     }
+ 
+     // C++ runtime library
+-    if !target.contains("msvc") {
++    // Korin OS: libstdc++ only exists as a static archive, whose TLS cannot go into a shared object
++    // (librustc_driver). The `rustc` executable links it and exports it to its shared objects, like
++    // every C++ host of libposix's `dlopen` (see `compiler/rustc/build.rs`).
++    if target.contains("korin") {
++    } else if !target.contains("msvc") {
+         if let Some(s) = llvm_static_stdcpp {
+             assert!(cxxflags.into_iter().all(|flag| flag != "-stdlib=libc++"));
+             let path = PathBuf::from(s);
 diff -ruN a/compiler/rustc_target/src/spec/base/korin.rs b/compiler/rustc_target/src/spec/base/korin.rs
 --- a/compiler/rustc_target/src/spec/base/korin.rs
 +++ b/compiler/rustc_target/src/spec/base/korin.rs
@@ -122,6 +192,62 @@ diff -ruN a/compiler/rustc_target/src/spec/targets/x86_64_unknown_korin.rs b/com
 +        options: base,
 +    }
 +}
+diff -ruN a/src/bootstrap/src/core/build_steps/compile.rs b/src/bootstrap/src/core/build_steps/compile.rs
+--- a/src/bootstrap/src/core/build_steps/compile.rs
++++ b/src/bootstrap/src/core/build_steps/compile.rs
+@@ -1505,7 +1505,8 @@
+         );
+         cargo.env("LLVM_STATIC_STDCPP", file);
+     }
+-    if builder.llvm_link_shared() {
++    // Korin OS: a static LLVM (see `llvm.rs`)
++    if builder.llvm_link_shared() && !target.contains("korin") {
+         cargo.env("LLVM_LINK_SHARED", "1");
+     }
+     if builder.config.llvm_use_libcxx {
+diff -ruN a/src/bootstrap/src/core/build_steps/llvm.rs b/src/bootstrap/src/core/build_steps/llvm.rs
+--- a/src/bootstrap/src/core/build_steps/llvm.rs
++++ b/src/bootstrap/src/core/build_steps/llvm.rs
+@@ -403,7 +403,19 @@
+         // which saves both memory during parallel links and overall disk space
+         // for the tools. We don't do this on every platform as it doesn't work
+         // equally well everywhere.
+-        if builder.llvm_link_shared() {
++        // Korin OS: LLVM stays static there, inside librustc_driver (a libLLVM.so would have to carry
++        // libstdc++, whose static archive cannot go into a shared object), whatever the build machine's
++        // LLVM is (`link-shared` for a prebuilt shared LLVM on the build machine).
++        if target.contains("korin") {
++            cfg.define("LLVM_LINK_LLVM_DYLIB", "OFF");
++            cfg.define("LLVM_BUILD_LLVM_DYLIB", "OFF");
++            // nor LLVM's other shared objects (they would carry libstdc++ too), nor plugins
++            cfg.define("LLVM_TOOL_LTO_BUILD", "OFF");
++            cfg.define("LLVM_TOOL_REMARKS_SHLIB_BUILD", "OFF");
++            cfg.define("LLVM_ENABLE_PLUGINS", "OFF");
++            // its tools are static executables, without the dynamic section an RPATH would go in
++            cfg.define("CMAKE_SKIP_RPATH", "ON");
++        } else if builder.llvm_link_shared() {
+             cfg.define("LLVM_LINK_LLVM_DYLIB", "ON");
+         }
+ 
+@@ -577,6 +589,7 @@
+         // some can come from the C++ standard library. Unless we're explicitly requesting LLVM to
+         // be built with debuginfo, strip it away after the fact, to make dist artifacts smaller.
+         if builder.llvm_link_shared()
++            && !target.contains("korin")
+             && builder.config.llvm_optimize
+             && !builder.config.llvm_release_debuginfo
+         {
+@@ -697,6 +710,10 @@
+             cfg.define("CMAKE_SYSTEM_NAME", "SunOS");
+         } else if target.contains("linux") {
+             cfg.define("CMAKE_SYSTEM_NAME", "Linux");
++        } else if target.contains("korin") {
++            // Korin OS: a POSIX layer (newlib, libposix) that CMake handles as a Unix like Linux, without
++            // `__linux__`, so that LLVM takes its generic POSIX paths.
++            cfg.define("CMAKE_SYSTEM_NAME", "Linux");
+         } else if target.contains("darwin") {
+             // macOS
+             cfg.define("CMAKE_SYSTEM_NAME", "Darwin");
 diff -ruN a/src/bootstrap/src/core/sanity.rs b/src/bootstrap/src/core/sanity.rs
 --- a/src/bootstrap/src/core/sanity.rs
 +++ b/src/bootstrap/src/core/sanity.rs
@@ -134,6 +260,18 @@ diff -ruN a/src/bootstrap/src/core/sanity.rs b/src/bootstrap/src/core/sanity.rs
  ];
  
  /// Minimum version threshold for libstdc++ required when using prebuilt LLVM
+diff -ruN a/src/bootstrap/src/lib.rs b/src/bootstrap/src/lib.rs
+--- a/src/bootstrap/src/lib.rs
++++ b/src/bootstrap/src/lib.rs
+@@ -89,6 +89,8 @@
+     (Some(Mode::ToolStd), "bootstrap", None),
+     (Some(Mode::ToolRustcPrivate), "rust_analyzer", None),
+     (Some(Mode::ToolStd), "rust_analyzer", None),
++    // Korin OS: compiler code that names it, compiled by a stage0 compiler that does not know it yet
++    (Some(Mode::Rustc), "target_os", Some(&["korin"])),
+     // Any library specific cfgs like `target_os`, `target_arch` should be put in
+     // priority the `[lints.rust.unexpected_cfgs.check-cfg]` table
+     // in the appropriate `library/{std,alloc,core}/Cargo.toml`
 diff -ruN a/src/doc/rustc/src/SUMMARY.md b/src/doc/rustc/src/SUMMARY.md
 --- a/src/doc/rustc/src/SUMMARY.md
 +++ b/src/doc/rustc/src/SUMMARY.md

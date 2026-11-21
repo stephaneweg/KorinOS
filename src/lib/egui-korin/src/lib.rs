@@ -14,7 +14,7 @@ mod sys;
 use std::ffi::CString;
 use std::time::{Duration, Instant};
 
-use egui::{CursorIcon, Event, Modifiers, OutputCommand, PointerButton, Pos2, RawInput, Rect, Theme, Vec2, ViewportCommand, ViewportId};
+use egui::{CursorIcon, Event, Key, Modifiers, OutputCommand, PointerButton, Pos2, RawInput, Rect, Theme, Vec2, ViewportCommand, ViewportId};
 use egui_software_backend::{BufferMutRef, ColorFieldOrder, EguiSoftwareRender};
 
 /// La fenêtre : titre, taille, taille minimale, échelle.
@@ -172,6 +172,26 @@ pub fn run_with(
                 next_frame = Some(Instant::now());
                 continue;
             }
+            // les raccourcis des menus (le muda de Korin) : comme sur macOS, la barre les prend avant la fenêtre ;
+            // seulement avec Ctrl ou Alt, ou une touche F (une lettre seule reste au champ de texte)
+            if t == sys::WEV_KEY
+                && e.kind != 0
+                && menu::active()
+                && (e.mods & (sys::MOD_CTRL | sys::MOD_ALT) != 0 || (0x3A..=0x45).contains(&e.code))
+            {
+                let id = unsafe { sys::kh_menu_key() };
+                if id >= 0 {
+                    menu::chosen(id as i64);
+                    next_frame = Some(Instant::now());
+                    continue;
+                }
+            }
+            if t == sys::WEV_MENU {
+                // un choix dans la barre de menus de Korin : gardé pour l'app (menu::take_chosen)
+                menu::chosen(e.code as i64);
+                next_frame = Some(Instant::now());
+                continue;
+            }
             if win.event(&e) {
                 next_frame = Some(Instant::now());
             }
@@ -179,14 +199,164 @@ pub fn run_with(
         if next_frame.is_none_or(|t| t > Instant::now()) {
             continue;
         }
-        // une passe d'egui
+        // une passe d'egui (avec les commandes standard choisies dans la barre de menus)
         let mut input = win.take_input();
         input.time = Some(start.elapsed().as_secs_f64());
+        for cmd in menu::take_injected() {
+            input.events.extend(standard_events(cmd, win.modifiers));
+        }
         let out = pass(ctx, input, &mut host);
         next_frame = win.output(ctx, out, &mut host);
+        menu::after_pass();
         if host.close {
             return Ok(());
         }
+    }
+}
+
+/// La barre de menus de Korin, en haut de l'écran (UIKit `ui_menu`) : le texte des menus de la fenêtre
+/// (lignes `M<titre>`, `I<id>[d][c]<tab><libellé><tab><raccourci>`, `-`, `S<titre>` … `E` pour un sous-menu),
+/// les états des entrées, et les choix de l'utilisateur. À appeler depuis la passe d'egui (le fil de la fenêtre).
+pub mod menu {
+    use super::sys;
+    use std::sync::Mutex;
+
+    static CHOSEN: Mutex<Vec<i64>> = Mutex::new(Vec::new());
+    /// Deux tampons à adresse fixe, en alternance : UIKit reconnaît un texte déjà traduit à son adresse, il faut
+    /// donc une autre adresse pour un autre texte, et la même mémoire tant qu'il s'en sert.
+    static BUFS: Mutex<(Vec<u8>, Vec<u8>, bool, String)> = Mutex::new((Vec::new(), Vec::new(), false, String::new()));
+
+    /// Le plus long texte que la barre accepte (WS_MENU_MAX).
+    pub const MAX: usize = 16384;
+
+    /// Publie le texte des menus (vide : plus de menu). Sans effet s'il n'a pas changé. -> false : trop long.
+    pub fn set(text: &str) -> bool {
+        if text.len() >= MAX {
+            return false;
+        }
+        let mut b = BUFS.lock().unwrap_or_else(|e| e.into_inner());
+        if b.3 == text {
+            return true;
+        }
+        if b.0.capacity() < MAX + 1 {
+            b.0 = Vec::with_capacity(MAX + 1);
+            b.1 = Vec::with_capacity(MAX + 1);
+        }
+        b.2 = !b.2;
+        let buf = if b.2 { &mut b.0 } else { &mut b.1 };
+        buf.clear();
+        buf.extend_from_slice(text.as_bytes());
+        buf.push(0);
+        let ptr = buf.as_ptr();
+        b.3 = text.to_owned();
+        unsafe { sys::kh_menu_set(if text.is_empty() { std::ptr::null() } else { ptr.cast() }) >= 0 }
+    }
+
+    /// Les états de plusieurs entrées d'un coup : (id, 0 normale | 1 grisée | 2 cochée | 3 les deux).
+    pub fn set_states(states: &[(i64, i64)]) {
+        if states.is_empty() {
+            return;
+        }
+        let flat: Vec<std::ffi::c_long> = states.iter().flat_map(|&(id, s)| [id as std::ffi::c_long, s as std::ffi::c_long]).collect();
+        unsafe { sys::kh_menu_states(flat.as_ptr(), states.len() as std::ffi::c_long) };
+    }
+
+    type Hook = std::sync::Arc<dyn Fn(i64) + Send + Sync>;
+    type PassHook = std::sync::Arc<dyn Fn() + Send + Sync>;
+    static HOOKS: Mutex<Option<(Hook, PassHook)>> = Mutex::new(None);
+
+    /// Pour une couche de menus (le `muda` de Korin) : `on_chosen` reçoit chaque choix dans la barre dès son arrivée
+    /// (au lieu de `take_chosen`), `after_pass` est appelé après chaque passe d'egui (le moment d'envoyer à la barre
+    /// ce qui a changé pendant la passe).
+    pub fn set_hooks(on_chosen: impl Fn(i64) + Send + Sync + 'static, after_pass: impl Fn() + Send + Sync + 'static) {
+        *HOOKS.lock().unwrap_or_else(|e| e.into_inner()) = Some((std::sync::Arc::new(on_chosen), std::sync::Arc::new(after_pass)));
+    }
+
+    pub(super) fn chosen(id: i64) {
+        let hook = HOOKS.lock().unwrap_or_else(|e| e.into_inner()).as_ref().map(|h| h.0.clone());
+        match hook {
+            Some(h) => h(id),
+            None => CHOSEN.lock().unwrap_or_else(|e| e.into_inner()).push(id),
+        }
+    }
+
+    /// Une couche de menus est installée (set_hooks) : les raccourcis passent par la barre.
+    pub(super) fn active() -> bool {
+        HOOKS.lock().unwrap_or_else(|e| e.into_inner()).is_some()
+    }
+
+    pub(super) fn after_pass() {
+        let hook = HOOKS.lock().unwrap_or_else(|e| e.into_inner()).as_ref().map(|h| h.1.clone());
+        if let Some(h) = hook {
+            h();
+        }
+    }
+
+    /// Les commandes standard d'une barre de menus (Édition), données à egui comme les touches qu'elles remplacent.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Standard {
+        Undo,
+        Redo,
+        Cut,
+        Copy,
+        Paste,
+        SelectAll,
+    }
+
+    static INJECTED: Mutex<Vec<Standard>> = Mutex::new(Vec::new());
+
+    /// Une commande standard choisie dans la barre : egui la reçoit à la passe suivante.
+    pub fn inject(cmd: Standard) {
+        INJECTED.lock().unwrap_or_else(|e| e.into_inner()).push(cmd);
+    }
+
+    pub(super) fn take_injected() -> Vec<Standard> {
+        std::mem::take(&mut *INJECTED.lock().unwrap_or_else(|e| e.into_inner()))
+    }
+
+    /// (le `muda` de Korin, sans dépendre d'egui) les crochets de `set_hooks`, par un symbole C
+    #[unsafe(no_mangle)]
+    pub extern "C" fn egui_korin_menu_hooks(on_chosen: extern "C" fn(i64), after_pass: extern "C" fn()) {
+        set_hooks(move |id| on_chosen(id), move || after_pass());
+    }
+
+    /// (le `muda` de Korin) une commande standard : 0 Annuler, 1 Rétablir, 2 Couper, 3 Copier, 4 Coller, 5 Tout
+    /// sélectionner
+    #[unsafe(no_mangle)]
+    pub extern "C" fn egui_korin_menu_inject(code: i32) {
+        let cmd = match code {
+            0 => Standard::Undo,
+            1 => Standard::Redo,
+            2 => Standard::Cut,
+            3 => Standard::Copy,
+            4 => Standard::Paste,
+            5 => Standard::SelectAll,
+            _ => return,
+        };
+        inject(cmd);
+    }
+
+    /// Les entrées choisies dans la barre depuis le dernier appel (leur id).
+    pub fn take_chosen() -> Vec<i64> {
+        std::mem::take(&mut *CHOSEN.lock().unwrap_or_else(|e| e.into_inner()))
+    }
+}
+
+/// Une commande standard de la barre de menus -> les évènements d'egui (Copier : Event::Copy ; Coller : le texte du
+/// presse-papiers ; Annuler, Rétablir, Tout sélectionner : Ctrl+Z, Ctrl+Maj+Z, Ctrl+A).
+fn standard_events(cmd: menu::Standard, mods: Modifiers) -> Vec<Event> {
+    let key = |key: Key, shift: bool| {
+        let m = Modifiers { ctrl: true, command: true, shift, ..mods };
+        [Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: m },
+         Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers: m }]
+    };
+    match cmd {
+        menu::Standard::Copy => vec![Event::Copy],
+        menu::Standard::Cut => vec![Event::Cut],
+        menu::Standard::Paste => clipboard_get().map(Event::Paste).into_iter().collect(),
+        menu::Standard::Undo => key(Key::Z, false).to_vec(),
+        menu::Standard::Redo => key(Key::Z, true).to_vec(),
+        menu::Standard::SelectAll => key(Key::A, false).to_vec(),
     }
 }
 

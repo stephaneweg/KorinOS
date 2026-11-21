@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 13:58
+date = 2026-11-21 16:27
 abi = 626
 packages = 117
 board = pc
@@ -420,18 +420,18 @@ content = 2b1dc17504fffb8a51599dd6ec7a19e2f755adcef386655c2ac5243cd03532b2
 
 [gcc]
 title = GCC et G++
-version = 1.0.12
+version = 1.0.13
 category = Développement
 author = Korin OS
 summary = Le compilateur C et C++ de Korin OS, les relais des kits et les outils (/devtools/gcc)
-size = 16414370
-installed = 54655364
-sha256 = 476c191ccf7ac2537195642a0c39d00d4d13861e4032041749fa22916884bf60
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-gcc-1.0.12.opk
+size = 16416183
+installed = 54657698
+sha256 = d2dd23856579e2369e6ccb78f71877cd74e43293f2c255fa955892e07cd741fd
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-gcc-1.0.13.opk
 needs = make, gcc-data-1, abi >= 626
 required = 0
 restart = 0
-content = 691aed79d85eafdb297b51326054afa95313f7169f33204e8b15cf48bd71a753
+content = 29f5af4f1590971e1887355b93af797da05bbcdad364b55d7fbce8bd437c69dc
 
 [avalonia]
 title = Avalonia
@@ -574,18 +574,18 @@ content = 57824ad560c30c3010c4cf4c9e1d1ae5022ec7f340d823874774cd6eb2138ca1
 
 [bash]
 title = GNU bash
-version = 1.0.5
+version = 1.0.6
 category = Développement
 author = Korin OS
 summary = Le shell de GNU (5.2.37) : édition de ligne, historique, complétion, scripts
-size = 693012
-installed = 1374194
-sha256 = 59016bf2c447759004a4961ca95315ad38a16e5a5e7484fd5123dd6c9964555e
-file = pkgs/bash-1.0.5.opk
+size = 693093
+installed = 1374384
+sha256 = f2894c39ace7cafb1c94fd12f31ca3cde62baf55fad29e788fe29e538d403d34
+file = pkgs/bash-1.0.6.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = b97c3269d5965e376944f6e1d012b15cf671a1edd3d33bb6ec4e192c8fbe1d88
+content = 9f712d034eada088e4d4948f95f6bc9ad7e65949b65225c8b18fb85244c19684
 
 [llm]
 title = llm
@@ -739,18 +739,18 @@ content = 9651f661dbc590aad6e129adcd1ae6d847f34a7ac621233890d8a89895498bd1
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.69
+version = 2026.11.71
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 31988470
-installed = 96248712
-sha256 = 41b681cfe6a90173acd39a539f793710018999613f73b0b136ddcfb03a48041e
-file = pkgs/pc-2026.11.69.opk
+size = 31985095
+installed = 96265377
+sha256 = 478f9e8dd8858b431e43dbf8790377369e64bbfabcce4e7d1e8e056a38591e36
+file = pkgs/pc-2026.11.71.opk
 needs = 
 required = 1
 restart = 1
-content = 60091b4668ca97bca21e9689d3695eb5e8e2aa64b80b7fdf77f5dc78d40b3392
+content = 3c08c97fb84078ed921ecd9f0f4ff90ffbf7cfe91cebf67cf300969d3d068ebe
 
 [2048]
 title = 2048
@@ -1128,19 +1128,19 @@ restart = 0
 content = dd8e885c6ca4e9fd1819b2bcb5d77d8be54416ea6f3b3101de2bad16dc89bd7e
 
 [help]
-title = Aide
-version = 1.0.6
-category = Système
+title = help
+version = 1.0.7
+category = Autres
 author = Korin OS
 summary = 
-size = 521826
-installed = 1069648
-sha256 = 9a4e6154044c37c6fa6fd78f6d23fc5730145ab16bc7d001f559e76abedcdf94
-file = pkgs/help-1.0.6.opk
+size = 521842
+installed = 1069698
+sha256 = c9fb375de28e97cd8790cb4f1dfe910408473b53cd568da05aafb67355a70ced
+file = pkgs/help-1.0.7.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 91b80ba99b6178295fdffd2c60a6af1f31f2c3e9477bc612fd4bddbd85105e4e
+content = fd9fe9e7d0120d51ab187516d2657654fc9d5be85936a0576bd374dd59ef00c1
 
 [iconedit]
 title = Éditeur d'icônes
@@ -1834,273 +1834,273 @@ content = 24141fc6644c58b165bbfc15644cb0021086ec0893fb8aff96f3bab533411ac5
 
 [craft]
 title = Suite ArtCraft
-version = 1.0.0
+version = 1.0.1
 category = Bureautique
 author = Korin OS
 summary = Le lanceur de la Suite ArtCraft : les apps libres Craft de storytold, à installer une par une
-size = 3212301
-installed = 6780316
-sha256 = b8de551d17b826587f6a8dd9d3a06f09dcaee8d4f2ab8a6dd715ee2c287c6787
-file = pkgs/craft-1.0.0.opk
-needs = abi >= 626
+size = 3218563
+installed = 6792732
+sha256 = a0ca027f68186d337e3b55eb1de49cbb756b33986532c42b8d67b740ce19ed6c
+file = pkgs/craft-1.0.1.opk
+needs = abi >= 627
 required = 0
 restart = 0
-content = 4f60bfc8c195d47773da1965a4a5b5e13460e81dd69eace67489d4041f14886f
+content = 76c9fd87a971afa8b33ec607c99ffb887c57ed551cda9415855ae90a27d26742
 
 [wordcraft]
 title = WordCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = Le traitement de texte libre WordCraft (storytold) : ruban, styles, tableaux, suivi des modifications, références, lit et écrit le .docx.
-size = 60948442
-installed = 161785567
-sha256 = b53c11acc2eb534c28b70dcd3ae870aee079bebef24ba1cbe04e5244d5aaa8af
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-wordcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 60950131
+installed = 161789695
+sha256 = ee43a11359b4421bb9810f4e07b8aac35d3d10266210e7d94d5e4bfedcebfcaa
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-wordcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = 5c2b167421a882e1aef263c623f08d0d2dffba8c257e52e747918fdb3468047f
+content = 8975455c6f3cfe63e1bbde3f1ec4a00845c3050dadbd9b7513480aa872450573
 
 [gridcraft]
 title = GridCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = Le tableur libre GridCraft (storytold) : feuilles de calcul, formules, graphiques, analyse de données, lit et écrit le .xlsx.
-size = 15062058
-installed = 35534660
-sha256 = 7f10595e6f5824ac45f711c41210685cb54eef64848152be385f0e4ff0fc95e9
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-gridcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 15147139
+installed = 35725156
+sha256 = c327f3203dd5e3f9c8191c20f79506c0931d2bc482f95e2227601f6735402f71
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-gridcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = 22788e10fb26996b56854f015feb030d626ddf0c34c63d4d2806630dd1764df4
+content = 138c4d26c0f22e5cca5e13cb7cc746a628c277f86f05d0af059c870bd62f7f81
 
 [deckcraft]
 title = DeckCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = Les présentations libres DeckCraft (storytold) : diapositives, thèmes, mode présentateur, lit et écrit le .pptx.
-size = 19023732
-installed = 46280181
-sha256 = ec88dd0a039be5e32238bc6ddf209d878f7e37b2909035e3b6a99757a5c457b8
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-deckcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 19031174
+installed = 46296373
+sha256 = 581ea21eff11731deb2f963f6d74a7389cbfe77ce611988e862410b9dbbace70
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-deckcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = 95f49538fb8f19124c079692e21a4770c5e4d33db7542a4ee9b91f21c9f45fa6
+content = 3959306131cfa6a1ac0fb4af780d8dd803bc207b5d711cd653a810ced2180358
 
 [pdfcraft]
 title = PdfCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = L'atelier PDF libre PdfCraft (storytold) : lire, annoter, organiser, assembler, découper et protéger des PDF.
-size = 31727946
-installed = 74053148
-sha256 = e5cb1d9f603256a8a8adc3167a64ce3b65436ee6cb0c99b9e47eb1aa4250d548
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-pdfcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 31733566
+installed = 74065532
+sha256 = a7963a04010c027915325e8231da4611a86d7d906389b5c97d31d4c64e91a473
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-pdfcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = b87d2a0653d44c0e9bc834b7244ecf12b10a0e2a1998118290da3f39908abe86
+content = 12a7e7eebe324627c7cdba764f69aecf55104f2d625a6416e87b2ceaff27144d
 
 [designcraft]
 title = DesignCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = La mise en page libre DesignCraft (storytold) : maquettes, gabarits, publication.
-size = 39739498
-installed = 95081251
-sha256 = 1ba5ca917572e991d206d1a7d61a92b350cde76f3a0a3840c9048544d34f8cf6
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-designcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 39814598
+installed = 95244163
+sha256 = 9ee7522a9672d71a69ce56a4a33a4ab5bb6a4454807d19d8d996fe8394f3fff3
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-designcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = 5cc0bb3ea4576572726f30cc10252f67285b0578e11a228f2d5485ff351bbb31
+content = f09fa6bc43ea1405cb8b71713987e000c1020e7298a301187a46a41c35ee265d
 
 [photocraft]
 title = PhotoCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = L'éditeur d'images libre PhotoCraft (storytold) : calques, sélections, retouche, peinture.
-size = 82350057
-installed = 199949804
-sha256 = 57df3dddfa60b3b0afab1c609d6f5631866d3b86ab2014acd9900f144385c35d
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-photocraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 82354873
+installed = 199949836
+sha256 = b443baeb95084c8bec5d7b9ec7e40b91cae663b7c6e3791c72daa3e512c9daa2
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-photocraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = 926ea5d2ff41ca524b528c639fc97a72e5716377699af772503ea2a8e0518558
+content = 914a5a62f09f6d58d7597c10498559075ca0aa96f7a66e17191ddd5d6b06a726
 
 [vectorcraft]
 title = VectorCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = L'illustration vectorielle libre VectorCraft (storytold) : tracés, formes, texte, SVG.
-size = 65536749
-installed = 156850392
-sha256 = 166779904e8df507b71d217422d7de6ad093a7eaed54084a3b0223aa76253961
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vectorcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 65595195
+installed = 156972984
+sha256 = 2e5f84f8ad94006ee3728d1f10fccaa7bfcae302f2bb9ebb81d88aaad2a79f5e
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vectorcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = 6bcd300cd90ad1106d4288f0732a07a0bb3bce35a9ca098b828752b71d5ce4fa
+content = cf2b916bb82db4acb459f72dab8105909779aea7dd5d01b2174902332741d25f
 
 [lightcraft]
 title = LightCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = La photothèque libre LightCraft (storytold) : classer, développer les fichiers RAW, retouche non destructive.
-size = 30769908
-installed = 78986283
-sha256 = 952f1612f5f80162c962de40b73337fdfb6b6a2d5c33559a6fcc85eefdc0f322
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-lightcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 30838056
+installed = 79123179
+sha256 = 66a1068de9a5524e0871bfa6be710ee27e5efc4b2de8265730fff1fad747ff55
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-lightcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = d5859f5df6737d196874687f76623fb16347a9789bbb40f5c4f372e604ac701c
+content = 9215613b9feaf1aca71e46697526fb5c09fecd66f3d17e029d886352f7d99ffa
 
 [figcraft]
 title = FigCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = La conception d'interfaces libre FigCraft (storytold) : maquettes d'écrans, composants, prototypes.
-size = 27498492
-installed = 67073049
-sha256 = 0ca4c074e0cf2263d238df88cab15dc730bac1a5969780de448c8bfcb7b80f24
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-figcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 27500109
+installed = 67070169
+sha256 = 0633dfc892b27d280f8c9932b22f2de4f949f09a2baa1387e0791575691c64bd
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-figcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = 94da16c3a10bb8f203ebb0fd2a36798be4ca10111c55c4259cc53cc06958c1a7
+content = d81f52037e0967254862e0b0b39c063f617b087e3b3d40e483a2c2da7f291934
 
 [texturecraft]
 title = TextureCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = La peinture de textures 3D libre TextureCraft (storytold).
-size = 16736511
-installed = 40021481
-sha256 = 8025baf4b03d8deb67f9e26818ad9477cc441d1ff548f7f4c85bd92d536f3e50
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-texturecraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 16739151
+installed = 40029769
+sha256 = 9e237ec8f2620f73a3accf6e77f8ada234a541859e0651f7a707503184760f6b
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-texturecraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = ab507676d17e6aabdb475355329c1a7ed1054da74c086a52aa8c4dc59efd354f
+content = 4a783824cba5d30a85f8158becaaa2ac1a2dfa2fd2c5e6c022e4490f0103da0e
 
 [materialcraft]
 title = MaterialCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = Les matériaux procéduraux libres MaterialCraft (storytold), par nœuds.
-size = 32578432
-installed = 50831727
-sha256 = 91138ce668fe0e63d9a2932664cecea9045fa5b7bbfd741d5d9d1b4ab17add7d
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-materialcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 32583811
+installed = 50844111
+sha256 = 8317e89b6ed9539f03b324f69c9f707f6f5b8f26ef8479ff6b9c2bf47d24196b
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-materialcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = 503ff210dbf12e6e1665a030b050240b1a16ab500688a924c0248c40aff4fa93
+content = 1ae28a454c73f729057039132e90a99dc0b69911863a56c9a8046b967470f756
 
 [filmcraft]
 title = FilmCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = Le montage vidéo libre FilmCraft (storytold).
-size = 26315323
-installed = 62187557
-sha256 = 2290918010fdbda12b5732ade37e661aa1cc87cfe6cd3550b6fc555ee261caa0
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-filmcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 26389314
+installed = 62351725
+sha256 = 75ab23ab21b579b40519f3205e6d8c15b11ad69fe7a72804bc52f9ed81ab92c1
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-filmcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = b7a6197764f0215866ee36faa8b5e4a547c6e33aa987adca23458250a16e56d7
+content = 20af83d2b8f9806088b61ab00ec6e7986b9165023907b72218c91d37b2278f1a
 
 [effectcraft]
 title = EffectCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = L'animation graphique et les effets visuels libres EffectCraft (storytold).
-size = 41444864
-installed = 99502464
-sha256 = 2df7758ad139513885f82e75fbab2380ca7d9e7e4e3f2e23f70fe44af9cca1d6
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-effectcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 41523000
+installed = 99666048
+sha256 = 432082bfe006a03647dbcd9cd991c32c04a608ab924db45da825fe9dfba86d9e
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-effectcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = c4ebbc6c62c4431747b37a71bf158e8df27e0f25a52eef6a36c9c21506396088
+content = 5eb8884b8b53df47225641eb0efe9e2bfcb419b3f2acd311fff432c66005eea0
 
 [anicraft]
 title = AniCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = L'animation vectorielle 2D libre AniCraft (storytold).
-size = 19042258
-installed = 44035219
-sha256 = e834a7cb779f806350b2ba0a65e2249f69b2b6e0bd2bf210c80e397bf54d35c3
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-anicraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 19047507
+installed = 44043539
+sha256 = 1ec41431aab80e405229ce4f0df647dfba554c57fc8d14f11dc6ba1dea6235b3
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-anicraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = 5064d99c0da3cb32ffd9eb95c9398fde3cf68a633bb1cb882656530eaf87b5e9
+content = cef85e9162315e9cc127980202663958a493f3e105a4255492e9a74d75d13850
 
 [soundcraft]
 title = SoundCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = La station audio libre SoundCraft (storytold) : enregistrement, montage, mixage (sur Korin : pas encore de son, cpal n'y a pas de sortie)
-size = 11541118
-installed = 27187258
-sha256 = a4233456fa9ed9cf60b0d500e2b3d9aa3798fe889e50d5e9ad40e59c6eedc7e9
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-soundcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 11598684
+installed = 27319930
+sha256 = dc94869593c864cfbdcb5866e71a6ace2a3ddd56ad3e1d6413900c903208200c
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-soundcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = 1692fb007efc0cd3855d5ba6ed2f201bffbc4e495fa5ea9aa16545c521b108ca
+content = fe8832cdb86225e06e8fa4ea677309cb879ac71e374f34a2846dd54df1d8e130
 
 [cadcraft]
 title = CADCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = La CAO libre CADCraft (storytold) : dessin technique et conception assistés par ordinateur, DXF.
-size = 23946265
-installed = 59751953
-sha256 = 7095f7184b506acbe9f23f09ec918c62b0aefa613b8fa7878adae3a8a60318a3
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-cadcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 24027643
+installed = 59922673
+sha256 = 88519629c0ddb7af2da803b59d5d2c844a9a1b5d24667fa8dc8694b73650c8a8
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-cadcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = f472536e6b6e68e47b37555eeca3bc468443e31ccc654ccb0c90fffb1c8989f6
+content = a340e6921fcacda91fc31cee695c45e70bf1bbc783a349ba665b57d1b34ec553
 
 [craft-anything]
 title = Craft Anything
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = Craft Anything (storytold) : comprendre comment marche un logiciel, et faire le sien.
-size = 18638979
-installed = 42969838
-sha256 = 4183fedaf4926ce7e0ccdbdb1092facadb8235979e8de56a0e42d4ecebaa88d1
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-craft-anything-1.0.0.opk
-needs = craft, abi >= 626
+size = 18699294
+installed = 43100782
+sha256 = c9eafd0346cdca81a944c8e82bd712d39a0674bf2ce4d2d1c13de5642b88c9d9
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-craft-anything-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = 90664764bb03276c5ea3dd3b4e3df40425eca9c05bb08bfb0660c516e9fed168
+content = 6ece06302780b3339d19e56ecc524ed39676504042306bfab0f8e0dfda7d1ace
 
 [linuxhost]
 title = Hôte Linux
@@ -2131,3 +2131,34 @@ needs = linuxhost, bash, git, rg, python, pkgman >= 1.0.21, abi >= 626
 required = 0
 restart = 0
 content = a0bc74b15cf6b2b540a802c1b62f40ff9d4ab34aa1ca971ab41a96a61c53f5d0
+
+[rust-data-1]
+title = Rust (1/1)
+version = 1.97.1-2
+category = Développement
+author = Korin OS
+summary = Les données de Rust, partie 1 sur 1
+size = 100079600
+installed = 310848560
+sha256 = b83172719538ca69ef58805ced9a852877a2902c8766c67d83bf4215380bb9ff
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-rust-data-1-1.97.1-2.opk
+needs = abi >= 626
+required = 0
+restart = 0
+part = rust
+content = d40ba42e562506e6d52bfd2eafc88c449203b32646585543ee473ff5f6388f3e
+
+[rust]
+title = Rust
+version = 1.97.1-2
+category = Développement
+author = Korin OS
+summary = Le langage Rust : rustc 1.97.1 et cargo, dans Korin (/devtools/rust)
+size = 54414139
+installed = 162275551
+sha256 = cdae5675aba65fea85f6f1146a7b396b73aa60e5922a6c46f1836b165d6769c1
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-rust-1.97.1-2.opk
+needs = gcc >= 1.0.13, pc >= 2026.11.71, rust-data-1, abi >= 626
+required = 0
+restart = 0
+content = 72f32a8b906541874f5d084cc93ad0519f257ddfad95e5383b39bde1ac599f41

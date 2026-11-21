@@ -1,0 +1,23 @@
+diff -ruN -x .cargo-checksum.json a/src/lib.rs b/src/lib.rs
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -255,6 +255,7 @@
+         // include the Nintendo Switch (which is target_arch = "aarch64").
+         all(target_os = "horizon", target_arch = "arm"),
+         target_os = "cygwin",
++        target_os = "korin",
+     ))] {
+         mod util_libc;
+         #[path = "getrandom.rs"] mod imp;
+diff -ruN -x .cargo-checksum.json a/src/util_libc.rs b/src/util_libc.rs
+--- a/src/util_libc.rs
++++ b/src/util_libc.rs
+@@ -9,7 +9,7 @@
+ use libc::c_void;
+ 
+ cfg_if! {
+-    if #[cfg(any(target_os = "netbsd", target_os = "openbsd", target_os = "android", target_os = "cygwin"))] {
++    if #[cfg(any(target_os = "netbsd", target_os = "openbsd", target_os = "android", target_os = "cygwin", target_os = "korin"))] {
+         use libc::__errno as errno_location;
+     } else if #[cfg(any(target_os = "linux", target_os = "emscripten", target_os = "hurd", target_os = "redox", target_os = "dragonfly"))] {
+         use libc::__errno_location as errno_location;

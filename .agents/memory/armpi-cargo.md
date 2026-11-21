@@ -28,4 +28,19 @@ de la CI, link-shared) ; korintest 52/0 et rdl 14/14 sous QEMU PC avec la cible 
 Pièges : x.py --target en une liste à virgules ; library/Cargo.lock à refaire (--frozen) ; doublons de libc korin avec le
 tronc unix = dead_code refusé par -D warnings (allow ajouté à libc.patch).
 
+Étape 3 faite le 21/11 (docs/RUST.md « LLVM pour Korin ») : tools/rust/llvm-build.sh (korin.cmake de la CAO, tblgen de la CI),
+llvm.patch (statvfs f_flag sous __armpi__), libposix : sysexits.h, _POSIX_ARG_MAX, AT_PAGESZ. 117 libs, outils liés sans
+symbole manquant ; opt/llc dans Korin = sortie identique à Linux. À retenir pour librustc_driver.so : libstdc++.a ne va
+pas dans une .so (TLS) -> la prendre chez l'hôte (dlhost-cxx.ld) ; bootstrap donne CMAKE_SYSTEM_NAME=Generic à « korin »
+(à patcher en Linux dans llvm.rs).
+
+Étapes 4-5 faites le 21/11 (docs/RUST.md « rustc dans Korin ») : rustc + librustc_driver.so (LLVM statique, sans
+libstdc++ ; rustc l'exporte par dlhost-cxx.ld) construits par KORIN_HOSTS=x86_64-unknown-korin rustc-build.sh ;
+/devtools/rust ; cargo build/run, proc-macro, build.rs marchent sous QEMU. Corrigé en route : noyau PC (chemins d'exec
+80 -> 256), libposix RLIMIT_NOFILE=64 (bfd). Pièges : cargo ne recompile pas une caisse vendue patchée (effacer
+stage2-rustc/.../libX) ; changer bootstrap recompile tout le stage 1 ; mtest 17/2 existait avant.
+Publiés le 21/11 (pub.py --api --manual-upload depuis le cloud, --only les fichiers changés) : pc 2026.11.71, bash 1.0.6,
+gcc 1.0.13, help 1.0.7, rust-data-1 et rust 1.97.1-2 (abi >= 626 : la 1.97.1 demandait 627, que le système publié n'a pas).
+Reste : ZBook, Pi, reconstruction depuis zéro. Piège : un paquet --new prend l'abi des kits du source : vérifier [repo] abi.
+
 Lié : [[armpi-rust]], [[armpi-craft]].

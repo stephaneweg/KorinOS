@@ -5,10 +5,17 @@
  * n'appelle que ce qui est ici, avec des types C simples.
  */
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <uikit.h>
 
 static struct ui_vars ui;
+
+/* la fenetre est-elle ouverte ? Avant, UIKit n'est pas charge : les menus donnes trop tot (muda les pose avant la
+ * fenetre, VectorCraft, SoundCraft) sont gardes ici et envoyes par kh_open */
+static int kh_ready;
+static char *menu_pending;
+static long *states_pending, states_pending_n;
 
 /* un evenement : les champs EV_* de UIKit, dans cet ordre (src/lib/egui-korin/src/sys.rs) */
 struct kh_event
@@ -39,6 +46,15 @@ int kh_open (const char *title, int w, int h, int min_w, int min_h)
 		return 0;
 	if (min_w > 0 && min_h > 0)
 		ui_min_size (min_w, min_h);
+	kh_ready = 1;
+	if (menu_pending)
+		ui_menu ((long) menu_pending);	/* garde : UIKit retient le texte a son adresse */
+	if (states_pending)
+	{
+		ui_menu_states ((long) states_pending, states_pending_n);
+		free (states_pending);
+		states_pending = 0;
+	}
 	return 1;
 }
 
@@ -141,3 +157,42 @@ int kh_folder_choose (const char *dir, char *buf, long cap)
 
 /* ouvre un fichier ou une adresse avec l'app associee */
 void kh_open_with (const char *path) { ui_open_with ((long) path); }
+
+/* la barre de menus de Korin : le texte des menus de la fenetre (lignes M, I, -, S ... E ; 0 : plus de
+ * menu) ; l'adresse change a chaque nouveau texte (UIKit reconnait un texte deja traduit a son adresse) */
+long kh_menu_set (const char *text)
+{
+	if (kh_ready)
+		return ui_menu ((long) text);
+	free (menu_pending);
+	menu_pending = text ? strdup (text) : 0;
+	return 0;
+}
+
+/* les etats de plusieurs entrees (paires id, UMS_* en long), un seul envoi */
+long kh_menu_states (const long *pairs, long n)
+{
+	if (kh_ready)
+		return ui_menu_states ((long) pairs, n);
+	long *p = n > 0 ? malloc ((size_t) n * 2 * sizeof (long)) : 0;
+	if (!p)
+		return 0;
+	if (states_pending)	/* les plus recents l'emportent : on les met apres */
+	{
+		long *q = realloc (states_pending, (size_t) (states_pending_n + n) * 2 * sizeof (long));
+		free (p);
+		if (!q)
+			return 0;
+		memcpy (q + states_pending_n * 2, pairs, (size_t) n * 2 * sizeof (long));
+		states_pending = q;
+		states_pending_n += n;
+		return 0;
+	}
+	memcpy (p, pairs, (size_t) n * 2 * sizeof (long));
+	states_pending = p;
+	states_pending_n = n;
+	return 0;
+}
+
+/* la touche du dernier evenement (kh_event) est-elle le raccourci d'une entree des menus ? -> son id (-1 : non) */
+long kh_menu_key (void) { return kh_ready ? ui_menu_key (0) : -1; }

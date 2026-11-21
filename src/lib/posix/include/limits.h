@@ -9,3 +9,6 @@
 #ifndef HOST_NAME_MAX
 #define HOST_NAME_MAX 64
 #endif
+#ifndef _POSIX_ARG_MAX
+#define _POSIX_ARG_MAX 4096		/* le minimum de POSIX pour ARG_MAX (LLVM) */
+#endif

@@ -194,6 +194,8 @@ int _getentropy (void *buf, size_t n) { return getentropy (buf, n); }
    FP et NEON. Le Pi 4 n'a pas les extensions AES / SHA. */
 unsigned long getauxval (unsigned long type)
 {
+	if (type == AT_PAGESZ)
+		return POSIX_PAGE;
 #if defined(__x86_64__)
 	(void) type;
 	return 0;					/* (PC : cpuid dit ce que sait le processeur) */
@@ -298,7 +300,12 @@ int getgrouplist (const char *user, gid_t group, gid_t *groups, int *n)
 }
 
 /* ---- limits and usage ---- */
-static rlim_t s_nofile = POSIX_FD_MAX;
+/* RLIMIT_NOFILE : ce que Korin laisse vraiment ouvert à la fois, 64 fichiers par process (le client de fichiers
+   d'AppKit) ; les numéros de descripteur vont, eux, jusqu'à POSIX_FD_MAX (rlim_max, _SC_OPEN_MAX). bfd (ld) garde
+   ouverts rlim_cur / 8 fichiers : avec 1024, il en gardait 128, et échouait au 65e (une soixantaine d'objets et
+   de .rlib dans l'édition de liens d'un programme Rust, docs/RUST.md, « rustc dans Korin »). */
+#define POSIX_FILES_OPEN	64
+static rlim_t s_nofile = POSIX_FILES_OPEN;
 
 int getrlimit (int r, struct rlimit *l)
 {

@@ -46,6 +46,44 @@ de transit (`.github/workflows/…` sur une branche sans historique, déclenché
 le jeton d'Actions, puis `pub.py` la retélécharge, vérifie son SHA-256 et commite l'index signé. Une nouvelle version :
 `pub.py <app>` (sans `--new`), même chemin.
 
+**1.0.1 (21/11/2026)** : les menus dans la barre de Korin et la bande du titre pour Elegant ; `craft` 1.0.1, les 17 apps
+1.0.1 avec `abi >= 627` (`ui_menu_states` de UIKit), et `pc` 2026.11.70 (menubar, Elegant, UIKit : `pub.py pc --only
+sys/menubar sys/elegant lib/uikit.so`, pour ne pas reprendre le reste de l'arbre). Les 17 apps essayées sous QEMU :
+toutes s'ouvrent, les menus des neuf apps de muda dans la barre (VectorCraft, SoundCraft, Craft Anything, FilmCraft,
+LightCraft posent leur menu avant la fenêtre : egui-korin le garde jusqu'à `kh_open`, sinon `ui_menu` sautait à 0).
+
+## Barre de titre et menus sur Korin
+
+Une fenêtre de Korin n'a pas de barre de titre : Elegant dessine ses trois boutons (réduire, agrandir, fermer) sur le
+contenu, en haut à droite (`FRAME_CAP_W`, 102 px). Sur Korin, les apps :
+
+- **ne dessinent pas leurs propres boutons de fenêtre** (le cadre, le bord et le redimensionnement sont ceux d'Elegant) ;
+- **laissent 112 px libres à droite** dans leur bande du haut ;
+- **mettent leur titre à gauche**, après l'icône et les premiers contrôles, au lieu de le centrer.
+
+Les retouches sont app par app (`tools/craft/korin_app.py`, section « la barre de titre sur Korin ») et, pour la
+barre de `craft-ui-shell` (WordCraft, PhotoCraft), dans `tools/craft/korin_libs.py` (`Ends::of` : une réserve de
+112 px à l'extrémité de droite ; `Title::span` : le titre au début de la place libre).
+
+**Les menus vont dans la barre de menus de Korin**, comme sur macOS : chaque app prend sur Korin son chemin « menu
+natif » (`muda::Menu::init_for_nsapp`), et son menu dans la fenêtre est caché. `muda` 0.21.2 a une plateforme Korin
+(`tools/craft/crate/muda-korin.rs`, patch fait par `crate_korin.py`) : le menu installé est relu après chaque passe
+d'egui et publié (`egui_korin::menu`, UIKit `ui_menu`) ; un choix rejoue l'action de l'entrée (`MenuEvent`, coche,
+Copier/Coller/Annuler donnés à egui). La barre de Korin a gagné pour cela les sous-menus (`S<titre>` … `E`, un
+niveau ; plus profond, muda les aplatit : « Exporter › PDF »), le menu de l'app (`M*` : ses lignes dans le menu au
+nom de l'app, avant Quitter), 14 menus, 160 lignes par menu, 16 Ko de texte, et `ui_menu_states` (UIKit, version 221).
+
+Où en est chaque app (`korin_app.py`, section « les menus dans la barre de menus de Korin ») :
+
+| Menus | Apps |
+|---|---|
+| dans la barre de Korin (leur chemin macOS, muda) | GridCraft, DesignCraft, CADCraft, SoundCraft, LightCraft, FilmCraft, EffectCraft, VectorCraft, Craft Anything |
+| dans la fenêtre : le menu natif passe par `craft-menu` / `craft-window` et AppKit (`mac.rs`), qu'il faudrait doubler d'un backend Korin | PhotoCraft, PdfCraft |
+| dans la fenêtre : pas de menu natif, même sur macOS | WordCraft, DeckCraft, FigCraft, TextureCraft, MaterialCraft, AniCraft |
+
+Ce qui reste d'AppKit dans le chemin macOS d'une app (Masquer, Masquer les autres, le suivi des menus ouverts,
+objc2) reste à macOS : `korin_app.py` élargit les `#[cfg(target_os = "macos")]` du menu à Korin, un par un.
+
 ## Construire
 
 ```sh

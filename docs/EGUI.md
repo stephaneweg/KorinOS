@@ -76,6 +76,20 @@ python3 -I tools/craft/pctest.py run --qemu "-device usb-tablet,bus=xhci.0" \
 `key:` (noms de `sendkey`) et `type:` (un texte, en AZERTY) ont été ajoutés à `tools/python/pctest.py` pour cela.
 L'image fait près d'un Go : effacer `build/pc/crafttest` après l'essai.
 
+## La barre de menus de Korin (`egui_korin::menu`)
+
+- `menu::set(texte)` publie le texte des menus de la fenêtre (lignes `M<titre>`, `I<id>[d][c]<tab><libellé><tab>
+  <raccourci>`, `-`, `S<titre>` … `E`, `M*`), dans deux tampons à adresse fixe en alternance (UIKit reconnaît un texte
+  déjà traduit à son adresse) ; sans effet s'il n'a pas changé ;
+- `menu::set_states(&[(id, état)])` : grisée (1), cochée (2), d'un coup (`ui_menu_states`, un seul envoi) ;
+- `menu::take_chosen()` : les id choisis dans la barre (`WEV_MENU`) depuis le dernier appel ;
+- pour une couche de menus : `menu::set_hooks(on_chosen, after_pass)` (un choix dès son arrivée, la fin de chaque passe)
+  et `menu::inject(Standard)` (Annuler, Rétablir, Couper, Copier, Coller, Tout sélectionner, donnés à egui comme
+  leurs touches) ; les mêmes par des symboles C, `egui_korin_menu_hooks` et `egui_korin_menu_inject`, pour le `muda`
+  de Korin, qui ne dépend pas d'egui (docs/CRAFT.md).
+
+La démo (`examples/demo.rs`) a un menu d'essai : un sous-menu, une entrée cochée, une grisée.
+
 ## L'eframe de Korin (`src/lib/eframe-korin`)
 
 Les apps faites pour eframe (les apps Craft) le prennent par `[patch.crates-io] eframe = { path = … }`

@@ -43,10 +43,10 @@
 #define WIFI_ST_CONNECTED 4
 
 #define MENU_W 220
-#define ITEMS_MAX 4096
-#define MB_MAX 10   /* titres : Korin, l'application, ses menus */
+#define ITEMS_MAX 8192
+#define MB_MAX 16   /* titres : Korin, l'application, ses menus */
 #define MB_PX 14    /* taille du texte de la barre */
-#define MB_ITEMS 64 /* lignes d'un menu d'application */
+#define MB_ITEMS 160 /* lignes d'un menu d'application (ou d'un de ses sous-menus) */
 #define MB_POLL 200 /* ms entre deux lectures du menu actif */
 #define POCHE_H 36  /* hauteur de la barre en mode poche */
 
@@ -126,6 +126,7 @@ static long mb_n = 1;       /* titres connus (Korin compris) */
 static long mb_shown = 1;   /* titres dessinés (zones de clic valides) */
 static char *mb_end;        /* fin du texte des menus */
 static char *mb_ptr[MB_MAX]; /* titres ([1] : nom de l'application) */
+static char *mb_app;        /* « M* » : les lignes du menu au nom de l'application (0 : aucune) */
 static long mb_x0[MB_MAX], mb_x1[MB_MAX]; /* zones de clic : début, fin */
 static long mb_ids[MB_ITEMS]; /* menu ouvert : id de chaque ligne */
 static char app_title[WS_MENU_TITLE];
@@ -476,13 +477,16 @@ static void armpi_menu(void)
 	}
 }
 
-/* (app_menu) l'état de la construction : lignes, largeur maximale */
-static long mb_lines, mb_maxw;
+/* (app_menu) l'état de la construction : les id des lignes, leur nombre, la largeur maximale, et pour
+ * une ligne à sous-menu (« S<titre> ») la ligne qui suit son titre dans le texte des menus */
+static long *mb_ids_p = mb_ids, mb_lines, mb_maxw;
+static char *mb_sub[MB_ITEMS];
+static long mb_ids2[MB_ITEMS]; /* le sous-menu ouvert : id de chaque ligne */
 
 /* (app_menu) label = « libellé[<tab>raccourci] » (fin : NUL), id : ajoute la ligne */
 static void mb_item(const char *label, long id)
 {
-	mb_ids[mb_lines++] = id;
+	mb_ids_p[mb_lines++] = id;
 	char *lab = wp; /* libellé */
 	while (*label && *label != 9)
 		*wp++ = *label++;
@@ -502,42 +506,47 @@ static void mb_item(const char *label, long id)
 	wp++; /* (après le NUL) */
 }
 
-/* t = titre (1 : menu au nom de l'application, 2... : ses menus) : le menu déroulant ; un choix
- * part au programme (ui_menu_command) */
-static void app_menu(long t)
+/* ligne suivante du texte des menus */
+static char *mb_next(char *p)
 {
-	wp = items;
-	mb_lines = 0;
-	mb_maxw = 0;
-	if (t == help_t) { /* le menu Aide : ses lignes d'abord */
-		char *e = str_cat(hbuf, tr(s_aide_de)); /* « Aide de <nom> » (-10) */
-		*e++ = ' ';
-		str_cat(e, help_name);
-		mb_item(hbuf, -10);
-		mb_item(tr(s_sommaire), -11); /* « Sommaire de l'aide » (-11) */
-		if ((u64)t >= (u64)mb_n) /* titre ajouté par la barre : rien de plus */
-			goto show;
-		*wp++ = '-'; /* menu Aide de l'application : un trait, puis ses lignes */
-		*wp++ = 0;
-		mb_ids[mb_lines++] = -2;
-	} else if (t == 1) { /* menu de l'application : Quitter (-1) */
-		mb_item(tr(s_quitter), -1);
-		goto show;
-	}
-	/* lignes après « M<titre> » */
-	char *p = mb_ptr[t];
-	while (*p++)
-		;
+	while (p < mb_end && *p)
+		p++;
+	return p < mb_end ? p + 1 : mb_end;
+}
+
+/* (app_menu) les lignes d'un menu à partir de p (après « M<titre> » ; sub : après « S<titre> »)
+ * jusqu'au menu suivant (« M ») ou à la fin du sous-menu (« E »). Dans un menu, « S<titre> »
+ * … « E » est un sous-menu : une ligne « >titre » (id -3), ses lignes à part (mb_sub) ; un
+ * sous-menu dans un sous-menu est sauté (la barre n'en montre qu'un niveau). */
+static void mb_lines_of(char *p, long sub)
+{
 	while (p < mb_end) {
 		char c = *p;
-		if (c == 'M') /* menu suivant : fini */
+		if (c == 'M' || (c == 'E' && sub)) /* menu suivant, fin du sous-menu : fini */
 			break;
 		if (mb_lines >= MB_ITEMS)
 			break;
 		if (c == '-') { /* séparateur */
 			*wp++ = '-';
 			*wp++ = 0;
-			mb_ids[mb_lines++] = -2;
+			mb_ids_p[mb_lines++] = -2;
+		} else if (c == 'S') { /* sous-menu : son titre, puis jusqu'à son « E » */
+			char *after = mb_next(p);
+			if (!sub) {
+				mb_sub[mb_lines] = after;
+				*wp++ = '>';
+				mb_item(p + 1, -3);
+			}
+			long depth = 1;
+			for (p = after; p < mb_end && depth; p = mb_next(p)) {
+				if (*p == 'S')
+					depth++;
+				else if (*p == 'E')
+					depth--;
+				else if (*p == 'M')
+					break;
+			}
+			continue;
 		} else if (c == 'I') { /* « I<id><tab><libellé><tab><raccourci> » */
 			const char *q = p + 1;
 			long id = 0;
@@ -558,28 +567,109 @@ static void app_menu(long t)
 				q++;
 			mb_item(q, id);
 		}
-		while (*p++) /* ligne suivante */
-			;
+		p = mb_next(p);
 	}
-show:
-	*wp = 0;
-	if (!mb_lines)
-		return;
-	u64 w = (u64)mb_maxw + 60; /* largeur : 180 à 420 */
+}
+
+/* largeur d'un menu : 180 à 420 */
+static long mb_width(void)
+{
+	u64 w = (u64)mb_maxw + 60;
 	if (w < 180)
 		w = 180;
 	if (w > 420)
 		w = 420;
-	/* sous le titre (comme le menu Korin) ; « texte<tab>raccourci » */
-	struct krt_r4 r = popup_ex(mb_x0[t] - 2, bar_h - 2, items, (long)w, 16, 0, 0);
-	if (r.r0 < 0) {
-		if (r.r0 == -2) { /* clic dehors : gardé (un autre titre ?) */
-			pend_x = r.r1;
-			pend_y = r.r2;
+	return (long)w;
+}
+
+/* t = titre (1 : menu au nom de l'application, 2... : ses menus) : le menu déroulant ; un choix
+ * part au programme (ui_menu_command). Un sous-menu s'ouvre à droite de sa ligne, le menu
+ * restant ouvert (comme le menu Korin). */
+static void app_menu(long t)
+{
+	wp = items;
+	mb_ids_p = mb_ids;
+	mb_lines = 0;
+	mb_maxw = 0;
+	if (t == help_t) { /* le menu Aide : ses lignes d'abord */
+		char *e = str_cat(hbuf, tr(s_aide_de)); /* « Aide de <nom> » (-10) */
+		*e++ = ' ';
+		str_cat(e, help_name);
+		mb_item(hbuf, -10);
+		mb_item(tr(s_sommaire), -11); /* « Sommaire de l'aide » (-11) */
+		if ((u64)t >= (u64)mb_n) /* titre ajouté par la barre : rien de plus */
+			goto show;
+		*wp++ = '-'; /* menu Aide de l'application : un trait, puis ses lignes */
+		*wp++ = 0;
+		mb_ids[mb_lines++] = -2;
+	} else if (t == 1) { /* menu de l'application : ses lignes (« M* »), puis Quitter (-1) */
+		if (mb_app) {
+			mb_lines_of(mb_next(mb_app - 1), 0);
+			if (mb_lines) {
+				*wp++ = '-';
+				*wp++ = 0;
+				mb_ids[mb_lines++] = -2;
+			}
 		}
-		return;
+		mb_item(tr(s_quitter), -1);
+		goto show;
 	}
-	long id = mb_ids[r.r0];
+	/* lignes après « M<titre> » */
+	mb_lines_of(mb_next(mb_ptr[t] - 1), 0);
+show:
+	*wp = 0;
+	if (!mb_lines)
+		return;
+	long x = mb_x0[t] - 2, w = mb_width();
+	/* sous le titre (comme le menu Korin) ; « texte<tab>raccourci » ; gardé ouvert sur un sous-menu */
+	struct krt_r4 r = popup_ex(x, bar_h - 2, items, w, 16 + 2, 0, 0);
+	long id;
+	for (;;) { /* r0 = choix, r1 = y de sa ligne */
+		if (r.r0 < 0) {
+			if (r.r0 == -2) { /* clic dehors : gardé (un autre titre ?) */
+				pend_x = r.r1;
+				pend_y = r.r2;
+			}
+			return;
+		}
+		id = mb_ids[r.r0];
+		if (id != -3) { /* une entrée (le menu se ferme) */
+			ui_popup_close();
+			break;
+		}
+		/* sous-menu : ses lignes dans items2, à droite, sa première ligne en face */
+		long liney = r.r1;
+		char *keep = wp;
+		wp = items2;
+		mb_ids_p = mb_ids2;
+		long lines = mb_lines, maxw = mb_maxw;
+		mb_lines = 0;
+		mb_maxw = 0;
+		mb_lines_of(mb_sub[r.r0], 1);
+		*wp = 0;
+		long n = mb_lines, w2 = mb_width();
+		mb_ids_p = mb_ids;
+		mb_lines = lines;
+		mb_maxw = maxw;
+		wp = keep;
+		if (!n) {
+			r = popup_ex(0, 0, 0, 0, 16 + 2 + 4, 0, 0); /* (reprise) */
+			continue;
+		}
+		struct krt_r4 s2 = popup_ex(x + w - 6, liney - 6, items2, w2, 16, 0, 0);
+		if (s2.r0 < 0) {
+			/* clic hors du sous-menu : le menu le traite (sur lui : un choix ; ailleurs : tout
+			 * se ferme) ; Échap : retour au menu */
+			if (s2.r0 == -2)
+				r = popup_ex(0, 0, 0, 0, 16 + 2 + 4 + 8, s2.r1, s2.r2);
+			else
+				r = popup_ex(0, 0, 0, 0, 16 + 2 + 4, 0, 0);
+			continue;
+		}
+		ui_popup_close(); /* le menu se ferme */
+		id = mb_ids2[s2.r0];
+		break;
+	}
 	if (id == -2)
 		return;
 	if (id == -10) /* aide de l'application */
@@ -627,13 +717,16 @@ static void open_menus(long t)
 static void menu_parse(void)
 {
 	mb_n = 1;
+	mb_app = 0;
 	if (!mb_serial) /* pas de menu : Korin seul */
 		return;
 	mb_ptr[1] = app_title;
 	long k = 2;
 	char *p = spec_buf;
 	while (p < mb_end) {
-		if (*p == 'M' && k < MB_MAX)
+		if (*p == 'M' && p[1] == '*' && (p[2] == 10 || p[2] == 13 || !p[2]) && !mb_app)
+			mb_app = p + 1; /* « M* » : les lignes du menu au nom de l'application */
+		else if (*p == 'M' && k < MB_MAX)
 			mb_ptr[k++] = p + 1;
 		while (p < mb_end) {
 			char c = *p;

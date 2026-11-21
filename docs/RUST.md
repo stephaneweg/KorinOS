@@ -339,6 +339,122 @@ chaîne avec `posix.specs`.
 | `korintest` et `rdl` construits par ce rustc (`cargo build --target x86_64-unknown-korin`, `RUSTC` = stage 1, sans `-Zbuild-std`), QEMU q35 | `korintest` : **52 essais, 0 échec** (`current_exe` rend maintenant `/home/rust/builtin/korintest`, un chemin absolu) ; `rdlhost librdl.so` : **14 sur 14** |
 | `korintest` pour `aarch64-unknown-korin` | se construit et se lie (pas lancé) |
 
+## LLVM pour Korin (21/11/2026)
+
+Troisième étape : **LLVM compilé pour Korin PC comme hôte**, et essayé dans Korin. C'est le LLVM de Rust 1.97.1
+(`src/llvm-project`, 22.1.6-rust), avec les moteurs X86 et AArch64 (ceux de rustc), compilé en croisé par le g++ de
+`x86_64-onyx-elf` sur libposix.
+
+```sh
+bash tools/rust/llvm-build.sh             # ~/korin-rustc/llvm-korin-x86_64 ; outils d'essai dans build/pc/rust/tests/llvm
+```
+
+| Où | Quoi |
+|---|---|
+| `tools/rust/llvm-build.sh` | les sources de `rustc-build.sh` (`SRC_ONLY=1`), CMake avec `tools/cao/korin.cmake` (Korin vu comme un « Linux » sans `__linux__` : les chemins POSIX génériques de LLVM), `llvm-tblgen` du LLVM de la CI (même version) ; puis les bibliothèques et `llc`, `opt`, `llvm-mc`, `llvm-config` |
+| `tools/rust/llvm.patch` | `lib/Support/Unix/Path.inc` : sous Korin (`__armpi__`, la macro que donne `posix.specs`), `statvfs` a le `f_flag` de POSIX (le chemin générique de LLVM lisait le `f_flags` des `statfs` de BSD) et pas de `MNT_LOCAL` (tout est local, les partages sont sous `/net`). `rustc-build.sh` l'applique aussi |
+| libposix | ce que LLVM a demandé : `sysexits.h` (codes de 4.3BSD : LLVM rend `EX_IOERR` sur un tube cassé), `_POSIX_ARG_MAX` (`limits.h`), `AT_PAGESZ` rendu par `getauxval` |
+
+Tout le reste de LLVM compile sans retouche : **117 bibliothèques** (≈ 530 Mo non strippées), et les outils se lient
+**sans aucun symbole manquant** dans libposix et newlib. Deux remarques pour l'édition de liens :
+
+* `korin.cmake` met `-specs` dans `CMAKE_CXX_FLAGS` et dans les options d'édition de liens ; CMake passe les deux, et
+  gcc refuse une spec lue deux fois (« attempt to rename spec 'link' ») : `llvm-build.sh` vide les secondes.
+* une `.so` de LLVM (`libLTO.so`) qui embarque le `libstdc++.a` statique ne se lie pas (sa TLS n'est pas faite pour une
+  bibliothèque partagée) : coupée (`LLVM_TOOL_LTO_BUILD=OFF`). **Ce sera le point de `librustc_driver.so`** (LLVM, donc
+  du C++, dans une bibliothèque partagée) : elle devra prendre libstdc++ chez son hôte, comme les modules C++ de
+  libposix (`dlhost-cxx.ld`), pas l'embarquer.
+
+### Essais (QEMU q35, 21/11/2026)
+
+| Essai | Résultat |
+|---|---|
+| `llvm-config --version --host-target --targets-built` | `22.1.6-rust-1.97.1-stable`, `x86_64-unknown-korin`, `X86 AArch64` |
+| `llc --version` | les moteurs X86 et AArch64 ; processeur de l'hôte vu comme `athlon-xp` (le processeur de QEMU en TCG ; sans effet tant qu'on ne demande pas `-C target-cpu=native`) |
+| `opt -O2 -S hello.ll` (`tools/rust/tests/llvm/hello.ll` : `printf`, une fonction récursive) | 4 s ; **identique** à la sortie du même `opt` sous Linux (`diff`) |
+| `llc -O2 -filetype=obj` et `llc -O2` (assembleur) | 6 s chacun ; l'objet **identique octet par octet** à celui de Linux (le `hexdump` de Korin sur les deux), l'assembleur identique |
+| `llvm-mc` sur cet assembleur | un objet de la même taille |
+| le programme lié depuis cet objet | `hello from llc on Korin PC`, `fib(20) 6765` |
+
+Tailles strippées : `llc` 66 Mo, `opt` 66 Mo, `llvm-mc` 14 Mo (chacun avec tout LLVM en statique).
+
+## rustc dans Korin (21/11/2026)
+
+Quatrième étape, celle qui termine le port : **rustc 1.97.1 tourne dans Korin PC** (`/devtools/rust/bin/rustc`, à côté
+de `cargo`, dans le `PATH`), compile, lie par le GCC de Korin, et cargo s'en sert : dépendances de crates.io, macros
+procédurales, scripts de construction. **QEMU q35 seulement** ; pas encore sur le ZBook, pas pour le Pi.
+
+```sh
+KORIN_HOSTS=x86_64-unknown-korin bash tools/rust/rustc-build.sh   # stage 2 avec Korin pour hôte ; ≈ 1 h 30 sur 4 cœurs
+                                                                  # (LLVM pour Korin ≈ 1 h) -> build/pc/rust/toolchain
+ARCH=x86_64 sh tools/gcc/build.sh                                 # GCC dans Korin (l'éditeur de liens de rustc)
+sh tools/pc/sysroot.sh && sh tools/pc/sysroot_gcc.sh && sh tools/pc/sysroot_cargo.sh   # /devtools/gcc, /devtools/rust
+```
+
+Retoucher le compilateur : modifier l'arbre `~/korin-rustc/src`, puis `bash tools/rust/rustc-mkpatch.sh [fichier nouveau...]`
+refait `tools/rust/rustc.patch` (les fichiers qu'il touche déjà, plus ceux donnés) et vérifie qu'il s'applique sur des
+sources neuves ; mettre à jour le tampon `~/korin-rustc/src/.korin` (commande dans le script) pour que `rustc-build.sh`
+garde l'arbre au lieu de le refaire. Vérifié le 21/11/2026 : les patchs du dépôt, rejoués sur les sources de la 1.97.1,
+redonnent l'arbre construit (seule différence : `struct flock` en plus dans la `libc` de la `std`, sans effet sur elle).
+
+### Comment rustc est fait pour Korin
+
+| Morceau | Pour Korin |
+|---|---|
+| le compilateur d'amorçage | le stage 1 de [« La cible dans le compilateur »](#la-cible-dans-le-compilateur-21112026) (Linux, il connaît les cibles de Korin) compile le stage 2 pour l'hôte `x86_64-unknown-korin` |
+| `rustc` (4 Mo) | l'**hôte** de tout le reste : il exporte la libc (`-rdynamic`) et libstdc++ (`dlhost-cxx.ld` de libposix), et ne charge que `librustc_driver.so` (`DT_NEEDED`, lu par libposix : un programme de Korin n'a pas de `PT_DYNAMIC`) ; `compiler/rustc/build.rs` (rustc.patch) y ajoute `-rdynamic`, `-lstdc++`, `KORIN_DLHOST_CXX`, `KORIN_RUSTC_LINK_ARGS` (`-tls-reserve=0x40000`) |
+| `librustc_driver.so` (297 Mo) | le compilateur, la std et **LLVM en statique**, sans libstdc++ (`rustc_llvm/build.rs` : son archive statique a une TLS qu'une `.so` ne peut pas porter) : 415 symboles attendus de l'hôte, tous exportés par `rustc` (le seul absent, `_ZTH10_tls_errno`, est faible) ; TLS 12,9 Ko |
+| LLVM pour Korin | construit par bootstrap : `CMAKE_SYSTEM_NAME=Linux` pour `korin` (sinon `Generic`, sans Unix), ni `libLLVM.so`, ni `libLTO`, ni `libRemarks`, ni greffons, `CMAKE_SKIP_RPATH` (outils statiques) — `link-shared = true` reste vrai pour le LLVM de la CI de la machine de construction |
+| `llvm-config` | `rustc_llvm` interroge un `llvm-config` qui tourne sur la machine de construction : `llvm-config-native`, compilé par `rustc-build.sh` de `llvm-config.cpp` avec la configuration de la construction de Korin et la Support de la CI, posé dans `bin/` de l'installation de Korin (il en déduit préfixe et bibliothèques) et donné à bootstrap comme `llvm-config` de Korin |
+| les caisses vendues du compilateur | `libc` 0.2.183 reçoit le module `korin` (`libc.patch`) ; `tools/rust/rustc-vendor/` : `getrandom` 0.2.16, 0.3.3, 0.4.2, `rustix` 1.1.2 (`tools/craft/rustix_korin.py`) |
+| le compilateur lui-même | `rustc_driver_impl` sans `ctrlc` (sa `nix` ne connaît pas Korin ; un Ctrl-C arrête rustc par l'action par défaut du signal) ; `target_os = "korin"` déclaré à bootstrap (`EXTRA_CHECK_CFGS`) pour le stage 0 ; `struct flock` de newlib dans `libc.patch` (verrous de `rustc_data_structures`) |
+| la std de la chaîne | celle du stage 1 (même source, même version : ce que fait la distribution de Rust pour un hôte croisé), `.rlib` **et** `.rmeta` (les `.rlib` n'y portent qu'un résumé des métadonnées) |
+
+### Ce que Korin a dû changer
+
+* **Les chemins d'exec du noyau du PC** (`src/kernel/core/proc.c`, `image.c`) : 80 octets, et un programme au chemin plus
+  long rendait `EINVAL` (cargo lance `target/debug/build/<caisse>-<empreinte>/build-script-build`). 256
+  (`IMAGE_PATH_MAX`) ; `SYS_PROC_EXE` et `IMAGE_LIST` gardent leur forme, tronqués à leur champ. `ktest` 59/0 ;
+  `mtest` 17/2, deux échecs qui existaient avant (vérifié avec le noyau d'avant). **Le noyau du Pi (assembleur) n'a
+  pas été regardé.**
+* **`getrlimit (RLIMIT_NOFILE)`** rend 64, ce que Korin laisse vraiment ouvert (AppKit) ; `rlim_max` et
+  `_SC_OPEN_MAX` restent à 1024. bfd (ld) garde `rlim_cur / 8` fichiers ouverts : avec 1024, il échouait au 65e
+  (« File descriptor value too large ») dès une soixantaine d'objets. Le `ld` de Korin est relié
+  (`RELINK=1 ARCH=x86_64 sh tools/gcc/build.sh`).
+* les enveloppes de gcc et g++ de `rustc-build.sh` ajoutent `-D_GNU_SOURCE` (sans lui, newlib cache POSIX à LLVM, en
+  `-std=c++17`).
+
+### Essais (QEMU q35, 2 Go, 4 cœurs, 21/11/2026)
+
+| Essai | Résultat |
+|---|---|
+| `rustc -vV` | `rustc 1.97.1 (8bab26f4f 2026-07-14)`, `host: x86_64-unknown-korin`, `LLVM version: 22.1.6` |
+| `rustc --crate-type=rlib -O mylib.rs` (traits, génériques, macros) | 11 s |
+| `rustc -O --emit=obj,asm hello.rs` | 30 à 40 s ; l'assembleur ne diffère de celui du rustc de Linux que par le chemin des sources de `core` (`/rustc/<commit>/…`, remappé) |
+| `rustc -O hello.rs` puis `./hello` | lié par le GCC de Korin : `hello from rustc on Korin: fib(30) = 832040, …` |
+| `cargo build` de `libproj` (cfg-if, either, heck, itoa) | 1 min 43 s |
+| `cargo run` de `proj` (les mêmes, un programme) | téléchargées, compilées, liées, lancées : `korin_cargo` (2 min) |
+| `cargo run -p app` de `macroproj` (`tools/cargo/test/projects/macroproj`) | **la macro procédurale** `#[derive(Hello)]` (une `.so` chargée par `dlopen` dans le rustc de Korin), **le `build.rs`** compilé et lancé (`TARGET` = `x86_64-unknown-korin`), le programme : `Point : 2 champ(s), macro chargée par rustc dans Korin (3, 4)` (2 min) |
+
+### Les paquets (21/11/2026)
+
+`pkg add rust` sur Korin PC installe `rust` (`cargo`, `rustc`, la std ; 54 Mo) et `rust-data-1` (`librustc_driver`,
+100 Mo), tous deux dans la Release (`release = 1`, `split = devtools/rust/lib/librustc_driver-*.so 90` dans
+`tools/pkg/packages-pc.ini`), version **1.97.1-2** (la 1.97.1 demandait `abi >= 627`, celui des kits du source, que
+le système publié n'a pas : Rust ne se sert pas des kits, `--abi 626`). Ils demandent **`gcc >= 1.0.13`** (`ld` et
+`as` reliés à la libposix de `RLIMIT_NOFILE` = 64, `sysexits.h`…) et **`pc >= 2026.11.71`** (le noyau aux chemins d'exec
+de 256 octets, `/devtools/rust/bin` dans `/etc/exec.txt` et le `PATH` de `sh` et `sudo`, l'aide du Terminal). Publiés
+le même jour, par `pub.py --api --manual-upload` depuis le cloud : `bash` 1.0.6 (le bashrc), `help` 1.0.7 (le guide de
+l'API C). Ces paquets ne portent que les fichiers changés (`--only`), le reste de leurs archives publiées gardé.
+
+### Ce qui reste
+
+* le vrai ZBook ;
+* le Pi (`aarch64-unknown-korin` comme hôte) : rien n'est fait ; son noyau en assembleur a peut-être la même limite de
+  chemin ;
+* une construction de `rustc-build.sh` depuis zéro (celle-ci s'est faite par étapes, les patchs appliqués aussi dans
+  l'arbre) ; les essais de la suite de rustc (`x.py test`) pour l'hôte Korin.
+
 ## Limites connues
 
 * **Pas essayé sur le Pi ni sur le vrai ZBook.** Sous QEMU seulement.
