@@ -8,18 +8,25 @@ Reprise dans le cloud : [agents/CRAFT-HANDOVER.md](agents/CRAFT-HANDOVER.md).
 
 ## État (21/11/2026)
 
-| App | Construite | Essayée sous QEMU PC | Remarques |
-|---|---|---|---|
-| **Suite ArtCraft** (le lanceur, `src/apps/craft`) | oui | **oui** : la grille de la suite, ouvre les apps | une app pas installée : un clic ouvre Logiciels |
-| WordCraft (+ `wordcraft-cli`) | oui | **oui** (20/11) : accueil, document d'exemple, ruban, saisie, correcteur ; la CLI convertit md, docx, pdf, png | — |
-| GridCraft | oui | **oui** (20/11) : ruban, grille | — |
-| DeckCraft | oui | **oui** : accueil, présentation neuve, ruban | ses boutons de droite passent sous ceux de la fenêtre |
-| CADCraft | oui | **oui** : dessin, outils, calques, propriétés ; une ligne tracée (LINE) | — |
-| DesignCraft | oui | **oui** : accueil, le magazine d'exemple rendu en entier | avertit à tort que « la première image n'est pas arrivée en 20 s » (veille du GPU) |
-| PdfCraft | oui | non | la signature sans aws-lc : vérification complète, signature P-256 et P-384, **pas de signature ni de clé RSA** |
-| PhotoCraft, VectorCraft, LightCraft, FigCraft, TextureCraft, MaterialCraft, FilmCraft, EffectCraft | oui | non | chemins CPU (pas de GPU) |
-| SoundCraft | oui | non | **pas de son** : `cpal` n'a pas de sortie pour Korin ; pas d'éditeur de greffon VST3 |
-| Craft Anything, AniCraft | en cours | | egui et eframe **0.36** : l'hôte copié en 0.36 (`tools/craft/egui036.py`) |
+Les **17 apps sont construites et s'ouvrent sous QEMU PC** (21/11/2026, captures de chaque app à l'ouverture).
+
+| App | Essayée sous QEMU PC | Remarques |
+|---|---|---|
+| **Suite ArtCraft** (le lanceur, `src/apps/craft`) | la grille de la suite, ouvre les apps ; « 17 apps sur 17 » | une app pas installée : un clic ouvre Logiciels |
+| WordCraft (+ `wordcraft-cli`) | accueil, document d'exemple, ruban, saisie, correcteur (20/11) ; la CLI convertit md, docx, pdf, png | — |
+| GridCraft | ruban, grille (20/11) | — |
+| DeckCraft | accueil, présentation neuve, ruban | — |
+| CADCraft | dessin, outils, calques, propriétés ; une ligne tracée (LINE) | — |
+| DesignCraft | accueil, le magazine d'exemple rendu en entier | avertit à tort que « la première image n'est pas arrivée en 20 s » |
+| PdfCraft | accueil, outils | la signature sans aws-lc : **ni signature ni clé RSA** (P-256, P-384 oui) |
+| FilmCraft | le projet de démonstration : timeline, aperçu | pas de décodage matériel, pas de son |
+| LightCraft | la photothèque | « Settings file problem » : la photothèque ne peut pas être verrouillée (`File::lock`) |
+| PhotoCraft, VectorCraft, FigCraft, TextureCraft, MaterialCraft, EffectCraft | l'accueil de chacune | chemins CPU (pas de GPU) |
+| AniCraft, Craft Anything | l'accueil (egui **0.36** : l'hôte copié par `tools/craft/egui036.py`) | Craft Anything : capture des programmes par tubes (pas de terminal virtuel) |
+| SoundCraft | une session vide, la console | **pas de son** (`cpal` n'a pas de sortie pour Korin), pas de MIDI, pas d'éditeur VST3 |
+
+Au-delà de l'ouverture, rien n'a été essayé app par app (ouvrir, modifier, enregistrer un document) sauf WordCraft,
+DeckCraft, CADCraft et DesignCraft.
 
 La suite est dans `/apps/<app>.app`, catégorie **« Craft »**, que le lanceur et le menu de Korin ne montrent pas
 (`src/sys/common/applist.c`, `cat_hidden`, comme « Émulateurs ») : on l'ouvre par **Suite ArtCraft**

@@ -1,6 +1,6 @@
 ---
 name: armpi-craft
-description: "suite Craft de storytold (Rust, egui) sur Korin PC : lanceur Craft, Word/Grid/Deck/CAD/Design construites, reste passé au cloud (20/11/2026)"
+description: "suite Craft de storytold (Rust, egui) sur Korin PC : les 17 apps construites et ouvertes sous QEMU, lanceur Suite ArtCraft, paquets décrits, publication à faire (21/11/2026)"
 metadata:
   type: project
 ---
@@ -19,3 +19,15 @@ ouverte par **un lanceur unique**. Le reste est **passé à une session du cloud
   règles de korin_cfg.py trop larges = doubles définitions ; hdrshot épinglé =0.2.0 (son patch).
 
 Lié : [[armpi-rust]], [[armpi-python-rust-ext]].
+
+21/11/2026 (session du cloud) : **les 17 apps sont construites et s'ouvrent sous QEMU PC**. Le lanceur s'appelle
+**Suite ArtCraft** (Bureautique, seule entrée dans les applications de Korin, demande de l'utilisateur). Paquets
+(demande de l'utilisateur) : `craft` (le lanceur et le commun) + **un paquet par app qui dépend de `craft`**
+(`tools/pkg/packages-pc.ini`, `release = 1`), vérifiés par `mkrepo.py --no-sign` ; **pas encore publiés** (clé et `gh`
+absents du cloud ; republier `pc` d'abord : panel et menubar qui cachent « Craft »).
+- Nouveau : `src/lib/winit-korin` (winit sans fenêtre), `tools/craft/egui036.py` (l'hôte en egui 0.36 : Craft
+  Anything, AniCraft), patchs mio/socket2/tokio/open/rustix 1.1.5/process-wrap (nix sur libc,
+  `tools/craft/crate/process-wrap-korin_nix.rs`), PdfCraft sans aws-lc (pas de RSA privé).
+- L'utilisateur veut ensuite (après publication) : **les menus des apps dans la barre de menus de Korin** (backend
+  Korin de `craft-menu`), **le titre à gauche contre l'icône** et les contrôles de droite qui ne recouvrent plus les
+  boutons de la fenêtre (`craft-window`). Fiche : docs/agents/CRAFT-HANDOVER.md, « Ce qui reste ».

@@ -36,43 +36,34 @@ bash tools/craft/all.sh          # 1 à 3 h la première fois (17 apps) ; l'éta
 (`build/pc/gcc/lib/libuikit.a`), chaque app de `tools/craft/apps.txt` (journal : `build/craft/x86_64/logs/<app>.log`),
 la démo d'egui, Craft et les icônes, panel et menubar.
 
-## Ce qui reste, par ordre de rendement
+## Fait (session du cloud, 20-21/11/2026)
 
-État au moment de la passation : construites et essayées : **Craft, WordCraft, GridCraft** ; construites sans essai :
-**DeckCraft, CADCraft, DesignCraft**. Les diagnostics ci-dessous viennent de la dernière série (journaux non gardés :
-relancer `bash tools/craft/build.sh <app>`).
+Les **17 apps sont construites et s'ouvrent sous QEMU PC** ; le lanceur s'appelle **Suite ArtCraft** ; les paquets
+sont décrits (`craft` + un par app qui en dépend, `tools/pkg/packages-pc.ini`) et vérifiés par `mkrepo.py --no-sign`
+(archives de 11 à 82 Mo). L'état app par app et ce qui a été patché : [../CRAFT.md](../CRAFT.md).
 
-1. **Essayer DeckCraft, CADCraft, DesignCraft** sous QEMU (depuis Craft : `pctest.py`, plus bas).
-2. **LightCraft** : il nomme `eframe::Renderer`, `NativeOptions::renderer` et `eframe::glow` (les noms d'eframe 0.37 :
-   `enum Renderer { Glow, Wgpu }`, champ `renderer`, module `glow` réexporté sous la fonction `glow`). Les ajouter à
-   `src/lib/eframe-korin/src/lib.rs` comme `wgpu_options` (sans effet). Puis `candle` et wgpu : voir ce qui vient.
-3. **MaterialCraft, TextureCraft** : `mio` 1.2.4 (tokio). Les patchs de l'ancien port Spotify sont dans
-   `tools/craft/patches-pending` (`mio`, `socket2`, `tokio`) : les passer dans `tools/craft/patches` et ajouter à
-   `tools/craft/build.sh`, avant `cargo korin build`, `export RUSTFLAGS="${RUSTFLAGS:-} --cfg
-   mio_unsupported_force_poll_poll --cfg mio_unsupported_force_waker_pipe"` (comme l'ancien `tools/spotify/build.sh`,
-   commit b71cf646). Puis `cap-std` (leur automatisation) : il compile sur notre rustix (essayé seul).
-4. **FilmCraft** : `open` 5.4.5 (patch dans `patches-pending`) ; une erreur de type dans
-   `ring/src/polyfill/slice/as_chunks.rs` à lire (FilmCraft prend peut-être une autre version de `ring` ou d'une de ses
-   fonctions).
-5. **PhotoCraft** : son `Cargo.lock` garde `rustix` 1.1.5 (`cargo update --precise 1.1.6` refusé) : faire le patch de
-   la 1.1.5 (« Refaire un patch ») ; `crates/platform/src/appearance.rs` de sa révision de craft-libs (e7e877a) n'a pas
-   le texte de `korin_libs.py` (le `Worker` à variante vide) : adapter l'ancre ; puis son canevas GPU.
-6. **FigCraft** : 5 erreurs dans l'app elle-même, à lire.
-7. **PdfCraft** : `aws-lc-sys` (bibliothèque C, par `craft-pkcs7` : les signatures) ; essayer sa construction par `cc`
-   pour Korin, ou couper la signature sur Korin (`korin_app.py`). `thread-priority` et `rustix` sont déjà coupés.
-8. **SoundCraft** : l'hôte VST3, `cpal`, `midir` : couper l'hôte VST3 sur Korin ; un hôte `cpal` pour Korin (sur
-   AudioKit) est un chantier en soi.
-9. **VectorCraft, EffectCraft** : `winit` pris directement (la fenêtre native : presse-papiers, Caps Lock, profil
-   d'écran, hôte des dialogues). Couper ces chemins sur Korin dans `korin_app.py`, app par app.
-10. **Craft Anything, AniCraft** : egui et eframe **0.36**. Il faudrait egui-korin et eframe-korin pour 0.36 (une
-    seconde version de la caisse, ou un `cfg` de version), ou attendre qu'elles passent à 0.37.
+## Ce qui reste
 
-Après chaque app construite : `bash tools/craft/launcher.sh` (son icône), puis l'essayer depuis Craft.
+1. **Publier** (sur le PC de l'utilisateur : la clé de signature et `gh` pour la Release) : `pc` d'abord (le panel et
+   le menubar qui cachent la catégorie « Craft » sont postérieurs à `pc` 2026.11.64), puis `craft` avec `needs = pc >=`
+   la nouvelle version, puis les 17 apps (`release = 1`). Il faut l'arbre : `bash tools/craft/all.sh` (WSL), puis
+   `sh tools/pc/sysroot.sh` et `sh tools/pc/sysroot_craft.sh`, et `pub.py --new` app par app (docs/PAQUETS.md).
+2. **Barre de titre** : les apps réservent la place des boutons de fenêtre de Windows ou de macOS ; sur Korin leurs
+   boutons de droite passent sous ceux de la fenêtre. Voir `craft-window` (craft-libs) : `policy` (« Use system title
+   bar », `CRAFT_TITLEBAR=system`) et `title_bar.rs` ; une variante Korin dans `korin_libs.py` (titre à gauche contre
+   l'icône, réserve à droite).
+3. **Menus dans la barre de menus de Korin** : `craft-menu` (craft-libs) décrit les menus en arbre et les confie à un
+   backend (macOS : muda). Un backend Korin sur `ui_menu`, `ui_menu_get`, `ui_menu_command`, `ui_menu_state`,
+   `ui_menu_key` (UIKit). FigCraft, PdfCraft, MaterialCraft, TextureCraft le prennent directement.
+4. **`File::lock`** dans la std de Korin (libposix a `flock`) : LightCraft (photothèque), la récupération de
+   PdfCraft et de DesignCraft.
+5. **Le son** : un hôte `cpal` pour Korin (sur AudioKit) : SoundCraft, FilmCraft, EffectCraft.
+6. Essayer chaque app au-delà de l'ouverture (ouvrir, modifier, enregistrer).
 
 ## Essayer sous QEMU PC
 
 ```sh
-python3 -I tools/craft/pctest.py prep --mb 1800       # --quick : garder la copie de l'arbre
+python3 -I tools/craft/pctest.py prep --mb 2400       # --quick : garder la copie de l'arbre
 python3 -I tools/craft/pctest.py run --qemu "-device usb-tablet,bus=xhci.0" \
     "/apps/craft.app/main > /tmp/craft.log 2>&1 &" sleep:20 shot:craft \
     click:550,195 sleep:40 shot:app "tail -20 /tmp/craft.log"
@@ -108,3 +99,12 @@ d'une app : `/home/.config/<app>/logs/<app>.log`. Les commandes de `tools/python
 - QEMU : l'OVMF des distributions n'a pas le shell UEFI ; `. ~/korin-cloud/env.sh` donne celui des sources de QEMU.
 - Un programme lancé depuis telnet a besoin de `chmod +x` s'il n'est pas dans une app (`/apps/<app>.app/main` l'est).
 - Commiter seulement ses chemins (`git commit -- <fichiers>`) : d'autres sessions travaillent dans le même dépôt.
+- La place : une session du cloud a ≈ 70 Go ; les dossiers `target` des apps font de 1 à 3,3 Go chacun (≈ 30 Go en
+  tout). Les effacer quand une construction s'arrête sur « No space left on device » (les programmes sont gardés dans
+  `build/craft/x86_64/apps`).
+- Un `[patch]` de version plus haute que celle du `Cargo.lock` n'est pas pris (« patch was not used ») : la copie 0.36
+  d'eframe prend la version du lock de l'app (`egui036.py`).
+- `korin_cfg.py` ne reconnaît pas tous les replis : `not(any(windows, unix))` (FigCraft) ou `not(any(target_os =
+  "macos", windows, unix))` (SoundCraft) se retouchent app par app dans `korin_app.py`.
+- Sous QEMU sans KVM (cloud), suspendre la construction pendant un essai (`kill -STOP`/`-CONT` de cargo et rustc) ;
+  l'arbre du PC a besoin de bash (`ARCH=x86_64 sh tools/bash/build.sh`) pour les commandes `… &` de `pctest.py`.
