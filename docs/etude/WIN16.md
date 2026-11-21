@@ -152,7 +152,7 @@ tranche).
 (INT 31h), un lecteur de CD (MSCDEX, image ISO/CUE et pistes audio) et beaucoup de vitesse (Pentium avec FPU, rendu
 logiciel) : peut-être un recompilateur pour le cœur.
 
-Pas encore : MDI, métafichiers, impression, WinHelp, crochets, les barres de
+Pas encore : métafichiers, impression, WinHelp, crochets, les barres de
 défilement des fenêtres (seulement les contrôles), le son ; pas de paquet.
 
 ## 1. Ce qu'il faut faire tourner
@@ -594,10 +594,49 @@ s'arrête aussitôt ; `WIN.COM` n'est jamais construit et le reste de la copie, 
 
 Décompressés par `EXPAND.EXE` dans FreeCOM : le Bloc-notes (après la correction du tas local à la fin du segment
 de données), la Calculatrice, l'Horloge, le Solitaire, le Démineur, la Table de caractères et le Terminal
-s'ouvrent ; le Gestionnaire de fichiers, le Gestionnaire de programmes et Sysedit demandent **MDI** (`MDIClient`,
-`DefFrameProc`, `DefMDIChildProc`) ; Write et Cardfile demandent `OLECLI.DLL`, le Presse-papiers `NDDEAPI.DLL`,
-Paintbrush `PBRUSH.DLL` (des DLL de Windows qui sont sur la disquette). Restent aussi de petites fonctions
-(MapVirtualKey, VkKeyScan, AdjustWindowRect, GetDCOrg, SystemParametersInfo, FlashWindow, WNetGetConnection).
+s'ouvrent ; le Gestionnaire de fichiers, le Gestionnaire de programmes et Sysedit demandaient **MDI** (fait le
+21/11, § 10.6) ; Write et Cardfile demandaient `OLECLI.DLL` (fait le 21/11), le Presse-papiers demande
+`NDDEAPI.DLL`, Paintbrush `PBRUSH.DLL` (des DLL de Windows qui sont sur la disquette).
+
+### 10.6 MDI (21/11)
+
+`mdi.c` : la classe `MDIClient` (CLIENTCREATESTRUCT : le menu Fenêtre et le premier identifiant), les messages
+`WM_MDICREATE` à `WM_MDISETMENU`, `DefFrameProc`, `DefMDIChildProc`, `TranslateMDISysAccel` (Ctrl+F4, Ctrl+F6),
+`CascadeChildWindows`, `TileChildWindows`, `IsIconic` et `IsZoomed` des fenêtres MDI, la liste des fenêtres en
+bas du menu Fenêtre (« 1 Titre », la fenêtre active cochée). Les fenêtres filles avec barre de titre ont leur cadre
+dessiné par win16 (titre, Réduire, Agrandir/Restaurer, Fermer ; couleur active ou inactive) ; un clic l'active, la
+barre se tire, les bords droit et bas retaillent, un double clic agrandit. Différences avec Windows : une fenêtre
+agrandie garde sa barre de titre (dans la zone MDI) au lieu de passer ses boutons dans la barre de menus ; une
+fenêtre réduite est une barre de titre courte en bas de la zone MDI, pas une icône.
+
+Ce que le MDI a demandé à USER et GDI : un ordre des fenêtres sœurs (`z`, la plus devant reçoit les clics) ; la
+découpe par les sœurs devant (`WS_CLIPSIBLINGS`, à chaque niveau des parents : les contrôles d'une fenêtre de
+derrière ne peignent pas sur celle de devant) et par les zones clientes des parents ; un DC du rectangle entier
+de la fenêtre (le cadre) ; le texte respecte enfin les rectangles exclus (il les ignorait). Corrigé en chemin :
+- **SubtractRect** n'était pas écrite (la barre de lecteurs du Gestionnaire de fichiers tombait sous la barre
+  d'outils) ;
+- une **liste déroulante** fermée n'a que la hauteur de sa zone de texte (la hauteur donnée à `CreateWindow` est
+  celle de la liste ouverte) : la liste des lecteurs était centrée hors de la barre d'outils ;
+- **LB_ERR, CB_ERR** valent -1L (0xFFFFFFFF), pas 0xFFFF : le Gestionnaire de fichiers bouclait sans fin en
+  comparant à -1L ;
+- un parent sans `WS_CLIPCHILDREN` peint par-dessus ses filles : celles de la zone à repeindre se repeignent après
+  lui (l'arborescence restait vide) ;
+- **INT 25h, 26h** (lecture et écriture absolues du disque) : « lecteur pas prêt », drapeaux laissés sur la pile ;
+  le **DTA** par défaut est PSP:80h (le Gestionnaire de fichiers le lit avant tout 1Ah) ;
+- **GlobalDiscard** (`GlobalReAlloc (h, 0, GMEM_MOVEABLE)`) : la poignée reste, `GlobalLock` rend NULL,
+  `GlobalFlags` dit GMEM_DISCARDED (le Gestionnaire de programmes relit alors son groupe) ;
+- les **icônes** sont des blocs de mémoire globale comme sous Windows 3.1 (CURSORICONINFO, masque ET, image en
+  24 bits) : le Gestionnaire de programmes les lit (`DumpIcon`, `GlobalLock`) pour ses groupes et les refait par
+  `CreateIcon` (1, 4, 8, 24, 32 bits, ou 4 plans de la VGA) ; `LoadIcon (0, IDI_…)` rend une icône par défaut ;
+- les boutons n'envoient plus **BN_SETFOCUS** (de Win32) : le Gestionnaire de programmes le prenait pour OK ;
+- une **touche** va à la fenêtre qui a le focus quand le message est pris, pas quand il est arrivé (des lettres
+  tapées vite après Tab allaient au contrôle précédent).
+
+Essais sur l'hôte : le Gestionnaire de fichiers (arborescence, fichiers, barre d'outils, barre de lecteurs, barre
+d'état, Nouvelle fenêtre, Cascade, Mosaïque, agrandir, réduire, fermer, menu Fenêtre), Sysedit (ses quatre
+fichiers), le Gestionnaire de programmes (nouveau groupe, nouvel élément, `PROGMAN.INI` et le `.GRP` écrits). Pas
+encore : `ExtractIcon` dans un autre fichier (les éléments ont l'icône par défaut), le dessin des listes
+déroulantes dessinées par le programme (la liste des lecteurs reste vide), le menu système des fenêtres MDI.
 
 ### 10.5 WINSOCK.DLL (20/11)
 

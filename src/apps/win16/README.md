@@ -32,6 +32,7 @@
 | `kernel.c` | KERNEL : mémoire, sélecteurs, tas local, ressources, modules, fichiers, INI, lecteurs ; INT 21h |
 | `user.c`, `user.h` | USER : classes, fenêtres, messages, minuteries, focus, rectangles, atomes, presse-papiers |
 | `menu.c` | menus (barre globale de Korin) et accélérateurs |
+| `mdi.c` | MDI (MDIClient, DefFrameProc, DefMDIChildProc, menu Fenêtre) et le cadre des fenêtres filles avec barre de titre |
 | `dialog.c` | dialogues des ressources, DefDlgProc, IsDialogMessage |
 | `ctrl.c` | contrôles BUTTON, STATIC, EDIT, LISTBOX, COMBOBOX, SCROLLBAR : widgets de UIKit (mode natif), sinon dessinés au thème |
 | `gdi.c`, `gdi.h` | GDI : DC, objets, polices, bitmaps, BitBlt, DIB, formes, régions, palettes, icônes |

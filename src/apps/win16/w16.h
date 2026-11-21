@@ -37,6 +37,8 @@ uint16_t global_alloc (uint32_t size, int code);
 void global_free (uint16_t sel);
 uint32_t global_size (uint16_t sel);
 int global_realloc (uint16_t sel, uint32_t size);
+int global_discarded (uint16_t sel);
+void global_set_discarded (uint16_t sel, int on);
 uint16_t sel_alias (uint16_t sel, int code);
 int sel_is_code (uint16_t sel);
 uint32_t lin_alloc (uint32_t size);	/* mémoire linéaire sans sélecteur */

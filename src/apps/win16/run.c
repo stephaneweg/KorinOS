@@ -263,6 +263,7 @@ static void int_dispatch (int vec)
 	uint32_t ss = cpu_sreg_base (S_SS);
 	uint16_t sp = (uint16_t) cpu_reg (R_ESP);
 	uint16_t flags = rd16 (ss + sp + 4);
+	int keep_flags = 0;
 	/* le gestionnaire voit les drapeaux d'avant l'INT (CF rendu par cpu_flags) */
 	cpu_set_flags ((cpu_flags () & ~0xffffu) | flags);
 	switch (vec)
@@ -271,6 +272,12 @@ static void int_dispatch (int vec)
 		dos_int21 ();
 		break;
 	case 0x2f:	/* multiplex : rien d'installé */
+		break;
+	case 0x25:	/* lecture et écriture absolues du disque : pas d'accès aux secteurs (« lecteur pas prêt ») ; */
+	case 0x26:	/* comme le DOS, les drapeaux restent sur la pile au retour */
+		cpu_set_reg (R_EAX, (cpu_reg (R_EAX) & ~0xffffu) | 0x8002);
+		cpu_set_flags (cpu_flags () | 1);
+		keep_flags = 1;
 		break;
 	case 0x34: case 0x35: case 0x36: case 0x37: case 0x38: case 0x39: case 0x3a: case 0x3b: case 0x3c: case 0x3d:
 	{
@@ -303,6 +310,8 @@ static void int_dispatch (int vec)
 	uint16_t ip = pop16 (), cs = pop16 ();
 	uint16_t f = pop16 ();
 	f = (uint16_t) ((f & ~0x8d5u) | (cpu_flags () & 0x8d5u));	/* CF, PF, AF, ZF, SF, OF rendus par le gestionnaire */
+	if (keep_flags)
+		push16 (f);
 	cpu_jump (cs, ip);
 	cpu_set_flags ((cpu_flags () & ~0xffffu) | f | 0x200);
 }
