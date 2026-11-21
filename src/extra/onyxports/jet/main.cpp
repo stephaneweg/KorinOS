@@ -162,7 +162,7 @@ static void fix_home ()
 		setenv ("HOME", pw->pw_dir, 1);
 }
 
-// ce qui était resté sous /home (Jet : /home/jet, /home/downloads ; une app web : /home/<nom>) -> HOME, au premier
+// ce qui était resté sous /home (Jet : /home/jet, /home/downloads ; une app web : /home/<nom> ; les deux : /home/.jet) -> HOME, au premier
 // lancement sous le compte ; rien si HOME est encore /home, ou s'il est ce dossier ou dedans (un compte « spotify »)
 static void move_old_home (const char *app)
 {
@@ -174,11 +174,13 @@ static void move_old_home (const char *app)
 		home.pop_back ();
 	if (home == "/" || home == "/home")
 		return;
-	std::vector<std::string> names;
+	// (.jet : le module Widevine et son stockage, HOME/.jet/widevine, communs à Jet et aux apps web : la première
+	// des deux lancée sous le compte le déplace)
+	std::vector<std::string> names = { ".jet" };
 	if (app)
 		names.push_back (app);
 	else
-		names = { "jet", "downloads" };
+		names.insert (names.end (), { "jet", "downloads" });
 	for (const std::string &n : names)
 	{
 		std::string from = "/home/" + n;

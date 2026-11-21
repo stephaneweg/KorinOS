@@ -51,6 +51,7 @@ if [ -n "${ACCOUNT_HOME:-}" ]; then
 	mkdir -p "$T$ACCOUNT_HOME" "$T/home/$APP/webkit" "$T/home/downloads"
 	echo ancien >"$T/home/$APP/webkit/old.txt"
 	echo ancien >"$T/home/downloads/old.txt"
+	mkdir -p "$T/home/.jet/widevine" && echo ancien >"$T/home/.jet/widevine/old.txt"
 fi
 # FAKE_CDM=1 : un faux module Widevine dans le dossier du compte (l'app ne demande plus de le télécharger et charge sa
 # page ; pour un essai sans contenu protégé, quand Google n'est pas joignable)
@@ -94,7 +95,7 @@ a = types.SimpleNamespace(port=int (os.environ.get ("PORT", "2399")),	# (PORT : 
         "( /apps/%s.app/main '%s' > /tmp/app2.log 2>&1 & ) ; echo relancé" % (app, os.environ.get ("URL2", url)), "sleep:" + wait, "shot:%s-2" % app,
         "sysstat", "ls -l %s/%s/webkit" % (H, app), "grep -a -i -E 'cookie|sqlite|database|PROBE' /tmp/app2.log | head -n 20"]
        if os.environ.get ("SESSION") else [])
-    + ["grep -a -E 'webapp|agent|sites. data|widevine|cdmhost' /tmp/app.log | head -n 40", "ls /home %s %s/%s %s/%s/webkit %s/downloads" % (H, H, app, H, app, H),
+    + ["grep -a -E 'webapp|agent|sites. data|widevine|cdmhost' /tmp/app.log | head -n 40", "ls -a /home %s %s/%s %s/%s/webkit %s/downloads %s/.jet/widevine" % (H, H, app, H, app, H, H),
        "sysstat", "grep -a -E 'CONSOLE|FAILED|tab 1|player|PROBE|cookiejar' /tmp/app.log | grep -v woff2 | head -n 100"])
 pt.run(a)
 PY
