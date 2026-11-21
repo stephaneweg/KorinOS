@@ -1,5 +1,9 @@
 # cargo dans Korin PC
 
+**21/11/2026 : rustc tourne aussi dans Korin PC** ([RUST.md](RUST.md), « rustc dans Korin ») : `cargo build`, `cargo run`,
+les macros procédurales et les scripts de construction marchent ; ce que la suite dit de « ce qui demande rustc » ne
+vaut plus quand `/devtools/rust/bin/rustc` est là.
+
 Premier pas du port de Rust **dans** Korin (et non plus seulement vers Korin, [RUST.md](RUST.md)) : **cargo 0.98.0**,
 le gestionnaire de projets de Rust 1.97.1, construit pour `x86_64-unknown-korin` et lancé dans Korin. Fait le
 21/11/2026 dans une session du cloud ; **QEMU q35 seulement**, pas encore essayé sur le ZBook.
@@ -102,6 +106,7 @@ cargo lance `rustc -vV` (version, cible) avant tout ce qui dépend de la cible o
 ## La suite
 
 L'ordre décidé le 20/11/2026 (Korin PC) : cargo croisé (ce document), puis la cible intégrée au compilateur
-(**faite le 21/11**, [RUST.md](RUST.md) « La cible dans le compilateur »), LLVM pour Korin, `librustc_driver.so` (bibliothèque Rust
+(**faite le 21/11**, [RUST.md](RUST.md) « La cible dans le compilateur »), LLVM pour Korin (**fait le 21/11**,
+[RUST.md](RUST.md) « LLVM pour Korin »), `librustc_driver.so` (bibliothèque Rust
 `dylib`, jamais essayée sur Korin), les macros procédurales (`.so` chargées par `dlopen` dans rustc), et le paquet
 `/devtools/rust`.

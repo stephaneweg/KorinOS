@@ -3,7 +3,7 @@ new file mode 100755
 index 0000000..c570e0f
 --- /dev/null
 +++ b/vendor/libc-0.2.185/src/unix/korin/mod.rs
-@@ -0,0 +1,1430 @@
+@@ -0,0 +1,1440 @@
 +//! Korin OS (aarch64-unknown-korin, x86_64-unknown-korin) : newlib 4.4 des chaînes
 +//! aarch64-onyx-elf et x86_64-onyx-elf, et libposix
 +//! (src/lib/posix du dépôt Korin, docs/RUST.md). Les types, dispositions et valeurs viennent
@@ -176,6 +176,16 @@ index 0000000..c570e0f
 +        pub ss_sp: *mut c_void,
 +        pub ss_flags: c_int,
 +        pub ss_size: size_t,
++    }
++
++    // <sys/_default_fcntl.h> de newlib : les verrous de fcntl (F_SETLK : sans gestionnaire, libposix les accepte)
++    pub struct flock {
++        pub l_type: c_short,
++        pub l_whence: c_short,
++        pub l_start: off_t,
++        pub l_len: off_t,
++        pub l_pid: c_short,
++        pub l_xxx: c_short,
 +    }
 +
 +    pub struct termios {

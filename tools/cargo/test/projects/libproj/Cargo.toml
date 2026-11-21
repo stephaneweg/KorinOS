@@ -1,0 +1,11 @@
+[package]
+name = "libproj"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+cfg-if = "1"
+either = "1"
+heck = "0.5"
+itoa = "1"
