@@ -113,6 +113,7 @@ int wnd_client_geometry (uint16_t hwnd, int *ox, int *oy, int *cw, int *ch, long
 uint32_t user_sys_color (int index);	/* COLORREF */
 uint32_t user_send (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp);
 int user_post (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp);
+void user_client_origin (uint16_t hwnd, int *x, int *y);
 void user_invalidate (uint16_t hwnd, int erase);
 uint16_t user_set_focus (uint16_t hwnd);
 uint16_t user_get_focus (void);

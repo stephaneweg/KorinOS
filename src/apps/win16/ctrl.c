@@ -390,6 +390,8 @@ static uint32_t static_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t 
 /* ======================================================================== EDIT */
 #define EM_GETSEL (WM_USER + 0)
 #define EM_SETSEL (WM_USER + 1)
+#define EM_SETHANDLE (WM_USER + 12)
+#define EM_GETHANDLE (WM_USER + 13)
 #define EM_GETRECT (WM_USER + 2)
 #define EM_GETMODIFY (WM_USER + 8)
 #define EM_SETMODIFY (WM_USER + 9)
@@ -410,7 +412,10 @@ static uint32_t static_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t 
 #define ES_LOWERCASE 0x0010
 #define ES_NUMBER 0x2000
 
-struct edit { char *buf; int len, cap, caret, anchor, scroll, top, limit, modified, focus; char pass; };
+struct edit { char *buf; int len, cap, caret, anchor, scroll, top, limit, modified, focus; char pass;
+	uint16_t hlocal; };	/* hlocal : le bloc local du programme rendu par EM_GETHANDLE */
+
+static void native_after (uint16_t hwnd, uint16_t msg, uint16_t wp);
 
 static struct edit *edit_of (struct wnd *w)
 {
@@ -832,6 +837,29 @@ static uint32_t edit_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp
 		return (uint32_t) n;
 	}
 	case EM_LIMITTEXT: e->limit = wp ? wp : 30000; return 0;
+	case EM_GETHANDLE:
+	{
+		/* (comme Windows : le texte dans un bloc du tas local du programme, son instance ; le Bloc-notes le lit
+		   par LocalLock pour chercher et pour enregistrer) */
+		extern uint16_t kernel_local_set_text (uint16_t sel, uint16_t h, const char *s, int n);
+		uint16_t sel = w->hinst ? (uint16_t) (w->hinst | 7) : task.hinstance;
+		e->hlocal = kernel_local_set_text (sel, e->hlocal, e->buf, e->len);
+		return e->hlocal;
+	}
+	case EM_SETHANDLE:
+	{
+		/* le programme donne son bloc (le Bloc-notes y lit le fichier ouvert) : le texte de la zone */
+		extern int kernel_local_get_text (uint16_t sel, uint16_t h, char *out, int cap);
+		uint16_t sel = w->hinst ? (uint16_t) (w->hinst | 7) : task.hinstance;
+		static char t[65536];
+		kernel_local_get_text (sel, wp, t, sizeof t);
+		edit_set (e, t);
+		e->hlocal = wp;
+		e->modified = 0;
+		edit_changed (w);
+		native_after (hwnd, WM_SETTEXT, 0);	/* (le widget de UIKit suit) */
+		return 0;
+	}
 	case EM_CANUNDO: return 0;
 	case EM_SETPASSWORDCHAR: e->pass = (char) wp; user_invalidate (hwnd, 0); return 0;
 	case EM_SETREADONLY: if (wp) w->style |= ES_READONLY; else w->style &= ~ES_READONLY; return 1;

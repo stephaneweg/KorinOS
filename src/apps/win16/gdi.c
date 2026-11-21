@@ -30,6 +30,7 @@ struct obj
 	uint32_t *px32;
 	uint16_t mask;			/* icône : le masque (bitmap) ; image = color */
 	uint16_t image;
+	int dim_x, dim_y;		/* bitmap : SetBitmapDimension (0,1 mm) */
 	/* palette */
 	int npal;
 	uint32_t *pal;
@@ -2706,4 +2707,102 @@ void gdi_init (void)
 	objs[15] = (struct obj) { .type = OBJ_PALETTE, .stock = 1, .npal = 20 };	/* DEFAULT_PALETTE */
 	objs[15].pal = malloc (20 * 4);
 	memcpy (objs[15].pal, sys20, sizeof sys20);
+}
+
+/* ======================================================================== fonctions de Windows 3.11 (21/11) */
+/* GetDCOrg : l'origine du DC à l'écran (la zone cliente de sa fenêtre ; 0,0 pour un DC de mémoire) */
+void api_GetDCOrg16 (struct w16call *c)
+{
+	struct dc *d = dc_get ((uint16_t) c->a[0]);
+	int x = 0, y = 0;
+	if (d && d->kind == 0 && d->hwnd)
+		user_client_origin (d->hwnd, &x, &y);
+	c->ret = PAIR (x, y);
+}
+
+void api_GetBrushOrg16 (struct w16call *c)
+{
+	struct dc *d = dc_get ((uint16_t) c->a[0]);
+	c->ret = d ? PAIR (d->s.brush_x, d->s.brush_y) : 0;
+}
+
+/* les dimensions d'un bitmap en 0,1 mm : seulement gardées pour le programme */
+void api_GetBitmapDimension16 (struct w16call *c)
+{
+	struct obj *o = obj_get ((uint16_t) c->a[0]);
+	c->ret = o ? PAIR (o->dim_x, o->dim_y) : 0;
+}
+void api_SetBitmapDimension16 (struct w16call *c)
+{
+	struct obj *o = obj_get ((uint16_t) c->a[0]);
+	c->ret = 0;
+	if (!o)
+		return;
+	c->ret = PAIR (o->dim_x, o->dim_y);
+	o->dim_x = (int16_t) c->a[1];
+	o->dim_y = (int16_t) c->a[2];
+}
+
+/* LineDDA (x1, y1, x2, y2, procédure, donnée) : la procédure pour chaque point de la ligne, le dernier exclu */
+void api_LineDDA16 (struct w16call *c)
+{
+	int x = (int16_t) c->a[0], y = (int16_t) c->a[1], x2 = (int16_t) c->a[2], y2 = (int16_t) c->a[3];
+	uint32_t proc = c->a[4], data = c->a[5];
+	int dx = abs (x2 - x), sx = x < x2 ? 1 : -1, dy = -abs (y2 - y), sy = y < y2 ? 1 : -1, err = dx + dy;
+	for (int guard = 0; (x != x2 || y != y2) && guard < 65536; guard++)
+	{
+		uint16_t args[4] = { (uint16_t) x, (uint16_t) y, (uint16_t) (data >> 16), (uint16_t) data };
+		call16 (proc, args, 4, ne_ds_for (proc));
+		int e2 = 2 * err;
+		if (e2 >= dy) { err += dy; x += sx; }
+		if (e2 <= dx) { err += dx; y += sy; }
+	}
+	c->ret = 1;
+}
+
+/* GetCharABCWidths : les polices TrueType seulement ; ici aucune : échec, le programme prend GetCharWidth */
+void api_GetCharABCWidths16 (struct w16call *c) { c->ret = 0; }
+
+/* EnumFontFamilies : les mêmes polices qu'EnumFonts (les structures du début sont les mêmes) */
+void api_EnumFontFamilies16 (struct w16call *c) { api_EnumFonts16 (c); }
+
+void api_UpdateColors16 (struct w16call *c) { c->ret = 0; }
+void api_ExtFloodFill16 (struct w16call *c) { api_FloodFill16 (c); }
+void api_EnumObjects16 (struct w16call *c) { c->ret = 0; }
+
+/* les métafichiers : pas encore (CreateMetaFile échoue, le programme s'en passe : OLE, le presse-papiers) */
+void api_CreateMetaFile16 (struct w16call *c) { c->ret = 0; }
+void api_CloseMetaFile16 (struct w16call *c) { c->ret = 0; }
+void api_SetMetaFileBits16 (struct w16call *c) { c->ret = 0; }
+void api_EnumMetaFile16 (struct w16call *c) { c->ret = 0; }
+void api_PlayMetaFileRecord16 (struct w16call *c) { c->ret = 0; }
+
+/* ScrollDC (hdc, dx, dy, rect à faire défiler, découpe, région, rect à repeindre) : comme ScrollWindow, le plus
+ * simple et toujours juste : tout le rectangle est à repeindre, et la fenêtre du DC est invalidée */
+void api_ScrollDC16 (struct w16call *c)
+{
+	extern void api_InvalidateRect16 (struct w16call *);
+	struct dc *d = dc_get ((uint16_t) c->a[0]);
+	int r[4] = { 0, 0, 0, 0 };
+	uint32_t src = c->a[4] ? c->a[4] : c->a[3];
+	if (src)
+	{
+		uint32_t p = far_lin (src);
+		for (int i = 0; i < 4; i++)
+			r[i] = (int16_t) rd16 (p + 2 * (uint32_t) i);
+	}
+	if (c->a[5])
+		gdi_set_rect_rgn ((uint16_t) c->a[5], r[0], r[1], r[2], r[3]);
+	if (c->a[6])
+	{
+		uint32_t p = far_lin (c->a[6]);
+		for (int i = 0; i < 4; i++)
+			wr16 (p + 2 * (uint32_t) i, (uint16_t) r[i]);
+	}
+	if (d && d->kind == 0 && d->hwnd)
+	{
+		struct w16call iv = { .a = { d->hwnd, 0, 1 }, .n = 3 };
+		api_InvalidateRect16 (&iv);
+	}
+	c->ret = 1;
 }
