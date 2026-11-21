@@ -74,6 +74,8 @@ if [ -n "$CDM" ]; then
 	grep -qx /apps/jet.app/libexec "$T/etc/exec.txt" || echo /apps/jet.app/libexec >>"$T/etc/exec.txt"
 fi
 touch "$T/etc/web-console"
+# CA_EXTRA=fichier.pem : des autorités de plus dans le ca-bundle du disque d'essai (un proxy TLS devant Internet)
+[ -z "${CA_EXTRA:-}" ] || cat "$CA_EXTRA" >>"$T/etc/ca-bundle"
 printf 'password = essai\n' >"$T/etc/remote.txt"
 grep -q "/sys/svc/telnetd" "$T/etc/services.txt" || printf '# essai EME : telnet\n/sys/svc/telnetd\n' >>"$T/etc/services.txt"
 MB=$(( $(du -sm "$T" | cut -f1) + 200 ))
@@ -111,7 +113,9 @@ a = types.SimpleNamespace(port=2395, hostfwd=[], smp=4, mem="4G", boot=150, shot
     + sum([["( /apps/jet.app/main %s > /dev/null 2>&1 & ) ; echo ouvert" % u, "sleep:60", "shot:site%d" % (i + 1)]
            for i, u in enumerate(sites)], [])
     + clicks.split ()
-    + ["grep agent /tmp/jet.log", "grep -c \"cdmhost : module\" /tmp/jet.log", "sysstat", "sleep:5", "sysstat", "sysstat cdmhost", "tail -n 60 /tmp/jet.log"])
+    + ["grep agent /tmp/jet.log", "grep -c \"cdmhost : module\" /tmp/jet.log", "sysstat", "sleep:5", "sysstat", "sysstat cdmhost", "tail -n 60 /tmp/jet.log"]
+    # IDLE=S : S secondes de plus, puis qui consomme (cpuwatch deux fois à 10 s d'écart : cdmhost au repos ?)
+    + (["sleep:" + os.environ["IDLE"], "cpuwatch", "sleep:10", "cpuwatch"] if os.environ.get("IDLE") else []))
 pt.run(a)
 PY
 

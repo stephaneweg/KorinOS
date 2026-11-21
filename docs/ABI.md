@@ -541,6 +541,15 @@ UTF-8. Plus tard : dossiers FTP montes en `FTPx:` (espace utilisateur).
     `texte nombre date heure fichier`, `[entre crochets]` si facultatif) et `run.<action>` (sa ligne
     de commande, `$1`, `$2`... les arguments ; absente : les arguments dans l'ordre). L'action
     `open` existe toujours : l'app lancée, avec un fichier si elle a `opens`.
+  * sa compétence pour les agents de code (Claude, MAI, Vibe : [CLAUDE-ACP.md](CLAUDE-ACP.md)) :
+    `skill = SKILL.md` (la seule valeur). Le fichier est à côté du manifeste, dans le dossier de l'app
+    (source : `src/apps/<nom>/SKILL.md`, copié par les constructions comme `app.txt`). C'est une
+    compétence au format habituel : un frontmatter `name` (minuscules et tirets, `korin-<app>`) et
+    `description` (quand la charger), puis ce qu'il faut pour se servir de l'app sans la lire : ses
+    formats de fichiers, où elle les range, son serveur MCP si elle en a un, ses lignes de commande.
+    claude-acp et mai-acp lisent les manifestes de `/apps` à chaque séance ; Vibe trouve le fichier
+    par `VIBE_SKILL_PATHS` (libacp, `acp_home`). Une app installée par un paquet apporte donc sa
+    compétence, sans rien reconstruire ; la changer demande d'augmenter la version du paquet de l'app.
 * `/bin/<nom>` : programmes en ligne de commande (trouvés par le terminal, comme
   `/apps/<nom>.app`).
 * `/sys/<nom>` : le système (Elegant, la session du bureau) ; `/lib` : les kits.

@@ -78,6 +78,7 @@
 - [CPython](armpi-cpython.md) — 3.14.10 étapes 1-2 dans main (59c119e8) ; étape 3 (tree-sitter, cffi, pip) sur claude/python-step3-fd7473 ; QEMU seulement
 - [Rust pour Korin](armpi-rust.md) — cible aarch64-unknown-korin (croisée, WSL), branche claude/rust-target-06eed0 (12/11), QEMU seulement ; pièges build-std, dérouleur partagé
 - [Modules Rust de Python](armpi-python-rust-ext.md) — étape 5 dans main (e68c0a7d, 12/11) : cdylib pyo3, build-rust-ext.sh, caisses patchées, OpenSSL exporté ; QEMU seulement
+- [cargo dans Korin](armpi-cargo.md) — Rust dans Korin PC (20/11) : cargo 0.98.0 tourne sous QEMU, /devtools/rust/bin au PATH, cibles intégrées à rustc 1.97.1 (21/11, claude/epic-dirac-9trnk0) ; ensuite LLVM pour Korin, librustc_driver
 - [Apps Craft](armpi-craft.md) — Suite ArtCraft sur Korin PC : les 17 apps construites et ouvertes (QEMU), paquets craft + un par app, à publier ; puis menus Korin et barre de titre (docs/agents/CRAFT-HANDOVER.md)
 - [Python et Vibe](armpi-python-vibe.md) — étapes 0 à 5 dans main, étape 6 (harness, arbre POSIX /sd0) aussi, poussé (12/11), QEMU seulement
 - [Pas de C pour le Pi seul](armpi-pas-de-c-pour-pi-seul.md) — ce qui ne sert qu'au Pi (GPU, DMA, GpuKit) reste en asm
@@ -139,3 +140,4 @@
 - [Morpho](armpi-morpho.md) — animal de compagnie à la Tamagotchi (20/11) : créature 3D paramétrique façon Spore, C++ sur gk_draw, vue « studio » sombre encadrée, stades tirés au hasard ; banc hôte tools/morpho ; PC 1.0.0 publié (main 0a7a89f), QEMU PC seulement
 - [Win16](armpi-win16.md) — 20/11 : apps Windows 3.x d'après winevdm, couche maison sur UIKit, GPL-2 accepté, Open Watcom ; src/apps/win16, docs/etude/WIN16.md
 - [Tampon de stdio](armpi-stdio-tampon.md) — fread lent (tampon newlib 1 Ko) corrigé dans libposix le 20/11 (stdiobuf.c, 64 Ko) ; seulement pour les programmes reliés ensuite
+- [Compétences des apps](armpi-competences-apps.md) — 21/11 : clé skill = SKILL.md de app.txt, lue par claude-acp et Vibe (VIBE_SKILL_PATHS) ; Forge, TerraCube, Arabesque, Koton ; publiés le 21/11 (sauf mai et koton du Pi)

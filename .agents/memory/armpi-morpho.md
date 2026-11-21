@@ -1,6 +1,6 @@
 ---
 name: armpi-morpho
-description: "Morpho (20/11/2026) : animal de compagnie à la Tamagotchi, créature 3D paramétrique façon Spore (originale), C++ sur gk_draw ; banc d'essai hôte tools/morpho ; PC 1.0.0 publié, code dans main ; essayé sous QEMU PC, GPU jamais vu"
+description: "Morpho (20/11/2026) : animal de compagnie à la Tamagotchi, créature 3D paramétrique façon Spore (originale), C++ sur gk_draw ; banc d'essai hôte tools/morpho ; PC 1.0.1 publié (21/11), code dans main ; essayé sous QEMU PC, GPU jamais vu"
 metadata:
   node_type: memory
   type: project
@@ -25,6 +25,17 @@ quand la fenêtre est élargie) et un dégradé bien visible dans la vue (ardois
 écailles par sommet, piquants dessus), une à trois têtes (layoutHead + buildFace réutilisés, posées sur les épaules) ;
 tirés à l'enfance puis gardés à 70 % ; `shapePlan` (genome.h) fixe leurs contraintes. Onyx Noir forcé pour l'app
 (`ui_theme_text`, réappliqué sur WEV_THEME). Essais : `plan=N heads=N stage=N` ; galerie : MORPHO_PLAN, MORPHO_HEADS.
+
+**Son, scintillement, repas (21/11, demandés)** : sound.h (synthé GM d'AudioKit dans un fil, musique générée qui suit
+l'humeur, bruitages en couches, limiteur tanh ×4 ; menus Son / Musique, HOME:/morpho/prefs.ini) ; le scintillement :
+Elegant composait l'image à moitié dessinée -> image finie dans ui.surf puis recopiée dans une surface de deux images
+(ui_surface_source, comme GF_DOUBLE) ; le repas : le fond du menu des repas était ajouté APRÈS ses tuiles (hit cherche
+du dernier au premier). Écoute sans Korin : `run.sh sound` ; dans QEMU : `-audiodev wav,path=…` + intel-hda enregistre.
+
+**Jeu de balle (21/11, demandé : « une balle qui rebondit et il essaie de l'attraper »)** : actor.cpp A_PLAY, la balle
+rebondit dans une arène (rayon 1,3), l'animal court au point de chute prévu et saute ; réussite tirée d'après énergie,
+caractère, embonpoint ; clic sur la balle = la frapper (hitBall/smackBall), sur le sol = l'y envoyer ; ombre de la balle
+(Scene::shadow2*) ; la caméra recule pendant le jeu ; compteurs attrapées / ratées dans l'indication.
 
 **How to apply:**
 - Voir sans Korin : `sh tools/morpho/run.sh gallery|shot`, `tools/morpho/sheet.sh` (FreeType + polices Inter de

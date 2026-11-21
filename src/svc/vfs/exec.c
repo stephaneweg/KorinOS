@@ -26,7 +26,7 @@ static char exd_tampon[EXD_TAMPON];
 
 /* dossiers d'exécutables sans /etc/exec.txt (le même que celui de la carte) */
 static const char exd_defaut[] = "/devtools/gcc/bin\n/gcc/libexec\n/gcc/aarch64-onyx-elf/bin\n"
-				 "/dotnet\n/apps/koton.app/plugins\n";
+				 "/dotnet\n/apps/koton.app/plugins\n/devtools/rust/bin\n";
 
 static long appel2(struct volume *v)
 {

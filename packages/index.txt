@@ -1,7 +1,7 @@
 # index des paquets d'ARMPI -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-17 16:02
+date = 2026-11-21 01:31
 abi = 597
 packages = 108
 board = armpi
@@ -128,18 +128,18 @@ content = 4d5f6748ef0280df77720e8edcc8fa9e889eedbf5abfbf49f37e6230fae742d5
 
 [arabesque]
 title = Arabesque
-version = 1.3.2
+version = 1.3.4
 category = Multimédia
 author = Korin OS
 summary = 
-size = 268368
-installed = 510093
-sha256 = 3934619ac835691cfc2b06fb18dc61b1ec2f0aa869f239d4e1ba5caa86365429
-file = pkgs/arabesque-1.3.2.opk
+size = 275025
+installed = 524179
+sha256 = 9e2bebfbbc833e1a3b6066b5c51ece0e2e5c32e51af2dd06a17fe0ebf1a78075
+file = pkgs/arabesque-1.3.4.opk
 needs = abi >= 589
 required = 0
 restart = 0
-content = fb944888ad0811ec0f34a1f9477df8c7d660049811f0e565eedccdef9e96d0b8
+content = 5c8519b8a123016e5ee7dcf9978e4aa9d0a7f1a6d76421184897ba5514f0a8b3
 
 [archiver]
 title = Archiveur

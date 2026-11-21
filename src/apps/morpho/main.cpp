@@ -6,7 +6,8 @@
 // processeur) ; l'interface est en 2D, aux couleurs du thème (hud.cpp). README.md du dossier.
 //
 //   Souris : glisser sur l'animal pour le caresser ; glisser ailleurs (ou clic droit) pour tourner autour ; molette
-//   pour s'approcher ; clic sur une crotte pour la ramasser ; pendant le jeu, clic dans la scène pour lancer la balle.
+//   pour s'approcher ; clic sur une crotte pour la ramasser ; pendant le jeu (la balle rebondit, il saute pour
+//   l'attraper), clic sur la balle pour la frapper, ailleurs pour l'envoyer vers ce point.
 //   Clavier : N nourrir (1 2 3 : le repas), J jouer, L laver, O soigner, E lumière, C câliner, I fiche, Échap ferme.
 //   Ligne de commande (essais) : new (un nouvel œuf), speed=N, hour=H (heure fixe), stage=N (aller au stade N), seed=N,
 //   plan=N (0 ordinaire, 1 serpent, 2 carapace) et heads=N (1 à 3) avec stage=N.
@@ -17,6 +18,7 @@
 #include "actor.h"
 #include "hud.h"
 #include "tr.h"
+#include "sound.h"
 #include <gpukit_abi.h>
 #include <audiokit_abi.h>
 #include <stdlib.h>
@@ -38,7 +40,7 @@ static Pet g_pet;
 static Actor g_act;
 static Scene g_scene;
 static Hud g_hud;
-static ga::Snd g_snd;
+static Sound g_sound;
 static float g_camYaw = 0.35f, g_camPitch = 0.2f, g_camZoom = 1, g_camDist = 3, g_ringR = 0.8f;
 static V3 g_camAt (0, 0.4f, 0);
 static float g_hourFixed = -1;
@@ -102,29 +104,55 @@ static void loadClockOffset ()
 	fclose (f);
 }
 
-// ==== les sons : la voix de l'animal, plus aiguë quand il est petit ======================================================
+// ==== les sons (sound.h) : la voix de l'animal, plus aiguë quand il est petit ; la musique suit son humeur ===========
+static int voiceShift ()
+{
+	float v = g_pet.g.voice > 0.3f ? g_pet.g.voice : 1;
+	int st = g_pet.g.stage <= ST_BABY ? 7 : g_pet.g.stage == ST_CHILD ? 4 : g_pet.g.stage == ST_TEEN ? 2 : g_pet.g.stage == ST_ELDER ? -3 : 0;
+	return (int) lroundf (12 * log2f (v)) + st;
+}
+static void playSx (int sx) { g_sound.play (sx, voiceShift ()); }
 static void playSound (int id)
 {
-	float v = g_pet.g.voice * (g_pet.g.stage <= ST_BABY ? 1.45f : g_pet.g.stage == ST_CHILD ? 1.25f : g_pet.g.stage == ST_ELDER ? 0.88f : 1);
-	auto hz = [&] (float f) { return (int) (f * v); };
-	switch (id)
-	{
-	case SND_HAPPY: g_snd.later (0, hz (660), 70, ga::SOUND_TRIANGLE, 70); g_snd.later (80, hz (880), 70, ga::SOUND_TRIANGLE, 70); g_snd.later (160, hz (1100), 110, ga::SOUND_TRIANGLE, 70); break;
-	case SND_SAD: g_snd.later (0, hz (520), 140, ga::SOUND_TRIANGLE, 70); g_snd.later (150, hz (390), 220, ga::SOUND_TRIANGLE, 70); break;
-	case SND_EAT: g_snd.note (220, 35, ga::SOUND_NOISE, 50); g_snd.later (60, 180, 30, ga::SOUND_NOISE, 40); break;
-	case SND_BOUNCE: g_snd.note (190, 50, ga::SOUND_TRIANGLE, 80); break;
-	case SND_CATCH: g_snd.later (0, hz (784), 60, ga::SOUND_SQUARE, 45); g_snd.later (70, hz (1175), 90, ga::SOUND_SQUARE, 45); break;
-	case SND_POP: g_snd.note (300, 50, ga::SOUND_TRIANGLE, 80); g_snd.later (50, 200, 70, ga::SOUND_TRIANGLE, 70); break;
-	case SND_EVOLVE: for (int i = 0; i < 8; i++) g_snd.later (i * 110, 392 * (1 << (i / 4)) * (i % 4 == 0 ? 4 : i % 4 == 1 ? 5 : i % 4 == 2 ? 6 : 8) / 4, 130, ga::SOUND_TRIANGLE, 60); break;
-	case SND_HATCH: g_snd.note (900, 40, ga::SOUND_NOISE, 60); g_snd.later (120, hz (880), 90, ga::SOUND_TRIANGLE, 70); g_snd.later (220, hz (1320), 160, ga::SOUND_TRIANGLE, 70); break;
-	case SND_YUCK: g_snd.note (hz (140), 260, ga::SOUND_SAW, 40); break;
-	case SND_SPLASH: g_snd.note (1200, 120, ga::SOUND_NOISE, 35); g_snd.later (140, 900, 90, ga::SOUND_NOISE, 25); break;
-	case SND_CLEAN: g_snd.later (0, 1568, 60, ga::SOUND_TRIANGLE, 45); g_snd.later (70, 2093, 60, ga::SOUND_TRIANGLE, 45); g_snd.later (140, 2637, 100, ga::SOUND_TRIANGLE, 45); break;
-	case SND_PURR: g_snd.note (hz (95), 380, ga::SOUND_TRIANGLE, 35); break;
-	case SND_CRACK: g_snd.note (2400, 25, ga::SOUND_NOISE, 50); break;
-	}
+	static const int MAP[] = { SX_HAPPY, SX_SAD, SX_EAT, SX_BOUNCE, SX_CATCH, SX_POP, SX_EVOLVE, SX_HATCH, SX_YUCK, SX_SPLASH, SX_CLEAN,
+				   SX_PURR, SX_CRACK, SX_YUM, SX_REFUSE, SX_MISS };
+	if (id >= 0 && id < (int) (sizeof MAP / sizeof *MAP)) playSx (MAP[id]);
 }
-static void blip () { g_snd.note (1400, 18, ga::SOUND_TRIANGLE, 30); }
+static void blip () { playSx (SX_BLIP); }
+// l'humeur de la musique, d'après l'animal et l'heure
+static void musicMood (float hour)
+{
+	int m = MU_DAY;
+	bool night = hour >= 21.5f || hour < 6.5f;
+	if (g_pet.gone) m = MU_SAD;
+	else if (g_pet.g.stage == ST_EGG || g_act.act == A_HATCH) m = MU_EGG;
+	else if (g_act.act == A_EVOLVE) m = MU_EVOLVE;
+	else if (g_pet.asleep || g_pet.lampOff || night) m = MU_NIGHT;
+	else if (g_pet.sick || g_pet.mood () < -0.35f) m = MU_SAD;
+	g_sound.want = m;
+	g_sound.keyBase = 57 + (int) (g_pet.lineage % 7);	// (une tonalité par lignée)
+}
+// les réglages du son : HOME:/morpho/prefs.ini
+static void prefsLoad ()
+{
+	FILE *f = fopen (SAVEDIR "/prefs.ini", "r");
+	if (!f) return;
+	char l[64];
+	while (fgets (l, sizeof l, f))
+	{
+		if (!strncmp (l, "sound = ", 8)) g_sound.sfxOn = atoi (l + 8) != 0;
+		if (!strncmp (l, "music = ", 8)) g_sound.musicOn = atoi (l + 8) != 0;
+	}
+	fclose (f);
+}
+static void prefsSave ()
+{
+	mkdir ("HOME:", 0777); mkdir (SAVEDIR, 0777);
+	FILE *f = fopen (SAVEDIR "/prefs.ini", "w");
+	if (!f) return;
+	fprintf (f, "# Morpho : les réglages\nsound = %d\nmusic = %d\n", g_sound.sfxOn ? 1 : 0, g_sound.musicOn ? 1 : 0);
+	fclose (f);
+}
 
 // ==== les cartes et les messages ========================================================================================
 static void say (const char *fmt, int icon = -1)
@@ -183,10 +211,10 @@ static void onPetEvent (int e)
 		cardLater (C_EVOLVED, 5.2f, TR ("%s a évolué !"), t);
 		break;
 	}
-	case EV_SICK: say (TR ("%s est malade : soignez-le !"), N_HEALTH); break;
+	case EV_SICK: say (TR ("%s est malade : soignez-le !"), N_HEALTH); playSx (SX_SICK); break;
 	case EV_POOP: say (TR ("%s a fait une crotte."), N_CLEAN); break;
-	case EV_SLEEP: say (TR ("%s s'endort…"), N_ENERGY); break;
-	case EV_WAKE: say (TR ("%s se réveille !"), N_ENERGY); if (g_act.act == A_IDLE) g_act.start (A_HAPPY, g_pet); break;
+	case EV_SLEEP: say (TR ("%s s'endort…"), N_ENERGY); playSx (SX_SLEEP); break;
+	case EV_WAKE: say (TR ("%s se réveille !"), N_ENERGY); playSx (SX_WAKE); if (g_act.act == A_IDLE) g_act.start (A_HAPPY, g_pet); break;
 	case EV_HUNGRY: say (TR ("%s a faim !"), N_FOOD); break;
 	case EV_BORED: say (TR ("%s s'ennuie…"), N_FUN); break;
 	case EV_TIRED: say (TR ("%s est fatigué."), N_ENERGY); break;
@@ -194,6 +222,7 @@ static void onPetEvent (int e)
 	{
 		g_act.start (A_GONE, g_pet);
 		g_act.emit (P_STAR, g_act.out.center, 30, 0xFFF0B0, g_act.out.radius * 2);
+		playSx (SX_GONE);
 		bool old = g_pet.g.stage == ST_ELDER && g_pet.st[N_HEALTH] > 1;
 		char t[400];
 		char l1[160];
@@ -240,7 +269,7 @@ static void action (int a)
 		if (r == RS_OK)
 		{
 			g_act.start (A_PLAY, g_pet);
-			if (g_firstPlay) { say (TR ("Cliquez dans la scène pour lancer la balle !"), -1); g_firstPlay = false; }
+			if (g_firstPlay) { say (TR ("La balle rebondit : il essaie de l'attraper !"), -1); g_firstPlay = false; }
 		}
 		else if (r == RS_TOOTIRED) { say (TR ("%s est trop fatigué pour jouer."), N_ENERGY); g_act.start (A_REFUSE, g_pet); }
 		else if (r == RS_REFUSED) { say (TR ("%s est trop malade pour jouer."), N_HEALTH); g_act.start (A_REFUSE, g_pet); }
@@ -288,13 +317,14 @@ static void action (int a)
 }
 
 // ==== les menus =========================================================================================================
-enum { M_NEW = 1, M_RENAME, M_SOUND, M_FEED = 10, M_PLAY, M_CLEAN, M_HEAL, M_LAMP, M_CARESS, M_INFO, M_SP1 = 20, M_SP10, M_SP60 };
+enum { M_NEW = 1, M_RENAME, M_SOUND, M_MUSIC, M_FEED = 10, M_PLAY, M_CLEAN, M_HEAL, M_LAMP, M_CARESS, M_INFO, M_SP1 = 20, M_SP10, M_SP60 };
 static const char MENU[] =
 	"MPartie\n"
 	"I1\tNouvel œuf…\n"
 	"I2\tRenommer…\tF2\n"
 	"-\n"
 	"I3c\tSon\n"
+	"I4c\tMusique\n"
 	"MSoins\n"
 	"I10\tNourrir\tN\n"
 	"I11\tJouer\tJ\n"
@@ -310,7 +340,8 @@ static const char MENU[] =
 	"I22\tTrès rapide (×60)\n";
 static void menuStates ()
 {
-	ui_menu_state (M_SOUND, g_snd.mute ? 0 : UMS_CHECKED);
+	ui_menu_state (M_SOUND, g_sound.sfxOn ? UMS_CHECKED : 0);
+	ui_menu_state (M_MUSIC, g_sound.musicOn ? UMS_CHECKED : 0);
 	ui_menu_state (M_SP1, g_pet.speed == 1 ? UMS_CHECKED : 0);
 	ui_menu_state (M_SP10, g_pet.speed == 10 ? UMS_CHECKED : 0);
 	ui_menu_state (M_SP60, g_pet.speed == 60 ? UMS_CHECKED : 0);
@@ -324,7 +355,8 @@ static void command (int id)
 		{ newEgg (false); say (TR ("Un nouvel œuf vient d'apparaître !"), -1); }
 		break;
 	case M_RENAME: rename (); break;
-	case M_SOUND: g_snd.toggle (); break;
+	case M_SOUND: g_sound.sfxOn = !g_sound.sfxOn; prefsSave (); break;
+	case M_MUSIC: g_sound.musicOn = !g_sound.musicOn; prefsSave (); break;
 	case M_FEED: action (H_FEED); break;
 	case M_PLAY: action (H_PLAY); break;
 	case M_CLEAN: action (H_CLEAN); break;
@@ -389,7 +421,7 @@ static void onMouse (int kind, int x, int y, int buttons)
 			g_down = false;
 			return;
 		}
-		if (g_act.hitPet (g_scene.cam.eye, d) && g_pet.canAct ()) { g_dragPet = true; g_strokeFor = 0.3f; }
+		if (!g_act.hitBall (g_scene.cam.eye, d) && g_act.hitPet (g_scene.cam.eye, d) && g_pet.canAct ()) { g_dragPet = true; g_strokeFor = 0.3f; }
 		return;
 	}
 	if (kind == 2)
@@ -401,13 +433,10 @@ static void onMouse (int kind, int x, int y, int buttons)
 		if (g_downHud > H_NONE && h == g_downHud) action (h);
 		else if (g_downHud == H_NONE && !g_dragCam && !g_dragPet && g_act.ballOn && !g_hud.card)
 		{
+			// (sur la balle : elle file ; ailleurs : elle part vers le point du sol visé)
 			V3 d = viewRay (x, y), p;
-			if (groundAt (g_scene.cam.eye, d, p))
-			{
-				V3 from = g_scene.cam.eye + d * 1.2f;
-				from.y = fmaxf (from.y, 0.6f);
-				g_act.throwBall (from, p);
-			}
+			if (g_act.hitBall (g_scene.cam.eye, d)) g_act.smackBall (d);
+			else if (groundAt (g_scene.cam.eye, d, p)) g_act.throwBall (g_scene.cam.eye, p);
 		}
 		g_dragCam = false; g_dragPet = false; g_downHud = H_NONE;
 	}
@@ -472,7 +501,7 @@ void app_frame (float dt, float realDt)
 	if (g_pendingCard)
 	{
 		g_cardIn -= dt;
-		if (g_cardIn <= 0) { g_hud.showCard (g_pendingCard, g_cardTitle, g_cardText); g_pendingCard = C_NONE; playSound (SND_HAPPY); }
+		if (g_cardIn <= 0) { g_hud.showCard (g_pendingCard, g_cardTitle, g_cardText); g_pendingCard = C_NONE; playSx (SX_CLEAN); }
 	}
 	// les caresses
 	if (g_strokeFor > 0) g_strokeFor -= dt;
@@ -483,7 +512,18 @@ void app_frame (float dt, float realDt)
 	// l'animal
 	g_act.update (dt, g_pet, g_scene.cam.eye, g_cursorFor > 0 ? &g_cursor : 0);
 	for (int i = 0; i < g_act.nsnd; i++) playSound (g_act.snd[i]);
-	g_snd.tick ();
+	musicMood (hour);
+	// la vie entre deux soins : un petit cri de temps en temps, des ronflements quand il dort
+	{
+		static float nextVoice = 6;
+		nextVoice -= dt;
+		if (nextVoice <= 0)
+		{
+			if (g_pet.asleep && g_act.act == A_IDLE) { playSx (SX_SNORE); nextVoice = 4.5f; }
+			else if (g_act.act == A_IDLE && g_pet.canAct () && !g_pet.asleep && g_pet.mood () > 0.2f) { playSx (SX_CHIRP); nextVoice = 9 + (float) (rand () % 1200) / 100; }
+			else nextVoice = 5;
+		}
+	}
 	g_hud.update (dt);
 	// la mise en page : la vue 3D au milieu du châssis
 	g_hud.layout ((int) ui.w, (int) ui.h);
@@ -492,9 +532,13 @@ void app_frame (float dt, float realDt)
 	{
 		V3 c = g_act.out.center;
 		V3 want (c.x * 0.8f, fmaxf (0.18f, c.y * 0.85f + g_act.out.radius * 0.12f), c.z * 0.8f);
+		// (pendant le jeu de balle : toute l'arène, un peu plus loin)
+		static float playK = 0;
+		playK += ((g_act.ballOn ? 1.0f : 0.0f) - playK) * (1 - expf (-dt * 2));
+		want = lerp (want, V3 (c.x * 0.25f, fmaxf (0.25f, c.y * 0.8f), c.z * 0.25f), playK);
 		float k = 1 - expf (-dt * 2.5f);
 		g_camAt = g_camAt + (want - g_camAt) * k;
-		float d = (1.1f + g_act.out.radius * 2.5f) * g_camZoom;
+		float d = (1.1f + g_act.out.radius * 2.5f) * g_camZoom * (1 + 0.45f * playK) + playK * 0.6f;
 		g_camDist += (d - g_camDist) * k;
 		float yaw = g_camYaw + 0.04f * sinf (g_t * 0.13f);
 		V3 dir (sinf (yaw) * cosf (g_camPitch), sinf (g_camPitch), cosf (yaw) * cosf (g_camPitch));
@@ -515,6 +559,9 @@ void app_frame (float dt, float realDt)
 	g_scene.shadowAt = V3 (g_act.out.center.x, 0, g_act.out.center.z);
 	g_scene.shadowR = g_act.out.footprint * 1.2f;
 	g_scene.shadowK = g_act.act == A_GONE ? 0 : clampf (1 - g_act.pose.hop * 1.6f, 0.3f, 1);
+	// (l'ombre de la balle : plus petite et plus pâle quand elle est haute ; elle dit où elle est)
+	if (g_act.ballOn) { float hb = fmaxf (0, g_act.ball.y - 0.09f); g_scene.shadow2At = V3 (g_act.ball.x, 0, g_act.ball.z); g_scene.shadow2R = 0.13f * (1 + hb * 0.5f); g_scene.shadow2K = clampf (0.75f - hb * 0.35f, 0.2f, 0.75f); }
+	else g_scene.shadow2K = 0;
 	g_scene.light = studioLight (hour, g_pet.lampOff);
 	keyFrom (g_scene.light, g_scene.cam);
 	// le socle : un anneau au sol, à la taille de l'animal ; le halo derrière lui
@@ -556,7 +603,8 @@ void app_init (int argc, char **argv)
 	testArgs (argc, argv, fresh, stage, seed);
 	speedArg = g_pet.speed;
 	g_scene.init ();
-	g_snd.open ();
+	prefsLoad ();
+	g_sound.open ();
 	bool loaded = !fresh && g_pet.load (SAVE);
 	if (!loaded)
 	{
@@ -611,6 +659,43 @@ void app_init (int argc, char **argv)
 	g_camYaw = 0.35f;
 }
 
+// ==== l'affichage en double tampon =====================================================================================
+// L'image se fait dans les pixels de la fenêtre (le texte de UIKit et gk_draw y vont), puis, finie, elle est recopiée
+// dans une surface de deux images posée sur toute la fenêtre : on écrit dans celle qu'Elegant ne lit pas, puis on la
+// lui montre (ui_surface_source), comme GF_DOUBLE de gamefb.h. Sans cela, Elegant compose parfois pendant que l'image
+// s'écrit : on voyait le fond sans l'animal, ou l'animal sans l'interface (le scintillement). Sans surface (refusée) :
+// la fenêtre elle-même, comme avant.
+static long g_sf = 0; static int g_sfW = 0, g_sfH = 0, g_sfDbl = 0, g_sfBack = 0;
+static void surfaceFor (int W, int H)
+{
+	if (g_sf && g_sfW == W && g_sfH == H) return;
+	if (g_sf) ui_surface_free (g_sf);
+	g_sf = 0; g_sfDbl = 0; g_sfBack = 0; g_sfW = W; g_sfH = H;
+	if (W < 8 || H < 8) return;
+	if (2 * H <= 4096 && (g_sf = ui_surface (0, 0, W, 2 * H, WS_SF_XRGB8888)) != 0)
+	{
+		if (ui_surface_move (g_sf, 0, 0, W, H)) g_sfDbl = 1;
+		else { ui_surface_free (g_sf); g_sf = 0; }
+	}
+	if (!g_sf) g_sf = ui_surface (0, 0, W, H, WS_SF_XRGB8888);
+}
+static void present ()
+{
+	int W = (int) ui.w, H = (int) ui.h;
+	surfaceFor (W, H);
+	long pitch = 0, dummy = 0;
+	uint32_t *p = g_sf ? (uint32_t *) uikit_call3 ((long (*) ()) ui_surface_pixels, g_sf, 0, 0, 0, &pitch, &dummy) : 0;
+	if (!p || pitch < W * 4) { ui_update_all (); return; }
+	char *dst = (char *) p + (g_sfDbl ? (long) g_sfBack * pitch * H : 0);
+	for (int y = 0; y < H; y++) memcpy (dst + (long) y * pitch, ui.surf + (long) y * W, (size_t) W * 4);
+	if (g_sfDbl)
+	{
+		if (ui_surface_source (g_sf, -1, pitch, (long) g_sfBack * pitch * H)) g_sfBack ^= 1;
+		else { g_sfDbl = 0; ui_surface_source (g_sf, -1, 0, 0); }
+	}
+	ui_surface_damage (g_sf, 0, 0, W, H);
+}
+
 #ifndef MORPHO_HOST
 int main (int argc, char **argv)
 {
@@ -649,7 +734,7 @@ int main (int argc, char **argv)
 		float real = (float) (now - last); last = now;
 		if (real > 30) real = 30;
 		app_frame (real > 0.1f ? 0.1f : real, real);
-		ui_update_all ();
+		present ();
 		// l'image suivante quand Elegant a pris celle-ci ; au plus 30 images par seconde
 		if (ui_frame_request ())
 		{
@@ -671,7 +756,7 @@ int main (int argc, char **argv)
 		}
 	}
 	saveNow ();
-	g_snd.close ();
+	g_sound.close ();
 	return 0;
 }
 #endif

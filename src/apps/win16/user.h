@@ -97,6 +97,8 @@ struct wnd
 	char text[256];		/* le titre (CP1252, comme le programme) */
 	long be;
 	int visible, destroyed, disabled, dialog, dlg_end, dlg_result;
+	int need_size;		/* WM_SIZE et WM_MOVE attendent le premier affichage (une fenêtre principale) */
+	int z;			/* l'ordre parmi les sœurs : la plus grande est devant (MDI) */
 	int invalid, erase, ix0, iy0, ix1, iy1;	/* la zone à repeindre (zone cliente) */
 	uint8_t extra[64];
 	int nprops;
@@ -112,6 +114,14 @@ int wnd_client_geometry (uint16_t hwnd, int *ox, int *oy, int *cw, int *ch, long
 uint32_t user_sys_color (int index);	/* COLORREF */
 uint32_t user_send (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp);
 int user_post (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp);
+void user_client_origin (uint16_t hwnd, int *x, int *y);
+/* pour gdi.c : la zone cliente dans la fenêtre (cx, cy) et la taille de la fenêtre ; la découpe par les zones
+ * clientes des parents (coordonnées de la fenêtre de Korin) ; les sœurs devant (WS_CLIPSIBLINGS), en coordonnées
+ * de la zone cliente (nc = 0) ou du rectangle de la fenêtre (nc = 1) */
+int user_nc_rect (uint16_t hwnd, int *cx, int *cy, int *w, int *h);
+int user_ancestor_clip (uint16_t hwnd, int *x0, int *y0, int *x1, int *y1);
+int user_sibling_rects (uint16_t hwnd, int nc, int (*r)[4], int max);
+void user_raise (uint16_t hwnd);	/* devant ses sœurs */
 void user_invalidate (uint16_t hwnd, int erase);
 uint16_t user_set_focus (uint16_t hwnd);
 uint16_t user_get_focus (void);
@@ -127,8 +137,20 @@ uint16_t user_dlg_font (void);
 int user_key_down (int vk);
 uint32_t user_theme_ref (int bt);	/* un jeton du thème, en COLORREF */
 
+/* MDI et le cadre des fenêtres filles avec barre de titre (mdi.c) */
+void mdi_register (void);
+int mdi_nc_has (struct wnd *w);
+void mdi_nc_paint (uint16_t hwnd);
+int mdi_nc_mouse (uint16_t hwnd, int type, int dblclick, int wx, int wy, int sx, int sy);
+int mdi_nc_dragging (void);
+void mdi_nc_drag (int type, int sx, int sy);
+void mdi_click (uint16_t hwnd);	/* un clic dans une fenêtre : sa fenêtre MDI devient active */
+int mdi_is_iconic (uint16_t hwnd);
+int mdi_is_zoomed (uint16_t hwnd);
+
 /* les contrôles (ctrl.c) */
 void ctrl_register (void);
+int ctrl_combo_height (struct wnd *w);
 uint32_t ctrl_button_proc (uint16_t, uint16_t, uint16_t, uint32_t);
 uint32_t ctrl_static_proc (uint16_t, uint16_t, uint16_t, uint32_t);
 uint32_t ctrl_edit_proc (uint16_t, uint16_t, uint16_t, uint32_t);

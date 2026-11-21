@@ -60,13 +60,17 @@ void Scene::draw (uint32_t *px, int w, int h, int stride, float t)
 	shadow.clear ();
 	{
 		Builder B (&shadow);
-		float R = shadowR;
-		V3 o = shadowAt; o.y = 0.006f;
-		Col c (0, 0, 0);
-		B.alpha = clampf (shadowK * 0.9f, 0, 1);
-		int a = B.add (o + V3 (-R, 0, -R), V3 (0, 1, 0), c, 0, 0), b = B.add (o + V3 (R, 0, -R), V3 (0, 1, 0), c, 1, 0);
-		int cc = B.add (o + V3 (R, 0, R), V3 (0, 1, 0), c, 1, 1), d = B.add (o + V3 (-R, 0, R), V3 (0, 1, 0), c, 0, 1);
-		B.tri (a, cc, b); B.tri (a, d, cc);
+		auto quad = [&] (V3 o, float R, float k) {
+			if (k <= 0.01f || R <= 0) return;
+			o.y = 0.006f;
+			Col c (0, 0, 0);
+			B.alpha = clampf (k * 0.9f, 0, 1);
+			int a = B.add (o + V3 (-R, 0, -R), V3 (0, 1, 0), c, 0, 0), b = B.add (o + V3 (R, 0, -R), V3 (0, 1, 0), c, 1, 0);
+			int cc = B.add (o + V3 (R, 0, R), V3 (0, 1, 0), c, 1, 1), d = B.add (o + V3 (-R, 0, R), V3 (0, 1, 0), c, 0, 1);
+			B.tri (a, cc, b); B.tri (a, d, cc);
+		};
+		quad (shadowAt, shadowR, shadowK);
+		quad (shadow2At, shadow2R, shadow2K);
 	}
 	dl.clear ();
 	dl.add (shadow, light, cam);

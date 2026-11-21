@@ -58,6 +58,11 @@ Pièges déjà rencontrés :
   mode survie ; à charger dès qu'on parle de TerraCube ou de construire dans le jeu.
 * **`korin-godot`** (sur le PC) : faire un jeu avec Godot 4 et l'exporter en app de Korin (greffon Korin Export,
   export sans fenêtre) ; à charger dès qu'on parle de Godot.
+* **Les compétences des apps** : une app peut apporter la sienne, `korin-<app>` (son `app.txt` a la clé
+  `skill = SKILL.md`, le fichier est dans `/apps/<app>.app/`, trouvé par `skill_paths`) : Forge, TerraCube,
+  Arabesque, Koton... Pour se servir d'une app (créer un fichier qu'elle ouvre, la piloter), charge sa compétence
+  avant de lire ses sources ; sans compétence ni serveur MCP, lis ses exemples (`/home/public/<app>`), puis ses
+  sources.
 
 ## Règles de la maison
 

@@ -75,3 +75,12 @@ void api_DdeCmpStringHandles16 (struct w16call *c)
 	int r = strcasecmp (sa, sb);
 	c->ret = (uint16_t) (r < 0 ? -1 : r > 0 ? 1 : 0);
 }
+
+/* (aucune conversation n'existe : les fonctions sur les conversations et les données échouent proprement) */
+void api_DdeDisconnect16 (struct w16call *c) { c->ret = 1; }
+void api_DdeQueryConvInfo16 (struct w16call *c) { last_error = 0x400a; c->ret = 0; }
+void api_DdeGetData16 (struct w16call *c) { last_error = 0x400a; c->ret = 0; }
+void api_DdeAccessData16 (struct w16call *c) { if (c->a[1]) wr32 (far_lin (c->a[1]), 0); last_error = 0x400a; c->ret = 0; }
+void api_DdeUnaccessData16 (struct w16call *c) { c->ret = 1; }
+void api_DdeFreeDataHandle16 (struct w16call *c) { c->ret = 1; }
+void api_DdeSetUserHandle16 (struct w16call *c) { c->ret = 1; }

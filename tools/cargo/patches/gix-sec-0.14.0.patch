@@ -1,0 +1,12 @@
+diff -ruN a/src/identity.rs b/src/identity.rs
+--- a/src/identity.rs	2026-11-20 23:54:26.467772991 +0000
++++ b/src/identity.rs	2026-11-20 23:54:26.470176234 +0000
+@@ -42,7 +42,7 @@
+             // SAFETY: there is no documented possibility for failure
+             #[allow(unsafe_code)]
+             let uid = unsafe { libc::geteuid() };
+-            Ok(uid)
++            Ok(uid.into()) // (Korin : uid_t de 16 bits, newlib)
+         }
+         use std::str::FromStr;
+ 

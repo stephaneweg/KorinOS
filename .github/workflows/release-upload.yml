@@ -1,0 +1,69 @@
+# Release upload : les archives d'une branche jetable release-upload/<nom> (dossier upload/, *.opk) ajoutées à la
+# Release « packages », puis la branche supprimée. Pour une publication depuis le cloud (docs/PAQUETS.md, « Publier
+# un paquet ») : le proxy GitHub d'un agent refuse les envois binaires et la suppression d'une branche, mais il peut
+# pousser une branche et lancer ce workflow (workflow_dispatch, entrée « branch »).
+#   1. tools/pkg/pub.py NOM --manual-upload --yes : l'archive dans build/pkg-release-pc, puis pub.py attend ;
+#   2. une branche sans historique commun, release-upload/NOM-VERSION, avec upload/<archive>.opk seulement ;
+#   3. ce workflow, branch = release-upload/NOM-VERSION : l'archive va dans la Release, la branche est supprimée ;
+#   4. pub.py voit l'archive, la télécharge, vérifie son SHA-256, puis commite et pousse l'index.
+# Une archive déjà dans la Release n'est jamais remplacée (sautée) ; la branche est supprimée dans tous les cas où
+# rien n'a échoué.
+name: Release upload
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "La branche jetable (release-upload/…) qui porte upload/*.opk"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-upload
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BRANCH: ${{ inputs.branch }}
+    steps:
+      - name: Seulement une branche release-upload/
+        run: |
+          case "$BRANCH" in
+            release-upload/*) ;;
+            *) echo "::error::$BRANCH n'est pas une branche release-upload/" ; exit 1 ;;
+          esac
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Archives -> Release packages
+        run: |
+          set -eu
+          have=$(gh release view packages -R "$GITHUB_REPOSITORY" --json assets -q '.assets[] | "\(.name) \(.size)"')
+          n=0
+          for f in upload/*.opk; do
+            [ -f "$f" ] || continue
+            n=$((n + 1))
+            name=$(basename "$f")
+            size=$(stat -c %s "$f")
+            echo "$name : $size octets, SHA-256 $(sha256sum "$f" | cut -c1-64)"
+            if printf '%s\n' "$have" | grep -q "^$name "; then
+              echo "$name : déjà dans la Release, pas remplacée"
+              continue
+            fi
+            gh release upload packages "$f" -R "$GITHUB_REPOSITORY"
+            got=$(gh release view packages -R "$GITHUB_REPOSITORY" --json assets -q ".assets[] | select(.name == \"$name\") | .size")
+            [ "$got" = "$size" ] || { echo "::error::$name : $got octets dans la Release, $size attendus" ; exit 1 ; }
+          done
+          [ "$n" -gt 0 ] || { echo "::error::pas d'archive dans upload/ sur $BRANCH" ; exit 1 ; }
+
+      - name: Branche supprimée
+        run: gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$BRANCH"

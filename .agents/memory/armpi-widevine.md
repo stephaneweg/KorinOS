@@ -77,7 +77,16 @@ fluide sur PC »), pas de Widevine (cdmhost au repos : 10 appels/s). Netflix lan
 « Widevine: [t s] » dans le journal du process web). Le démarrage lent (40-60 s) venait de la lecture
 du module par fread (11 s pour 21,7 Mo sous QEMU), pas de la charge : read () en gros morceaux, 1 s (cdmhost
 module.cpp, 20/11 soir). Image brouillée au changement de qualité (Netflix, YouTube) : av-patches/0003 (versions de
-la description par image, reprise sur une image clé après un retrait) ; essai eme-shaka.html?switch=1. Reste : WebM
+la description par image, reprise sur une image clé après un retrait) ; essai eme-shaka.html?switch=1.
+**Reprise (20/11 au soir, l'utilisateur continue dans le cloud)** : **jet 1.4.2 n'est PAS publié** (versions.ini dit
+1.4.2) ; il doit porter av-patches/0003, cdmhost qui lit le module par read (ea3c0a4c) et WebKit 0011 (cookies gardés,
+a59945f4 ; noté dans .armpi-patches de webkit et webkit-gl). Essai à blanc fait : seul jet change. Publier en écartant
+mai (publish = 0 dans une copie de packages-pc.ini, MKREPO_EXTRA="--keep-unbuilt --ini …"), sans netflix, disneyplus,
+tf1plus, primevideo (pas demandés) ; gh absent de WSL : Release par le gh de Windows, puis git push. Python : 1.0.4
+était une régression (vieux python3 de build/pc/sysroot) ; 1.0.5 publié, corrigé.
+**Demande en attente de l'utilisateur** : une analyse pour étendre l'hôte Linux (liblinux, src/lib/linux) à de vrais
+exécutables Linux ; objectif : Claude Code officiel pour Linux, au minimum la CLI (avec un front-end Korin), au mieux
+l'app de bureau. Voir [[armpi-linux-compat]]. Reste : WebM
 chiffré ; la lecture avance sans la vidéo pendant l'attente d'une clé (Chrome se met en pause).
 **Publié le 20/11 au soir (ce77e2a7)** : jet 1.4.1 (tracé multi-cœurs de l'autre session + un seul cdmhost) et
 spotify 1.1.0 (le lecteur web, session Spotify), mai toujours écarté. Piège : build/pc/sysroot ne reçoit pas les apps

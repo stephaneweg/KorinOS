@@ -133,6 +133,9 @@ foreach ($n in $p_apps) {
   $man = Join-Path $root "src\apps\$n\app.txt"
   if (Test-Path $man) { Copy-Item $man (Join-Path $pq "app.txt") }
   else { Write-Warning "manifeste absent : $man" }
+  # la competence des agents (cle skill de app.txt, docs/ABI.md)
+  $sk = Join-Path $root "src\apps\$n\SKILL.md"
+  if (Test-Path $sk) { Copy-Item $sk (Join-Path $pq "SKILL.md") }
 }
 # services -> /sd/sys/svc/<nom>
 New-Item -ItemType Directory -Force (Join-Path $sdroot "sys\svc") | Out-Null

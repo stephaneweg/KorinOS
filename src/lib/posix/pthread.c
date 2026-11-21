@@ -286,7 +286,10 @@ int pthread_setname_np (pthread_t th, const char *name)
 		return EINVAL;
 	if (strlen (name) >= sizeof T (th)->name)
 		return ERANGE;
-	strcpy (T (th)->name, name);		/* (the kernel's name is the one given at creation) */
+	strcpy (T (th)->name, name);
+	/* le noyau aussi (SYS_THREAD_LIST : cpuwatch, taskman montrent les noms de WebKit, « SocketMonitor »,
+	 * « CurlRequestScheduler »..., plutôt que « pthread ») ; un nom trop long y est coupé */
+	__armpi_sys2 (SYS_THREAD_SET_NAME, th == pthread_self () ? 0 : T (th)->tid, (long) name);
 	return 0;
 }
 

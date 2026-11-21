@@ -55,6 +55,20 @@ static void reset (void)
 	mick_x = mick_y = 0;
 }
 
+/* un changement de mode vidéo (INT 10h 00h, VESA 4F02h) : comme le pilote de Microsoft, les bornes deviennent
+ * celles du nouveau mode (QuickBASIC remet le pilote à zéro en mode texte, 640 × 200, puis passe en SCREEN 12 :
+ * la souris s'arrêtait à la ligne 199 des 480) */
+void mouse_mode_changed (void)
+{
+	int w, h;
+	virt_size (&w, &h);
+	xmin = 0;
+	ymin = 0;
+	xmax = w - 1;
+	ymax = h - 1;
+	clamp ();
+}
+
 static void post (uint16_t cond)
 {
 	if (!(cond & handler_mask) || !handler)

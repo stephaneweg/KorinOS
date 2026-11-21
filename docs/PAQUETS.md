@@ -240,7 +240,15 @@ python tools/pkg/pub.py claude                 # montre les changements, demande
 python tools/pkg/pub.py win16 --new --tree DOSSIER  # un nouveau paquet (absent de l'index) : tous ses fichiers pris dans DOSSIER
 ```
 
-Python de Windows **sans `-I`** (`cryptography`). Le script :
+Python de Windows **sans `-I`** (`cryptography`). Dans le cloud (pas de `gh` utilisable) : `--api`, la Release par
+l'API REST de GitHub avec `curl` (la connexion GitHub de la session est appliquée par le proxy), et la clé dans la
+variable `ONYX_PKG_KEY` (ou `OnyxPkgKey`). Le proxy GitHub du cloud refuse les envois binaires (HTTP 415) :
+`--manual-upload` prépare l'archive, attend qu'elle soit dans la Release, la télécharge et vérifie son SHA-256, puis
+seulement commite et pousse l'index. L'archive y va par le workflow « Release upload »
+(`.github/workflows/release-upload.yml`) : une branche sans historique commun `release-upload/NOM-VERSION` qui ne
+porte que `upload/<archive>.opk`, poussée, puis le workflow lancé (`workflow_dispatch`, entrée `branch`) ; il ajoute
+l'archive à la Release (jamais de remplacement) et supprime la branche (le proxy refuse aussi la suppression d'une
+branche). Le script :
 
 1. `git fetch` ; la base est l'index d'**`origin/main`** (`packages/pc/index.txt`), jamais une archive plus ancienne
    que la dernière publiée ;
@@ -253,7 +261,8 @@ Python de Windows **sans `-I`** (`cryptography`). Le script :
    l'arbre est montrée : **un fichier plus ancien que la publication est un arbre pas à jour**, pas un changement.
    `res/lang/*.txt` est fusionné (clés publiées gardées, celles de l'arbre mises à jour ou ajoutées à la fin) ;
    `etc/exec.txt` et `etc/session` ne sont pris que par `--only` ; les fichiers du paquet absents de l'archive
-   seulement avec `--add-new` ; `--only MOTIF…` restreint aux fichiers voulus ;
+   seulement avec `--add-new` ; `--only MOTIF…` restreint aux fichiers voulus ; `--drop MOTIF…` retire de l'archive
+   les fichiers que `packages-pc.ini` ne donne plus au paquet (refusé pour un fichier qu'il donne encore) ;
 5. demande confirmation (`--yes` : sans) ;
 6. monte la version (`bump` de la publiée, ou celle de `versions.ini` si elle est déjà plus haute ; `[pc]` d'abord),
    écrit l'archive par `mkrepo.write_opk` et son manifeste par `mkrepo.manifest_text` avec l'`abi` du manifeste publié

@@ -260,7 +260,7 @@ static uint32_t button_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t 
 	case WM_SETFOCUS:
 		b->focus = 1;
 		user_invalidate (hwnd, 0);
-		user_notify (hwnd, 6);	/* BN_SETFOCUS (Win32, sans effet chez Win16) */
+		/* (pas de BN_SETFOCUS : c'est de Win32 ; le Gestionnaire de programmes le prenait pour un clic sur OK) */
 		return 0;
 	case WM_KILLFOCUS:
 		b->focus = 0;
@@ -390,6 +390,8 @@ static uint32_t static_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t 
 /* ======================================================================== EDIT */
 #define EM_GETSEL (WM_USER + 0)
 #define EM_SETSEL (WM_USER + 1)
+#define EM_SETHANDLE (WM_USER + 12)
+#define EM_GETHANDLE (WM_USER + 13)
 #define EM_GETRECT (WM_USER + 2)
 #define EM_GETMODIFY (WM_USER + 8)
 #define EM_SETMODIFY (WM_USER + 9)
@@ -410,7 +412,10 @@ static uint32_t static_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t 
 #define ES_LOWERCASE 0x0010
 #define ES_NUMBER 0x2000
 
-struct edit { char *buf; int len, cap, caret, anchor, scroll, top, limit, modified, focus; char pass; };
+struct edit { char *buf; int len, cap, caret, anchor, scroll, top, limit, modified, focus; char pass;
+	uint16_t hlocal; };	/* hlocal : le bloc local du programme rendu par EM_GETHANDLE */
+
+static void native_after (uint16_t hwnd, uint16_t msg, uint16_t wp);
 
 static struct edit *edit_of (struct wnd *w)
 {
@@ -832,6 +837,29 @@ static uint32_t edit_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp
 		return (uint32_t) n;
 	}
 	case EM_LIMITTEXT: e->limit = wp ? wp : 30000; return 0;
+	case EM_GETHANDLE:
+	{
+		/* (comme Windows : le texte dans un bloc du tas local du programme, son instance ; le Bloc-notes le lit
+		   par LocalLock pour chercher et pour enregistrer) */
+		extern uint16_t kernel_local_set_text (uint16_t sel, uint16_t h, const char *s, int n);
+		uint16_t sel = w->hinst ? (uint16_t) (w->hinst | 7) : task.hinstance;
+		e->hlocal = kernel_local_set_text (sel, e->hlocal, e->buf, e->len);
+		return e->hlocal;
+	}
+	case EM_SETHANDLE:
+	{
+		/* le programme donne son bloc (le Bloc-notes y lit le fichier ouvert) : le texte de la zone */
+		extern int kernel_local_get_text (uint16_t sel, uint16_t h, char *out, int cap);
+		uint16_t sel = w->hinst ? (uint16_t) (w->hinst | 7) : task.hinstance;
+		static char t[65536];
+		kernel_local_get_text (sel, wp, t, sizeof t);
+		edit_set (e, t);
+		e->hlocal = wp;
+		e->modified = 0;
+		edit_changed (w);
+		native_after (hwnd, WM_SETTEXT, 0);	/* (le widget de UIKit suit) */
+		return 0;
+	}
 	case EM_CANUNDO: return 0;
 	case EM_SETPASSWORDCHAR: e->pass = (char) wp; user_invalidate (hwnd, 0); return 0;
 	case EM_SETREADONLY: if (wp) w->style |= ES_READONLY; else w->style &= ~ES_READONLY; return 1;
@@ -845,6 +873,7 @@ static uint32_t edit_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp
 }
 
 /* ======================================================================== LISTBOX */
+#define LB_ERR32 0xffffffffu	/* LB_ERR, CB_ERR : -1L (SendMessage rend un LONG, que les programmes comparent à -1L) */
 #define LB_ADDSTRING (WM_USER + 1)
 #define LB_INSERTSTRING (WM_USER + 2)
 #define LB_DELETESTRING (WM_USER + 3)
@@ -1162,7 +1191,7 @@ static uint32_t listbox_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t
 	{
 		int i = (int16_t) wp;
 		if (i < 0 || i >= l->n)
-			return 0xffff;
+			return LB_ERR32;
 		free (l->it[i].text);
 		memmove (&l->it[i], &l->it[i + 1], sizeof l->it[0] * (size_t) (l->n - i - 1));
 		l->n--;
@@ -1201,7 +1230,7 @@ static uint32_t listbox_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t
 	{
 		int i = (int16_t) wp;
 		if (i < 0 || i >= l->n)
-			return 0xffff;
+			return LB_ERR32;
 		return multi ? (uint32_t) l->it[i].sel : i == l->cur;
 	}
 	case LB_GETCURSEL:
@@ -1210,7 +1239,7 @@ static uint32_t listbox_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t
 	{
 		int i = (int16_t) wp;
 		if (i < 0 || i >= l->n)
-			return 0xffff;
+			return LB_ERR32;
 		if (!lb_has_strings (w))
 		{
 			wr32 (far_lin (lp), l->it[i].data);
@@ -1222,7 +1251,7 @@ static uint32_t listbox_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t
 	case LB_GETTEXTLEN:
 	{
 		int i = (int16_t) wp;
-		return i >= 0 && i < l->n ? (uint32_t) strlen (l->it[i].text) : 0xffff;
+		return i >= 0 && i < l->n ? (uint32_t) strlen (l->it[i].text) : LB_ERR32;
 	}
 	case LB_GETCOUNT:
 		return (uint32_t) l->n;
@@ -1230,7 +1259,7 @@ static uint32_t listbox_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t
 	{
 		int i = lb_find (l, (int16_t) wp, w16_raw (lp), 0);
 		if (i < 0)
-			return 0xffff;
+			return LB_ERR32;
 		l->cur = i;
 		lb_visible (w, l);
 		user_invalidate (hwnd, 0);
@@ -1288,7 +1317,7 @@ static uint32_t listbox_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t
 	{
 		int i = (int16_t) wp;
 		if (i < 0 || i >= l->n)
-			return 0xffff;
+			return LB_ERR32;
 		l->it[i].data = lp;
 		return 0;
 	}
@@ -1341,6 +1370,19 @@ static struct combo *cb_of (struct wnd *w)
 	if (!w->cdata)
 		w->cdata = calloc (1, sizeof (struct combo));
 	return w->cdata;
+}
+
+/* la hauteur d'une liste déroulante fermée (CBS_DROPDOWN, CBS_DROPDOWNLIST) : comme Windows, la fenêtre n'a que
+ * cette hauteur, la hauteur donnée à CreateWindow est celle de la liste ouverte (0 : pas une liste déroulante) */
+int ctrl_combo_height (struct wnd *w)
+{
+	if (!w || (w->style & 3) < 2 || !(w->cdata_kind == 5 || !strcasecmp (w->clsname, "COMBOBOX")))
+		return 0;
+	uint16_t hdc = gdi_dc_for_window (w->hwnd);
+	prep_font (w, hdc);
+	int h = gdi_text_height (hdc, 0) + 8;
+	gdi_release_dc (hdc);
+	return h;
 }
 
 static void cb_paint (struct wnd *w)
@@ -1422,7 +1464,7 @@ static uint32_t combo_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t l
 	struct combo *cb = cb_of (w);
 	int kind = (int) (w->style & 3);
 	if (msg >= CB_ADDSTRING && msg <= CB_FINDSTRINGEXACT && !cb->lb)
-		return 0xffff;
+		return LB_ERR32;
 	switch (msg)
 	{
 	case WM_CREATE:

@@ -15,6 +15,11 @@ Pour aller plus loin :
 - `korin-sys-settings` : thème, son, langue, mode du bureau, bus, notifications, captures.
 - `korin-sys-packages` : installer et mettre à jour des logiciels.
 
+**Se servir d'une app** (écrire un fichier qu'elle ouvre, la piloter) : une app peut apporter sa propre compétence,
+`korin-<app>`. Son `app.txt` a alors la clé `skill = SKILL.md`, et le fichier est à côté, dans `/apps/<app>.app/`
+(`grep -l '^skill' /apps/*.app/app.txt` les liste). Lisez-la avant les sources de l'app. Sans compétence ni serveur
+MCP, lisez d'abord ses exemples (`/home/public/<app>`).
+
 ## L'arbre des chemins
 
 Un seul arbre, comme sous Unix : `/` est le volume système, les autres volumes sont montés dans des dossiers. Il n'y

@@ -35,10 +35,33 @@ cp -r "$APPDIR" "$T/apps/$APP.app"
 [ ! -f "tools/icons/rendered/$APP.rgba" ] || cp "tools/icons/rendered/$APP.rgba" "$T/apps/$APP.app/icon.rgba"
 grep -qx /apps/jet.app/libexec "$T/etc/exec.txt" || echo /apps/jet.app/libexec >>"$T/etc/exec.txt"
 touch "$T/etc/web-console"
+# CA_EXTRA=fichier.pem : des autorités de plus dans le ca-bundle du disque d'essai seulement (un proxy TLS entre QEMU et
+# Internet, comme celui d'un agent du cloud ; jamais dans un paquet)
+[ -z "${CA_EXTRA:-}" ] || cat "$CA_EXTRA" >>"$T/etc/ca-bundle"
 # (PROBE=1 : chaque page écrit ses cookies lisibles dans la console, 5 s après son début)
 # PROBE_JS : un script de plus, au début de chaque page (avant la ligne des cookies)
 [ -z "${PROBE_JS:-}" ] || printf '%s\n' "$PROBE_JS" >>"$T/etc/web-probe.js"
 [ -z "${PROBE:-}" ] || printf '%s\n' "setTimeout(function(){console.log('PROBE-COOKIES ['+location.host+'] '+document.cookie)},5000);" >>"$T/etc/web-probe.js"
+# ACCOUNT_HOME=/home/<nom> : le compte d'essai (uid 1000) a ce dossier (comme une installation), et d'anciennes données
+# sont laissées où Jet les mettait avec HOME=/home : /home/<app>/webkit/old.txt, /home/downloads/old.txt (Jet doit
+# écrire sous ACCOUNT_HOME et y déplacer ces dossiers)
+if [ -n "${ACCOUNT_HOME:-}" ]; then
+	sed -i "s|^home = /home\$|home = $ACCOUNT_HOME|" "$T/etc/users.ini"
+	grep -q "^home = $ACCOUNT_HOME\$" "$T/etc/users.ini" || { echo "users.ini : pas de « home = /home » à remplacer" >&2; exit 1; }
+	mkdir -p "$T$ACCOUNT_HOME" "$T/home/$APP/webkit" "$T/home/downloads"
+	echo ancien >"$T/home/$APP/webkit/old.txt"
+	echo ancien >"$T/home/downloads/old.txt"
+	mkdir -p "$T/home/.jet/widevine" && echo ancien >"$T/home/.jet/widevine/old.txt"
+fi
+# FAKE_CDM=1 : un faux module Widevine dans le dossier du compte (l'app ne demande plus de le télécharger et charge sa
+# page ; pour un essai sans contenu protégé, quand Google n'est pas joignable)
+# CDM_SO=…/libwidevinecdm.so : le vrai module (et son manifest.json voisin s'il est là) dans le dossier du compte
+if [ -n "${CDM_SO:-}" ]; then
+	mkdir -p "$T${ACCOUNT_HOME:-/home}/.jet/widevine"
+	cp "$CDM_SO" "$T${ACCOUNT_HOME:-/home}/.jet/widevine/libwidevinecdm.so"
+	[ ! -f "$(dirname "$CDM_SO")/manifest.json" ] || cp "$(dirname "$CDM_SO")/manifest.json" "$T${ACCOUNT_HOME:-/home}/.jet/widevine/"
+fi
+[ -z "${FAKE_CDM:-}" ] || { mkdir -p "$T${ACCOUNT_HOME:-/home}/.jet/widevine"; echo faux >"$T${ACCOUNT_HOME:-/home}/.jet/widevine/libwidevinecdm.so"; }
 printf 'password = essai\n' >"$T/etc/remote.txt"
 grep -q "/sys/svc/telnetd" "$T/etc/services.txt" || printf '# essai : telnet\n/sys/svc/telnetd\n' >>"$T/etc/services.txt"
 MB=$(( $(du -sm "$T" | cut -f1) + 200 ))
@@ -55,6 +78,7 @@ import importlib.util, os, sys, types
 root, w, img, wait, clicks, app = sys.argv[1:7]
 url = os.environ.get ("URL", "")	# (une adresse donnée à l'app : APP=jet URL=… pour comparer avec Jet)
 token = os.environ.get ("TOKEN", app.replace ("plus", "")[:5])	# (un mot des cookies attendus)
+H = os.environ.get ("ACCOUNT_HOME", "/home")	# (le dossier du compte d'essai)
 spec = importlib.util.spec_from_file_location("pctest", os.path.join(root, "tools", "python", "pctest.py"))
 pt = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pt)
@@ -62,16 +86,16 @@ pt.W, pt.IMG = os.path.abspath(w), os.path.abspath(img)
 a = types.SimpleNamespace(port=int (os.environ.get ("PORT", "2399")),	# (PORT : telnet ; QMP = PORT + 1000)
     hostfwd=[], smp=4, mem="4G", boot=150, shot=os.path.join(w, "fin.png"),
     qemu="-device usb-tablet,bus=xhci.0",
-    cmd=["sleep:20", "@600 /apps/jet.app/libexec/cdmupdate ; cat /home/.jet/widevine/version.txt",
+    cmd=["sleep:20", "@600 /apps/jet.app/libexec/cdmupdate ; cat %s/.jet/widevine/version.txt" % H,
          "( /apps/%s.app/main '%s' > /tmp/app.log 2>&1 & ) ; echo lancé" % (app, url), "sleep:" + wait, "shot:" + app]
     + clicks.split ()
     # SESSION=1 : quitter l'app (Ctrl+Q), voir ce qui reste et la base des cookies, la relancer : la session est-elle gardée ?
-    + (["key:ctrl-q", "sleep:20", "sysstat", "ls -l /home/%s/webkit" % app,
-        "grep -a -o -E '[a-z0-9-]+[.](com|net|fr|org|co)' /home/%s/webkit/cookies.db | sort -u | head -n 30" % app, "grep -a -c %s /home/%s/webkit/cookies.db" % (token, app), "grep -r -a -l jetperm /home /tmp 2>/dev/null | head", 
+    + (["key:ctrl-q", "sleep:20", "sysstat", "ls -l %s/%s/webkit" % (H, app),
+        "grep -a -o -E '[a-z0-9-]+[.](com|net|fr|org|co)' %s/%s/webkit/cookies.db | sort -u | head -n 30" % (H, app), "grep -a -c %s %s/%s/webkit/cookies.db" % (token, H, app), "grep -r -a -l jetperm /home /tmp 2>/dev/null | head", 
         "( /apps/%s.app/main '%s' > /tmp/app2.log 2>&1 & ) ; echo relancé" % (app, os.environ.get ("URL2", url)), "sleep:" + wait, "shot:%s-2" % app,
-        "sysstat", "ls -l /home/%s/webkit" % app, "grep -a -i -E 'cookie|sqlite|database|PROBE' /tmp/app2.log | head -n 20"]
+        "sysstat", "ls -l %s/%s/webkit" % (H, app), "grep -a -i -E 'cookie|sqlite|database|PROBE' /tmp/app2.log | head -n 20"]
        if os.environ.get ("SESSION") else [])
-    + ["grep -a -E 'webapp|agent|sites. data|widevine|cdmhost' /tmp/app.log | head -n 40", "ls /home/%s /home/%s/webkit" % (app, app),
+    + ["grep -a -E 'webapp|agent|sites. data|widevine|cdmhost' /tmp/app.log | head -n 40", "ls -a /home %s %s/%s %s/%s/webkit %s/downloads %s/.jet/widevine" % (H, H, app, H, app, H, H),
        "sysstat", "grep -a -E 'CONSOLE|FAILED|tab 1|player|PROBE|cookiejar' /tmp/app.log | grep -v woff2 | head -n 100"])
 pt.run(a)
 PY

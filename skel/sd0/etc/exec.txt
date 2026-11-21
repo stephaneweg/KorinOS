@@ -8,3 +8,4 @@
 /devtools/dotnet
 /apps/koton.app/plugins
 /apps/jet.app/libexec
+/devtools/rust/bin

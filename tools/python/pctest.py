@@ -10,7 +10,7 @@
   python -I tools/python/pctest.py run [--port 2391] [--smp 4] [--mem 4G] [--boot 60] "commande"...
       démarre QEMU (NVMe, l'image en snapshot : jamais écrite ; usb-net, réseau user de QEMU, telnet
       du PC sur 127.0.0.1:PORT), attend telnetd, lance chaque commande (bash) et l'affiche avec son code ;
-      « @600 commande » : jusqu'à 600 s (60 sinon) ; puis arrête QEMU. --hostfwd tcp::P-:Q en plus
+      « @600 commande » : jusqu'à 600 s (60 sinon) ; « rips:N » : N relevés du RIP de chaque processeur, avec son CR3 (profil) ; puis arrête QEMU. --hostfwd tcp::P-:Q en plus
       (plusieurs permis). « shot:NOM » : une capture de l'écran (build/pc/pytest/NOM.png) ; « sleep:S » : attendre ;
       « click:X,Y » : un clic gauche (écran de 1280×800, avec --qemu "-device usb-tablet,bus=xhci.0") ;
       « dblclick:X,Y » : un double-clic ; « key:ctrl-c tab ret » : des touches (noms de sendkey de QEMU) ;
@@ -147,6 +147,15 @@ def run(a):
                     q.cmd("input-send-event", events=[{"type": "btn", "data": {"down": down, "button": "left"}}])
                     time.sleep(0.05)
                 print("double-clic :", x, y, flush=True)
+                continue
+            if c.startswith("rips:"):  # un profil par échantillons : N fois le RIP de chaque processeur (info registers -a)
+                import re
+                for _ in range(int(c[5:])):
+                    r = q.hmp("info registers -a")
+                    r = r.get("return", "") if isinstance(r, dict) else str(r)
+                    rips, cr3s = re.findall(r"RIP=([0-9a-f]+)", r), re.findall(r"CR3=([0-9a-f]+)", r)
+                    print("rips: " + " ".join("%s/%s" % rc for rc in zip(rips, cr3s)), flush=True)
+                    time.sleep(0.02)
                 continue
             if c.startswith("key:") or c.startswith("type:"):  # des touches (sendkey), ou un texte en AZERTY
                 ks = c[4:].split() if c.startswith("key:") else qp.azerty_keys(c[5:])[:-1]

@@ -9,3 +9,4 @@ help = Menu Morceau > Exporter en MIDI, en FM Song, en WAV ou en MP3 pour garder
 help = Menu Morceau > Enregistrer le préréglage (Ctrl+Maj+S) garde un fichier .arb qui recompose le même morceau à l'identique.
 help = Un clic sur une case de la grille d'accords, sous la séquence, ouvre l'accord de la mesure (aussi F2, menu Composition).
 help = Menu Image : Mandala, Mandelbrot, Julia, Burning Ship, Lyapunov, Newton ou Rayons ; F9 en calcule une autre de la même sorte, Ctrl+I ouvre ses réglages.
+skill    = SKILL.md

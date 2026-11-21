@@ -10,3 +10,4 @@ help = Circuits : le cuivre donne de la poudre (le fil) ; levier, bouton, torche
 help = Survie : cœurs et faim au-dessus de la barre ; clic droit pour manger, nourrir un animal, apprivoiser un loup avec des os (clic droit encore : il garde ou il suit) ; clic gauche pour frapper.
 help = T : la console de commandes (time 18, weather rain, mode survival, give, craft, help) ; F3 : infos détaillées ; F9 : plein écran.
 help = Pilotage : Python (import terracube) et BASIC sur le port 4730 ; un agent IA par Pilotage > Piloter par un agent IA (MCP, port 7312). Exemples dans /apps/terracube.app/python et /apps/terracube.app/basic.
+skill    = SKILL.md

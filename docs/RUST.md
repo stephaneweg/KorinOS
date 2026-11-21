@@ -300,6 +300,45 @@ PC : `. ~/.cache/korin-rust-x86_64/env.sh`, `cargo korin build --release --lib` 
 le même `[patch.crates-io]` (`libc` 0.2.185, `target-lexicon` 0.13.5, `getrandom` de `build.sh`) et un
 `PYO3_CONFIG_FILE` pour le CPython du PC.
 
+## La cible dans le compilateur (21/11/2026)
+
+Deuxième étape du port de Rust **dans** Korin ([CARGO.md](CARGO.md), « La suite ») : `x86_64-unknown-korin` et
+`aarch64-unknown-korin` sont des cibles **intégrées** à un rustc 1.97.1, comme `x86_64-unknown-linux-gnu`, sans
+fichier JSON, sans `RUSTC_BOOTSTRAP` ni `-Zbuild-std` : la `std` de Korin est construite avec le compilateur et
+rangée dans son sysroot. C'est le compilateur qu'il faudra pour construire rustc **pour** Korin (hôte `*-korin`).
+Les fichiers JSON et `tools/rust/build.sh` restent pour la compilation croisée avec la 1.97.1 publiée (Craft, cargo,
+les modules de Python).
+
+```sh
+bash tools/rust/rustc-build.sh            # ~/korin-rustc : stage 1 de l'hôte + std de x86_64-unknown-korin
+TARGETS="x86_64-unknown-korin aarch64-unknown-korin" bash tools/rust/rustc-build.sh   # les deux
+```
+
+| Où | Quoi |
+|---|---|
+| `tools/rust/rustc.patch` | sur `rustc-1.97.1-src.tar.xz` : `Os::Korin` (`compiler/rustc_target/src/spec/mod.rs`), `spec/base/korin.rs` (les options communes), `spec/targets/x86_64_unknown_korin.rs` et `aarch64_unknown_korin.rs`, leurs lignes dans la liste des cibles, la page `src/doc/rustc/src/platform-support/korin.md` (et `platform-support.md`, `SUMMARY.md`), les révisions de `tests/assembly-llvm/targets/targets-elf.rs`, et `STAGE0_MISSING_TARGETS` de bootstrap (le compilateur d'amorçage, la 1.96, ne les connaît pas) |
+| `tools/rust/rustc-build.sh` | les sources (sha256 vérifié), `rustc.patch` à la racine, `libc.patch` et `std.patch` dans `library/` (les mêmes que pour `rust-src`), `library/Cargo.lock` mis à jour pour la `libc` devenue un chemin (`x.py` le tient figé), puis `x.py build --stage 1 library` ; `bootstrap.toml` écrit par le script (les chaînes C de Korin : `cc`, `cxx`, `ar`, `linker` = gcc + `posix.specs`) |
+| LLVM de l'hôte | celui de la CI de Rust pour le commit de la 1.97.1 (`rust-dev`, LLVM 22.1.6, `ci-artifacts.rust-lang.org`, sans somme publiée) : Rust 1.97 veut LLVM 21 au moins, Ubuntu 24.04 n'a que le 20. C'est une `libLLVM.so` : `link-shared`, `LD_LIBRARY_PATH` pendant la construction, puis copiée dans `stage1/lib` |
+
+Les options des cibles intégrées sont celles des fichiers JSON (`rustc -Zunstable-options --print target-spec-json`
+comparé aux deux fichiers : mêmes valeurs ; ce que le JSON écrivait et qui est la valeur par défaut n'est plus
+imprimé). Une seule différence voulue : **l'éditeur de liens par défaut est `gcc`**, celui de Korin (`/devtools/gcc/bin`,
+qui relie crt0, libposix et newlib de lui-même) ; en compilation croisée, `linker` le remplace par le gcc de la
+chaîne avec `posix.specs`.
+
+`libc.patch` a reçu `#![allow(dead_code)]` dans le module `korin` : une cinquantaine de ses noms (`DT_*`,
+`IPPROTO_*`, `openat`, `fstatat`...) existent aussi dans le tronc Unix de la caisse, avec les mêmes valeurs
+(vérifiées une à une) ; la définition du tronc masque la nôtre, d'où « never used », que `x.py` refuse
+(`-D warnings`). Ils restent dans le module : la `libc` 0.2.191 des projets en a besoin.
+
+### Essais (21/11/2026)
+
+| Essai | Résultat |
+|---|---|
+| construction (cloud, 4 cœurs) | stage 1 en ≈ 15 min (`rustc_target`... `rustc_driver`), la `std` de chaque cible en 1 min ; `rustc --print target-list` montre les deux cibles |
+| `korintest` et `rdl` construits par ce rustc (`cargo build --target x86_64-unknown-korin`, `RUSTC` = stage 1, sans `-Zbuild-std`), QEMU q35 | `korintest` : **52 essais, 0 échec** (`current_exe` rend maintenant `/home/rust/builtin/korintest`, un chemin absolu) ; `rdlhost librdl.so` : **14 sur 14** |
+| `korintest` pour `aarch64-unknown-korin` | se construit et se lie (pas lancé) |
+
 ## Limites connues
 
 * **Pas essayé sur le Pi ni sur le vrai ZBook.** Sous QEMU seulement.
@@ -322,3 +361,5 @@ le même `[patch.crates-io]` (`libc` 0.2.185, `target-lexicon` 0.13.5, `getrando
   chacun sa `cdylib` (plus de caisse parapluie depuis `dlopen`), `PYO3_CONFIG_FILE` pour CPython 3.14 ;
   [PYTHON-PORT.md](PYTHON-PORT.md), « Étape 5 ».
 * RamFS : `readdir` pendant les effacements (une entrée sur deux sautée).
+* **Rust dans Korin** (PC d'abord, 20/11/2026) : cargo tourne dans Korin PC depuis le 21/11 ([CARGO.md](CARGO.md)) ;
+  restent la cible intégrée au compilateur, LLVM pour Korin, `librustc_driver.so` et les macros procédurales.
