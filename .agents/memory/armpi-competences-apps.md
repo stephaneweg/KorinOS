@@ -17,7 +17,13 @@ générales disent d'aller la chercher.
 - Fait : korin-forge et korin-terracube déplacées de tools/vibe/home/skills dans leurs apps ; korin-arabesque
   (.arb, script vérifié par le moteur recipe.h/replay.h) et korin-koton (.kson, script vérifié par model.cpp et
   compile.cpp) écrites. Versions montées (Pi : arabesque, koton ; PC : forge, terracube, arabesque, koton, vibe,
-  claude, mai) ; **pas encore publié ni essayé dans l'OS**.
+  claude, mai).
+- **Publié le 21/11** par pub.py (arbre réduit build/pub-skills, effacé ensuite ; Vibe depuis build/pc/sysroot avec
+  --only, car son paquet découpé a besoin de tout site-packages pour vibe-data-1/2) : PC forge 1.3.7, terracube
+  1.4.2, arabesque 1.3.7, koton 1.0.11, claude 1.0.8 (avec korin-game et korin-widget, jamais publiées avant),
+  vibe 1.0.7 (Release) ; Pi arabesque 1.3.4. Les anciennes copies retirées des archives par `pub.py --drop` (ajouté).
+  **Pas publiés** : mai (l'utilisateur : l'ignorer) ; koton du Pi (publié 1.0.2 du 4/11, a besoin de llm, absent du
+  dépôt du Pi : à reconstruire et publier avec llm). Pas essayé dans l'OS.
 
 **Why:** l'agent ne doit pas avoir à lire les sources d'une app pour s'en servir ; un paquet installé apporte sa
 compétence sans reconstruire l'agent.
