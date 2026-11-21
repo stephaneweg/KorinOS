@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 00:45
+date = 2026-11-21 00:46
 abi = 626
 packages = 117
 board = pc
@@ -1816,3 +1816,18 @@ needs = jet >= 1.4.2, abi >= 626
 required = 0
 restart = 0
 content = fdf6f712e48a7b10ac48a1487f56bc7a7153e3682a7afaff8bb440fd36bf26ba
+
+[primevideo]
+title = Prime Video
+version = 1.0.0
+category = Multimédia
+author = Korin OS
+summary = Prime Video : le site de Prime Video dans sa fenêtre (Widevine), avec votre compte Amazon
+size = 125660
+installed = 263951
+sha256 = 5b77e28e55404cb68db4d5003cbe8d8006142f851a2502c5eac535bd44fd1fc8
+file = pkgs/primevideo-1.0.0.opk
+needs = jet >= 1.4.2, abi >= 626
+required = 0
+restart = 0
+content = 24141fc6644c58b165bbfc15644cb0021086ec0893fb8aff96f3bab533411ac5
