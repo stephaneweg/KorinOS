@@ -132,6 +132,49 @@ pour `jsc` dans `build-jsc.sh`, et n'est pas nécessaire : le serveur de Jet par
 `Input`, captures, émulation). Le gain dépasse Craft Anything : Jet deviendrait pilotable par tout outil CDP
 (Puppeteer, les essais de pages de Korin, un serveur MCP de navigation pour claude-acp et Vibe).
 
+## 4 ter. Un serveur MCP dans Jet, en plus de CDP
+
+Question de l'utilisateur (21/11) : oui, et les deux partagent presque tout. CDP est le protocole **bas** (pour les
+outils qui le parlent : Craft Anything, Puppeteer) ; MCP est le protocole des **agents** (claude-acp, Vibe, Claude
+Code depuis le PC) : quelques outils de haut niveau, faits sur la même couche de Jet (la page, son inspecteur, les
+événements d'entrée, les captures).
+
+**Comme Forge (7311) et TerraCube (7312)** : transport HTTP « Streamable » sur le bouclage, jeton `Authorization:
+Bearer` gardé dans le coffre à secrets (sinon `HOME:/jet/mcp.txt`), **port 7313**, `jet --mcp 7313` ou le menu
+*Fichier > Piloter par un agent (MCP)…*. Le transport (`mcp.cpp` de Forge, déjà copié dans TerraCube) passe enfin dans
+une bibliothèque commune (`src/lib/mcp`), comme la mémoire de TerraCube le demandait. claude-acp et Vibe le prennent
+par leur `config.toml` (`transport = "streamable-http"`, `url = "http://127.0.0.1:7313/mcp"`), et la compétence de
+Jet (clé `skill` de son `app.txt`, comme les autres apps) leur dit quand s'en servir.
+
+**Les outils** (sur le modèle de Playwright MCP, qui a fait ses preuves avec les agents) :
+
+| Outil | Ce qu'il fait |
+|---|---|
+| `tabs`, `tab_open`, `tab_select`, `tab_close` | les onglets de Jet |
+| `navigate`, `back`, `forward`, `reload`, `wait_for` (texte, sélecteur, chargement) | se déplacer |
+| `snapshot` | la page en texte structuré (arbre des éléments visibles, rôle, nom, valeur), chaque élément avec une **référence** ; c'est ce que l'agent lit, bien moins cher qu'une image |
+| `click`, `hover`, `type`, `fill_form`, `select_option`, `press_key`, `drag`, `upload_file` | agir sur un élément par sa référence |
+| `screenshot` (page, élément) | une image quand le texte ne suffit pas |
+| `console`, `network` (requêtes, statut, en-têtes sans secrets) | ce que la page a dit et chargé |
+| `evaluate` | du JavaScript dans la page (**avec accord**, comme les commandes de claude-acp) |
+| `pdf`, `save_page`, `downloads` | garder une page, récupérer un fichier |
+
+`snapshot` demande l'arbre d'accessibilité, ou à défaut un parcours du DOM (rôles ARIA, textes, champs) ; c'est
+aussi ce qui manquait au domaine `Accessibility` de CDP (§ 4 bis) : fait une fois pour les deux.
+
+**Prudence** (un agent dans un navigateur voit ce que l'utilisateur voit) :
+
+- par défaut, un **profil à part** (ni les cookies ni les mots de passe de l'utilisateur) ; le profil de l'utilisateur
+  seulement si on le demande ;
+- une **bande visible** dans la fenêtre de Jet tant qu'un agent la pilote, et un bouton pour l'arrêter ;
+- jamais de saisie dans un champ de mot de passe ni d'envoi de paiement par l'agent ; `evaluate` et `upload_file` avec
+  accord ;
+- écoute sur le bouclage seulement, avec jeton (le réseau, plus tard, avec jeton aussi, comme TerraCube).
+
+**Taille** : une semaine de plus que CDP, la couche étant commune (le transport existe ; `snapshot` est le plus gros
+morceau). Ordre proposé : la couche de Jet et le mode sans fenêtre, puis **MCP d'abord** (claude-acp et Vibe s'en
+servent tout de suite, pour lire et essayer des pages), puis CDP pour Craft Anything.
+
 ## 5. Estimation
 
 Les retouches 1 à 4 : une demi-journée (tables, un adaptateur, la détection, le CLI dans l'app). L'essai sous QEMU avec
