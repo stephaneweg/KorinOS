@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 23:16
+date = 2026-11-21 23:17
 abi = 626
 packages = 117
 board = pc
@@ -1999,18 +1999,18 @@ content = 399c1ee9be0465d1254465eab64c15b3eaa27f2e28ca75791da205ae8633f03d
 
 [filmcraft]
 title = FilmCraft
-version = 1.0.1
+version = 1.0.2
 category = Suite ArtCraft
 author = Korin OS
 summary = Le montage vidéo libre FilmCraft (storytold).
-size = 26389314
-installed = 62351725
-sha256 = 75ab23ab21b579b40519f3205e6d8c15b11ad69fe7a72804bc52f9ed81ab92c1
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-filmcraft-1.0.1.opk
-needs = craft, abi >= 627
+size = 26391873
+installed = 62355949
+sha256 = 5a529bdb83897221663fc9d848586f1661216316959d7e85563d46516235c467
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-filmcraft-1.0.2.opk
+needs = craft, abi >= 628
 required = 0
 restart = 0
-content = 20af83d2b8f9806088b61ab00ec6e7986b9165023907b72218c91d37b2278f1a
+content = 9dcff4dd49db7f59e7e2ef8b9c4421838eb30bc984676941bcdc46d0eaf134df
 
 [effectcraft]
 title = EffectCraft
