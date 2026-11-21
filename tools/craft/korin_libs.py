@@ -251,7 +251,7 @@ edit("crates/menu/src/driver.rs", [
 # comme pour craft-menu plus haut ; le premier menu (celui de l'app) s'appelle « * » pour muda-korin
 edit("crates/window/Cargo.toml", [
     ('[target.\'cfg(target_os = "macos")\'.dependencies]\nmuda = { version = "0.21.2", default-features = false, optional = true }',
-     '[target.\'cfg(target_os = "korin")\'.dependencies]\nmuda-korin = { package = "muda", version = "0.21.2", default-features = false }\n\n'
+     '[target.\'cfg(target_os = "korin")\'.dependencies]\nmuda = { version = "0.21.2", default-features = false }\n\n'
      '[target.\'cfg(target_os = "macos")\'.dependencies]\nmuda = { version = "0.21.2", default-features = false, optional = true }'),
 ])
 edit("crates/window/src/native_menu.rs", [
@@ -266,7 +266,6 @@ edit("crates/window/src/native_menu/mac.rs", [
     ('use muda::accelerator::{Accelerator, Code, Modifiers};\nuse muda::{CheckMenuItem, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};\n'
      'use objc2::{MainThreadMarker, sel};\nuse objc2_app_kit::{NSApplication, NSEventModifierFlags, NSEventType};\n'
      'use objc2_foundation::{NSBundle, NSLocale, NSObjectProtocol, NSString};',
-     '#[cfg(target_os = "korin")]\nextern crate muda_korin as muda;\n'
      'use muda::accelerator::{Accelerator, Code, Modifiers};\nuse muda::{CheckMenuItem, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};\n'
      '#[cfg(target_os = "macos")]\nuse objc2::{MainThreadMarker, sel};\n#[cfg(target_os = "macos")]\n'
      'use objc2_app_kit::{NSApplication, NSEventModifierFlags, NSEventType};\n#[cfg(target_os = "macos")]\n'
@@ -295,7 +294,7 @@ edit("crates/window/src/native_menu/mac.rs", [
      '    impl NSApplication {\n        pub fn sharedApplication(_mtm: MainThreadMarker) -> NSApplication {\n            NSApplication\n        }\n'
      '        /// un choix par un raccourci de la barre : Ctrl de Korin -> ⌘ (le cmd de craft hors de macOS) ; un clic : None\n'
      '        pub fn currentEvent(&self) -> Option<KeyEvent> {\n'
-     '            super::muda::korin_key_mods().map(|(c, a, s)| KeyEvent(NSEventModifierFlags(c as u8 | (a as u8) << 1 | (s as u8) << 2)))\n        }\n'
+     '            ::muda::korin_key_mods().map(|(c, a, s)| KeyEvent(NSEventModifierFlags(c as u8 | (a as u8) << 1 | (s as u8) << 2)))\n        }\n'
      '        pub fn hide(&self, _sender: Option<&()>) {}\n'
      '        pub fn hideOtherApplications(&self, _sender: Option<&()>) {}\n'
      '        pub fn mainMenu(&self) -> Option<MainMenu> {\n            None\n        }\n    }\n'
