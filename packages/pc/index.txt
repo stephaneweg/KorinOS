@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 16:07
+date = 2026-11-21 16:08
 abi = 626
 packages = 117
 board = pc
@@ -1954,18 +1954,18 @@ content = cf2b916bb82db4acb459f72dab8105909779aea7dd5d01b2174902332741d25f
 
 [lightcraft]
 title = LightCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = La photothèque libre LightCraft (storytold) : classer, développer les fichiers RAW, retouche non destructive.
-size = 30769908
-installed = 78986283
-sha256 = 952f1612f5f80162c962de40b73337fdfb6b6a2d5c33559a6fcc85eefdc0f322
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-lightcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 30838056
+installed = 79123179
+sha256 = 66a1068de9a5524e0871bfa6be710ee27e5efc4b2de8265730fff1fad747ff55
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-lightcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = d5859f5df6737d196874687f76623fb16347a9789bbb40f5c4f372e604ac701c
+content = 9215613b9feaf1aca71e46697526fb5c09fecd66f3d17e029d886352f7d99ffa
 
 [figcraft]
 title = FigCraft
