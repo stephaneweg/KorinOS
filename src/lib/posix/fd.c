@@ -212,6 +212,22 @@ void __posix_fd_put (struct __posix_ofd *d)
 		__posix_ofd_release (d);
 }
 
+/* Le chemin absolu d'un fichier ou d'un dossier ouvert (readlink de /proc/self/fd/N dans l'hote Linux) ;
+   0 si le descripteur n'en a pas (tube, socket, console). */
+char *__posix_fd_path (int fd, char *buf, size_t cap)
+{
+	struct __posix_ofd *d = __posix_fd_get (fd);
+	char *r = 0;
+	if (d && (d->type == POSIX_FD_FILE || d->type == POSIX_FD_DIR) && d->path && d->path[0] == '/'
+		&& strlen (d->path) < cap)
+	{
+		strcpy (buf, d->path);
+		r = buf;
+	}
+	__posix_fd_put (d);
+	return r;
+}
+
 int __posix_fd_install (struct __posix_ofd *d, int min, int cloexec)
 {
 	if (!s_inited)
