@@ -56,6 +56,22 @@ int main (int argc, char **argv)
 		while (*p == '/')
 			p++;
 	}
+	/* comme Claude Code : créer et ouvrir un dossier à travers le dossier tenu (« /proc/self/fd/N/tasks ») */
+	char sub[128], link[1024] = "", fdp[64];
+	snprintf (sub, sizeof sub, "/proc/self/fd/%d/tasks", fd);
+	int mr = mkdir (sub, 0700);
+	int me = mr < 0 ? errno : 0;
+	int tfd = openat (AT_FDCWD, sub, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+	snprintf (fdp, sizeof fdp, "/proc/self/fd/%d", tfd);
+	ssize_t k = tfd >= 0 ? readlink (fdp, link, sizeof link - 1) : -1;
+	if (k >= 0)
+		link[k] = 0;
+	char want[1100];
+	snprintf (want, sizeof want, "%s/tasks", cur);
+	int sok = (mr == 0 || me == EEXIST) && tfd >= 0 && !strcmp (link, want);
+	printf ("pintest : mkdir %s : %s ; open : fd %d ; lien %s : %s\n", sub, mr == 0 ? "ok" : strerror (me), tfd, link,
+		sok ? "ok" : "DIFFÉRENT");
+	ok &= sok;
 	printf ("pintest : %s\n", ok ? "RÉUSSI" : "ÉCHEC");
 	return ok ? 0 : 1;
 }
