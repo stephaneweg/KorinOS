@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 16:19
+date = 2026-11-21 16:20
 abi = 626
 packages = 117
 board = pc
@@ -1128,19 +1128,19 @@ restart = 0
 content = dd8e885c6ca4e9fd1819b2bcb5d77d8be54416ea6f3b3101de2bad16dc89bd7e
 
 [help]
-title = Aide
-version = 1.0.6
-category = Système
+title = help
+version = 1.0.7
+category = Autres
 author = Korin OS
 summary = 
-size = 521826
-installed = 1069648
-sha256 = 9a4e6154044c37c6fa6fd78f6d23fc5730145ab16bc7d001f559e76abedcdf94
-file = pkgs/help-1.0.6.opk
+size = 521842
+installed = 1069698
+sha256 = c9fb375de28e97cd8790cb4f1dfe910408473b53cd568da05aafb67355a70ced
+file = pkgs/help-1.0.7.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 91b80ba99b6178295fdffd2c60a6af1f31f2c3e9477bc612fd4bddbd85105e4e
+content = fd9fe9e7d0120d51ab187516d2657654fc9d5be85936a0576bd374dd59ef00c1
 
 [iconedit]
 title = Éditeur d'icônes
