@@ -156,6 +156,37 @@ Un bash interactif n'est pas un script : `secret get` y est refusé.
 git range ses identifiants par l'assistant `git-credential-korin` (`credential.helper = korin` dans
 `/etc/gitconfig`), qui s'appuie sur `secret`.
 
+## 4 bis. Réglages › Coffre à secrets (le gestionnaire)
+
+Demandé le 21/11 : voir les secrets rangés, comme le Gestionnaire d'identification de Windows. Le volet
+(`src/svc/keyvault/applet/applet.cpp` → `/sys/applets/vault.so`, paquet `pc`) :
+
+- **la liste** de tous les secrets du compte, de tous les programmes : programme (l'identité : chemin, script,
+  dossier d'app ou `@system`), nom, taille ; jamais les valeurs ;
+- **Afficher…**, **Copier** : la valeur, après le **mot de passe du compte** ; la fenêtre de la valeur se ferme
+  seule après 30 s ;
+- **Supprimer** (même règle), **Actualiser** ;
+- **Secrets du système** : le coffre du compte system (services, `@system` : accès à distance, Wi-Fi, partages…),
+  après la carte d'élévation (`ui_elevate`).
+
+Trois opérations du coffre, servies à **Réglages seul** (`/apps/control.app/main` ou `/apps/control.app`, identité
+vérifiée comme au §2 ; un volet de `/sys/applets` agit donc au nom de Réglages) :
+
+| Opération | Données | Rend |
+|---|---|---|
+| `KV_MGR_LIST` (13) | — | une ligne par secret : `identité\tnom\ttaille` |
+| `KV_MGR_GET` (14) | identité, nom, mot de passe (ou vide) | la valeur |
+| `KV_MGR_DELETE` (15) | identité, nom, mot de passe (ou vide) | 0 |
+
+- `KVF_SYSTEM` : le coffre du compte system. Permis à un appelant d'uid 0 (Réglages élevé) ; le process garde
+  ensuite ce droit **5 minutes**, revenu à son uid.
+- Valeur et effacement dans le coffre du compte : sans mot de passe, `E_ACCES` (« mot de passe demandé ») ; le
+  mot de passe est vérifié sur l'enveloppe du coffre (Argon2id, comme à l'ouverture ; refus : 1 s d'attente), puis
+  vaut **5 minutes** pour ce process (choix de l'utilisateur, comme sudo). Un compte sans mot de passe n'en demande
+  pas (la machine seule protège son coffre).
+- Coffre fermé : la carte du mot de passe, comme pour toute demande.
+- Client : `kv_mgr_list`, `kv_mgr_get`, `kv_mgr_delete` de `src/lib/keyvault/keyvault.h`.
+
 ## 5. Fichiers
 
 | Fichier | Contenu |

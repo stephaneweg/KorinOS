@@ -1165,6 +1165,125 @@ static long admin_op(struct msg *m, int caller_uid)
 	return E_INVAL;
 }
 
+/* ---- le gestionnaire (Réglages › Coffre à secrets) */
+
+#define MGR_GRACE_MS (5 * 60 * 1000)
+#define GRANTS 8
+static const char *const MANAGERS[] = {"/apps/control.app/main", "/apps/control.app", 0};
+static struct {
+	u32 pid;
+	int uid;
+	u64 until;
+} grants[GRANTS];
+
+static int granted(u32 pid, int uid)
+{
+	u64 now = now_ms();
+	for (int i = 0; i < GRANTS; i++)
+		if (grants[i].pid == pid && grants[i].uid == uid && grants[i].until > now)
+			return 1;
+	return 0;
+}
+
+static void grant(u32 pid, int uid)
+{
+	int k = 0;
+	u64 now = now_ms();
+	for (int i = 0; i < GRANTS; i++) {
+		if (grants[i].pid == pid && grants[i].uid == uid) {
+			k = i;
+			break;
+		}
+		if (grants[i].until < grants[k].until || grants[i].until <= now)
+			k = i;
+	}
+	grants[k].pid = pid;
+	grants[k].uid = uid;
+	grants[k].until = now + MGR_GRACE_MS;
+}
+
+/* le mot de passe du compte, vérifié sur l'enveloppe de son coffre (sans rien ouvrir) -> 0 / E_ACCES */
+static long verify_pw(int uid, const char *pw)
+{
+	char name[64] = "";
+	if (account(uid, name, sizeof name) < 0)
+		return E_ACCES;
+	if (!has_password(name))
+		return 0; /* (compte sans mot de passe : la machine seule protège le coffre) */
+	struct header h;
+	if (!header_of(uid, &h))
+		return E_ACCES;
+	u8 kek[32], mk[32], aad[16];
+	int an = snprintf((char *)aad, sizeof aad, "KV%d", uid);
+	int ok = kek_of(uid, pw, h.salt, h.mkib, h.t, h.lanes, kek) && gcm(0, kek, h.iv, aad, an, h.wmk, 32, mk, h.tag);
+	OPENSSL_cleanse(kek, sizeof kek);
+	OPENSSL_cleanse(mk, sizeof mk);
+	return ok ? 0 : E_ACCES;
+}
+
+static long mgr_op(struct msg *m, int caller_uid)
+{
+	struct ident who;
+	memset(&who, 0, sizeof who);
+	long r = identify(pid_cour, &who);
+	if (r)
+		return r;
+	int ok = 0;
+	for (int i = 0; MANAGERS[i]; i++)
+		ok |= !strcmp(who.id, MANAGERS[i]);
+	if (!ok)
+		return fail(E_PERM, "gestionnaire du coffre : réservé à Réglages (%s)", who.id);
+	who.uid = caller_uid;
+	/* le coffre visé : celui du compte, ou (KVF_SYSTEM) celui du compte system, après l'élévation */
+	int uid = caller_uid;
+	if (m->b & KVF_SYSTEM) {
+		if (caller_uid == 0)
+			grant(pid_cour, 0);
+		else if (!granted(pid_cour, 0))
+			return fail(E_PERM, "secrets du système : il faut l'élévation");
+		uid = 0;
+	}
+	struct vault *v = vault_of(uid);
+	if (!v)
+		return fail(E_NOSPC, "trop de coffres ouverts");
+	if ((r = ensure_open(v, &who)))
+		return r;
+	if (m->op == KV_MGR_LIST) {
+		struct buf b = {0};
+		for (struct rec *x = v->recs; x; x = x->next) {
+			char len[16];
+			int ln = snprintf(len, sizeof len, "\t%u\n", x->len);
+			if (x->kind == REC_ID && (b_add(&b, x->id, strlen(x->id)) || b_add(&b, "\t", 1) ||
+						  b_add(&b, x->name, strlen(x->name)) || b_add(&b, len, (size_t)ln)))
+				break;
+		}
+		r = out_to_caller(m, b.p ? b.p : (const u8 *)"", b.n);
+		b_free(&b);
+		return r;
+	}
+	const char *p[3] = {"", "", ""};
+	parts(m, p, 3);
+	if (uid != 0 && !granted(pid_cour, uid)) {
+		if (!p[2][0])
+			return fail(E_ACCES, "mot de passe demandé");
+		if (verify_pw(uid, p[2])) {
+			ksys(SYS_SLEEP, 1000, 0, 0, 0);
+			OPENSSL_cleanse(m->data, sizeof m->data);
+			return fail(E_ACCES, "mot de passe refusé");
+		}
+		grant(pid_cour, uid);
+	}
+	OPENSSL_cleanse(m->data + (p[2] - (const char *)m->data), strlen(p[2]));
+	struct rec *x = rec_find(v, REC_ID, p[0], p[1]);
+	if (!x)
+		return fail(E_NOENT, "pas de secret « %s » pour %s", p[1], p[0]);
+	if (m->op == KV_MGR_GET)
+		return out_to_caller(m, x->val, x->len);
+	say("gestionnaire : secret « %s » de %s effacé (compte %d)", p[1], p[0], uid);
+	rec_del(v, x);
+	return vault_commit(v);
+}
+
 static long handle(struct msg *m)
 {
 	long caller_uid = ksys(SYS_PROC_UID, pid_cour, 0, 0, 0);
@@ -1178,6 +1297,8 @@ static long handle(struct msg *m)
 	}
 	if (m->op >= KV_UNLOCK && m->op <= KV_CARD)
 		return admin_op(m, (int)caller_uid);
+	if (m->op >= KV_MGR_LIST && m->op <= KV_MGR_DELETE)
+		return mgr_op(m, (int)caller_uid);
 	struct ident who;
 	memset(&who, 0, sizeof who);
 	long pid = pid_cour;

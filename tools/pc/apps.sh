@@ -232,7 +232,15 @@ build_keyvault () {
 		{ note "secret : ECHEC de la construction"; return 1; }
 	${TC}strip -o "$OUT/sdroot/sys/svc/keyvault" "$O/keyvault"
 	${TC}strip -o "$OUT/sdroot/bin/secret" "$O/secret"
-	note "keyvault : construit ($(stat -c %s "$OUT/sdroot/sys/svc/keyvault") octets, sys/svc/keyvault ; bin/secret)"
+	# le volet « Coffre à secrets » de Réglages (sys/applets/vault.so : sans libc, il prend celle de Réglages)
+	mkdir -p "$OUT/sdroot/sys/applets"
+	M="-specs=$SPECS -O2 -g0 -fPIC -ffunction-sections -fdata-sections -I$ROOT/src/apps/control -I$GCC/include/kits \
+		-I$ROOT/src/kits/uikit/include"
+	${TC}g++ $M -std=gnu++17 -fno-exceptions -fno-rtti -Wall -Wno-write-strings -c "$S/applet/applet.cpp" -o "$O/m_applet.o" &&
+	${TC}g++ -specs="$SPECS" -fPIC -shared -nostdlib++ -Wl,--gc-sections "$O/m_applet.o" -o "$O/vault.so" ||
+		{ note "keyvault : ECHEC du volet de Réglages (sys/applets/vault.so)"; return 1; }
+	${TC}strip --strip-unneeded -o "$OUT/sdroot/sys/applets/vault.so" "$O/vault.so"
+	note "keyvault : construit ($(stat -c %s "$OUT/sdroot/sys/svc/keyvault") octets, sys/svc/keyvault ; bin/secret ; volet sys/applets/vault.so)"
 }
 
 # Google Drive en lecture seule et en flux (docs/etude/GDRIVE.md) : le service de fichiers gdrivefs que vfs lance au

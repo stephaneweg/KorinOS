@@ -40,6 +40,13 @@
 #define KV_CARD 10		/* (la carte) a = jeton, b = 1 annuler ; données : mot de passe */
 #define KV_ERROR 11		/* c, d : sortie -> octets */
 #define KV_WHOAMI 12		/* c, d : sortie, l'identité vue par le coffre -> octets */
+/* le gestionnaire du coffre (Réglages › Coffre à secrets, et lui seul : /apps/control.app) : les secrets de tous les
+ * programmes du compte. b & KVF_SYSTEM : le coffre du compte system (appelant d'uid 0, c'est-à-dire élevé ; ensuite
+ * 5 min pour ce process, même revenu à son uid). Valeurs et effacements : le mot de passe du compte, vérifié par le
+ * coffre, puis 5 min pour ce process (sans mot de passe : E_ACCES, « mot de passe demandé »). */
+#define KV_MGR_LIST 13		/* c, d : sortie, « identité\tnom\ttaille\n » par secret -> octets */
+#define KV_MGR_GET 14		/* données : identité, 0, nom, 0, mot de passe (ou rien) ; c, d : sortie -> octets */
+#define KV_MGR_DELETE 15	/* données : identité, 0, nom, 0, mot de passe (ou rien) -> 0 */
 #define KVF_PARENT 1		/* b : pour le process père (/bin/secret, lancé par un script) */
 #define KVF_SYSTEM 2		/* b : l'espace « @system » du compte system, partagé par ses programmes (uid 0 seulement) :
 				   un secret écrit par Réglages (élevé) et lu par un service */
@@ -151,6 +158,41 @@ static inline long kv_sys_get (const char *name, void *out, long max)
 static inline long kv_sys_delete (const char *name)
 {
 	return kv_request (KV_DELETE, KVF_SYSTEM, name, 0, 0);
+}
+
+/* le gestionnaire (Réglages seul) : sys = 1 pour le coffre du compte system ; pw : 0 ou le mot de passe du compte */
+static inline long kv_mgr_list (int sys, char *out, long max)
+{
+	return kv_call_ (KV_MGR_LIST, sys ? KVF_SYSTEM : 0, 0, 0, out, max);
+}
+
+static inline long kv_mgr_req_ (long op, int sys, const char *id, const char *name, const char *pw, void *out, long max)
+{
+	char d[460];
+	long n = 0;
+	const char *p[3] = { id, name, pw ? pw : "" };
+	for (int k = 0; k < 3; k++) {
+		for (long i = 0; p[k][i]; i++) {
+			if (n >= (long) sizeof d - 1)
+				return KV_E_INVAL;
+			d[n++] = p[k][i];
+		}
+		d[n++] = 0;
+	}
+	long r = kv_call_ (op, sys ? KVF_SYSTEM : 0, d, n, out, max);
+	for (long i = 0; i < n; i++)
+		((volatile char *) d)[i] = 0;
+	return r;
+}
+
+static inline long kv_mgr_get (int sys, const char *id, const char *name, const char *pw, void *out, long max)
+{
+	return kv_mgr_req_ (KV_MGR_GET, sys, id, name, pw, out, max);
+}
+
+static inline long kv_mgr_delete (int sys, const char *id, const char *name, const char *pw)
+{
+	return kv_mgr_req_ (KV_MGR_DELETE, sys, id, name, pw, 0, 0);
 }
 
 static inline long kv_error (char *out, long max)
