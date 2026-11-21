@@ -6,7 +6,7 @@ de X11 ni de Wayland. Un seul utilisateur (uid 0). La couche POSIX (`libposix`) 
 
 ## Ce qu'il y a
 
-* **Commandes** (`PATH=/bin:/devtools/gcc/bin`) : `bash`, `sh`, `ls`, `cat`, `cp`, `mv`, `rm`, `mkdir`, `find`, `grep`,
+* **Commandes** (`PATH=/bin:/sbin:/devtools/gcc/bin:/devtools/rust/bin` ; ajouter `/devtools/rust/bin` s'il y manque) : `bash`, `sh`, `ls`, `cat`, `cp`, `mv`, `rm`, `mkdir`, `find`, `grep`,
   `sed`, `head`, `tail`, `sort`, `wc`, `diff`, `zip`, `unzip`, `wget`, `git`, `rg`, `python3`, `pip`
   (`python3 -m pip`) ; **GCC 14** : `gcc`, `g++`, `make`, `objdump`, `nm`, `readelf`, `strip` et **`fbc`**
   (FreeBASIC) dans `/devtools/gcc/bin` ; C# par Roslyn dans `/devtools/dotnet` ; **`pibuild`** construit et installe une app ou une
@@ -15,14 +15,15 @@ de X11 ni de Wayland. Un seul utilisateur (uid 0). La couche POSIX (`libposix`) 
 * **Chemins** : un seul arbre, comme Unix. `/` = le volume système (`/apps`, `/bin`, `/etc`, `/home`, et les outils
   dans `/devtools` : `gcc`, `python`, `dotnet`) ; les autres volumes sont montés dans des dossiers : `/tmp` = la RAM,
   `/media/usb0` = une clé USB, `/media/sd1` = la partition des données de l'utilisateur (sur le Pi). `HOME` =
-  `/home`, aussi écrit `HOME:/` (le seul alias, accepté partout). Pas de préfixe `SD0:` ni de « volume courant ».
+  le dossier personnel de l'utilisateur (`/home/<nom>`, `/home` sans compte), aussi écrit `HOME:/` (le seul alias,
+  accepté partout) ; `~` dans bash. Pas de préfixe `SD0:` ni de « volume courant ».
 * **Lent** : sous QEMU comme sur le Pi, une compilation C prend de quelques secondes à une minute ; ne relance pas une
   commande parce qu'elle tarde.
 
 ## Obligatoire avant tout code pour Korin
 
 **Avant d'écrire, de modifier ou de compiler un programme pour Korin, appelle la compétence `korin-app`** (ou
-`korin-csharp`, `korin-freebasic` selon la langue ; et **`korin-graphics`** pour tout ce qui dessine ou
+`korin-csharp`, `korin-freebasic`, `korin-rust` selon la langue ; et **`korin-graphics`** pour tout ce qui dessine ou
 bouge : jeu, animation), même si tu crois savoir faire : Korin n'est pas Linux et son API
 ne se devine pas. Pour toute fonction de kit dont la compétence ne donne pas d'exemple, **lis sa ligne dans le guide**
 (`reference/uikit_en.md` de la compétence `korin`) ou dans `/devtools/gcc/include/kits/uikit_abi.h` avant de l'appeler.
@@ -42,7 +43,7 @@ Pièges déjà rencontrés :
 * **`korin-app`** : écrire, compiler et installer une **application** (fenêtre, boutons, menus) ou une commande en C
   ou C++. À charger **avant** d'écrire du code pour Korin.
 * **`korin-csharp`**, **`korin-freebasic`** : la même chose en C# (.NET 10, WinForms sur UIKit, Avalonia) et en
-  FreeBASIC.
+  FreeBASIC ; **`korin-rust`** : Rust (cargo, UIKit en FFI, sur PC).
 * **`korin`** : le système : les **kits** (UIKit, AudioKit, NetKit...), la libc et ce que la couche POSIX n'a pas,
   les services, le guide du développeur complet (dans le dossier de la compétence).
 * **`korin-graphics`** : dessiner, animer, faire un jeu (affichage, boucle, entrées, images, tactile).
@@ -71,7 +72,7 @@ Pièges déjà rencontrés :
 * Toute interface graphique passe par **UIKit** (`ui_*`, `#include <uikit.h>`) : jamais de SDL, GTK, Qt ni de
   framebuffer à la main. Les couleurs viennent **du thème** (jetons `TJ_*` de `ui_tokens ()`), jamais en dur.
 * Ne modifie pas le système (`/sys`, `/bin`, `/etc`, `/devtools/gcc`, `/devtools/python`, `/devtools/dotnet`) sans qu'on te le demande ;
-  les projets vont dans `/home/projects/<nom>`. Les sources du système sont à lire dans `/src` (compétence
-  `korin`).
+  les projets vont dans **`~/projects/<nom>`** (`$HOME/projects`, jamais `/home/projects`). Les sources du système
+  sont à lire dans `/src` (compétence `korin`).
 * Ne lance **pas** une app graphique au premier plan dans le shell : elle ne rend pas la main et bloque l'outil.
   Voir la compétence `korin-app` pour la lancer.

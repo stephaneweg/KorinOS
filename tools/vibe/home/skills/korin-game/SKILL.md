@@ -19,14 +19,14 @@ de scènes : `korin-godot` (le PC).
 ## 1. Le projet
 
 ```
-/home/projects/monjeu/
+~/projects/monjeu/
   main.c          (ou main.cpp) : tout le jeu, un seul fichier source
   gamefb.h gamedraw.h gamepause.h gamesound.h gamepad.h    copiés depuis inc/ de cette compétence
   app.txt         category = Jeux, description, keywords, help (les touches) : voir korin-app
   lang/en.txt     les textes anglais (les chaînes du jeu sont en français, traduites par gf_tr / ui_tr)
 ```
 
-Copier les en-têtes : `cp <dossier de cette compétence>/inc/*.h /home/projects/monjeu/`. Dans `main.c` :
+Copier les en-têtes : `cp <dossier de cette compétence>/inc/*.h ~/projects/monjeu/`. Dans `main.c` :
 
 ```c
 #define GF_W 640			/* taille LOGIQUE du jeu (largeur multiple de 8) : tout se calcule là-dedans, */
@@ -36,7 +36,7 @@ Copier les en-têtes : `cp <dossier de cette compétence>/inc/*.h /home/projects
 
 (Les exemples écrivent `#include "../../inc/gamepause.h"` : le chemin de l'arbre de Korin ; dans un projet, les
 en-têtes sont à côté de `main.c`.) Tout est `static` dans les en-têtes : **un seul fichier `.c`** les inclut.
-Construire : `pibuild app /home/projects/monjeu monjeu` (il lie tous les kits, AudioKit compris).
+Construire : `pibuild app ~/projects/monjeu monjeu` (il lie tous les kits, AudioKit compris).
 
 ## 2. Le squelette
 

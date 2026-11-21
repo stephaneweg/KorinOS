@@ -23,11 +23,11 @@ Compter quelques secondes sur le Pi, une minute sous QEMU. Un programme de conso
 (`/tmp/hello`) ; un programme graphique **jamais au premier plan** (il ne rend pas la main) :
 `(/tmp/gfx >/dev/null 2>&1 &)`.
 
-**Une app** (dans le lanceur) : le dossier `/home/projects/<nom>/` avec `main.bas` (ou `<nom>.bas`) et
+**Une app** (dans le lanceur) : le dossier `~/projects/<nom>/` avec `main.bas` (ou `<nom>.bas`) et
 `app.txt` (même manifeste qu'en C : compétence `korin-app`), puis
 
 ```sh
-pibuild app /home/projects/<nom> <nom>        # -> /apps/<nom>.app/main ; « bin » -> /bin/<nom>
+pibuild app ~/projects/<nom> <nom>        # -> /apps/<nom>.app/main ; « bin » -> /bin/<nom>
 ```
 
 Tous les `.bas` du dossier et des sous-dossiers sont compilés par `fbc -O 2` en un seul appel (`main.bas` est le

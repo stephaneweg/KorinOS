@@ -8,7 +8,7 @@ Pose dans <racine>/.vibe :
   skills/korin/reference/     les pages anglaises du guide du developpeur (src/apps/help/data/api/*_en.md)
   skills/korin-app/SKILL.md   la competence « korin-app » : ecrire, construire (pibuild), installer une app
   skills/korin-app/skeleton/  le squelette d'app du guide (src/apps/help/data/api/skeleton)
-  skills/korin-csharp/, korin-freebasic/, korin-diag/   C# (.NET, WinForms, Avalonia), FreeBASIC, diagnostic
+  skills/korin-csharp/, korin-freebasic/, korin-rust/, korin-diag/   C# (.NET, WinForms, Avalonia), FreeBASIC, Rust, diagnostic
   skills/korin-game/inc/, examples/   le cadre des jeux en C (src/inc/game*.h) et arkanoid, tetris, invaders
 Le reste de .vibe (.env et la cle du compte, config.toml, logs, seances) n'est pas touche ; les competences de tools/vibe/home/skills
 sont remplacees en entier. Les competences des apps (Forge, TerraCube, Arabesque, Koton...) viennent avec elles,

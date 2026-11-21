@@ -90,9 +90,10 @@ kit). **AppKit** (fichiers, lancement, chaînes) n'a pas d'en-tête : la libc s'
   `/media/sd1` (sur le Pi, la partition des données de l'utilisateur, exFAT), `/net/net0`... (partages réseau),
   `/boot` (monté seulement le temps d'y écrire). Montages permanents : `/etc/mounts.txt`. Aucun préfixe `SD0:` ;
   `/x` est toujours absolu. `getcwd` et `realpath` rendent des chemins ordinaires (`/home/x`).
-* **`HOME:/`** est le seul alias : le dossier personnel de l'utilisateur en cours (`/home` aujourd'hui, `/home/<nom>`
-  plus tard) ; les apps y rangent les documents (`HOME:/documents`). `HOME=/home`, `PATH=/bin:/devtools/gcc/bin`.
-  Les outils de développement sont dans `/devtools` (`gcc`, `dotnet`, `python`).
+* **`HOME:/`** est le seul alias : le dossier personnel de l'utilisateur en cours (`/home/<nom>`, `/home` sans
+  compte) ; les apps y rangent les documents (`HOME:/documents`), les projets vont dans `~/projects/<nom>`.
+  `HOME` = ce dossier, `PATH=/bin:/sbin:/devtools/gcc/bin:/devtools/rust/bin`. Les outils de développement sont dans
+  `/devtools` (`gcc`, `rust`, `dotnet`, `python`).
 * Où sont les choses : apps `/apps/<nom>.app/` (`main` + `app.txt`), commandes `/bin`, programmes système et
   services `/sys` et `/sys/svc` (démarrés par `init2`), kits `/lib/*.so`, ressources `/res`
   (polices, icônes, claviers `res/keyb`, dictionnaires `res/lang`), réglages `/etc`.

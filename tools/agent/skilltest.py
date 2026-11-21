@@ -99,7 +99,7 @@ def main() -> int:
             checks["main est un ELF"] = f.read(4) == b"\x7fELF"
         checks["app.txt présent"] = os.path.isfile(os.path.join(app, "app.txt"))
         name = os.path.basename(app)[:-4]
-        src = [d for d in ("/home/projects/" + name, os.path.join(cwd, name), cwd)
+        src = [d for d in (os.path.join(os.environ.get("HOME", "/home"), "projects", name), "/home/projects/" + name, os.path.join(cwd, name), cwd)
                if os.path.isdir(d) and any(f.endswith((".c", ".cpp")) for f in os.listdir(d))]
         checks["sources dans un dossier de projet"] = bool(src)
         if src:

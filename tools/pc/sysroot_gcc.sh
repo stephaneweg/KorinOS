@@ -8,7 +8,7 @@
 #                           (fasm à la place de fasmarm) ; les essais (test/, dont test/pc :
 #                           tools/pc/gcctest, et test/fasm)
 #     bin/fasm              fasm x86-64 (tools/pc/fasm.sh) ; son source dans gcc/share/fasm
-#     etc/exec.txt          /devtools/gcc/x86_64-onyx-elf/bin au lieu du dossier d'AArch64
+#     etc/exec.txt          /devtools/gcc/x86_64-onyx-elf/bin (s'il manque)
 # Construire d'abord (dans WSL, depuis la racine du dépôt) :
 #     ARCH=x86_64 sh tools/gcc/build.sh && ARCH=x86_64 sh tools/gcc/kits.sh
 #     ARCH=x86_64 sh tools/gcc/make.sh && ARCH=x86_64 sh tools/gcc/fbc.sh
@@ -36,9 +36,9 @@ if [ -x build/pc/fasm/fasm ]; then
 	mkdir -p "$OUT/gcc/share/fasm"
 	cp -r build/pc/fasm/source "$OUT/gcc/share/fasm/"
 fi
-# les exécutables de /devtools/gcc (vfs : exec.txt) : l'as et le ld de la cible du PC
+# les exécutables de /devtools/gcc (vfs : exec.txt) : l'as et le ld de la cible du PC (skel/sd0/etc/exec.txt a les
+# deux cibles : tools/pc/sysroot.sh la recopie après ce script, et le paquet pc publié n'avait que celle du Pi)
 if [ -f "$OUT/etc/exec.txt" ]; then
-	sed -i 's|^/devtools/gcc/aarch64-onyx-elf/bin$|/devtools/gcc/x86_64-onyx-elf/bin|' "$OUT/etc/exec.txt"
 	grep -q '^/devtools/gcc/x86_64-onyx-elf/bin$' "$OUT/etc/exec.txt" || echo /devtools/gcc/x86_64-onyx-elf/bin >> "$OUT/etc/exec.txt"
 fi
 
