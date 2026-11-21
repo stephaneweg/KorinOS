@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 18:42
+date = 2026-11-21 18:48
 abi = 626
 packages = 117
 board = pc
@@ -512,18 +512,18 @@ content = a50ab76c8a7a51009d8ae52d350ea54617bb7028b3c984e6fa8707b7c95b871d
 
 [claude]
 title = Claude (API)
-version = 1.0.8
+version = 1.0.9
 category = Développement
 author = Korin OS
 summary = Claude, l'agent de code d'Anthropic, par sa clé d'API : l'app Claude, ou agent --claude au Terminal
-size = 8084788
-installed = 18038457
-sha256 = a06855397a57e6ca1935426b3475ea98beff6ee6be31c4d9d2130422e55f64b9
-file = pkgs/claude-1.0.8.opk
+size = 8092848
+installed = 18053826
+sha256 = 8f9508c965c637587f14bf61550e8b6c50f73bec8869754ab8f6a2587aca70eb
+file = pkgs/claude-1.0.9.opk
 needs = vibe, abi >= 626
 required = 0
 restart = 0
-content = f9e909f36d289b4c63d396abb4e52daed6877dc4c78e06a0dab8d4ae7f18c925
+content = c4645e1ed7756ea88bd1dc75bd2eff487ce66c1c4206d5cd5afa8e12ce0a61c1
 
 [vibe-data-1]
 title = Mistral Vibe (1/2)
