@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 10:05
+date = 2026-11-21 10:06
 abi = 626
 packages = 117
 board = pc
@@ -1996,3 +1996,18 @@ needs = craft, abi >= 626
 required = 0
 restart = 0
 content = ab507676d17e6aabdb475355329c1a7ed1054da74c086a52aa8c4dc59efd354f
+
+[materialcraft]
+title = MaterialCraft
+version = 1.0.0
+category = Suite ArtCraft
+author = Korin OS
+summary = Les matériaux procéduraux libres MaterialCraft (storytold), par nœuds.
+size = 32578432
+installed = 50831727
+sha256 = 91138ce668fe0e63d9a2932664cecea9045fa5b7bbfd741d5d9d1b4ab17add7d
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-materialcraft-1.0.0.opk
+needs = craft, abi >= 626
+required = 0
+restart = 0
+content = 503ff210dbf12e6e1665a030b050240b1a16ab500688a924c0248c40aff4fa93
