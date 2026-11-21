@@ -1954,18 +1954,18 @@ content = 372df4a20883321386cf6413d714ea7a22e8a3c3235a8a31d20869ae815ae31e
 
 [figcraft]
 title = FigCraft
-version = 1.0.1
+version = 1.0.2
 category = Suite ArtCraft
 author = Korin OS
 summary = La conception d'interfaces libre FigCraft (storytold) : maquettes d'écrans, composants, prototypes.
-size = 27500109
-installed = 67070169
-sha256 = 0633dfc892b27d280f8c9932b22f2de4f949f09a2baa1387e0791575691c64bd
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-figcraft-1.0.1.opk
-needs = craft, abi >= 627
+size = 27500388
+installed = 67070297
+sha256 = 9cf03beed4178c17c1c9100c1662a553313afd35303a6b2de751d3d2427a2188
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-figcraft-1.0.2.opk
+needs = craft, abi >= 628
 required = 0
 restart = 0
-content = d81f52037e0967254862e0b0b39c063f617b087e3b3d40e483a2c2da7f291934
+content = b04c39f8dc45a807d5542914d8b0e6f16f4b97e6716f7cae78a790459cfa6b1c
 
 [texturecraft]
 title = TextureCraft
