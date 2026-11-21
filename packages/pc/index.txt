@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 16:09
+date = 2026-11-21 16:10
 abi = 626
 packages = 117
 board = pc
@@ -2044,18 +2044,18 @@ content = 5eb8884b8b53df47225641eb0efe9e2bfcb419b3f2acd311fff432c66005eea0
 
 [anicraft]
 title = AniCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = L'animation vectorielle 2D libre AniCraft (storytold).
-size = 19042258
-installed = 44035219
-sha256 = e834a7cb779f806350b2ba0a65e2249f69b2b6e0bd2bf210c80e397bf54d35c3
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-anicraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 19047507
+installed = 44043539
+sha256 = 1ec41431aab80e405229ce4f0df647dfba554c57fc8d14f11dc6ba1dea6235b3
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-anicraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = 5064d99c0da3cb32ffd9eb95c9398fde3cf68a633bb1cb882656530eaf87b5e9
+content = cef85e9162315e9cc127980202663958a493f3e105a4255492e9a74d75d13850
 
 [soundcraft]
 title = SoundCraft
