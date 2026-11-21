@@ -139,6 +139,9 @@ static int synth_slot (long fd)
 	return (int) (fd - SYNTH_BASE);
 }
 
+/* syscall2.c : les autres fichiers de /proc (statm, stat, status, meminfo, cpuinfo…) */
+char *lx_proc_more (const char *path, size_t *len);
+
 /* le contenu d'un chemin de /proc (malloc), ou NULL */
 static char *synth_content (const char *path, size_t *len)
 {
@@ -150,6 +153,8 @@ static char *synth_content (const char *path, size_t *len)
 		if (b)
 			*len = linux_maps (b, cap);
 	}
+	else if ((b = lx_proc_more (path, len)) != 0)
+		;
 	else if (!strcmp (path, "/proc/net/unix"))
 	{
 		static const char h[] = "Num       RefCount Protocol Flags    Type St Inode Path\n";
@@ -428,7 +433,40 @@ static void not_served (long nr)
 	fprintf (stderr, "liblinux : appel système de Linux %ld non servi (ENOSYS)\n", nr);
 }
 
+static long linux_syscall_ (long nr, long a, long b, long c, long d, long e, long f);
+
+/* LINUX_TRACE_SYS=fichier : chaque appel de Linux (numéro, arguments, résultat) noté dans ce fichier */
 long linux_syscall (long nr, long a, long b, long c, long d, long e, long f)
+{
+	static int tfd = -2;
+	if (tfd == -2)
+	{
+		const char *p = getenv ("LINUX_TRACE_SYS");
+		tfd = p ? open (p, O_WRONLY | O_CREAT | O_TRUNC | O_APPEND, 0644) : -1;
+	}
+	if (tfd < 0)
+		return linux_syscall_ (nr, a, b, c, d, e, f);
+	long r = linux_syscall_ (nr, a, b, c, d, e, f);
+	char line[200];
+	int n = snprintf (line, sizeof line, "[%ld] %ld (%#lx, %#lx, %#lx, %#lx) = %ld\n", (long) syscall (SYS_gettid), nr, a, b, c, d, r);
+	if (nr == 257 || nr == 2 || nr == 262 || nr == 4 || nr == 21 || nr == 332 || nr == 59 || nr == 89)
+	{
+		const char *path = (const char *) (nr == 257 || nr == 262 || nr == 332 ? b : a);
+		n = snprintf (line, sizeof line, "[%ld] %ld (%ld, \"%.100s\", %#lx) = %ld\n", (long) syscall (SYS_gettid), nr,
+			      a, path ? path : "(null)", nr == 257 || nr == 262 ? c : b, r);
+	}
+	if (nr == 233 && d)	/* epoll_ctl : l'événement (12 octets de Linux) */
+		n = snprintf (line, sizeof line, "[%ld] 233 (ep %ld, op %ld, fd %ld, ev %#x, data %#llx) = %ld\n",
+			      (long) syscall (SYS_gettid), a, b, c, *(const unsigned *) d,
+			      (unsigned long long) *(const uint64_t *) ((const char *) d + 4), r);
+	if ((nr == 232 || nr == 281 || nr == 441) && r > 0)	/* epoll_wait : le premier événement rendu */
+		n = snprintf (line, sizeof line, "[%ld] %ld (ep %ld) = %ld : ev %#x, data %#llx\n", (long) syscall (SYS_gettid),
+			      nr, a, r, *(const unsigned *) b, (unsigned long long) *(const uint64_t *) ((const char *) b + 4));
+	write (tfd, line, (size_t) n);
+	return r;
+}
+
+static long linux_syscall_ (long nr, long a, long b, long c, long d, long e, long f)
 {
 	(void) d;
 	(void) e;

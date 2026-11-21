@@ -127,6 +127,9 @@ int main (int argc, char **argv)
 	{
 		extern char **environ;
 		char err[300];
+		/* un programme de Linux sans DISPLAY se croit sans écran et n'ouvre pas de navigateur (Claude Code :
+		   la page de connexion) ; BROWSER le lui donne : xdg-open de Korin, qui ouvre Jet */
+		setenv ("BROWSER", "xdg-open", 0);
 		linux_exec (args[1], n - 1, args + 1, environ, flags, err, sizeof err);
 		fprintf (stderr, "linuxhost : %s : %s\n", args[1], err);
 		return 127;

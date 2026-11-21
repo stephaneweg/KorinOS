@@ -151,6 +151,7 @@ struct linux_module
 	unsigned char *stubs;		/* les fonctions des imports absents (LINUX_LOAD_STUBS) */
 	size_t stubs_size;
 	struct linux_atexit *atexit;
+	char *file;			/* linux_load_file : le fichier (relu par linux_refill) */
 };
 
 static void linux_register (struct linux_module *m);
@@ -793,6 +794,8 @@ struct linux_module *linux_load_file (const char *path, int flags, char *err, si
 	if (parse_image_part (&im, hdr, avail, (size_t) sb.st_size, err, errlen))
 		goto out;
 	m = load_common (&im, fd, path, flags, err, errlen);
+	if (m)
+		m->file = strdup (path);
 out:
 	free (hdr);
 	close (fd);
@@ -1317,3 +1320,42 @@ const struct lx_entry lx_table_dl[] =
 	LX_W ("dladdr", lx_dladdr), LX_W ("dl_iterate_phdr", lx_dl_iterate_phdr), LX_W ("dlvsym", lx_dlsym),
 };
 const size_t lx_table_dl_n = sizeof lx_table_dl / sizeof lx_table_dl[0];
+
+/* madvise (MADV_DONTNEED) sur l'image d'un module lu d'un fichier : sous Linux, une projection privée de fichier se
+   relit depuis le fichier au prochain accès (Bun rend ainsi des pages de son code embarqué, .bun) ; ici les pages
+   rendues reviennent à zéro, donc elles sont relues tout de suite. Rend 1 si [p, p + n) touchait une image. */
+int linux_refill (void *p, size_t n)
+{
+	uint64_t a = (uint64_t) (uintptr_t) p, b = a + n;
+	int done = 0;
+	for (int k = 0; k < MAX_MODULES; k++)
+	{
+		struct linux_module *m = s_modules[k];
+		if (!m || !m->file || b <= (uint64_t) (uintptr_t) m->area || a >= (uint64_t) (uintptr_t) m->area + m->span)
+			continue;
+		int fd = -1;
+		for (int i = 0; i < m->phnum; i++)
+		{
+			const lx_phdr *ph = &m->ph[i];
+			if (ph->p_type != PT_LOAD || !ph->p_filesz)
+				continue;
+			uint64_t s0 = (uint64_t) (uintptr_t) m->base + ph->p_vaddr, s1 = s0 + ph->p_filesz;
+			uint64_t lo = a > s0 ? a : s0, hi = b < s1 ? b : s1;
+			if (lo >= hi)
+				continue;
+			if (fd < 0 && (fd = open (m->file, O_RDONLY)) < 0)
+				return done;
+			for (uint64_t at = lo; at < hi;)
+			{
+				ssize_t r = pread (fd, (void *) (uintptr_t) at, hi - at, (off_t) (ph->p_offset + (at - s0)));
+				if (r <= 0)
+					break;
+				at += (uint64_t) r;
+			}
+			done = 1;
+		}
+		if (fd >= 0)
+			close (fd);
+	}
+	return done;
+}

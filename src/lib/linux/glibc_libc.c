@@ -172,6 +172,25 @@ static int lx_sigrtmax (void) { return 64; }
 static char *lx_secure_getenv (const char *n) { return getenv (n); }
 static int lx_setenv (const char *n, const char *v, int o) { return setenv (n, v, o) < 0 ? (int) lx_set_errno_from_korin () : 0; }
 static int lx_unsetenv (const char *n) { return unsetenv (n) < 0 ? (int) lx_set_errno_from_korin () : 0; }
+/* LINUX_TRACE_EXIT=1 : qui termine le process (code, chaîne des rbp) */
+static void trace_exit (const char *how, int code)
+{
+	if (!getenv ("LINUX_TRACE_EXIT"))
+		return;
+	char line[400];
+	int n = snprintf (line, sizeof line, "liblinux : %s (%d), cadres :", how, code);
+	const unsigned long long *fp = __builtin_frame_address (0);
+	for (int i = 0; i < 14 && fp && ((uintptr_t) fp & 7) == 0 && (uintptr_t) fp > 0x10000 && n < (int) sizeof line - 24; i++)
+	{
+		n += snprintf (line + n, sizeof line - (size_t) n, " %#llx", fp[1]);
+		fp = (const unsigned long long *) (uintptr_t) fp[0];
+	}
+	snprintf (line + n, sizeof line - (size_t) n, "\n");
+	write (2, line, strlen (line));
+}
+static void lx_exit (int c) { trace_exit ("exit", c); exit (c); }
+static void lx__exit (int c) { trace_exit ("_exit", c); _exit (c); }
+
 /* quick_exit : les fonctions de at_quick_exit (à rebours), puis _exit, sans atexit */
 static void (*s_quick[32]) (void);
 static int s_nquick;
@@ -186,6 +205,7 @@ static int lx_at_quick_exit (void (*f) (void), void *d)
 static int lx_at_quick_exit2 (void (*f) (void)) { return lx_at_quick_exit (f, 0); }
 static void lx_quick_exit (int code)
 {
+	trace_exit ("quick_exit", code);
 	while (s_nquick > 0)
 		s_quick[--s_nquick] ();
 	fflush (0);
@@ -376,7 +396,7 @@ const struct lx_entry lx_table_libc[] =
 	LX_W ("__libc_current_sigrtmax", lx_sigrtmax), LX_W ("fnmatch", lx_fnmatch), LX_F (strtok_r), LX_F (stpcpy),
 	LX_F (strchrnul), LX_F (strcasestr), LX_F (memmem), LX_F (strsep),
 	/* environnement, sortie */
-	LX_F (exit), LX_F (_Exit), LX_W ("__cxa_at_quick_exit", lx_at_quick_exit), LX_W ("at_quick_exit", lx_at_quick_exit2),
+	LX_W ("exit", lx_exit), LX_W ("_Exit", lx__exit), LX_W ("_exit", lx__exit), LX_W ("__cxa_at_quick_exit", lx_at_quick_exit), LX_W ("at_quick_exit", lx_at_quick_exit2),
 	LX_W ("quick_exit", lx_quick_exit), LX_W ("secure_getenv", lx_secure_getenv),
 	LX_W ("setenv", lx_setenv), LX_W ("unsetenv", lx_unsetenv), LX_F (system), LX_W ("mkdtemp", lx_mkdtemp),
 	LX_W ("mkostemp", lx_mkostemp), LX_W ("realpath", lx_realpath), LX_F (atexit), LX_F (atoll), LX_F (llabs),

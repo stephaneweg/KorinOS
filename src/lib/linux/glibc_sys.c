@@ -568,6 +568,32 @@ static int lx_execvp (const char *name, char *const argv[])
 	return (int) lx_ret (linux_syscall (59, (long) path, (long) argv, (long) environ, 0, 0, 0));
 }
 
+static int lx_execv (const char *path, char *const argv[])
+{
+	extern char **environ;
+	return (int) lx_ret (linux_syscall (59, (long) path, (long) argv, (long) environ, 0, 0, 0));
+}
+
+/* execl, execlp, execle : les arguments variables mis dans un tableau */
+#include <stdarg.h>
+static int exec_list (int mode, const char *file, const char *a0, va_list ap)
+{
+	extern char **environ;
+	char *args[256];
+	int n = 0;
+	args[n++] = (char *) a0;
+	while (n < 255 && (args[n] = va_arg (ap, char *)) != 0)
+		n++;
+	args[n] = 0;
+	char **env = mode == 2 ? va_arg (ap, char **) : environ;
+	if (mode == 1)
+		return lx_execvp (file, args);
+	return (int) lx_ret (linux_syscall (59, (long) file, (long) args, (long) env, 0, 0, 0));
+}
+static int lx_execl (const char *p, const char *a0, ...) { va_list ap; va_start (ap, a0); int r = exec_list (0, p, a0, ap); va_end (ap); return r; }
+static int lx_execlp (const char *p, const char *a0, ...) { va_list ap; va_start (ap, a0); int r = exec_list (1, p, a0, ap); va_end (ap); return r; }
+static int lx_execle (const char *p, const char *a0, ...) { va_list ap; va_start (ap, a0); int r = exec_list (2, p, a0, ap); va_end (ap); return r; }
+
 /* ---- réseau : les mêmes structures (addrinfo, ifaddrs) et codes (EAI_*) ---- */
 static int lx_getservbyname_r (const char *n, const char *p, void *r, char *b, size_t l, void **res)
 {
@@ -632,7 +658,8 @@ const struct lx_entry lx_table_sys[] =
 	W ("posix_fadvise", lx_posix_fadvise), W ("posix_fadvise64", lx_posix_fadvise),
 	W ("posix_madvise", lx_posix_madvise),
 	/* process */
-	W ("fork", lx_fork), W ("vfork", lx_vfork), W ("execve", lx_execve), W ("execvp", lx_execvp),
+	W ("fork", lx_fork), W ("vfork", lx_vfork), W ("execve", lx_execve), W ("execvp", lx_execvp), W ("execv", lx_execv), W ("execl", lx_execl),
+	W ("execlp", lx_execlp), W ("execle", lx_execle),
 	W ("wait4", lx_wait4), W ("waitid", lx_waitid), W ("waitpid", lx_waitpid), W ("kill", lx_kill),
 	W ("raise", lx_raise), W ("getppid", lx_getppid), W ("getpgrp", lx_getpgrp), W ("setpgid", lx_setpgid),
 	W ("setsid", lx_setsid), W ("getuid", lx_getuid), W ("getgid", lx_getgid), W ("getegid", lx_getegid),

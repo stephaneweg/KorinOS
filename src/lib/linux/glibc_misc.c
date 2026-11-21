@@ -300,7 +300,7 @@ const struct lx_entry lx_table_misc[] =
 	LX_W ("getauxval", lx_getauxval), LX_W ("__libc_start_main", linux_libc_start_main), LX_W ("prctl", lx_prctl), LX_W ("uname", lx_uname),
 	LX_W ("getrlimit64", lx_getrlimit64), LX_W ("getrlimit", lx_getrlimit64), LX_W ("madvise", lx_madvise),
 	LX_W ("geteuid", lx_geteuid), LX_W ("__libc_stack_end", &lx_libc_stack_end),
-	LX_W ("getpagesize", lx_getpagesize), LX_F (_exit), LX_W ("sigfillset", lx_sigfillset),
+	LX_W ("getpagesize", lx_getpagesize), LX_W ("sigfillset", lx_sigfillset),
 	LX_W ("pthread_getname_np", lx_pthread_getname_np),
 	LX_W ("pthread_getschedparam", lx_pthread_getschedparam),
 	/* dl, sauts, TLS */

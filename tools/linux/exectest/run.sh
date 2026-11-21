@@ -5,7 +5,7 @@
 # build/pc/esp (la zone basse de VM_FIXED : PC_QUICK=1 sh tools/pc/build.sh).
 #   sh tools/linux/exectest/run.sh            sortie : build/pc/linux/exectest/run/run.txt
 #   EXTRA="/chemin/prog …"                     d'autres exécutables de Linux copiés dans /home/lx
-#   MEM=4G : la mémoire de QEMU (2G par défaut)
+#   MEM=4G : la mémoire de QEMU (2G par défaut) ; APPS="terminal" : ces apps de build/pc/apps (l'écran : shot:, type:, key:)
 #   ONLY="sleep:10|@60 /bin/linuxhost run /home/lx/hello"   seulement ces commandes ; PORT : telnet (2394)
 set -eu
 ROOT=$(cd "$(dirname "$0")/../../.." && pwd)
@@ -18,13 +18,19 @@ gcc -O2 "$S/hello.c" -o "$B/hello"
 gcc -O2 -no-pie "$S/hello.c" -o "$B/hello-nopie"
 gcc -O2 "$S/tlstest.c" -o "$B/tlstest"
 gcc -O2 -no-pie "$S/tlstest.c" -o "$B/tlstest-nopie"
+gcc -O2 "$S/spawntest.c" -o "$B/spawntest"
 T=$OUT/execroot
 rm -rf "$T"; mkdir -p "$T"
 for d in build/pc/sysroot/*; do case $(basename "$d") in apps|devtools|python) continue ;; esac; cp -r "$d" "$T/"; done
 cp "$OUT/linuxhost" "$T/bin/linuxhost"
 mkdir -p "$T/home/lx"
-cp "$B/hello" "$B/hello-nopie" "$B/tlstest" "$B/tlstest-nopie" "$T/home/lx/"
+cp "$B/hello" "$B/hello-nopie" "$B/tlstest" "$B/tlstest-nopie" "$B/spawntest" "$T/home/lx/"
 for f in ${EXTRA:-}; do cp "$f" "$T/home/lx/"; done
+mkdir -p "$T/apps"
+for a in ${APPS:-}; do	# (APPS="terminal jet" : sh tools/pc/apps.sh terminal ; jet : build/pc/sysroot)
+	if [ -d "build/pc/apps/sdroot/apps/$a.app" ]; then cp -r "build/pc/apps/sdroot/apps/$a.app" "$T/apps/"; else cp -r "build/pc/sysroot/apps/$a.app" "$T/apps/"; fi
+done
+cp src/sys/linuxhost/xdg-open "$T/bin/xdg-open"
 printf 'password = essai\n' >"$T/etc/remote.txt"
 grep -q "^/sys/svc/telnetd" "$T/etc/services.txt" || printf '/sys/svc/telnetd\n' >>"$T/etc/services.txt"
 IMG=$OUT/execdisk.img; rm -f "$IMG"
@@ -44,9 +50,10 @@ cmd = os.environ.get("ONLY", "").split("|") if os.environ.get("ONLY") else [
     "@60 " + L + "hello trois; echo rc=$?",
     "@60 " + L + "tlstest-nopie; echo rc=$?",
     "@60 " + L + "tlstest; echo rc=$?",
+    "@60 " + L + "spawntest; echo rc=$?",
 ]
-a = types.SimpleNamespace(port=int(port), hostfwd=[], smp=2, mem=os.environ.get("MEM", "2G"), boot=150, shot=os.path.join(w, "fin.png"), qemu="", cmd=cmd)
+a = types.SimpleNamespace(port=int(port), hostfwd=[], smp=2, mem=os.environ.get("MEM", "2G"), boot=150, shot=os.path.join(w, "fin.png"), qemu=os.environ.get("QEMU_EXTRA", ""), cmd=cmd)
 pt.run(a)
 PY
 rm -rf "$T" "$IMG"
-grep -a -E "^(hello|tlstest|linuxhost|liblinux|rc=)" "$W/run.txt" || tail -40 "$W/run.txt"
+grep -a -E "^(hello|tlstest|spawntest|bonjour|fils|linuxhost|liblinux|rc=)" "$W/run.txt" || tail -40 "$W/run.txt"

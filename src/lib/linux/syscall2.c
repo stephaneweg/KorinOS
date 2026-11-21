@@ -404,6 +404,92 @@ static void dir_forget (int fd)
 	}
 }
 
+/* ---- /proc : ce que lisent Bun et Node (process.memoryUsage : /proc/self/statm ; os.cpus : /proc/cpuinfo et
+   /proc/stat ; os.totalmem, os.freemem : /proc/meminfo ; os.uptime, os.loadavg) ---- */
+#include <malloc.h>
+
+static long pages_rss (void)
+{
+	struct mallinfo mi = mallinfo ();
+	long heap = (long) mi.arena + (long) mi.hblkhd;
+	return 16384 + heap / 4096;	/* (l'image de l'exécutable, à peu près, et le tas de libposix) */
+}
+
+char *lx_proc_more (const char *path, size_t *len)
+{
+	const char *p = path;
+	if (!strncmp (p, "/proc/self/", 11))
+		p += 11;
+	else if (!strncmp (p, "/proc/thread-self/", 18))
+		p += 18;
+	else if (!strncmp (p, "/proc/", 6))
+	{
+		char *end;
+		long pid = strtol (p + 6, &end, 10);
+		if (end != p + 6 && *end == '/' && pid == getpid ())
+			p = end + 1;
+	}
+	char *b = malloc (8192);
+	if (!b)
+		return 0;
+	int n = -1;
+	long rss = pages_rss (), ncpu = sysconf (_SC_NPROCESSORS_ONLN);
+	long tot = sysconf (_SC_PHYS_PAGES), av = sysconf (_SC_AVPHYS_PAGES);
+	if (ncpu < 1) ncpu = 1;
+	if (tot <= 0) tot = 1 << 20;
+	if (av <= 0) av = tot / 2;
+	struct timespec up;
+	clock_gettime (CLOCK_MONOTONIC, &up);
+	if (!strcmp (p, "statm"))
+		n = snprintf (b, 8192, "%ld %ld %ld %ld 0 %ld 0\n", rss * 4, rss, rss / 8, rss / 2, rss / 2);
+	else if (!strcmp (p, "stat") && p != path)
+		n = snprintf (b, 8192, "%d (claude) R %d %d %d 0 -1 4194560 0 0 0 0 %ld 0 0 0 20 0 1 0 1 %ld %ld "
+			      "18446744073709551615 0 0 0 0 0 0 0 0 0 0 0 0 17 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+			      getpid (), getppid (), getpgrp (), getpgrp (), (long) up.tv_sec * 100, rss * 4 * 4096, rss);
+	else if (!strcmp (p, "status"))
+		n = snprintf (b, 8192, "Name:\tclaude\nState:\tR (running)\nTgid:\t%d\nPid:\t%d\nPPid:\t%d\n"
+			      "Uid:\t%d\t%d\t%d\t%d\nGid:\t%d\t%d\t%d\t%d\nVmSize:\t%ld kB\nVmRSS:\t%ld kB\nThreads:\t1\n",
+			      getpid (), getpid (), getppid (), getuid (), getuid (), getuid (), getuid (), getgid (), getgid (),
+			      getgid (), getgid (), rss * 16, rss * 4);
+	else if (!strcmp (path, "/proc/meminfo"))
+		n = snprintf (b, 8192, "MemTotal:       %ld kB\nMemFree:        %ld kB\nMemAvailable:   %ld kB\n"
+			      "Buffers:               0 kB\nCached:                0 kB\nSwapTotal:             0 kB\n"
+			      "SwapFree:              0 kB\n", tot * 4, av * 4, av * 4);
+	else if (!strcmp (path, "/proc/cpuinfo"))
+	{
+		n = 0;
+		for (long i = 0; i < ncpu && n < 7000; i++)
+			n += snprintf (b + n, 8192 - (size_t) n, "processor\t: %ld\nvendor_id\t: GenuineIntel\n"
+				       "model name\t: x86-64 (Korin)\ncpu MHz\t\t: 2000.000\nflags\t\t: fpu sse sse2 ssse3 sse4_1"
+				       " sse4_2 popcnt avx avx2\n\n", i);
+	}
+	else if (!strcmp (path, "/proc/stat"))
+	{
+		long t = (long) up.tv_sec * 100;
+		n = snprintf (b, 8192, "cpu  %ld 0 %ld %ld 0 0 0 0 0 0\n", t / 10, t / 20, t * ncpu - t / 10 - t / 20);
+		for (long i = 0; i < ncpu && n < 7000; i++)
+			n += snprintf (b + n, 8192 - (size_t) n, "cpu%ld %ld 0 %ld %ld 0 0 0 0 0 0\n", i, t / 10 / ncpu,
+				       t / 20 / ncpu, t - t / 10 / ncpu - t / 20 / ncpu);
+		n += snprintf (b + n, 8192 - (size_t) n, "btime %ld\nprocesses 1\nprocs_running 1\n",
+			       (long) time (0) - (long) up.tv_sec);
+	}
+	else if (!strcmp (path, "/proc/uptime"))
+		n = snprintf (b, 8192, "%ld.%02ld %ld.00\n", (long) up.tv_sec, up.tv_nsec / 10000000, (long) up.tv_sec);
+	else if (!strcmp (path, "/proc/loadavg"))
+		n = snprintf (b, 8192, "0.10 0.10 0.10 1/1 %d\n", getpid ());
+	else if (!strcmp (path, "/proc/version"))
+		n = snprintf (b, 8192, "Linux version 6.8.0-korin (korin@korin) (gcc 14.2) #1 SMP PREEMPT_DYNAMIC\n");
+	else if (!strcmp (path, "/proc/sys/kernel/osrelease"))
+		n = snprintf (b, 8192, "6.8.0-korin\n");
+	if (n < 0)
+	{
+		free (b);
+		return 0;
+	}
+	*len = (size_t) n;
+	return b;
+}
+
 /* ---- chemins ---- */
 static int at_fd (long d)
 {
@@ -426,10 +512,25 @@ static long proc_link (const char *path, char *buf, size_t n)
 	char tmp[64];
 	if (!strcmp (path, "/proc/self/exe") || !strcmp (path, "/proc/thread-self/exe"))
 		v = linux_exe_path ? linux_exe_path : "/bin/linuxhost";
-	else if (!strncmp (path, "/proc/self/fd/", 14))
+	else if (!strncmp (path, "/proc/self/fd/", 14) || !strncmp (path, "/proc/thread-self/fd/", 21))
 	{
-		snprintf (tmp, sizeof tmp, "/dev/fd/%s", path + 14);
-		v = tmp;
+		/* le chemin d'un dossier ouvert (Bun : open (O_PATH), puis ce readlink, pour le vrai chemin du dossier
+		   courant) ; celui d'un fichier : pas connu ici */
+		extern char *__posix_at_path (int dirfd, const char *name, char *buf, size_t cap);
+		int fd = atoi (strrchr (path, '/') + 1);
+		static __thread char dir[1024];
+		if (__posix_at_path (fd, "", dir, sizeof dir))
+		{
+			size_t l = strlen (dir);
+			while (l > 1 && dir[l - 1] == '/')
+				dir[--l] = 0;
+			v = dir;
+		}
+		else
+		{
+			snprintf (tmp, sizeof tmp, "/dev/fd/%d", fd);
+			v = tmp;
+		}
 	}
 	if (!v)
 		return -2;
@@ -926,6 +1027,11 @@ int lx_syscall2 (long nr, long a, long b, long c, long d, long e, long f, long *
 		VAL (tot);
 	}
 	case 18: RET (pwrite ((int) a, (const void *) b, (size_t) c, (off_t) d));
+	case 327: case 328:	/* preadv2, pwritev2 (drapeaux ignorés ; décalage -1 : la position courante) */
+		if (e == -1 || d == -1)
+			VAL (linux_syscall (nr == 327 ? 19 : 20, a, b, c, 0, 0, 0));
+		nr = nr == 327 ? 295 : 296;
+		/* fallthrough */
 	case 295: case 296:	/* preadv, pwritev */
 	{
 		const struct iovec *v = (const struct iovec *) b;
@@ -1058,6 +1164,17 @@ int lx_syscall2 (long nr, long a, long b, long c, long d, long e, long f, long *
 	case 135: VAL (0);	/* personality : PER_LINUX */
 	/* mémoire */
 	case 25: VAL (do_mremap ((void *) a, (size_t) b, (size_t) c, d));
+	case 28:	/* madvise : MADV_DONTNEED (4), MADV_FREE (8), MADV_REMOVE (9) rendent les pages : nulles au prochain
+			   accès, comme sous Linux (libpas, mimalloc y comptent) ; les autres conseils : sans effet */
+		if (b > 0 && (c == 4 || c == 8 || c == 9))
+		{
+			extern int linux_refill (void *p, size_t n);
+			/* (l'image d'un exécutable ou d'un module lu d'un fichier : relue depuis le fichier, comme une
+			   projection privée de fichier sous Linux ; le reste : des pages anonymes, nulles ensuite) */
+			madvise ((void *) a, (size_t) b, MADV_DONTNEED);
+			linux_refill ((void *) a, (size_t) b);
+		}
+		VAL (0);
 	case 26: VAL (0);	/* msync */
 	case 27:		/* mincore : tout est là */
 		memset ((void *) c, 1, (size_t) ((b + 4095) / 4096));

@@ -129,6 +129,33 @@ faibles) :
 Pas encore : inotify, timerfd, signalfd, pidfd, `timer_create`, clone3 (ENOSYS ; Bun a des replis, à vérifier quand
 il s'en sert), `brk`.
 
+## 4ter. Le réseau, `-p` et l'interface dans le Terminal (21/11, suite)
+
+* **`claude -p bonjour`** sans compte : `Not logged in · Please run /login`, code 1 — après un vrai aller-retour
+  HTTPS (DNS, TCP, TLS de BoringSSL par les sockets de netd). Dans ce conteneur, le réseau sortant passe par un
+  proxy qui intercepte TLS avec sa propre autorité : pour les essais, `NODE_EXTRA_CA_CERTS=` son certificat (rien
+  de tel sur le PC de l'utilisateur).
+* **L'interface interactive** (Ink) **s'affiche dans le Terminal de Korin** : accueil, choix du thème avec l'aperçu
+  de diff en couleurs, puis l'écran de connexion (« Claude account with subscription » / Console / tiers), l'URL
+  d'autorisation et « Paste code here ». Essai : `APPS="terminal jet" QEMU_EXTRA="-device usb-tablet,bus=xhci.0"`
+  et `click:`/`type:`/`key:`/`shot:` dans `ONLY` (tools/linux/exectest/run.sh ; le Terminal du PC :
+  `sh tools/pc/apps.sh terminal`).
+* **La connexion par l'abonnement ouvre Jet** sur `https://claude.com/cai/oauth/authorize?…` : Claude Code ne lance
+  un navigateur sous Linux que si `DISPLAY`, `WAYLAND_DISPLAY` ou `BROWSER` est posé ; `linuxhost run` pose
+  `BROWSER=xdg-open`, et `src/sys/linuxhost/xdg-open` (un script : une adresse web → `/apps/jet.app/main ADRESSE`,
+  détaché) l'ouvre dans Jet. La page elle-même ne charge pas dans le conteneur (même proxy) : à essayer sur le PC.
+* corrigé en route : `madvise (MADV_DONTNEED)` rend vraiment les pages (libpas, mimalloc comptent sur des zéros) et,
+  sur l'image d'un exécutable lu d'un fichier, **les relit depuis le fichier** comme une projection privée de Linux
+  (Bun rend ainsi des pages de son code embarqué `.bun` : sans relecture, `SyntaxError: Invalid character '\0'`) ;
+  `/proc/self/{statm,stat,status}`, `/proc/{meminfo,cpuinfo,stat,uptime,loadavg,version}` fabriqués ;
+  `readlink ("/proc/self/fd/N")` d'un dossier (Bun : le vrai chemin du dossier courant) ; `preadv2`, `pwritev2`,
+  `close_range`, `quick_exit`, `execl*`.
+* traces : `LINUX_TRACE_SYS=fichier` (chaque appel de Linux, chemins et événements d'epoll ; dans `/tmp`, la trace
+  sur un disque ralentit trop), `LINUX_TRACE_EXIT=1` (qui termine le process). Le disque d'essai est en snapshot :
+  un fichier se lit par telnet (un petit script dans `EXTRA`, le `|` sépare les commandes de `ONLY`).
+* reste vu : `claude auth status` sort en silence, code 0 (sa boucle d'événements se croit vide avant d'écrire ;
+  `-p` et l'interface vont plus loin) ; `link` rend ENOSYS (FAT : à rendre EPERM).
+
 ## 5. Jalons suivants
 
 **La suite du jalon 1, puis le 2** : les 341 imports absents de Claude Code. La plupart sont des enveloppes
