@@ -151,3 +151,23 @@ for rel in ["crates/pkcs7/src/keys.rs"]:
             open(p, "w", encoding="utf-8", newline="\n").write(t)
             with open(os.path.join(top, ".korin-changed"), "a", encoding="utf-8") as f:
                 f.write(rel + "\n")
+
+# craft-ui-shell, la barre de titre (WordCraft, PhotoCraft) : sur Korin, Elegant dessine les boutons de la fenêtre sur le
+# contenu, en haut à droite ; l'extrémité de droite de la barre est une réserve de 112 px (comme les feux de macOS à
+# gauche), sans boutons de l'app, et le titre va au début de la place libre (à gauche, après les premiers contrôles)
+edit("crates/ui-shell/src/shell/title_bar/measure.rs", [
+    ("        if !shown {\n            return Ends::bare();\n        }\n        match frame {",
+     "        if !shown {\n            return Ends::bare();\n        }\n"
+     "        // Korin : les boutons d'Elegant (tools/craft/korin_libs.py)\n"
+     "        if cfg!(target_os = \"korin\") {\n"
+     "            let _ = frame;\n"
+     "            return if rtl { Ends { start: End::inset(112.0), ..Ends::bare() } } else { Ends { end: End::inset(112.0), ..Ends::bare() } };\n"
+     "        }\n        match frame {"),
+])
+edit("crates/ui-shell/src/shell/title_bar/title.rs", [
+    ("        if width >= free {\n            return (0.0, free);\n        }\n        ((centre - width / 2.0).clamp(0.0, free - width), width)",
+     "        if width >= free {\n            return (0.0, free);\n        }\n"
+     "        // Korin : le titre à gauche, au début de la place libre (tools/craft/korin_libs.py)\n"
+     "        if cfg!(target_os = \"korin\") {\n            let _ = centre;\n            return (0.0, width);\n        }\n"
+     "        ((centre - width / 2.0).clamp(0.0, free - width), width)"),
+])
