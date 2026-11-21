@@ -309,6 +309,8 @@ static void wnd_geometry (struct wnd *w)
 
 static uint16_t sel_scratch;	/* un bloc pour les structures passées aux procédures (CREATESTRUCT…) */
 
+static void size_move_msgs (struct wnd *w);
+
 static uint16_t create_window (uint32_t exstyle, int k, uint32_t cname, const char *text_raw, uint32_t wname, uint32_t style,
 	int x, int y, int cw, int ch, uint16_t parent, uint16_t menu, uint16_t hinst, uint32_t param)
 {
@@ -396,8 +398,16 @@ static uint16_t create_window (uint32_t exstyle, int k, uint32_t cname, const ch
 	w = wnd_get (hwnd);
 	if (!w)
 		return 0;
-	user_send (hwnd, WM_SIZE, 0, (uint32_t) w->cw | (uint32_t) w->ch << 16);
-	user_send (hwnd, WM_MOVE, 0, (uint32_t) (uint16_t) (w->x < 0 ? 0 : w->x) | (uint32_t) (uint16_t) (w->y < 0 ? 0 : w->y) << 16);
+	/* (comme Windows et Wine, WIN_NEED_SIZE : une fenêtre principale reçoit WM_SIZE et WM_MOVE à son premier
+	   affichage, pas ici ; Write de Windows 3.11 dimensionnait dans WM_SIZE des filles pas encore créées et
+	   s'arrêtait sur « Mémoire insuffisante ») */
+	if (style & (WS_CHILD | WS_POPUP))
+		size_move_msgs (w);
+	else
+		w->need_size = 1;
+	w = wnd_get (hwnd);
+	if (!w)
+		return 0;
 	if ((style & WS_CHILD) && parent)
 		user_send (parent, 0x0210, WM_CREATE, MAKESEGPTR (w->id, hwnd));	/* WM_PARENTNOTIFY */
 	if (style & WS_VISIBLE)
@@ -408,6 +418,17 @@ static uint16_t create_window (uint32_t exstyle, int k, uint32_t cname, const ch
 	}
 	w16_log ("fenêtre %04x (%s) « %s » : %d×%d\n", hwnd, classes[k].name, w ? w->text : "", w ? w->cw : 0, w ? w->ch : 0);
 	return hwnd;
+}
+
+/* WM_SIZE puis WM_MOVE, avec la taille et la place de la zone cliente */
+static void size_move_msgs (struct wnd *w)
+{
+	uint16_t hwnd = w->hwnd;
+	w->need_size = 0;
+	user_send (hwnd, WM_SIZE, 0, (uint32_t) w->cw | (uint32_t) w->ch << 16);
+	w = wnd_get (hwnd);
+	if (w)
+		user_send (hwnd, WM_MOVE, 0, (uint32_t) (uint16_t) (w->x < 0 ? 0 : w->x) | (uint32_t) (uint16_t) (w->y < 0 ? 0 : w->y) << 16);
 }
 
 uint16_t user_create (uint32_t exstyle, const char *cls, const char *text, uint32_t style, int x, int y, int w, int h,
@@ -656,6 +677,9 @@ void api_ShowWindow16 (struct w16call *c)
 		}
 	}
 	user_send (hwnd, WM_SHOWWINDOW, (uint16_t) show, 0);
+	w = wnd_get (hwnd);
+	if (w && show && w->need_size)
+		size_move_msgs (w);
 	ctrl_native_sync_tree (hwnd);	/* (les widgets de UIKit des filles suivent) */
 	w = wnd_get (hwnd);
 	if (!w)
@@ -793,6 +817,15 @@ static void screen_origin (struct wnd *w, int *sx, int *sy)
 	}
 	*sx = x;
 	*sy = y;
+}
+
+/* l'origine de la zone cliente d'une fenêtre à l'écran (GetDCOrg de gdi.c) */
+void user_client_origin (uint16_t hwnd, int *x, int *y)
+{
+	struct wnd *w = wnd_get (hwnd);
+	*x = *y = 0;
+	if (w)
+		screen_origin (w, x, y);
 }
 
 void api_GetWindowRect16 (struct w16call *c)
@@ -1401,6 +1434,7 @@ static int timers_wait_ms (int max)
 			if (d < best)
 				best = d < 0 ? 0 : d;
 		}
+	best = ws_wait_ms (best);	/* (des sockets en WSAAsyncSelect : regarder souvent) */
 	int m = mm_next_ms ();
 	if (m >= 0 && m < best)
 		best = m;
@@ -1514,6 +1548,7 @@ int user_take (struct qmsg *m, uint16_t hwnd, uint16_t lo, uint16_t hi, int remo
 		menu_publish_pending ();
 		mm_poll ();
 		timers_due ();
+		ws_poll ();	/* (WINSOCK : les messages de WSAAsyncSelect) */
 		/* (les événements de Korin sont lus à chaque appel, pas seulement file vide : ils sont datés à leur
 		 * arrivée, un double-clic reste un double-clic même si le programme a été long entre les deux) */
 		{
@@ -1578,10 +1613,13 @@ int user_take (struct qmsg *m, uint16_t hwnd, uint16_t lo, uint16_t hi, int remo
 	}
 }
 
+extern void commdlg_on_take (uint16_t msg, uint16_t *wp, uint32_t lp);
+
 void api_GetMessage16 (struct w16call *c)
 {
 	struct qmsg m;
 	user_take (&m, (uint16_t) c->a[1], (uint16_t) c->a[2], (uint16_t) c->a[3], 1, 1);
+	commdlg_on_take (m.msg, &m.wp, m.lp);
 	put_msg (c->a[0], &m);
 	c->ret = m.msg != WM_QUIT;
 }
@@ -1595,6 +1633,8 @@ void api_PeekMessage16 (struct w16call *c)
 		c->ret = 0;
 		return;
 	}
+	if (remove)
+		commdlg_on_take (m.msg, &m.wp, m.lp);
 	put_msg (c->a[0], &m);
 	c->ret = 1;
 }
@@ -2504,6 +2544,8 @@ void api_GlobalGetAtomName16 (struct w16call *c)
 
 void api_GetAtomName16 (struct w16call *c) { api_GlobalGetAtomName16 (c); }
 void api_RegisterWindowMessageA (struct w16call *c) { c->ret = atom_add (w16_raw (c->a[0])); }
+/* le numéro d'un message enregistré (le même que RegisterWindowMessage du programme : COMMDLG, FINDMSGSTRING) */
+uint16_t user_register_message (const char *name) { return atom_add (name); }
 void api_RegisterClipboardFormat16 (struct w16call *c) { c->ret = atom_add (w16_raw (c->a[0])); }
 
 /* ======================================================================== presse-papiers
@@ -2899,4 +2941,395 @@ void user_init (void)
 int user_register_system_class (const char *name, native_wndproc fn, uint16_t style, uint16_t brush, int wndextra)
 {
 	return class_add (name, native_register (fn), style, 0, brush, wndextra);
+}
+
+/* ======================================================================== fonctions de Windows 3.11 (21/11) */
+/* une chaîne C dans un tampon du programme (n octets avec le 0) -> sa longueur copiée */
+static int ustr_put (uint32_t dst, const char *s, int n)
+{
+	if (!dst || n <= 0)
+		return 0;
+	int l = (int) strlen (s);
+	if (l > n - 1)
+		l = n - 1;
+	memcpy (far_ptr (dst), s, (size_t) l);
+	((char *) far_ptr (dst))[l] = 0;
+	return l;
+}
+/* (les programmes de Windows for Workgroups 3.11 : Write, Solitaire, Terminal, Table de caractères…) */
+
+/* AdjustWindowRect(Ex) : le rectangle de la fenêtre qui donne cette zone cliente (comme wnd_geometry) */
+static void adjust_rect (uint32_t p, uint32_t style, int menu)
+{
+	int r[4];
+	get_rect (p, r);
+	int b = 0, cap = 0;
+	if (style & WS_THICKFRAME)
+		b = W16_FRAME;
+	else if (style & (WS_BORDER | WS_DLGFRAME))
+		b = (style & WS_DLGFRAME) && !(style & WS_CHILD) ? 4 : 1;
+	if ((style & WS_CAPTION) == WS_CAPTION)
+		cap = W16_CAPTION - 1;
+	if (menu)
+		cap += W16_MENU;
+	put_rect (p, r[0] - b, r[1] - b - cap, r[2] + b, r[3] + b);
+}
+void api_AdjustWindowRect16 (struct w16call *c) { adjust_rect (c->a[0], c->a[1], (int16_t) c->a[2] != 0); c->ret = 1; }
+void api_AdjustWindowRectEx16 (struct w16call *c) { adjust_rect (c->a[0], c->a[1], (int16_t) c->a[2] != 0); c->ret = 1; }
+
+/* FlashWindow : pas de clignotement dans Korin ; rend l'état d'avant (éteint) */
+void api_FlashWindow16 (struct w16call *c) { c->ret = 0; }
+
+/* ChangeMenu (Windows 2) : selon les drapeaux, InsertMenu, AppendMenu, ModifyMenu, DeleteMenu ou RemoveMenu */
+void api_ChangeMenu16 (struct w16call *c)
+{
+	extern void api_AppendMenu16 (struct w16call *), api_InsertMenu16 (struct w16call *),
+		api_ModifyMenu16 (struct w16call *), api_DeleteMenu16 (struct w16call *), api_RemoveMenu16 (struct w16call *);
+	uint32_t hm = c->a[0], pos = c->a[1], item = c->a[2], id = c->a[3], fl = c->a[4];
+	struct w16call d = { .n = 5 };
+	if (fl & 0x0100)	/* MF_APPEND */
+	{
+		d.a[0] = hm; d.a[1] = fl & ~0x0100u; d.a[2] = id; d.a[3] = item; d.n = 4;
+		api_AppendMenu16 (&d);
+	}
+	else if (fl & 0x0200)	/* MF_DELETE */
+	{
+		d.a[0] = hm; d.a[1] = pos; d.a[2] = fl & ~0x0200u; d.n = 3;
+		api_DeleteMenu16 (&d);
+	}
+	else if (fl & 0x1000)	/* MF_REMOVE */
+	{
+		d.a[0] = hm; d.a[1] = pos; d.a[2] = fl & ~0x1000u; d.n = 3;
+		api_RemoveMenu16 (&d);
+	}
+	else if (fl & 0x0080)	/* MF_CHANGE */
+	{
+		d.a[0] = hm; d.a[1] = pos; d.a[2] = fl & ~0x0080u; d.a[3] = id; d.a[4] = item;
+		api_ModifyMenu16 (&d);
+	}
+	else			/* MF_INSERT */
+	{
+		d.a[0] = hm; d.a[1] = pos; d.a[2] = fl; d.a[3] = id; d.a[4] = item;
+		api_InsertMenu16 (&d);
+	}
+	c->ret = d.ret;
+}
+
+/* SystemParametersInfo : les réglages qu'on peut lire ; les écritures réussissent sans effet */
+void api_SystemParametersInfo16 (struct w16call *c)
+{
+	uint16_t action = (uint16_t) c->a[0];
+	uint32_t pv = c->a[2];
+	int v = -1;
+	switch (action)
+	{
+	case 1: v = 1; break;		/* SPI_GETBEEP */
+	case 5: v = 1; break;		/* SPI_GETBORDER */
+	case 10: v = 31; break;		/* SPI_GETKEYBOARDSPEED */
+	case 13: c->ret = 75; return;	/* SPI_ICONHORIZONTALSPACING (dans le résultat) */
+	case 14: v = 0; break;		/* SPI_GETSCREENSAVETIMEOUT */
+	case 16: v = 0; break;		/* SPI_GETSCREENSAVEACTIVE */
+	case 18: v = 0; break;		/* SPI_GETGRIDGRANULARITY */
+	case 22: v = 1; break;		/* SPI_GETKEYBOARDDELAY */
+	case 24: c->ret = 75; return;	/* SPI_ICONVERTICALSPACING */
+	case 25: v = 1; break;		/* SPI_GETICONTITLEWRAP */
+	case 27: v = 0; break;		/* SPI_GETMENUDROPALIGNMENT */
+	case 35: v = 1; break;		/* SPI_GETFASTTASKSWITCH */
+	case 31:			/* SPI_GETICONTITLELOGFONT : la police des titres d'icônes (LOGFONT 16 bits) */
+		if (pv)
+		{
+			uint8_t *lf = far_ptr (pv);
+			memset (lf, 0, 50);
+			wr16 (far_lin (pv), (uint16_t) -11);	/* lfHeight */
+			wr16 (far_lin (pv) + 8, 400);		/* lfWeight */
+			snprintf ((char *) lf + 18, 32, "MS Sans Serif");
+		}
+		c->ret = 1;
+		return;
+	default:
+		c->ret = action >= 1 && action <= 0x30 ? 1 : 0;	/* (SPI_SET… : sans effet) */
+		return;
+	}
+	if (pv)
+		wr16 (far_lin (pv), (uint16_t) v);
+	c->ret = 1;
+}
+
+void api_GetMessageExtraInfo (struct w16call *c) { c->ret = 0; }
+void api_ClipCursor16 (struct w16call *c) { c->ret = 1; }	/* (le pointeur de Korin n'est pas enfermé) */
+void api_SetSysModalWindow16 (struct w16call *c) { c->ret = 0; }
+void api_CopyIcon16 (struct w16call *c) { c->ret = c->a[1]; }	/* (les icônes ne changent pas : la même) */
+void api_CalcChildScroll16 (struct w16call *c) { (void) c; }
+void api_DragObject16 (struct w16call *c) { c->ret = 0; }
+
+/* EnumProps (hwnd, procédure) : procédure (hwnd, nom ou atome, valeur) pour chaque propriété, jusqu'à 0 */
+void api_EnumProps16 (struct w16call *c)
+{
+	struct wnd *w = wnd_get ((uint16_t) c->a[0]);
+	c->ret = (uint32_t) -1;
+	if (!w)
+		return;
+	if (!sel_scratch)
+		sel_scratch = global_alloc (512, 0);
+	uint16_t hwnd = w->hwnd;
+	for (int i = 0; i < w->nprops; i++)
+	{
+		w = wnd_get (hwnd);
+		if (!w || i >= w->nprops)
+			break;
+		uint32_t name;
+		if (w->props[i].atom)
+			name = w->props[i].atom;
+		else
+		{
+			name = MAKESEGPTR (sel_scratch, 256);
+			snprintf (far_ptr (name), 64, "%s", w->props[i].name);
+		}
+		uint16_t args[4] = { hwnd, (uint16_t) (name >> 16), (uint16_t) name, w->props[i].value };
+		uint32_t r = call16 (c->a[1], args, 4, ne_ds_for (c->a[1]));
+		c->ret = r & 0xffff;
+		if (!(r & 0xffff))
+			break;
+	}
+}
+
+/* le presse-papiers : un visualiseur (le Presse-papiers de Windows) ; GetClipboardFormatName : les formats
+ * enregistrés (des atomes) */
+static uint16_t clip_viewer;
+void api_SetClipboardViewer16 (struct w16call *c)
+{
+	uint16_t prev = clip_viewer;
+	clip_viewer = (uint16_t) c->a[0];
+	user_post (clip_viewer, 0x0308, 0, 0);	/* WM_DRAWCLIPBOARD : le contenu actuel */
+	c->ret = prev;
+}
+void api_ChangeClipboardChain16 (struct w16call *c)
+{
+	if (clip_viewer == (uint16_t) c->a[0])
+		clip_viewer = (uint16_t) c->a[1];
+	c->ret = 0;
+}
+void api_GetClipboardFormatName16 (struct w16call *c)
+{
+	uint16_t f = (uint16_t) c->a[0];
+	int i = f >= 0xc000 ? atom_index (f) : -1;
+	if (i < 0 || (int16_t) c->a[2] <= 0)
+	{
+		c->ret = 0;
+		return;
+	}
+	c->ret = (uint32_t) ustr_put (c->a[1], atoms[i].name, (int16_t) c->a[2]);
+}
+
+/* DlgDirList (dialogue, motif, liste, texte du chemin, attributs) : les fichiers du dossier courant qui répondent
+ * au motif, les dossiers « [NOM] » et les lecteurs « [-c-] » ; DlgDirSelect : le choix, sans crochets (1 si dossier) */
+void api_DlgDirList16 (struct w16call *c)
+{
+	extern void api_SendDlgItemMessage16 (struct w16call *);
+	extern int kernel_dir_list (const char *spec, int dirs, char names[][16], int max, char *cwd, int cwdcap);
+	uint16_t dlg = (uint16_t) c->a[0], lb = (uint16_t) c->a[2], st = (uint16_t) c->a[3], attr = (uint16_t) c->a[4];
+	char spec[128];
+	snprintf (spec, sizeof spec, "%s", c->a[1] ? w16_raw (c->a[1]) : "*.*");
+	if (!spec[0])
+		snprintf (spec, sizeof spec, "*.*");
+	static char names[256][16];
+	char cwd[160];
+	int n = kernel_dir_list (spec, (attr & 0x10) != 0, names, 256, cwd, sizeof cwd);
+	if (n < 0)
+	{
+		c->ret = 0;
+		return;
+	}
+	if (!sel_scratch)
+		sel_scratch = global_alloc (512, 0);
+	uint32_t buf = MAKESEGPTR (sel_scratch, 256);
+	struct w16call d = { .n = 5 };
+	if (lb)
+	{
+		d.a[0] = dlg; d.a[1] = lb; d.a[2] = 0x0405; d.a[3] = 0; d.a[4] = 0;	/* LB_RESETCONTENT */
+		api_SendDlgItemMessage16 (&d);
+		for (int i = 0; i < n; i++)
+		{
+			snprintf (far_ptr (buf), 32, "%s", names[i]);
+			d.a[2] = 0x0401; d.a[4] = buf;	/* LB_ADDSTRING */
+			api_SendDlgItemMessage16 (&d);
+		}
+		if (attr & 0x4000)	/* DDL_DRIVES */
+			for (int k = 0; k < 26; k++)
+			{
+				extern int kernel_drive_present (int d);
+				if (!kernel_drive_present (k + 1))
+					continue;
+				snprintf (far_ptr (buf), 32, "[-%c-]", 'a' + k);
+				d.a[2] = 0x0401; d.a[4] = buf;
+				api_SendDlgItemMessage16 (&d);
+			}
+	}
+	if (st)
+	{
+		snprintf (far_ptr (buf), 160, "%s", cwd);
+		struct w16call s = { .a = { dlg, st, 0x000c, 0, buf }, .n = 5 };	/* WM_SETTEXT */
+		api_SendDlgItemMessage16 (&s);
+	}
+	c->ret = 1;
+}
+
+void api_DlgDirSelect16 (struct w16call *c)
+{
+	extern void api_SendDlgItemMessage16 (struct w16call *);
+	uint16_t dlg = (uint16_t) c->a[0], lb = (uint16_t) c->a[2];
+	struct w16call d = { .a = { dlg, lb, 0x0409, 0, 0 }, .n = 5 };	/* LB_GETCURSEL */
+	api_SendDlgItemMessage16 (&d);
+	int sel = (int16_t) d.ret;
+	c->ret = 0;
+	if (sel < 0 || !c->a[1])
+		return;
+	if (!sel_scratch)
+		sel_scratch = global_alloc (512, 0);
+	uint32_t buf = MAKESEGPTR (sel_scratch, 256);
+	struct w16call g = { .a = { dlg, lb, 0x040a, (uint32_t) sel, buf }, .n = 5 };	/* LB_GETTEXT */
+	api_SendDlgItemMessage16 (&g);
+	char t[64];
+	snprintf (t, sizeof t, "%s", (const char *) far_ptr (buf));
+	char out[64];
+	int dir = 0;
+	size_t l = strlen (t);
+	if (l >= 5 && t[0] == '[' && t[1] == '-' && t[l - 2] == '-' && t[l - 1] == ']')
+	{
+		snprintf (out, sizeof out, "%c:", t[2]);	/* un lecteur */
+		dir = 1;
+	}
+	else if (l >= 2 && t[0] == '[' && t[l - 1] == ']')
+	{
+		snprintf (out, sizeof out, "%.*s\\", (int) (l - 2), t + 1);	/* un dossier */
+		dir = 1;
+	}
+	else
+		snprintf (out, sizeof out, "%s", t);
+	snprintf (far_ptr (c->a[1]), 64, "%s", out);
+	c->ret = (uint32_t) dir;
+}
+
+/* ---- KEYBOARD : le clavier américain (les tables de Windows), le caractère de Korin passe par WM_CHAR ---- */
+static const char kb_us[] = "\0\0331234567890-=\b\tqwertyuiop[]\r\0asdfghjkl;'`\0\\zxcvbnm,./\0*\0 ";
+static const char kb_us_shift[] = "\0\033!@#$%^&*()_+\b\tQWERTYUIOP{}\r\0ASDFGHJKL:\"~\0|ZXCVBNM<>?\0*\0 ";
+
+/* le code de touche virtuel d'un code de balayage (jeu 1) */
+static int scan_to_vk (int s)
+{
+	if (s <= 0 || s >= (int) sizeof kb_us)
+	{
+		if (s >= 0x3b && s <= 0x44)
+			return 0x70 + s - 0x3b;	/* F1-F10 */
+		switch (s)
+		{
+		case 0x57: return 0x7a; case 0x58: return 0x7b;	/* F11, F12 */
+		case 0x47: return 0x24; case 0x48: return 0x26; case 0x49: return 0x21; case 0x4b: return 0x25;
+		case 0x4d: return 0x27; case 0x4f: return 0x23; case 0x50: return 0x28; case 0x51: return 0x22;
+		case 0x52: return 0x2d; case 0x53: return 0x2e; case 0x45: return 0x90; case 0x46: return 0x91;
+		}
+		return 0;
+	}
+	switch (s)
+	{
+	case 0x01: return 0x1b; case 0x0e: return 0x08; case 0x0f: return 0x09; case 0x1c: return 0x0d;
+	case 0x1d: return 0x11; case 0x2a: case 0x36: return 0x10; case 0x38: return 0x12; case 0x39: return 0x20;
+	case 0x3a: return 0x14; case 0x37: return 0x6a;
+	}
+	int ch = (unsigned char) kb_us[s];
+	if (ch >= 'a' && ch <= 'z')
+		return ch - 32;
+	if (ch >= '0' && ch <= '9')
+		return ch;
+	switch (ch)
+	{
+	case ';': return 0xba; case '=': return 0xbb; case ',': return 0xbc; case '-': return 0xbd; case '.': return 0xbe;
+	case '/': return 0xbf; case '`': return 0xc0; case '[': return 0xdb; case '\\': return 0xdc; case ']': return 0xdd;
+	case '\'': return 0xde;
+	}
+	return 0;
+}
+
+static int vk_to_scan (int vk)
+{
+	for (int s = 1; s < 0x59; s++)
+		if (scan_to_vk (s) == vk)
+			return s;
+	return 0;
+}
+
+/* VkKeyScan (caractère) -> touche virtuelle (bas) et Maj (bit 8), -1 sans touche */
+void api_VkKeyScan16 (struct w16call *c)
+{
+	int ch = (uint8_t) c->a[0];
+	c->ret = 0xffff;
+	for (int s = 1; s < (int) sizeof kb_us; s++)
+	{
+		if ((uint8_t) kb_us[s] == ch && ch)
+		{
+			c->ret = (uint32_t) scan_to_vk (s);
+			return;
+		}
+		if ((uint8_t) kb_us_shift[s] == ch && ch)
+		{
+			c->ret = (uint32_t) scan_to_vk (s) | 0x100;
+			return;
+		}
+	}
+}
+
+/* MapVirtualKey (code, sens) : 0 touche -> balayage, 1 balayage -> touche, 2 touche -> caractère */
+void api_MapVirtualKey16 (struct w16call *c)
+{
+	int code = (uint16_t) c->a[0];
+	switch ((uint16_t) c->a[1])
+	{
+	case 0: c->ret = (uint32_t) vk_to_scan (code); break;
+	case 1: c->ret = (uint32_t) scan_to_vk (code); break;
+	case 2:
+	{
+		int s = vk_to_scan (code);
+		int ch = s > 0 && s < (int) sizeof kb_us ? (unsigned char) kb_us[s] : 0;
+		c->ret = (uint32_t) (ch >= 'a' && ch <= 'z' ? ch - 32 : ch);
+		break;
+	}
+	default: c->ret = 0;
+	}
+}
+
+/* GetKeyNameText (lParam d'un WM_KEYDOWN, tampon, taille) : le nom de la touche */
+void api_GetKeyNameText16 (struct w16call *c)
+{
+	int s = (int) ((c->a[0] >> 16) & 0xff);
+	int vk = scan_to_vk (s);
+	char n[32] = "";	/* (en CP1252, comme le reste de l'API 16 bits) */
+	if (vk >= 0x70 && vk <= 0x7b)
+		snprintf (n, sizeof n, "F%d", vk - 0x6f);
+	else
+		switch (vk)
+		{
+		case 0x1b: snprintf (n, sizeof n, "\xc9" "chap"); break;
+		case 0x08: snprintf (n, sizeof n, "Retour arri\xe8" "re"); break;
+		case 0x09: snprintf (n, sizeof n, "Tab"); break;
+		case 0x0d: snprintf (n, sizeof n, "Entr\xe9" "e"); break;
+		case 0x10: snprintf (n, sizeof n, "Maj"); break;
+		case 0x11: snprintf (n, sizeof n, "Ctrl"); break;
+		case 0x12: snprintf (n, sizeof n, "Alt"); break;
+		case 0x20: snprintf (n, sizeof n, "Espace"); break;
+		case 0x14: snprintf (n, sizeof n, "Verr Maj"); break;
+		case 0x2d: snprintf (n, sizeof n, "Inser"); break;
+		case 0x2e: snprintf (n, sizeof n, "Suppr"); break;
+		case 0x24: snprintf (n, sizeof n, "Origine"); break;
+		case 0x23: snprintf (n, sizeof n, "Fin"); break;
+		case 0x21: snprintf (n, sizeof n, "Pg pr\xe9" "c"); break;
+		case 0x22: snprintf (n, sizeof n, "Pg suiv"); break;
+		case 0x25: snprintf (n, sizeof n, "Gauche"); break;
+		case 0x26: snprintf (n, sizeof n, "Haut"); break;
+		case 0x27: snprintf (n, sizeof n, "Droite"); break;
+		case 0x28: snprintf (n, sizeof n, "Bas"); break;
+		default:
+			if (s > 0 && s < (int) sizeof kb_us && kb_us[s] > ' ')
+				snprintf (n, sizeof n, "%c", kb_us[s] >= 'a' && kb_us[s] <= 'z' ? kb_us[s] - 32 : kb_us[s]);
+		}
+	c->ret = (uint32_t) ustr_put (c->a[1], n, (int16_t) c->a[2]);
 }

@@ -581,12 +581,34 @@ void api_GetSystemDirectory16 (struct w16call *c) { c->ret = (uint32_t) put_str 
 void api_GetDriveType16 (struct w16call *c) { c->ret = c->a[0] < 26 && drive_root ((int) c->a[0] + 1) ? 3 : 0; }	/* DRIVE_FIXED */
 void api_SetHandleCount16 (struct w16call *c) { c->ret = c->a[0] < MAX_FH ? c->a[0] : MAX_FH; }
 
+/* GetTempFileName (lecteur, préfixe, numéro, tampon) : comme Windows, un numéro 0 cherche un nom libre et CRÉE le
+ * fichier (vide) pour le réserver ; Write de Windows 3.11 l'ouvre ensuite par DOS et s'arrêtait sur « Mémoire
+ * insuffisante » quand il manquait */
 void api_GetTempFileName16 (struct w16call *c)
 {
 	static unsigned n = 1;
-	char s[80];
-	unsigned u = c->a[2] ? c->a[2] : n++;
-	snprintf (s, sizeof s, "C:\\WINDOWS\\TEMP\\%.3s%04X.TMP", w16_raw (c->a[1]), u & 0xffff);
+	char s[80], host[700];
+	unsigned u = c->a[2] ? c->a[2] : 0;
+	for (int tries = 0; tries < 0x10000; tries++)
+	{
+		if (!c->a[2])
+		{
+			u = n++ & 0xffff;
+			if (!u)
+				u = n++ & 0xffff;
+		}
+		snprintf (s, sizeof s, "C:\\WINDOWS\\TEMP\\%.3s%04X.TMP", w16_raw (c->a[1]), u & 0xffff);
+		if (c->a[2] || !dos_to_host (s, host, sizeof host))
+			break;
+		int fd = open (host, O_WRONLY | O_CREAT | O_EXCL, 0644);
+		if (fd >= 0)
+		{
+			close (fd);
+			break;
+		}
+		if (errno != EEXIST)
+			break;
+	}
 	put_str (c->a[3], s, 144);
 	c->ret = u;
 }
@@ -1590,6 +1612,15 @@ static uint16_t largest_free (uint16_t sel, int sum)
 	return (uint16_t) (best > 0xffff ? 0xffff : best);
 }
 
+/* LocalHandleDelta : combien de poignées le tas local ajoute à la fois (0 : la valeur seule) ; ici un simple réglage */
+void api_LocalHandleDelta16 (struct w16call *c)
+{
+	static uint16_t delta = 32;
+	if (c->a[0])
+		delta = (uint16_t) c->a[0];
+	c->ret = delta;
+}
+
 void api_LocalCompact16 (struct w16call *c) { c->ret = largest_free (cpu_sreg (S_DS), 0); }
 void api_LocalCountFree16 (struct w16call *c) { c->ret = largest_free (cpu_sreg (S_DS), 1); }
 void api_LocalHeapSize16 (struct w16call *c)
@@ -2103,6 +2134,8 @@ void dos_int21 (void)
 		snprintf (d, 64, "%s", drv == cur_drive ? cur_dir : "");
 		for (char *q = d; *q; q++)
 			*q = (char) toupper ((unsigned char) *q);
+		/* (comme MS-DOS : AX = 0100h en cas de succès ; Write de Windows 3.11 cherche la fin du chemin avec AL) */
+		set16 (R_EAX, 0x0100);
 		break;
 	}
 	case 0x4c:	/* fin du programme */
@@ -2183,4 +2216,156 @@ void api_DOS3Call (struct w16call *c)
 {
 	(void) c;
 	dos_int21 ();
+}
+
+/* ======================================================================== fonctions de Windows 3.11 (21/11) */
+/* FatalExit (code) : l'arrêt demandé par le programme */
+void api_FatalExit16 (struct w16call *c) { w16_fatal ("FatalExit (%d) demandé par le programme", (int16_t) c->a[0]); }
+
+/* FreeModule : comme FreeLibrary */
+void api_FreeModule16 (struct w16call *c)
+{
+	extern void api_WIN16_FreeLibrary16 (struct w16call *);
+	api_WIN16_FreeLibrary16 (c);
+	c->ret = 1;
+}
+
+/* GlobalDOSAlloc (taille) : sélecteur (bas) et segment du mode réel (haut) ; ici pas de mémoire du mode réel
+ * distincte : le segment vaut 0 (les programmes qui s'en servent pour un appel DOS en mode réel ne marchent pas) */
+void api_GlobalDOSAlloc16 (struct w16call *c) { c->ret = global_alloc (c->a[0], 0); }
+void api_GlobalDOSFree16 (struct w16call *c) { global_free ((uint16_t) (c->a[0] | 7)); c->ret = 0; }
+
+/* GlobalWire : verrouiller en bas de la mémoire (ici, un simple GlobalLock) */
+void api_GlobalWire16 (struct w16call *c)
+{
+	uint16_t s = (uint16_t) (c->a[0] | 7);
+	c->ret = c->a[0] && sel_valid (s) ? MAKESEGPTR (s, 0) : 0;
+}
+void api_GlobalUnWire16 (struct w16call *c) { c->ret = 1; }
+void api_GlobalNotify16 (struct w16call *c) { (void) c; }	/* (rien n'est jamais écarté de la mémoire) */
+
+/* LongPtrAdd (pointeur, ajout) : avance la base du sélecteur */
+void api_LongPtrAdd16 (struct w16call *c)
+{
+	uint16_t s = (uint16_t) (c->a[0] >> 16);
+	if (sel_valid (s | 7))
+	{
+		s |= 7;
+		sel_set (s, sel_base (s) + c->a[1], sel_limit (s) + 1, sel_is_code (s));
+		cpu_reload_segments ();
+	}
+	c->ret = c->a[0];
+}
+
+void api_IsRomModule16 (struct w16call *c) { c->ret = 0; }
+void api_SetSwapAreaSize16 (struct w16call *c) { c->ret = (uint32_t) (uint16_t) c->a[0] | (uint32_t) (uint16_t) c->a[0] << 16; }
+void api_FileCDR16 (struct w16call *c) { c->ret = 0; }
+
+/* pour DlgDirList (user.c) : un lecteur présent ? (1 A: … 26 Z:) */
+int kernel_drive_present (int d) { return drive_root (d) != 0; }
+
+/* pour DlgDirList : les noms du dossier courant qui répondent au motif (8.3), les dossiers en « [NOM] » si dirs ;
+ * cwd : le chemin DOS du dossier ; -> le nombre, -1 si le dossier n'existe pas */
+int kernel_dir_list (const char *spec, int dirs, char names[][16], int max, char *cwd, int cwdcap)
+{
+	char dir[300], pat[64], host[700];
+	const char *b = strrchr (spec, '\\');
+	if (b)
+	{
+		snprintf (dir, sizeof dir, "%.*s", (int) (b - spec + 1), spec);
+		snprintf (pat, sizeof pat, "%s", b + 1);
+	}
+	else if (spec[0] && spec[1] == ':')
+	{
+		snprintf (dir, sizeof dir, "%.2s", spec);
+		snprintf (pat, sizeof pat, "%s", spec + 2);
+	}
+	else
+	{
+		dir[0] = 0;
+		snprintf (pat, sizeof pat, "%s", spec);
+	}
+	if (!pat[0])
+		snprintf (pat, sizeof pat, "*.*");
+	if (!dos_to_host (dir[0] ? dir : ".", host, sizeof host))
+		return -1;
+	DIR *d = opendir (host);
+	if (!d)
+		return -1;
+	int n = 0;
+	struct dirent *e;
+	while ((e = readdir (d)) && n < max)
+	{
+		if (e->d_name[0] == '.')
+			continue;
+		char sn[13], p[1000];
+		kernel_short_name (host, e->d_name, sn);
+		snprintf (p, sizeof p, "%s/%s", host, e->d_name);
+		struct stat st;
+		if (stat (p, &st))
+			continue;
+		if (S_ISDIR (st.st_mode))
+		{
+			if (dirs)
+				snprintf (names[n++], 16, "[%s]", sn);
+		}
+		else if (wild_match (pat, sn))
+			snprintf (names[n++], 16, "%s", sn);
+	}
+	closedir (d);
+	snprintf (cwd, (size_t) cwdcap, "%c:\\%s", 'A' + cur_drive - 1, cur_dir);
+	for (char *q = cwd; *q; q++)
+		*q = (char) toupper ((unsigned char) *q);
+	return n;
+}
+
+/* pour EM_GETHANDLE (ctrl.c) : le texte s (n octets) dans le bloc local mobile h du segment sel (0 : un nouveau) ;
+ * la poignée garde sa case, le bloc de données est refait s'il est trop petit -> la poignée, 0 si plus de place */
+uint16_t kernel_local_set_text (uint16_t sel, uint16_t h, const char *s, int n)
+{
+	if (!lheap_of (sel))
+		return 0;
+	if (!h || !lh_is (h))
+		h = local_alloc_h (sel, 0x42, (uint16_t) (n + 1));	/* LMEM_MOVEABLE | LMEM_ZEROINIT */
+	else
+	{
+		uint16_t d = rd16 (sel_base (sel) + h);
+		struct lblk *b = d ? local_find (sel, d, 0, 0) : 0;
+		if (!b || b->size < n + 1)
+		{
+			if (d)
+				local_free (sel, d);
+			uint16_t nd = local_alloc (sel, 0x40, (uint16_t) (n + 1));
+			wr16 (sel_base (sel) + h, nd);	/* (après local_alloc : le segment a pu bouger) */
+			lin_ptr (sel_base (sel) + h)[2] = nd ? 0 : 0x40;
+			if (!nd)
+				return 0;
+		}
+	}
+	if (!h)
+		return 0;
+	uint16_t d = rd16 (sel_base (sel) + h);
+	if (!d)
+		return 0;
+	memcpy (lin_ptr (sel_base (sel) + d), s, (size_t) n);
+	lin_ptr (sel_base (sel) + d)[n] = 0;
+	return h;
+}
+
+/* pour EM_SETHANDLE : le texte du bloc local h du segment sel (fixe ou mobile) -> octets copiés (sans le 0) */
+int kernel_local_get_text (uint16_t sel, uint16_t h, char *out, int cap)
+{
+	uint16_t d = h ? lh_data (sel, h) : 0;
+	struct lblk *b = d ? local_find (sel, d, 0, 0) : 0;
+	if (!b || cap <= 0)
+		return 0;
+	const char *p = (const char *) lin_ptr (sel_base (sel) + d);
+	int n = 0;
+	while (n < b->size && n < cap - 1 && p[n])
+	{
+		out[n] = p[n];
+		n++;
+	}
+	out[n] = 0;
+	return n;
 }

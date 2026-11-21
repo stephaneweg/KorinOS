@@ -36,30 +36,45 @@ de l'utilisateur). Vérifier dans `packages/pc/index.txt` (`[jet]`, version 1.4.
 avec l'accord de l'utilisateur pour publier. Puis lui demander de se reconnecter une fois à Spotify sur le ZBook et
 de vérifier qu'il le reste après avoir quitté l'app.
 
-### fatfs : les grosses lectures ne voient pas les écritures d'une poignée ouverte (à faire)
+### fatfs : pas de défaut, c'était grep (vérifié le 20/11 au soir, dans le cloud)
 
-Trouvé en cherchant les cookies, demandé par l'utilisateur dans cette passation. Un process garde un fichier ouvert
-et y écrit par petits morceaux (SQLite, `pwrite` de 4 Ko) ; un autre process qui le lit en gros morceaux (`grep -a`
-sur le fichier entier) voit **l'ancien contenu**, pendant et même après la mort du premier ; un lecteur par petits
-morceaux (SQLite) voit le nouveau. Hypothèse à vérifier : les grosses lectures d'AppKit passent par
-`FS_READ_DIRECT` (`fc_rw` dans `src/kits/appkit/appkit.c`), qui lit le disque sans passer par le cache de blocs de
-fatfs (`bc_*`, secteurs différés `bc_dirty`, `src/svc/fatfs/fatfs.c` : la version C, celle du PC). Corriger : vider
-les secteurs différés du fichier avant une lecture directe, ou servir ces lectures par le cache. Le Pi a sa version
-en asm (`fatfs.asm`, cache `cc_*`) : regarder s'il a le même défaut.
+La passation soupçonnait fatfs : une grosse lecture (`grep -a` sur une base SQLite gardée ouverte par un autre
+process) ne voyait pas les écritures. **fatfs est cohérent** : `tools/linux/sqltest` (mode `scan`) lit le fichier par
+1 Mo (`FS_READ_DIRECT`), 4 Ko et 100 octets, depuis un autre process pendant que la base est ouverte (`fork` +
+`exec` depuis `sqltest … hold`) puis après la sortie du process : les trois lectures voient « holdperm » (×2). Le
+coupable était `grep` (C du PC, asm du Pi) : il s'arrêtait au premier octet nul de chaque ligne, et une base SQLite
+commence par « SQLite format 3 » et un nul, sans retour à la ligne avant ses données. Corrigé : chaque morceau
+entre deux nuls est cherché (l'ancien grep : 0, le nouveau : 2). Rien à changer dans fatfs, ni en C ni en asm.
 
-Reproduction : `tools/linux/sqltest/` (`sqltest.c` ; `build.sh` le construit avec la chaîne et le `libsqlite3.a` de
-Jet ; `run.sh` le lance sous QEMU PC). Résultat du 20/11 :
+### HOME de Jet (signalé le 20/11 au soir)
 
+Sous un compte (`/home/trolly`), Jet téléchargeait dans `/home/downloads` et les apps web gardaient leur session dans
+`/home/<app>` : la libposix liée en statique dans Jet (sysroot de WebKit) datait d'avant la règle de libposix qui
+remplace `HOME=/home` par le dossier du compte. Corrigé : `build-jet.sh` refait ce sysroot (`tools/webkit/sysroot.sh`)
+quand `src/lib/posix` est plus récent ; Jet corrige `HOME` lui-même au démarrage (`fix_home`, `getpwuid`) et déplace
+`/home/<app>` vers `HOME/<app>` au premier lancement (comme `/home/jet` et `/home/downloads` déjà). Jet est à
+reconstruire avant jet 1.4.2.
+
+### Publier jet 1.4.2 et les apps web (décision de l'utilisateur, 20/11 au soir)
+
+Jet se reconstruit dans le WSL de l'utilisateur (WebKit y est construit ; dans le cloud, plus de 10 h sur 4 cœurs),
+puis jet 1.4.2 et les quatre apps web neuves sont publiés (l'utilisateur : « Oui, avec jet 1.4.2 »). Netflix,
+Disney+, TF1+ et Prime Video demandent `jet >= 1.4.2` (`packages-pc.ini` : F11, Agrandir, bords). Essai à blanc de
+`pub.py netflix --new` passé dans le cloud (avec un `jet.app` dans l'arbre : sans lui, mkrepo saute l'app).
+
+```sh
+ARCH=x86_64 sh tools/webkit/build-media.sh     # seulement si /tmp/korin-ffmpeg-jet-x86_64 a disparu
+ARCH=x86_64 sh tools/webkit/build-jet.sh       # refait d'abord la libposix du sysroot (HOME)
+sh tools/pc/sysroot_webkit.sh                  # Jet dans build/pc/sysroot
+sh tools/pc/apps.sh netflix disneyplus tf1plus primevideo
+cp -r build/pc/apps/sdroot/apps/netflix.app build/pc/apps/sdroot/apps/disneyplus.app build/pc/apps/sdroot/apps/tf1plus.app build/pc/apps/sdroot/apps/primevideo.app build/pc/sysroot/apps/
+python tools/pkg/pub.py jet                    # (Python de Windows) : jet.app/main changé, Release
+python tools/pkg/pub.py netflix --new          # puis disneyplus, tf1plus, primevideo
 ```
-$ grep -a -c holdperm /home/hold.db          (pendant que sqltest … hold garde le fichier ouvert)
-0
-$ /bin/sqltest /home/hold.db read
-  row: holdperm
-(30 s plus tard, sqltest sorti sans fermer : même chose, grep 0, SQLite holdperm)
-```
 
-C'est fait quand `grep -a` voit les écritures d'un process qui garde le fichier ouvert (et après sa sortie), sous
-QEMU PC, et que rien d'autre n'a régressé (démarrage, `run ktest`, essais de fichiers existants).
+Puis : l'utilisateur se reconnecte une fois à Spotify et vérifie qu'il le reste après avoir quitté l'app ; ses
+données de `/home/spotify` passent dans `/home/<compte>/spotify` au premier lancement, `/home/downloads` dans
+`/home/<compte>/downloads` au premier lancement de Jet.
 
 ## 2. Pièges rencontrés
 

@@ -97,6 +97,7 @@ struct wnd
 	char text[256];		/* le titre (CP1252, comme le programme) */
 	long be;
 	int visible, destroyed, disabled, dialog, dlg_end, dlg_result;
+	int need_size;		/* WM_SIZE et WM_MOVE attendent le premier affichage (une fenêtre principale) */
 	int invalid, erase, ix0, iy0, ix1, iy1;	/* la zone à repeindre (zone cliente) */
 	uint8_t extra[64];
 	int nprops;
@@ -112,6 +113,7 @@ int wnd_client_geometry (uint16_t hwnd, int *ox, int *oy, int *cw, int *ch, long
 uint32_t user_sys_color (int index);	/* COLORREF */
 uint32_t user_send (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp);
 int user_post (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp);
+void user_client_origin (uint16_t hwnd, int *x, int *y);
 void user_invalidate (uint16_t hwnd, int erase);
 uint16_t user_set_focus (uint16_t hwnd);
 uint16_t user_get_focus (void);

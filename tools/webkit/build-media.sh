@@ -9,6 +9,10 @@ set -eu
 WK_ENV_SELF=$0
 . "$(dirname "$0")/env.sh"
 O=$WK_OUT/av
+# les correctifs de Korin à av (tools/webkit/av-patches : av_crypt.c, le décodeur externe...) : glue.sh les applique
+# une fois ; dans une copie neuve de src/extra, build-media.sh passe avant build-webcore.sh (qui l'appelait seul) et
+# av.mk demandait av_crypt.o sans sa source (le cloud, 20/11)
+sh "$ARMPI/tools/webkit/glue.sh"
 AVARCH=aarch64
 AVWRAP=
 [ "$ONYX_ARCH" = x86_64 ] && AVARCH=generic	# (Korin PC : codecs.mk sans le NEON)

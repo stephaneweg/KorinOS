@@ -544,6 +544,74 @@ QuickBASIC et les programmes QBasic, à mesurer sur le Pi 4 pour les démos SVGA
 construction et la mesure sur le Pi, est retirée ; rien n'est construit ni essayé pour le Pi, ni pour Win16 ni pour
 le DOS).
 
+## 10. Le mode protégé de la machine DOS (étude du 20/11/2026, rien d'engagé)
+
+Demandé par l'utilisateur après l'essai de l'installation de Windows for Workgroups 3.11 (sa copie) : la partie DOS
+d'INSTALL.EXE va au bout, puis elle lance `C:\WINDOWS\SYSTEM\DOSX.EXE` (l'extenseur du mode standard), qui
+s'arrête aussitôt ; `WIN.COM` n'est jamais construit et le reste de la copie, fait sous Windows, n'a pas lieu.
+
+### 10.1 Ce qu'on a déjà
+
+* Le **cœur i486 de MAME** sait tout faire : mode réel, mode protégé 16 et 32 bits, pagination, mode V86, x87.
+  La machine DOS (`dos.c`, `bios.c`) le garde en mode réel ; le côté Windows (`run.c`, `mem.c`) le tient en mode
+  protégé 16 bits avec **notre LDT** (8192 sélecteurs, `sel_alloc`, `global_alloc`) et des sélecteurs réservés
+  aux points d'entrée de l'API. Les deux côtés partagent la mémoire émulée (**32 Mo**, `W16_MEM_SIZE`).
+* XMS (`xms.c`, avec la ligne A20) et EMS ; l'INT 15h 88h rend 0 (pas de mémoire étendue « brute ») ; ni DPMI
+  (INT 2Fh 1687h, INT 31h), ni VCPI (INT 67h DEh).
+
+### 10.2 Trois niveaux possibles
+
+| Niveau | Ce qui tourne | Ce qu'il faut | Effort |
+|---|---|---|---|
+| **A. Hôte DPMI 0.9** | les programmes DOS 32 bits : DOS/4GW (DOOM, Duke Nukem 3D, Tomb Raider, la plupart des jeux de 1993-1997), DJGPP, PMODE/W, CauseWay | INT 2Fh 1687h et le passage en mode protégé ; INT 31h : descripteurs (0000h-000Ch), mémoire DOS (0100h-0102h), vecteurs et exceptions (0200h-0205h), appels en mode réel (0300h-0302h), rappels (0303h-0304h), version (0400h), mémoire (0500h-0503h, au-dessus du Mo), verrous (0600h-0601h : sans effet), adresses physiques (0800h : le LFB de la VESA), IF virtuel (0900h-0902h) ; le renvoi des IRQ et des INT logicielles vers le mode réel | 1 à 2 semaines |
+| **B. Windows 3.1 en mode standard** (`DOSX.EXE`, KRNL286/KRNL386) | Windows 3.1 entier dans une fenêtre (bureau 640 × 480 en 16 couleurs par VGA.DRV) | DOSX n'est pas un client DPMI : il passe **lui-même** en mode protégé (LGDT, LIDT, CR0 ou LMSW), prend l'IDT, le PIC et le minuteur, revient au mode réel par le contrôleur du clavier (64h, FEh) et l'octet d'arrêt du CMOS, ou par CR0 ; il veut l'INT 15h 87h (copie en mémoire étendue), et ses pilotes (VGA.DRV, KEYBOARD.DRV, MOUSE.DRV, COMM.DRV) parlent au matériel émulé. Notre BIOS « de haut niveau » (des points d'arrêt en F000) doit alors se comporter comme un vrai BIOS sous un extenseur | des semaines, résultat incertain |
+| **C. Windows en mode 386 étendu** (`WIN386.EXE`, le seul de WfW 3.11) | WfW 3.11 entier | le niveau B, plus le mode V86 avec le DOS dedans, la pagination, l'anneau 0 et les VxD, les bitmaps d'E/S ; en pratique un PC complet (ce que font DOSBox-X ou 86Box) | très long |
+
+### 10.3 Recommandation
+
+* **Faire A** (un hôte DPMI dans win16), pour les programmes DOS 32 bits : c'est le chantier « Tomb Raider »
+  noté après D6, et il réutilise ce qui existe (la LDT et les sélecteurs de `mem.c`, `dos_int21` pour l'INT 21h
+  renvoyée, l'XMS pour la mémoire). Étapes :
+  * **P1** : INT 2Fh 1687h, le saut en mode protégé (sélecteurs de CS, DS, SS, ES du client, PSP, environnement),
+    INT 31h 0000h-000Ch, 0100h-0102h, 0400h, 0500h-0503h, 0600h-0601h ; l'INT 21h en mode protégé passe à
+    `dos_int21` (fonctions à pointeurs : copie par un tampon sous le Mo, comme le fait DOS/4GW lui-même) ;
+    essai : un programme DOS/4GW d'Open Watcom (`wcl386 -l=dos4g`, DOS4GW.EXE est redistribuable avec Open
+    Watcom) ;
+  * **P2** : 0200h-0205h (vecteurs et exceptions), le renvoi des IRQ (minuteur, clavier, Sound Blaster, souris)
+    vers les gestionnaires du mode protégé, 0300h-0302h ; essai : un jeu en DOS/4GW de la collection de
+    l'utilisateur ;
+  * **P3** : 0303h (rappels du mode réel : le gestionnaire de la souris), 0800h (le LFB de la VESA), 0900h ;
+    essai : DJGPP (sans CWSDPMI), PMODE/W ;
+  * **P4** (à part) : la vitesse. Le cœur de MAME est un interpréteur ; DOOM devrait aller, Tomb Raider (rendu
+    logiciel pensé pour un Pentium) demandera sans doute un recompilateur, et un lecteur de CD (MSCDEX, images
+    ISO/CUE).
+* **Ne pas faire B ni C** : win16 lance déjà les programmes de Windows 3.x eux-mêmes, chacun dans ses fenêtres
+  de Korin, ce que Windows entier dans une fenêtre de 640 × 480 ne ferait pas ; c'était la voie « DOSBox avec
+  Windows 3.1 » (§ 4.2) écartée par l'utilisateur. Pour récupérer les programmes d'une disquette de Windows,
+  `EXPAND.EXE` de la disquette marche dans FreeCOM (`EXPAND C:\TEMP\WIN311\NOTEPAD.EX_ C:\APPS\NOTEPAD.EXE`).
+
+### 10.4 Essais des programmes de Windows for Workgroups 3.11 (20/11, hôte)
+
+Décompressés par `EXPAND.EXE` dans FreeCOM : le Bloc-notes (après la correction du tas local à la fin du segment
+de données), la Calculatrice, l'Horloge, le Solitaire, le Démineur, la Table de caractères et le Terminal
+s'ouvrent ; le Gestionnaire de fichiers, le Gestionnaire de programmes et Sysedit demandent **MDI** (`MDIClient`,
+`DefFrameProc`, `DefMDIChildProc`) ; Write et Cardfile demandent `OLECLI.DLL`, le Presse-papiers `NDDEAPI.DLL`,
+Paintbrush `PBRUSH.DLL` (des DLL de Windows qui sont sur la disquette). Restent aussi de petites fonctions
+(MapVirtualKey, VkKeyScan, AdjustWindowRect, GetDCOrg, SystemParametersInfo, FlashWindow, WNetGetConnection).
+
+### 10.5 WINSOCK.DLL (20/11)
+
+`winsock.c` : Windows Sockets 1.1 sur les sockets de Korin (libposix) : sockets bloquants (attente par poll),
+`select`, `ioctlsocket` (FIONBIO, FIONREAD), options (`SOL_SOCKET` et les `SO_*` de Winsock traduits),
+`gethostbyname` et les autres fonctions de la base des noms (structures 16 bits dans une zone statique),
+`WSAAsyncSelect` (les messages FD_* postés par la boucle des messages de USER, réarmés par recv, send, accept),
+`WSAAsyncGet*` (réponse immédiate). Essai : `tools/win16/tests/wsock.c` avec le serveur d'écho
+`tools/win16/tests/echo.py` : **tout passe sur l'hôte** ; **sous Korin (QEMU PC)**, la partie bloquante passe
+(par 10.0.2.2), mais en asynchrone les octets envoyés après FD_CONNECT ne partent qu'à la fermeture du socket
+(le serveur les reçoit 5 s plus tard) : `send` rend la bonne taille, `op_send` de netd met les octets en file et
+appelle `tcp_output`, qui ne les émet pas ; **défaut de netd (ou de son dialogue avec le réseau de QEMU) à
+suivre**, pas de WINSOCK.
+
 ## Sources (consultées le 20/11/2026)
 
 * winevdm : https://github.com/otya128/winevdm (README, `LICENSE`, versions, commits, `CMakeLists.txt`,

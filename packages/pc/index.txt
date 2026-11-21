@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-20 22:56
+date = 2026-11-21 00:34
 abi = 626
 packages = 117
 board = pc
@@ -114,18 +114,18 @@ content = 652f4b562d4309c2ae55b5a291082aba5838093197e4c2b76099b8444b662146
 
 [jet]
 title = Jet
-version = 1.4.1
+version = 1.4.2
 category = Internet
 author = Korin OS
 summary = Le navigateur, sur WebKit
-size = 55658503
+size = 55661208
 installed = 139420959
-sha256 = aea3cb8c79152604094c6fc9925198b4fbfa11f2739b40eda025f33560f014af
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.1.opk
+sha256 = 781873e610f489083fdd91ffda170d86309799c50876201e9d843739f27bba8e
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.2.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 515580f079efc79306b620c6500eb39abb5f86fee75c5bbc0595dc357368ff01
+content = caf7d8fa8f6c551b40c01096154684b74b42fdbf4f0186bd35edb12784ddbbd4
 
 [spotify]
 title = Spotify
@@ -144,18 +144,18 @@ content = b57a4a85cba3d597e4a7b3ba6596d9ba7219495472518734c6f2a061be2c554a
 
 [win16]
 title = Windows 3.x
-version = 1.0.4
+version = 1.0.6
 category = Émulateurs
 author = Korin OS
 summary = 
-size = 681161
-installed = 1548689
-sha256 = 9ad304dd6f5d8ca000f433861808e7e95903a08f08c1d0ab8fbba5051a227e13
-file = pkgs/win16-1.0.4.opk
+size = 713202
+installed = 1618321
+sha256 = 8e542be08cd499c9ea2051c263f814a432d1a8622ce628c447de22523a73468c
+file = pkgs/win16-1.0.6.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = c68de9a4e703c8dbf02ad97e0bc1be07315b25d1a8e1c127e58f4e78bf46d5a4
+content = 450369f8a9a46e03063af1e43debc102509002406a19bc99135d45aede7cc8f0
 
 [morpho]
 title = Morpho
@@ -739,18 +739,18 @@ content = 9651f661dbc590aad6e129adcd1ae6d847f34a7ac621233890d8a89895498bd1
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.67
+version = 2026.11.68
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 32023770
-installed = 96354113
-sha256 = 3d28d5addf0366b4a713a31cd0c2b7441710d2aa6cc875fdce5ba637720758a7
-file = pkgs/pc-2026.11.67.opk
+size = 32023827
+installed = 96354216
+sha256 = c0cb65e53f3185221e0a7946e120e5e3c42a054b59022127a6c1c07b5aa12d3d
+file = pkgs/pc-2026.11.68.opk
 needs = 
 required = 1
 restart = 1
-content = 9d87f9d763451caa4ab9bc41ff9905421ef4e6b1e13c1e9131e9894766fe4e72
+content = bb235c612073d70a8e65083fe465945d6a90482253d1c20fae550dc40457f83c
 
 [2048]
 title = 2048

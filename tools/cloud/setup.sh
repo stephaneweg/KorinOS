@@ -129,7 +129,7 @@ step_root () {
 	apt-get update
 	# construire : le noyau, les kits, libposix, les chaînes (GCC 14 se construit avec le GCC de l'hôte)
 	P="build-essential git curl ca-certificates unzip xz-utils bzip2 zstd file patch rsync cmake ninja-build
-	pkg-config bison flex gperf ruby perl texinfo gawk m4 python3 python3-venv python3-pip mtools dosfstools"
+	pkg-config bison flex gperf unifdef ruby perl texinfo gawk m4 python3 python3-venv python3-pip mtools dosfstools"
 	# QEMU (raspi4b demande QEMU 9.0 : sinon l'étape qemu le construit avec ce qui suit) et OVMF
 	P="$P qemu-system-x86 qemu-system-arm qemu-utils ovmf libglib2.0-dev libpixman-1-dev libslirp-dev
 	libfdt-dev zlib1g-dev"

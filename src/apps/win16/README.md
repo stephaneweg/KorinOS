@@ -36,6 +36,8 @@
 | `ctrl.c` | contrôles BUTTON, STATIC, EDIT, LISTBOX, COMBOBOX, SCROLLBAR : widgets de UIKit (mode natif), sinon dessinés au thème |
 | `gdi.c`, `gdi.h` | GDI : DC, objets, polices, bitmaps, BitBlt, DIB, formes, régions, palettes, icônes |
 | `lz.c` | les fichiers compressés SZDD (FICHIER.EX_) : LZEXPAND, VerFindFile, VerInstallFile ; WinExec et LoadModule (un autre win16) |
+| `winsock.c` | WINSOCK.DLL (Windows Sockets 1.1) sur les sockets de Korin : sockets, select, noms, WSAAsyncSelect (essai `tools/win16/tests/wsock.c` avec `echo.py`) |
+| `dde.c` | DDEML : pas de serveur DDE, les clients continuent |
 | `commdlg.c` | Ouvrir, Enregistrer, Couleur (dialogues de Korin) |
 | `mmsystem.c` | sortie MIDI (sans son), minuteries multimédia |
 | `misc.c` | WIN87EM, KEYBOARD, TOOLHELP |

@@ -34,6 +34,7 @@ static void parse_entries (struct ne_module *m, const uint8_t *ne, uint16_t entt
 				{
 					m->ent_seg[ord] = p[3];
 					m->ent_off[ord] = u16 (p + 4);
+					m->ent_flags[ord] = p[0];
 				}
 				p += 6;
 			}
@@ -43,6 +44,7 @@ static void parse_entries (struct ne_module *m, const uint8_t *ne, uint16_t entt
 				{
 					m->ent_seg[ord] = (uint8_t) seg;	/* 0xfe : constante */
 					m->ent_off[ord] = u16 (p + 1);
+					m->ent_flags[ord] = p[0];
 				}
 				p += 3;
 			}
@@ -410,6 +412,32 @@ static struct ne_module *load (const char *path, int is_main)
 		if (rel + 2 > (uint32_t) size)
 			continue;
 		apply_relocs (m, s, d + rel, ne, impnam);
+	}
+	/* les prologues des fonctions exportées (comme NE_FixupSegmentPrologs de Wine) : dans un module à données
+	   uniques (une DLL), une fonction qui utilise le segment de données commun commence par « push ds ; pop ax ;
+	   nop » (1E 58 90) ou « mov ax, ds ; nop » (8C D8 90), puis « mov ds, ax » ; Windows le change en « mov ax,
+	   DGROUP » (B8 lo hi) : la fonction prend ses propres données, pas celles de l'appelant (OLECLI lisait son
+	   état dans les données de Cardfile et répondait « mode protégé seulement ») */
+	if ((flags & 0x0001) && autodata && autodata <= nseg)
+	{
+		uint16_t dgroup = m->segs[autodata];
+		for (int o = 1; o < NE_MAX_ENTRY; o++)
+		{
+			int sg = m->ent_seg[o];
+			if (!sg || sg > nseg || !(m->ent_flags[o] & 2))
+				continue;
+			const uint8_t *st = ne + segtab + 8 * (sg - 1);
+			if (u16 (st + 4) & 1)	/* (un segment de données : pas de prologue) */
+				continue;
+			uint32_t at = sel_base (m->segs[sg]) + m->ent_off[o];
+			uint8_t *c = lin_ptr (at);
+			if ((c[0] == 0x1e && c[1] == 0x58 && c[2] == 0x90) || (c[0] == 0x8c && c[1] == 0xd8 && c[2] == 0x90))
+			{
+				c[0] = 0xb8;
+				c[1] = (uint8_t) dgroup;
+				c[2] = (uint8_t) (dgroup >> 8);
+			}
+		}
 	}
 	m->cs = cs ? m->segs[cs] : 0;
 	m->ip = ip;
