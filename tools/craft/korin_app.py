@@ -151,4 +151,16 @@ if name == "soundcraft":
         ('#[cfg(not(any(target_os = "macos", windows, unix)))]\n#[path = "ffi/window/other.rs"]',
          '#[cfg(any(target_os = "korin", not(any(target_os = "macos", windows, unix))))]\n#[path = "ffi/window/other.rs"]'),
     ])
+if name == "craft-anything":
+    # nix ne connaît pas Korin ; il n'y sert qu'à O_NONBLOCK (killpg est pour Linux et macOS) : libc sur Korin
+    edit("crates/platform/Cargo.toml", [
+        ("[target.'cfg(unix)'.dependencies]\nnix = ",
+         "# Korin : libc, sans nix (tools/craft/korin_app.py)\n[target.'cfg(target_os = \"korin\")'.dependencies]\nlibc = \"0.2\"\n\n"
+         "[target.'cfg(all(unix, not(target_os = \"korin\")))'.dependencies]\nnix = "),
+    ])
+    edit("crates/platform/src/fs.rs", [
+        ("        options.custom_flags(nix::libc::O_NONBLOCK);",
+         "        #[cfg(target_os = \"korin\")]\n        options.custom_flags(libc::O_NONBLOCK);\n"
+         "        #[cfg(not(target_os = \"korin\"))]\n        options.custom_flags(nix::libc::O_NONBLOCK);"),
+    ])
 print("korin_app : %s retouchée" % name)
