@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 09:35
+date = 2026-11-21 09:56
 abi = 626
 packages = 117
 board = pc
@@ -1831,3 +1831,18 @@ needs = jet >= 1.4.2, abi >= 626
 required = 0
 restart = 0
 content = 24141fc6644c58b165bbfc15644cb0021086ec0893fb8aff96f3bab533411ac5
+
+[craft]
+title = Suite ArtCraft
+version = 1.0.0
+category = Bureautique
+author = Korin OS
+summary = Le lanceur de la Suite ArtCraft : les apps libres Craft de storytold, à installer une par une
+size = 3212301
+installed = 6780316
+sha256 = b8de551d17b826587f6a8dd9d3a06f09dcaee8d4f2ab8a6dd715ee2c287c6787
+file = pkgs/craft-1.0.0.opk
+needs = abi >= 626
+required = 0
+restart = 0
+content = 4f60bfc8c195d47773da1965a4a5b5e13460e81dd69eace67489d4041f14886f
