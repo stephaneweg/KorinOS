@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 16:06
+date = 2026-11-21 16:07
 abi = 626
 packages = 117
 board = pc
@@ -1909,18 +1909,18 @@ content = 12a7e7eebe324627c7cdba764f69aecf55104f2d625a6416e87b2ceaff27144d
 
 [designcraft]
 title = DesignCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = La mise en page libre DesignCraft (storytold) : maquettes, gabarits, publication.
-size = 39739498
-installed = 95081251
-sha256 = 1ba5ca917572e991d206d1a7d61a92b350cde76f3a0a3840c9048544d34f8cf6
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-designcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 39814598
+installed = 95244163
+sha256 = 9ee7522a9672d71a69ce56a4a33a4ab5bb6a4454807d19d8d996fe8394f3fff3
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-designcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = 5cc0bb3ea4576572726f30cc10252f67285b0578e11a228f2d5485ff351bbb31
+content = f09fa6bc43ea1405cb8b71713987e000c1020e7298a301187a46a41c35ee265d
 
 [photocraft]
 title = PhotoCraft
