@@ -430,9 +430,20 @@ sh tools/pc/sysroot.sh && sh tools/pc/sysroot_gcc.sh && sh tools/pc/sysroot_carg
 | `cargo run` de `proj` (les mêmes, un programme) | téléchargées, compilées, liées, lancées : `korin_cargo` (2 min) |
 | `cargo run -p app` de `macroproj` (`tools/cargo/test/projects/macroproj`) | **la macro procédurale** `#[derive(Hello)]` (une `.so` chargée par `dlopen` dans le rustc de Korin), **le `build.rs`** compilé et lancé (`TARGET` = `x86_64-unknown-korin`), le programme : `Point : 2 champ(s), macro chargée par rustc dans Korin (3, 4)` (2 min) |
 
+### Les paquets (21/11/2026)
+
+`pkg add rust` sur Korin PC installe `rust` (`cargo`, `rustc`, la std ; 54 Mo) et `rust-data-1` (`librustc_driver`,
+100 Mo), tous deux dans la Release (`release = 1`, `split = devtools/rust/lib/librustc_driver-*.so 90` dans
+`tools/pkg/packages-pc.ini`), version **1.97.1-2** (la 1.97.1 demandait `abi >= 627`, celui des kits du source, que
+le système publié n'a pas : Rust ne se sert pas des kits, `--abi 626`). Ils demandent **`gcc >= 1.0.13`** (`ld` et
+`as` reliés à la libposix de `RLIMIT_NOFILE` = 64, `sysexits.h`…) et **`pc >= 2026.11.71`** (le noyau aux chemins d'exec
+de 256 octets, `/devtools/rust/bin` dans `/etc/exec.txt` et le `PATH` de `sh` et `sudo`, l'aide du Terminal). Publiés
+le même jour, par `pub.py --api --manual-upload` depuis le cloud : `bash` 1.0.6 (le bashrc), `help` 1.0.7 (le guide de
+l'API C). Ces paquets ne portent que les fichiers changés (`--only`), le reste de leurs archives publiées gardé.
+
 ### Ce qui reste
 
-* le vrai ZBook ; un paquet `/devtools/rust` (≈ 450 Mo : `pkg`, gros paquet découpé) ;
+* le vrai ZBook ;
 * le Pi (`aarch64-unknown-korin` comme hôte) : rien n'est fait ; son noyau en assembleur a peut-être la même limite de
   chemin ;
 * une construction de `rustc-build.sh` depuis zéro (celle-ci s'est faite par étapes, les patchs appliqués aussi dans

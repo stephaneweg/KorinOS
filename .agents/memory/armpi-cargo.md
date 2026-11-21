@@ -39,6 +39,8 @@ libstdc++ ; rustc l'exporte par dlhost-cxx.ld) construits par KORIN_HOSTS=x86_64
 /devtools/rust ; cargo build/run, proc-macro, build.rs marchent sous QEMU. Corrigé en route : noyau PC (chemins d'exec
 80 -> 256), libposix RLIMIT_NOFILE=64 (bfd). Pièges : cargo ne recompile pas une caisse vendue patchée (effacer
 stage2-rustc/.../libX) ; changer bootstrap recompile tout le stage 1 ; mtest 17/2 existait avant.
-Reste : ZBook, paquet, Pi, reconstruction depuis zéro.
+Publiés le 21/11 (pub.py --api --manual-upload depuis le cloud, --only les fichiers changés) : pc 2026.11.71, bash 1.0.6,
+gcc 1.0.13, help 1.0.7, rust-data-1 et rust 1.97.1-2 (abi >= 626 : la 1.97.1 demandait 627, que le système publié n'a pas).
+Reste : ZBook, Pi, reconstruction depuis zéro. Piège : un paquet --new prend l'abi des kits du source : vérifier [repo] abi.
 
 Lié : [[armpi-rust]], [[armpi-craft]].

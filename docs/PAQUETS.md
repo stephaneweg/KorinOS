@@ -286,7 +286,10 @@ branche). Le script :
    le dossier n'est pas emporté) ; `git fetch`, fusion, push (`--no-push` : commite seulement). Une fusion qui échoue
    arrête tout sans rien pousser.
 
-Un paquet nouveau, ou cité du Pi (`arch = any`), passe par `publish.sh`.
+Un paquet cité du Pi (`arch = any`) passe par `publish.sh` ; un paquet nouveau, par `--new` (rust et rust-data-1, 21/11/2026).
+`--abi N` seul (aucun fichier changé) republie un paquet sous une nouvelle version pour son seul `abi` : un paquet
+nouveau prend celui des kits du source, que le système publié n'a peut-être pas encore (rust 1.97.1 demandait 627,
+le système publié 626 : rust 1.97.1-2).
 
 ## Ce qui diffère d'Onyx
 
