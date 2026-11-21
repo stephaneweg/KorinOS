@@ -207,3 +207,27 @@ for h in ${KORIN_HOSTS:-}; do
 		python3 x.py build --stage 2 compiler/rustc library --host "$h" --target "$h" -j "$(nproc)")
 	echo "rustc-build : $S/build/$h/stage2"
 done
+
+# 6. la chaîne de Korin, prête à poser dans /devtools/rust (tools/pc/sysroot_cargo.sh) : bin/rustc et
+#    lib/librustc_driver-*.so du stage 2 (sans les infos de débogage, exports gardés), et la std de la cible, celle
+#    du stage 1 (même source, même version : ce que fait la distribution de Rust pour un hôte croisé), .rlib et leurs
+#    .rmeta (les .rlib n'y portent qu'un résumé des métadonnées)
+for h in ${KORIN_HOSTS:-}; do
+	a=${h%%-*}
+	case $a in
+	x86_64) OUT=$ROOT/build/pc/rust/toolchain ;;
+	aarch64) OUT=$ROOT/build/rust/toolchain ;;
+	esac
+	eval "TC=\$TC_$a"
+	B=$S/build/$h/stage2
+	SL=$S/build/$HOST/stage1/lib/rustlib/$h/lib
+	rm -rf "$OUT"
+	mkdir -p "$OUT/bin" "$OUT/lib/rustlib/$h/lib"
+	"${TC}strip" --strip-debug "$B/bin/rustc" -o "$OUT/bin/rustc"
+	for f in "$B"/lib/librustc_driver-*.so; do "${TC}strip" --strip-debug "$f" -o "$OUT/lib/$(basename "$f")"; done
+	for r in "$SL"/*.rlib; do
+		cp "$r" "$OUT/lib/rustlib/$h/lib/"
+		[ -f "${r%.rlib}.rmeta" ] && cp "${r%.rlib}.rmeta" "$OUT/lib/rustlib/$h/lib/"
+	done
+	echo "rustc-build : $OUT ($(du -sh "$OUT" | cut -f1))"
+done
