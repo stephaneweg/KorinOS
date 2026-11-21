@@ -15,7 +15,7 @@ Celle de VS Code, aux couleurs « Dark Modern » / « Light Modern » (le thème
 
 | Zone | Contenu |
 |---|---|
-| barre du haut | les menus (Fichier, Édition, Aller, Affichage, Exécuter, Terminal, Copilote, Aide ; **sous Korin dans la barre de menus du système**), le centre de commandes (Ctrl+P), la mise en page (sous Korin, la fenêtre garde la barre de titre d'Elegant) |
+| barre du haut | les menus (Fichier, Édition, Aller, Affichage, Exécuter, Terminal, Copilote, Aide ; **sous Korin dans la barre de menus du système**), le centre de commandes (Ctrl+P), la mise en page ; sous Korin, 112 px libres à droite pour les boutons du cadre d'Elegant (dessinés sur le contenu) |
 | barre d'activité | Explorateur, Recherche, Gestion de versions (Git), Exécuter et construire, Copilote |
 | barre latérale | l'arbre du projet (créer, renommer, supprimer, état Git), la recherche dans les fichiers (casse, mot, regex), Git (modifications, valider), construire / lancer / nettoyer, arguments, tâches |
 | éditeur | onglets, fil d'Ariane, numéros de ligne, ligne courante, coloration (Rust, C, C++, C#, assembleur GNU et FASM, FreeBASIC, Python, TOML, JSON, Markdown, Shell, Makefile, XML, INI), soulignés des erreurs, rechercher / remplacer (Ctrl+F, Ctrl+H), commenter (Ctrl+/), indentation automatique |

@@ -315,7 +315,7 @@ impl Studio {
         }
         // à droite : la mise en page (et la place des boutons d'Elegant sous Korin)
         let mut right = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(Layout::right_to_left(Align::Center)));
-        right.add_space(8.0);
+        right.add_space(if KORIN { 112.0 } else { 8.0 }); // (sous Korin : les boutons du cadre d'Elegant, dessinés sur le contenu)
         let toggles = [
             (Icon::Sparkle, self.settings.copilot_open, Command::ToggleCopilot, "Copilote (Ctrl+Alt+I)"),
             (Icon::Layout, self.panel_open, Command::TogglePanel, "Panneau du bas (Ctrl+J)"),
