@@ -106,9 +106,10 @@ sur Linux/Windows pour aller vite, puis sous QEMU.
 
 ## 6. Ce qu'il faut décider
 
-- **Le nom** (en anglais, règle du dépôt).
-- **Où vit le code** : un dossier de ce dépôt (`src/apps/<nom>`, construit par une recette comme `tools/craft`) ou un
-  dépôt à part (plus simple à porter ailleurs, à publier).
+- **Le nom** (en anglais, règle du dépôt) : l'utilisateur propose « DevCraft » (21/11) ; Telerik DevCraft (Progress, des
+  composants .NET) porte déjà ce nom.
+- ~~Où vit le code~~ : décidé, **ce dépôt** (il a tout ce qu'il faut pour Korin ; 21/11) : `src/apps/<nom>`, construit par
+  une recette comme `tools/craft`.
 - **Rust dans Korin** : le port de rustc est en cours (autre session, LLVM fait) ; l'utilisateur dira quand il est fini.
 - **Le BASIC du PC** : FreeBASIC seul (`-lang qb` pour le style QBasic), ou aussi un port du BASIC d'Onyx.
 - ~~Le Studio Avalonia~~ : décidé, le nouvel IDE remplacera à terme tous les IDE de Korin (21/11).

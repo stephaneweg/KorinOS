@@ -20,3 +20,5 @@ Même jour : docs/etude/CRAFT-ANYTHING-IA.md (claude-acp et Vibe en ACP dans Cra
 Chromium par un serveur CDP, § 4 bis).
 
 Voir [[armpi-craft]], [[armpi-ide-avalonia]], [[armpi-rust]].
+
+**Dans ce dépôt** (décidé le 21/11 : il a tout pour Korin). Nom proposé par l'utilisateur : DevCraft (Telerik DevCraft existe déjà, signalé).
