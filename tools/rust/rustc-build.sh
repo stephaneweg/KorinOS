@@ -112,8 +112,11 @@ EOF
 # 4. stage 1 : rustc de l'hôte et la std des cibles de Korin
 A=$HOST
 for t in $TARGETS; do A="$A,$t"; done
-(cd "$S" && python3 x.py build --stage 1 library --target "$A" -j "$(nproc)")
+# (le rustc de stage 1 charge libLLVM.so, qui est dans le LLVM de la CI : pendant la construction par
+# LD_LIBRARY_PATH, puis copiée à côté de lui, dans stage1/lib, son rpath)
+(cd "$S" && LD_LIBRARY_PATH=$L/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} python3 x.py build --stage 1 library --target "$A" -j "$(nproc)")
 ST=$S/build/$HOST/stage1
+cp "$L"/lib/libLLVM*.so* "$ST/lib/"
 "${CARGO_HOME:-$HOME/.cargo}/bin/rustup" toolchain link korin-stage1 "$ST" 2>/dev/null || true
 "$ST/bin/rustc" --print target-list | grep korin
 echo "rustc-build : $ST"
