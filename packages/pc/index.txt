@@ -510,21 +510,6 @@ required = 0
 restart = 0
 content = a50ab76c8a7a51009d8ae52d350ea54617bb7028b3c984e6fa8707b7c95b871d
 
-[claude]
-title = Claude (API)
-version = 1.0.10
-category = Développement
-author = Korin OS
-summary = Claude, l'agent de code d'Anthropic, par sa clé d'API : l'app Claude, ou agent --claude au Terminal
-size = 8093993
-installed = 18056603
-sha256 = 06408dc59c56d9892583082db387d953d216766f60dd8176d01030b0f55e7ff9
-file = pkgs/claude-1.0.10.opk
-needs = vibe, abi >= 626
-required = 0
-restart = 0
-content = 58e3a6a1725700c9e8c5dc3bc0739cf181846af53bd5a4c0aa79281b0fe94e40
-
 [vibe-data-1]
 title = Mistral Vibe (1/2)
 version = 1.0.1
