@@ -194,6 +194,10 @@ sockets, epoll, eventfd, signaux, fork et exec, termios) avant Node.js.
     (Demander avant d'agir, Accepter les modifications, Planifier, Tout autoriser), plusieurs conversations qui
     travaillent en même temps (un point dans la liste), « Se connecter à votre compte Claude… » quand la CLI dit
     « Not logged in » (`claude auth login` : la page d'Anthropic dans Jet).
+  - la **barre de menus de Korin** (egui_korin::menu) : Fichier (Nouvelle conversation Ctrl+N, Nouveau dossier,
+    Quitter), Conversation (Renommer F2, Épingler, Copier, Arrêter Claude, Supprimer), Affichage (thème de Korin,
+    sombre, clair ; Relire les conversations F5). Elle demande l'UIKit qui a `ui_menu_states` (table 221) : un
+    système plus ancien plante l'app au démarrage (l'`abi >=` du paquet l'empêche).
   Essais : `TEST=1 bash tools/claudecode/build.sh` (7 essais des modules sur la machine de construction, dont le
   protocole contre une fausse CLI), puis sous QEMU (`tools/linux/exectest/run.sh` avec `APPS=claudecode`,
   `TREE=` un `~/.claude` d'exemple ; `rclick:`, `drag:`, `wheel:` ajoutés à tools/python/pctest.py) : liste, dossiers,

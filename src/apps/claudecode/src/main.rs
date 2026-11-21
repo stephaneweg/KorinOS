@@ -18,7 +18,18 @@ fn main() {
     let mut app = app::App::new(&ctx, Box::new(|| egui_korin::system_theme() == egui::Theme::Dark));
     let mut options = egui_korin::Options::new("Claude Code").size(1180, 780);
     options.min_size = Some([720, 480]);
-    let r = egui_korin::run_with(options, &ctx, move |ctx, input, _host| ctx.run_ui(input, |ui| app.ui(ui)));
+    let r = egui_korin::run_with(options, &ctx, move |ctx, input, host| {
+        // la barre de menus de Korin : Fichier, Conversation, Affichage (app.rs)
+        egui_korin::menu::set(app.menu_text());
+        for id in egui_korin::menu::take_chosen() {
+            if app.menu_command(ctx, id) {
+                host.close();
+            }
+        }
+        let out = ctx.run_ui(input, |ui| app.ui(ui));
+        egui_korin::menu::set_states(&app.menu_states());
+        out
+    });
     if let Err(e) = r {
         eprintln!("claudecode : {e}");
         std::process::exit(1);

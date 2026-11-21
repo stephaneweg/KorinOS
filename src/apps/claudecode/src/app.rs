@@ -296,6 +296,7 @@ impl App {
     pub fn ui(&mut self, ui: &mut Ui) {
         let ctx = ui.ctx().clone();
         self.update_theme(&ctx);
+        self.shortcuts(&ctx);
         let active = self.pump();
         if active || matches!(self.dialog, Dialog::Login(_)) {
             ctx.request_repaint_after(Duration::from_millis(50));
@@ -311,6 +312,98 @@ impl App {
             .show(ui, |ui| self.sidebar(ui));
         egui::CentralPanel::default().frame(Frame::new().fill(t.canvas)).show(ui, |ui| self.main(ui));
         self.dialogs(&ctx);
+    }
+
+    // ---- la barre de menus de Korin (main.rs la tient : egui_korin::menu) ----
+
+    /// Le texte des menus (le format de UIKit : M titre, I<id> entrée, - séparateur).
+    pub fn menu_text(&self) -> &'static str {
+        "MFichier\nI1\tNouvelle conversation…\tCtrl+N\nI2\tNouveau dossier…\n-\nI3\tQuitter\tCtrl+Q\n\
+         MConversation\nI10\tRenommer…\tF2\nI11\tÉpingler\nI12\tCopier la conversation\nI13\tArrêter Claude\n-\nI14\tSupprimer…\n\
+         MAffichage\nI20\tThème de Korin\nI21\tSombre\nI22\tClair\n-\nI23\tRelire les conversations\tF5\n"
+    }
+
+    /// Les états des entrées : (id, 0 normale | 1 grisée | 2 cochée).
+    pub fn menu_states(&self) -> Vec<(i64, i64)> {
+        let saved = self.current.as_deref().is_some_and(|k| self.info(k).is_some());
+        let running = self.current.as_deref().and_then(|k| self.open.get(k)).is_some_and(|o| o.cli.is_some());
+        let pinned = self.current.as_deref().is_some_and(|k| self.org.is_pinned(k));
+        let theme = if self.org.theme.is_empty() { "system" } else { self.org.theme.as_str() };
+        let off = |b: bool| if b { 0 } else { 1 };
+        vec![
+            (10, off(saved)),
+            (11, if !saved { 1 } else if pinned { 2 } else { 0 }),
+            (12, off(self.current.is_some())),
+            (13, off(running)),
+            (14, off(saved)),
+            (20, if theme == "system" { 2 } else { 0 }),
+            (21, if theme == "dark" { 2 } else { 0 }),
+            (22, if theme == "light" { 2 } else { 0 }),
+        ]
+    }
+
+    /// Un choix dans la barre de menus ; rend true pour Quitter.
+    pub fn menu_command(&mut self, ctx: &egui::Context, id: i64) -> bool {
+        let cur = self.current.clone();
+        match id {
+            1 => {
+                let cwd = self.org.recent_dirs.first().cloned().unwrap_or_else(|| store::home().to_string_lossy().into_owned());
+                self.dialog = Dialog::NewChat { cwd };
+            }
+            2 => self.dialog = Dialog::NewFolder { text: String::new(), then_move: None },
+            3 => return true,
+            10 => {
+                if let Some(k) = cur.filter(|k| self.info(k).is_some()) {
+                    let text = self.title_of(&k);
+                    self.dialog = Dialog::Rename { id: k, text };
+                }
+            }
+            11 => {
+                if let Some(k) = cur.filter(|k| self.info(k).is_some()) {
+                    self.org.toggle_pin(&k);
+                    self.org.save();
+                }
+            }
+            12 => {
+                if let Some(o) = cur.and_then(|k| self.open.get(&k)) {
+                    ctx.copy_text(o.thread.as_text());
+                }
+            }
+            13 => {
+                if let Some(o) = cur.and_then(|k| self.open.get_mut(&k)) {
+                    o.cli = None;
+                    o.thread.busy = false;
+                }
+            }
+            14 => {
+                if let Some(k) = cur.filter(|k| self.info(k).is_some()) {
+                    self.dialog = Dialog::Delete { id: k };
+                }
+            }
+            20..=22 => {
+                self.org.theme = ["system", "dark", "light"][(id - 20) as usize].to_owned();
+                self.org.save();
+                self.dark = None;
+            }
+            23 => self.rescan(),
+            _ => {}
+        }
+        false
+    }
+
+    /// Les raccourcis des menus quand la fenêtre a le clavier (Ctrl+N, F2, F5).
+    fn shortcuts(&mut self, ctx: &egui::Context) {
+        if !matches!(self.dialog, Dialog::None) {
+            return;
+        }
+        let (n, f2, f5) = ctx.input(|i| (i.modifiers.command && i.key_pressed(Key::N), i.key_pressed(Key::F2), i.key_pressed(Key::F5)));
+        if n {
+            self.menu_command(ctx, 1);
+        } else if f2 {
+            self.menu_command(ctx, 10);
+        } else if f5 {
+            self.menu_command(ctx, 23);
+        }
     }
 
     // ---- la liste des conversations ----
