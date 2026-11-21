@@ -387,6 +387,20 @@ def main ():
 			old = initrd_kits.kits (final["korin/initrd.tar"])
 			say ("  initrd    korin/initrd.tar : kits plus anciens que lib/ remplaces (%s)" % ", ".join (n for n in sorted (old) if n in libs and initrd_kits.version (libs[n]) > initrd_kits.version (old[n])))
 			changed = [c for c in changed if c[0] != "korin/initrd.tar"] + [("korin/initrd.tar", fixed, False, tree_path ("korin/initrd.tar"))]
+	# PC : etc/pkg/abi (le niveau que pkg compare aux « abi >= N » des paquets) est la somme des versions des kits de lib/
+	# publies ; refait ici s'il est plus bas (une publication partielle --only lib/x.so ne le changeait pas : pc .80 disait
+	# 626 avec des kits a 628, et korinstudio, abi >= 628, refusait de s'installer ; 21/11/2026)
+	if pc and "etc/pkg/abi" in base_data:
+		sys.path.insert (0, os.path.join (ROOT, "tools", "pc"))
+		import initrd_kits
+		final = dict (base_data)
+		for f, new, *_ in changed + added: final[f] = new
+		level = sum (max (0, initrd_kits.version (d)) for f, d in final.items () if f.startswith ("lib/") and f.endswith (".so") and f.count ("/") == 1)
+		try: published = int (final["etc/pkg/abi"].decode ().strip () or 0)
+		except ValueError: published = 0
+		if level > published:
+			say ("  abi       etc/pkg/abi : %d -> %d (la somme des tables des kits de lib/)" % (published, level))
+			changed = [c for c in changed if c[0] != "etc/pkg/abi"] + [("etc/pkg/abi", ("%d\n" % level).encode (), False, tree_path ("etc/pkg/abi"))]
 	# (--abi seul, autre que celui du manifeste publie : une nouvelle version sans fichier change, pour un paquet publie
 	# avec un abi que le systeme n'a pas encore ; rust 1.97.1-2, 21/11/2026)
 	if not changed and not added and not dropped and not (a.abi and a.abi != base_abi):
