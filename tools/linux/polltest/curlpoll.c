@@ -22,7 +22,7 @@ static void loop (CURLM *m, const char *what)
 	double t = now ();
 	while (now () - t < 3) {
 		int nfds = 0;
-		CURLMcode c = curl_multi_poll (m, 0, 0, INT_MAX, &nfds);	/* (INT_MAX, comme WebKit) */
+		CURLMcode c = curl_multi_poll (m, 0, 0, 3000, &nfds);	/* (3 s : un tour par délai, au plus) */
 		if (c != CURLM_OK) { printf ("  curl_multi_poll : %s\n", curl_multi_strerror (c)); break; }
 		while (curl_multi_perform (m, &running) == CURLM_CALL_MULTI_PERFORM) { }
 		long tmo = -2;
@@ -39,7 +39,7 @@ int main (int argc, char **argv)
 	curl_global_init (CURL_GLOBAL_DEFAULT);
 	printf ("%s\n", curl_version ());
 	CURLM *m = curl_multi_init ();
-	loop (m, "sans requête");
+	/* (sans requête ni réveil, INT_MAX attendrait toujours : 3 s ici) */
 	CURL *e = curl_easy_init ();
 	curl_easy_setopt (e, CURLOPT_URL, url);
 	curl_easy_setopt (e, CURLOPT_WRITEFUNCTION, sink);
@@ -57,5 +57,23 @@ int main (int argc, char **argv)
 	curl_multi_remove_handle (m, e);
 	curl_easy_cleanup (e);
 	loop (m, "après une requête (connexion en cache)");
+	/* comme WebKit : curl_multi_wakeup avant chaque attente (une tâche confiée au thread de curl) */
+	int turns = 0;
+	double t2 = now ();
+	while (now () - t2 < 3) {
+		curl_multi_wakeup (m);
+		int nfds = 0;
+		curl_multi_poll (m, 0, 0, INT_MAX, &nfds);
+		turns++;
+	}
+	printf ("%-34s -> %d tours en 3 s (un réveil par tour : beaucoup, mais chacun doit rendre la main)\n", "avec curl_multi_wakeup", turns);
+	/* un seul réveil, puis l'attente : doit rendre la main une fois, puis attendre (3 s ici) */
+	curl_multi_wakeup (m);
+	double t3 = now ();
+	curl_multi_poll (m, 0, 0, 3000, 0);
+	printf ("%-34s -> rendu en %.3f s (attendu : tout de suite)\n", "un réveil, 1er poll", now () - t3);
+	t3 = now ();
+	curl_multi_poll (m, 0, 0, 3000, 0);
+	printf ("%-34s -> rendu en %.3f s (attendu : 3 s)\n", "un réveil, 2e poll", now () - t3);
 	return 0;
 }
