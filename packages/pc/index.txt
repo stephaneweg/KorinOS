@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 15:57
+date = 2026-11-21 16:05
 abi = 626
 packages = 117
 board = pc
@@ -1849,18 +1849,18 @@ content = 76c9fd87a971afa8b33ec607c99ffb887c57ed551cda9415855ae90a27d26742
 
 [wordcraft]
 title = WordCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = Le traitement de texte libre WordCraft (storytold) : ruban, styles, tableaux, suivi des modifications, références, lit et écrit le .docx.
-size = 60948442
-installed = 161785567
-sha256 = b53c11acc2eb534c28b70dcd3ae870aee079bebef24ba1cbe04e5244d5aaa8af
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-wordcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 60950131
+installed = 161789695
+sha256 = ee43a11359b4421bb9810f4e07b8aac35d3d10266210e7d94d5e4bfedcebfcaa
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-wordcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = 5c2b167421a882e1aef263c623f08d0d2dffba8c257e52e747918fdb3468047f
+content = 8975455c6f3cfe63e1bbde3f1ec4a00845c3050dadbd9b7513480aa872450573
 
 [gridcraft]
 title = GridCraft
