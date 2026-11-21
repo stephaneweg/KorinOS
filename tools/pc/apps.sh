@@ -206,7 +206,16 @@ build_oauth () {
 		{ note "oauth : ECHEC de la construction"; return 1; }
 	${TC}strip -o "$OUT/sdroot/sys/svc/oauthd" "$O/oauthd"
 	${TC}strip -o "$OUT/sdroot/bin/oauth" "$O/oauth"
-	note "oauthd : construit ($(stat -c %s "$OUT/sdroot/sys/svc/oauthd") octets, sys/svc/oauthd ; bin/oauth)"
+	# le volet « Comptes en ligne » de Réglages (sys/applets/accounts.so : sans libc, il prend celle de Réglages, et
+	# les relais de NetKit de Réglages pour les fonctions oauth_*)
+	mkdir -p "$OUT/sdroot/sys/applets"
+	M="-specs=$SPECS -O2 -g0 -fPIC -ffunction-sections -fdata-sections -I$ROOT/src/apps/control -I$GCC/include/kits \
+		-I$ROOT/src/kits/uikit/include"
+	${TC}g++ $M -std=gnu++17 -fno-exceptions -fno-rtti -Wall -Wno-write-strings -c "$S/applet/applet.cpp" -o "$O/m_applet.o" &&
+	${TC}g++ -specs="$SPECS" -fPIC -shared -nostdlib++ -Wl,--gc-sections "$O/m_applet.o" -o "$O/accounts.so" ||
+		{ note "oauthd : ECHEC du volet de Réglages (sys/applets/accounts.so)"; return 1; }
+	${TC}strip --strip-unneeded -o "$OUT/sdroot/sys/applets/accounts.so" "$O/accounts.so"
+	note "oauthd : construit ($(stat -c %s "$OUT/sdroot/sys/svc/oauthd") octets, sys/svc/oauthd ; bin/oauth ; volet sys/applets/accounts.so)"
 }
 
 # le coffre à secrets (docs/KEYVAULT.md) : le service keyvault (src/svc/keyvault -> sys/svc/keyvault), lancé par

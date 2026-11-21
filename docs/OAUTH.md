@@ -158,6 +158,27 @@ oauth forget gdrive/perso ; oauth remove gdrive/perso
 
 Sans `clé=valeur` après le nom, `oauth setup` lit la configuration sur l'entrée standard (`oauth setup x < conf.ini`).
 
+## 3 bis. Réglages › Comptes en ligne
+
+Le volet de Réglages installé avec oauthd (`src/svc/oauthd/applet/applet.cpp` → `/sys/applets/accounts.so`, paquet
+`pc` ; demande de l'utilisateur, 21/11) : le front-end des comptes, sur les mêmes fonctions de NetKit.
+
+- **La liste** : tous les comptes d'oauthd (`oauth_list` : ceux du volet, `gdrive/NOM` de Fichiers, `github` de
+  git…), avec leur fournisseur et leur état ; sous la liste, le Client ID et les permissions du compte choisi
+  (`oauth_info`, « (Korin) » : celui de `providers.ini`) et à quoi il sert.
+- **Ajouter…** : le fournisseur (Google, Microsoft, GitHub), le nom du compte (proposé : `gdrive/perso`,
+  `microsoft/perso`, `github`), le Client ID (vide : celui de Korin s'il y en a un ; pour GitHub sans client
+  livré, les valeurs de l'OAuth App à créer et un bouton « Créer sur GitHub… » qui ouvre Jet), les permissions
+  (proposées) ; puis la connexion.
+- **Se connecter** (ou double-clic) : **code d'appareil** pour Microsoft et GitHub (le code et l'adresse, « Ouvrir
+  dans Jet », « Copier », compte à rebours ; la fenêtre se ferme à l'accord) ; **navigateur** pour Google (Jet
+  s'ouvre sur la page d'accord ; pour un autre appareil, l'adresse à copier et un champ pour coller l'adresse de
+  retour, `oauth_browser_finish`).
+- **Se déconnecter** (`oauth_forget`), **Retirer** (`oauth_remove`), **Actualiser**.
+
+Le module n'a ni libc ni NetKit à lui : les relais `oauth_*` sont ceux de Réglages (relié en hôte, `-rdynamic`).
+Les appels qui attendent le réseau (`*_begin`) bloquent la fenêtre le temps de la requête (une ligne d'état le dit).
+
 ## 4. Exemple en C
 
 ```c
@@ -296,7 +317,7 @@ l'adresse elle-même) et appelle ses opérations directement.
 - Construire oauthd pour le Pi (OpenSSL AArch64 de `tools/openssl/build.sh`).
 - Passer Mail dessus : son `mail/oauth.h` (Outlook, code d'appareil, jamais essayé) appellerait `oauth_*`, et ses
   jetons Microsoft quitteraient `HOME:/mail/secrets`.
-- Un volet de Réglages « Comptes en ligne » (liste, connexion, oubli), et un dialogue d'UIKit pour se connecter
-  (code d'appareil ou Jet), que les apps appelleraient d'une ligne.
+- Un dialogue d'UIKit pour se connecter (code d'appareil ou Jet), que les apps appelleraient d'une ligne (le volet
+  « Comptes en ligne », §3 bis, en a le code).
 - Plusieurs requêtes à la fois (un thread par requête HTTPS).
 - Révoquer chez le fournisseur à `oauth_forget` (Google : `oauth2.googleapis.com/revoke`).
