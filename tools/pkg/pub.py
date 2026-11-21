@@ -4,6 +4,7 @@
     python tools/pkg/pub.py NOM [--pi] [--tree DOSSIER] [--dry-run] [--yes] [--only MOTIF...] [--add-new] [--drop MOTIF...] [--new] [--abi N]
 
 --new : un paquet absent de l'index publie (pas d'archive de base) : tous ses fichiers sont pris dans l'arbre,
+(release = 1 dans packages-pc.ini : son archive va dans la Release),
 version de versions.ini ou 1.0.0, section ajoutee a la fin de l'index.
 
 Le chemin sur des publications partielles des 4-20/11 (.agents/memory/armpi-paquets.md), en un outil :
@@ -305,6 +306,9 @@ def main ():
 	pkgs, _ = mkrepo.plan (tree, None, ini)
 	P = next ((p for p in pkgs if p["name"] == name), None)
 	if P is None: die ("%s : pas dans %s, ou pas construit dans %s" % (name, os.path.basename (ini), tree))
+	if is_new and P.get ("release") == "1":
+		is_release = True			# (un nouveau paquet release = 1 : son archive va dans la Release, pas dans pkgs/)
+		say ("pub: %s : release = 1, l'archive va dans la Release « packages »" % name)
 	def content (files, data):
 		desc = "needs %s\nconfig %s\nrequired %s\nrestart %s\n" % (P["needs"], P["config_pats"], P["required"], P["restart"])
 		if P["replaces"]: desc += "replaces %s\n" % P["replaces"]
@@ -401,6 +405,7 @@ def main ():
 		fn = "%s/%s%s-%s.opk" % (mkrepo.RELEASE_URL, prefix, name, ver)
 		opk = os.path.join (release_dir, os.path.basename (fn))
 		opk_existed = os.path.exists (opk)
+		os.makedirs (release_dir, exist_ok = True)
 	else:
 		fn = "pkgs/%s-%s.opk" % (name, ver)
 		opk = os.path.join (TMP, "out", fn.replace ("/", os.sep))
