@@ -13,7 +13,7 @@ décider : nom, dépôt, sort du Studio Avalonia).
 dira quand c'est fini. Ne pas prévoir de construction déportée de Rust dans l'IDE.
 
 **Cible : le PC.** **À terme le seul IDE de Korin** (remplace le Studio Avalonia, QBStudio…), **BASIC aussi** (dit le
-21/11). Le BASIC d'Onyx n'est que sur le Pi (asm AArch64) : FreeBASIC `-lang qb` ou un port, à décider. Pas de FASM
+21/11). Le BASIC d'Onyx n'est que sur le Pi (asm AArch64) : **décidé : FreeBASIC seul** (`-lang qb`), pas de port. Pas de FASM
 x86 dans Korin (à porter).
 
 Même jour : docs/etude/CRAFT-ANYTHING-IA.md (claude-acp et Vibe en ACP dans Craft Anything ; Jet à la place de

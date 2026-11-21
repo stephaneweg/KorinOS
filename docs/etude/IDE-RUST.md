@@ -82,8 +82,7 @@ et l'**Éditeur**. Pour que le nouvel IDE les remplace, il lui faut, en plus du 
     concepteur du Studio actuel, en C#, sans son habillage) qui peint dans une surface partagée que l'IDE affiche, et
     lui renvoie les clics (sélection, glisser) ; l'IDE garde l'arbre, les propriétés et le texte.
 - **le BASIC** : sur le PC, par FreeBASIC (`-lang qb` pour les programmes à la QBasic). Le BASIC d'Onyx (classes,
-  fenêtres, kits par `#import`) n'existe que sur le Pi : soit le porter au PC (VM en assembleur AArch64, donc une
-  réécriture, en C ou en Rust), soit dire que le BASIC du PC est FreeBASIC. **À décider.**
+  fenêtres, kits par `#import`) n'existe que sur le Pi : pas de port : **le BASIC du PC est FreeBASIC** (décidé le 21/11).
 
 Le passage se fait par étapes : l'IDE d'abord pour le code (tous les langages), puis les éditeurs d'interface ; le
 Studio et QBStudio restent tant que l'IDE ne fait pas tout ce qu'ils font.
@@ -99,7 +98,7 @@ Studio et QBStudio restent tant que l'IDE ne fait pas tout ce qu'ils font.
 | 4 | Panneau d'agent ACP (claude-acp, Vibe) | 2–3 jours |
 | 5 | Terminal intégré (pty de Korin), Git (`git` complet dans Korin), débogage DAP ailleurs | 1–2 semaines |
 | 6 | Éditeur de fenêtres (UIKit, BASIC, C#), aperçu d'Avalonia par un processus à part, projets web | 3–4 semaines |
-| 7 | FASM x86 dans Korin (port), et le BASIC d'Onyx sur le PC si on le veut | 1 semaine ; le BASIC : à chiffrer |
+| 7 | FASM x86 dans Korin (port) | 1 semaine |
 
 Le travail se fait **hors de l'OS** comme les Craft (cargo, puis `tools/craft/build.sh` pour Korin), et tourne d'abord
 sur Linux/Windows pour aller vite, puis sous QEMU.
@@ -111,5 +110,6 @@ sur Linux/Windows pour aller vite, puis sous QEMU.
 - ~~Où vit le code~~ : décidé, **ce dépôt** (il a tout ce qu'il faut pour Korin ; 21/11) : `src/apps/<nom>`, construit par
   une recette comme `tools/craft`.
 - **Rust dans Korin** : le port de rustc est en cours (autre session, LLVM fait) ; l'utilisateur dira quand il est fini.
-- **Le BASIC du PC** : FreeBASIC seul (`-lang qb` pour le style QBasic), ou aussi un port du BASIC d'Onyx.
+- ~~Le BASIC du PC~~ : décidé, **FreeBASIC seul** (21/11), `-lang qb` pour les programmes à la QBasic ; pas de port du
+  BASIC d'Onyx.
 - ~~Le Studio Avalonia~~ : décidé, le nouvel IDE remplacera à terme tous les IDE de Korin (21/11).
