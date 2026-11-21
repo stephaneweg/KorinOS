@@ -43,6 +43,14 @@ unsafe extern "C" {
     fn kh_menu_states(pairs: *const c_long, n: c_long) -> c_long;
     fn egui_korin_menu_hooks(on_chosen: extern "C" fn(i64), after_pass: extern "C" fn());
     fn egui_korin_menu_inject(code: i32);
+    fn egui_korin_menu_key_mods() -> i32;
+}
+
+/// Pendant un choix dans la barre (le gestionnaire de MenuEvent) : (Ctrl, Alt, Maj) s'il vient d'un raccourci, None
+/// pour un clic ; craft-menu s'en sert comme du `currentEvent` d'AppKit (muda::korin_key_mods).
+pub fn key_mods() -> Option<(bool, bool, bool)> {
+    let m = unsafe { egui_korin_menu_key_mods() };
+    if m < 0 { None } else { Some((m & 1 != 0, m & 2 != 0, m & 4 != 0)) }
 }
 
 /// Un changement depuis la dernière publication (texte, état, enfants).

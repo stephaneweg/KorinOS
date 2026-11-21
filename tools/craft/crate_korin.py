@@ -73,6 +73,10 @@ elif name == "muda-0.21.2":
     edit("src/platform_impl/mod.rs", [('#[cfg(target_os = "macos")]\n#[path = "macos/mod.rs"]\nmod platform;',
                                        '#[cfg(target_os = "macos")]\n#[path = "macos/mod.rs"]\nmod platform;\n'
                                        '#[cfg(target_os = "korin")]\n#[path = "korin/mod.rs"]\nmod platform;')])
+    edit("src/lib.rs", [("pub use about_metadata::AboutMetadata;",
+                         "/// Korin : pendant un choix, ses touches s'il vient d'un raccourci de la barre (craft-menu).\n"
+                         "#[cfg(target_os = \"korin\")]\npub fn korin_key_mods() -> Option<(bool, bool, bool)> {\n"
+                         "    platform_impl::key_mods()\n}\n\npub use about_metadata::AboutMetadata;")])
     edit("src/items/menu.rs", [('    /// Adds this menu to an NSApp.\n    #[cfg(target_os = "macos")]\n    pub fn init_for_nsapp(&self) {',
                                 '    /// Korin : ce menu va dans la barre de menus de Korin.\n    #[cfg(target_os = "korin")]\n'
                                 '    pub fn init_for_nsapp(&self) {\n        crate::platform_impl::install(Some(self.clone()))\n    }\n\n'

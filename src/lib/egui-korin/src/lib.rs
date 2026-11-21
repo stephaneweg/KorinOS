@@ -181,7 +181,9 @@ pub fn run_with(
             {
                 let id = unsafe { sys::kh_menu_key() };
                 if id >= 0 {
-                    menu::chosen(id as i64);
+                    // (craft-menu, comme AppKit : un raccourci est rendu à egui, un clic lance la commande)
+                    let m = (e.mods & sys::MOD_CTRL != 0) as i32 | ((e.mods & sys::MOD_ALT != 0) as i32) << 1 | ((e.mods & sys::MOD_SHIFT != 0) as i32) << 2;
+                    menu::chosen_by_key(id as i64, m);
                     next_frame = Some(Instant::now());
                     continue;
                 }
@@ -270,6 +272,23 @@ pub mod menu {
     /// ce qui a changé pendant la passe).
     pub fn set_hooks(on_chosen: impl Fn(i64) + Send + Sync + 'static, after_pass: impl Fn() + Send + Sync + 'static) {
         *HOOKS.lock().unwrap_or_else(|e| e.into_inner()) = Some((std::sync::Arc::new(on_chosen), std::sync::Arc::new(after_pass)));
+    }
+
+    /// Le choix en cours vient d'un raccourci : ses touches (1 Ctrl, 2 Alt, 4 Maj) ; -1 : d'un clic dans la barre.
+    static KEY_MODS: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(-1);
+
+    /// Un choix par un raccourci de la barre (la touche est prise avant la fenêtre).
+    pub(super) fn chosen_by_key(id: i64, mods: i32) {
+        KEY_MODS.store(mods, std::sync::atomic::Ordering::Relaxed);
+        chosen(id);
+        KEY_MODS.store(-1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// (le `muda` de Korin, pour craft-menu) pendant un choix : ses touches s'il vient d'un raccourci, -1 sinon ;
+    /// l'équivalent du `currentEvent` d'AppKit (un raccourci est rendu à egui, un clic lance la commande)
+    #[unsafe(no_mangle)]
+    pub extern "C" fn egui_korin_menu_key_mods() -> i32 {
+        KEY_MODS.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     pub(super) fn chosen(id: i64) {
