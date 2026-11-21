@@ -1879,18 +1879,18 @@ content = 138c4d26c0f22e5cca5e13cb7cc746a628c277f86f05d0af059c870bd62f7f81
 
 [deckcraft]
 title = DeckCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = Les présentations libres DeckCraft (storytold) : diapositives, thèmes, mode présentateur, lit et écrit le .pptx.
-size = 19023732
-installed = 46280181
-sha256 = ec88dd0a039be5e32238bc6ddf209d878f7e37b2909035e3b6a99757a5c457b8
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-deckcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 19031174
+installed = 46296373
+sha256 = 581ea21eff11731deb2f963f6d74a7389cbfe77ce611988e862410b9dbbace70
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-deckcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = 95f49538fb8f19124c079692e21a4770c5e4d33db7542a4ee9b91f21c9f45fa6
+content = 3959306131cfa6a1ac0fb4af780d8dd803bc207b5d711cd653a810ced2180358
 
 [pdfcraft]
 title = PdfCraft
