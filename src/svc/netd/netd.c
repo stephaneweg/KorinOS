@@ -70,6 +70,41 @@ void thread_sleep(u64 ms)
 	korin_sys1(SYS_SLEEP, ms);
 }
 
+/* ---- les attentes des requêtes (ops.c : connect, accept, send, recv) : elles dormaient 2 ms entre deux regards
+ * sur leur socket, 500 fois par seconde chacune et sans fin (un serveur en écoute, un client qui attend des
+ * données : un thread de netd occupé pour rien ; 21/11/2026). Elles dorment maintenant sur un futex, net_gen, que
+ * net_wake augmente et réveille à chaque changement possible d'une socket : trames traitées et minuteries (le thread
+ * de la pile), fermetures (ops.c). Au plus 100 ms par attente quand même (un chemin oublié ne bloque pas). */
+static volatile u32 net_gen;
+static volatile u32 net_waiters;
+
+void net_wake(void)
+{
+	__atomic_fetch_add(&net_gen, 1, __ATOMIC_RELEASE);
+	if (__atomic_load_n(&net_waiters, __ATOMIC_ACQUIRE))
+		korin_sys2(SYS_FUTEX_WAKE, (long)&net_gen, 0x7fffffff);
+}
+
+/* à lire avant de regarder la socket : un changement après la lecture fait rendre net_wait tout de suite */
+u32 net_gen_now(void)
+{
+	return __atomic_load_n(&net_gen, __ATOMIC_ACQUIRE);
+}
+
+/* dort jusqu'à un changement après gen (net_gen_now), l'échéance end (time_ms), ou 100 ms */
+void net_wait(u32 gen, u64 end)
+{
+	u64 now = time_ms();
+	if (now >= end)
+		return;
+	u64 ms = end - now;
+	if (ms > 100)
+		ms = 100;
+	__atomic_fetch_add(&net_waiters, 1, __ATOMIC_ACQ_REL);
+	korin_sys3(SYS_FUTEX_WAIT, (long)&net_gen, gen, ms);
+	__atomic_fetch_sub(&net_waiters, 1, __ATOMIC_ACQ_REL);
+}
+
 /* pages -> adresse (alignée sur 4 Ko), 0 si échec. Les anneaux des sockets
  * (SK_RING_PAGES) libérés sont gardés pour resservir. (net_lock) */
 u8 *pmm_alloc_n(u64 pages)
@@ -182,7 +217,7 @@ static void net_flags(u64 v)
  * minuterie (worker), ou la prochaine minuterie (net_wait_ms). Les drapeaux sont
  * posés avant de relire les anneaux et les sockets : ce qui arrive après
  * réveille forcément. */
-static void net_sleep(void)
+static void net_sleep(u64 cap)
 {
 	u8 buf[MSG_SIZE] __attribute__((aligned(16)));
 	net_flags(1);
@@ -193,6 +228,8 @@ static void net_sleep(void)
 		nl_take();
 		u64 w = net_wait_ms();
 		nl_drop();
+		if (cap && w > cap)
+			w = cap;
 		if (w <= NET_TICK_MS) /* (une minuterie : pas besoin d'être réveillé par les requêtes) */
 			net_long = 0;
 		korin_sys3(SYS_SVC_NEXT, canal_rx, buf, w);
@@ -206,6 +243,8 @@ static void net_sleep(void)
 
 NORETURN static void stack_thread(void)
 {
+	int wake_pending = 0;
+	u64 wake_since = 0;
 	for (;;) {
 		nl_take();
 		u64 n = lo_drain(); /* trames traitées dans ce tour */
@@ -234,24 +273,41 @@ NORETURN static void stack_thread(void)
 			}
 		}
 		nl_drop();
+		int changed = n != 0;
 		u64 now = time_ms(); /* minuteries toutes les 10 ms */
 		if (now >= net_next_timer) {
 			net_next_timer = now + 10;
 			nl_take();
 			dhcp_timer();
-			tcp_timers();
+			if (tcp_timers()) /* (un accusé, une retransmission : rien pour une requête qui attend) */
+				changed = 1;
 			nl_drop();
 		}
-		now = time_ms(); /* sans pause pendant le trafic */
+		/* les requêtes qui attendent (net_wait) : réveillées quand les anneaux sont vides, ou 2 ms au plus après un
+		 * changement ; à chaque lot de trames, un recv réveillé trop tôt prenait une trame ou deux et disputait le
+		 * verrou à la pile (le débit d'un téléchargement : moitié moins) */
+		now = time_ms();
+		if (changed && !wake_pending) {
+			wake_pending = 1;
+			wake_since = now;
+		}
+		if (wake_pending && (!n || now - wake_since >= 2)) {
+			wake_pending = 0;
+			net_wake();
+		}
+		/* (sans pause pendant le trafic) */
 		if (n) {
 			net_busy_t = now;
 			continue;
 		}
+		/* juste après du trafic : le cœur cédé en boucle (SYS_YIELD), la trame suivante d'un transfert est prise
+		 * sans attendre (le débit) ; NET_BUSY_MS était de 50 ms : une trame toutes les 50 ms (le Wi-Fi d'une maison,
+		 * ses diffusions) et netd ne dormait jamais, un cœur entier ; 5 ms suffisent à un transfert (21/11/2026) */
 		if (now - net_busy_t < NET_BUSY_MS) {
 			korin_sys0(SYS_YIELD);
 			continue;
 		}
-		net_sleep();
+		net_sleep(0);
 	}
 }
 
