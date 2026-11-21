@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 19:44
+date = 2026-11-21 19:47
 abi = 626
 packages = 117
 board = pc
@@ -2150,15 +2150,15 @@ content = d40ba42e562506e6d52bfd2eafc88c449203b32646585543ee473ff5f6388f3e
 
 [rust]
 title = Rust
-version = 1.97.1-2
+version = 1.97.1-3
 category = Développement
 author = Korin OS
 summary = Le langage Rust : rustc 1.97.1 et cargo, dans Korin (/devtools/rust)
-size = 54414139
-installed = 162275551
-sha256 = cdae5675aba65fea85f6f1146a7b396b73aa60e5922a6c46f1836b165d6769c1
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-rust-1.97.1-2.opk
-needs = gcc >= 1.0.13, pc >= 2026.11.71, rust-data-1, abi >= 626
+size = 59683333
+installed = 183573453
+sha256 = d7b5085e72025f1602d83f8819ec0c297460140f59be44f7c4140af78d414523
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-rust-1.97.1-3.opk
+needs = gcc >= 1.0.13, pc >= 2026.11.73, rust-data-1, abi >= 626
 required = 0
 restart = 0
-content = 72f32a8b906541874f5d084cc93ad0519f257ddfad95e5383b39bde1ac599f41
+content = 64eb5e0849530400b2ee6b3ef88d661e5617a98eb5c398d9f85826746f7f410e
