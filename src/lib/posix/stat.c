@@ -422,7 +422,9 @@ int renameat (int fd1, const char *from, int fd2, const char *to)
 }
 
 /* ---- liens : aucun sur les volumes d'ARMPI (FAT32, exFAT, RamFS) ---- */
-int _link (const char *a, const char *b) { (void) a; (void) b; return POSIX_ERR (ENOSYS); }
+/* pas de liens physiques (FAT32, exFAT) : EPERM, comme Linux sur un volume FAT (ENOSYS faisait croire à un appel
+   manquant ; les programmes prennent leur voie de repli sur EPERM, Claude Code pour ses verrous) */
+int _link (const char *a, const char *b) { (void) a; (void) b; return POSIX_ERR (EPERM); }
 int link (const char *a, const char *b) { return _link (a, b); }
 int linkat (int f1, const char *a, int f2, const char *b, int fl) { (void) f1; (void) f2; (void) fl; return _link (a, b); }
 int symlink (const char *a, const char *b) { (void) a; (void) b; return POSIX_ERR (ENOSYS); }
