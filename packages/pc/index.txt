@@ -2011,3 +2011,18 @@ needs = craft, abi >= 626
 required = 0
 restart = 0
 content = 503ff210dbf12e6e1665a030b050240b1a16ab500688a924c0248c40aff4fa93
+
+[filmcraft]
+title = FilmCraft
+version = 1.0.0
+category = Suite ArtCraft
+author = Korin OS
+summary = Le montage vidéo libre FilmCraft (storytold).
+size = 26315323
+installed = 62187557
+sha256 = 2290918010fdbda12b5732ade37e661aa1cc87cfe6cd3550b6fc555ee261caa0
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-filmcraft-1.0.0.opk
+needs = craft, abi >= 626
+required = 0
+restart = 0
+content = b7a6197764f0215866ee36faa8b5e4a547c6e33aa987adca23458250a16e56d7
