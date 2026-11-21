@@ -559,18 +559,18 @@ content = 4a62f5b65e76b629ed9b38197e4b13cefd661b379360c0c35ad7d50d0e65c422
 
 [vibe]
 title = Mistral Vibe
-version = 1.0.8
+version = 1.0.9
 category = Développement
 author = Korin OS
 summary = L'agent de code de Mistral : l'app Vibe, le client terminal agent, vibe-acp, et ses compétences de Korin (apps en C, C#, FreeBASIC, diagnostic)
-size = 544912
-installed = 1188144
-sha256 = c32b6f6849c2f8a2e931e2cced8f327535eb5c0ee2bd53ebb112dda8c92c5758
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vibe-1.0.8.opk
+size = 546215
+installed = 1191196
+sha256 = 072a08987db3f593a950b359de4b8d449fc9e30a220fd6493e75976cdfdc8575
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vibe-1.0.9.opk
 needs = python, bash, git, rg, abi >= 626
 required = 0
 restart = 0
-content = 03a740ca122677ba801806f740eadab05ad27e287abbba1584ec41ce56bb4027
+content = 9641cbd4a85fc3389095aa190dc27cca0ff9fb21011ca03682e601d0f7486fb0
 
 [bash]
 title = GNU bash
