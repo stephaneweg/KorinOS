@@ -39,8 +39,12 @@ Un paquet pour le lanceur, **`craft`** (« Suite ArtCraft », Bureautique), et u
 sections `[app.craft]` et `[app.<app>]`. Les apps (de 26 à 191 Mo : polices et données dans le programme) sont
 `release = 1` : leurs archives vont dans la Release « packages » de KorinOS, pas sur GitHub Pages. L'arbre :
 `sh tools/pc/sysroot_craft.sh` après `tools/pc/sysroot.sh` (le lanceur et les apps de `build/craft/x86_64/apps`, sans
-la démo d'egui). La publication passe par `tools/pkg/publish.sh` ou `pub.py --new` (docs/PAQUETS.md) : la clé de
-signature et `gh` (la Release).
+la démo d'egui). **Publiés le 21/11/2026** (index du PC, 139 paquets) : `craft` 1.0.0
+sur GitHub Pages, les 17 apps 1.0.0 dans la Release. Depuis le cloud (pas de `gh`, le proxy refuse les envois binaires) :
+`pub.py --new --api --manual-upload` prépare chaque archive (elle se refait à l'identique), un workflow d'une branche
+de transit (`.github/workflows/…` sur une branche sans historique, déclenché par le push) la dépose dans la Release avec
+le jeton d'Actions, puis `pub.py` la retélécharge, vérifie son SHA-256 et commite l'index signé. Une nouvelle version :
+`pub.py <app>` (sans `--new`), même chemin.
 
 ## Construire
 

@@ -1,6 +1,6 @@
 ---
 name: armpi-craft
-description: "suite Craft de storytold (Rust, egui) sur Korin PC : les 17 apps construites et ouvertes sous QEMU, lanceur Suite ArtCraft, paquets décrits, publication à faire (21/11/2026)"
+description: "suite Craft de storytold (Rust, egui) sur Korin PC : les 17 apps construites et ouvertes sous QEMU, lanceur Suite ArtCraft, paquets craft + 17 apps publiés (21/11/2026)"
 metadata:
   type: project
 ---
@@ -31,3 +31,7 @@ absents du cloud ; republier `pc` d'abord : panel et menubar qui cachent « Craf
 - L'utilisateur veut ensuite (après publication) : **les menus des apps dans la barre de menus de Korin** (backend
   Korin de `craft-menu`), **le titre à gauche contre l'icône** et les contrôles de droite qui ne recouvrent plus les
   boutons de la fenêtre (`craft-window`). Fiche : docs/agents/CRAFT-HANDOVER.md, « Ce qui reste ».
+- **Publiés le 21/11** (craft sur Pages, 17 apps dans la Release, index PC à 139 paquets, main d5930f7). Depuis le cloud :
+  clé dans `ONYX_PKG_KEY` (pub.py lit `OnyxPkgKey` : la passer), la Release par un **workflow** sur une branche de
+  transit (le proxy refuse les envois binaires et l'effacement de branches : `craft-opk-transit` reste à effacer par
+  l'utilisateur), `pub.py --new --api --manual-upload` (archives reproductibles, SHA-256 vérifié avant le commit).

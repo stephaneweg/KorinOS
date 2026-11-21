@@ -39,26 +39,21 @@ la démo d'egui, Craft et les icônes, panel et menubar.
 ## Fait (session du cloud, 20-21/11/2026)
 
 Les **17 apps sont construites et s'ouvrent sous QEMU PC** ; le lanceur s'appelle **Suite ArtCraft** ; les paquets
-sont décrits (`craft` + un par app qui en dépend, `tools/pkg/packages-pc.ini`) et vérifiés par `mkrepo.py --no-sign`
-(archives de 11 à 82 Mo). L'état app par app et ce qui a été patché : [../CRAFT.md](../CRAFT.md).
+sont **publiés** (`craft` + un par app qui en dépend, 21/11 : voir CRAFT.md, « Paquets »). L'état app par app et ce qui a été patché : [../CRAFT.md](../CRAFT.md).
 
 ## Ce qui reste
 
-1. **Publier** (sur le PC de l'utilisateur : la clé de signature et `gh` pour la Release) : `pc` d'abord (le panel et
-   le menubar qui cachent la catégorie « Craft » sont postérieurs à `pc` 2026.11.64), puis `craft` avec `needs = pc >=`
-   la nouvelle version, puis les 17 apps (`release = 1`). Il faut l'arbre : `bash tools/craft/all.sh` (WSL), puis
-   `sh tools/pc/sysroot.sh` et `sh tools/pc/sysroot_craft.sh`, et `pub.py --new` app par app (docs/PAQUETS.md).
-2. **Barre de titre** : les apps réservent la place des boutons de fenêtre de Windows ou de macOS ; sur Korin leurs
+1. **Barre de titre** : les apps réservent la place des boutons de fenêtre de Windows ou de macOS ; sur Korin leurs
    boutons de droite passent sous ceux de la fenêtre. Voir `craft-window` (craft-libs) : `policy` (« Use system title
    bar », `CRAFT_TITLEBAR=system`) et `title_bar.rs` ; une variante Korin dans `korin_libs.py` (titre à gauche contre
    l'icône, réserve à droite).
-3. **Menus dans la barre de menus de Korin** : `craft-menu` (craft-libs) décrit les menus en arbre et les confie à un
+2. **Menus dans la barre de menus de Korin** : `craft-menu` (craft-libs) décrit les menus en arbre et les confie à un
    backend (macOS : muda). Un backend Korin sur `ui_menu`, `ui_menu_get`, `ui_menu_command`, `ui_menu_state`,
    `ui_menu_key` (UIKit). FigCraft, PdfCraft, MaterialCraft, TextureCraft le prennent directement.
-4. **`File::lock`** dans la std de Korin (libposix a `flock`) : LightCraft (photothèque), la récupération de
+3. **`File::lock`** dans la std de Korin (libposix a `flock`) : LightCraft (photothèque), la récupération de
    PdfCraft et de DesignCraft.
-5. **Le son** : un hôte `cpal` pour Korin (sur AudioKit) : SoundCraft, FilmCraft, EffectCraft.
-6. Essayer chaque app au-delà de l'ouverture (ouvrir, modifier, enregistrer).
+4. **Le son** : un hôte `cpal` pour Korin (sur AudioKit) : SoundCraft, FilmCraft, EffectCraft.
+5. Essayer chaque app au-delà de l'ouverture (ouvrir, modifier, enregistrer).
 
 ## Essayer sous QEMU PC
 
