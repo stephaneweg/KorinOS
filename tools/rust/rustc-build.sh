@@ -108,9 +108,9 @@ $TL
 EOF
 
 # 4. stage 1 : rustc de l'hôte et la std des cibles de Korin
-A=""
-for t in $TARGETS; do A="$A --target $t"; done
-(cd "$S" && python3 x.py build --stage 1 library --target "$HOST" $A -j "$(nproc)")
+A=$HOST
+for t in $TARGETS; do A="$A,$t"; done
+(cd "$S" && python3 x.py build --stage 1 library --target "$A" -j "$(nproc)")
 ST=$S/build/$HOST/stage1
 "${CARGO_HOME:-$HOME/.cargo}/bin/rustup" toolchain link korin-stage1 "$ST" 2>/dev/null || true
 "$ST/bin/rustc" --print target-list | grep korin
