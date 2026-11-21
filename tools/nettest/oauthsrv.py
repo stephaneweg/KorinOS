@@ -8,6 +8,10 @@
   POST /token         device_code, authorization_code (PKCE S256 vérifié), refresh_token (nouveau à chaque fois)
   GET  /revoke        les jetons de rafraîchissement ne valent plus rien (invalid_grant)
   GET  /stats         compteurs (JSON)
+  POST /gh/device     à la façon de GitHub (OAuth App, Device Flow) : réponses en formulaire sans
+  POST /gh/token      « Accept: application/json », erreurs avec le statut 200, 1re demande en attente, 2e
+                      slow_down (intervalle 2), 3e : jeton « gho_… » sans durée ni jeton de rafraîchissement ;
+                      scope « deny » : access_denied
 
 client_id attendu : « cid » ; client_secret : aucun, ou « sec ».
 """
@@ -33,10 +37,13 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, fmt, *a):
         sys.stderr.write("oauthsrv: " + fmt % a + "\n")
 
-    def send_json(self, code, obj, chunked=False):
-        body = json.dumps(obj).encode()
+    def send_json(self, code, obj, chunked=False, form=False):
+        if form:  # (GitHub sans « Accept: application/json »)
+            body = urllib.parse.urlencode(obj).encode()
+        else:
+            body = json.dumps(obj).encode()
         self.send_response(code)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", "application/x-www-form-urlencoded" if form else "application/json")
         if chunked:  # (pour essayer le décodage des morceaux)
             self.send_header("Transfer-Encoding", "chunked")
             self.end_headers()
@@ -79,6 +86,8 @@ class H(BaseHTTPRequestHandler):
         f = dict(urllib.parse.parse_qsl(self.rfile.read(n).decode()))
         if f.get("client_id") != "cid" or f.get("client_secret", "sec") != "sec":
             return self.send_json(401, {"error": "invalid_client", "error_description": "client inconnu"})
+        if self.path.startswith("/gh/"):
+            return self.github(f)
         if self.path == "/device":
             self.count("device")
             dc = secrets.token_hex(8)
@@ -119,6 +128,39 @@ class H(BaseHTTPRequestHandler):
         STATE["refresh"].add(rt)
         self.send_json(200, {"access_token": "at-%d" % k, "token_type": "Bearer", "expires_in": 3600,
                              "refresh_token": rt}, chunked=(g == "refresh_token"))
+
+    def github(self, f):
+        form = "application/json" not in self.headers.get("Accept", "")
+        if form:
+            self.count("gh_form")
+        if self.path == "/gh/device":
+            self.count("gh_device")
+            dc = secrets.token_hex(8)
+            STATE["device"][dc] = -1 if f.get("scope") == "deny" else 0
+            return self.send_json(200, {"device_code": dc, "user_code": "WDJB-MJHT",
+                                        "verification_uri": "https://github.com/login/device",
+                                        "expires_in": 900, "interval": 1}, form=form)
+        if self.path != "/gh/token":
+            return self.send_json(404, {"error": "not_found"})
+        self.count("gh_token")
+        if f.get("grant_type") != "urn:ietf:params:oauth:grant-type:device_code":
+            return self.send_json(200, {"error": "unsupported_grant_type"}, form=form)
+        dc = f.get("device_code")
+        if dc not in STATE["device"]:
+            return self.send_json(200, {"error": "expired_token"}, form=form)
+        if STATE["device"][dc] < 0:
+            del STATE["device"][dc]
+            return self.send_json(200, {"error": "access_denied",
+                                        "error_description": "The authorization request was denied."}, form=form)
+        STATE["device"][dc] += 1
+        if STATE["device"][dc] == 1:
+            return self.send_json(200, {"error": "authorization_pending"}, form=form)
+        if STATE["device"][dc] == 2:
+            self.count("gh_slow_down")
+            return self.send_json(200, {"error": "slow_down", "interval": 2}, form=form)
+        del STATE["device"][dc]
+        self.send_json(200, {"access_token": "gho_%d%s" % (tok(), secrets.token_hex(8)), "token_type": "bearer",
+                             "scope": "repo,workflow"}, form=form)
 
 
 if __name__ == "__main__":

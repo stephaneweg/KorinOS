@@ -7,6 +7,8 @@
  *   - navigateur (code d'autorisation, RFC 6749 4.1, avec PKCE S256, RFC 7636) : retour sur
  *     http://127.0.0.1:<port>/, reçu ici, ou adresse de retour collée à la main ;
  *   - rafraîchissement (RFC 6749 6).
+ * Un jeton d'accès rendu sans durée ni jeton de rafraîchissement (GitHub, OAuth App) ne périme pas : il est
+ * gardé comme un jeton de rafraîchissement (coffre ou secrets), jusqu'à oauth_forget.
  *
  * Fichiers (dossier personnel, comme Mail) :
  *   HOME:/oauth/accounts.ini   une section par compte : provider, client_id, scope... (sans secret)
@@ -122,6 +124,7 @@ static long ksys(long n, long a, long b, long c, long d)
 #define SECRETS_MAGIC "KORINOA1"
 
 #define NAME_MAX_ 64
+#define LASTING_UNTIL ((time_t)1 << 62) /* (un jeton durable : valable « pour toujours ») */
 #define TEXT 512
 #define ACC_MAX 64
 #define ERR_MAX 32
@@ -139,8 +142,9 @@ struct account {
 	char redirect_path[32];	/* le chemin du retour du navigateur (défaut « / ») : Spotify et librespot, « /login » */
 	/* les jetons */
 	char *refresh;		/* (secrets) */
-	char *access;		/* (en mémoire) */
+	char *access;		/* (en mémoire ; gardé aussi avec les secrets s'il est durable) */
 	time_t access_until;
+	int lasting;		/* access ne périme pas (ni durée ni jeton de rafraîchissement : GitHub) */
 	/* code d'appareil en cours */
 	char device_code[TEXT];
 	time_t device_until, device_next;
@@ -832,7 +836,26 @@ static int save_accounts(void);
 static int vault;
 #define VAULT_NAME "oauth"
 
-/* texte du coffre : « refresh\tcompte\tjeton » et « secret\tcompte\tclient_secret », une ligne chacun */
+/* une ligne « sorte, compte, valeur » du coffre ou du fichier secrets */
+static void take_secret(const char *kind, const char *name, const char *v)
+{
+	struct account *a = find(name);
+	if (!a)
+		return;
+	if (!strcmp(kind, "refresh")) {
+		wipe_free(&a->refresh);
+		a->refresh = strdup(v);
+	} else if (!strcmp(kind, "access")) { /* (un jeton durable) */
+		wipe_free(&a->access);
+		a->access = strdup(v);
+		a->lasting = a->access != 0;
+		a->access_until = LASTING_UNTIL;
+	} else if (!strcmp(kind, "secret"))
+		scpy(a->client_secret, v, sizeof a->client_secret);
+}
+
+/* texte du coffre : « refresh\tcompte\tjeton », « access\tcompte\tjeton » (durable) et
+ * « secret\tcompte\tclient_secret », une ligne chacun */
 static void parse_vault(char *text)
 {
 	for (char *line = text; *line;) {
@@ -842,12 +865,7 @@ static void parse_vault(char *text)
 		char *t1 = strchr(line, '\t'), *t2 = t1 ? strchr(t1 + 1, '\t') : 0;
 		if (t2) {
 			*t1 = *t2 = 0;
-			struct account *a = find(t1 + 1);
-			if (a && !strcmp(line, "refresh")) {
-				wipe_free(&a->refresh);
-				a->refresh = strdup(t2 + 1);
-			} else if (a && !strcmp(line, "secret"))
-				scpy(a->client_secret, t2 + 1, sizeof a->client_secret);
+			take_secret(line, t1 + 1, t2 + 1);
 		}
 		*e = save;
 		line = *e ? e + 1 : e;
@@ -904,16 +922,21 @@ static void load_legacy_secrets(void)
 		if (plain && gcm(0, k, (u8 *)b + 8, (u8 *)b + 36, n, plain, (u8 *)b + 20)) {
 			plain[n] = 0;
 			for (char *line = (char *)plain; *line;) {
+				/* « compte\tjeton de rafraîchissement », ou trois champs comme au coffre
+				 * (« access\tcompte\tjeton » : un jeton durable) */
 				char *e = line + strcspn(line, "\n");
-				char *tab = memchr(line, '\t', (size_t)(e - line));
+				char save = *e;
+				*e = 0;
+				char *tab = strchr(line, '\t'), *t2 = tab ? strchr(tab + 1, '\t') : 0;
 				if (tab) {
 					*tab = 0;
-					struct account *a = find(line);
-					if (a) {
-						wipe_free(&a->refresh);
-						a->refresh = strndup(tab + 1, (size_t)(e - tab - 1));
-					}
+					if (t2) {
+						*t2 = 0;
+						take_secret(line, tab + 1, t2 + 1);
+					} else
+						take_secret("refresh", line, tab + 1);
 				}
+				*e = save;
 				line = *e ? e + 1 : e;
 			}
 		} else if (plain)
@@ -935,6 +958,8 @@ static int save_secrets(void)
 		for (int i = 0; i < ACC_MAX; i++) {
 			if (accs[i].used && accs[i].refresh)
 				b_fmt(&t, "refresh\t%s\t%s\n", accs[i].name, accs[i].refresh);
+			if (accs[i].used && accs[i].lasting && accs[i].access)
+				b_fmt(&t, "access\t%s\t%s\n", accs[i].name, accs[i].access);
 			if (accs[i].used && accs[i].client_secret[0])
 				b_fmt(&t, "secret\t%s\t%s\n", accs[i].name, accs[i].client_secret);
 		}
@@ -947,9 +972,12 @@ static int save_secrets(void)
 		}
 		return r < 0 ? -1 : 0;
 	}
-	for (int i = 0; i < ACC_MAX; i++)
+	for (int i = 0; i < ACC_MAX; i++) {
 		if (accs[i].used && accs[i].refresh)
 			b_fmt(&t, "%s\t%s\n", accs[i].name, accs[i].refresh);
+		if (accs[i].used && accs[i].lasting && accs[i].access)
+			b_fmt(&t, "access\t%s\t%s\n", accs[i].name, accs[i].access);
+	}
 	u8 k[32];
 	int ok = 0;
 	if (get_key(k, 1)) {
@@ -1187,6 +1215,11 @@ static void endpoints_of(const struct account *a0, struct endpoints *e)
 		snprintf(e->auth, TEXT, "https://login.microsoftonline.com/%s/oauth2/v2.0/authorize", tenant);
 		snprintf(e->token, TEXT, "https://login.microsoftonline.com/%s/oauth2/v2.0/token", tenant);
 		snprintf(e->device, TEXT, "https://login.microsoftonline.com/%s/oauth2/v2.0/devicecode", tenant);
+	} else if (!strcasecmp(a->provider, "github")) {
+		/* (OAuth App avec « Enable Device Flow » ; réponses en JSON par « Accept: application/json ») */
+		scpy(e->auth, "https://github.com/login/oauth/authorize", TEXT);
+		scpy(e->token, "https://github.com/login/oauth/access_token", TEXT);
+		scpy(e->device, "https://github.com/login/device/code", TEXT);
 	}
 	if (a->auth_url[0])
 		scpy(e->auth, a->auth_url, TEXT);
@@ -1228,17 +1261,27 @@ static long take_tokens(struct account *a, int status, const char *body)
 	}
 	wipe_free(&a->access);
 	a->access = acc;
-	long exp = json_num(body, "expires_in", 3600);
-	a->access_until = time(0) + (exp > 120 ? exp - 60 : exp);
+	long exp = json_num(body, "expires_in", -1);
 	char *ref = json_str(body, "refresh_token");
+	int was_lasting = a->lasting;
+	/* ni durée ni jeton de rafraîchissement (GitHub, OAuth App) : un jeton qui ne périme pas, gardé */
+	a->lasting = exp < 0 && !ref && !a->refresh;
+	if (a->lasting)
+		a->access_until = LASTING_UNTIL;
+	else {
+		if (exp < 0)
+			exp = 3600;
+		a->access_until = time(0) + (exp > 120 ? exp - 60 : exp);
+	}
+	int save = a->lasting || was_lasting;
 	if (ref) { /* (Microsoft en rend un nouveau à chaque fois) */
-		int changed = !a->refresh || strcmp(a->refresh, ref);
+		save |= !a->refresh || strcmp(a->refresh, ref);
 		wipe_free(&a->refresh);
 		a->refresh = ref;
-		if (changed)
-			save_secrets();
-	} else if (!a->refresh)
+	} else if (!a->refresh && !a->lasting)
 		say("%s : pas de jeton de rafraîchissement (portée offline_access, ou access_type=offline ?)", a->name);
+	if (save)
+		save_secrets();
 	return 0;
 }
 
@@ -1272,15 +1315,16 @@ static long op_setup(struct account *a, const char *conf)
 	if (!a->provider[0])
 		scpy(a->provider, "custom", sizeof a->provider);
 	if (!configured(a))
-		return fail(E_INVAL, "%s : il faut client_id (ou un fournisseur de %s qui en donne un) et des adresses connues (google, microsoft) ou token_url", a->name, PROVIDERS_INI);
+		return fail(E_INVAL, "%s : il faut client_id (ou un fournisseur de %s qui en donne un) et des adresses connues (google, microsoft, github) ou token_url", a->name, PROVIDERS_INI);
 	endpoints_of(a, &e);
 	/* un autre client ou un autre serveur : les jetons d'avant ne servent plus */
 	if (strcmp(old_client, cfg(a)->client_id) || strcmp(old_token, e.token)) {
+		int had = a->refresh || a->lasting;
 		wipe_free(&a->access);
-		if (a->refresh) {
-			wipe_free(&a->refresh);
+		wipe_free(&a->refresh);
+		a->lasting = 0;
+		if (had)
 			save_secrets();
-		}
 	}
 	if (vault && save_secrets()) /* (le client_secret, au coffre) */
 		return fail(E_IO, "écriture au coffre impossible");
@@ -1363,11 +1407,13 @@ static long op_device_poll(struct account *a)
 		return E_AGAIN; /* (le réseau : on redemandera) */
 	}
 	long r;
-	char *err = st == 200 ? 0 : json_str(body.p, "error");
+	/* (GitHub rend ces erreurs avec le statut 200) */
+	char *err = json_str(body.p, "error");
 	if (err && !strcmp(err, "authorization_pending"))
 		r = E_AGAIN;
 	else if (err && !strcmp(err, "slow_down")) {
-		a->device_interval += 5;
+		long iv = json_num(body.p, "interval", 0); /* (GitHub : le nouvel intervalle) */
+		a->device_interval = iv > a->device_interval ? (int)iv : a->device_interval + 5;
 		a->device_next = time(0) + a->device_interval;
 		r = E_AGAIN;
 	} else {
@@ -1614,10 +1660,12 @@ static long op_token(struct account *a, struct buf *out)
 
 static long op_forget(struct account *a)
 {
+	int had = a->refresh || a->lasting;
 	wipe_free(&a->access);
+	a->lasting = 0;
 	browser_stop(a);
 	a->device_code[0] = 0;
-	if (a->refresh) {
+	if (had) {
 		wipe_free(&a->refresh);
 		if (save_secrets())
 			return fail(E_IO, "écriture de %s impossible", SECRETS_FILE);

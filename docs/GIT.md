@@ -172,6 +172,50 @@ sur écriture d'après le fork change : le thread n'était plus réveillé. Clé
 virtuelle) depuis le 14/11, comme le Pi ; le contournement `protocol.version = 0` est retiré de
 `tools/pc/sysroot_git.sh` (docs/etude/PC-PILOTES.md, « Réveils perdus »).
 
+## GitHub
+
+*21/11/2026, [etude/GH.md](etude/GH.md) §5. Pas de `gh` (Go) : l'identification est dans l'assistant de git.*
+
+Au premier `git push` (ou `pull`, `fetch`, `clone` d'un dépôt privé) vers `https://github.com`, sans jeton au
+coffre, `git-credential-korin` connecte le compte OAuth « `github` » d'oauthd ([OAUTH.md](OAUTH.md)) par le
+**code d'appareil**, à la façon du Git Credential Manager :
+
+```
+$ git push
+GitHub : ouvrir ses pages dans Jet, sur cet écran ? [O/n]
+GitHub : connexion de Korin à votre compte.
+Sur un téléphone ou un ordinateur, ouvrez :
+  https://github.com/login/device
+et tapez le code :  WDJB-MJHT
+En attente (900 s au plus)...
+github : connecté.
+```
+
+1. **Le client** : une « OAuth App » de GitHub avec « Enable Device Flow » coché. Son Client ID n'est pas secret
+   dans ce flux (pas de `client_secret`). Sans Client ID livré (`[github]` de `/etc/oauth/providers.ini`, ce qui
+   est le cas aujourd'hui), l'assistant fait créer une fois celle de l'utilisateur : il affiche les valeurs à mettre
+   (nom « Korin », `http://127.0.0.1` pour la page d'accueil et le retour, Device Flow coché), ouvre
+   `https://github.com/settings/applications/new` dans Jet si on l'a voulu, demande le Client ID sur le terminal,
+   puis `oauth setup github provider=github client_id=… scope='repo workflow'` (dans le compte de l'utilisateur).
+2. **La connexion** : `oauth login github`, messages sur la sortie d'erreur (git lit la sortie de l'assistant),
+   question sur `/dev/tty`. Portée `repo` (dépôts privés compris) et `workflow` (pousser `.github/workflows`).
+3. **Le jeton** est rendu à git avec le nom `x-access-token` (ou le nom de l'adresse, `https://alice@github.com/…` ;
+   GitHub ne regarde que le jeton) ; git le fait garder au coffre (`store`) comme un mot de passe. Le jeton d'une
+   OAuth App **ne périme pas** : oauthd le garde aussi, chiffré (coffre, ou `HOME:/oauth/secrets`), et le rend
+   sans réseau (`oauth token github`) : sans coffre, rien n'est redemandé.
+4. **Refusé par GitHub** (révoqué, application retirée) : git appelle `erase`, qui l'enlève du coffre et, si c'est
+   le jeton d'oauthd, fait `oauth forget github` : le `push` suivant reconnecte (sans redemander le Client ID).
+5. `GIT_TERMINAL_PROMPT=0` (scripts) : seulement un jeton déjà là, aucune connexion.
+
+À la main : `oauth status github`, `oauth token github`, `oauth forget github` (se déconnecter ; le jeton reste
+valable chez GitHub jusqu'à sa révocation dans *Settings › Applications*), `oauth remove github` (oublier aussi le
+Client ID).
+
+Essai sous Linux : `bash tools/git/test/credential.sh` (le vrai git, `oauth` et `secret` simulés ; 29
+vérifications) ; oauthd : `sh src/svc/oauthd/test/run.sh` (fournisseur `github` contre `tools/nettest/oauthsrv.py`,
+`/gh/…`). **Pas encore essayé dans Korin** ni contre le vrai GitHub. Le Pi : oauthd n'y est pas encore construit,
+l'assistant y fait comme avant.
+
 ## Limites
 
 * **Pas de `mmap` en écriture partagée** : `NO_MMAP`, git lit par `pread`. Le `mmap` en lecture de
@@ -194,6 +238,7 @@ virtuelle) depuis le 14/11, comme le Pi ; le contournement `protocol.version = 0
   commande `secret`, donc dans le coffre à secrets (docs/KEYVAULT.md), dans l'espace du script seul :
   `git/<hôte>/<compte>` (le mot de passe), `git/<hôte>/@default` (le dernier compte de l'hôte). Rien en clair,
   au contraire de `credential-store` (`~/.git-credentials`). Sans coffre (le Pi) : rien n'est gardé, git redemande.
+  GitHub : connexion par code d'appareil, ci-dessous.
 * HTTP/1.1 seulement (libcurl sans nghttp2).
 * La barre de progression ne s'actualise pas (pas de SIGALRM : `setitimer` sans effet, étape 5).
 * `relative_path` de git compare la première lettre des volumes : un chemin relatif d'un volume à

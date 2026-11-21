@@ -57,7 +57,7 @@ tous les registres) et elles **attendent le réseau** (jusqu'à 20 s) : dans une
 
 | Clé | Rôle |
 |---|---|
-| `provider` | `google`, `microsoft` ou `custom` (défaut) : les adresses des deux premiers sont connues |
+| `provider` | `google`, `microsoft`, `github` ou `custom` (défaut) : les adresses des trois premiers sont connues |
 | `client_id` | l'identifiant de l'application ; sans lui, celui que Korin livre pour ce fournisseur (ci-dessous) |
 | `client_secret` | si le fournisseur en donne un (Google, « application de bureau » : il en faut un, qui ne protège rien) |
 | `scope` | les permissions, séparées par des espaces (Microsoft : ajouter `offline_access`) |
@@ -83,6 +83,9 @@ scope = https://www.googleapis.com/auth/drive
 [microsoft]
 client_id = 85ccaf6e-81ff-4a62-9194-930fc36429ad   ; « Onyx Mail », le même que Mail
 tenant = common
+
+[github]
+scope = repo workflow                           ; pas de client_id livré : l'OAuth App de l'utilisateur (GIT.md)
 ```
 
 `oauth setup gdrive/perso provider=google` suffit donc. Le compte ne recopie pas ces valeurs (`accounts.ini` n'a que
@@ -123,6 +126,19 @@ Jet), l'adresse s'ouvre sur un autre appareil : le retour vers `127.0.0.1` y éc
 
 Le port écoute sur toutes les interfaces (netd ne sait pas se limiter à 127.0.0.1) : une requête venue d'ailleurs
 sans le bon `state` est refusée.
+
+### GitHub
+
+`provider = github` (21/11) : une OAuth App de GitHub par le code d'appareil (`https://github.com/login/device/code`,
+`https://github.com/login/oauth/access_token`), pour l'identification de git ([GIT.md](GIT.md), « GitHub »). Deux
+différences avec Google et Microsoft, que voit oauthd :
+
+- GitHub rend `authorization_pending`, `slow_down` (avec le nouvel `interval`), `access_denied`… **avec le statut
+  200** : oauthd lit le champ `error` quel que soit le statut ;
+- son jeton d'accès **n'a ni durée ni jeton de rafraîchissement** : un jeton rendu ainsi est **durable**. oauthd le
+  garde avec les jetons de rafraîchissement (ligne `access` du coffre, ou une ligne à trois champs
+  `access\tcompte\tjeton` dans `secrets`), `oauth_status` rend 2 et `oauth_token` le rend sans réseau, jusqu'à
+  `oauth_forget`.
 
 ## 3. La commande `oauth`
 
@@ -193,7 +209,7 @@ d'utilisateurs ([etude/MULTI-UTILISATEUR.md](etude/MULTI-UTILISATEUR.md)), chacu
 | Fichier | Contenu |
 |---|---|
 | `accounts.ini` | une section par compte, la configuration ; **aucun jeton** ; écrit par oauthd seul |
-| `secrets` | les jetons de rafraîchissement : « KORINOA1 », 12 octets d'IV, 16 de marque, puis le texte (« nom, tabulation, jeton » par ligne) chiffré en AES-256-GCM (EVP d'OpenSSL) |
+| `secrets` | les jetons de rafraîchissement : « KORINOA1 », 12 octets d'IV, 16 de marque, puis le texte (« nom, tabulation, jeton » par ligne ; « access, nom, jeton » pour un jeton durable, GitHub) chiffré en AES-256-GCM (EVP d'OpenSSL) |
 | `key` | la clé, 32 octets aléatoires, faite au premier jeton |
 
 Avec le coffre à secrets ([KEYVAULT.md](KEYVAULT.md), le PC) : les jetons de rafraîchissement et les `client_secret`
@@ -247,6 +263,10 @@ l'adresse elle-même) et appelle ses opérations directement.
 
 ## 8. Vérifié
 
+- **GitHub (21/11, Linux, AddressSanitizer)** : 71 vérifications sur 71 ; le faux serveur imite GitHub (`/gh/device`,
+  `/gh/token` : erreurs en 200, `slow_down` avec intervalle 2, jeton `gho_…` sans durée, refus) : connexion,
+  intervalle respecté, jeton durable chiffré dans `secrets`, relu sans réseau, oubli relu, refus. Pas contre le
+  vrai GitHub (le réseau de la machine d'essai l'intercepte), pas dans Korin.
 - **Linux (WSL, AddressSanitizer et UBSan, 16/11)** : 56 vérifications sur 56 contre `oauthsrv.py` (dont, le soir,
   le fournisseur livré : compte réduit à `provider`, client et portée pris de `providers.ini`, marqués « (Korin) »
   par `info`, non recopiés dans `accounts.ini`, connexion par code d'appareil, client propre au compte prioritaire) : configuration
