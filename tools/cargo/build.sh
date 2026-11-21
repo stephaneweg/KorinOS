@@ -56,6 +56,9 @@ bash "$ROOT/tools/rust/libc-projects.sh" "$K"
 S=$W/cargo-$CV
 rm -rf "$S"
 tar xzf "$K/dl/cargo-$CV.crate" -C "$W"
+# cargo lui-même (tools/cargo/cargo.patch) : sous Korin, il lit aussi <cargo>/../etc/cargo/config.toml, la configuration
+# de la chaîne (les caisses qui connaissent Korin, tools/rust/korin-vendor.sh), et n'avertit pas des siennes inutilisées
+(cd "$S" && patch -p1 -s < "$ROOT/tools/cargo/cargo.patch")
 cargo +korin fetch -q --manifest-path "$S/Cargo.toml"
 
 # 4. les caisses que Korin patche à une version : celles du Cargo.lock d'une autre version de la même série y sont
