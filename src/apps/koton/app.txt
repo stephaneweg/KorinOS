@@ -9,3 +9,4 @@ help = Espace lance ou arrête la lecture, Échap l'arrête, la touche Début re
 help = Double-cliquer une place vide d'une piste pour y poser un bloc ; clic droit pour les autres choix.
 help = Menu Piste > Ajouter une piste d'instrument ou Ajouter une piste de batterie ; Ctrl+K règle la tonalité, la mesure et le tempo.
 help = Menu Fichier > Exporter en WAV garde la chanson en son ; Ctrl+S l'enregistre (.kson), les chansons sont dans HOME:/koton/songs.
+skill    = SKILL.md

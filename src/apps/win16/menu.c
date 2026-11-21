@@ -643,3 +643,38 @@ void api_TranslateAccelerator16 (struct w16call *c)
 		}
 	}
 }
+
+/* le menu Fenêtre d'un programme MDI (mdi.c) : les fenêtres filles « &1 Titre »… (identifiants idfirst + i), la
+ * fenêtre active cochée, après un séparateur ; la liste d'avant est retirée */
+#define MDI_SEP_ID 0xfffe
+void menu_mdi_list (uint16_t hmenu, uint16_t idfirst, int n, const char *const *titles, int active)
+{
+	struct menu *m = menu_get (hmenu);
+	if (!m)
+		return;
+	for (int i = 0; i < m->n;)
+		if ((m->it[i].id >= idfirst && m->it[i].id < idfirst + 200 && !(m->it[i].flags & MF_POPUP))
+			|| ((m->it[i].flags & MF_SEPARATOR) && m->it[i].id == MDI_SEP_ID))
+		{
+			memmove (&m->it[i], &m->it[i + 1], sizeof m->it[0] * (size_t) (m->n - i - 1));
+			m->n--;
+		}
+		else
+			i++;
+	if (n > 0 && m->n < MAX_ITEMS)
+	{
+		struct item *it = &m->it[m->n++];
+		memset (it, 0, sizeof *it);
+		it->flags = MF_SEPARATOR;
+		it->id = MDI_SEP_ID;
+	}
+	for (int i = 0; i < n && i < 9 && m->n < MAX_ITEMS; i++)
+	{
+		struct item *it = &m->it[m->n++];
+		memset (it, 0, sizeof *it);
+		it->flags = (uint16_t) (i == active ? 0x0008 : 0);	/* MF_CHECKED */
+		it->id = (uint16_t) (idfirst + i);
+		snprintf (it->text, sizeof it->text, "&%d %s", i + 1, titles[i]);
+	}
+	menus_dirty = 1;
+}

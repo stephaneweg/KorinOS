@@ -260,7 +260,7 @@ static uint32_t button_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t 
 	case WM_SETFOCUS:
 		b->focus = 1;
 		user_invalidate (hwnd, 0);
-		user_notify (hwnd, 6);	/* BN_SETFOCUS (Win32, sans effet chez Win16) */
+		/* (pas de BN_SETFOCUS : c'est de Win32 ; le Gestionnaire de programmes le prenait pour un clic sur OK) */
 		return 0;
 	case WM_KILLFOCUS:
 		b->focus = 0;
@@ -873,6 +873,7 @@ static uint32_t edit_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp
 }
 
 /* ======================================================================== LISTBOX */
+#define LB_ERR32 0xffffffffu	/* LB_ERR, CB_ERR : -1L (SendMessage rend un LONG, que les programmes comparent à -1L) */
 #define LB_ADDSTRING (WM_USER + 1)
 #define LB_INSERTSTRING (WM_USER + 2)
 #define LB_DELETESTRING (WM_USER + 3)
@@ -1190,7 +1191,7 @@ static uint32_t listbox_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t
 	{
 		int i = (int16_t) wp;
 		if (i < 0 || i >= l->n)
-			return 0xffff;
+			return LB_ERR32;
 		free (l->it[i].text);
 		memmove (&l->it[i], &l->it[i + 1], sizeof l->it[0] * (size_t) (l->n - i - 1));
 		l->n--;
@@ -1229,7 +1230,7 @@ static uint32_t listbox_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t
 	{
 		int i = (int16_t) wp;
 		if (i < 0 || i >= l->n)
-			return 0xffff;
+			return LB_ERR32;
 		return multi ? (uint32_t) l->it[i].sel : i == l->cur;
 	}
 	case LB_GETCURSEL:
@@ -1238,7 +1239,7 @@ static uint32_t listbox_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t
 	{
 		int i = (int16_t) wp;
 		if (i < 0 || i >= l->n)
-			return 0xffff;
+			return LB_ERR32;
 		if (!lb_has_strings (w))
 		{
 			wr32 (far_lin (lp), l->it[i].data);
@@ -1250,7 +1251,7 @@ static uint32_t listbox_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t
 	case LB_GETTEXTLEN:
 	{
 		int i = (int16_t) wp;
-		return i >= 0 && i < l->n ? (uint32_t) strlen (l->it[i].text) : 0xffff;
+		return i >= 0 && i < l->n ? (uint32_t) strlen (l->it[i].text) : LB_ERR32;
 	}
 	case LB_GETCOUNT:
 		return (uint32_t) l->n;
@@ -1258,7 +1259,7 @@ static uint32_t listbox_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t
 	{
 		int i = lb_find (l, (int16_t) wp, w16_raw (lp), 0);
 		if (i < 0)
-			return 0xffff;
+			return LB_ERR32;
 		l->cur = i;
 		lb_visible (w, l);
 		user_invalidate (hwnd, 0);
@@ -1316,7 +1317,7 @@ static uint32_t listbox_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t
 	{
 		int i = (int16_t) wp;
 		if (i < 0 || i >= l->n)
-			return 0xffff;
+			return LB_ERR32;
 		l->it[i].data = lp;
 		return 0;
 	}
@@ -1369,6 +1370,19 @@ static struct combo *cb_of (struct wnd *w)
 	if (!w->cdata)
 		w->cdata = calloc (1, sizeof (struct combo));
 	return w->cdata;
+}
+
+/* la hauteur d'une liste déroulante fermée (CBS_DROPDOWN, CBS_DROPDOWNLIST) : comme Windows, la fenêtre n'a que
+ * cette hauteur, la hauteur donnée à CreateWindow est celle de la liste ouverte (0 : pas une liste déroulante) */
+int ctrl_combo_height (struct wnd *w)
+{
+	if (!w || (w->style & 3) < 2 || !(w->cdata_kind == 5 || !strcasecmp (w->clsname, "COMBOBOX")))
+		return 0;
+	uint16_t hdc = gdi_dc_for_window (w->hwnd);
+	prep_font (w, hdc);
+	int h = gdi_text_height (hdc, 0) + 8;
+	gdi_release_dc (hdc);
+	return h;
 }
 
 static void cb_paint (struct wnd *w)
@@ -1450,7 +1464,7 @@ static uint32_t combo_impl (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t l
 	struct combo *cb = cb_of (w);
 	int kind = (int) (w->style & 3);
 	if (msg >= CB_ADDSTRING && msg <= CB_FINDSTRINGEXACT && !cb->lb)
-		return 0xffff;
+		return LB_ERR32;
 	switch (msg)
 	{
 	case WM_CREATE:

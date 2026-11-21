@@ -26,6 +26,7 @@ struct Scene
 	bool fixedSize = false;		// (essais : pas de passage automatique)
 	float lastMs = 0;		// le temps du dernier rendu 3D
 	V3 shadowAt; float shadowR = 0.5f, shadowK = 1;
+	V3 shadow2At; float shadow2R = 0, shadow2K = 0;	// (une seconde ombre : la balle)
 	V3 focus, ringC; float ringR = 0.8f;	// le halo (derrière l'animal), le socle
 
 	void init ();

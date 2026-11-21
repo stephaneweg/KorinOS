@@ -8,7 +8,8 @@ Pose dans <racine>/.claude-acp :
   AGENTS.md          les consignes sur Korin, dans le prompt système de chaque séance (tools/claude/home/AGENTS.md)
   skills/<nom>/      les compétences : celles du dépôt (.agents/skills : système, langages, kits, POSIX, port,
                      paquets) et celles de Vibe (tools/vibe/home/skills : korin et le guide du développeur, korin-app
-                     et son squelette, korin-graphics, korin-diag, korin-csharp, korin-freebasic, korin-forge, korin-terracube, korin-godot, korin-game, korin-widget)
+                     et son squelette, korin-graphics, korin-diag, korin-csharp, korin-freebasic, korin-godot, korin-game, korin-widget ;
+                     celles des apps, korin-forge et les autres, sont dans /apps/<app>.app : agent.py, app_skills)
 Le reste (.env et la clé, config.toml, sessions, logs) est à l'utilisateur et n'est pas touché ; les compétences
 sont remplacées en entier.
 """

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """pub.py -- publier un seul paquet de Korin OS, a partir de son archive publiee (docs/PAQUETS.md, « Publier un paquet »).
 
-    python tools/pkg/pub.py NOM [--pi] [--tree DOSSIER] [--dry-run] [--yes] [--only MOTIF...] [--add-new] [--new] [--abi N]
+    python tools/pkg/pub.py NOM [--pi] [--tree DOSSIER] [--dry-run] [--yes] [--only MOTIF...] [--add-new] [--drop MOTIF...] [--new] [--abi N]
 
 --new : un paquet absent de l'index publie (pas d'archive de base) : tous ses fichiers sont pris dans l'arbre,
 version de versions.ini ou 1.0.0, section ajoutee a la fin de l'index.
@@ -221,6 +221,7 @@ def main ():
 	ap.add_argument ("--yes", action = "store_true", help = "sans demander confirmation")
 	ap.add_argument ("--only", nargs = "+", default = [], help = "remplacer seulement ces fichiers (motifs de packages.ini)")
 	ap.add_argument ("--add-new", action = "store_true", help = "ajouter les fichiers du paquet absents de l'archive")
+	ap.add_argument ("--drop", nargs = "+", default = [], help = "retirer de l'archive les fichiers de ces motifs (que packages.ini ne donne plus au paquet)")
 	ap.add_argument ("--new", action = "store_true", help = "un paquet absent de l'index publie : tous ses fichiers, pris dans l'arbre")
 	ap.add_argument ("--abi", type = int, help = "le besoin abi >= N du manifeste (defaut : celui du publie)")
 	ap.add_argument ("--force", action = "store_true", help = "continuer si le content publie ne se recalcule pas")
@@ -345,6 +346,12 @@ def main ():
 	added = []
 	for f in extra:
 		if (a.add_new or is_new) and wanted (f, pc and f in GUARDED): added.append ((f, open (os.path.join (P["src"][f], f), "rb").read (), False, os.path.join (P["src"][f], f)))
+	# (--drop : les fichiers que le paquet n'a plus ; jamais un fichier que packages.ini lui donne encore)
+	dropped = [f for f in order if any (mkrepo.matches (f, p) for p in a.drop)]
+	still = [f for f in dropped if f in P["files"]]
+	if still: die ("--drop : %s encore donne(s) au paquet par %s" % (", ".join (still[:5]), os.path.basename (ini)))
+	changed = [c for c in changed if c[0] not in dropped]
+	missing = [f for f in missing if f not in dropped]
 	def when (tp): return datetime.datetime.fromtimestamp (os.path.getmtime (tp)).strftime ("%d/%m %H:%M")
 	say ("")
 	say ("%s %s (%s), arbre %s :" % (name, oldver, "Release" if is_release else repo_rel + "/pkgs", os.path.relpath (tree, ROOT)))
@@ -352,6 +359,8 @@ def main ():
 		say ("  remplace  %-60s %10d -> %-10d %s%s" % (f, len (base_data[f]), len (new), when (tp), "  (fusion des cles)" if merged else ""))
 	for f, new, merged, tp in added:
 		say ("  ajoute    %-60s %10d  %s" % (f, len (new), when (tp)))
+	for f in dropped:
+		say ("  retire    %-60s %10d" % (f, len (base_data[f])))
 	for f, guarded in skipped:
 		say ("  garde     %s (differe : %s)" % (f, "une reconstruction brute l'abime, --only pour le prendre" if guarded else "hors de --only"))
 	if extra and not a.add_new and not is_new:
@@ -360,7 +369,7 @@ def main ():
 		if len (extra) > 15: say ("            ...")
 	if missing:
 		say ("  %d fichier(s) de l'archive absents de l'arbre (gardes tels quels)%s" % (len (missing), " : " + ", ".join (missing[:5]) if len (missing) <= 5 else ""))
-	if not changed and not added:
+	if not changed and not added and not dropped:
 		shutil.rmtree (TMP, ignore_errors = True)
 		say ("pub: rien n'a change dans %s : rien a publier" % name)
 		return
@@ -381,7 +390,7 @@ def main ():
 		os.makedirs (os.path.dirname (os.path.join (stage, f)), exist_ok = True)
 		open (os.path.join (stage, f), "wb").write (new)
 		if f not in order: order.append (f)
-	files = list (order)
+	files = [f for f in order if f not in dropped]
 	data = { f: open (os.path.join (stage, f), "rb").read () for f in files }
 	P2 = dict (P); P2["files"] = files; P2["src"] = { f: stage for f in files }
 	P2["bytes"] = sum (len (data[f]) for f in files)

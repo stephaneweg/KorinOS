@@ -11,7 +11,8 @@ Pose dans <racine>/.vibe :
   skills/korin-csharp/, korin-freebasic/, korin-diag/   C# (.NET, WinForms, Avalonia), FreeBASIC, diagnostic
   skills/korin-game/inc/, examples/   le cadre des jeux en C (src/inc/game*.h) et arkanoid, tetris, invaders
 Le reste de .vibe (.env et la cle du compte, config.toml, logs, seances) n'est pas touche ; les competences de tools/vibe/home/skills
-sont remplacees en entier.
+sont remplacees en entier. Les competences des apps (Forge, TerraCube, Arabesque, Koton...) viennent avec elles,
+dans /apps/<app>.app/SKILL.md (docs/ABI.md, cle skill) : Vibe les trouve par VIBE_SKILL_PATHS (libacp).
 """
 import os
 import shutil
@@ -24,12 +25,12 @@ home = os.path.join(sys.argv[1], ".vibe")
 src = os.path.join(root, "tools", "vibe", "home")
 api = os.path.join(root, "src", "apps", "help", "data", "api")
 skills = os.path.join(home, "skills")
-os.makedirs(skills, exist_ok=True)
+# (tout skills/ est refait : celles des apps, korin-forge et korin-terracube autrefois, sont dans /apps/<app>.app)
+shutil.rmtree(skills, ignore_errors=True)
+os.makedirs(skills)
 shutil.copyfile(os.path.join(src, "AGENTS.md"), os.path.join(home, "AGENTS.md"))
 for name in os.listdir(os.path.join(src, "skills")):
-    d = os.path.join(skills, name)
-    shutil.rmtree(d, ignore_errors=True)
-    shutil.copytree(os.path.join(src, "skills", name), d)
+    shutil.copytree(os.path.join(src, "skills", name), os.path.join(skills, name))
 ref = os.path.join(skills, "korin", "reference")
 os.makedirs(ref, exist_ok=True)
 pages = sorted(f for f in os.listdir(api) if f.endswith("_en.md"))

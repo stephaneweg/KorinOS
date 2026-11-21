@@ -5,8 +5,9 @@
  * $CLAUDE_ACP_HOME (défaut ~/.local/claude-acp), mai-acp dans $MAI_ACP_HOME (défaut ~/.local/mai-acp) : un dossier par
  * compte, sous ~/.local/<app> comme les données des autres apps (docs/etude/MULTI-UTILISATEUR.md, question 4, 18/11 ;
  * ~/.vibe, ~/.claude-acp et ~/.mai-acp, les places d'avant, sont ignorées : rien n'y est repris). Les paquets vibe,
- * claude, mai et forge posent dans /.vibe, /.claude-acp et /.mai-acp ce que l'agent sait de Korin : AGENTS.md et
- * skills/. Quand le dossier du compte n'est pas celui-là :
+ * claude et mai posent dans /.vibe, /.claude-acp et /.mai-acp ce que l'agent sait de Korin : AGENTS.md et skills/
+ * (la compétence d'une app vient avec elle, /apps/<app>.app/SKILL.md : VIBE_SKILL_PATHS plus bas). Quand le dossier
+ * du compte n'est pas celui-là :
  *   - chaque compétence de skills/ y est recopiée quand elle manque ou que celle du paquet est plus récente
  *     (SKILL.md fait foi) ; AGENTS.md seulement s'il manque (il est à l'utilisateur une fois posé) ;
  *   - ce qu'un compte avait laissé dans /.vibe avant les comptes (.env et la clé, config.toml, séances, journaux,
@@ -163,6 +164,11 @@ int acp_home (int profile, char *out, unsigned long cap)
 	while (l > 1 && out[l - 1] == '/')
 		out[--l] = 0;
 	mkdir (out, 0700);
+	/* les compétences des apps (/apps/<app>.app/SKILL.md, clé skill de app.txt : docs/ABI.md) : Vibe les cherche dans
+	   les dossiers de skill_paths, que cette variable lui donne en plus de son config.toml ; claude-acp et mai-acp
+	   lisent /apps eux-mêmes (claude_acp/agent.py, app_skills) */
+	if (profile == ACP_PROFILE_VIBE)
+		setenv ("VIBE_SKILL_PATHS", "[\"" ACP_SYS_ROOT "/apps\"]", 0);
 	if (strcmp (out, sys) != 0 && is_dir (sys))
 	{
 		char mark[700];

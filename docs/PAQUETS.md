@@ -257,7 +257,8 @@ son SHA-256, puis seulement commite et pousse l'index. Le script :
    l'arbre est montrée : **un fichier plus ancien que la publication est un arbre pas à jour**, pas un changement.
    `res/lang/*.txt` est fusionné (clés publiées gardées, celles de l'arbre mises à jour ou ajoutées à la fin) ;
    `etc/exec.txt` et `etc/session` ne sont pris que par `--only` ; les fichiers du paquet absents de l'archive
-   seulement avec `--add-new` ; `--only MOTIF…` restreint aux fichiers voulus ;
+   seulement avec `--add-new` ; `--only MOTIF…` restreint aux fichiers voulus ; `--drop MOTIF…` retire de l'archive
+   les fichiers que `packages-pc.ini` ne donne plus au paquet (refusé pour un fichier qu'il donne encore) ;
 5. demande confirmation (`--yes` : sans) ;
 6. monte la version (`bump` de la publiée, ou celle de `versions.ini` si elle est déjà plus haute ; `[pc]` d'abord),
    écrit l'archive par `mkrepo.write_opk` et son manifeste par `mkrepo.manifest_text` avec l'`abi` du manifeste publié

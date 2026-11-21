@@ -161,7 +161,7 @@ uint32_t user_sys_color (int i)
 }
 
 /* ======================================================================== la file des messages */
-struct qmsg { uint16_t hwnd, msg, wp; uint32_t lp, time; int16_t x, y; };
+struct qmsg { uint16_t hwnd, msg, wp; uint32_t lp, time; int16_t x, y; uint8_t kbd; };	/* kbd : du clavier */
 #define QMAX 512
 static struct qmsg queue[QMAX];
 static int qhead, qtail;
@@ -185,6 +185,7 @@ int user_post (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_t lp)
 	queue[qtail].time = be_ticks ();
 	queue[qtail].x = (int16_t) mouse_x;
 	queue[qtail].y = (int16_t) mouse_y;
+	queue[qtail].kbd = 0;
 	qtail = n;
 	return 1;
 }
@@ -311,6 +312,8 @@ static uint16_t sel_scratch;	/* un bloc pour les structures passées aux procéd
 
 static void size_move_msgs (struct wnd *w);
 
+static int next_z;	/* (le rang de la dernière fenêtre créée ou mise devant) */
+
 static uint16_t create_window (uint32_t exstyle, int k, uint32_t cname, const char *text_raw, uint32_t wname, uint32_t style,
 	int x, int y, int cw, int ch, uint16_t parent, uint16_t menu, uint16_t hinst, uint32_t param)
 {
@@ -323,6 +326,7 @@ static uint16_t create_window (uint32_t exstyle, int k, uint32_t cname, const ch
 	memset (w, 0, sizeof *w);
 	w->used = 1;
 	w->hwnd = HWND_OF (i);
+	w->z = ++next_z;
 	w->cls = k;
 	w->proc = classes[k].proc;
 	snprintf (w->clsname, sizeof w->clsname, "%s", classes[k].name);
@@ -401,6 +405,14 @@ static uint16_t create_window (uint32_t exstyle, int k, uint32_t cname, const ch
 	/* (comme Windows et Wine, WIN_NEED_SIZE : une fenêtre principale reçoit WM_SIZE et WM_MOVE à son premier
 	   affichage, pas ici ; Write de Windows 3.11 dimensionnait dans WM_SIZE des filles pas encore créées et
 	   s'arrêtait sur « Mémoire insuffisante ») */
+	{
+		int hc = ctrl_combo_height (w);
+		if (hc > 0 && w->h != hc)
+		{
+			w->h = hc;
+			wnd_geometry (w);
+		}
+	}
 	if (style & (WS_CHILD | WS_POPUP))
 		size_move_msgs (w);
 	else
@@ -900,11 +912,34 @@ void api_BeginPaint16 (struct w16call *c)
 		c->ret = 0;
 		return;
 	}
+	if (mdi_nc_has (w))
+	{
+		mdi_nc_paint (hwnd);	/* (le cadre et la barre de titre d'une fille : mdi.c) */
+		w = wnd_get (hwnd);
+		if (!w)
+		{
+			c->ret = 0;
+			return;
+		}
+	}
 	uint16_t hdc = gdi_dc_for_window (hwnd);
 	int x0 = w->invalid ? w->ix0 : 0, y0 = w->invalid ? w->iy0 : 0;
 	int x1 = w->invalid ? w->ix1 : 0, y1 = w->invalid ? w->iy1 : 0;
 	int erase = w->erase;
 	w->invalid = w->erase = 0;
+	/* (sans WS_CLIPCHILDREN, le parent peint par-dessus ses filles : celles de la zone à repeindre se repeignent
+	 * après lui, même si un UpdateWindow les a déjà peintes avant ; l'arborescence du Gestionnaire de fichiers) */
+	if (!(w->style & 0x02000000u) && x1 > x0 && y1 > y0)
+		for (int i = 0; i < MAX_WND; i++)
+		{
+			struct wnd *k = &wnds[i];
+			if (!k->used || k->parent != hwnd || !(k->style & WS_CHILD) || !k->visible)
+				continue;
+			if (x1 <= k->x || x0 >= k->x + k->w || y1 <= k->y || y0 >= k->y + k->h)
+				continue;
+			int kx0 = k->x + k->cx, ky0 = k->y + k->cy;
+			invalidate_rect_tree (k, x0 - kx0, y0 - ky0, x1 - kx0, y1 - ky0, 1);
+		}
 	/* (comme Windows : le DC de BeginPaint est découpé à la zone à repeindre ; sinon le fond d'un parent recouvre
 	 * ses filles, qui ne se repeignent pas) */
 	gdi_dc_clip (hdc, x0, y0, x1, y1);
@@ -1145,8 +1180,16 @@ uint32_t user_def_window_proc (uint16_t hwnd, uint16_t msg, uint16_t wp, uint32_
 		return HIWORD_CTL (lp) == 1 || HIWORD_CTL (lp) == 2 ? 6 : 16;	/* COLOR_WINDOW + 1, COLOR_BTNFACE + 1 */
 	}
 	case WM_SETFONT:
+	{
 		w->font = wp;
+		int hc = ctrl_combo_height (w);
+		if (hc > 0 && hc != w->h)
+		{
+			w->h = hc;
+			wnd_geometry (w);
+		}
 		return 0;
+	}
 	case WM_GETFONT:
 		return w->font;
 	case WM_KEYDOWN:
@@ -1217,19 +1260,22 @@ static struct wnd *hit (struct wnd *top, int x, int y, int *lx, int *ly)
 	for (int again = 1; again;)
 	{
 		again = 0;
+		/* (la fille la plus devant sous le point : le plus grand rang z) */
+		struct wnd *front = 0;
 		for (int i = MAX_WND - 1; i >= 0; i--)
 		{
 			struct wnd *k = &wnds[i];
 			if (!k->used || !k->visible || k->parent != best->hwnd || !(k->style & WS_CHILD))
 				continue;
-			if (*lx >= k->x && *lx < k->x + k->w && *ly >= k->y && *ly < k->y + k->h)
-			{
-				*lx -= k->x + k->cx;
-				*ly -= k->y + k->cy;
-				best = k;
-				again = 1;
-				break;
-			}
+			if (*lx >= k->x && *lx < k->x + k->w && *ly >= k->y && *ly < k->y + k->h && (!front || k->z > front->z))
+				front = k;
+		}
+		if (front)
+		{
+			*lx -= front->x + front->cx;
+			*ly -= front->y + front->cy;
+			best = front;
+			again = 1;
 		}
 	}
 	return best;
@@ -1315,6 +1361,14 @@ static void translate_event (const struct be_event *e)
 		mouse_y = e->y;
 		mouse_be = e->win;
 		struct wnd *w;
+		/* (le cadre d'une fille tiré : mdi.c) */
+		if (mdi_nc_dragging ())
+		{
+			if (e->type == BE_MOUSE_UP)
+				mouse_buttons = 0;
+			mdi_nc_drag (e->type, e->x, e->y);
+			break;
+		}
 		/* (une capture tenue dans une autre fenêtre principale, désactivée, ne vole pas les clics) */
 		if (capture_hwnd && wnd_get (capture_hwnd) && (wnd_top (wnd_get (capture_hwnd)) == top || !is_disabled (wnd_get (capture_hwnd))))
 		{
@@ -1326,7 +1380,30 @@ static void translate_event (const struct be_event *e)
 			ly = e->y - oy;
 		}
 		else
+		{
 			w = hit (top, e->x, e->y, &lx, &ly);
+			/* un clic dans le cadre d'une fille (hors de sa zone cliente) : sa barre de titre, ses bords */
+			if (e->type == BE_MOUSE_DOWN && !blocked (top) && mdi_nc_has (w)
+				&& (lx < 0 || ly < 0 || lx >= w->cw || ly >= w->ch))
+			{
+				static uint32_t nc_time;
+				static uint16_t nc_hwnd;
+				uint32_t now = be_ticks ();
+				int dbl = nc_hwnd == w->hwnd && now - nc_time < 450;
+				nc_time = dbl ? 0 : now;
+				nc_hwnd = w->hwnd;
+				mdi_nc_mouse (w->hwnd, e->type, dbl, lx + w->cx, ly + w->cy, e->x, e->y);
+				break;
+			}
+			if (e->type == BE_MOUSE_DOWN && !blocked (top))
+			{
+				uint16_t h = w->hwnd;
+				mdi_click (h);	/* (un clic dans une fenêtre MDI l'active) */
+				w = wnd_get (h);
+				if (!w)
+					break;
+			}
+		}
 		int old = mouse_buttons;
 		uint16_t msg = WM_MOUSEMOVE;
 		if (e->type == BE_MOUSE_DOWN)
@@ -1397,8 +1474,9 @@ static void translate_event (const struct be_event *e)
 			break;
 		uint16_t to = focus_hwnd && wnd_get (focus_hwnd) && wnd_top (wnd_get (focus_hwnd)) == top ? focus_hwnd : top->hwnd;
 		int alt = e->mods & 4;
-		user_post (to, e->type == BE_KEY_DOWN ? (alt ? WM_SYSKEYDOWN : WM_KEYDOWN) : (alt ? WM_SYSKEYUP : WM_KEYUP), vk,
-			1u | (e->type == BE_KEY_UP ? 0xc0000000u : 0) | (alt ? 0x20000000u : 0));
+		if (user_post (to, e->type == BE_KEY_DOWN ? (alt ? WM_SYSKEYDOWN : WM_KEYDOWN) : (alt ? WM_SYSKEYUP : WM_KEYUP), vk,
+			1u | (e->type == BE_KEY_UP ? 0xc0000000u : 0) | (alt ? 0x20000000u : 0)))
+			queue[(qtail - 1 + QMAX) % QMAX].kbd = 1;
 		break;
 	}
 	}
@@ -1556,6 +1634,15 @@ int user_take (struct qmsg *m, uint16_t hwnd, uint16_t lo, uint16_t hi, int remo
 			while (be_wait (0, &e0))
 				translate_event (&e0);
 		}
+		/* (comme Windows, une touche va à la fenêtre qui a le focus quand elle est prise, pas quand elle est arrivée :
+		 * des lettres tapées vite après Tab vont au contrôle suivant) */
+		for (int i = qhead; i != qtail; i = (i + 1) % QMAX)
+			if (queue[i].kbd && focus_hwnd && queue[i].hwnd != focus_hwnd)
+			{
+				struct wnd *f = wnd_get (focus_hwnd), *o = wnd_get (queue[i].hwnd);
+				if (f && o && wnd_top (f) == wnd_top (o))
+					queue[i].hwnd = focus_hwnd;
+			}
 		for (int i = qhead; i != qtail; i = (i + 1) % QMAX)
 			if (msg_match (&queue[i], hwnd, lo, hi))
 			{
@@ -1724,8 +1811,10 @@ void api_SetActiveWindow16 (struct w16call *c)
 void api_BringWindowToTop16 (struct w16call *c) { (void) c; c->ret = 1; }
 void api_GetLastActivePopup16 (struct w16call *c) { c->ret = c->a[0]; }
 void api_ShowOwnedPopups16 (struct w16call *c) { (void) c; c->ret = 1; }
-void api_IsIconic16 (struct w16call *c) { (void) c; c->ret = 0; }
-void api_IsZoomed16 (struct w16call *c) { (void) c; c->ret = 0; }
+int mdi_is_iconic (uint16_t hwnd);
+int mdi_is_zoomed (uint16_t hwnd);
+void api_IsIconic16 (struct w16call *c) { c->ret = (uint32_t) mdi_is_iconic ((uint16_t) c->a[0]); }
+void api_IsZoomed16 (struct w16call *c) { c->ret = (uint32_t) mdi_is_zoomed ((uint16_t) c->a[0]); }
 
 void api_EnableWindow16 (struct w16call *c)
 {
@@ -1971,6 +2060,9 @@ void api_SetCursorPos16 (struct w16call *c) { (void) c; }
 /* ---- position et taille ---- */
 static void move_window (struct wnd *w, int x, int y, int cw, int ch, int repaint)
 {
+	int hc = ctrl_combo_height (w);	/* (une liste déroulante garde sa hauteur fermée) */
+	if (hc > 0)
+		ch = hc;
 	int moved = x != w->x || y != w->y, sized = cw != w->w || ch != w->h;
 	struct wnd *p = (w->style & WS_CHILD) ? wnd_get (w->parent) : 0;
 	if (p && w->visible)
@@ -2347,10 +2439,37 @@ void api_UnionRect16 (struct w16call *c)
 
 void api_EqualRect16 (struct w16call *c) { int a[4], b[4]; get_rect (c->a[0], a); get_rect (c->a[1], b); c->ret = !memcmp (a, b, sizeof a); }
 
+/* SubtractRect : a moins b, quand b couvre tout un côté de a (sinon a) ; 0 si le reste est vide */
 void api_SubtractRect16 (struct w16call *c)
 {
-	int a[4];
+	int a[4], b[4];
 	get_rect (c->a[1], a);
+	get_rect (c->a[2], b);
+	int il = a[0] > b[0] ? a[0] : b[0], it = a[1] > b[1] ? a[1] : b[1];
+	int ir = a[2] < b[2] ? a[2] : b[2], ib = a[3] < b[3] ? a[3] : b[3];
+	if (ir > il && ib > it)
+	{
+		if (il == a[0] && ir == a[2])		/* b couvre toute la largeur */
+		{
+			if (it == a[1])
+				a[1] = ib;
+			else if (ib == a[3])
+				a[3] = it;
+		}
+		else if (it == a[1] && ib == a[3])	/* toute la hauteur */
+		{
+			if (il == a[0])
+				a[0] = ir;
+			else if (ir == a[2])
+				a[2] = il;
+		}
+	}
+	if (a[2] <= a[0] || a[3] <= a[1])
+	{
+		put_rect (c->a[0], 0, 0, 0, 0);
+		c->ret = 0;
+		return;
+	}
 	put_rect (c->a[0], a[0], a[1], a[2], a[3]);
 	c->ret = 1;
 }
@@ -2428,14 +2547,13 @@ void api_DrawIcon16 (struct w16call *c) { gdi_icon_draw ((uint16_t) c->a[0], (in
 void api_LoadIcon16 (struct w16call *c)
 {
 	uint16_t h = c->a[0] ? gdi_icon_load ((uint16_t) c->a[0], c->a[1]) : 0;
-	c->ret = h ? h : 0x7f00;
+	c->ret = h ? h : gdi_icon_default ();
 }
 
 void api_LoadCursor16 (struct w16call *c) { (void) c; c->ret = 0x7f01; }
 void api_SetCursor16 (struct w16call *c) { (void) c; c->ret = 0x7f01; }
 void api_GetCursor16 (struct w16call *c) { (void) c; c->ret = 0x7f01; }
 void api_ShowCursor16 (struct w16call *c) { (void) c; c->ret = 1; }
-void api_CreateIcon16 (struct w16call *c) { (void) c; c->ret = 0x7f00; }
 void api_DestroyIcon16 (struct w16call *c) { (void) c; c->ret = 1; }
 void api_DestroyCursor16 (struct w16call *c) { (void) c; c->ret = 1; }
 
@@ -2866,10 +2984,6 @@ void api_WinHelp16 (struct w16call *c)
 
 void api_ExitWindows16 (struct w16call *c) { (void) c; exit (0); }
 
-/* MDI : pas pris en charge (DefFrameProc fait comme DefWindowProc) */
-void api_DefFrameProc16 (struct w16call *c) { c->ret = user_def_window_proc ((uint16_t) c->a[0], (uint16_t) c->a[2], (uint16_t) c->a[3], c->a[4]); }
-void api_DefMDIChildProc16 (struct w16call *c) { c->ret = user_def_window_proc ((uint16_t) c->a[0], (uint16_t) c->a[1], (uint16_t) c->a[2], c->a[3]); }
-void api_TranslateMDISysAccel16 (struct w16call *c) { (void) c; c->ret = 0; }
 
 /* WS_CLIPCHILDREN : les rectangles (zone cliente du parent) des filles visibles, que son dessin évite */
 int user_child_rects (uint16_t hwnd, int (*r)[4], int max)
@@ -2935,6 +3049,7 @@ void user_init (void)
 	uint32_t defproc = native_register (user_def_window_proc);
 	(void) defproc;
 	ctrl_register ();
+	mdi_register ();
 }
 
 /* les classes du système (ctrl.c, dialog.c les donnent) */
@@ -3332,4 +3447,100 @@ void api_GetKeyNameText16 (struct w16call *c)
 				snprintf (n, sizeof n, "%c", kb_us[s] >= 'a' && kb_us[s] <= 'z' ? kb_us[s] - 32 : kb_us[s]);
 		}
 	c->ret = (uint32_t) ustr_put (c->a[1], n, (int16_t) c->a[2]);
+}
+
+/* ======================================================================== pour le MDI (21/11) : cadre, découpe, ordre */
+int user_nc_rect (uint16_t hwnd, int *cx, int *cy, int *w, int *h)
+{
+	struct wnd *k = wnd_get (hwnd);
+	if (!k)
+		return 0;
+	*cx = k->cx;
+	*cy = k->cy;
+	*w = k->w;
+	*h = k->h;
+	return 1;
+}
+
+int user_ancestor_clip (uint16_t hwnd, int *x0, int *y0, int *x1, int *y1)
+{
+	struct wnd *k = wnd_get (hwnd);
+	int have = 0;
+	while (k && (k->style & WS_CHILD))
+	{
+		struct wnd *p = wnd_get (k->parent);
+		if (!p)
+			break;
+		int ox, oy, cw, ch;
+		long be;
+		if (!wnd_client_geometry (p->hwnd, &ox, &oy, &cw, &ch, &be))
+			break;
+		if (!have)
+		{
+			*x0 = ox; *y0 = oy; *x1 = ox + cw; *y1 = oy + ch;
+			have = 1;
+		}
+		else
+		{
+			if (*x0 < ox) *x0 = ox;
+			if (*y0 < oy) *y0 = oy;
+			if (*x1 > ox + cw) *x1 = ox + cw;
+			if (*y1 > oy + ch) *y1 = oy + ch;
+		}
+		k = p;
+	}
+	return have;
+}
+
+int user_sibling_rects (uint16_t hwnd, int nc, int (*r)[4], int max)
+{
+	/* comme la région visible de Windows : à chaque niveau (la fenêtre, son parent, …) qui a WS_CLIPSIBLINGS, les
+	 * sœurs devant lui sont retirées ; les contrôles d'une fenêtre MDI de derrière ne peignent pas sur celle de
+	 * devant */
+	struct wnd *w = wnd_get (hwnd);
+	int n = 0;
+	if (!w)
+		return 0;
+	int bx, by;
+	screen_origin (w, &bx, &by);
+	if (nc)
+	{
+		bx -= w->cx;
+		by -= w->cy;
+	}
+	for (struct wnd *a = w; a && (a->style & WS_CHILD) && n < max; a = wnd_get (a->parent))
+	{
+		if (!(a->style & 0x04000000u))	/* WS_CLIPSIBLINGS */
+			continue;
+		struct wnd *p = wnd_get (a->parent);
+		if (!p)
+			break;
+		int px, py;
+		screen_origin (p, &px, &py);
+		for (int i = 0; i < MAX_WND && n < max; i++)
+		{
+			struct wnd *k = &wnds[i];
+			if (k == a || !k->used || !k->visible || k->parent != a->parent || !(k->style & WS_CHILD) || k->z < a->z)
+				continue;
+			if (k->x >= a->x + a->w || k->x + k->w <= a->x || k->y >= a->y + a->h || k->y + k->h <= a->y)
+				continue;
+			r[n][0] = px + k->x - bx;
+			r[n][1] = py + k->y - by;
+			r[n][2] = px + k->x + k->w - bx;
+			r[n][3] = py + k->y + k->h - by;
+			n++;
+		}
+	}
+	return n;
+}
+
+void user_raise (uint16_t hwnd)
+{
+	struct wnd *w = wnd_get (hwnd);
+	if (w && w->z != next_z)
+	{
+		w->z = ++next_z;
+		if (w->visible)
+			invalidate_tree (w);
+	}
 }

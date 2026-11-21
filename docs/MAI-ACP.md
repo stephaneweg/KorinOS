@@ -157,5 +157,5 @@ viennent de la documentation de MAI-Thinking-1. Si MAI-Code les veut autrement, 
 ## Paquet
 
 `[mai]` dans `tools/pkg/packages-pc.ini`, avant `[claude]` et `[vibe]`, avec `needs = claude` : `oai_acp` reprend
-`claude_acp`. Le client `agent` est dans Vibe. La compétence `korin-forge` de `.mai-acp` va avec Forge, comme pour
-Vibe et Claude.
+`claude_acp`. Le client `agent` est dans Vibe. La compétence `korin-forge` est dans le dossier de Forge (`/apps/forge.app/SKILL.md`,
+[CLAUDE-ACP.md](CLAUDE-ACP.md)), pour MAI comme pour Vibe et Claude.

@@ -485,6 +485,7 @@ int32_t kernel_read (int h, void *p, uint32_t n)
 }
 
 void kernel_set_dta (uint32_t segptr);
+static uint32_t dta;	/* le DTA du DOS (INT 21h 1Ah, 2Fh) */
 
 void api_WIN16_lread (struct w16call *c) { int32_t r = do_read ((int) c->a[0], c->a[1], c->a[2]); c->ret = (uint16_t) r; }
 void api_WIN16_hread (struct w16call *c) { c->ret = (uint32_t) do_read ((int) c->a[0], c->a[1], c->a[2]); }
@@ -940,6 +941,7 @@ void kernel_init (void)
 	ps[0] = 0xcd;
 	ps[1] = 0x20;
 	wr16 (sel_base (task.psp) + 0x2c, task.env);
+	dta = MAKESEGPTR (task.psp, 0x80);	/* (le DTA par défaut, comme le DOS : PSP:80h) */
 	for (int m = 0; m < MAX_BUILTIN && w16_modules[m].name; m++)
 		builtin_hmod[m] = global_alloc (16, 0);
 }
@@ -1186,6 +1188,13 @@ void api_WIN16_GlobalReAlloc16 (struct w16call *c)
 		c->ret = global_alloc (size, 0);
 		return;
 	}
+	if (!size && (flags & 0x02))	/* GlobalDiscard : le bloc est jeté, la poignée reste (GlobalLock rend NULL) */
+	{
+		global_set_discarded (h | 7, 1);
+		c->ret = h;
+		return;
+	}
+	global_set_discarded (h | 7, 0);
 	if (global_realloc (h | 7, size))
 	{
 		c->ret = h;
@@ -1207,11 +1216,11 @@ void api_WIN16_GlobalReAlloc16 (struct w16call *c)
 }
 
 void api_WIN16_GlobalFree16 (struct w16call *c) { global_free ((uint16_t) (c->a[0] | 7)); c->ret = 0; }
-void api_WIN16_GlobalLock16 (struct w16call *c) { uint16_t s = (uint16_t) (c->a[0] | 7); c->ret = c->a[0] && sel_valid (s) ? MAKESEGPTR (s, 0) : 0; }
+void api_WIN16_GlobalLock16 (struct w16call *c) { uint16_t s = (uint16_t) (c->a[0] | 7); c->ret = c->a[0] && sel_valid (s) && !global_discarded (s) ? MAKESEGPTR (s, 0) : 0; }
 void api_WIN16_GlobalUnlock16 (struct w16call *c) { (void) c; c->ret = 0; }
-void api_WIN16_GlobalSize16 (struct w16call *c) { c->ret = global_size ((uint16_t) (c->a[0] | 7)); }
+void api_WIN16_GlobalSize16 (struct w16call *c) { uint16_t s = (uint16_t) (c->a[0] | 7); c->ret = global_discarded (s) ? 0 : global_size (s); }
 void api_GlobalHandle16 (struct w16call *c) { uint16_t s = (uint16_t) (c->a[0] | 7); c->ret = sel_valid (s) ? MAKESEGPTR (s, s) : 0; }
-void api_WIN16_GlobalFlags16 (struct w16call *c) { (void) c; c->ret = 0; }
+void api_WIN16_GlobalFlags16 (struct w16call *c) { c->ret = global_discarded ((uint16_t) (c->a[0] | 7)) ? 0x4000 : 0; }	/* GMEM_DISCARDED */
 void api_GlobalCompact16 (struct w16call *c) { (void) c; c->ret = 0x400000; }
 void api_GetFreeSpace16 (struct w16call *c) { (void) c; c->ret = 0x800000; }
 void api_LockSegment16 (struct w16call *c) { c->ret = c->a[0]; }
@@ -1751,7 +1760,6 @@ static void dos_err (int code)
 }
 
 /* recherche de fichiers (4Eh/4Fh) : le résultat dans le DTA */
-static uint32_t dta;
 static char find_dir[700], find_pat[64];
 static DIR *find_d;
 static int find_attr;
