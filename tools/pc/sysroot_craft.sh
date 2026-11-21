@@ -3,6 +3,7 @@
 #     apps/craft.app/          le lanceur « Suite ArtCraft » (tools/craft/launcher.sh), paquet craft
 #     apps/<app>.app/          chaque app Craft construite (tools/craft/all.sh), un paquet par app qui dépend de craft
 #                              (tools/pkg/packages-pc.ini) ; la démo d'egui (eguidemo) n'y va pas
+# Puis KorinStudio (build/korinstudio), s'il est construit.
 # Le panel et le menubar qui cachent la catégorie « Craft » sont ceux de sysroot.sh (paquet pc).
 #     sh tools/pc/sysroot.sh && sh tools/pc/sysroot_craft.sh [arbre]
 # Ce qui n'est pas construit est sauté.
@@ -25,3 +26,10 @@ for d in "$A"/*.app; do
 	n=$((n + 1))
 done
 echo "sysroot_craft : $n apps ($(du -sh "$OUT/apps/craft.app" | cut -f1) pour le lanceur)"
+# KorinStudio, l'IDE (docs/KORINSTUDIO.md, son paquet korinstudio) : de build/korinstudio, s'il est construit
+K=build/korinstudio/x86_64/apps/korinstudio.app
+if [ -f "$K/main" ]; then
+	rm -rf "$OUT/apps/korinstudio.app"
+	cp -r "$K" "$OUT/apps/korinstudio.app"
+	echo "sysroot_craft : korinstudio"
+fi
