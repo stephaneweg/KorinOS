@@ -447,6 +447,31 @@ de 256 octets, `/devtools/rust/bin` dans `/etc/exec.txt` et le `PATH` de `sh` et
 le même jour, par `pub.py --api --manual-upload` depuis le cloud : `bash` 1.0.6 (le bashrc), `help` 1.0.7 (le guide de
 l'API C). Ces paquets ne portent que les fichiers changés (`--only`), le reste de leurs archives publiées gardé.
 
+### Les caisses qui connaissent Korin, pour tous les projets (21/11/2026)
+
+La `libc` de crates.io n'a pas le module `korin` : sans rien de plus, une caisse qui en dépend (`rand`, `tempfile`,
+`tokio`...) ne compile pas dans Korin. Le paquet `rust` (1.97.1-3) livre donc :
+
+| Où (dans Korin) | Quoi |
+|---|---|
+| `/devtools/rust/vendor/` | `libc`, `getrandom` 0.2, 0.3, 0.4, `rustix`, `tempfile`, `filetime`, `socket2`, `mio`, `tokio`, `terminal_size`, `ring`, avec nos patchs (`tools/rust`, `tools/craft/patches`, `tools/cargo/patches`) ; chacune à une **version haute de sa série** (`libc` 0.2.999, `rustix` 1.999.0...) : cargo préfère un `[patch]` qui convient, mais une caisse qui demanderait une version plus récente que la nôtre prendrait sinon celle du registre. Sauf `ring` (son `links` porte le numéro de version : seulement la 0.17.14) |
+| `/devtools/rust/etc/cargo/config.toml` | le `[patch.crates-io]` de ces caisses, et `build.rustflags` = les `cfg` de `mio` (`poll`, réveil par un tube) |
+| le cargo de Korin (`tools/cargo/cargo.patch`) | lit `<cargo>/../etc/cargo/config.toml` **après** celle de l'utilisateur (`~/.cargo/config.toml`, `.cargo/config.toml` des projets, qui l'emportent), et ne dit pas « patch was not used » pour les caisses de `<cargo>/../vendor` |
+
+`bash tools/rust/korin-vendor.sh` prépare le tout (`build/pc/rust/korin-vendor`), `tools/pc/sysroot_cargo.sh` le pose.
+Une caisse de plus : sa ligne dans `LIST` du script, son patch. Essai (QEMU, vrai crates.io, `KORIN_TEST_CA`) :
+`tools/cargo/test/projects/libcproj` (`rand` 0.9 et `tempfile` : `getrandom`, `libc`), `cargo run` construit et lance en
+9 min 34 s ; `cargo tree` montre `libc v0.2.999 (/devtools/rust/vendor/libc-0.2)`.
+
+Deux pièges vus en route :
+
+* **le disque d'essai plein** (`testimage.py` laissait 48 Mo) : `write` y rend 0 au lieu d'une erreur, rustc dit « failed
+  to write whole buffer » et `ld` laisse des programmes tronqués, qui plantent quand cargo les lance (SIGILL, SIGSEGV
+  dans des `build.rs`). `KORIN_TEST_FREE_MB=1500` pour un projet de crates.io ;
+* **`/etc/exec.txt` du paquet `pc` publié** n'avait que `/devtools/gcc/aarch64-onyx-elf/bin` (celui du Pi) : le `ld` de
+  GCC n'était pas exécutable dans un Korin PC installé par les paquets (« collect2: fatal error: cannot find 'ld' »).
+  Corrigé dans `pc` 2026.11.73 ; `rust` le demande.
+
 ### Ce qui reste
 
 * le vrai ZBook ;

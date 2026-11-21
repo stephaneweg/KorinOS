@@ -41,6 +41,10 @@ libstdc++ ; rustc l'exporte par dlhost-cxx.ld) construits par KORIN_HOSTS=x86_64
 stage2-rustc/.../libX) ; changer bootstrap recompile tout le stage 1 ; mtest 17/2 existait avant.
 Publiés le 21/11 (pub.py --api --manual-upload depuis le cloud, --only les fichiers changés) : pc 2026.11.71, bash 1.0.6,
 gcc 1.0.13, help 1.0.7, rust-data-1 et rust 1.97.1-2 (abi >= 626 : la 1.97.1 demandait 627, que le système publié n'a pas).
+21/11 soir : rust 1.97.1-3 livre /devtools/rust/vendor (libc 0.2.999, getrandom, rustix, tokio...) et etc/cargo/config.toml,
+que le cargo de Korin lit (tools/cargo/cargo.patch) ; tools/rust/korin-vendor.sh. pc 2026.11.73 : exec.txt avec
+/devtools/gcc/x86_64-onyx-elf/bin (le pc publié n'avait que celui du Pi : ld de GCC pas exécutable). L'utilisateur :
+claude-acp a construit un tic-tac-toe en Rust dans Korin. Piège : disque d'essai plein = write rend 0, programmes tronqués.
 Reste : ZBook, Pi, reconstruction depuis zéro. Piège : un paquet --new prend l'abi des kits du source : vérifier [repo] abi.
 
 Lié : [[armpi-rust]], [[armpi-craft]].

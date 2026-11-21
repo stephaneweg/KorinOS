@@ -99,6 +99,8 @@ cargo lance `rustc -vV` (version, cible) avant tout ce qui dépend de la cible o
 * QEMU seulement, pas encore sur le ZBook.
 * Pas de paquet (`pkg`) pour l'instant.
 * Pas de liens symboliques dans Korin : une caisse de crates.io qui en contient ne se dépaquette pas.
+* Les caisses de crates.io qui dépendent de `libc` : celles que livre la chaîne (`/devtools/rust/vendor`, [RUST.md](RUST.md),
+  « Les caisses qui connaissent Korin ») ; une autre caisse qui refuse un système inconnu demande son patch.
 * Verrous de fichiers sans effet (`flock` de libposix) : un seul cargo à la fois sur le même `CARGO_HOME`.
 * Les dates d'ext4fs et de FAT32 sont à la seconde (2 s sur FAT32) : comptera pour la recompilation quand rustc
   sera là.
