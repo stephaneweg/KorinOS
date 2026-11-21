@@ -43,9 +43,18 @@ alors écrite sur la carte. Le certificat HTTPS est vérifié par `/etc/ca-bundl
 ## Un paquet
 
 Un `.opk` est un ZIP dont l'arborescence est celle de `/`, plus `PKG/manifest.ini` (`name`, `title`, `version`,
-`category`, `author`, `summary`, `needs`, `required`, `restart`, `installed`, `config`, `boot`, `replaces`).
+`category`, `author`, `summary`, `needs`, `required`, `restart`, `installed`, `config`, `boot`, `replaces`, `fetch`).
 
 - **`needs`** : d'autres paquets (`fmtracker`, `koton >= 1.2`), et `abi >= N`.
+- **`fetch`** (depuis le 21/11, pkgman 1.0.21) : `CHEMIN TAILLE SHA256 URL[;CHEMIN …]` (dans `packages*.ini`, pas
+  d'espace avant « ; » : le lecteur d'ini de mkrepo y verrait un commentaire, comme dans `summary`) : des fichiers que le paquet ne
+  porte pas, parce que leur éditeur ne permet pas qu'on les redistribue (Claude Code, paquet `claude-code` :
+  docs/etude/LINUX-HOST.md), téléchargés en HTTPS à l'installation, chez l'éditeur, puis vérifiés par la taille et
+  le SHA-256 écrits dans le manifeste (signé, comme toute l'archive, par l'index). Ils sont inscrits dans la base comme
+  les autres fichiers du paquet (retirés avec lui) ; un fichier déjà là, du même SHA-256, n'est pas retéléchargé.
+  Pas avec `restart`. Un paquet qui en a demande `pkgman >= 1.0.21` (un `pkg` plus ancien poserait le reste sans
+  lui). La version de l'éditeur est épinglée : une nouvelle se publie après essai, en changeant `fetch` et la version
+  du paquet.
 - **Gros paquets** : GitHub refuse un fichier de plus de 100 Mo. `split = MOTIF MO` dans `packages.ini` met les
   fichiers qui suivent le motif dans des paquets `<nom>-data-1`, `-2`… de moins de MO Mo, que le paquet demande
   par `needs` : `pkg` et Logiciels les installent avec lui (SuperTux, SuperTuxKart).
@@ -243,8 +252,12 @@ python tools/pkg/pub.py win16 --new --tree DOSSIER  # un nouveau paquet (absent 
 Python de Windows **sans `-I`** (`cryptography`). Dans le cloud (pas de `gh` utilisable) : `--api`, la Release par
 l'API REST de GitHub avec `curl` (la connexion GitHub de la session est appliquée par le proxy), et la clé dans la
 variable `ONYX_PKG_KEY` (ou `OnyxPkgKey`). Le proxy GitHub du cloud refuse les envois binaires (HTTP 415) :
-`--manual-upload` prépare l'archive, attend que l'utilisateur la dépose dans la Release, la télécharge et vérifie
-son SHA-256, puis seulement commite et pousse l'index. Le script :
+`--manual-upload` prépare l'archive, attend qu'elle soit dans la Release, la télécharge et vérifie son SHA-256, puis
+seulement commite et pousse l'index. L'archive y va par le workflow « Release upload »
+(`.github/workflows/release-upload.yml`) : une branche sans historique commun `release-upload/NOM-VERSION` qui ne
+porte que `upload/<archive>.opk`, poussée, puis le workflow lancé (`workflow_dispatch`, entrée `branch`) ; il ajoute
+l'archive à la Release (jamais de remplacement) et supprime la branche (le proxy refuse aussi la suppression d'une
+branche). Le script :
 
 1. `git fetch` ; la base est l'index d'**`origin/main`** (`packages/pc/index.txt`), jamais une archive plus ancienne
    que la dernière publiée ;

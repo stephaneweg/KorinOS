@@ -71,7 +71,7 @@
 #define WSTACK 32768    /* pile d'un thread */
 #define WAIT_MAX 25000  /* attente d'une requête (svc_call : 30 s) */
 #define IF_MAX 4
-#define NET_BUSY_MS 50  /* ms sans trame avant de revenir au repos */
+#define NET_BUSY_MS 5   /* ms sans trame avant de revenir au repos (50 : jamais au repos sur un Wi-Fi bavard) */
 #define NET_TICK_MS 10  /* sommeil : une minuterie TCP en cours */
 #define NET_DHCP_MS 100 /*   adresse pas encore obtenue */
 #define NET_LONG_MS 1000 /*  rien à surveiller */
@@ -239,6 +239,9 @@ void mutex_lock(u32 *m);
 void mutex_unlock(u32 *m);
 u64 time_ms(void);
 void thread_sleep(u64 ms);
+void net_wake(void);
+u32 net_gen_now(void);
+void net_wait(u32 gen, u64 end);
 u8 *pmm_alloc_n(u64 pages);
 void pmm_free_n(u8 *p, u64 pages);
 int lo_put(const u8 *frame, u64 len);
@@ -273,7 +276,7 @@ int udp_output(u32 sport, u32 dst, u32 dport, const u8 *data, u64 n);
 int ip_is_local(u32 a);
 u64 net_wait_ms(void);
 void dhcp_timer(void);
-void tcp_timers(void);
+int tcp_timers(void); /* -> 1 : un socket abandonné ou rendu */
 struct sock *sock_alloc(void);
 int sk_alloc_rings(struct sock *s, int tx);
 void sock_free(struct sock *s);

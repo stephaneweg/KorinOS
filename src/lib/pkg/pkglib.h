@@ -108,7 +108,8 @@ static inline const char *RP (const char *path)
 
 // ---- appels systeme, comme src/apps/mail/main.cpp (Pi : svc 0 ; PC : syscall) -----------------------------------------
 static inline long sys_call (long n, long a, long b) { return armpi_syscall (n, a, b, 0, 0, 0, 0); }
-enum { SYS_KILL_ = 0x14, SYS_PROCLIST_ = 0x15, SYS_SVC_OPEN_ = 0x31, SYS_SVC_CALL_ = 0x32, SYS_SPAWN_ = 0x8B, SYS_PRELOAD_ = 0x8D };
+enum { SYS_KILL_ = 0x14, SYS_PROCLIST_ = 0x15, SYS_SVC_OPEN_ = 0x31, SYS_SVC_CALL_ = 0x32, SYS_SPAWN_ = 0x8B, SYS_PRELOAD_ = 0x8D,
+       SYS_SPAWN_AS_ = 0x8F, SYS_GETUID_ = 0x90, SYS_PROC_UID_ = 0x92 };
 extern "C" long __armpi_fsys (long n, long a, long b, long c);
 
 // ---- chaines ---------------------------------------------------------------------------------------------------------
@@ -923,6 +924,26 @@ static inline bool launch (const char *path, const char *arg = 0)
 {
 	return __armpi_fsys (SYS_SPAWN_, (long) path, (long) arg, 0) > 0;
 }
+// l'uid du process de ce nom (le premier) -> uid, -1 : aucun (ou pas d'uid dans le noyau : le Pi)
+static inline long proc_uid (const char *name)
+{
+	Proc p[128]; int n = proc_list (p, 128); long self = getpid ();
+	for (int i = 0; i < n; i++)
+		if (p[i].pid != self && eq (p[i].name, name)) { long u = sys_call (SYS_PROC_UID_, p[i].pid, 0); return u < 0 ? -1 : u; }
+	return -1;
+}
+// un programme lance sous cet uid quand l'appelant est le systeme (uid 0 : pkgd, pkg eleve ; SYS_SPAWN_AS
+// d'AppKit) ; sinon (uid <= 0, un autre appelant, le Pi) : launch
+static inline bool launch_as (const char *path, long uid)
+{
+	if (uid > 0 && armpi_syscall (SYS_GETUID_, 0, 0, 0, 0, 0, 0) == 0)
+	{
+		long r = __armpi_fsys (SYS_SPAWN_AS_, (long) path, 0, uid);
+		if (r != -38)			// (E_NOSYS)
+			return r > 0;
+	}
+	return launch (path);
+}
 // une notification (notifyd, src/inc/notify.inc) ; sans bureau : rien
 static inline void notify (const char *title, const char *msg)
 {
@@ -1173,7 +1194,7 @@ public:
 		auto put = [&] (const char *s) { size_t l = strlen (s); if (dl + l + 1 >= cap) { cap = (dl + l + 1) * 2; dbt = (char *) realloc (dbt, cap); } memcpy (dbt + dl, s, l + 1); dl += l; };
 		char line[512];
 		put ("# installe par pkg\n[package]\n");
-		static const char *const keys[] = { "name", "title", "version", "category", "author", "summary", "needs", "required", "restart", "config", 0 };
+		static const char *const keys[] = { "name", "title", "version", "category", "author", "summary", "needs", "required", "restart", "config", "fetch", 0 };
 		for (int i = 0; keys[i]; i++) { snprintf (line, sizeof line, "%s = %s\n", keys[i], man.get ("", keys[i])); put (line); }
 		if (*bootPats) { put ("boot = "); put (bootPats); put ("\n"); }
 		if (p && *p->part) { snprintf (line, sizeof line, "part = %s\n", p->part); put (line); }
@@ -1244,6 +1265,46 @@ public:
 			r.step (name, done, total);
 		}
 		ar_close (a);
+		// fetch = CHEMIN TAILLE SHA256 URL [; …] : des fichiers que le paquet ne porte pas (le logiciel d'un éditeur qui
+		// ne se redistribue pas : Claude Code, docs/etude/LINUX-HOST.md), téléchargés en HTTPS à l'installation, de la
+		// taille et du SHA-256 du manifeste (signé avec l'index) ; inscrits dans la base, retirés avec le paquet. Un
+		// fichier déjà là, du même SHA-256, n'est pas retéléchargé (une mise à jour qui ne change que le paquet).
+		const char *fx = man.get ("", "fetch");
+		if (rc == OK && *fx && stage) { rc = E_BADPKG; r.sayf ("%s : fetch et restart ensemble : refusé", name); }
+		for (const char *f = fx; rc == OK && *f; )
+		{
+			while (*f == ' ' || *f == ';') f++;
+			if (!*f) break;
+			const char *e = strchr (f, ';'); size_t fl = e ? (size_t) (e - f) : strlen (f);
+			char ent[2400]; if (fl >= sizeof ent) { rc = E_BADPKG; break; }
+			memcpy (ent, f, fl); ent[fl] = 0; f += fl;
+			char rel[260], hx[80], url[2200]; unsigned long long want = 0;
+			if (sscanf (ent, "%259s %llu %79s %2199s", rel, &want, hx, url) != 4 || strlen (hx) != 64 || forbidden (rel)
+			    || strncmp (url, "https://", 8) || !want)
+			{ rc = E_BADPKG; r.sayf ("%s : fetch illisible : %s", name, ent); break; }
+			char dest[320], tmp[330], hh[65];
+			snprintf (dest, sizeof dest, "%s/%s", root, rel);
+			if (sha_file (dest, hh) && eq (hh, hx)) r.sayf ("%s : %s déjà là", name, rel);
+			else
+			{
+				snprintf (tmp, sizeof tmp, "%s.pkgtmp", dest);
+				mkparent (tmp);
+				r.sayf ("%s : téléchargement de %s (%llu Mo)", name, url, want >> 20);
+				bool ok; u64 got;
+				{
+					FileSink fs (tmp);
+					if (!fs.ok ()) { rc = E_IO; r.sayf ("écriture impossible : %s", tmp); break; }
+					ok = http_get (url, fs, (u64) want, strrchr (rel, '/') ? strrchr (rel, '/') + 1 : rel, r);
+					fs.sha.hex (hh); got = fs.n;
+				}
+				if (!ok) { unlink (tmp); rc = r.cancelled () ? E_CANCEL : E_NET; break; }
+				if (got != (u64) want || !eq (hh, hx))
+				{ unlink (tmp); rc = E_BADPKG; r.sayf ("%s : %s : taille ou SHA-256 différents de ceux du paquet : refusé", name, rel); break; }
+				if (!move (tmp, dest)) { unlink (tmp); rc = E_IO; r.sayf ("remplacement impossible : %s", dest); break; }
+			}
+			snprintf (line, sizeof line, "%s = %s\n", rel, hx); put (line);
+			files++;
+		}
 		if (rc != OK) { free (dbt); free (mv); if (stage) { char st[200]; snprintf (st, sizeof st, PKG_STAGE "/%s", name); remove_tree (st); } return rc; }
 		// les fichiers de l'ancienne version absents de la nouvelle s'en vont (ceux que l'utilisateur a changes restent)
 		Ini now; now.parse (sdup (dbt));
@@ -1281,10 +1342,13 @@ public:
 		static const struct { const char *name, *path; } shell[] = { { "panel", "/sys/panel" }, { "menubar", "/sys/menubar" } };
 		for (auto &s : shell)
 		{
+			// relance sous l'uid qu'il avait (celui de la session) : pkgd et pkg eleve sont en uid 0, et le panneau relance
+			// par eux lancait ensuite chaque app en uid 0 (HOME = /home : Spotify ecrivait dans /home/spotify, 21/11/2026)
+			long uid = proc_uid (s.name);
 			if (!proc_kill (s.name)) continue;
 			for (int i = 0; i < 30 && proc_running (s.name); i++) usleep (50000);
 			usleep (200000);
-			launch (s.path);
+			launch_as (s.path, uid);
 		}
 	}
 

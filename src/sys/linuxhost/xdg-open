@@ -1,0 +1,14 @@
+#!/bin/bash
+# xdg-open -- ce que les programmes de Linux lancés par l'hôte Linux (linuxhost run) appellent pour ouvrir une adresse
+# (docs/etude/LINUX-HOST.md) : Claude Code ouvre ainsi la page de connexion à son compte. Une adresse web s'ouvre
+# dans Jet, détachée (le programme n'attend pas le navigateur) ; le reste : refusé (code 3, comme xdg-open).
+#   xdg-open ADRESSE
+[ -z "${XDG_OPEN_LOG:-}" ] || printf "%s\n" "$@" >>"$XDG_OPEN_LOG"
+case "${1:-}" in
+	http://* | https://*)
+		/apps/jet.app/main "$1" </dev/null >/dev/null 2>&1 &
+		disown 2>/dev/null
+		exit 0 ;;
+esac
+echo "xdg-open : $1 : seules les adresses web s'ouvrent (dans Jet)" >&2
+exit 3

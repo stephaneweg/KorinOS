@@ -1234,8 +1234,9 @@ u64 net_wait_ms(void)
 }
 
 /* minuteries TCP (sous net_lock, toutes les 10 ms) */
-void tcp_timers(void)
+int tcp_timers(void)
 {
+	int changed = 0; /* -> 1 : un socket abandonné ou rendu (ce que regarde une requête qui attend : net_wait) */
 	u64 now = time_ms();
 	for (int i = 0; i < MAX_SOCK; i++) {
 		struct sock *s = &sock_table[i];
@@ -1249,6 +1250,7 @@ void tcp_timers(void)
 				continue;
 			s->state = 0;
 			tcp_maybe_free(s);
+			changed = 1;
 			continue;
 		}
 		if (!s->rtx_at)
@@ -1256,6 +1258,7 @@ void tcp_timers(void)
 		if (now >= s->rtx_at) {
 			if (++s->retries > 8) { /* trop d'essais : abandon */
 				s->flags |= F(SKF_TIMEOUT);
+				changed = 1;
 				tcp_send(s, TH_RST | TH_ACK, s->snd_nxt, 0);
 				s->state = 0;
 				s->rtx_at = 0;
@@ -1313,6 +1316,7 @@ void tcp_timers(void)
 		u64 n = fl < s->mss ? fl : s->mss;
 		tcp_send(s, TH_ACK | TH_PSH, s->snd_nxt - (u32)n, n);
 	}
+	return changed;
 }
 
 /* fermeture par l'application (orphelin) */

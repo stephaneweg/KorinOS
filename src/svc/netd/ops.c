@@ -165,6 +165,7 @@ long op_connect(u8 *m)
 	u64 end = time_ms() + 20000;
 	u64 sd0 = W64(m, MSG_A), pid = W32(m, MSG_PID);
 	for (;;) {
+		u32 gen = net_gen_now(); /* (avant de regarder : net_wait) */
 		/* (correction, comme dans op_accept : fermé pendant l'attente et repris
 		 * par un autre process : ce n'est plus notre connexion) */
 		nl_take();
@@ -183,7 +184,7 @@ long op_connect(u8 *m)
 			return E_CONNREFUSED;
 		if (time_ms() >= end)
 			break;
-		thread_sleep(2);
+		net_wait(gen, end);
 	}
 	nl_take(); /* abandon : la socket redevient fermée */
 	s->state = 0;
@@ -246,6 +247,7 @@ long op_accept(u8 *m)
 	u64 sd0 = W64(m, MSG_A);
 	u64 end = time_ms() + d;
 	for (;;) {
+		u32 gen = net_gen_now(); /* (avant de regarder : net_wait) */
 		nl_take();
 		/* Correction (l'asm ne le fait pas) : le socket est-il toujours à
 		 * l'appelant ? Fermé pendant l'attente, ou l'appelant mort (net_close_all),
@@ -279,7 +281,7 @@ long op_accept(u8 *m)
 		nl_drop();
 		if (time_ms() >= end)
 			return E_AGAIN;
-		thread_sleep(2);
+		net_wait(gen, end);
 	}
 }
 
@@ -302,6 +304,7 @@ long op_send(u8 *m)
 	u64 end = time_ms() + 20000;
 	u64 sd0 = W64(m, MSG_A), pid = W32(m, MSG_PID);
 	while (done < n) {
+		u32 gen = net_gen_now(); /* (avant de regarder : net_wait) */
 		nl_take();
 		/* (fermée pendant l'attente ; correction : ou rendue et reprise par un
 		 * autre process, comme dans op_accept) */
@@ -319,7 +322,7 @@ long op_send(u8 *m)
 			nl_drop();
 			if (time_ms() >= end)
 				break;
-			thread_sleep(2);
+			net_wait(gen, end);
 			continue;
 		}
 		for (u64 i = 0; i < k; i++)
@@ -352,7 +355,9 @@ long op_recv(u8 *m)
 		goto out;
 	}
 	u64 end = time_ms() + d; /* échéance */
+	int waited = 0, gathered = 0;
 	for (;;) {
+		u32 gen = net_gen_now(); /* (avant de regarder : net_wait) */
 		nl_take();
 		/* (fermée pendant l'attente, par un autre thread du process) */
 		if (!s->used || !sko_find(W64(m, MSG_A), W32(m, MSG_PID))) {
@@ -361,6 +366,17 @@ long op_recv(u8 *m)
 			goto out;
 		}
 		u64 h = s->rxhead, t = s->rxtail;
+		/* réveillé par les premières données d'un flux TCP (il a fallu attendre) et moins de 16 Ko (ou de ce qui est
+		 * demandé) : 2 ms de plus, une fois, pour que la suite arrive ; une trame par réponse, le client refaisait
+		 * un aller et retour pour 1460 octets (le débit d'un téléchargement : moitié moins). (L'ancien sommeil de
+		 * 2 ms entre deux regards faisait ce regroupement sans le dire.) */
+		if (h != t && waited && !gathered && s->type == SOCK_TCP && h - t < (want < 16384 ? want : 16384) &&
+		    !(s->flags & F(SKF_RX_FIN)) && time_ms() + 2 < end) {
+			gathered = 1;
+			nl_drop();
+			thread_sleep(2);
+			continue;
+		}
 		if (h != t) {
 			if (s->type == SOCK_UDP) { /* enregistrement UDP */
 				u8 hd[8];
@@ -408,7 +424,8 @@ long op_recv(u8 *m)
 			r = E_AGAIN;
 			goto out;
 		}
-		thread_sleep(2);
+		net_wait(gen, end);
+		waited = 1;
 	}
 out:
 	if (r > 0 && W64(m, MSG_B) == (u64)-1) /* données du message : leur longueur */
@@ -429,6 +446,7 @@ long op_close(u8 *m)
 	if (s->used && sko_drop(sd, pid))
 		sock_close_locked(s);
 	nl_drop();
+	net_wake(); /* (une attente sur ce socket, dans un autre thread du process) */
 	return 0;
 }
 
@@ -446,6 +464,7 @@ long op_shutdown(u8 *m)
 		tcp_output(s);
 	}
 	nl_drop();
+	net_wake();
 	return 0;
 }
 
@@ -464,6 +483,7 @@ void net_close_all(u64 pid)
 			sock_close_locked(&sock_table[sd]);
 	}
 	nl_drop();
+	net_wake();
 }
 
 /* 10 sendto(a sd, b décalage, c octets, d ip | port << 32) (UDP) */

@@ -1399,42 +1399,6 @@
  #[cfg_attr(target_os = "aix", repr(i64))]
  #[non_exhaustive]
  pub enum ClockId {
-@@ -43,7 +43,7 @@
-     /// `CLOCK_PROCESS_CPUTIME_ID`
-     #[cfg(not(any(
-         solarish,
--        target_os = "horizon",
-+        any(target_os = "horizon", target_os = "korin"),
-         target_os = "netbsd",
-         target_os = "redox",
-         target_os = "vita"
-@@ -54,7 +54,7 @@
-     /// `CLOCK_THREAD_CPUTIME_ID`
-     #[cfg(not(any(
-         solarish,
--        target_os = "horizon",
-+        any(target_os = "horizon", target_os = "korin"),
-         target_os = "netbsd",
-         target_os = "redox",
-         target_os = "vita"
-@@ -110,7 +110,7 @@
-             c::CLOCK_UPTIME => Ok(ClockId::Uptime),
-             #[cfg(not(any(
-                 solarish,
--                target_os = "horizon",
-+                any(target_os = "horizon", target_os = "korin"),
-                 target_os = "netbsd",
-                 target_os = "redox",
-                 target_os = "vita"
-@@ -118,7 +118,7 @@
-             c::CLOCK_PROCESS_CPUTIME_ID => Ok(ClockId::ProcessCPUTime),
-             #[cfg(not(any(
-                 solarish,
--                target_os = "horizon",
-+                any(target_os = "horizon", target_os = "korin"),
-                 target_os = "netbsd",
-                 target_os = "redox",
-                 target_os = "vita"
 --- a/src/fs/abs.rs
 +++ b/src/fs/abs.rs
 @@ -7,7 +7,7 @@

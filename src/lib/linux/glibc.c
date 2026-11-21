@@ -395,5 +395,14 @@ void *linux_glibc_lookup (const char *name)
 	for (size_t i = 0; i < lx_table_misc_n; i++)
 		if (!strcmp (lx_table_misc[i].name, name))
 			return lx_table_misc[i].addr;
+	for (size_t i = 0; i < lx_table_dl_n; i++)
+		if (!strcmp (lx_table_dl[i].name, name))
+			return lx_table_dl[i].addr;
+	for (size_t i = 0; i < lx_table_sys_n; i++)
+		if (!strcmp (lx_table_sys[i].name, name))
+			return lx_table_sys[i].addr;
+	for (size_t i = 0; i < lx_table_libc_n; i++)
+		if (!strcmp (lx_table_libc[i].name, name))
+			return lx_table_libc[i].addr;
 	return 0;
 }

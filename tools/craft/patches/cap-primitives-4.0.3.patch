@@ -1,3 +1,13 @@
+--- a/src/rustix/fs/dir_utils.rs
++++ b/src/rustix/fs/dir_utils.rs
+@@ -145,6 +145,7 @@
+         target_os = "wasi",
+         target_os = "illumos",
+         target_os = "solaris",
++        target_os = "korin",
+     ))]
+     {
+         OFlags::empty()
 --- a/src/rustix/fs/file_path.rs
 +++ b/src/rustix/fs/file_path.rs
 @@ -1,7 +1,7 @@

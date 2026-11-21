@@ -79,7 +79,7 @@
 - [Rust pour Korin](armpi-rust.md) — cible aarch64-unknown-korin (croisée, WSL), branche claude/rust-target-06eed0 (12/11), QEMU seulement ; pièges build-std, dérouleur partagé
 - [Modules Rust de Python](armpi-python-rust-ext.md) — étape 5 dans main (e68c0a7d, 12/11) : cdylib pyo3, build-rust-ext.sh, caisses patchées, OpenSSL exporté ; QEMU seulement
 - [cargo dans Korin](armpi-cargo.md) — Rust dans Korin PC (20/11) : cargo 0.98.0 tourne sous QEMU, /devtools/rust/bin au PATH, cibles intégrées à rustc 1.97.1, LLVM puis rustc tournent dans Korin PC : cargo build/run, macros procédurales, build.rs (21/11, claude/epic-dirac-9trnk0, QEMU)
-- [Apps Craft](armpi-craft.md) — suite Craft sur Korin PC : lanceur Craft, Word/Grid/Deck/CAD/Design ; le reste passé au cloud (docs/agents/CRAFT-HANDOVER.md), tools/craft/all.sh
+- [Apps Craft](armpi-craft.md) — Suite ArtCraft sur Korin PC : les 17 apps construites et ouvertes (QEMU), paquets craft + un par app, à publier ; puis menus Korin et barre de titre (docs/agents/CRAFT-HANDOVER.md)
 - [Python et Vibe](armpi-python-vibe.md) — étapes 0 à 5 dans main, étape 6 (harness, arbre POSIX /sd0) aussi, poussé (12/11), QEMU seulement
 - [Pas de C pour le Pi seul](armpi-pas-de-c-pour-pi-seul.md) — ce qui ne sert qu'au Pi (GPU, DMA, GpuKit) reste en asm
 - [Ordre des pilotes du PC](armpi-pc-ordre-pilotes.md) — pas de réseau par téléphone, le Wi-Fi AX201 avant l'Ethernet
@@ -104,7 +104,7 @@
 - [Idée : libs tierces dans /gcc](armpi-idee-libs-gcc.md) — quand stable : livrer zlib, OpenSSL, curl, SQLite, Skia, Mesa… avec le GCC de l'OS pour les apps compilées dans Korin
 - [Idée : CAO native](armpi-idee-cao.md) — fin du plan : successeur de 3DForge sur OpenCASCADE + PlaneGCS, interface de 3DForge gardée, façon Fusion/Shapr3D
 - [CAO native](armpi-cao.md) — 14/11 : OCCT 8.0.1 + PlaneGCS portés (tools/cao), caotest passe sous QEMU PC, paquets PC publiés (15/11) ; étude docs/DESIGN-CAO.md, maquettes et décisions validées (15/11) ; Forge étapes 0-4 faites et pilotable par MCP (16/11), QEMU seulement
-- [Couche Linux pour Claude Code](armpi-linux-compat.md) — décision 13/11 : personnalité par process, liblinux préchargée, TuxKit ; binaire officiel musl non modifié, par abonnement
+- [Couche Linux pour Claude Code](armpi-linux-compat.md) — décision 13/11 ; chantier « hôte Linux » lancé le 21/11 (docs/etude/LINUX-HOST.md) : CLI officielle par l'abonnement, jalons 1-3 (exécutable glibc, Node, Claude Code)
 - [Agents du cloud](armpi-cloud.md) — 14/11 : tools/cloud/setup.sh, docs/agents/CLOUD.md, variables KORIN_* (toolchains, fasm, QEMU) sans effet quand absentes
 - [Idée : presse-papier et glisser-déposer](armpi-idee-presse-papier-dnd.md) — plus tard : historique dans l'applet, coller une image (Telegram), glisser-déposer du gestionnaire vers les apps
 - [Koton : l'IA](armpi-koton-ia.md) — 15/11 : « Composer avec l'IA » porté d'Onyx, /bin/llm (OpenSSL, paquet llm), barre du haut sans recouvrement ; pas essayé dans l'OS

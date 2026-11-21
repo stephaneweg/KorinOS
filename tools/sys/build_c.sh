@@ -75,6 +75,7 @@ if [ -z "$NAMES" ]; then
 	for d in src/sys/*/; do
 		[ "$(basename "$d")" = common ] && continue
 		[ -f "$d/posix.conf" ] && continue	# (un programme sur libposix : tools/pc/apps.sh, comme webd)
+		[ "$(basename "$d")" = linuxhost ] && continue	# (sur libposix et liblinux : tools/linux/build.sh)
 		ls "$d"*.c >/dev/null 2>&1 || continue
 		grep -l 'int main' "$d"*.c >/dev/null 2>&1 || continue
 		NAMES="$NAMES $(basename "$d")"

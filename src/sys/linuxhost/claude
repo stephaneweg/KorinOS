@@ -1,0 +1,15 @@
+#!/bin/bash
+# claude -- Claude Code, la CLI officielle d'Anthropic, sur Korin PC (paquet claude-code ; docs/etude/LINUX-HOST.md).
+# Le binaire officiel pour Linux x86-64, non modifié, téléchargé chez Anthropic à l'installation du paquet
+# (/devtools/claude-code/claude, version et SHA-256 épinglés par le paquet), lancé par l'hôte Linux de Korin. On s'y
+# connecte avec son compte Claude (abonnement) : la page de connexion s'ouvre dans Jet. C'est aussi la commande que
+# Craft Anything trouve dans le PATH.
+# Sa mise à jour automatique est coupée (elle repose sur des liens symboliques, que Korin n'a pas) : une nouvelle
+# version vient avec une nouvelle version du paquet (Logiciels).
+B=/devtools/claude-code/claude
+if [ ! -f "$B" ]; then
+	echo "claude : Claude Code n'est pas téléchargé ($B) : réinstallez le paquet claude-code (Logiciels, ou pkg install claude-code)" >&2
+	exit 127
+fi
+export DISABLE_AUTOUPDATER=1
+exec /bin/linuxhost run "$B" "$@"
