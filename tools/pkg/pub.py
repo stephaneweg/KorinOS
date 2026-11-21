@@ -171,7 +171,30 @@ def rel_download (fname, dest_dir):
 		"https://api.github.com/repos/%s/releases/assets/%d" % (GH_REPO, ids[0])])
 	if r.returncode: die ("telechargement de %s par l'API a echoue" % fname)
 
+MANUAL = False
+
+def rel_wait (path):
+	"""(--manual-upload) l'archive deposee a la main dans la Release : attendue (la liste lue par l'API toutes les
+	20 s), telechargee et comparee octet pour octet avant d'aller plus loin (l'index n'est pousse qu'apres)"""
+	import time
+	name, want = os.path.basename (path), mkrepo.sha256_file (path)
+	say ("pub: deposer %s (%d octets, SHA-256 %s) dans la Release « packages » :" % (path, os.path.getsize (path), want))
+	say ("pub:   https://github.com/%s/releases/edit/packages  (glisser le fichier, puis « Update release »)" % GH_REPO)
+	for _ in range (int (os.environ.get ("PUB_WAIT_MIN", "180")) * 3):
+		got = [x for x in rel_info ()["assets"] if x["name"] == name]
+		if got and got[0].get ("state", "uploaded") == "uploaded" and got[0]["size"] == os.path.getsize (path):
+			d = tempfile.mkdtemp ()
+			rel_download (name, d)
+			ok = mkrepo.sha256_file (os.path.join (d, name)) == want
+			shutil.rmtree (d, ignore_errors = True)
+			if not ok: die ("%s dans la Release n'a pas le SHA-256 attendu : rien n'est pousse" % name)
+			say ("pub: %s est dans la Release, SHA-256 verifie" % name)
+			return
+		time.sleep (20)
+	die ("%s n'est pas apparue dans la Release : rien n'est pousse" % name)
+
 def rel_upload (path):
+	if MANUAL: return rel_wait (path)
 	if not API:
 		if subprocess.run (["gh", "release", "upload", "packages", "-R", GH_REPO, path]).returncode: die ("gh release upload a echoue")
 		return
@@ -206,10 +229,12 @@ def main ():
 	ap.add_argument ("--no-fetch", action = "store_true", help = "ne pas faire git fetch au debut")
 	ap.add_argument ("--no-push", action = "store_true", help = "commiter sans pousser")
 	ap.add_argument ("--api", action = "store_true", help = "la Release par l'API REST de GitHub (curl) au lieu de gh : le cloud")
+	ap.add_argument ("--manual-upload", action = "store_true", help = "avec --api : l'archive de la Release deposee a la main (le proxy du cloud refuse les envois binaires) ; attendue et verifiee avant le push")
 	ap.add_argument ("--message", default = "", help = "ce qui change, ajoute au titre du commit")
 	a = ap.parse_args ()
-	global API
-	API = a.api
+	global API, MANUAL
+	API = a.api or a.manual_upload
+	MANUAL = a.manual_upload
 
 	pc = not a.pi
 	if pc: os.environ["ARCH"] = "x86_64"
@@ -469,7 +494,7 @@ def main ():
 	if is_release:
 		if os.path.basename (opk) in rel_assets ():
 			die ("%s est deja dans la Release : rien n'est publie" % os.path.basename (opk))
-		say ("pub: %s release upload %s" % ("API" if API else "gh", os.path.basename (opk)))
+		say ("pub: %s release upload %s" % ("a la main" if MANUAL else "API" if API else "gh", os.path.basename (opk)))
 		rel_upload (opk)
 	vtext = (git_blob ("HEAD", "tools/pkg/versions.ini") or b"").decode ("utf-8")	# (apres la fusion)
 	paths = {}					# chemin du depot -> octets (None : retire)
