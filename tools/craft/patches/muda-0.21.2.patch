@@ -63,9 +63,24 @@
      pub fn set_as_help_menu_for_nsapp(&self) {
          self.platform.borrow_mut().set_as_help_menu_for_nsapp()
      }
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -247,6 +247,12 @@
+ mod state_cell;
+ mod util;
+ 
++/// Korin : pendant un choix, ses touches s'il vient d'un raccourci de la barre (craft-menu).
++#[cfg(target_os = "korin")]
++pub fn korin_key_mods() -> Option<(bool, bool, bool)> {
++    platform_impl::key_mods()
++}
++
+ pub use about_metadata::AboutMetadata;
+ pub use builders::*;
+ pub use context_menu::ContextMenu;
 --- a/src/platform_impl/korin/mod.rs
 +++ b/src/platform_impl/korin/mod.rs
-@@ -0,0 +1,446 @@
+@@ -0,0 +1,454 @@
 +// La plateforme Korin de muda (tools/craft/crate_korin.py, docs/CRAFT.md) : les menus dans la barre de menus de Korin
 +// (UIKit ui_menu, par l'hôte egui-korin). La couche commune de muda garde l'état des entrées (textes, coches, grisé,
 +// raccourcis, enfants) ; ici, à chaque changement, l'arbre du menu installé (Menu::init_for_nsapp, comme sur macOS)
@@ -111,6 +126,14 @@
 +    fn kh_menu_states(pairs: *const c_long, n: c_long) -> c_long;
 +    fn egui_korin_menu_hooks(on_chosen: extern "C" fn(i64), after_pass: extern "C" fn());
 +    fn egui_korin_menu_inject(code: i32);
++    fn egui_korin_menu_key_mods() -> i32;
++}
++
++/// Pendant un choix dans la barre (le gestionnaire de MenuEvent) : (Ctrl, Alt, Maj) s'il vient d'un raccourci, None
++/// pour un clic ; craft-menu s'en sert comme du `currentEvent` d'AppKit (muda::korin_key_mods).
++pub fn key_mods() -> Option<(bool, bool, bool)> {
++    let m = unsafe { egui_korin_menu_key_mods() };
++    if m < 0 { None } else { Some((m & 1 != 0, m & 2 != 0, m & 4 != 0)) }
 +}
 +
 +/// Un changement depuis la dernière publication (texte, état, enfants).

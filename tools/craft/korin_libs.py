@@ -220,6 +220,9 @@ edit("crates/menu/src/mac.rs", [
      '        pub fn mainMenu(&self) -> Option<MainMenu> {\n            None\n        }\n    }\n'
      '}'),
 ])
+edit("crates/menu/src/model.rs", [
+    ('#[cfg(any(target_os = "macos", test))]\npub(crate) fn native_id(', '#[cfg(any(target_os = "macos", target_os = "korin", test))]\npub(crate) fn native_id('),
+])
 # Korin : pas de Masquer ni de Masquer les autres, de Services ni de Tout afficher (la barre n'en a pas)
 edit("crates/menu/src/layout.rs", [
     ('    menu.extend([options.standard(Standard::Services), Node::Separator]);\n    let mut hide = Item::new(',
