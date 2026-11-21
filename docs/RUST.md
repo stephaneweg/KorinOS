@@ -322,3 +322,5 @@ le même `[patch.crates-io]` (`libc` 0.2.185, `target-lexicon` 0.13.5, `getrando
   chacun sa `cdylib` (plus de caisse parapluie depuis `dlopen`), `PYO3_CONFIG_FILE` pour CPython 3.14 ;
   [PYTHON-PORT.md](PYTHON-PORT.md), « Étape 5 ».
 * RamFS : `readdir` pendant les effacements (une entrée sur deux sautée).
+* **Rust dans Korin** (PC d'abord, 20/11/2026) : cargo tourne dans Korin PC depuis le 21/11 ([CARGO.md](CARGO.md)) ;
+  restent la cible intégrée au compilateur, LLVM pour Korin, `librustc_driver.so` et les macros procédurales.

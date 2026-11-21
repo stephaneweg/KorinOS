@@ -1,0 +1,9 @@
+[package]
+name = "gitproj"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# le dépôt d'essai (tools/git/serve.py, port 47391 : docs/CARGO.md « Essais »), vu de QEMU
+tiny = { git = "http://10.0.2.2:47391/tiny.git" }
