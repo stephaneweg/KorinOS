@@ -28,9 +28,11 @@ absents du cloud ; republier `pc` d'abord : panel et menubar qui cachent « Craf
 - Nouveau : `src/lib/winit-korin` (winit sans fenêtre), `tools/craft/egui036.py` (l'hôte en egui 0.36 : Craft
   Anything, AniCraft), patchs mio/socket2/tokio/open/rustix 1.1.5/process-wrap (nix sur libc,
   `tools/craft/crate/process-wrap-korin_nix.rs`), PdfCraft sans aws-lc (pas de RSA privé).
-- L'utilisateur veut ensuite (après publication) : **les menus des apps dans la barre de menus de Korin** (backend
-  Korin de `craft-menu`), **le titre à gauche contre l'icône** et les contrôles de droite qui ne recouvrent plus les
-  boutons de la fenêtre (`craft-window`). Fiche : docs/agents/CRAFT-HANDOVER.md, « Ce qui reste ».
+- 21/11 (demande de l'utilisateur) : **barre de titre** sur Korin (pas de boutons à soi, 112 px libres à droite pour les
+  glyphes d'Elegant, titre à gauche) dans les 17 apps ; **menus dans la barre de Korin** pour neuf apps par leur
+  chemin macOS : muda 0.21.2 a une plateforme Korin (`tools/craft/crate/muda-korin.rs`), la barre de menus a gagné
+  les sous-menus (`S`…`E`), le menu de l'app (`M*`), 16 Ko, `ui_menu_states` (UIKit 221) ; `egui_korin::menu`.
+  Restent PhotoCraft, PdfCraft (craft-menu sur AppKit). Fiche : docs/agents/CRAFT-HANDOVER.md, « Ce qui reste ».
 - **Publiés le 21/11** (craft sur Pages, 17 apps dans la Release, index PC à 139 paquets, main d5930f7). Depuis le cloud :
   clé dans `ONYX_PKG_KEY` (pub.py lit `OnyxPkgKey` : la passer), la Release par un **workflow** sur une branche de
   transit (le proxy refuse les envois binaires et l'effacement de branches : `craft-opk-transit` reste à effacer par

@@ -67,6 +67,17 @@ Copier/Coller/Annuler donnés à egui). La barre de Korin a gagné pour cela les
 niveau ; plus profond, muda les aplatit : « Exporter › PDF »), le menu de l'app (`M*` : ses lignes dans le menu au
 nom de l'app, avant Quitter), 14 menus, 160 lignes par menu, 16 Ko de texte, et `ui_menu_states` (UIKit, version 221).
 
+Où en est chaque app (`korin_app.py`, section « les menus dans la barre de menus de Korin ») :
+
+| Menus | Apps |
+|---|---|
+| dans la barre de Korin (leur chemin macOS, muda) | GridCraft, DesignCraft, CADCraft, SoundCraft, LightCraft, FilmCraft, EffectCraft, VectorCraft, Craft Anything |
+| dans la fenêtre : le menu natif passe par `craft-menu` / `craft-window` et AppKit (`mac.rs`), qu'il faudrait doubler d'un backend Korin | PhotoCraft, PdfCraft |
+| dans la fenêtre : pas de menu natif, même sur macOS | WordCraft, DeckCraft, FigCraft, TextureCraft, MaterialCraft, AniCraft |
+
+Ce qui reste d'AppKit dans le chemin macOS d'une app (Masquer, Masquer les autres, le suivi des menus ouverts,
+objc2) reste à macOS : `korin_app.py` élargit les `#[cfg(target_os = "macos")]` du menu à Korin, un par un.
+
 ## Construire
 
 ```sh
