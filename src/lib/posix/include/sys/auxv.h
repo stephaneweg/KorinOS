@@ -3,6 +3,7 @@
 #ifndef _SYS_AUXV_H
 #define _SYS_AUXV_H
 
+#define AT_PAGESZ	6		/* la taille d'une page (getauxval la rend : POSIX_PAGE) */
 #define AT_HWCAP	16
 #define AT_HWCAP2	26
 

@@ -194,6 +194,8 @@ int _getentropy (void *buf, size_t n) { return getentropy (buf, n); }
    FP et NEON. Le Pi 4 n'a pas les extensions AES / SHA. */
 unsigned long getauxval (unsigned long type)
 {
+	if (type == AT_PAGESZ)
+		return POSIX_PAGE;
 #if defined(__x86_64__)
 	(void) type;
 	return 0;					/* (PC : cpuid dit ce que sait le processeur) */

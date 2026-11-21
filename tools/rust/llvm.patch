@@ -1,0 +1,23 @@
+diff -ruN a/llvm/lib/Support/Unix/Path.inc b/llvm/lib/Support/Unix/Path.inc
+--- a/llvm/lib/Support/Unix/Path.inc
++++ b/llvm/lib/Support/Unix/Path.inc
+@@ -111,7 +111,7 @@
+ #endif
+ 
+ #if defined(__NetBSD__) || defined(__DragonFly__) || defined(__GNU__) ||       \
+-    defined(__MVS__)
++    defined(__MVS__) || defined(__armpi__)
+ #define STATVFS_F_FLAG(vfs) (vfs).f_flag
+ #else
+ #define STATVFS_F_FLAG(vfs) (vfs).f_flags
+@@ -520,6 +520,10 @@
+ #elif defined(__HAIKU__)
+   // Haiku doesn't expose this information.
+   return false;
++#elif defined(__armpi__)
++  // Korin OS (__armpi__: its POSIX layer, libposix): statvfs has no MNT_LOCAL;
++  // network shares are mounted under /net, everything else is local.
++  return true;
+ #elif defined(__sun)
+   // statvfs::f_basetype contains a null-terminated FSType name of the mounted
+   // target
