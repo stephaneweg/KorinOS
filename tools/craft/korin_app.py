@@ -171,6 +171,174 @@ if name == "craft-anything":
          "        #[cfg(target_os = \"korin\")]\n        options.custom_flags(libc::O_NONBLOCK);\n"
          "        #[cfg(not(target_os = \"korin\"))]\n        options.custom_flags(nix::libc::O_NONBLOCK);"),
     ])
+# ---- les menus dans la barre de menus de Korin (docs/CRAFT.md) : l'app prend sur Korin son chemin « menu natif » de
+# macOS (muda, que Korin a : tools/craft/crate/muda-korin.rs), son menu dans la fenêtre est caché ; ce qui reste propre
+# à macOS (AppKit, objc2, événements Apple) le reste
+MK = '#[cfg(any(target_os = "macos", target_os = "korin"))]'
+MAC = '#[cfg(target_os = "macos")]'
+
+
+def korin_dep(rel, lines):
+    """une section de dépendances pour Korin, à la fin du Cargo.toml"""
+    pth = os.path.join(app, rel)
+    with open(pth, "a", encoding="utf-8", newline="\n") as f:
+        f.write("\n# Korin : la barre de menus (tools/craft/korin_app.py)\n[target.'cfg(target_os = \"korin\")'.dependencies]\n%s\n" % lines)
+
+
+if name == "gridcraft":
+    korin_dep("apps/gridcraft/Cargo.toml", 'muda = { version = "0.21", default-features = false }')
+    edit("apps/gridcraft/src/main.rs", [
+        (MAC + "\nmod native_menu;", MK + "\nmod native_menu;"),
+        (MAC + " Option<native_menu::NativeMenu>", MK + " Option<native_menu::NativeMenu>"),
+        ("        #[cfg(target_os = \"macos\")]\n        {\n            if self.2.is_none()",
+         "        " + MK + "\n        {\n            if self.2.is_none()"),
+        ("            apple_events::poll(&self.3, &mut self.0, ctx);\n        }",
+         "            #[cfg(target_os = \"macos\")]\n            apple_events::poll(&self.3, &mut self.0, ctx);\n        }"),
+        ("                    windows,\n                    #[cfg(target_os = \"macos\")]\n                    None,",
+         "                    windows,\n                    " + MK + "\n                    None,"),
+    ])
+if name == "designcraft":
+    korin_dep("apps/designcraft/Cargo.toml", 'muda = { version = "0.21", default-features = false }')
+    edit("apps/designcraft/src/main.rs", [
+        (MAC + "\nmod native_menu;", MK + "\nmod native_menu;"),
+        ("    " + MAC + "\n    menu: Option<native_menu::NativeMenu>,", "    " + MK + "\n    menu: Option<native_menu::NativeMenu>,"),
+        ("            #[cfg(target_os = \"macos\")]\n            {\n                if self.menu.is_none()",
+         "            " + MK + "\n            {\n                if self.menu.is_none()"),
+        ("                self.startup.opening(apple_events::poll(&self.apple_events, &mut self.app, ui.ctx()));\n            }",
+         "                #[cfg(target_os = \"macos\")]\n                self.startup.opening(apple_events::poll(&self.apple_events, &mut self.app, ui.ctx()));\n            }"),
+        ("                    " + MAC + "\n                    menu: None,", "                    " + MK + "\n                    menu: None,"),
+    ])
+if name == "cadcraft":
+    korin_dep("apps/cadcraft/Cargo.toml", 'muda = { version = "0.21", default-features = false }')
+    edit("apps/cadcraft/src/main.rs", [
+        (MAC + "\nmod native_menu;", MK + "\nmod native_menu;"),
+        ("    " + MAC + "\n    native_menu: Option<native_menu::NativeMenu>,", "    " + MK + "\n    native_menu: Option<native_menu::NativeMenu>,"),
+        ("    " + MAC + "\n    menus_in_window: bool,", "    " + MK + "\n    menus_in_window: bool,"),
+        ("            " + MAC + "\n            {\n                if self.native_menu.is_none() && !self.menus_in_window {",
+         "            " + MK + "\n            {\n                if self.native_menu.is_none() && !self.menus_in_window {"),
+        ("            " + MAC + "\n            app.set_native_menus(vars.no_native_menu != Switch::On);",
+         "            " + MK + "\n            app.set_native_menus(vars.no_native_menu != Switch::On);"),
+        ("                " + MAC + "\n                native_menu: None,\n                " + MAC + "\n                menus_in_window:",
+         "                " + MK + "\n                native_menu: None,\n                " + MK + "\n                menus_in_window:"),
+    ])
+    edit("crates/ui-egui/src/lib.rs", [
+        ("            in_window_menu: !cfg!(target_os = \"macos\"),", "            in_window_menu: !cfg!(any(target_os = \"macos\", target_os = \"korin\")),"),
+        ("            native_menus: cfg!(target_os = \"macos\"),", "            native_menus: cfg!(any(target_os = \"macos\", target_os = \"korin\")),"),
+    ])
+if name == "soundcraft":
+    korin_dep("apps/soundcraft/Cargo.toml", 'muda = { version = "0.21.2", default-features = false }')
+    edit("apps/soundcraft/src/main.rs", [
+        (MAC + "\nmod native_menu;", MK + "\nmod native_menu;"),
+        (MAC + " Option<native_menu::NativeMenu>", MK + " Option<native_menu::NativeMenu>"),
+        ("        " + MAC + "\n        if let Some(menu) = &mut self.3 {", "        " + MK + "\n        if let Some(menu) = &mut self.3 {"),
+        ("            " + MAC + "\n            let menu = match native_menu::NativeMenu::new(", "            " + MK + "\n            let menu = match native_menu::NativeMenu::new("),
+        ("                env,\n                " + MAC + "\n                menu,", "                env,\n                " + MK + "\n                menu,"),
+    ])
+    # Masquer, Masquer les autres : AppKit, sans objet sur Korin
+    edit("apps/soundcraft/src/native_menu.rs", [
+        ("use objc2::MainThreadMarker;\nuse objc2_app_kit::NSApplication;\n",
+         MAC + "\nuse objc2::MainThreadMarker;\n" + MAC + "\nuse objc2_app_kit::NSApplication;\n"),
+        ("        app_menu.append(&MenuItem::with_id(\"hide\", \"Hide SoundCraft\", true, None))?;\n"
+         "        app_menu.append(&MenuItem::with_id(\"hide_others\", \"Hide Others\", true, None))?;\n",
+         "        " + MAC + "\n        app_menu.append(&MenuItem::with_id(\"hide\", \"Hide SoundCraft\", true, None))?;\n"
+         "        " + MAC + "\n        app_menu.append(&MenuItem::with_id(\"hide_others\", \"Hide Others\", true, None))?;\n"),
+        ("            if (event.id == \"hide\" || event.id == \"hide_others\")\n                && let Some(mtm) = MainThreadMarker::new()\n            {\n"
+         "                let ns = NSApplication::sharedApplication(mtm);\n                if event.id == \"hide\" { ns.hide(None) } else { ns.hideOtherApplications(None) }\n"
+         "            } else if",
+         "            if hide_app(&event.id) {\n            } else if"),
+    ])
+    with open(os.path.join(app, "apps/soundcraft/src/native_menu.rs"), "a", encoding="utf-8", newline="\n") as f:
+        f.write("\n/// Masquer, Masquer les autres (macOS ; tools/craft/korin_app.py) -> true s'il s'agissait de l'une d'elles.\n"
+                + MAC + "\nfn hide_app(id: &muda::MenuId) -> bool {\n"
+                "    if *id != \"hide\" && *id != \"hide_others\" {\n        return false;\n    }\n"
+                "    if let Some(mtm) = MainThreadMarker::new() {\n        let ns = NSApplication::sharedApplication(mtm);\n"
+                "        if *id == \"hide\" { ns.hide(None) } else { ns.hideOtherApplications(None) }\n    }\n    true\n}\n\n"
+                "#[cfg(target_os = \"korin\")]\nfn hide_app(_id: &muda::MenuId) -> bool {\n    false\n}\n")
+if name == "lightcraft":
+    korin_dep("apps/lightcraft/Cargo.toml", 'muda = { workspace = true }')
+    edit("apps/lightcraft/src/main.rs", [
+        (MAC + "\nmod native_menu;", MK + "\nmod native_menu;"),
+        (MAC + " Option<native_menu::NativeMenu>", MK + " Option<native_menu::NativeMenu>"),
+        ("        " + MAC + "\n        if let Some(m) = self.3.as_mut()", "        " + MK + "\n        if let Some(m) = self.3.as_mut()"),
+        ("                " + MAC + "\n                let menu =\n", "                " + MK + "\n                let menu =\n"),
+        ("                    window_textures,\n                    " + MAC + "\n                    menu,", "                    window_textures,\n                    " + MK + "\n                    menu,"),
+    ])
+if name == "filmcraft":
+    korin_dep("apps/filmcraft/Cargo.toml", 'muda = { version = "0.21", default-features = false }')
+    edit("apps/filmcraft/src/main.rs", [
+        (MAC + "\nmod native_menu;", MK + "\nmod native_menu;"),
+        ("        " + MAC + "\n        {\n            let (rx, update, text_menu) = native_menu::install(&app, cc.egui_ctx.clone());\n"
+         "            app.hooks.pick_color = Some(native_color::picker(text_menu));\n",
+         "        " + MK + "\n        {\n            let (rx, update, text_menu) = native_menu::install(&app, cc.egui_ctx.clone());\n"
+         "            // (le sélecteur de couleur de macOS ; tools/craft/korin_app.py)\n"
+         "            " + MAC + "\n            {\n                app.hooks.pick_color = Some(native_color::picker(text_menu));\n            }\n"
+         "            #[cfg(target_os = \"korin\")]\n            let _ = text_menu;\n"),
+    ])
+if name == "effectcraft":
+    korin_dep("apps/effectcraft/Cargo.toml", 'muda = { version = "0.21", default-features = false }\negui-korin = { path = "%s/src/lib/egui-korin" }' % root)
+    edit("apps/effectcraft/src/main.rs", [
+        (MAC + "\nmod native_menu;", MK + "\nmod native_menu;"),
+        ("                app.hooks.clipboard_text = Some(Box::new(native_menu::clipboard_text));\n            }\n",
+         "                app.hooks.clipboard_text = Some(Box::new(native_menu::clipboard_text));\n            }\n"
+         "            // Korin : le presse-papiers de Korin pour Coller depuis la barre (tools/craft/korin_app.py)\n"
+         "            #[cfg(target_os = \"korin\")]\n            {\n                app.hooks.clipboard_text = Some(Box::new(egui_korin::clipboard_get));\n            }\n"),
+        ("                " + MAC + "\n                menu: native_menu::NativeBar::new(&cc.egui_ctx),\n                " + MAC + "\n                menu_sync: Default::default(),",
+         "                " + MK + "\n                menu: native_menu::NativeBar::new(&cc.egui_ctx),\n                " + MK + "\n                menu_sync: Default::default(),"),
+        ("    " + MAC + "\n    menu: native_menu::NativeBar,\n    " + MAC + "\n    menu_sync:",
+         "    " + MK + "\n    menu: native_menu::NativeBar,\n    " + MK + "\n    menu_sync:"),
+        ("        " + MAC + "\n        self.menu_sync.before(", "        " + MK + "\n        self.menu_sync.before("),
+        ("        " + MAC + "\n        self.menu_sync.after(", "        " + MK + "\n        self.menu_sync.after("),
+    ])
+    edit("apps/effectcraft/src/native_menu.rs", [
+        ("pub fn app_action(id: &str) -> bool {", MAC + "\npub fn app_action(id: &str) -> bool {"),
+        ("pub fn clipboard_text() -> Option<String> {", MAC + "\npub fn clipboard_text() -> Option<String> {"),
+    ])
+if name == "craft-anything":
+    korin_dep("crates/ui-egui/Cargo.toml", 'muda = { version = "0.21.2", default-features = false }')
+    edit("crates/ui-egui/src/lib.rs", [
+        (MAC + "\npub mod menu;", MK + "\npub mod menu;"),
+        ("    " + MAC + "\n    pub menu_bar: Option<menu::MenuBar>,", "    " + MK + "\n    pub menu_bar: Option<menu::MenuBar>,"),
+        ("            " + MAC + "\n            menu_bar: None,", "            " + MK + "\n            menu_bar: None,"),
+        ("        " + MAC + "\n        {\n            self.menu_bar = menu::MenuBar::install(ctx);\n        }\n        #[cfg(not(target_os = \"macos\"))]\n        let _ = ctx;",
+         "        " + MK + "\n        {\n            self.menu_bar = menu::MenuBar::install(ctx);\n        }\n        #[cfg(not(any(target_os = \"macos\", target_os = \"korin\")))]\n        let _ = ctx;"),
+        ("        " + MAC + "\n        menu::update(self, &ctx);", "        " + MK + "\n        menu::update(self, &ctx);"),
+    ])
+if name == "vectorcraft":
+    korin_dep("apps/vectorcraft/Cargo.toml", 'muda = { version = "=0.21.2", default-features = false }')
+    edit("apps/vectorcraft/src/main.rs", [
+        (MAC + "\nmod mac_menu;", MK + "\nmod mac_menu;"),
+        ("                #[cfg(not(target_os = \"macos\"))]\n                {\n                    let _ = in_window_menus;\n                    single_instance::set_ui(&cc.egui_ctx);\n                }",
+         "                // Korin : la barre de menus de Korin (tools/craft/korin_app.py)\n"
+         "                #[cfg(target_os = \"korin\")]\n                if !in_window_menus {\n                    app.services.native_menu = mac_menu::install(&cc.egui_ctx, &app);\n                }\n"
+         "                #[cfg(not(target_os = \"macos\"))]\n                {\n                    let _ = in_window_menus;\n                    single_instance::set_ui(&cc.egui_ctx);\n                }"),
+    ])
+    edit("apps/vectorcraft/src/mac_menu.rs", [
+        ("use block2::RcBlock;\n", MAC + "\nuse block2::RcBlock;\n"),
+        ("use objc2::MainThreadMarker;\nuse objc2_app_kit::{NSApplication, NSEventModifierFlags, NSEventType, NSMenuDidBeginTrackingNotification, NSMenuDidEndTrackingNotification};\nuse objc2_foundation::{NSNotification, NSNotificationCenter};\n",
+         MAC + "\nuse objc2::MainThreadMarker;\n" + MAC + "\nuse objc2_app_kit::{NSApplication, NSEventModifierFlags, NSEventType, NSMenuDidBeginTrackingNotification, NSMenuDidEndTrackingNotification};\n"
+         + MAC + "\nuse objc2_foundation::{NSNotification, NSNotificationCenter};\n"),
+        ("fn observe_tracking(ctx: &egui::Context) {", "/// Korin : pas de suivi des menus (la barre de Korin est un autre programme ; tools/craft/korin_app.py)\n"
+         "#[cfg(target_os = \"korin\")]\nfn observe_tracking(_ctx: &egui::Context) {}\n\n" + MAC + "\nfn observe_tracking(ctx: &egui::Context) {"),
+        ("fn cancel_tracking() {\n    if let Some(mtm)", "fn cancel_tracking() {\n    " + MAC + "\n    if let Some(mtm)"),
+        ("            let event = MainThreadMarker::new().and_then(|mtm| NSApplication::sharedApplication(mtm).currentEvent());\n"
+         "            let key = event.as_ref().is_some_and(|ev| ev.r#type() == NSEventType::KeyDown);\n"
+         "            let flags = event.as_ref().map_or(NSEventModifierFlags::empty(), |ev| ev.modifierFlags());\n"
+         "            let mods = [NSEventModifierFlags::Command, NSEventModifierFlags::Control, NSEventModifierFlags::Option, NSEventModifierFlags::Shift]\n"
+         "                .map(|m| flags.contains(m));\n",
+         "            " + MAC + "\n            let (key, mods) = {\n"
+         "            let event = MainThreadMarker::new().and_then(|mtm| NSApplication::sharedApplication(mtm).currentEvent());\n"
+         "            let key = event.as_ref().is_some_and(|ev| ev.r#type() == NSEventType::KeyDown);\n"
+         "            let flags = event.as_ref().map_or(NSEventModifierFlags::empty(), |ev| ev.modifierFlags());\n"
+         "            let mods = [NSEventModifierFlags::Command, NSEventModifierFlags::Control, NSEventModifierFlags::Option, NSEventModifierFlags::Shift]\n"
+         "                .map(|m| flags.contains(m));\n            (key, mods)\n            };\n"
+         "            // Korin : un choix dans la barre (ses raccourcis y sont déjà pris) est un clic\n"
+         "            #[cfg(target_os = \"korin\")]\n            let (key, mods) = (false, [false; 4]);\n"),
+        ("                if let Some(mtm) = MainThreadMarker::new() {\n                    let app = NSApplication::sharedApplication(mtm);\n"
+         "                    if command == native_menu::HIDE { app.hide(None) } else { app.hideOtherApplications(None) }\n                }\n                continue;",
+         "                " + MAC + "\n                if let Some(mtm) = MainThreadMarker::new() {\n                    let app = NSApplication::sharedApplication(mtm);\n"
+         "                    if command == native_menu::HIDE { app.hide(None) } else { app.hideOtherApplications(None) }\n                }\n"
+         "                let _ = command;\n                continue;"),
+    ])
 # ---- la barre de titre sur Korin (docs/CRAFT.md) : pas de boutons de fenêtre à soi (Elegant dessine les siens sur le
 # contenu, en haut à droite : FRAME_CAP_W 102 px + marge), les contrôles de droite à KORIN_RIGHT px du bord, le titre à
 # gauche, à côté de l'icône et des premiers contrôles
@@ -283,6 +451,27 @@ if name == "cadcraft":
     edit("crates/ui-egui/src/chrome.rs", [
         ("            let available = (row.right() - 12.0 - x).max(0.0);",
          "            let available = (row.right() - (%s) - x).max(0.0);" % (KR % "12.0")),
+    ])
+if name == "soundcraft":
+    # le menu dans la barre de Korin : la barre d'outils monte en haut ; sa fin défile au-delà des boutons d'Elegant.
+    # Sans menu natif, le titre de la barre de menus (à droite) s'en écarte aussi
+    edit("crates/ui-egui/src/toolbar.rs", [
+        ("                output_meter(app, ui);\n            });",
+         "                output_meter(app, ui);\n                ui.add_space(if cfg!(target_os = \"korin\") { 104.0 } else { 0.0 });\n            });"),
+    ])
+    edit("crates/ui-egui/src/menus.rs", [
+        ("                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {\n                    ui.label(egui::RichText::new(title).color(t.text_dim));",
+         "                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {\n"
+         "                    ui.add_space(if cfg!(target_os = \"korin\") { 104.0 } else { 0.0 });\n"
+         "                    ui.label(egui::RichText::new(title).color(t.text_dim));"),
+    ])
+if name == "materialcraft":
+    # le nom de l'app, à droite de la barre d'outils (sous la barre de menus) : à l'écart des boutons d'Elegant
+    edit("crates/ui-egui/src/toolbar.rs", [
+        ("            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {\n                ui.label(RichText::new(\"MaterialCraft\")",
+         "            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {\n"
+         "                ui.add_space(if cfg!(target_os = \"korin\") { 104.0 } else { 0.0 });\n"
+         "                ui.label(RichText::new(\"MaterialCraft\")"),
     ])
 if name == "craft-anything":
     # Korin : le cadre, le bord, le redimensionnement et les boutons de fenêtre sont ceux d'Elegant
