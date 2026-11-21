@@ -66,7 +66,7 @@ copy_files build/kits/x86_64 "$OUT/lib" '*.so'
 # l'hôte Linux (sh tools/linux/build.sh ; paquet linuxhost) et la commande claude (paquet claude-code : le binaire de
 # Claude Code n'est jamais ici, le paquet le télécharge chez Anthropic ; docs/etude/LINUX-HOST.md)
 if [ -f build/pc/linux/linuxhost ]; then
-	cp build/pc/linux/linuxhost "$OUT/bin/linuxhost"
+	${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-strip -o "$OUT/bin/linuxhost" build/pc/linux/linuxhost
 	cp src/sys/linuxhost/xdg-open src/sys/linuxhost/claude "$OUT/bin/"
 	mkdir -p "$OUT/devtools/claude-code"
 	cp src/sys/linuxhost/README-claude-code.txt "$OUT/devtools/claude-code/README.txt"

@@ -46,7 +46,8 @@ Un `.opk` est un ZIP dont l'arborescence est celle de `/`, plus `PKG/manifest.in
 `category`, `author`, `summary`, `needs`, `required`, `restart`, `installed`, `config`, `boot`, `replaces`, `fetch`).
 
 - **`needs`** : d'autres paquets (`fmtracker`, `koton >= 1.2`), et `abi >= N`.
-- **`fetch`** (depuis le 21/11, pkgman 1.0.21) : `CHEMIN TAILLE SHA256 URL [; …]` : des fichiers que le paquet ne
+- **`fetch`** (depuis le 21/11, pkgman 1.0.21) : `CHEMIN TAILLE SHA256 URL[;CHEMIN …]` (dans `packages*.ini`, pas
+  d'espace avant « ; » : le lecteur d'ini de mkrepo y verrait un commentaire, comme dans `summary`) : des fichiers que le paquet ne
   porte pas, parce que leur éditeur ne permet pas qu'on les redistribue (Claude Code, paquet `claude-code` :
   docs/etude/LINUX-HOST.md), téléchargés en HTTPS à l'installation, chez l'éditeur, puis vérifiés par la taille et
   le SHA-256 écrits dans le manifeste (signé, comme toute l'archive, par l'index). Ils sont inscrits dans la base comme

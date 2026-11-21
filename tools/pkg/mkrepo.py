@@ -96,8 +96,9 @@ def bump (v):
 
 def vkey (v): return [int (x) if x.isdigit () else 0 for x in re.split (r"[.\-]", v)]
 
-def plan (sd, boot, ini):
-	"""-> [paquet], dans l'ordre du ini ; les fichiers sans paquet."""
+def plan (sd, boot, ini, known = ()):
+	"""-> [paquet], dans l'ordre du ini ; les fichiers sans paquet. known : d'autres noms de paquets à tenir pour
+	présents (pub.py : ceux de l'index publié, pour un besoin qui n'est pas construit dans l'arbre)."""
 	files = card_files (sd)
 	src = { f: sd for f in files }
 	if boot:
@@ -178,7 +179,7 @@ def plan (sd, boot, ini):
 			continue
 		make (s, dict (sec), split (sec.get ("files", "")))
 	# les exemples d'une app qui n'est pas construite : pas de paquet (son besoin manquerait au depot)
-	for changed in iter (lambda: [p for p in pkgs if any (n.split ()[0] not in [q["name"] for q in pkgs] for n in p["needs"])], []):
+	for changed in iter (lambda: [p for p in pkgs if any (n.split ()[0] not in [q["name"] for q in pkgs] and n.split ()[0] not in known for n in p["needs"])], []):
 		for p in changed:
 			print ("mkrepo: [%s] : son besoin n'est pas dans le depot (%s), paquet saute" % (p["name"], ", ".join (p["needs"])), file = sys.stderr)
 			pkgs.remove (p)
