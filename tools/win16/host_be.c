@@ -380,6 +380,17 @@ int be_file_save (const char *dir, const char *name, const char *filter, char *o
 	return 1;
 }
 
+/* (W16_ASK : la réponse ; sans elle, annulé) */
+int be_ask (const char *title, const char *prompt, char *buf, int cap)
+{
+	const char *e = getenv ("W16_ASK");
+	fprintf (stderr, "[hôte] question « %s » : %s -> %s\n", title, prompt, e ? e : "annulé");
+	if (!e)
+		return 0;
+	snprintf (buf, (size_t) cap, "%s", e);
+	return 1;
+}
+
 long be_color (const char *title, uint32_t rgb) { fprintf (stderr, "[hôte] couleur (%s)\n", title); return (long) rgb; }
 
 static char clip[8192];

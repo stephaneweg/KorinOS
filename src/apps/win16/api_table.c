@@ -350,6 +350,7 @@ extern void api_FarGetOwner16 (struct w16call *c) __attribute__ ((weak));
 extern void api_FarSetOwner16 (struct w16call *c) __attribute__ ((weak));
 extern void api_FastWindowFrame16 (struct w16call *c) __attribute__ ((weak));
 extern void api_FatalAppExit16 (struct w16call *c) __attribute__ ((weak));
+extern void api_FatalExit16 (struct w16call *c) __attribute__ ((weak));
 extern void api_FileCDR16 (struct w16call *c) __attribute__ ((weak));
 extern void api_FileOpenDlgProc16 (struct w16call *c) __attribute__ ((weak));
 extern void api_FileSaveDlgProc16 (struct w16call *c) __attribute__ ((weak));
@@ -1535,7 +1536,7 @@ extern void api_wsprintf16 (struct w16call *c) __attribute__ ((weak));
 extern void api_wvsprintf16 (struct w16call *c) __attribute__ ((weak));
 
 static const struct w16_api api_kernel[] = {
-	{ 1, 3, 0, "FatalExit", 0, 0, 0 },
+	{ 1, 0, 0, "FatalExit", "w", api_FatalExit16, 0 },
 	{ 2, 0, 1, "ExitKernel", "", api_ExitKernel16, 0 },
 	{ 3, 0, 0, "GetVersion", "", api_GetVersion16, 0 },
 	{ 4, 0, 1, "LocalInit", "www", api_LocalInit16, 0 },

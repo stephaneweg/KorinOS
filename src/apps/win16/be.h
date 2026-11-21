@@ -58,6 +58,8 @@ void be_fatal (const char *msg);
 int be_file_open (const char *dir, const char *filter, char *out, int cap);
 int be_file_save (const char *dir, const char *name, const char *filter, char *out, int cap);
 long be_color (const char *title, uint32_t rgb);
+/* une question avec un champ de texte (UTF-8 ; le tampon donne la valeur proposée) -> 1 OK, 0 annulé */
+int be_ask (const char *title, const char *prompt, char *buf, int cap);
 void be_clip_put (const char *utf8);
 int be_clip_take (char *buf, int cap);
 /* les widgets de UIKit (les contrôles standard de Win16 en mode natif : ctrl.c) ; x, y dans la zone cliente de la
