@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 16:20
+date = 2026-11-21 16:21
 abi = 626
 packages = 117
 board = pc
@@ -2131,3 +2131,19 @@ needs = linuxhost, bash, git, rg, python, pkgman >= 1.0.21, abi >= 626
 required = 0
 restart = 0
 content = a0bc74b15cf6b2b540a802c1b62f40ff9d4ab34aa1ca971ab41a96a61c53f5d0
+
+[rust-data-1]
+title = Rust (1/1)
+version = 1.97.1
+category = Développement
+author = Korin OS
+summary = Les données de Rust, partie 1 sur 1
+size = 100079600
+installed = 310848560
+sha256 = 42ea4e1f6da2d942f42523cc5f37e843a8740c1731b98fd971ce4f150c9d7b02
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-rust-data-1-1.97.1.opk
+needs = abi >= 627
+required = 0
+restart = 0
+part = rust
+content = d40ba42e562506e6d52bfd2eafc88c449203b32646585543ee473ff5f6388f3e
