@@ -40,3 +40,10 @@ par [[armpi-linux-compat]] quand elle existera. Trois questions en attente (clie
 **Reste** : construire oauthd + bin/oauth pour le PC (tools/pc/apps.sh oauthd), essai QEMU (faux serveur /gh/) puis
 vrai push depuis le ZBook ; publier (oauthd, providers.ini et git-credential-korin dans le paquet pc : version à
 monter ; partielle : reprendre providers.ini rempli de l'archive publiée, jamais de skel/). Le Pi : pas d'oauthd.
+
+**21/11, suite** : vérifié sous QEMU PC contre le faux GitHub (oauthsrv.py /gh/, compte github avec device_url et
+token_url vers 10.0.2.2:8090) : fill, approve, fill sans réseau, oauthd tué puis relancé (jeton durable au coffre),
+reject -> forget. Essai : scratchpad prep.py (copie de build/pc/sysroot sans devtools, telnetd, remote.txt) puis
+`tools/python/pctest.py run` (image build/pc/pytest/disk.img). Publié dans pc 2026.11.77 avec les volets Comptes en
+ligne et Coffre ([[armpi-oauth]], [[armpi-coffre]]). Reste : un vrai push vers github.com depuis le ZBook (créer
+l'OAuth App « Korin » avec Device Flow, le Client ID est demandé au premier push ou par Réglages › Comptes en ligne).

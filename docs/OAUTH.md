@@ -179,6 +179,10 @@ Le volet de Réglages installé avec oauthd (`src/svc/oauthd/applet/applet.cpp` 
 Le module n'a ni libc ni NetKit à lui : les relais `oauth_*` sont ceux de Réglages (relié en hôte, `-rdynamic`).
 Les appels qui attendent le réseau (`*_begin`) bloquent la fenêtre le temps de la requête (une ligne d'état le dit).
 
+Vérifié sous QEMU PC (21/11, faux GitHub de `oauthsrv.py`) : la liste (compte `github` de git), Se déconnecter, Se
+connecter (dialogue du code, fermé seul à l'accord, compte « connecté »), le dialogue Ajouter. Pas essayé : le flux
+par le navigateur (Jet n'était pas dans l'image d'essai) et un vrai fournisseur.
+
 ## 4. Exemple en C
 
 ```c
@@ -287,7 +291,8 @@ l'adresse elle-même) et appelle ses opérations directement.
 - **GitHub (21/11, Linux, AddressSanitizer)** : 71 vérifications sur 71 ; le faux serveur imite GitHub (`/gh/device`,
   `/gh/token` : erreurs en 200, `slow_down` avec intervalle 2, jeton `gho_…` sans durée, refus) : connexion,
   intervalle respecté, jeton durable chiffré dans `secrets`, relu sans réseau, oubli relu, refus. Pas contre le
-  vrai GitHub (le réseau de la machine d'essai l'intercepte), pas dans Korin.
+  vrai GitHub (le réseau de la machine d'essai l'intercepte). Dans Korin PC sous QEMU : voir GIT.md, « GitHub »
+  (jeton durable gardé au coffre, rendu après une relance d'oauthd).
 - **Linux (WSL, AddressSanitizer et UBSan, 16/11)** : 56 vérifications sur 56 contre `oauthsrv.py` (dont, le soir,
   le fournisseur livré : compte réduit à `provider`, client et portée pris de `providers.ini`, marqués « (Korin) »
   par `info`, non recopiés dans `accounts.ini`, connexion par code d'appareil, client propre au compte prioritaire) : configuration

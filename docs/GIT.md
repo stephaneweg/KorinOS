@@ -213,8 +213,15 @@ Client ID).
 
 Essai sous Linux : `bash tools/git/test/credential.sh` (le vrai git, `oauth` et `secret` simulés ; 29
 vérifications) ; oauthd : `sh src/svc/oauthd/test/run.sh` (fournisseur `github` contre `tools/nettest/oauthsrv.py`,
-`/gh/…`). **Pas encore essayé dans Korin** ni contre le vrai GitHub. Le Pi : oauthd n'y est pas encore construit,
-l'assistant y fait comme avant.
+`/gh/…`).
+
+**Vérifié dans Korin PC sous QEMU (21/11)**, contre le faux GitHub de `oauthsrv.py` (`device_url`, `token_url` du
+compte vers `http://10.0.2.2:8090/gh/…`) : `git credential fill` lance la connexion (code affiché, accordé en 5 s,
+`slow_down` respecté) et rend `x-access-token` et le jeton ; `approve` le garde au coffre ; le `fill` suivant le
+rend sans réseau ; oauthd tué puis relancé par NetKit rend le même jeton (durable, au coffre) ; `reject` fait
+`oauth forget github` ; `GIT_TERMINAL_PROMPT=0` ne connecte pas. **Pas encore** contre le vrai GitHub (le réseau du
+cloud l'intercepte) : premier essai réel sur le ZBook. Le Pi : oauthd n'y est pas encore construit, l'assistant y
+fait comme avant.
 
 ## Limites
 

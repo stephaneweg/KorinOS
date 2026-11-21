@@ -187,6 +187,11 @@ vérifiée comme au §2 ; un volet de `/sys/applets` agit donc au nom de Réglag
 - Coffre fermé : la carte du mot de passe, comme pour toute demande.
 - Client : `kv_mgr_list`, `kv_mgr_get`, `kv_mgr_delete` de `src/lib/keyvault/keyvault.h`.
 
+Vérifié sous QEMU PC (21/11 ; compte `user` avec un mot de passe posé par `passwd`) : la liste (deux secrets de
+`git-credential-korin`, le jeton d'oauthd), un faux mot de passe refusé, le bon montre la valeur (30 s), un autre
+secret ensuite sans le redemander, Supprimer (confirmation, mot de passe, secret effacé), Secrets du système (carte
+d'élévation, `@system / remote-password`, sa valeur sans nouvelle élévation).
+
 ## 5. Fichiers
 
 | Fichier | Contenu |

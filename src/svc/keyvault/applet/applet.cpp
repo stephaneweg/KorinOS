@@ -141,12 +141,12 @@ static void load (void)
 	}
 	ui_list_clear (w_list);
 	for (int i = 0; i < nsec; i++) {
-		char row[400], sz[32];
+		char row[sizeof (Sec) + 40], sz[32];
 		if (secs[i].len < 1024)
 			snprintf (sz, sizeof sz, "%ld o", secs[i].len);
 		else
 			snprintf (sz, sizeof sz, "%ld Kio", (secs[i].len + 1023) / 1024);
-		snprintf (row, sizeof row, "%s\t%s\t%s", secs[i].id, secs[i].name, sz);
+		snprintf (row, sizeof row, "%.159s\t%.128s\t%s", secs[i].id, secs[i].name, sz);
 		ui_list_add (w_list, (long) row, i);
 	}
 	ui_w_set_value (w_list, nsec ? 0 : -1);
