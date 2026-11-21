@@ -374,7 +374,9 @@ def main ():
 		if len (extra) > 15: say ("            ...")
 	if missing:
 		say ("  %d fichier(s) de l'archive absents de l'arbre (gardes tels quels)%s" % (len (missing), " : " + ", ".join (missing[:5]) if len (missing) <= 5 else ""))
-	if not changed and not added and not dropped:
+	# (--abi seul, autre que celui du manifeste publie : une nouvelle version sans fichier change, pour un paquet publie
+	# avec un abi que le systeme n'a pas encore ; rust 1.97.1-2, 21/11/2026)
+	if not changed and not added and not dropped and not (a.abi and a.abi != base_abi):
 		shutil.rmtree (TMP, ignore_errors = True)
 		say ("pub: rien n'a change dans %s : rien a publier" % name)
 		return
