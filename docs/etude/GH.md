@@ -1,6 +1,7 @@
 # Étude : `gh` (GitHub CLI) sur Korin
 
-Demandée le 18/11/2026. Rien n'est fait.
+Demandée le 18/11/2026. **§5 fait le 21/11** (oauthd : fournisseur `github`, jetons durables ; `git-credential-korin` ;
+essayé sous Linux seulement) : voir [GIT.md](../GIT.md), « GitHub ».
 
 **Décision de l'utilisateur (18/11/2026) : pas de `gh`.** Il ne fait que `push`, `pull`, `fetch`, `checkout` (pas de
 PR) : au plan, **l'identification GitHub dans `git-credential-korin`** par le code d'appareil d'`oauthd` (§5). Les

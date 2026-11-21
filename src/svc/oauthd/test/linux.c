@@ -299,6 +299,68 @@ int main(void)
 	CHECK(call(OA_SETUP, "t/mark", 0, "provider = fake\n", 0) == E_INVAL, "marque non remplie : client absent");
 	unlink(PROVIDERS_INI);
 
+	/* ---- GitHub (OAuth App, Device Flow) : erreurs avec le statut 200, slow_down et son intervalle, jeton sans
+	 * durée ni jeton de rafraîchissement, gardé chiffré (docs/etude/GH.md §5) */
+	{
+		char ghconf[512];
+		snprintf(ghconf, sizeof ghconf, "provider = github\nclient_id = cid\nscope = repo workflow\n"
+						"device_url = %s/gh/device\ntoken_url = %s/gh/token\n", S, S);
+		CHECK(call(OA_SETUP, "t/gh", 0, "provider = github\n", 0) == E_INVAL, "github sans client_id : refusé");
+		CHECK(call(OA_SETUP, "t/gh", 0, ghconf, 0) == 0, "setup github");
+		r = call(OA_INFO, "t/gh", 0, 0, outbuf);
+		CHECK(r > 0 && strstr(outbuf, "auth_url = https://github.com/login/oauth/authorize\n"), "github : adresses connues : %s",
+		      outbuf);
+		r = call(OA_DEVICE_BEGIN, "t/gh", 0, 0, outbuf);
+		CHECK(r > 0 && !strncmp(outbuf, "WDJB-MJHT\nhttps://github.com/login/device\n\n900\n1\n", 49),
+		      "github : device_begin %ld %s", r, outbuf);
+		int n = 0;
+		long t0 = now_ms();
+		for (int i = 0; i < 30; i++) {
+			usleep(250000);
+			r = call(OA_DEVICE_POLL, "t/gh", 0, 0, 0);
+			if (r != E_AGAIN)
+				break;
+			n++;
+		}
+		CHECK(r == 0, "github : connecté malgré les erreurs en 200 : %ld", r);
+		CHECK(now_ms() - t0 >= 3500, "github : intervalle de slow_down respecté (%ld ms)", now_ms() - t0);
+		CHECK(call(OA_STATUS, "t/gh", 0, 0, 0) == 2, "github : jeton valable");
+		r = call(OA_TOKEN, "t/gh", 0, 0, outbuf);
+		char gh[96];
+		scpy(gh, outbuf, sizeof gh);
+		CHECK(r > 0 && !strncmp(gh, "gho_", 4), "github : jeton %s", gh);
+		struct account *ga = find("t/gh");
+		CHECK(ga && ga->lasting && ga->access_until == LASTING_UNTIL, "github : jeton durable");
+		size_t sn = 0;
+		char *sf = file_read(SECRETS_FILE, &sn);
+		CHECK(sf && !memmem(sf, sn, "gho_", 4), "github : jeton chiffré dans secrets");
+		free(sf);
+		reset_memory();
+		CHECK(call(OA_STATUS, "t/gh", 0, 0, 0) == 2, "github relu : jeton valable sans réseau");
+		r = call(OA_TOKEN, "t/gh", 0, 0, outbuf);
+		CHECK(r > 0 && !strcmp(outbuf, gh), "github relu : même jeton (%s)", outbuf);
+		CHECK(call(OA_STATUS, "t/dev", 0, 0, 0) == E_NOENT && call(OA_STATUS, "t/web", 0, 0, 0) == 0,
+		      "les autres comptes relus comme avant");
+		CHECK(call(OA_FORGET, "t/gh", 0, 0, 0) == 0 && call(OA_STATUS, "t/gh", 0, 0, 0) == 0, "github : oubli");
+		reset_memory();
+		CHECK(call(OA_STATUS, "t/gh", 0, 0, 0) == 0 && call(OA_TOKEN, "t/gh", 0, 0, outbuf) == E_ACCES,
+		      "github : oubli relu");
+		/* refusé par l'utilisateur */
+		snprintf(ghconf, sizeof ghconf, "provider = github\nclient_id = cid\nscope = deny\n"
+						"device_url = %s/gh/device\ntoken_url = %s/gh/token\n", S, S);
+		CHECK(call(OA_SETUP, "t/gh", 0, ghconf, 0) == 0 && call(OA_DEVICE_BEGIN, "t/gh", 0, 0, outbuf) > 0,
+		      "github : nouvelle demande");
+		for (int i = 0; i < 20; i++) {
+			usleep(250000);
+			r = call(OA_DEVICE_POLL, "t/gh", 0, 0, 0);
+			if (r != E_AGAIN)
+				break;
+		}
+		CHECK(r == E_ACCES && strstr(last_err(), "access_denied"), "github : refus : %ld", r);
+		CHECK(call(OA_REMOVE, "t/gh", 0, 0, 0) == 0, "github : retrait");
+		(void)n;
+	}
+
 	/* ---- en clair vers une adresse publique : refusé ; client changé : jetons oubliés */
 	CHECK(call(OA_SETUP, "t/pub", 0, "client_id = cid\ntoken_url = http://example.com/token\n", 0) == 0, "setup t/pub");
 	CHECK(call(OA_DEVICE_BEGIN, "t/pub", 0, 0, outbuf) == E_INVAL, "pas de device_url");

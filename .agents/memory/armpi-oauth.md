@@ -45,3 +45,10 @@ monter la version du paquet pc à la publication. Voir [[armpi-smb]] (modèle sm
 
 **gdrivefs : lecture anticipée en parallèle (17/11)** : sur le ZBook, après le Wi-Fi rapide (866 Mb/s), une copie plafonnait à 6-9 Mo/s en pics puis zéros (une requête de 16 Mo à la fois, l'attente de Google entre deux). Maintenant `threads` (4 ; réglage de drives.ini, jusqu'à 32), `chunk` (8M), `ahead` (threads x chunk) ; cache agrandi tout seul. Blocs réservés (fill) sous cache_mx, connexion par thread (`cn` = *cn_cur, __thread), jeton sous tok_mx, getaddrinfo et contexte TLS sous net_mx. Harnais : 148/148 ASan et TSan (TSAN=1 sh src/svc/gdrivefs/test/run.sh) ; faux serveur /ctl?delay=S et inflight_max. La boucle du service reste seule pour les requêtes du volume.
 Mesure du 17/11 (pc 2026.11.40, ZBook, Wi-Fi 866 Mb/s, threads = 16 dans drives.ini) : copie depuis Google Drive par Fichiers jusqu'à 20 Mo/s (6,6 avant la lecture anticipée), comme sous Windows. drives.ini est HOME:/gdrive/drives.ini, soit /home/<compte>/gdrive (à créer : gdrivefs ne crée gdrive/ qu'au premier envoi).
+
+**Réglages › Comptes en ligne (21/11, demande de l'utilisateur : « dans un applet » de Réglages)** :
+src/svc/oauthd/applet/applet.cpp -> sys/applets/accounts.so (construit par build_oauth de tools/pc/apps.sh, paquet pc) :
+liste d'oauth_list, Ajouter (Google, Microsoft, GitHub ; Client ID de Korin ou à donner, « Créer sur GitHub… »),
+Se connecter (code d'appareil : dialogue code + Ouvrir dans Jet + Copier ; Google : Jet + adresse de retour collée),
+Se déconnecter, Retirer. Les oauth_* sont les relais de NetKit de Réglages (hôte -rdynamic). Vérifié sous QEMU PC
+(faux GitHub). oauthd : provider github, erreurs en HTTP 200, jetons durables ([[armpi-gh]]). Publié pc 2026.11.77.
