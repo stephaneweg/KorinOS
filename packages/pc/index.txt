@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 00:46
+date = 2026-11-21 01:19
 abi = 626
 packages = 117
 board = pc
@@ -144,18 +144,18 @@ content = b57a4a85cba3d597e4a7b3ba6596d9ba7219495472518734c6f2a061be2c554a
 
 [win16]
 title = Windows 3.x
-version = 1.0.6
+version = 1.0.7
 category = Émulateurs
 author = Korin OS
 summary = 
-size = 713202
-installed = 1618321
-sha256 = 8e542be08cd499c9ea2051c263f814a432d1a8622ce628c447de22523a73468c
-file = pkgs/win16-1.0.6.opk
+size = 731854
+installed = 1655185
+sha256 = 86e537dc0183dfceb277688059f1de2fe30e3bf6182d927dc9e13026c1a4a353
+file = pkgs/win16-1.0.7.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 450369f8a9a46e03063af1e43debc102509002406a19bc99135d45aede7cc8f0
+content = 516a8587fc244059df633bf7f0952852e7a2d91f74a812c28ca8a9387ea8c7ad
 
 [morpho]
 title = Morpho
