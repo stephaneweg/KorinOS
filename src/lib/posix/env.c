@@ -35,7 +35,7 @@ char *program_invocation_short_name = "a.out";
 
 static const char *const s_defaults[] =
 {
-	"HOME=/home", "PATH=/bin:/sbin:/devtools/gcc/bin", "TMPDIR=/tmp", "LANG=C.UTF-8", "TERM=dumb", 0
+	"HOME=/home", "PATH=/bin:/sbin:/devtools/gcc/bin:/devtools/rust/bin", "TMPDIR=/tmp", "LANG=C.UTF-8", "TERM=dumb", 0
 };
 
 long __posix_spawn_h = -1;

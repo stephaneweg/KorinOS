@@ -53,7 +53,7 @@ The shell also understands variables, `|` pipes, `< > >>` redirections, `if`, `f
 
 ## Starting a program
 
-Any name that is not a built-in command starts a program, looked up in the `PATH` (`/bin`, `/devtools/gcc/bin`), then as the application `/apps/name.app`; a full path (`/bin/gcc`) works too. The arguments follow the name:
+Any name that is not a built-in command starts a program, looked up in the `PATH` (`/bin`, `/sbin`, `/devtools/gcc/bin`, `/devtools/rust/bin`), then as the application `/apps/name.app`; a full path (`/bin/gcc`) works too. The arguments follow the name:
 
 ```sh
 pkg list

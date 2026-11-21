@@ -24,6 +24,7 @@ sh tools/pc/sysroot.sh && sh tools/pc/sysroot_cargo.sh   # -> /devtools/rust/bin
 | `tools/cargo/patches/` | les caisses de crates.io retouchées pour Korin (plus bas) ; `build.sh` prend aussi celles de `tools/craft/patches` (communes avec [CRAFT.md](CRAFT.md)) |
 | `tools/rust/libc-projects.sh` | la `libc` 0.2.191 des projets (`libc.patch` rejoué), sortie de `tools/craft/build.sh` pour servir aux deux |
 | `tools/pc/sysroot_cargo.sh` | pose cargo dans `/devtools/rust/bin` (où ira rustc) et `/etc/ca-bundle` s'il manque |
+| le `PATH` (21/11/2026) | `/devtools/rust/bin` ajouté au `PATH` par défaut (`/bin:/sbin:/devtools/gcc/bin:/devtools/rust/bin` : libposix `env.c` et `confstr`, `sh`, `sudo`), au bashrc du système et aux dossiers exécutables (`/etc/exec.txt`, défaut de vfs) : `cargo` se lance par son nom. Le `sh` et le vfs en assembleur du Pi ne changent pas (pas de Rust sur le Pi) |
 | `tools/cargo/test/` | `registry.py` (un registre « sparse » local), `projects/` (les projets d'essai) |
 
 ### Les bibliothèques en C
@@ -92,8 +93,6 @@ cargo lance `rustc -vV` (version, cible) avant tout ce qui dépend de la cible o
 ## Limites connues
 
 * QEMU seulement, pas encore sur le ZBook.
-* `/devtools/rust/bin` n'est pas dans le `PATH` (`/bin:/devtools/gcc/bin`, dans vfs et libposix) : on lance
-  `/devtools/rust/bin/cargo`.
 * Pas de paquet (`pkg`) pour l'instant.
 * Pas de liens symboliques dans Korin : une caisse de crates.io qui en contient ne se dépaquette pas.
 * Verrous de fichiers sans effet (`flock` de libposix) : un seul cargo à la fois sur le même `CARGO_HOME`.
