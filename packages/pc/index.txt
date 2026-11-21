@@ -769,18 +769,18 @@ content = 9f3244bd42488815f7682ae113124deaad03bea4677881900b3e4fd5302ed6f4
 
 [arabesque]
 title = Arabesque
-version = 1.3.6
+version = 1.3.7
 category = Multimédia
 author = Korin OS
 summary = 
-size = 284831
-installed = 587949
-sha256 = 63831dbf40974410abdf0d743c12fbe35a8fdc12cc00ff0b2d85d46aa8928b0f
-file = pkgs/arabesque-1.3.6.opk
+size = 291484
+installed = 602035
+sha256 = 2c6a89f83df5f369f658763e5d368cf635c8863a7732ee7183249ac622ea2fa8
+file = pkgs/arabesque-1.3.7.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 7ccc26a7b128b0cea5d8b0f380bc893551e72ad226c32d19a7c18b4e0e374c8b
+content = 6a69066ad9ee63e42da5e8a7ef1719dae518af2bfb928043318d006b49492130
 
 [archiver]
 title = Archiveur
