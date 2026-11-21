@@ -2,7 +2,10 @@
 
 Étude du 21/11/2026, demandée par l'utilisateur : un nouvel IDE écrit en **Rust avec egui**, dans le style des apps
 Craft, **portable** (Korin d'abord, puis Windows, Linux, macOS), qui prend en charge **Rust, C (gcc), l'assembleur,
-FreeBASIC et C#**. Rien n'est fait.
+FreeBASIC, le BASIC et C#**. Rien n'est fait.
+
+**Précisions de l'utilisateur (21/11)** : la cible est **le PC** (Korin x86-64) ; **à terme ce sera le seul IDE** de
+Korin (il remplace le Studio Avalonia, QBStudio…), et il prend aussi **le BASIC**.
 
 ## 1. Pourquoi c'est faisable maintenant
 
@@ -33,8 +36,9 @@ FreeBASIC et C#**. Rien n'est fait.
 | Langage | Construire dans Korin | Construire ailleurs | Intelligence (complétion, erreurs, aller à la définition) |
 |---|---|---|---|
 | **C / C++** | gcc, pibuild, make | gcc, clang, make, CMake | clangd n'est pas dans Korin (LLVM) ; ailleurs, clangd par LSP. Dans Korin : erreurs de gcc analysées, index tree-sitter |
-| **Assembleur** | FASMARM (Pi) ; sur le PC, l'assembleur de gcc (`as`) | idem, NASM… | `asm-lsp` (Rust) possible partout ; les macros de Korin (`sys SYS_xxx`, `src/inc`) à lui apprendre |
-| **FreeBASIC** | `fbc` | `fbc` | aucun LSP connu : tree-sitter (une grammaire existe) et l'analyse des messages de `fbc` |
+| **Assembleur** | sur le PC : l'assembleur de gcc (`as`, syntaxe GNU) ; **pas de FASM x86 dans Korin** (le noyau s'assemble par le FASM de Windows) : FASM est en assembleur et a une version Linux, son port est petit (ses appels au système) ; FASMARM pour le Pi | idem, NASM… | `asm-lsp` (Rust) possible partout ; les macros de Korin (`sys SYS_xxx`, `src/inc`) à lui apprendre |
+| **FreeBASIC** | `fbc` (paquet `freebasic`) | `fbc` | aucun LSP connu : tree-sitter (une grammaire existe) et l'analyse des messages de `fbc` |
+| **BASIC** (à la QBasic) | le BASIC d'Onyx (`/bin/basic`, QBStudio, `.form`) **n'est pas sur le PC** (il est en assembleur AArch64) ; sur le PC, `fbc -lang qb` compile le dialecte QBasic | `fbc -lang qb` | celui de FreeBASIC ; les `.form` de QBStudio à reprendre (§ 4) |
 | **C#** | Roslyn, `csbuild` (`.csproj`) | `dotnet build` | un serveur Roslyn (`csharp-ls`, Roslyn LSP) : tourne sur .NET, donc **peut-être dans Korin** (à essayer : mémoire, temps de démarrage) |
 | **Rust** | **en cours** : une autre session porte rustc dans Korin, LLVM est fait (21/11) ; d'ici là, la chaîne `x86_64-unknown-korin` du PC (WSL) | cargo | rust-analyzer ailleurs ; dans Korin, rust-analyzer une fois rustc et cargo là (Rust pur) |
 
@@ -63,12 +67,26 @@ caisse ou un Pi trop lent.
 6. **Korin en plus** : ouvrir une app de `src/apps` ou de `HOME:/`, l'installer (`/apps`), la lancer ; les jetons du
    thème (`ui_tokens()`), l'aide des kits (`/apps/help.app/api/`) dans la complétion et au survol.
 
-## 4. Et les IDE qui existent déjà dans Korin
+## 4. Le seul IDE de Korin, à terme
 
-Korin a le **Studio Avalonia** (`avstudio`, C# : `.csproj`, éditeur d'interface Avalonia, AvaloniaEdit, compilation dans
-l'OS), **QBStudio** (BASIC), **WebStudio**, et l'**Éditeur**. Le nouvel IDE ne remplace pas l'éditeur d'interface
-d'Avalonia ; il serait l'IDE **de code**, multi-langage et portable. À décider : soit le Studio reste pour C# et les
-interfaces, soit le nouvel IDE le remplace à terme en ouvrant les `.axaml` dans le Studio.
+Korin a aujourd'hui le **Studio Avalonia** (`avstudio`, C# : `.csproj`, éditeur d'interface Avalonia, AvaloniaEdit,
+compilation dans l'OS), **QBStudio** (le BASIC d'Onyx, fenêtres dessinées en `.form` ; Pi seulement), **WebStudio**,
+et l'**Éditeur**. Pour que le nouvel IDE les remplace, il lui faut, en plus du code :
+
+- **les projets de chacun** : `.csproj` (lus par `tools/dotnet/project`, construits par `csbuild`), dossiers d'app de
+  Korin (`app.txt`, pibuild), `Cargo.toml`, `Makefile`, sites web (WebStudio : un dossier servi, F5 dans Jet) ;
+- **les éditeurs d'interface** : le plus gros morceau après l'éditeur de code. Deux voies :
+  - un **éditeur de fenêtres à soi**, en egui, pour un format de Korin (les `.form` de QBStudio, ou un format nouveau
+    qui produit du C sur UIKit, du C#, du BASIC) : l'aperçu se dessine dans l'IDE ;
+  - pour **Avalonia** (`.axaml`), l'aperçu ne peut être fait que par Avalonia : un **processus d'aperçu** (le
+    concepteur du Studio actuel, en C#, sans son habillage) qui peint dans une surface partagée que l'IDE affiche, et
+    lui renvoie les clics (sélection, glisser) ; l'IDE garde l'arbre, les propriétés et le texte.
+- **le BASIC** : sur le PC, par FreeBASIC (`-lang qb` pour les programmes à la QBasic). Le BASIC d'Onyx (classes,
+  fenêtres, kits par `#import`) n'existe que sur le Pi : soit le porter au PC (VM en assembleur AArch64, donc une
+  réécriture, en C ou en Rust), soit dire que le BASIC du PC est FreeBASIC. **À décider.**
+
+Le passage se fait par étapes : l'IDE d'abord pour le code (tous les langages), puis les éditeurs d'interface ; le
+Studio et QBStudio restent tant que l'IDE ne fait pas tout ce qu'ils font.
 
 ## 5. Les étapes et leur taille
 
@@ -80,6 +98,8 @@ interfaces, soit le nouvel IDE le remplace à terme en ouvrant les `.axaml` dans
 | 3 | Intelligence interne (symboles tree-sitter, aller à la définition dans le projet) ; client LSP ailleurs (clangd, rust-analyzer, Roslyn) | 1 semaine |
 | 4 | Panneau d'agent ACP (claude-acp, Vibe) | 2–3 jours |
 | 5 | Terminal intégré (pty de Korin), Git (`git` complet dans Korin), débogage DAP ailleurs | 1–2 semaines |
+| 6 | Éditeur de fenêtres (UIKit, BASIC, C#), aperçu d'Avalonia par un processus à part, projets web | 3–4 semaines |
+| 7 | FASM x86 dans Korin (port), et le BASIC d'Onyx sur le PC si on le veut | 1 semaine ; le BASIC : à chiffrer |
 
 Le travail se fait **hors de l'OS** comme les Craft (cargo, puis `tools/craft/build.sh` pour Korin), et tourne d'abord
 sur Linux/Windows pour aller vite, puis sous QEMU.
@@ -90,4 +110,5 @@ sur Linux/Windows pour aller vite, puis sous QEMU.
 - **Où vit le code** : un dossier de ce dépôt (`src/apps/<nom>`, construit par une recette comme `tools/craft`) ou un
   dépôt à part (plus simple à porter ailleurs, à publier).
 - **Rust dans Korin** : le port de rustc est en cours (autre session, LLVM fait) ; l'utilisateur dira quand il est fini.
-- **Le Studio Avalonia** : il reste, ou le nouvel IDE le remplace à terme.
+- **Le BASIC du PC** : FreeBASIC seul (`-lang qb` pour le style QBasic), ou aussi un port du BASIC d'Onyx.
+- ~~Le Studio Avalonia~~ : décidé, le nouvel IDE remplacera à terme tous les IDE de Korin (21/11).

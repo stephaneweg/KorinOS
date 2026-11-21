@@ -12,6 +12,10 @@ décider : nom, dépôt, sort du Studio Avalonia).
 **Rust dans Korin** : une autre session porte rustc, **LLVM est déjà fait** (dit par l'utilisateur le 21/11) ; il
 dira quand c'est fini. Ne pas prévoir de construction déportée de Rust dans l'IDE.
 
+**Cible : le PC.** **À terme le seul IDE de Korin** (remplace le Studio Avalonia, QBStudio…), **BASIC aussi** (dit le
+21/11). Le BASIC d'Onyx n'est que sur le Pi (asm AArch64) : FreeBASIC `-lang qb` ou un port, à décider. Pas de FASM
+x86 dans Korin (à porter).
+
 Même jour : docs/etude/CRAFT-ANYTHING-IA.md (claude-acp et Vibe en ACP dans Craft Anything ; Jet à la place de
 Chromium par un serveur CDP, § 4 bis).
 
