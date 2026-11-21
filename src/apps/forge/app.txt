@@ -7,3 +7,4 @@ help = Clic : choisir une face ou une arête ; dans le panneau Corps, un corps (
 help = Bouton droit glissé : tourner la vue ; bouton du milieu : la déplacer ; molette : zoomer vers le pointeur. Le cube de vue : un clic sur une face pour la vue type.
 help = Affichage : vues de face, de dessus, de droite, isométrique (Alt+1, 2, 3, 0), Ajuster (F6), arêtes et grille.
 opens    = forge
+skill    = SKILL.md

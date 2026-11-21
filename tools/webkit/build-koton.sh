@@ -58,7 +58,7 @@ ${TC}g++ -mcpu=cortex-a72 -specs="$S/lib/onyx.specs" -L"$S/lib" -Wl,--gc-section
 	-lm -o "$O/koton"
 ${TC}size "$O/koton"
 ${STRIP} -o "$WK_OUT/out/koton.app/main" "$O/koton"
-cp "$K/app.txt" "$K/data/drums.json" "$K/data/demo.kson" "$WK_OUT/out/koton.app/"
+cp "$K/app.txt" "$K/SKILL.md" "$K/data/drums.json" "$K/data/demo.kson" "$WK_OUT/out/koton.app/"
 
 # les greffons : un programme par dossier, sans kit (kplug.h : POSIX seul)
 rm -rf "$WK_OUT/out/koton.app/plugins"

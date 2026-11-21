@@ -109,7 +109,7 @@ build_koton () {
 		${TC}strip -o "$D/plugins/$id/main" "$O/plugins/$id/prog"
 		cp "$d/plugin.json" "$D/plugins/$id/"
 	done
-	cp app.txt data/drums.json help_*.md "$D/"
+	cp app.txt SKILL.md data/drums.json help_*.md "$D/"
 	cp -r help "$D/"
 	cp data/demo.kson "$OUT/sdroot/home/public/koton/songs/"
 	cp demos/*.kson "$OUT/sdroot/home/public/koton/demos/"
@@ -384,6 +384,7 @@ build_one () { # nom
 	fi
 	${TC}strip -o "$D/main" "$O/main"
 	cp app.txt "$D/"
+	[ ! -f SKILL.md ] || cp SKILL.md "$D/"	# (la compétence des agents : clé skill de app.txt, docs/ABI.md)
 	[ ! -f webapp.txt ] || cp webapp.txt "$D/"	# (une app web sur le moteur de Jet : src/extra/onyxports/jet/webapp.cpp)
 	[ ! -d data ] || cp -r data/. "$D/"
 	# (l'aide de l'app et ses images, comme build.ps1 sur le Pi : le menu Aide de menubar, help.app)
