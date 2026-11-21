@@ -4,6 +4,8 @@
 # libposix et l'éditeur de liens du PC) :
 #     bash tools/rust/rustc-build.sh            stage 1 : rustc de l'hôte + la std de x86_64-unknown-korin
 #     TARGETS="x86_64-unknown-korin aarch64-unknown-korin" bash tools/rust/rustc-build.sh   les deux
+#     KORIN_HOSTS=x86_64-unknown-korin bash tools/rust/rustc-build.sh    puis rustc pour Korin (stage 2, hôte korin :
+#                                            LLVM pour Korin construit par bootstrap, librustc_driver.so, rustc)
 # Les sources de rust-lang/rust à la 1.97.1 (rustc-1.97.1-src.tar.xz, sha256 vérifié), avec :
 #   tools/rust/rustc.patch   le compilateur : Os::Korin, spec/base/korin.rs, les deux cibles, la doc de plateforme,
 #                            l'essai d'assembleur, la liste des cibles inconnues du compilateur d'amorçage (bootstrap)
@@ -89,6 +91,8 @@ linker = \"$W/bin/$a-korin-gcc\"
 done
 T="\"$HOST\""
 for t in $TARGETS; do T="$T, \"$t\""; done
+HL="\"$HOST\""
+for h in ${KORIN_HOSTS:-}; do HL="$HL, \"$h\""; done
 cat > "$S/bootstrap.toml" <<EOF
 # tools/rust/rustc-build.sh (Korin)
 change-id = "ignore"
@@ -100,7 +104,7 @@ link-shared = true
 
 [build]
 build = "$HOST"
-host = ["$HOST"]
+host = [$HL]
 target = [$T]
 docs = false
 extended = false
@@ -127,3 +131,19 @@ cp "$L"/lib/libLLVM*.so* "$ST/lib/"
 "${CARGO_HOME:-$HOME/.cargo}/bin/rustup" toolchain link korin-stage1 "$ST" 2>/dev/null || true
 "$ST/bin/rustc" --print target-list | grep korin
 echo "rustc-build : $ST"
+
+# 5. rustc pour Korin (KORIN_HOSTS) : stage 2, compilé par le stage 1 (seul à connaître les cibles de Korin).
+#    Le programme rustc est l'hôte de librustc_driver.so, de la std et des macros procédurales : il exporte la libc
+#    (-rdynamic) et libstdc++ (dlhost-cxx.ld de libposix, que demande le C++ de LLVM dans librustc_driver) ;
+#    compiler/rustc/build.rs lit KORIN_DLHOST_CXX et KORIN_RUSTC_LINK_ARGS (rustc.patch).
+for h in ${KORIN_HOSTS:-}; do
+	a=${h%%-*}
+	case $a in
+	x86_64) P=$ROOT/build/pc/posix/lib ;;
+	aarch64) P=$ROOT/build/posix/lib ;;
+	esac
+	(cd "$S" && LD_LIBRARY_PATH=$L/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} KORIN_DLHOST_CXX=$P/dlhost-cxx.ld \
+		KORIN_RUSTC_LINK_ARGS="${KORIN_RUSTC_LINK_ARGS:-}" \
+		python3 x.py build --stage 2 compiler/rustc library --host "$h" --target "$h" -j "$(nproc)")
+	echo "rustc-build : $S/build/$h/stage2"
+done

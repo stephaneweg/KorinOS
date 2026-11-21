@@ -1,3 +1,45 @@
+diff -ruN a/compiler/rustc/build.rs b/compiler/rustc/build.rs
+--- a/compiler/rustc/build.rs
++++ b/compiler/rustc/build.rs
+@@ -7,6 +7,22 @@
+     let target_env = env::var("CARGO_CFG_TARGET_ENV");
+     if Ok("windows") == target_os.as_deref() && Ok("msvc") == target_env.as_deref() {
+         set_windows_exe_options();
++    } else if Ok("korin") == target_os.as_deref() {
++        // Korin OS: `rustc` is the host of librustc_driver, std and the proc-macros, all loaded by
++        // libposix's `dlopen`: it exports the C library (`-rdynamic`) and libstdc++ (libposix's
++        // `dlhost-cxx.ld`, named by KORIN_DLHOST_CXX), which LLVM's C++ in librustc_driver uses.
++        // KORIN_RUSTC_LINK_ARGS: more link arguments (the TLS reserve of the shared objects).
++        println!("cargo:rerun-if-env-changed=KORIN_DLHOST_CXX");
++        println!("cargo:rerun-if-env-changed=KORIN_RUSTC_LINK_ARGS");
++        println!("cargo:rustc-link-arg-bin=rustc-main=-rdynamic");
++        if let Ok(ld) = env::var("KORIN_DLHOST_CXX") {
++            println!("cargo:rustc-link-arg-bin=rustc-main={ld}");
++        }
++        println!("cargo:rustc-link-arg-bin=rustc-main=-lstdc++");
++        for arg in env::var("KORIN_RUSTC_LINK_ARGS").unwrap_or_default().split_whitespace() {
++            println!("cargo:rustc-link-arg-bin=rustc-main={arg}");
++        }
++        println!("cargo:rerun-if-changed=build.rs");
+     } else {
+         // Avoid rerunning the build script every time.
+         println!("cargo:rerun-if-changed=build.rs");
+diff -ruN a/compiler/rustc_llvm/build.rs b/compiler/rustc_llvm/build.rs
+--- a/compiler/rustc_llvm/build.rs
++++ b/compiler/rustc_llvm/build.rs
+@@ -493,7 +493,11 @@
+     }
+ 
+     // C++ runtime library
+-    if !target.contains("msvc") {
++    // Korin OS: libstdc++ only exists as a static archive, whose TLS cannot go into a shared object
++    // (librustc_driver). The `rustc` executable links it and exports it to its shared objects, like
++    // every C++ host of libposix's `dlopen` (see `compiler/rustc/build.rs`).
++    if target.contains("korin") {
++    } else if !target.contains("msvc") {
+         if let Some(s) = llvm_static_stdcpp {
+             assert!(cxxflags.into_iter().all(|flag| flag != "-stdlib=libc++"));
+             let path = PathBuf::from(s);
 diff -ruN a/compiler/rustc_target/src/spec/base/korin.rs b/compiler/rustc_target/src/spec/base/korin.rs
 --- a/compiler/rustc_target/src/spec/base/korin.rs
 +++ b/compiler/rustc_target/src/spec/base/korin.rs
@@ -122,6 +164,20 @@ diff -ruN a/compiler/rustc_target/src/spec/targets/x86_64_unknown_korin.rs b/com
 +        options: base,
 +    }
 +}
+diff -ruN a/src/bootstrap/src/core/build_steps/llvm.rs b/src/bootstrap/src/core/build_steps/llvm.rs
+--- a/src/bootstrap/src/core/build_steps/llvm.rs
++++ b/src/bootstrap/src/core/build_steps/llvm.rs
+@@ -697,6 +697,10 @@
+             cfg.define("CMAKE_SYSTEM_NAME", "SunOS");
+         } else if target.contains("linux") {
+             cfg.define("CMAKE_SYSTEM_NAME", "Linux");
++        } else if target.contains("korin") {
++            // Korin OS: a POSIX layer (newlib, libposix) that CMake handles as a Unix like Linux, without
++            // `__linux__`, so that LLVM takes its generic POSIX paths.
++            cfg.define("CMAKE_SYSTEM_NAME", "Linux");
+         } else if target.contains("darwin") {
+             // macOS
+             cfg.define("CMAKE_SYSTEM_NAME", "Darwin");
 diff -ruN a/src/bootstrap/src/core/sanity.rs b/src/bootstrap/src/core/sanity.rs
 --- a/src/bootstrap/src/core/sanity.rs
 +++ b/src/bootstrap/src/core/sanity.rs
