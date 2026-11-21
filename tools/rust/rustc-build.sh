@@ -76,8 +76,9 @@ for t in $TARGETS; do
 	esac
 	[ -f "$SPECS" ] || { echo "rustc-build : $SPECS absent (ARCH=$a sh tools/posix/build.sh)" >&2; exit 1; }
 	mkdir -p "$W/bin"
+	# (_GNU_SOURCE : sans lui, newlib cache POSIX en mode strict, -std=c++17 de LLVM : sigemptyset...)
 	for d in gcc g++; do
-		printf '#!/bin/sh\nexec %s%s -specs=%s "$@"\n' "$TC" "$d" "$SPECS" > "$W/bin/$a-korin-$d"
+		printf '#!/bin/sh\nexec %s%s -specs=%s -D_GNU_SOURCE "$@"\n' "$TC" "$d" "$SPECS" > "$W/bin/$a-korin-$d"
 		chmod +x "$W/bin/$a-korin-$d"
 	done
 	TL="$TL
