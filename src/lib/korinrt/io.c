@@ -6,6 +6,7 @@
 
 static u8 out_buf[T_OUT];
 static u64 out_n;
+long krt_out_err; /* la première erreur d'écriture de la sortie (E_NOSPC : exit le dit) */
 
 void out_flush(void)
 {
@@ -13,7 +14,17 @@ void out_flush(void)
 	if (!n)
 		return;
 	out_n = 0;
-	sys_write(1, out_buf, n);
+	const u8 *p = out_buf;
+	while (n) { /* (une écriture courte : le reste, qui rend l'erreur) */
+		long r = sys_write(1, p, n);
+		if (r <= 0) {
+			if (r < 0 && !krt_out_err)
+				krt_out_err = r;
+			break;
+		}
+		p += r;
+		n -= (u64)r > n ? n : (u64)r;
+	}
 }
 
 /* (comme t_putc : le tampon plein n'est vidé qu'au caractère suivant) */
@@ -89,6 +100,18 @@ void err_file(const char *path)
 	err_puts(": ");
 	err_puts(path);
 	err_say(" : inaccessible\n");
+}
+
+void err_file_e(const char *path, long e)
+{
+	if (e != E_NOSPC) {
+		err_file(path);
+		return;
+	}
+	err_puts(krt_argv[0]);
+	err_puts(": ");
+	err_puts(path);
+	err_say(" : disque plein\n");
 }
 
 /* ---- lecture */

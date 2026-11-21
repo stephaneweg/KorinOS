@@ -199,6 +199,8 @@ void err_puts(const char *s);  /* t_err */
 void err_say(const char *s);   /* traduit (t_derr) */
 void err_msg(const char *s);   /* « nom: texte traduit\n » (t_err_msg) */
 void err_file(const char *path); /* « nom: chemin : inaccessible\n » (t_err_fic) */
+void err_file_e(const char *path, long e); /* E_NOSPC : « nom: chemin : disque plein\n », sinon err_file */
+extern long krt_out_err; /* première erreur d'écriture de la sortie standard (out_flush) */
 
 /* ---- formatage (format.c) : %d %i %u %x %X %o %c %s %p %%, longueurs l ll z,
  * largeur, précision (%.Ns), drapeaux - 0 + espace, * */

@@ -125,6 +125,13 @@ NORETURN void _exit(int code)
 NORETURN void exit(int code)
 {
 	out_flush();
+	/* la sortie redirigée vers un disque plein : dit, et un échec (pas une sortie tronquée en silence) */
+	if (krt_out_err == E_NOSPC) {
+		err_puts(krt_argv[0]);
+		err_say(": écriture : disque plein\n");
+		if (!code)
+			code = 1;
+	}
 	_exit(code);
 }
 

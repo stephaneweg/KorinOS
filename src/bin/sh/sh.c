@@ -25,6 +25,7 @@ char *P;
 long noexec, cond, jump, syntax, incomplete, chain_ok, subst_code, opt_e, opt_x;
 long in_pipe, pipe_in, pipe_out, pipe_pid, reds_n, red_dn, last_code;
 long out_fd = 1, err_fd = 2;
+long out_werr; /* la première erreur d'écriture de la sortie d'une commande intégrée (flush) */
 long interactive, tty, vfs, vtc, my_pid, job_pg, in_h, pend_n, pend_i, obuf_n, last_c;
 u64 wst;
 char **arg_v, **pos_v;
@@ -561,7 +562,9 @@ void flush(void)
 	obuf_n = 0;
 	if (out_fd < 0)
 		return; /* (/dev/null) */
-	sys_write(out_fd, obuf, n);
+	long r = sys_write(out_fd, obuf, n);
+	if (r < 0 && !out_werr)
+		out_werr = r; /* (E_NOSPC : builtin_run le dit) */
 }
 
 void term_putb(int c)

@@ -70,6 +70,13 @@ if [ -f build/pc/linux/linuxhost ]; then
 	cp src/sys/linuxhost/xdg-open src/sys/linuxhost/claude "$OUT/bin/"
 	mkdir -p "$OUT/devtools/claude-code"
 	cp src/sys/linuxhost/README-claude-code.txt "$OUT/devtools/claude-code/README.txt"
+	# ce que Claude Code sait de Korin : les consignes « gérées » de la machine (/etc/claude-code/CLAUDE.md, lues à
+	# chaque séance) et les compétences de claude-acp (/etc/claude-code/.claude/skills, chargées comme compétences de
+	# la machine) ; tools/claude/home.py, comme pour /.claude-acp
+	rm -rf "$OUT/etc/claude-code"
+	python3 -I tools/claude/home.py "$OUT" etc/claude-code/.claude >/dev/null
+	cat src/sys/linuxhost/CLAUDE-korin.md "$OUT/etc/claude-code/.claude/AGENTS.md" >"$OUT/etc/claude-code/CLAUDE.md"
+	rm "$OUT/etc/claude-code/.claude/AGENTS.md"
 fi
 # gltest (Mesa iris et le service intelgpu : tools/mesa/build-iris.sh), s'il est construit
 [ -f build/pc/mesa/sdroot/bin/gltest ] && cp build/pc/mesa/sdroot/bin/gltest "$OUT/bin/"

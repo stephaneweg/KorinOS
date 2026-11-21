@@ -37,7 +37,7 @@
 ;    en heritent.
 
 PIPE_MAX	= 128				; (bash : tubes et $(...) imbriques)
-PIPE_CAP	= 4096				; (puissance de 2)
+PIPE_CAP	= 65536				; (puissance de 2 ; 64 Ko comme Linux : here-documents de bash)
 PIPE_USED	= 0
 PIPE_HEAD	= 8
 PIPE_TAIL	= 16

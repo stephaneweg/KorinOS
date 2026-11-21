@@ -29,3 +29,6 @@ Choisir l'application qui ouvre ce fichier : = Choose the application that opens
 Applications proposées = Suggested applications
 Autres applications = Other applications
 Toujours ouvrir ce type de fichier avec elle = Always open this kind of file with it
+# korinrt (src/lib/korinrt : io.c, crt0.c) : un disque plein
+ : disque plein\n = : no space left on device\n
+: écriture : disque plein\n = : write error: no space left on device\n

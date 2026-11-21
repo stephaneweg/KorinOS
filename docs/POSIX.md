@@ -431,7 +431,7 @@ plutôt que contourné dans CPython :
 | `sysconf (_SC_TTY_NAME_MAX)` | `misc.c` | 32 ; `os.ttyname` de CPython le demande avant `ttyname_r` (sinon `EINVAL`) |
 | `ESHUTDOWN` | `include/errno.h` | newlib le réserve à `__LINUX_ERRNO_EXTENSIONS__` (même numéro, 110) ; le module `errno` de CPython l'exporte |
 | **`bind` sur le port 0** | `socket.c` | netd n'en choisit pas (`EINVAL`) : libposix prend un port éphémère libre (49152 à 65535, à partir d'un point au hasard, le suivant si `EADDRINUSE`) ; `getsockname` le rend. Le même trou que pour Node ([NODEJS.md](NODEJS.md) §5.3), réglé côté libposix |
-| **`poll` sur un tube : `POLLOUT` seulement avec `PIPE_BUF` octets libres** | `poll.c`, op `V_PIPE_ROOM` (48) de vfs (`src/svc/vfs`, `src/inc/fs.inc`) | avant, toujours prêt : un `write` de `PIPE_BUF` octets attendait après un `poll` « prêt », et `communicate ()` de `subprocess` se bloquait quand le fils remplissait `stderr` avant de lire son entrée. vfs donne la place libre (l'anneau de 4 Ko) ; sans lecteur : `POLLERR` ; un vfs ancien (`E_INVAL`) : toujours prêt, comme avant |
+| **`poll` sur un tube : `POLLOUT` seulement avec `PIPE_BUF` octets libres** | `poll.c`, op `V_PIPE_ROOM` (48) de vfs (`src/svc/vfs`, `src/inc/fs.inc`) | avant, toujours prêt : un `write` de `PIPE_BUF` octets attendait après un `poll` « prêt », et `communicate ()` de `subprocess` se bloquait quand le fils remplissait `stderr` avant de lire son entrée. vfs donne la place libre (l'anneau de 64 Ko) ; sans lecteur : `POLLERR` ; un vfs ancien (`E_INVAL`) : toujours prêt, comme avant |
 
 ## Ajouts pour Rust (12/11/2026, [RUST.md](RUST.md))
 
@@ -500,6 +500,24 @@ et la page n'envoyait pas le mot de passe ([WEBKIT.md](WEBKIT.md), « Connexion 
 
 * `posixtest` (groupes `mem`, `thread`, `file`, `io`, `time`, `proc`, `ipc`, `signal`, `misc`) passe avec cette
   libposix. Elle ne vaut que pour les programmes reliés ensuite : libposix est liée statiquement.
+
+## Disque plein : `ENOSPC` (21/11/2026)
+
+* **Le défaut** : sur un volume FAT32 ou exFAT plein, fatfs rendait **0** à une écriture (le cluster suivant
+  n'avait pas pu être alloué) : `write ()` rendait 0 sans `errno`, que la plupart des programmes prennent pour un
+  succès ou une boucle sans fin. `ld` laissait des exécutables tronqués (SIGILL, SIGSEGV au lancement), cargo et
+  rustc « failed to write whole buffer », `cp` copiait sans rien dire une partie du fichier.
+* **La correction** : fatfs (`fo_rw` de `fat32.c`, `exfat_rw` de `exfat.c`, et `vol_rw` de `fatfs.asm`) rend
+  `E_NOSPC` quand rien n'a pu être écrit, une écriture courte sinon (la suivante rend `E_NOSPC`) ; AppKit le passe
+  tel quel, libposix en fait `-1` et `errno = ENOSPC`. ext4fs et ramfs le rendaient déjà. Le trou que `pwrite`
+  comble de zéros (sans AppKit) ne boucle plus sur une écriture qui rend 0.
+* **Les commandes en C** (korinrt) : une erreur d'écriture de la sortie standard est gardée (`krt_out_err`) ;
+  `E_NOSPC` donne « `nom: écriture : disque plein` » et le code 1 à la sortie (`cat … > f`). `cp` dit
+  « `cp: destination : disque plein` » (la destination tronquée reste, comme GNU cp). `echo`, `pwd`… intégrés à
+  `sh` et redirigés : même message, code 1. Les commandes en assembleur du Pi ne changent pas.
+* **Essai** (QEMU PC, FAT32 avec 4 Mo libres) : un programme qui écrit par blocs de 64 Ko reçoit `ENOSPC` après
+  4,3 Mo, puis encore à chaque écriture ; un `write ()` de 1000 octets sur le disque plein : `ENOSPC` tout de suite ;
+  `cp`, `cat >`, `echo >` : le message et le code 1 ; la place libérée (`rm`), l'écriture repart.
 
 ## Ce qui manque (ENOSYS, ou sans effet)
 

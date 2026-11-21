@@ -85,7 +85,15 @@ void builtin_run(const struct builtin *b, char **argv)
 		else
 			out_fd = h;
 	}
+	out_werr = 0;
 	r = b->fn(argv);
+	flush();
+	if (out_werr == E_NOSPC) { /* echo > fichier sur un disque plein : dit, et un échec */
+		sh_err_puts(argv[0]);
+		sh_err_say(": écriture : disque plein\n");
+		if (!r)
+			r = 1;
+	}
 fin:
 	last_code = r;
 	flush();

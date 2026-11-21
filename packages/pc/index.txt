@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 19:47
+date = 2026-11-21 21:10
 abi = 626
 packages = 117
 board = pc
@@ -574,18 +574,18 @@ content = 03a740ca122677ba801806f740eadab05ad27e287abbba1584ec41ce56bb4027
 
 [bash]
 title = GNU bash
-version = 1.0.6
+version = 1.0.7
 category = Développement
 author = Korin OS
 summary = Le shell de GNU (5.2.37) : édition de ligne, historique, complétion, scripts
-size = 693093
+size = 693142
 installed = 1374384
-sha256 = f2894c39ace7cafb1c94fd12f31ca3cde62baf55fad29e788fe29e538d403d34
-file = pkgs/bash-1.0.6.opk
+sha256 = e362250bd6562c10cc7b16f9c67e2a7c534a5ce5d19d5b08299b334b258a4328
+file = pkgs/bash-1.0.7.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 9f712d034eada088e4d4948f95f6bc9ad7e65949b65225c8b18fb85244c19684
+content = c6172e3ef427e06e7c3ecfc5740a9ebf2e1325325663af198179d30c2e28e5f9
 
 [llm]
 title = llm
@@ -739,18 +739,18 @@ content = 9651f661dbc590aad6e129adcd1ae6d847f34a7ac621233890d8a89895498bd1
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.73
+version = 2026.11.75
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 31985410
-installed = 96296131
-sha256 = 46443b0112dcfddc0e599f11ce84b0f2144663a0200be160b345d05e2703ecd1
-file = pkgs/pc-2026.11.73.opk
+size = 32004924
+installed = 96322579
+sha256 = 73359576421b8e712a71a0e807742f7e30a80e7113ddbc72a1b5048c5c87d755
+file = pkgs/pc-2026.11.75.opk
 needs = 
 required = 1
 restart = 1
-content = 8476c903ddded1f6ed1c6ab17b15ef52d178a61628f0b7ac8ecbea1a5f01b54a
+content = 4bff867963d25c25958ff015a66076f709056bf2b907a3a5b019cd69efcdf161
 
 [2048]
 title = 2048
@@ -2104,33 +2104,33 @@ content = 6ece06302780b3339d19e56ecc524ed39676504042306bfab0f8e0dfda7d1ace
 
 [linuxhost]
 title = Hôte Linux
-version = 1.0.1
+version = 1.0.2
 category = Développement
 author = Korin OS
 summary = Lance des programmes de Linux x86-64 sur Korin, sans les modifier (linuxhost run PROGRAMME) : ce qui fait tourner Claude Code
-size = 293523
+size = 293525
 installed = 614084
-sha256 = 1555851530dc0ae68d02b23a56fa76c474cb55a053e5ccf93aa5c9838de16432
-file = pkgs/linuxhost-1.0.1.opk
+sha256 = 9cdecb0a5a675a252489fe5159771d4c94f2fa896bbb3bf0ee6382d7b9d24247
+file = pkgs/linuxhost-1.0.2.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = bbe8254c53337ff137473521168c2ac3f6b66f5083806bfd9deef8a7a569e810
+content = 57da89454fe872544a5d5c28a06c5eaf7ba095976743da592818b24ecaace214
 
 [claude-code]
 title = Claude Code
-version = 2.1.330.1
+version = 2.1.330.2
 category = Développement
 author = Korin OS
 summary = Claude Code, l'agent de code d'Anthropic, par votre abonnement Claude (Pro, Max, Team) : la commande claude au Terminal, et Craft Anything s'en sert (téléchargé chez Anthropic à l'installation, 380 Mo)
-size = 3336230
-installed = 388409859
-sha256 = 1a953f1fc42f92152c9f985b4e657227172b8e727445144cd1b1d0aed0a1dde6
-file = pkgs/claude-code-2.1.330.1.opk
+size = 3716410
+installed = 389289270
+sha256 = fd7de05e7b907e6f0cfdd4a6dd4f1bf4a7059c55c4e90846a850cfcc94cdfd3e
+file = pkgs/claude-code-2.1.330.2.opk
 needs = linuxhost, bash, git, rg, python, pkgman >= 1.0.21, abi >= 627
 required = 0
 restart = 0
-content = 1afc29a78ce1c4463eacb98988e318789244d15f9b089223a4f058fb0d085b5b
+content = 7ec9c56e6a63886e461f4df8061827ad1468e9847c89fa7f9c5ace868de19fdd
 
 [rust-data-1]
 title = Rust (1/1)

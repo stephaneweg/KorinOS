@@ -788,7 +788,7 @@ static u64 fo_seek_cluster(struct fo *f, u64 rank, int alloc, long whole)
 	return c;
 }
 
-/* -> octets transférés (lecture bornée par la taille) */
+/* -> octets transférés (lecture bornée par la taille), E_NOSPC (écriture, disque plein) */
 long fo_rw(struct fo *f, u8 *buf, u64 len, int write)
 {
 	struct vol *v = f->it.vol;
@@ -806,8 +806,13 @@ long fo_rw(struct fo *f, u8 *buf, u64 len, int write)
 		if (write && len >= csize && !(pos & (csize - 1)))
 			whole = 1;
 		u64 c = fo_seek_cluster(f, rank, write, whole);
-		if (!c)
+		if (!c) {
+			/* disque plein : E_NOSPC si rien n'a été écrit, sinon une écriture courte (la suivante
+			   rend E_NOSPC) ; jamais 0, que write() prendrait pour un succès */
+			if (write && !total)
+				return E_NOSPC;
 			break;
+		}
 		u64 lba, cs;
 		fat_clus_lba(v, c, &lba, &cs);
 		u64 mask = ((u64)1 << cs) - 1;

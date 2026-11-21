@@ -15,8 +15,13 @@ static int copy_tree(const char *src, const char *dst)
 	if (t < 0)
 		goto err;
 	if (t == 0) {
-		if (!copy_file(src, dst))
+		long r = copy_file(src, dst);
+		if (!r)
 			return 0;
+		if (r == E_NOSPC) { /* (la destination, tronquée, reste : comme GNU cp) */
+			err_file_e(dst, r);
+			return 1;
+		}
 		goto err;
 	}
 	if (!recursive) {

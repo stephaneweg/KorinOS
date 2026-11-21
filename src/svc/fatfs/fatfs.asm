@@ -2604,7 +2604,8 @@ vol_rw:
 	ldr	x4,[x4,V_TYPE]
 	cbz	x3,.rw
 	prologue
-	str	x19,[sp,-16]!
+	stp	x19,x20,[sp,-16]!
+	mov	x20,x2
 	adr	x5,bc_defer
 	mov	x6,1
 	str	x6,[x5]
@@ -2614,13 +2615,16 @@ vol_rw:
 	b	.sync
 .ex:	bl	exfat_rw
 .sync:	mov	x19,x0
-	adr	x5,bc_defer
+	cbnz	x0,.flush			; rien d'ecrit d'une demande non vide : disque
+	cbz	x20,.flush			; plein, E_NOSPC (0 serait pris pour un succes)
+	mov	x19,E_NOSPC
+.flush:	adr	x5,bc_defer
 	str	xzr,[x5]
 	bl	bc_flush
 	cmp	x0,0
 	mov	x0,E_IO
 	csel	x0,x19,x0,ne
-	ldr	x19,[sp],16
+	ldp	x19,x20,[sp],16
 	epilogue
 .rw:	cmp	x4,2
 	b.eq	exfat_rw
