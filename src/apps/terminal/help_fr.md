@@ -53,7 +53,7 @@ Le shell comprend aussi les variables, les tubes `|`, les redirections `< > >>`,
 
 ## Lancer un programme
 
-Tout nom qui n'est pas une commande intégrée lance un programme, cherché dans le `PATH` (`/bin`, `/devtools/gcc/bin`), puis comme application `/apps/nom.app` ; un chemin complet (`/bin/gcc`) marche aussi. Les arguments suivent le nom :
+Tout nom qui n'est pas une commande intégrée lance un programme, cherché dans le `PATH` (`/bin`, `/sbin`, `/devtools/gcc/bin`, `/devtools/rust/bin`), puis comme application `/apps/nom.app` ; un chemin complet (`/bin/gcc`) marche aussi. Les arguments suivent le nom :
 
 ```sh
 pkg list

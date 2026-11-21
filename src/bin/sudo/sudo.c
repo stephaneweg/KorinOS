@@ -8,7 +8,7 @@
  * « auth »), qui passe ce process en uid 0 ; la commande, lancée ensuite, hérite de cet uid. Les comptes qui
  * peuvent s'élever sont ceux de /etc/elevate.ini. Un compte sans mot de passe s'élève sans rien taper. Aucun
  * droit sur le matériel n'est donné : seulement l'uid 0, donc l'écriture dans /. La commande est cherchée
- * dans /sbin, /bin puis /devtools/gcc/bin (le PATH de system).
+ * dans /sbin, /bin, /devtools/gcc/bin puis /devtools/rust/bin (le PATH de system).
  *
  * Après le mot de passe, « Retenir pendant 5 minutes ? [o/N] » : oui, authd ne redemande plus le mot de passe
  * pendant 5 minutes à ce compte depuis ce terminal (le shell qui lance sudo, son père) ; la carte de la
@@ -109,7 +109,7 @@ static long auth_call(long ch, u64 op, const char *pw, int keep)
 /* nom -> chemin (« /sbin/x », « /bin/x »...) dans out ; 0 : introuvable */
 static int find(const char *name, char *o)
 {
-	static const char *const dirs[] = {"/sbin/", "/bin/", "/devtools/gcc/bin/", 0};
+	static const char *const dirs[] = {"/sbin/", "/bin/", "/devtools/gcc/bin/", "/devtools/rust/bin/", 0};
 	long st[2];
 	for (const char *s = name; *s; s++)
 		if (*s == '/') {

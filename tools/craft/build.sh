@@ -37,45 +37,9 @@ OUT=$ROOT/build/craft/$ARCH/bin
 mkdir -p "$W/vendor" "$OUT" "$K/dl" "$K/vendor"
 
 
-# 1. libc : la std garde la 0.2.185 de rust-src (tools/rust/libc.patch) ; les projets récents demandent plus
-#    (nix 0.31 : ^0.2.186). La même libc.patch sur la 0.2.191, et deux entrées dans le [patch] de cargo
-#    (libc pour la std, libc-0-2-191 pour les projets) : une seule entrée remplacerait celle de la std, qui
-#    retomberait sur la libc du registre, sans « korin ». La 0.2.191 veut « unsafe » ou « safe » dans f! et
-#    n'a plus safe_f! : ajoutés au module korin à l'application.
+# 1. libc : la 0.2.191 des projets (tools/rust/libc-projects.sh : libc.patch rejouée, seconde entrée du [patch])
 LV=0.2.191
-L=$K/vendor/libc-$LV
-if [ ! -f "$L/.korin" ] || [ "$ROOT/tools/rust/libc.patch" -nt "$L/.korin" ]; then
-	[ -f "$K/dl/libc-$LV.crate" ] || curl -sSfL "https://static.crates.io/crates/libc/libc-$LV.crate" -o "$K/dl/libc-$LV.crate"
-	(cd "$K/dl" && echo "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a  libc-$LV.crate" | sha256sum -c - >/dev/null)
-	rm -rf "$L"
-	tar xzf "$K/dl/libc-$LV.crate" -C "$K/vendor"
-	sed 's#vendor/libc-0\.2\.185/##g' "$ROOT/tools/rust/libc.patch" | (cd "$L" && patch -p1 -s --no-backup-if-mismatch)
-	python3 -I - "$L/src/unix/korin/mod.rs" <<'EOF'
-import re, sys
-p = sys.argv[1]
-out, mode = [], None
-for line in open(p).read().split('\n'):
-    if line.startswith('f! {'):
-        mode = 'unsafe'
-    elif line.startswith('safe_f! {'):
-        mode, line = 'safe', 'f! {'
-    elif line.startswith('}'):
-        mode = None
-    if mode:
-        line = re.sub(r'^(\s*)pub (const )?fn ', r'\1pub \2%s fn ' % mode, line)
-    out.append(line)
-open(p, 'w').write('\n'.join(out))
-EOF
-	touch "$L/.korin"
-fi
-python3 -I - "$CARGO_HOME/config.toml" "$L" <<'EOF'
-import sys
-p, path = sys.argv[1], sys.argv[2]
-t = open(p).read()
-if 'libc-0-2-191' not in t:
-    t = t.replace('[patch.crates-io]\n', '[patch.crates-io]\nlibc-0-2-191 = { path = "%s", package = "libc" }\n' % path, 1)
-    open(p, 'w').write(t)
-EOF
+bash "$ROOT/tools/rust/libc-projects.sh" "$K"
 
 # 2. le dépôt de l'app
 A=$W/$APP

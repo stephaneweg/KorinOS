@@ -1,0 +1,254 @@
+diff -ruN a/compiler/rustc_target/src/spec/base/korin.rs b/compiler/rustc_target/src/spec/base/korin.rs
+--- a/compiler/rustc_target/src/spec/base/korin.rs
++++ b/compiler/rustc_target/src/spec/base/korin.rs
+@@ -0,0 +1,31 @@
++//! Korin OS: a microkernel operating system for the Raspberry Pi 4 and x86-64 PCs, with a POSIX layer
++//! (newlib 4.4 and libposix) on which Rust's `std` takes the generic Unix paths.
++//! See `src/doc/rustc/src/platform-support/korin.md`.
++
++use crate::spec::{Env, Os, RelroLevel, StackProbeType, TargetOptions, cvs};
++
++pub(crate) fn opts() -> TargetOptions {
++    TargetOptions {
++        os: Os::Korin,
++        env: Env::Newlib,
++        families: cvs!["unix"],
++        // GCC with libposix's specs: on Korin, `gcc` links crt0, libposix, newlib and the system's
++        // linker script itself; when cross-compiling, point `linker` at that GCC.
++        linker: Some("gcc".into()),
++        // the C driver chooses the libraries (libposix, newlib, libm), not rustc
++        no_default_libraries: false,
++        executables: true,
++        // shared objects are `dlopen` modules (cdylib, proc-macro, dylib); executables are linked
++        // at the fixed address of libposix's linker script, without PIE
++        dynamic_linking: true,
++        position_independent_executables: false,
++        static_position_independent_executables: false,
++        has_rpath: true,
++        // libposix's linker script has no RELRO segment
++        relro_level: RelroLevel::None,
++        has_thread_local: true,
++        stack_probes: StackProbeType::Inline,
++        default_uwtable: true,
++        ..Default::default()
++    }
++}
+diff -ruN a/compiler/rustc_target/src/spec/base/mod.rs b/compiler/rustc_target/src/spec/base/mod.rs
+--- a/compiler/rustc_target/src/spec/base/mod.rs
++++ b/compiler/rustc_target/src/spec/base/mod.rs
+@@ -14,6 +14,7 @@
+ pub(crate) mod hurd;
+ pub(crate) mod hurd_gnu;
+ pub(crate) mod illumos;
++pub(crate) mod korin;
+ pub(crate) mod l4re;
+ pub(crate) mod linux;
+ pub(crate) mod linux_gnu;
+diff -ruN a/compiler/rustc_target/src/spec/mod.rs b/compiler/rustc_target/src/spec/mod.rs
+--- a/compiler/rustc_target/src/spec/mod.rs
++++ b/compiler/rustc_target/src/spec/mod.rs
+@@ -1733,6 +1733,9 @@
+     ("aarch64-unknown-none-softfloat", aarch64_unknown_none_softfloat),
+     ("aarch64_be-unknown-none-softfloat", aarch64_be_unknown_none_softfloat),
+     ("aarch64-unknown-nuttx", aarch64_unknown_nuttx),
++
++    ("x86_64-unknown-korin", x86_64_unknown_korin),
++    ("aarch64-unknown-korin", aarch64_unknown_korin),
+     ("aarch64v8r-unknown-none", aarch64v8r_unknown_none),
+     ("aarch64v8r-unknown-none-softfloat", aarch64v8r_unknown_none_softfloat),
+ 
+@@ -1997,6 +2000,7 @@
+         Hurd = "hurd",
+         Illumos = "illumos",
+         IOs = "ios",
++        Korin = "korin",
+         L4Re = "l4re",
+         Linux = "linux",
+         LynxOs178 = "lynxos178",
+diff -ruN a/compiler/rustc_target/src/spec/targets/aarch64_unknown_korin.rs b/compiler/rustc_target/src/spec/targets/aarch64_unknown_korin.rs
+--- a/compiler/rustc_target/src/spec/targets/aarch64_unknown_korin.rs
++++ b/compiler/rustc_target/src/spec/targets/aarch64_unknown_korin.rs
+@@ -0,0 +1,26 @@
++use crate::spec::{Arch, FramePointer, Target, TargetMetadata, base};
++
++pub(crate) fn target() -> Target {
++    let mut base = base::korin::opts();
++    // the Raspberry Pi 4 (no LSE on the Cortex-A72: LL/SC atomics inline, no outline atomics)
++    base.cpu = "cortex-a72".into();
++    base.features = "+v8a,+crc".into();
++    base.max_atomic_width = Some(128);
++    base.frame_pointer = FramePointer::NonLeaf;
++
++    Target {
++        llvm_target: "aarch64-unknown-none-elf".into(),
++        metadata: TargetMetadata {
++            description: Some("ARM64 Korin OS (Raspberry Pi 4)".into()),
++            tier: Some(3),
++            host_tools: Some(false),
++            std: Some(true),
++        },
++        pointer_width: 64,
++        data_layout:
++            "e-m:e-p270:32:32-p271:32:32-p272:64:64-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128-Fn32"
++                .into(),
++        arch: Arch::AArch64,
++        options: base,
++    }
++}
+diff -ruN a/compiler/rustc_target/src/spec/targets/x86_64_unknown_korin.rs b/compiler/rustc_target/src/spec/targets/x86_64_unknown_korin.rs
+--- a/compiler/rustc_target/src/spec/targets/x86_64_unknown_korin.rs
++++ b/compiler/rustc_target/src/spec/targets/x86_64_unknown_korin.rs
+@@ -0,0 +1,23 @@
++use crate::spec::{Arch, Target, TargetMetadata, base};
++
++pub(crate) fn target() -> Target {
++    let mut base = base::korin::opts();
++    base.cpu = "x86-64".into();
++    base.max_atomic_width = Some(64);
++    base.plt_by_default = false;
++
++    Target {
++        llvm_target: "x86_64-unknown-none-elf".into(),
++        metadata: TargetMetadata {
++            description: Some("x86-64 Korin OS (PC)".into()),
++            tier: Some(3),
++            host_tools: Some(false),
++            std: Some(true),
++        },
++        pointer_width: 64,
++        data_layout:
++            "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128".into(),
++        arch: Arch::X86_64,
++        options: base,
++    }
++}
+diff -ruN a/src/bootstrap/src/core/sanity.rs b/src/bootstrap/src/core/sanity.rs
+--- a/src/bootstrap/src/core/sanity.rs
++++ b/src/bootstrap/src/core/sanity.rs
+@@ -37,6 +37,8 @@
+ /// when the newly-bumped stage 0 compiler now knows about the formerly-missing targets.
+ const STAGE0_MISSING_TARGETS: &[&str] = &[
+     // just a dummy comment so the list doesn't get onelined
++    "aarch64-unknown-korin",
++    "x86_64-unknown-korin",
+ ];
+ 
+ /// Minimum version threshold for libstdc++ required when using prebuilt LLVM
+diff -ruN a/src/doc/rustc/src/SUMMARY.md b/src/doc/rustc/src/SUMMARY.md
+--- a/src/doc/rustc/src/SUMMARY.md
++++ b/src/doc/rustc/src/SUMMARY.md
+@@ -128,6 +128,7 @@
+     - [\*-unknown-helenos](platform-support/helenos.md)
+     - [\*-unknown-hermit](platform-support/hermit.md)
+     - [\*-unknown-freebsd](platform-support/freebsd.md)
++    - [\*-unknown-korin](platform-support/korin.md)
+     - [\*-unknown-managarm-mlibc](platform-support/managarm.md)
+     - [\*-unknown-motor](platform-support/motor.md)
+     - [\*-unknown-netbsd\*](platform-support/netbsd.md)
+diff -ruN a/src/doc/rustc/src/platform-support/korin.md b/src/doc/rustc/src/platform-support/korin.md
+--- a/src/doc/rustc/src/platform-support/korin.md
++++ b/src/doc/rustc/src/platform-support/korin.md
+@@ -0,0 +1,61 @@
++# `*-unknown-korin`
++
++**Tier: 3**
++
++Korin OS: a microkernel operating system for the Raspberry Pi 4 (`aarch64-unknown-korin`) and x86-64 PCs
++(`x86_64-unknown-korin`). Its POSIX layer is newlib 4.4 with `libposix`, on which `std` takes the generic Unix paths
++(threads, files, processes with `fork` and `exec`, sockets, `dlopen`).
++
++## Target maintainers
++
++The Korin OS project.
++
++## Requirements
++
++The targets are cross-compiled from Linux, and also compiled on Korin itself. Binaries are ELF:
++
++- executables are linked without PIE at the fixed address of `libposix`'s linker script (`posix.ld`); TLS is native,
++  `thread_local!` destructors go through `pthread_key`;
++- shared objects (`cdylib`, `proc-macro`) are `dlopen` modules: PIC, their libc, allocator, threads and unwinder
++  come from the host program, which exports them (`-rdynamic`);
++- panics unwind with libgcc's unwinder, one per process, shared with the modules.
++
++The C toolchain is GCC 14 for `aarch64-onyx-elf` or `x86_64-onyx-elf` with the `posix.specs` of `libposix`. On Korin,
++that GCC is `gcc` on the `PATH` and is the default linker. When cross-compiling, set `linker` to a wrapper that adds
++the specs (`gcc -specs=.../posix.specs`).
++
++`aarch64-unknown-korin` targets the Cortex-A72 (`+v8a,+crc`, no LSE: LL/SC atomics inline). `x86_64-unknown-korin`
++targets baseline x86-64.
++
++## Building the target
++
++Add the target to `build.target` in `bootstrap.toml`, with the C toolchain of Korin:
++
++```toml
++[build]
++target = ["x86_64-unknown-linux-gnu", "x86_64-unknown-korin"]
++
++[target.x86_64-unknown-korin]
++cc = "/path/to/x86_64-korin-gcc"
++cxx = "/path/to/x86_64-korin-g++"
++ar = "/path/to/x86_64-onyx-elf-ar"
++linker = "/path/to/x86_64-korin-gcc"
++```
++
++## Building Rust programs
++
++```toml
++[target.x86_64-unknown-korin]
++linker = "/path/to/x86_64-korin-gcc"
++```
++
++then `cargo build --target x86_64-unknown-korin`.
++
++## Testing
++
++The Rust test suite is not run for these targets. `std`'s integration tests (`library/std/tests`) pass on Korin
++under QEMU (466 of 467: `env::test_self_exe_path` fails).
++
++## Cross-compilation toolchains and C code
++
++C code is compiled by the same GCC with `posix.specs`, which provides the headers of `libposix` and newlib.
+diff -ruN a/src/doc/rustc/src/platform-support.md b/src/doc/rustc/src/platform-support.md
+--- a/src/doc/rustc/src/platform-support.md
++++ b/src/doc/rustc/src/platform-support.md
+@@ -265,6 +265,7 @@
+ [`aarch64-unknown-helenos`](platform-support/helenos.md) | ✓ |  | ARM64 HelenOS
+ [`aarch64-unknown-hermit`](platform-support/hermit.md) | ✓ |  | ARM64 Hermit
+ [`aarch64-unknown-illumos`](platform-support/illumos.md) | ✓ | ✓ | ARM64 illumos
++[`aarch64-unknown-korin`](platform-support/korin.md) | ✓ |  | ARM64 Korin OS (Raspberry Pi 4)
+ `aarch64-unknown-linux-gnu_ilp32` | ✓ | ✓ | ARM64 Linux (ILP32 ABI)
+ [`aarch64-unknown-managarm-mlibc`](platform-support/managarm.md) | ? |  | ARM64 Managarm
+ [`aarch64-unknown-netbsd`](platform-support/netbsd.md) | ✓ | ✓ | ARM64 NetBSD
+@@ -451,6 +452,7 @@
+ [`x86_64-unknown-hermit`](platform-support/hermit.md) | ✓ |  | x86_64 Hermit
+ [`x86_64-unknown-helenos`](platform-support/helenos.md) | ✓ |  | x86_64 (amd64) HelenOS
+ [`x86_64-unknown-hurd-gnu`](platform-support/hurd.md) | ✓ | ✓ | 64-bit GNU/Hurd
++[`x86_64-unknown-korin`](platform-support/korin.md) | ✓ |  | x86-64 Korin OS (PC)
+ `x86_64-unknown-l4re-uclibc` | ? |  |
+ [`x86_64-unknown-linux-none`](platform-support/x86_64-unknown-linux-none.md) | * |  | 64-bit Linux with no libc
+ [`x86_64-unknown-managarm-mlibc`](platform-support/managarm.md) | ? |  | x86_64 Managarm
+diff -ruN a/tests/assembly-llvm/targets/targets-elf.rs b/tests/assembly-llvm/targets/targets-elf.rs
+--- a/tests/assembly-llvm/targets/targets-elf.rs
++++ b/tests/assembly-llvm/targets/targets-elf.rs
+@@ -46,6 +46,9 @@
+ //@ revisions: aarch64_unknown_linux_gnu
+ //@ [aarch64_unknown_linux_gnu] compile-flags: --target aarch64-unknown-linux-gnu
+ //@ [aarch64_unknown_linux_gnu] needs-llvm-components: aarch64
++//@ revisions: aarch64_unknown_korin
++//@ [aarch64_unknown_korin] compile-flags: --target aarch64-unknown-korin
++//@ [aarch64_unknown_korin] needs-llvm-components: aarch64
+ //@ revisions: aarch64_unknown_linux_gnu_ilp32
+ //@ [aarch64_unknown_linux_gnu_ilp32] compile-flags: --target aarch64-unknown-linux-gnu_ilp32
+ //@ [aarch64_unknown_linux_gnu_ilp32] needs-llvm-components: aarch64
+@@ -697,6 +700,9 @@
+ //@ revisions: x86_64_unknown_illumos
+ //@ [x86_64_unknown_illumos] compile-flags: --target x86_64-unknown-illumos
+ //@ [x86_64_unknown_illumos] needs-llvm-components: x86
++//@ revisions: x86_64_unknown_korin
++//@ [x86_64_unknown_korin] compile-flags: --target x86_64-unknown-korin
++//@ [x86_64_unknown_korin] needs-llvm-components: x86
+ //@ revisions: x86_64_unknown_l4re_uclibc
+ //@ [x86_64_unknown_l4re_uclibc] compile-flags: --target x86_64-unknown-l4re-uclibc
+ //@ [x86_64_unknown_l4re_uclibc] needs-llvm-components: x86

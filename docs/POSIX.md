@@ -63,7 +63,7 @@ le volume système, les autres volumes sont montés dans des dossiers, et vfs r�
 | Chemin | Désigne |
 |---|---|
 | `/bin`, `/apps`, `/lib`, `/etc`, `/sys`, `/home` | des dossiers du volume système |
-| `/devtools/gcc`, `/devtools/dotnet`, `/devtools/python` | les outils de développement (`PATH=/bin:/devtools/gcc/bin`) |
+| `/devtools/gcc`, `/devtools/dotnet`, `/devtools/python`, `/devtools/rust` | les outils de développement (`PATH=/bin:/sbin:/devtools/gcc/bin:/devtools/rust/bin`) |
 | `/tmp` | le volume en mémoire (ramfs) : `mkstemp`, `tmpfile`, `TMPDIR` |
 | `/media/usb0`, `/media/sd1`, `/net/net0`, `/boot` | les autres volumes, montés là (`/etc/mounts.txt`) |
 | `HOME:/a` | le seul alias : le dossier personnel de l'utilisateur en cours (`/home` aujourd'hui) ; `HOME=/home` |
@@ -596,7 +596,7 @@ jusqu'à 255 caractères dans le système de fichiers, mais un chemin passe par 
   longueur, donné au fils par `HANDLE_INHERIT` avec la marque `0x80000000 | pages` ; `env.c` le
   relit au démarrage, puis le rend. La ligne reste remplie pour les programmes en assembleur (vide
   si elle dépasse 1 024 octets) ; lancé par un programme en assembleur, un programme C a la ligne
-  et les valeurs par défaut (`PATH=/bin:/devtools/gcc/bin`, `TMPDIR=/tmp`, `HOME=/home`). Le même protocole
+  et les valeurs par défaut (`PATH=/bin:/sbin:/devtools/gcc/bin:/devtools/rust/bin`, `TMPDIR=/tmp`, `HOME=/home`). Le même protocole
   existe en assembleur : `f_spawn_env` et `f_start_blob` d'AppKit (`spawnenv.inc`, utilisés par `sh`).
 * **Chemins** : section « L'arbre des chemins ». Du 05 au 15/11/2026, `getcwd` suivait un `chdir` vers un chemin
   virtuel (« `/apps/x` » plutôt que « `SD0:/apps/x` »), sinon un programme qui comparait les deux formes se trompait

@@ -1,0 +1,64 @@
+--- a/build.rs
++++ b/build.rs
+@@ -15,6 +15,9 @@
+     );
+     let target = env::var("TARGET").unwrap();
+     let windows = target.contains("windows");
++    // Korin : IPv4 seulement, pas de socketpair (le réveil du multi par un tube), pas de socket AF_UNIX nommé ;
++    // les autorités de https dans /etc/ca-bundle (comme le libcurl de git, tools/git/build.sh)
++    let korin = target.ends_with("-korin");
+ 
+     if cfg!(feature = "mesalink") {
+         println!("cargo:warning=MesaLink support has been removed as of curl 7.82.0, will use default TLS backend instead.");
+@@ -118,8 +121,6 @@
+         .define("CURL_DISABLE_TELNET", None)
+         .define("CURL_DISABLE_TFTP", None)
+         .define("CURL_STATICLIB", None)
+-        .define("ENABLE_IPV6", None)
+-        .define("HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID", None)
+         .define("HAVE_ASSERT_H", None)
+         .define("CURL_OS", "\"unknown\"") // TODO
+         .define("HAVE_ZLIB_H", None)
+@@ -128,7 +129,14 @@
+         .define("HAVE_BOOL_T", None)
+         .define("HAVE_STDBOOL_H", None)
+         .define("HAVE_STDINT_H", None)
+-        .define("USE_RESOLV_THREADED", None)
++        .define("USE_RESOLV_THREADED", None);
++    if korin {
++        cfg.define("CURL_CA_BUNDLE", "\"/etc/ca-bundle\"");
++    } else {
++        cfg.define("ENABLE_IPV6", None)
++            .define("HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID", None);
++    }
++    cfg
+         .file("curl/lib/altsvc.c")
+         .file("curl/lib/asyn-base.c")
+         .file("curl/lib/asyn-thrdd.c")
+@@ -398,11 +406,8 @@
+             .define("HAVE_SEND", None)
+             .define("HAVE_SOCKET", None)
+             .define("HAVE_STERRROR_R", None)
+-            .define("HAVE_SOCKETPAIR", None)
+             .define("HAVE_STRUCT_TIMEVAL", None)
+-            .define("HAVE_SYS_UN_H", None)
+             .define("HAVE_THREADS_POSIX", None)
+-            .define("USE_UNIX_SOCKETS", None)
+             .define("RECV_TYPE_ARG2", "void*")
+             .define("RECV_TYPE_ARG3", "size_t")
+             .define("RECV_TYPE_ARG4", "int")
+@@ -416,6 +421,14 @@
+             .define("SIZEOF_CURL_OFF_T", "8")
+             .define("SIZEOF_INT", "4")
+             .define("SIZEOF_SHORT", "2");
++        if korin {
++            // le réveil du multi (curl_multi_wakeup) par un tube, comme tools/webkit/ports/curl
++            cfg.define("HAVE_PIPE", None).define("HAVE_FCNTL", None);
++        } else {
++            cfg.define("HAVE_SOCKETPAIR", None)
++                .define("HAVE_SYS_UN_H", None)
++                .define("USE_UNIX_SOCKETS", None);
++        }
+ 
+         if target.contains("-apple-") {
+             cfg.define("__APPLE__", None)

@@ -38,7 +38,7 @@ Korin OS a **un seul arbre**, comme Unix : `/` est le volume système, et les au
 | `x`, `./x`, `../x` | relatif au dossier courant (`chdir`, `getcwd`) |
 | `/dev/null`, `/dev/zero`, `/dev/urandom`, `/dev/random`, `/dev/stdin`, `/dev/stdout`, `/dev/stderr`, `/dev/tty` | des pseudo-fichiers |
 
-`getcwd` et `realpath` rendent des chemins absolus ordinaires (`/home/projets/x`, `/bin/sh`), sans `.`, `..` ni liens ; `realpath` garde un préfixe `HOME:/` tel qu'il est écrit. Une app range les documents de l'utilisateur sous `HOME:/` (`HOME:/documents`...) plutôt que sous un `/home` fixe : le dossier personnel dépendra de l'utilisateur quand les comptes existeront. En POSIX, `HOME` vaut `/home` et `PATH` `/bin:/devtools/gcc/bin` par défaut.
+`getcwd` et `realpath` rendent des chemins absolus ordinaires (`/home/projets/x`, `/bin/sh`), sans `.`, `..` ni liens ; `realpath` garde un préfixe `HOME:/` tel qu'il est écrit. Une app range les documents de l'utilisateur sous `HOME:/` (`HOME:/documents`...) plutôt que sous un `/home` fixe : le dossier personnel dépendra de l'utilisateur quand les comptes existeront. En POSIX, `HOME` vaut `/home` et `PATH` `/bin:/sbin:/devtools/gcc/bin:/devtools/rust/bin` par défaut.
 
 > **Remarque** : sur le Pi, `/media/sd1` est la partition personnelle de l'utilisateur (exFAT) ; un programme n'y écrit que ce que l'utilisateur lui demande.
 
