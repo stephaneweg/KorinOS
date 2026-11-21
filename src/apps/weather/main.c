@@ -5,6 +5,12 @@
 //   main --widget   la carte sur le bureau (sans cadre, sous toutes les fenêtres, hors de la liste des fenêtres) ;
 //                   un clic ouvre la fenêtre pour changer de ville. C'est un choix de l'utilisateur (Fichier,
 //                   Afficher sur le bureau : une ligne de HOME:/etc/startup.txt), pas du système.
+// Le widget tourne sous son propre nom de process, « weather-widget » (il se relance une fois par execv sous ce nom,
+// en « --widget-run ») : le panel tient une app pour ouverte quand un process porte son nom (le noyau donne
+// « weather » à /apps/weather.app/main), et le gestionnaire de paquets refuse de mettre à jour une app qui tourne.
+// Sous le nom de l'app, la carte du bureau montrait Météo comme ouverte dans le panel et bloquait sa mise à jour ;
+// elle est maintenant à part, comme l'Agenda et les Notes épinglées. Après une mise à jour, le widget voit son
+// programme changer et se relance de lui-même dans la nouvelle version ; un seul widget à la fois.
 // Le lieu choisi est gardé dans HOME:/etc/weather.ini ; le widget le relit toutes les 5 s et suit le changement.
 // Écrit par Claude sur Korin (le 18/11/2026), intégré à l'arbre ensuite.
 // Le réseau passe par un thread (weather.c attend les réponses) ; la boucle d'événements regarde s'il a fini.
@@ -19,13 +25,16 @@
 #include <spawn.h>
 #include <pthread.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <armpi/userconf.h>
+#include <armpi/syscall.h>
 #include <uikit.h>
 #include <netkit_abi.h>
 #include <buskit_abi.h>
 #include "weather.h"
 
 extern char **environ;
+void korin_exec_name (const char *name);		// libposix (proc.c) : le nom du process après le prochain execv
 
 #define TR(s)	((const char *) ui_tr ((long) (s)))
 #define D(v)	((long) ((v) * 16))			// pixels -> 1/16 de pixel (ui_vp_*)
@@ -510,7 +519,10 @@ static void widget_paint (void)
 /* ---- le widget au demarrage de la session : une ligne de la liste personnelle HOME:/etc/startup.txt
  * (docs/DEMARRAGE.md ; Reglages, Demarrage la montre). Le widget est un choix de l'utilisateur : Fichier,
  * Afficher sur le bureau ; decoche, la ligne part et le widget qui tourne s'arrete de lui-meme. */
-#define WIDGET_LINE	"/apps/weather.app/main --widget"
+#define APP_MAIN	"/apps/weather.app/main"
+#define WIDGET_LINE	APP_MAIN " --widget"
+#define WIDGET_PROC	"weather-widget"		/* le nom du process du widget (pas « weather » : voir en tête) */
+#define WIDGET_RUN	"--widget-run"			/* le widget déjà relancé sous ce nom (main) */
 
 /* la ligne s'y trouve (hors commentaire) -> 1 */
 static int widget_on (void)
@@ -573,8 +585,37 @@ static void open_app (void)
 	posix_spawn (&pid, path, 0, 0, argv, environ);
 }
 
+/* un autre widget tourne (un process WIDGET_PROC qui n'est pas celui-ci) -> 1 */
+enum { SYS_PROCLIST_ = 0x15 };				/* src/inc/syscalls.inc : entrées de 64 o, pid à 0, nom à 24 */
+static int widget_other (void)
+{
+	static unsigned char t[128 * 64];
+	long n = armpi_syscall (SYS_PROCLIST_, (long) t, 128, 0, 0, 0, 0);
+	int me = (int) getpid ();
+	for (long i = 0; i < n; i++)
+		if (*(int *) (t + i * 64) != me && !strcmp ((const char *) t + i * 64 + 24, WIDGET_PROC)) return 1;
+	return 0;
+}
+
+/* le programme sur le disque : sa date et sa taille (0 : absent), pour voir une mise à jour passer */
+static long long prog_stamp (void)
+{
+	struct stat st;
+	if (stat (APP_MAIN, &st)) return 0;
+	return ((long long) st.st_mtime << 24) ^ (long long) st.st_size ^ 1;
+}
+
 static int widget_main (void)
 {
+	/* un seul widget : après une mise à jour, l'ancien s'arrête juste après avoir lancé celui-ci (ci-dessous :
+	 * on l'attend 3 s) ; un autre qui reste (la carte remise sur le bureau avant qu'il ait vu qu'on l'avait
+	 * retirée) garde sa place, et celui-ci s'en va */
+	for (int i = 0; widget_other (); i++)
+	{
+		if (i >= 30) return 0;
+		usleep (100000);
+	}
+	long long stamp = prog_stamp (), seen = stamp;	/* (à la mise à jour : la nouvelle version, stable) */
 	struct wx_place pl;
 	place_load (&pl);
 	g_place = pl;
@@ -600,6 +641,16 @@ static int widget_main (void)
 		{
 			reload = now;
 			if (!widget_on ()) break;			// (retiré du bureau : Fichier, Afficher sur le bureau)
+			long long st = prog_stamp ();		// le programme a changé (mise à jour, retrait) ?
+			if (st != stamp && st == seen)		// (deux relectures pareilles : le fichier est fini)
+			{
+				if (!st) break;				// (l'app est partie : la carte aussi)
+				char *args[] = { APP_MAIN, "--widget", 0 };	// la nouvelle version prend la place
+				pid_t pid;
+				if (posix_spawn (&pid, APP_MAIN, 0, 0, args, environ) == 0) break;
+				stamp = st;				// (sans relance : on garde l'ancienne)
+			}
+			seen = st;
 			place_load (&pl);
 			if (pl.found && !same_place (&pl, &g_place))
 			{
@@ -680,7 +731,7 @@ static void command (long id)
 		ui_menu_state (M_DESK, on ? UMS_CHECKED : 0);
 		if (on)
 		{					/* (tout de suite, sans attendre la prochaine session) */
-			char *argv[] = { "/apps/weather.app/main", "--widget", 0 };
+			char *argv[] = { APP_MAIN, "--widget", 0 };
 			pid_t pid;
 			posix_spawn (&pid, argv[0], 0, 0, argv, environ);
 		}
@@ -754,7 +805,15 @@ static int window_main (void)
 
 int main (int argc, char **argv)
 {
-	g_widget = argc > 1 && !strcmp (argv[1], "--widget");
+	const char *role = argc > 1 ? argv[1] : "";
+	if (!strcmp (role, "--widget"))
+	{						/* le widget sous son nom à lui (voir en tête) : même process */
+		char *args[] = { APP_MAIN, WIDGET_RUN, 0 };
+		korin_exec_name (WIDGET_PROC);
+		execv (APP_MAIN, args);
+		korin_exec_name (0);			/* (execv a échoué : le widget sous le nom de l'app) */
+	}
+	g_widget = !strcmp (role, "--widget") || !strcmp (role, WIDGET_RUN);
 	if (!uikit_open (&ui)) return 1;
 	if (!netkit_kit_open ()) return 1;
 	snprintf (g_lang, sizeof g_lang, "%s", (const char *) ui_lang ());	/* (la langue des noms de lieux ; les

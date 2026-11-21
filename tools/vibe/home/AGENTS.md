@@ -11,6 +11,9 @@ de X11 ni de Wayland. Un seul utilisateur (uid 0). La couche POSIX (`libposix`) 
   (`python3 -m pip`) ; **GCC 14** : `gcc`, `g++`, `make`, `objdump`, `nm`, `readelf`, `strip` et **`fbc`**
   (FreeBASIC) dans `/devtools/gcc/bin` ; C# par Roslyn dans `/devtools/dotnet` ; **`pibuild`** construit et installe une app ou une
   commande. Pas de `which` (`command -v`), `ps`, `top`, `curl`, `awk`, `xargs`.
+* **Avec le paquet unixtools** (BusyBox), `/devtools/bin` est devant `/bin` dans ton `PATH` : `awk`, `xargs`, `which`,
+  `env`, `sed -E`, `grep -E`, `sort -k`, `find -regex`, `head -c`, `tar`, `diff`, `sha256sum`, `timeout`… avec leurs
+  options habituelles (`command -v busybox` pour savoir s'il est là ; sinon `pkg add unixtools`).
 * `/tmp` est en mémoire et peut ne pas exister au démarrage : `mkdir -p /tmp` avant de s'en servir.
 * **Chemins** : un seul arbre, comme Unix. `/` = le volume système (`/apps`, `/bin`, `/etc`, `/home`, et les outils
   dans `/devtools` : `gcc`, `python`, `dotnet`) ; les autres volumes sont montés dans des dossiers : `/tmp` = la RAM,

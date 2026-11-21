@@ -22,14 +22,39 @@ Le plus simple pour l'utilisateur : **un seul programme** avec deux rôles.
 * `main --widget` : la carte du bureau. Elle **ne fait que lire** ce que l'app écrit (un fichier de réglages dans
   `HOME:/.config/<nom>.ini`) et le relit de temps en temps : l'app et le widget ne se parlent pas autrement.
 
+**Le widget sous son propre nom de process.** Le noyau nomme le process de `/apps/<nom>.app/main` d'après son
+dossier : `<nom>`. Or le panel tient une app pour **ouverte** dès qu'un process porte son nom (il montre son icône
+comme celle d'une app lancée), et le gestionnaire de paquets **refuse de mettre à jour** une app qui tourne. Un widget
+lancé sous le nom de l'app ferait donc les deux. Le rôle widget se relance une fois, par `execv`, sous un autre nom
+(`korin_exec_name` de la libc, déclaré à la main), comme le fait Météo (`src/apps/weather/main.c`) :
+
 ```c
+#include <unistd.h>
+void korin_exec_name (const char *name);	/* libc de Korin : le nom du process après le prochain execv */
+
 int main (int argc, char **argv)
 {
+	const char *role = argc > 1 ? argv[1] : "";
+	if (!strcmp (role, "--widget"))
+	{					/* même process, sous le nom « monwidget-widget » */
+		char *args[] = { "/apps/monwidget.app/main", "--widget-run", 0 };
+		korin_exec_name ("monwidget-widget");
+		execv (args[0], args);
+		korin_exec_name (0);		/* (échec : on continue sous le nom de l'app) */
+	}
 	if (!uikit_open (&ui)) return 1;
-	int widget = argc > 1 && !strcmp (argv[1], "--widget");
+	int widget = !strcmp (role, "--widget") || !strcmp (role, "--widget-run");
 	return widget ? widget_main () : app_main ();
 }
 ```
+
+* La ligne de démarrage et l'app gardent `main --widget` ; `--widget-run` ne sert qu'à ce relancement.
+* Le nom fait 31 caractères au plus. `sysstat` montre alors `monwidget-widget`, et `kill` le vise sans toucher l'app.
+* Une mise à jour passe pendant que le widget tourne (le process garde son ancienne image en mémoire). Pour qu'il
+  prenne la nouvelle version sans attendre la session suivante : comparer de temps en temps la date et la taille de
+  `/apps/<nom>.app/main` (`stat`) à celles du départ, et, quand elles ont changé et sont restées pareilles d'une
+  lecture à l'autre, lancer `main --widget` puis s'arrêter. Le nouveau attend que l'ancien soit parti (un seul widget
+  à la fois : chercher un autre process de ce nom dans `SYS_PROCLIST`, comme Météo).
 
 ## 2. La fenêtre du widget
 
@@ -143,11 +168,12 @@ une fois la session ouverte) :
 * **Demander à l'utilisateur** avant de l'ajouter. Il le voit ensuite dans Réglages, Démarrage (Session), où il peut
   le passer en Manuel ou Désactivé.
 * L'essayer tout de suite, sans attendre la prochaine session : `(/apps/monwidget.app/main --widget >/dev/null 2>&1 &)`.
-  Un seul exemplaire à la fois : le relancer, c'est d'abord arrêter l'ancien (`sysstat | grep monwidget`, `kill`).
+  Un seul exemplaire à la fois : le relancer, c'est d'abord arrêter l'ancien (`sysstat | grep monwidget-widget`, `kill`).
 
 ## 6. Vérifier avant de rendre
 
 * `pibuild` réussi, le widget lancé, `screenshot /tmp/s.bmp` : la carte est au bon endroit, ne recouvre ni l'Agenda
   ni les Notes, se lit sur le fond d'écran, en Givre et en Onyx Noir (changer de thème : Réglages, Thème).
 * Une fenêtre ouverte passe **par-dessus** le widget ; un clic sur le widget ouvre l'app sans voler le focus.
+* Le widget seul tourne : **le panel ne montre pas l'app comme ouverte**, et le gestionnaire de paquets la met à jour.
 * `app.txt` : dire dans `help` que le widget existe et comment l'ajouter au démarrage.
