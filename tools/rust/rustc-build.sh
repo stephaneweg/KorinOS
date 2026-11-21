@@ -30,7 +30,7 @@ mkdir -p "$W/dl"
 (cd "$W/dl" && echo "$SRC_SHA  rustc-$V-src.tar.xz" | sha256sum -c - >/dev/null)
 S=$W/src
 STAMP=$(cat "$ROOT/tools/rust/rustc.patch" "$ROOT/tools/rust/std.patch" "$ROOT/tools/rust/libc.patch" \
-	"$ROOT/tools/rust/llvm.patch" | sha256sum | cut -c1-16)
+	"$ROOT/tools/rust/llvm.patch" "$ROOT"/tools/rust/rustc-vendor/*.patch 2>/dev/null | sha256sum | cut -c1-16)
 if [ "$(cat "$S/.korin" 2>/dev/null)" != "$STAMP" ]; then
 	# (build/ est gardé : il ne dépend que des sources, que cargo et bootstrap suivent)
 	[ -d "$S/build" ] && mv "$S/build" "$W/build.keep"
@@ -48,6 +48,28 @@ p = sys.argv[1]
 j = json.load(open(p))
 json.dump({"files": {}, "package": j["package"]}, open(p, "w"))
 EOF
+	# les caisses vendues du compilateur (vendor/, pour rustc avec Korin pour hôte) : la libc du compilateur reçoit le
+	# même module korin (libc.patch), les autres tools/rust/rustc-vendor/<caisse-version>.patch ; leur somme de
+	# contrôle de vendeur est vidée (des fichiers changent)
+	VP=""
+	for v in $(python3 -I -c 'import sys, tomllib; print(" ".join(p["version"] for p in tomllib.load(open(sys.argv[1], "rb"))["package"] if p["name"] == "libc"))' "$S/Cargo.lock"); do
+		sed 's#vendor/libc-0\.2\.185/##g' "$ROOT/tools/rust/libc.patch" | (cd "$S/vendor/libc-$v" && patch -p1 -s --no-backup-if-mismatch)
+		VP="$VP $S/vendor/libc-$v"
+	done
+	for p in "$ROOT"/tools/rust/rustc-vendor/*.patch; do
+		[ -f "$p" ] || continue
+		c=$(basename "$p" .patch)
+		(cd "$S/vendor/$c" && patch -p1 -s --no-backup-if-mismatch < "$p")
+		VP="$VP $S/vendor/$c"
+	done
+	for d in $VP; do
+		python3 -I - "$d/.cargo-checksum.json" <<'EOF2'
+import json, sys
+p = sys.argv[1]
+j = json.load(open(p))
+json.dump({"files": {}, "package": j["package"]}, open(p, "w"))
+EOF2
+	done
 	# libc devient un chemin ([patch] de std.patch) : library/Cargo.lock le dit, x.py le tient figé (--frozen)
 	(cd "$S/library" && RUSTC_BOOTSTRAP=1 cargo update -q -p libc --offline)
 	echo "$STAMP" > "$S/.korin"
