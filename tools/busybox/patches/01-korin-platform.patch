@@ -1,0 +1,20 @@
+--- a/include/platform.h	2026-11-21 21:15:36.739597886 +0000
++++ b/include/platform.h	2026-11-21 21:15:36.754236925 +0000
+@@ -490,6 +490,17 @@
+ # undef HAVE_PRINTF_PERCENTM
+ #endif
+ 
++/* Korin OS : libposix sur newlib (tools/busybox) */
++#if defined(__ARMPI_POSIX__)
++# undef HAVE_CLEARENV
++# undef HAVE_GETLINE
++# undef HAVE_UNLOCKED_LINE_OPS
++# undef HAVE_MNTENT_H
++# undef HAVE_NET_ETHERNET_H
++# undef HAVE_SETBIT
++# undef HAVE_DEV_FD
++#endif
++
+ #if defined(__dietlibc__)
+ # undef HAVE_STRCHRNUL
+ #endif
