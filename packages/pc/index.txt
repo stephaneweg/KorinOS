@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 10:06
+date = 2026-11-21 10:07
 abi = 626
 packages = 117
 board = pc
@@ -2056,3 +2056,18 @@ needs = craft, abi >= 626
 required = 0
 restart = 0
 content = 5064d99c0da3cb32ffd9eb95c9398fde3cf68a633bb1cb882656530eaf87b5e9
+
+[soundcraft]
+title = SoundCraft
+version = 1.0.0
+category = Suite ArtCraft
+author = Korin OS
+summary = La station audio libre SoundCraft (storytold) : enregistrement, montage, mixage (sur Korin : pas encore de son, cpal n'y a pas de sortie)
+size = 11541118
+installed = 27187258
+sha256 = a4233456fa9ed9cf60b0d500e2b3d9aa3798fe889e50d5e9ad40e59c6eedc7e9
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-soundcraft-1.0.0.opk
+needs = craft, abi >= 626
+required = 0
+restart = 0
+content = 1692fb007efc0cd3855d5ba6ed2f201bffbc4e495fa5ea9aa16545c521b108ca
