@@ -20,6 +20,7 @@
 #include <unistd.h>
 
 #include "linux.h"
+#include "glibc_internal.h"
 
 #define EXE_TLS_ROOM	65536
 extern __thread unsigned char linux_exe_tls_pad[EXE_TLS_ROOM];
@@ -97,6 +98,9 @@ int linux_exec (const char *path, int argc, char **argv, char **envp, int flags,
 	char **ptrs = malloc (sizeof (char *) * (size_t) (argc + envc + 1));
 	if (!ptrs)
 		return set_err (err, errlen, "mémoire"), -1;
+	extern void *linux_main_stack_lo, *linux_main_stack_hi;	/* glibc_thread.c : pthread_getattr_np */
+	linux_main_stack_lo = stk;
+	linux_main_stack_hi = stk + ss;
 	char *p = (char *) stk + ss - 16;
 	char *execfn = push_str (&p, path);
 	char *platform = push_str (&p, "x86_64");
@@ -130,8 +134,12 @@ int linux_exec (const char *path, int argc, char **argv, char **envp, int flags,
 	*w++ = 0;
 	linux_auxv = w;
 	memcpy (w, aux, sizeof aux);
+	char *ptrs_argv0 = argc > 0 ? ptrs[0] : 0;
 	free (ptrs);
+	static char abs_path[4096];
+	linux_exe_path = realpath (path, abs_path) ? abs_path : path;	/* (/proc/self/exe) */
 	linux_exe_start (m);
+	lx_libc_set_progname (argc > 0 ? ptrs_argv0 : path);
 	fflush (0);
 	jump (s_x.entry, sp);
 }

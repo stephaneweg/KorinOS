@@ -816,9 +816,19 @@ void linux_exe_info (struct linux_module *m, struct linux_exe_info *x)
 
 static struct linux_module *s_exe;	/* l'exécutable lancé (linux_exe_start) */
 
+#include "glibc_internal.h"
+
 void linux_exe_start (struct linux_module *m)
 {
 	s_exe = m;
+	/* son malloc, s'il en définit un : pour ce que la glibc de compatibilité lui rend à libérer */
+	void *ma = linux_sym (m, "malloc"), *re = linux_sym (m, "realloc"), *fr = linux_sym (m, "free");
+	if (ma && re && fr)
+	{
+		lx_umalloc = (void *(*) (size_t)) ma;
+		lx_urealloc = (void *(*) (void *, size_t)) re;
+		lx_ufree = (void (*) (void *)) fr;
+	}
 }
 
 /* atexit de libposix : comme _dl_fini pour l'exécutable, après ses __cxa_atexit (glibc.c les range dans
@@ -1168,3 +1178,142 @@ int linux_check (const void *image, size_t size, FILE *out, int verbose)
 	fprintf (out, "symboles exportés : %lu\n", exported);
 	return missing;
 }
+
+/* ---- dlopen, dlsym, dladdr, dl_iterate_phdr, dlerror : les modules de liblinux, l'exécutable, la glibc de
+   compatibilité (pour le code de Linux, « libc.so.6 » et ses sœurs sont elle) ---- */
+#define LX_RTLD_NEXT	((void *) -1L)
+#define LX_RTLD_DEFAULT	((void *) 0)
+static int s_libc_handle, s_main_handle;
+static __thread const char *s_dlerr;
+static __thread char s_dlerr_buf[256];
+
+static void *lx_dlopen (const char *name, int flags)
+{
+	(void) flags;
+	if (!name)
+		return &s_main_handle;
+	const char *b = strrchr (name, '/');
+	b = b ? b + 1 : name;
+	static const char *const libc[] = { "libc.so", "libpthread.so", "libdl.so", "librt.so", "libm.so", "ld-linux" };
+	for (size_t i = 0; i < sizeof libc / sizeof libc[0]; i++)
+		if (!strncmp (b, libc[i], strlen (libc[i])))
+			return &s_libc_handle;
+	for (int i = 0; i < MAX_MODULES; i++)
+		if (s_modules[i] && !strcmp (s_modules[i]->name, name))
+			return s_modules[i];
+	char err[200];
+	struct linux_module *m = strchr (name, '/') ? linux_load_file (name, 0, err, sizeof err) : 0;
+	if (!m)
+	{
+		snprintf (s_dlerr_buf, sizeof s_dlerr_buf, "%s: %s", name, strchr (name, '/') ? err : "cannot open shared object file");
+		s_dlerr = s_dlerr_buf;
+		if (getenv ("LINUX_TRACE_DL"))
+			fprintf (stderr, "liblinux : dlopen (%s) : %s\n", name, s_dlerr_buf);
+	}
+	return m;
+}
+
+static void *lx_dlsym (void *h, const char *name)
+{
+	void *p = 0;
+	if (h == &s_main_handle || h == LX_RTLD_DEFAULT)
+		p = s_exe ? linux_sym (s_exe, name) : 0;
+	if (!p && (h == &s_main_handle || h == LX_RTLD_DEFAULT || h == LX_RTLD_NEXT || h == &s_libc_handle))
+		p = linux_glibc_lookup (name);
+	else if (!p && h != &s_main_handle && h != LX_RTLD_DEFAULT)
+		p = linux_sym ((struct linux_module *) h, name);
+	if (!p && getenv ("LINUX_TRACE_DL"))
+		fprintf (stderr, "liblinux : dlsym (%s) : absent\n", name);
+	if (!p)
+	{
+		snprintf (s_dlerr_buf, sizeof s_dlerr_buf, "undefined symbol: %s", name);
+		s_dlerr = s_dlerr_buf;
+	}
+	return p;
+}
+
+static int lx_dlclose (void *h)
+{
+	(void) h;	/* (les modules restent : Bun ne décharge pas) */
+	return 0;
+}
+
+static char *lx_dlerror (void)
+{
+	const char *e = s_dlerr;
+	s_dlerr = 0;
+	return (char *) e;
+}
+
+struct lx_dlinfo { const char *fname; void *fbase; const char *sname; void *saddr; };
+
+static int lx_dladdr (const void *addr, struct lx_dlinfo *info)
+{
+	struct linux_module *m = module_of ((void *) addr);
+	memset (info, 0, sizeof *info);
+	if (!m)
+	{
+		info->fname = "/usr/lib/x86_64-linux-gnu/libc.so.6";
+		info->fbase = (void *) 0x40000000;
+		return 1;
+	}
+	info->fname = m->exe && linux_exe_path ? linux_exe_path : m->name;
+	info->fbase = m->exe ? m->area : m->base;
+	uint64_t best = 0;
+	for (unsigned long i = 1; i < m->nsyms; i++)
+	{
+		const lx_sym *sy = &m->symtab[i];
+		if (sy->st_shndx == SHN_UNDEF)
+			continue;
+		uint64_t a = (uint64_t) (uintptr_t) (m->base + sy->st_value);
+		if (a <= (uint64_t) (uintptr_t) addr && a > best && (uint64_t) (uintptr_t) addr < a + (sy->st_size ? sy->st_size : 1))
+		{
+			best = a;
+			info->sname = m->strtab + sy->st_name;
+			info->saddr = (void *) (uintptr_t) a;
+		}
+	}
+	return 1;
+}
+
+/* struct dl_phdr_info de Linux : l'exécutable (nom vide), puis les modules */
+struct lx_phdr_info
+{
+	uint64_t addr;
+	const char *name;
+	const void *phdr;
+	uint16_t phnum;
+	unsigned long long adds, subs;
+	size_t tls_modid;
+	void *tls_data;
+};
+
+static int lx_dl_iterate_phdr (int (*cb) (struct lx_phdr_info *, size_t, void *), void *data)
+{
+	int r = 0;
+	if (s_exe)
+	{
+		struct lx_phdr_info in = { (uint64_t) (uintptr_t) s_exe->base, "", s_exe->phdr ? (const void *) (uintptr_t) s_exe->phdr : s_exe->ph,
+					   (uint16_t) s_exe->phnum, 1, 0, 0, 0 };
+		if ((r = cb (&in, sizeof in, data)) != 0)
+			return r;
+	}
+	for (int i = 0; i < MAX_MODULES; i++)
+	{
+		struct linux_module *m = s_modules[i];
+		if (!m || m == s_exe)
+			continue;
+		struct lx_phdr_info in = { (uint64_t) (uintptr_t) m->base, m->name, m->ph, (uint16_t) m->phnum, 1, 0,
+					   (size_t) m->tls_id, 0 };
+		if ((r = cb (&in, sizeof in, data)) != 0)
+			return r;
+	}
+	return 0;
+}
+
+const struct lx_entry lx_table_dl[] =
+{
+	LX_W ("dlopen", lx_dlopen), LX_W ("dlsym", lx_dlsym), LX_W ("dlclose", lx_dlclose), LX_W ("dlerror", lx_dlerror),
+	LX_W ("dladdr", lx_dladdr), LX_W ("dl_iterate_phdr", lx_dl_iterate_phdr), LX_W ("dlvsym", lx_dlsym),
+};
+const size_t lx_table_dl_n = sizeof lx_table_dl / sizeof lx_table_dl[0];

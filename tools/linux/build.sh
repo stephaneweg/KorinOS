@@ -31,13 +31,13 @@ mkdir -p "$OUT/gen"
 		"$ROOT/src/inc/syscalls.inc"
 } | tr -d '\r' >"$OUT/gen/korin_sys_nr.h"
 CFLAGS="-specs=$POSIX/lib/posix.specs -O2 -g0 -std=gnu11 -Wall -Wextra -Wno-unused-parameter -I$OUT/gen"
-for f in elf glibc glibc_thread glibc_misc syscall capture exec; do
+for f in elf glibc glibc_thread glibc_misc glibc_libc glibc_sys syscall syscall2 capture exec; do
 	${TC}gcc $CFLAGS -c "$SRC/$f.c" -o "$OUT/obj/$f.o"
 done
 ${TC}gcc -c "$SRC/exectls.S" -o "$OUT/obj/exectls.o"
 rm -f "$OUT/liblinux.a"
-${TC}ar rcs "$OUT/liblinux.a" "$OUT/obj/elf.o" "$OUT/obj/glibc.o" "$OUT/obj/glibc_thread.o" "$OUT/obj/glibc_misc.o" \
-	"$OUT/obj/syscall.o" "$OUT/obj/capture.o" "$OUT/obj/exec.o" "$OUT/obj/exectls.o"
+${TC}ar rcs "$OUT/liblinux.a" "$OUT/obj/elf.o" "$OUT/obj/glibc.o" "$OUT/obj/glibc_thread.o" "$OUT/obj/glibc_misc.o" "$OUT/obj/glibc_libc.o" "$OUT/obj/glibc_sys.o" \
+	"$OUT/obj/syscall.o" "$OUT/obj/syscall2.o" "$OUT/obj/capture.o" "$OUT/obj/exec.o" "$OUT/obj/exectls.o"
 
 # 3. linuxhost, lié à 0x4000_0000 (docs/etude/LINUX-HOST.md § 4.1) : sous lui, la zone basse de VM_FIXED où
 #    se chargent les exécutables de Linux non PIE (0x200000, 0x400000…) ; plus haut, le modèle « small » de

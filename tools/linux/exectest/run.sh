@@ -5,6 +5,7 @@
 # build/pc/esp (la zone basse de VM_FIXED : PC_QUICK=1 sh tools/pc/build.sh).
 #   sh tools/linux/exectest/run.sh            sortie : build/pc/linux/exectest/run/run.txt
 #   EXTRA="/chemin/prog …"                     d'autres exécutables de Linux copiés dans /home/lx
+#   MEM=4G : la mémoire de QEMU (2G par défaut)
 #   ONLY="sleep:10|@60 /bin/linuxhost run /home/lx/hello"   seulement ces commandes ; PORT : telnet (2394)
 set -eu
 ROOT=$(cd "$(dirname "$0")/../../.." && pwd)
@@ -44,7 +45,7 @@ cmd = os.environ.get("ONLY", "").split("|") if os.environ.get("ONLY") else [
     "@60 " + L + "tlstest-nopie; echo rc=$?",
     "@60 " + L + "tlstest; echo rc=$?",
 ]
-a = types.SimpleNamespace(port=int(port), hostfwd=[], smp=2, mem="2G", boot=150, shot=os.path.join(w, "fin.png"), qemu="", cmd=cmd)
+a = types.SimpleNamespace(port=int(port), hostfwd=[], smp=2, mem=os.environ.get("MEM", "2G"), boot=150, shot=os.path.join(w, "fin.png"), qemu="", cmd=cmd)
 pt.run(a)
 PY
 rm -rf "$T" "$IMG"

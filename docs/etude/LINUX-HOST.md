@@ -97,6 +97,38 @@ les autres par `linux_thread_hook`, appelé par un tremplin du `pthread_create` 
 la réserve) n'est lié que dans un hôte qui appelle `linux_exec` : pas dans cdmhost. Le TCB à `%fs` est celui de libposix : `%fs:0` (soi-même), `%fs:0x28` (canari),
 `%fs:0x30` (garde des pointeurs) sont lus par le code Linux (déjà vrai pour Widevine).
 
+## 4bis. Claude Code démarre (21/11)
+
+Le même jour : **`claude --version` rend `2.1.330 (Claude Code)` et `claude --help` l'aide complète, code 0**, sous
+QEMU PC (`EXTRA=/opt/claude-code/bin/claude MEM=4G ONLY='sleep:10|@200 /bin/linuxhost run /home/lx/claude --version'
+sh tools/linux/exectest/run.sh` ; 4 s et 10 s). Les 521 imports sont servis (`tools/linux/imports.py` : 512, et 9
+faibles) :
+
+* `glibc_libc.c` : maths, ctype, caractères larges, locale « C » (`__newlocale`…, `nl_langinfo` avec les nl_item de
+  glibc), stdio, `getline`, `realpath`, `asprintf`, gettext, `quick_exit`, `sysinfo`, `program_invocation_name`…
+  Ce qui est rendu à libérer par l'appelant vient du malloc de l'exécutable quand il en définit un
+  (`lx_umalloc`, posé par `linux_exe_start` : Bun a mimalloc).
+* `glibc_sys.c` : les enveloppes d'appels système (une forme `SC (nom, numéro)` pour toutes), et les structures de
+  glibc : `sigaction` et `sigset_t` de 128 octets, `signal` et ses formes BSD et System V (Bun les enveloppe et
+  appelle les vraies par `dlsym (RTLD_NEXT)`), DIR et `readdir` sur `getdents64`, `__xstat`…, `statvfs`,
+  `posix_spawn` (sur celui de libposix ; un programme de Linux passe par `linuxhost run`), `passwd` et `group`
+  (uid sur 32 bits), `getcwd (NULL, 0)`.
+* `syscall2.c` : la traduction des appels de Linux, pour les enveloppes et pour les `syscall` directs de Bun :
+  fichiers (`openat`, `newfstatat`, `statx`, `getdents64`, `fcntl`, `ioctl` du terminal, `*at`, `utimensat`,
+  `statfs`, `/proc/self/exe`), `select`/`poll`/`ppoll`, epoll (`epoll_event` de 12 octets), **eventfd** (une paire
+  de sockets locales et un compteur), process (`fork`, `execve` d'un programme de Linux par l'hôte, `wait4`,
+  `waitid`, `kill`, `tgkill`), **signaux réels** (`rt_sigaction` par un tremplin : numéros traduits, le siginfo et
+  l'ucontext du noyau du PC ont déjà la disposition de Linux ; le gestionnaire de plantage de Bun marche),
+  `rt_sigprocmask`, `sigaltstack`, sockets (mêmes constantes), `mremap`, `close_range`… Les modules (Widevine)
+  gardent leur `rt_sigaction` « gardé, pas installé ».
+* `elf.c` : `dlopen` (libc, libpthread… : la compatibilité ; un chemin : un module), `dlsym` (RTLD_DEFAULT,
+  RTLD_NEXT, l'exécutable), `dladdr`, `dl_iterate_phdr`, `dlerror`.
+* traces : `LINUX_TRACE_SIG=1` (chaque signal, `=2` les fautes : adresse, rip, chaîne des rbp), `LINUX_TRACE_DL=1`
+  (les `dlsym` et `dlopen` manqués) ; un appel non servi est dit une fois.
+
+Pas encore : inotify, timerfd, signalfd, pidfd, `timer_create`, clone3 (ENOSYS ; Bun a des replis, à vérifier quand
+il s'en sert), `brk`.
+
 ## 5. Jalons suivants
 
 **La suite du jalon 1, puis le 2** : les 341 imports absents de Claude Code. La plupart sont des enveloppes
