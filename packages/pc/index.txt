@@ -2026,3 +2026,18 @@ needs = craft, abi >= 626
 required = 0
 restart = 0
 content = b7a6197764f0215866ee36faa8b5e4a547c6e33aa987adca23458250a16e56d7
+
+[effectcraft]
+title = EffectCraft
+version = 1.0.0
+category = Suite ArtCraft
+author = Korin OS
+summary = L'animation graphique et les effets visuels libres EffectCraft (storytold).
+size = 41444864
+installed = 99502464
+sha256 = 2df7758ad139513885f82e75fbab2380ca7d9e7e4e3f2e23f70fe44af9cca1d6
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-effectcraft-1.0.0.opk
+needs = craft, abi >= 626
+required = 0
+restart = 0
+content = c4ebbc6c62c4431747b37a71bf158e8df27e0f25a52eef6a36c9c21506396088
