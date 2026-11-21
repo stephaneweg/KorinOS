@@ -75,11 +75,62 @@ telles quelles ; si `ureq` ou rustls bloque sur Korin, c'est un patch de plus da
 ## 4. Ce qui limitera l'usage
 
 Craft Anything « étudie l'original avec de vrais outils d'inspection » (Chromium sans tête, rizin, captures) avant de
-faire construire un projet par l'agent. Sur Korin, une bonne part manque : pas de Chromium, pas de rizin. Ce qui reste :
+faire construire un projet par l'agent. Sur Korin, une bonne part manque : pas de Chromium (Jet peut le remplacer, § 4 bis), pas de rizin. Ce qui reste :
 décrire ce qu'on veut, donner des captures ou des fichiers, laisser l'agent construire. Et le projet construit doit
 pouvoir se compiler **sur Korin** : Rust (la chaîne `x86_64-unknown-korin` n'est pas encore dans l'OS, elle est
 construite dans WSL), ou bien orienter l'agent vers ce que Korin construit chez lui (C par gcc, C#, Python, BASIC) par
 les compétences (`.agents/skills`, déjà lues par claude-acp et Vibe).
+
+## 4 bis. Remplacer Chromium par notre WebKit (Jet)
+
+Question de l'utilisateur (21/11). Oui, c'est possible : Craft Anything ne charge pas Chromium, il **lui parle par le
+protocole DevTools (CDP)** sur `127.0.0.1` (`crates/engines/src/cdp.rs`, client WebSocket fait main). Il suffit donc
+que Jet parle CDP.
+
+**Ce que Craft Anything attend** (`crates/engine/src/tools/web_common.rs`, `Browser::resolve`) :
+
+- un programme lancé avec `--user-data-dir=<dossier> --remote-debugging-port=0 --headless=new …` puis l'adresse de
+  départ ; il attend le fichier `<dossier>/DevToolsActivePort` (le port sur la première ligne), puis lit
+  `/json/version` et `/json/list` en HTTP, et ouvre le WebSocket d'une page. Les autres drapeaux de Chromium
+  (`--no-first-run`, `--disable-sync`…) peuvent être ignorés ;
+- ou un navigateur déjà lancé par l'utilisateur, dont on donne l'adresse (`--remote-debugging-port=9222`) ;
+- le chemin du programme se règle dans Réglages → Moteurs (`engines.tools.chromium`) : `/apps/jet.app/main` sur Korin,
+  **sans toucher au code de Craft Anything** (au plus, ce chemin par défaut sur Korin dans `korin_app.py`).
+
+**Les 70 commandes CDP employées** : `Page` (navigate, reload, captureScreenshot, getFrameTree, getResourceTree,
+dialogues, téléchargements, événements de chargement), `Runtime` (evaluate, callFunctionOn, console, exceptions),
+`Network` (requêtes, réponses, getResponseBody, cookies, WebSockets), `DOM` (getDocument, querySelector,
+getOuterHTML, getBoxModel, focus), `Debugger` (scriptParsed, getScriptSource), `Input` (souris, clavier, insertText),
+`Emulation` (taille de l'écran, média, langue, fuseau), `Accessibility` (l'arbre), `Profiler` (couverture du code),
+`Target`, `Log`, `Browser.close`.
+
+**Ce que WebKit a déjà** : CDP est né d'une copie du protocole de l'inspecteur de WebKit (2013), et les deux ont gardé
+les mêmes domaines pour l'essentiel : `Page`, `Runtime`, `Network` (avec `getResponseBody`), `DOM`, `Debugger`,
+`Console` (le `Log` de CDP) ont presque les mêmes messages JSON. Il manque côté WebKit : `Input`, une bonne part
+d'`Emulation`, `Accessibility`, la couverture de `Profiler` (WebKit a `ScriptProfiler`), et `Target` à la façon de
+Chromium. Playwright a résolu le même problème par des patchs de WebKit (`browser_patches/webkit` : `Input`,
+captures, émulation, mode sans écran) : une source d'idées, et de code si la licence va (à vérifier).
+
+**Le plan** :
+
+1. Dans Jet, un **mode sans fenêtre** (`--headless=new`) : WebKit2 peint déjà dans une mémoire partagée, Jet ne la
+   présente simplement pas ; et `--user-data-dir` (profil, cookies) à part.
+2. Un **serveur CDP dans Jet** (C++, sur le bouclage seulement) : HTTP pour `/json/version` et `/json/list`,
+   WebSocket par page, écriture de `DevToolsActivePort`. Chaque message passe à **l'inspecteur de WebKit** de la
+   page (sa connexion locale, `InspectorController` / `WebPageInspectorController`) après une traduction légère des
+   noms et des champs qui diffèrent ; ce que WebKit n'a pas est fait à côté dans Jet : `Input` (les événements
+   envoyés à la page, comme le fait l'UI de Jet), `Page.captureScreenshot` (l'image de la page en PNG),
+   `Emulation.setDeviceMetricsOverride` (la taille de la vue), `Target` (les onglets de Jet).
+3. Ce qui peut attendre : `Accessibility`, `Profiler` (couverture), `Emulation` du fuseau et de la langue ; Craft
+   Anything signale un outil qui manque sans tout arrêter (à vérifier outil par outil).
+
+**À vérifier d'abord** (les sources de WebKit sont hors de git, `src/extra/webkit`, pas dans le cloud) : que
+l'inspecteur est construit dans le WebKit de Jet (`ENABLE_INSPECTOR` ; le transport `REMOTE_INSPECTOR` est éteint
+pour `jsc` dans `build-jsc.sh`, et n'est pas nécessaire : le serveur de Jet parlerait à l'inspecteur en local).
+
+**Taille** : une à deux semaines (le serveur et la traduction de `Page`, `Runtime`, `Network`, `DOM` d'abord, puis
+`Input`, captures, émulation). Le gain dépasse Craft Anything : Jet deviendrait pilotable par tout outil CDP
+(Puppeteer, les essais de pages de Korin, un serveur MCP de navigation pour claude-acp et Vibe).
 
 ## 5. Estimation
 
