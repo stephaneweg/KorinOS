@@ -1,6 +1,6 @@
 ---
 name: armpi-morpho
-description: "Morpho (20/11/2026) : animal de compagnie à la Tamagotchi, créature 3D paramétrique façon Spore (originale), C++ sur gk_draw ; banc d'essai hôte tools/morpho ; PC 1.0.0 publié, code dans main ; essayé sous QEMU PC, GPU jamais vu"
+description: "Morpho (20/11/2026) : animal de compagnie à la Tamagotchi, créature 3D paramétrique façon Spore (originale), C++ sur gk_draw ; banc d'essai hôte tools/morpho ; PC 1.0.1 publié (21/11), code dans main ; essayé sous QEMU PC, GPU jamais vu"
 metadata:
   node_type: memory
   type: project
