@@ -29,10 +29,23 @@ def edit(rel, pairs, count_min=1):
 
 
 # eframe -> l'eframe de Korin : la ligne de la fourche dans [patch.crates-io], ou une ligne de plus (l'app prend
-# l'eframe de crates.io)
+# l'eframe de crates.io). Une app encore sur egui 0.36 prend la copie 0.36 de l'hôte (tools/craft/egui036.py), à côté
+# des dépôts des apps
 EFRAME = 'eframe = { path = "%s/src/lib/eframe-korin" }' % root
 p = os.path.join(app, "Cargo.toml")
 s = open(p, encoding="utf-8").read()
+if re.search(r'^eframe = \{ version = "0\.36"', s, re.M):
+    import glob
+    import subprocess
+    e036 = os.path.join(os.path.dirname(os.path.normpath(app)), "egui036")
+    reg = (glob.glob(os.path.join(os.environ.get("CARGO_HOME", os.path.expanduser("~/.cargo")), "registry", "src",
+                                  "index.crates.io-*")) or [""])[0]
+    import tomllib
+    lock = tomllib.load(open(os.path.join(app, "Cargo.lock"), "rb"))
+    ev = [q["version"] for q in lock["package"] if q["name"] == "eframe" and q["version"].startswith("0.36.")]
+    subprocess.run([sys.executable, "-I", os.path.join(root, "tools", "craft", "egui036.py"), root, e036, reg] + ev[:1],
+                   check=True)
+    EFRAME = 'eframe = { path = "%s/eframe-korin" }' % e036
 fork = re.compile(r'^eframe = \{ git = "https://github\.com/storytold/egui\.git".*$', re.M)
 if fork.search(s):
     s = fork.sub(EFRAME, s)
@@ -43,6 +56,16 @@ else:
 open(p, "w", encoding="utf-8", newline="\n").write(s)
 
 name = os.path.basename(os.path.normpath(app))
+# winit pris directement (la fenêtre native : ses écrans, sa poignée) : le winit de Korin (src/lib/winit-korin), sans
+# fenêtre, à la place de la fourche de storytold ; eframe-korin le prend aussi (winit_window() rend None)
+if name in ("vectorcraft", "effectcraft"):
+    p = os.path.join(app, "Cargo.toml")
+    s = open(p, encoding="utf-8").read()
+    wfork = re.compile(r'^winit = \{ git = "https://github\.com/storytold/winit\.git".*$', re.M)
+    if not wfork.search(s):
+        sys.exit("korin_app : %s : la ligne winit du [patch.crates-io] est absente" % name)
+    s = wfork.sub('winit = { path = "%s/src/lib/winit-korin" }' % root, s)
+    open(p, "w", encoding="utf-8", newline="\n").write(s)
 if name == "wordcraft":
     edit("apps/wordcraft/Cargo.toml", [
         ('    "gpu-startup",\n', ""),
@@ -88,4 +111,64 @@ if name == "pdfcraft":
     edit("crates/optimize/src/pool.rs", [("    let _ = thread_priority::set_current_thread_priority(",
                                           "    #[cfg(not(target_os = \"korin\"))]\n"
                                           "    let _ = thread_priority::set_current_thread_priority(")])
+if name == "pdfcraft":
+    # la signature : aws-lc-rs (aws-lc, C et assembleur) ne se construit pas pour Korin ; Korin prend la branche du
+    # navigateur (wasm32) : vérification complète, signature P-256 et P-384, mais ni signature ni création de clé RSA
+    # (craft-pkcs7, sa copie dans craft-libs : tools/craft/korin_libs.py)
+    NO_AWS = 'any(target_arch = "wasm32", target_os = "korin")'
+    AWS = 'aws-lc-rs = { version = "1.18", default-features = false, features = ["aws-lc-sys", "prebuilt-nasm"] }\n'
+    edit("crates/sign/Cargo.toml", [
+        ("[target.'cfg(not(target_arch = \"wasm32\"))'.dependencies]\n" + AWS + "getrandom = \"0.4\"\n",
+         "[target.'cfg(not(target_arch = \"wasm32\"))'.dependencies]\ngetrandom = \"0.4\"\n\n"
+         "# Korin : sans aws-lc (tools/craft/korin_app.py)\n"
+         "[target.'cfg(not(%s))'.dependencies]\n" % NO_AWS + AWS)])
+    edit("crates/sign/src/keys.rs", [('#[cfg(not(target_arch = "wasm32"))]', '#[cfg(not(%s))]' % NO_AWS),
+                                     ('#[cfg(target_arch = "wasm32")]', '#[cfg(%s)]' % NO_AWS)])
+    edit("crates/sign/src/lib.rs", [("pub fn init_crypto() {\n    aws_lc_rs::init();\n}",
+                                     "pub fn init_crypto() {\n    #[cfg(not(target_os = \"korin\"))]\n    aws_lc_rs::init();\n}")])
+if name == "figcraft":
+    # services.rs : le dossier des réglages (XDG_CONFIG_HOME) et la langue (LANGUAGE, LANG) sont du POSIX que Korin a :
+    # leur branche Unix reste à Korin (écrite autrement, korin_cfg.py ne la réécrit pas) ; le mouvement réduit
+    # (gsettings) prend le repli « ni Unix ni Windows » (non)
+    keep = '#[cfg(all(unix, not(any(target_os = "macos"))))]'
+    edit("apps/figcraft/src/services.rs", [
+        ('    #[cfg(all(unix, not(target_os = "macos")))]\n    let base = std::env::var_os("XDG_CONFIG_HOME")',
+         '    // Korin aussi (tools/craft/korin_app.py)\n    ' + keep + '\n    let base = std::env::var_os("XDG_CONFIG_HOME")'),
+        ('    // gettext\'s `LANGUAGE` priority list ("fr:de"), then the locale ("fr_FR.UTF-8").\n'
+         '    #[cfg(all(unix, not(target_os = "macos")))]',
+         '    // gettext\'s `LANGUAGE` priority list ("fr:de"), then the locale ("fr_FR.UTF-8"). Korin aussi.\n    ' + keep),
+        ('    #[cfg(not(any(windows, unix)))]\n    {\n        false',
+         '    #[cfg(any(target_os = "korin", not(any(windows, unix))))]\n    {\n        false'),
+    ])
+if name == "soundcraft":
+    # winit (pour X11 sur les BSD : « Unix ni macOS ni Linux », ce qu'est Korin) ne sert pas sur Korin
+    edit("apps/soundcraft/Cargo.toml", [
+        ("[target.'cfg(all(unix, not(any(target_os = \"macos\", target_os = \"linux\"))))'.dependencies]\nwinit",
+         "[target.'cfg(all(unix, not(any(target_os = \"macos\", target_os = \"linux\", target_os = \"korin\"))))'.dependencies]\nwinit"),
+    ])
+    # l'hôte VST3 : pas de fenêtre pour l'éditeur d'un greffon sur Korin (« unsupported », comme les autres systèmes)
+    edit("crates/vst3-host/src/ffi.rs", [
+        ('#[cfg(not(any(target_os = "macos", windows, unix)))]\n#[path = "ffi/window/other.rs"]',
+         '#[cfg(any(target_os = "korin", not(any(target_os = "macos", windows, unix))))]\n#[path = "ffi/window/other.rs"]'),
+    ])
+if name == "craft-anything":
+    # nix ne connaît pas Korin ; il n'y sert qu'à O_NONBLOCK (killpg est pour Linux et macOS) : libc sur Korin
+    edit("crates/platform/Cargo.toml", [
+        ("[target.'cfg(unix)'.dependencies]\nnix = ",
+         "# Korin : libc, sans nix (tools/craft/korin_app.py)\n[target.'cfg(target_os = \"korin\")'.dependencies]\nlibc = \"0.2\"\n\n"
+         "[target.'cfg(all(unix, not(target_os = \"korin\")))'.dependencies]\nnix = "),
+    ])
+    # portable-pty (nix 0.28, serial2) : les terminaux de la capture, pour Linux, macOS et Windows ; Korin capture par
+    # des tubes (le chemin « piped », comme FreeBSD)
+    edit("crates/platform/Cargo.toml", [
+        ('portable-pty = "0.9"\n', ""),
+        ("# Korin : libc, sans nix (tools/craft/korin_app.py)\n",
+         "# Korin : libc, sans nix ni portable-pty (tools/craft/korin_app.py)\n"
+         "[target.'cfg(not(target_os = \"korin\"))'.dependencies]\nportable-pty = \"0.9\"\n\n"),
+    ])
+    edit("crates/platform/src/fs.rs", [
+        ("        options.custom_flags(nix::libc::O_NONBLOCK);",
+         "        #[cfg(target_os = \"korin\")]\n        options.custom_flags(libc::O_NONBLOCK);\n"
+         "        #[cfg(not(target_os = \"korin\"))]\n        options.custom_flags(nix::libc::O_NONBLOCK);"),
+    ])
 print("korin_app : %s retouchée" % name)

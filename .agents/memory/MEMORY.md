@@ -79,7 +79,7 @@
 - [Rust pour Korin](armpi-rust.md) — cible aarch64-unknown-korin (croisée, WSL), branche claude/rust-target-06eed0 (12/11), QEMU seulement ; pièges build-std, dérouleur partagé
 - [Modules Rust de Python](armpi-python-rust-ext.md) — étape 5 dans main (e68c0a7d, 12/11) : cdylib pyo3, build-rust-ext.sh, caisses patchées, OpenSSL exporté ; QEMU seulement
 - [cargo dans Korin](armpi-cargo.md) — Rust dans Korin PC (20/11) : cargo 0.98.0 tourne sous QEMU, /devtools/rust/bin au PATH, cibles intégrées à rustc 1.97.1 (21/11, claude/epic-dirac-9trnk0) ; ensuite LLVM pour Korin, librustc_driver
-- [Apps Craft](armpi-craft.md) — suite Craft sur Korin PC : lanceur Craft, Word/Grid/Deck/CAD/Design ; le reste passé au cloud (docs/agents/CRAFT-HANDOVER.md), tools/craft/all.sh
+- [Apps Craft](armpi-craft.md) — Suite ArtCraft sur Korin PC : les 17 apps construites et ouvertes (QEMU), paquets craft + un par app, à publier ; puis menus Korin et barre de titre (docs/agents/CRAFT-HANDOVER.md)
 - [Python et Vibe](armpi-python-vibe.md) — étapes 0 à 5 dans main, étape 6 (harness, arbre POSIX /sd0) aussi, poussé (12/11), QEMU seulement
 - [Pas de C pour le Pi seul](armpi-pas-de-c-pour-pi-seul.md) — ce qui ne sert qu'au Pi (GPU, DMA, GpuKit) reste en asm
 - [Ordre des pilotes du PC](armpi-pc-ordre-pilotes.md) — pas de réseau par téléphone, le Wi-Fi AX201 avant l'Ethernet

@@ -8,14 +8,26 @@
 use std::fmt;
 
 pub use egui;
+pub use egui::{emath, epaint};
 #[cfg(feature = "wgpu")]
 pub use egui_wgpu;
 #[cfg(feature = "wgpu")]
-pub use egui_wgpu::wgpu;
+pub use egui_wgpu::{SurfaceConfig, WgpuConfiguration, wgpu};
 pub use egui::{IconData, ViewportBuilder};
+pub use winit;
 use raw_window_handle::{DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle};
 
 pub type DynError = Box<dyn std::error::Error + Send + Sync>;
+
+/// Les événements de la boucle de winit d'eframe (aucun sur Korin : pas de boucle winit).
+#[derive(Debug)]
+pub enum UserEvent {}
+
+/// Le crochet sur la boucle d'événements de winit (`NativeOptions::event_loop_builder` : jamais appelé sur Korin).
+pub type EventLoopBuilderHook = Box<dyn FnOnce(&mut winit::event_loop::EventLoopBuilder<UserEvent>)>;
+
+/// Le crochet qui retouche la fenêtre avant son ouverture (`NativeOptions::window_builder`).
+pub type WindowBuilderHook = Box<dyn FnOnce(egui::ViewportBuilder) -> egui::ViewportBuilder>;
 
 /// Ce qui crée l'app, une fois le contexte d'egui prêt.
 pub type AppCreator<'app> = Box<dyn 'app + FnOnce(&CreationContext<'_>) -> std::result::Result<Box<dyn 'app + App>, DynError>>;
@@ -27,6 +39,10 @@ pub trait App {
     }
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut Frame);
     fn save(&mut self, _storage: &mut dyn Storage) {}
+    /// (avec la fonction `glow`, la signature d'eframe : le contexte OpenGL, toujours None ici)
+    #[cfg(feature = "glow")]
+    fn on_exit(&mut self, _gl: Option<&glow::Context>) {}
+    #[cfg(not(feature = "glow"))]
     fn on_exit(&mut self) {}
     fn auto_save_interval(&self) -> core::time::Duration {
         core::time::Duration::from_secs(30)
@@ -48,6 +64,18 @@ pub trait Storage {
     fn flush(&mut self);
 }
 
+/// Lit une valeur du stockage d'eframe (fonction `persistence`). Sur Korin il n'y a pas de stockage
+/// (`CreationContext::storage` est None, `App::save` n'est pas appelée) : rien n'est jamais lu.
+pub fn get_value<T>(_storage: &dyn Storage, _key: &str) -> Option<T> {
+    None
+}
+
+/// Écrit une valeur dans le stockage d'eframe (sans effet sur Korin : pas de stockage, voir `get_value`).
+pub fn set_value<T: ?Sized>(_storage: &mut dyn Storage, _key: &str, _value: &T) {}
+
+/// La clé sous laquelle eframe garde l'état de l'app (`App::save`).
+pub const APP_KEY: &str = "app";
+
 #[derive(Clone, Debug, Default)]
 pub struct IntegrationInfo {
     /// le temps CPU de la dernière image, en secondes
@@ -61,6 +89,13 @@ pub struct CreationContext<'s> {
     /// toujours None : pas de GPU dans l'eframe de Korin
     #[cfg(feature = "wgpu")]
     pub wgpu_render_state: Option<egui_wgpu::RenderState>,
+}
+
+impl CreationContext<'_> {
+    /// La fenêtre de winit : jamais sur Korin (la fenêtre est celle d'egui-korin).
+    pub fn winit_window(&self) -> Option<&std::sync::Arc<winit::window::Window>> {
+        None
+    }
 }
 
 /// La fenêtre de l'app, passée à chaque passe.
@@ -82,6 +117,17 @@ impl Frame {
             #[cfg(feature = "wgpu")]
             wgpu_render_state: None,
         }
+    }
+
+    /// La fenêtre de winit : jamais sur Korin (la fenêtre est celle d'egui-korin).
+    pub fn winit_window(&self) -> Option<&std::sync::Arc<winit::window::Window>> {
+        None
+    }
+
+    /// L'état de rendu GPU : jamais sur Korin (l'app prend son chemin CPU).
+    #[cfg(feature = "wgpu")]
+    pub fn wgpu_render_state(&self) -> Option<&egui_wgpu::RenderState> {
+        self.wgpu_render_state.as_ref()
     }
 
     pub fn is_web(&self) -> bool {
@@ -124,11 +170,35 @@ impl HasDisplayHandle for Frame {
     }
 }
 
-/// Les options de la fenêtre. Seul `viewport` compte (titre, taille, taille minimale) ; les autres champs sont ceux
-/// d'eframe que les apps règlent, sans effet ici.
-#[derive(Clone, Default)]
+/// Le rendu de la fenêtre que demande l'app (sans effet : l'eframe de Korin dessine par le CPU).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Renderer {
+    #[cfg(feature = "glow")]
+    Glow,
+    #[default]
+    Wgpu,
+}
+
+/// Le module `glow` d'eframe (fonction `glow`) : le type du contexte OpenGL que nomment les apps, jamais créé ici.
+#[cfg(feature = "glow")]
+pub mod glow {
+    /// le contexte OpenGL (aucun sur Korin : `App::on_exit` reçoit toujours None)
+    pub struct Context {
+        _private: (),
+    }
+}
+
+/// Les options de la fenêtre. Seuls `viewport` (titre, taille, taille minimale) et `window_builder` comptent ; les
+/// autres champs sont ceux d'eframe que les apps règlent, sans effet ici.
+#[derive(Default)]
 pub struct NativeOptions {
     pub viewport: egui::ViewportBuilder,
+    /// retouche `viewport` juste avant l'ouverture (une copie des options ne le garde pas, comme dans eframe)
+    pub window_builder: Option<WindowBuilderHook>,
+    /// (sans effet : pas de boucle winit sur Korin)
+    pub event_loop_builder: Option<EventLoopBuilderHook>,
+    /// le rendu demandé (sans effet)
+    pub renderer: Renderer,
     /// les réglages du GPU (sans effet : pas de GPU dans l'eframe de Korin)
     #[cfg(feature = "wgpu")]
     pub wgpu_options: egui_wgpu::WgpuConfiguration,
@@ -142,6 +212,29 @@ pub struct NativeOptions {
     pub dithering: bool,
     pub run_and_return: bool,
     pub system_font_fallback: bool,
+}
+
+impl Clone for NativeOptions {
+    fn clone(&self) -> Self {
+        Self {
+            viewport: self.viewport.clone(),
+            window_builder: None,
+            event_loop_builder: None,
+            renderer: self.renderer,
+            #[cfg(feature = "wgpu")]
+            wgpu_options: self.wgpu_options.clone(),
+            vsync: self.vsync,
+            multisampling: self.multisampling,
+            depth_buffer: self.depth_buffer,
+            stencil_buffer: self.stencil_buffer,
+            centered: self.centered,
+            persist_window: self.persist_window,
+            persistence_path: self.persistence_path.clone(),
+            dithering: self.dithering,
+            run_and_return: self.run_and_return,
+            system_font_fallback: self.system_font_fallback,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -189,7 +282,10 @@ pub mod icon_data {
 }
 
 /// Ouvre la fenêtre, crée l'app, puis la fait tourner jusqu'à sa fermeture.
-pub fn run_native(app_name: &str, native_options: NativeOptions, app_creator: AppCreator<'_>) -> Result {
+pub fn run_native(app_name: &str, mut native_options: NativeOptions, app_creator: AppCreator<'_>) -> Result {
+    if let Some(hook) = native_options.window_builder.take() {
+        native_options.viewport = hook(native_options.viewport);
+    }
     let vp = &native_options.viewport;
     let title = vp.title.clone().unwrap_or_else(|| app_name.to_owned());
     let mut options = egui_korin::Options::new(&title);
@@ -224,6 +320,9 @@ pub fn run_native(app_name: &str, native_options: NativeOptions, app_creator: Ap
         frame.info.cpu_usage = Some(t0.elapsed().as_secs_f32());
         out
     });
+    #[cfg(feature = "glow")]
+    app.on_exit(None);
+    #[cfg(not(feature = "glow"))]
     app.on_exit();
     r.map_err(|e| Error::Window(e.to_string()))
 }

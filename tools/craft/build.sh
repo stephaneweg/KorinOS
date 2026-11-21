@@ -103,16 +103,23 @@ $(python3 -I "$ROOT/tools/craft/craftlibs_patch.py" "$A" "$W")"
 mkdir -p "$A/.cargo"
 printf '%s\n\n# tools/craft/build.sh (Korin)\n%s\n' "$APPCFG" "$CFG" > "$A/.cargo/config.toml"
 
-# 5. la construction ; puis aucun de nos patchs ne doit être resté de côté
+# 5. la construction ; puis aucun de nos patchs ne doit être resté de côté. mio (tokio) n'a pas de backend pour
+#    Korin : poll() et un tube pour le réveil (ses deux repli « unsupported »), comme le port de Spotify
+export RUSTFLAGS="${RUSTFLAGS:-} --cfg mio_unsupported_force_poll_poll --cfg mio_unsupported_force_waker_pipe"
 (cd "$A" && cargo korin build --release -p "$PKG")
-UNUSED=$(python3 -I - "$A/Cargo.lock" "$W/vendor" <<'EOF'
+UNUSED=$(python3 -I - "$A/Cargo.lock" "$W/vendor" "$LV" <<'EOF'
 import os, sys, tomllib
 lock = tomllib.load(open(sys.argv[1], 'rb'))
 mine = {d.rsplit('-', 1)[0] for d in os.listdir(sys.argv[2])} | {'libc'}
-here = {p['name'] for p in lock['package'] if 'registry' in p.get('source', '')}
-# un patch non pris ne compte que si l'app a cette caisse (à une autre version que la nôtre)
+here = [(p['name'], p['version']) for p in lock['package'] if 'registry' in p.get('source', '')]
+ours = {(d.rsplit('-', 1)[0], d.rsplit('-', 1)[1]) for d in os.listdir(sys.argv[2])} | {('libc', sys.argv[3])}
+series = lambda x: x.split('.')[:2] if x.startswith('0.') else x.split('.')[:1]
+# un patch non pris ne compte que si l'app a cette caisse, dans la même série, à une version que nous ne patchons pas
+# (rustix : 1.1.5 et 1.1.6 patchées, l'une reste de côté)
 print(' '.join(sorted('%s %s' % (u['name'], u['version']) for u in lock.get('patch', {}).get('unused', [])
-                      if u['name'] in mine and u['name'] in here and u['version'] != '0.2.185')))
+                      if u['name'] in mine and u['version'] != '0.2.185'
+                      and any(n == u['name'] and series(v) == series(u['version']) and (n, v) not in ours
+                              for n, v in here))))
 EOF
 )
 [ -z "$UNUSED" ] || { echo "craft : patchs non pris (une autre version dans le Cargo.lock) : $UNUSED" >&2; exit 1; }

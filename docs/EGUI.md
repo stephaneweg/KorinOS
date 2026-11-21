@@ -84,11 +84,23 @@ fourche de storytold :
 
 - `App` à deux temps (`raw_input_hook`, `logic`, `ui`, `on_exit`, `save`…), `Frame` (sans poignée native :
   `HasWindowHandle` rend `NotSupported`, et les dialogues n'ont pas de fenêtre parente), `CreationContext`,
-  `NativeOptions` (seul `viewport` compte : titre, taille, taille minimale), `run_native`, `icon_data`,
-  `storage_dir`, `Error` ;
-- sous la fonction `wgpu` : le **vrai** `egui-wgpu` (et `wgpu`), pour les types que les apps règlent
-  (`wgpu_options`, `egui_wgpu::WgpuSetup`, `Error::Wgpu`), mais aucun état de rendu GPU (`wgpu_render_state : None`) ;
-- les autres fonctions d'eframe (`x11`, `wayland`, `glow`, `accesskit`…) existent et ne font rien.
+  `NativeOptions` (comptent `viewport` : titre, taille, taille minimale ; et `window_builder`, appliqué au viewport ;
+  `renderer`, `event_loop_builder` et le reste sont sans effet), `run_native`, `icon_data`, `storage_dir`, `Error`,
+  `Renderer`, `get_value`/`set_value` (pas de stockage : rien n'est lu), `winit_window()` de `CreationContext` et de
+  `Frame` (toujours None, du type de `src/lib/winit-korin`) ;
+- sous la fonction `wgpu` : le **vrai** `egui-wgpu` (et `wgpu`, `WgpuConfiguration`, `SurfaceConfig`), pour les
+  types que les apps règlent, mais aucun état de rendu GPU (`wgpu_render_state`, champ et méthode : None) ;
+- sous la fonction `glow` : le type `glow::Context` (jamais créé) et `App::on_exit(Option<&glow::Context>)`, la
+  signature d'eframe avec glow ;
+- les autres fonctions d'eframe (`x11`, `wayland`, `accesskit`…) existent et ne font rien.
+
+**winit de Korin** (`src/lib/winit-korin`, paquet `winit` 0.30.99) : pour les apps qui prennent winit directement
+(VectorCraft, EffectCraft) : `dpi`, `raw_window_handle`, `window::Window` et `monitor::MonitorHandle` **sans valeur**
+(un type vide : leur code compile et ne s'exécute jamais), `Icon`, `WindowId`, `event::MouseButton`…
+
+**egui 0.36** (Craft Anything, AniCraft) : `tools/craft/egui036.py` copie egui-korin, eframe-korin, winit-korin et le
+rendu CPU, versions réécrites (eframe à celle du `Cargo.lock` de l'app), à côté des dépôts des apps ; seuls
+`MouseWheel::source` et la langue de la fenêtre (API de la fourche) diffèrent.
 
 `run_native` crée l'app, puis tourne sur `egui_korin::run_with` ; la passe est celle d'eframe (`logic` puis `ui` dans
 `run_ui`). La fermeture passe par egui : la case de fermeture devient `ViewportEvent::Close`, et une app qui répond

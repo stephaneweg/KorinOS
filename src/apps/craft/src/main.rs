@@ -1,7 +1,7 @@
-//! Craft : le lanceur de la suite Craft de storytold sur Korin OS (docs/CRAFT.md). Les seize apps (Rust, egui) sont
-//! dans /apps/<paquet>.app, dans la catégorie « Craft » que le lanceur et le menu de Korin ne montrent pas
-//! (src/sys/common/applist.c, cat_hidden) : on les ouvre d'ici. Une app pas encore construite pour Korin est montrée
-//! grisée.
+//! Suite ArtCraft : le lanceur des apps Craft de storytold sur Korin OS (docs/CRAFT.md). Les dix-sept apps (Rust,
+//! egui) sont dans /apps/<paquet>.app, dans la catégorie « Craft » que le lanceur et le menu de Korin ne montrent pas
+//! (src/sys/common/applist.c, cat_hidden) : on les ouvre d'ici. Chacune a son paquet (qui dépend de celui du lanceur,
+//! craft) ; une app pas installée est grisée, et un clic ouvre Logiciels.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -44,6 +44,9 @@ fn home() -> PathBuf {
     std::env::current_exe().ok().and_then(|p| p.parent().map(Path::to_path_buf)).unwrap_or_else(|| PathBuf::from("/apps/craft.app"))
 }
 
+/// Logiciels, le gestionnaire de paquets (chaque app de la suite a son paquet, qui dépend de celui du lanceur).
+const LOGICIELS: &str = "/apps/pkgman.app/main";
+
 fn program(app: &App) -> PathBuf {
     PathBuf::from(format!("/apps/{}.app/main", app.package))
 }
@@ -51,6 +54,8 @@ fn program(app: &App) -> PathBuf {
 struct Launcher {
     icons: Vec<Option<TextureHandle>>,
     installed: Vec<bool>,
+    /// la dernière lecture de `installed` (relue toutes les 3 s : une app ajoutée par Logiciels s'allume)
+    checked: Instant,
     family: Option<usize>,
     search: String,
     /// le dernier lancement : son message et son heure
@@ -71,11 +76,23 @@ impl Launcher {
             })
             .collect();
         let installed = APPS.iter().map(|a| program(a).is_file()).collect();
-        Self { icons, installed, family: None, search: String::new(), status: None }
+        Self { icons, installed, checked: Instant::now(), family: None, search: String::new(), status: None }
     }
 
     fn launch(&mut self, i: usize) {
         let a = &APPS[i];
+        // une app pas installée : son paquet est dans Logiciels (catégorie « Suite ArtCraft »)
+        if !self.installed[i] {
+            let r = std::process::Command::new(LOGICIELS).current_dir("/home").spawn();
+            self.status = Some((
+                match r {
+                    Ok(_) => format!("{} n'est pas installée : ajoutez-la dans Logiciels (catégorie « Suite ArtCraft »)", a.name),
+                    Err(_) => format!("{} n'est pas installée : son paquet est {} (pkg add {})", a.name, a.package, a.package),
+                },
+                Instant::now(),
+            ));
+            return;
+        }
         let r = std::process::Command::new(program(a)).current_dir("/home").spawn();
         self.status = Some((
             match r {
@@ -93,10 +110,15 @@ impl Launcher {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui) {
+        if self.checked.elapsed() >= Duration::from_secs(3) {
+            self.installed = APPS.iter().map(|a| program(a).is_file()).collect();
+            self.checked = Instant::now();
+        }
+        ui.ctx().request_repaint_after(Duration::from_secs(3));
         let accent = ui.visuals().selection.bg_fill;
         egui::Panel::top("head").frame(Frame::new().inner_margin(egui::Margin { left: 24, right: 120, top: 18, bottom: 10 })).show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Craft").size(28.0).strong());
+                ui.label(RichText::new("Suite ArtCraft").size(28.0).strong());
                 ui.add_space(12.0);
                 ui.label(RichText::new("La suite d'apps libres de storytold, sur Korin").size(15.0).weak());
             });
@@ -159,7 +181,7 @@ impl Launcher {
     fn card(&self, ui: &mut egui::Ui, i: usize, size: Vec2, accent: Color32) -> bool {
         let a = &APPS[i];
         let installed = self.installed[i];
-        let (rect, resp) = ui.allocate_exact_size(size, if installed { Sense::click() } else { Sense::hover() });
+        let (rect, resp) = ui.allocate_exact_size(size, Sense::click());
         let v = ui.visuals();
         let fill = if resp.hovered() && installed { v.widgets.hovered.weak_bg_fill } else { v.extreme_bg_color };
         let stroke = if resp.hovered() && installed { Stroke::new(1.5, accent) } else { v.widgets.noninteractive.bg_stroke };
@@ -179,26 +201,24 @@ impl Launcher {
         ui.painter().text(text, egui::Align2::LEFT_TOP, a.name, egui::FontId::proportional(17.0), strong);
         let wrap = rect.width() - 96.0 - 12.0;
         let galley = ui.painter().layout(
-            if installed { a.tagline.to_owned() } else { format!("{}\nPas encore sur Korin.", a.tagline) },
+            if installed { a.tagline.to_owned() } else { format!("{}\nPas installée : un clic ouvre Logiciels.", a.tagline) },
             egui::FontId::proportional(12.5),
             v.weak_text_color(),
             wrap,
         );
         ui.painter().galley(text + Vec2::new(0.0, 24.0), galley, v.weak_text_color());
-        if installed {
-            resp.clone().on_hover_text(format!("Ouvrir {}", a.name));
-            if resp.hovered() {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-            }
+        resp.clone().on_hover_text(if installed { format!("Ouvrir {}", a.name) } else { format!("Installer {} (Logiciels)", a.name) });
+        if resp.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
         }
-        installed && resp.clicked()
+        resp.clicked()
     }
 }
 
 fn main() {
     let ctx = egui::Context::default();
     let mut launcher = Launcher::new(&ctx);
-    let options = egui_korin::Options::new("Craft").size(1000, 640);
+    let options = egui_korin::Options::new("Suite ArtCraft").size(1000, 640);
     let r = egui_korin::run_with(options, &ctx, |ctx, input, _host| ctx.run_ui(input, |ui| launcher.ui(ui)));
     if let Err(e) = r {
         eprintln!("{e}");

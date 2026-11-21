@@ -1,0 +1,32 @@
+[package]
+# le winit de Korin (docs/CRAFT.md) : les noms de winit 0.30 que nomment les apps Craft qui le prennent directement
+# (VectorCraft, EffectCraft : la fenêtre native, ses écrans, sa poignée). Sur Korin, la fenêtre est celle d'egui-korin :
+# il n'y a jamais de fenêtre winit (`Window` n'a pas de valeur ; eframe-korin rend None à `winit_window()`), ces chemins
+# ne s'exécutent pas. Une app le prend par [patch] (tools/craft/korin_app.py)
+name = "winit"
+version = "0.30.99"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "winit pour Korin OS : les types de winit 0.30, sans fenêtre (celle d'egui-korin)"
+publish = false
+
+[features]
+# celles de winit, sans effet ici (les apps les demandent)
+default = []
+x11 = []
+wayland = []
+wayland-dlopen = []
+wayland-csd-adwaita = []
+wayland-csd-adwaita-crossfont = []
+wayland-csd-adwaita-notitle = []
+android-native-activity = []
+android-game-activity = []
+serde = []
+mint = []
+rwh_04 = []
+rwh_05 = []
+rwh_06 = []
+
+[dependencies]
+dpi = "0.1"
+raw-window-handle = "0.6"
