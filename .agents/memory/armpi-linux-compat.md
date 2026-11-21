@@ -17,3 +17,5 @@ Forme validée en discussion : personnalité Linux par process ; le noyau renvoi
 syscall** : l'hôte du process déclare ce qu'il capture (plages d'adresses de l'instruction, numéros), le noyau les
 lui renvoie sans savoir quelle personnalité il imite (d'autres personnalités possibles). Voir docs/etude/WIDEVINE.md § 3.2,
 [[armpi-widevine]].
+
+**21/11, chantier « hôte Linux » lancé** (docs/etude/LINUX-HOST.md) : décisions de l'utilisateur : pas de Claude Desktop (pas publié pour Linux) ; jalons 1 à 3 d'abord (exécutable glibc, Node.js, Claude Code dans le Terminal) ; le but est la CLI officielle par l'abonnement, jamais une clé d'API (le frontal, jalon 4, pilotera cette CLI en stream-json). Claude Code 2.1.330 : ET_EXEC non PIE à 0x200000 (365 Mo), glibc, 519 imports, TLS 0x5d30. Conception du jalon 1 : hôte lié à 0x40_0000_0000, zone basse VM_FIXED dans le noyau, chargeur d'exécutables dans liblinux, TLS de l'exe dans une zone vide de 64 Ko en haut du TLS de l'hôte.
