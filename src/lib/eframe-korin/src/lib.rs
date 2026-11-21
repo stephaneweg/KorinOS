@@ -18,6 +18,13 @@ use raw_window_handle::{DisplayHandle, HandleError, HasDisplayHandle, HasWindowH
 
 pub type DynError = Box<dyn std::error::Error + Send + Sync>;
 
+/// Les événements de la boucle de winit d'eframe (aucun sur Korin : pas de boucle winit).
+#[derive(Debug)]
+pub enum UserEvent {}
+
+/// Le crochet sur la boucle d'événements de winit (`NativeOptions::event_loop_builder` : jamais appelé sur Korin).
+pub type EventLoopBuilderHook = Box<dyn FnOnce(&mut winit::event_loop::EventLoopBuilder<UserEvent>)>;
+
 /// Le crochet qui retouche la fenêtre avant son ouverture (`NativeOptions::window_builder`).
 pub type WindowBuilderHook = Box<dyn FnOnce(egui::ViewportBuilder) -> egui::ViewportBuilder>;
 
@@ -55,6 +62,18 @@ pub trait Storage {
     fn remove_string(&mut self, key: &str);
     fn flush(&mut self);
 }
+
+/// Lit une valeur du stockage d'eframe (fonction `persistence`). Sur Korin il n'y a pas de stockage
+/// (`CreationContext::storage` est None, `App::save` n'est pas appelée) : rien n'est jamais lu.
+pub fn get_value<T>(_storage: &dyn Storage, _key: &str) -> Option<T> {
+    None
+}
+
+/// Écrit une valeur dans le stockage d'eframe (sans effet sur Korin : pas de stockage, voir `get_value`).
+pub fn set_value<T: ?Sized>(_storage: &mut dyn Storage, _key: &str, _value: &T) {}
+
+/// La clé sous laquelle eframe garde l'état de l'app (`App::save`).
+pub const APP_KEY: &str = "app";
 
 #[derive(Clone, Debug, Default)]
 pub struct IntegrationInfo {
@@ -169,6 +188,8 @@ pub struct NativeOptions {
     pub viewport: egui::ViewportBuilder,
     /// retouche `viewport` juste avant l'ouverture (une copie des options ne le garde pas, comme dans eframe)
     pub window_builder: Option<WindowBuilderHook>,
+    /// (sans effet : pas de boucle winit sur Korin)
+    pub event_loop_builder: Option<EventLoopBuilderHook>,
     /// le rendu demandé (sans effet)
     pub renderer: Renderer,
     /// les réglages du GPU (sans effet : pas de GPU dans l'eframe de Korin)
@@ -191,6 +212,7 @@ impl Clone for NativeOptions {
         Self {
             viewport: self.viewport.clone(),
             window_builder: None,
+            event_loop_builder: None,
             renderer: self.renderer,
             #[cfg(feature = "wgpu")]
             wgpu_options: self.wgpu_options.clone(),

@@ -439,6 +439,21 @@ pub mod window {
     }
 }
 
+pub mod event_loop {
+    use crate::Never;
+    use std::marker::PhantomData;
+
+    /// Le constructeur de la boucle d'événements de winit : jamais sur Korin (pas de valeur ; les crochets
+    /// `event_loop_builder` d'eframe-korin ne sont pas appelés).
+    pub struct EventLoopBuilder<T: 'static>(Never, PhantomData<T>);
+
+    impl<T> std::fmt::Debug for EventLoopBuilder<T> {
+        fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self.0 {}
+        }
+    }
+}
+
 pub mod event {
     /// Un bouton de la souris (les apps traduisent ceux des tablettes).
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
