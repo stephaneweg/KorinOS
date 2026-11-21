@@ -65,6 +65,7 @@ typedef uint64_t u64;
 #define PROC_RIGHTS 0x100
 #define PROC_EXEC 0x200
 #define INIT_OP_LAUNCH 1
+#define INIT_LAUNCH_UID_TAG 0x5549440000000000ull
 #define INIT_OP_KIT_LOAD 2
 #define BUF_VA_BASE 0x6800000000UL
 
@@ -1435,6 +1436,11 @@ static long fc_launch_init2(long *m, const char *args)
 	} while (c);
 	M_LEN(m) = (u32)(o - M_DATA(m));
 	M_OP(m) = INIT_OP_LAUNCH;
+	/* SYS_SPAWN_AS : l'uid voulu, que init2 prend si le demandeur est d'uid 0 (sinon celui du demandeur) ; étiqueté
+	 * (« UID » dans les bits 32-63) : une AppKit plus ancienne laisse ici la réponse de V_EXEC. Sans cela, pkg élevé
+	 * (uid 0, sans droits sur /sys) relançait le panneau en uid 0 après une mise à jour (refresh_desktop), et chaque
+	 * app lancée depuis lui tournait en uid 0, HOME = /home (21/11/2026) */
+	M_C(m) = fc_spawn_uid >= 0 ? (long)(INIT_LAUNCH_UID_TAG | (u64)(u32)fc_spawn_uid) : 0;
 	long ch = korin_sys2(SYS_SVC_OPEN, "init2", 0);
 	if (ch < 0)
 		return E_PERM; /* (pas d'init2) */

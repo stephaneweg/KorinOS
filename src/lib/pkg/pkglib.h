@@ -108,7 +108,8 @@ static inline const char *RP (const char *path)
 
 // ---- appels systeme, comme src/apps/mail/main.cpp (Pi : svc 0 ; PC : syscall) -----------------------------------------
 static inline long sys_call (long n, long a, long b) { return armpi_syscall (n, a, b, 0, 0, 0, 0); }
-enum { SYS_KILL_ = 0x14, SYS_PROCLIST_ = 0x15, SYS_SVC_OPEN_ = 0x31, SYS_SVC_CALL_ = 0x32, SYS_SPAWN_ = 0x8B, SYS_PRELOAD_ = 0x8D };
+enum { SYS_KILL_ = 0x14, SYS_PROCLIST_ = 0x15, SYS_SVC_OPEN_ = 0x31, SYS_SVC_CALL_ = 0x32, SYS_SPAWN_ = 0x8B, SYS_PRELOAD_ = 0x8D,
+       SYS_SPAWN_AS_ = 0x8F, SYS_GETUID_ = 0x90, SYS_PROC_UID_ = 0x92 };
 extern "C" long __armpi_fsys (long n, long a, long b, long c);
 
 // ---- chaines ---------------------------------------------------------------------------------------------------------
@@ -923,6 +924,26 @@ static inline bool launch (const char *path, const char *arg = 0)
 {
 	return __armpi_fsys (SYS_SPAWN_, (long) path, (long) arg, 0) > 0;
 }
+// l'uid du process de ce nom (le premier) -> uid, -1 : aucun (ou pas d'uid dans le noyau : le Pi)
+static inline long proc_uid (const char *name)
+{
+	Proc p[128]; int n = proc_list (p, 128); long self = getpid ();
+	for (int i = 0; i < n; i++)
+		if (p[i].pid != self && eq (p[i].name, name)) { long u = sys_call (SYS_PROC_UID_, p[i].pid, 0); return u < 0 ? -1 : u; }
+	return -1;
+}
+// un programme lance sous cet uid quand l'appelant est le systeme (uid 0 : pkgd, pkg eleve ; SYS_SPAWN_AS
+// d'AppKit) ; sinon (uid <= 0, un autre appelant, le Pi) : launch
+static inline bool launch_as (const char *path, long uid)
+{
+	if (uid > 0 && armpi_syscall (SYS_GETUID_, 0, 0, 0, 0, 0, 0) == 0)
+	{
+		long r = __armpi_fsys (SYS_SPAWN_AS_, (long) path, 0, uid);
+		if (r != -38)			// (E_NOSYS)
+			return r > 0;
+	}
+	return launch (path);
+}
 // une notification (notifyd, src/inc/notify.inc) ; sans bureau : rien
 static inline void notify (const char *title, const char *msg)
 {
@@ -1281,10 +1302,13 @@ public:
 		static const struct { const char *name, *path; } shell[] = { { "panel", "/sys/panel" }, { "menubar", "/sys/menubar" } };
 		for (auto &s : shell)
 		{
+			// relance sous l'uid qu'il avait (celui de la session) : pkgd et pkg eleve sont en uid 0, et le panneau relance
+			// par eux lancait ensuite chaque app en uid 0 (HOME = /home : Spotify ecrivait dans /home/spotify, 21/11/2026)
+			long uid = proc_uid (s.name);
 			if (!proc_kill (s.name)) continue;
 			for (int i = 0; i < 30 && proc_running (s.name); i++) usleep (50000);
 			usleep (200000);
-			launch (s.path);
+			launch_as (s.path, uid);
 		}
 	}
 

@@ -491,6 +491,11 @@ static long launch_request(void)
 	const char *name = name_of_pid(who);
 	long r = E_PERM;
 	long uid = korin_sys1(SYS_PROC_UID, (long)who); /* (le Pi : E_NOSYS, uid 0) */
+	/* l'uid voulu par un demandeur d'uid 0 (SYS_SPAWN_AS d'AppKit : c = INIT_LAUNCH_UID_TAG | uid) : pkg élevé qui relance
+	 * le panneau sous le compte de la session (refresh_desktop) ; le noyau a la même règle pour SPAWN_AS */
+	u64 want = M64(msg, 24);
+	if (uid == 0 && (want >> 32) == (INIT_LAUNCH_UID_TAG >> 32))
+		uid = (long)(u32)want;
 	if (sys_path_ok(launch_path)) { /* AppKit : droits (vfs : ATTR_SYS ; le noyau : init2 les a) */
 		r = uid > 0 ? ksys(SYS_SPAWN_AS, (long)launch_path, (long)args, uid, 0, 0, 0) : E_NOSYS;
 		if (r == E_NOSYS) /* (uid 0, ou AppKit sans SPAWN_AS) */
