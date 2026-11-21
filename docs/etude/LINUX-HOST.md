@@ -171,7 +171,36 @@ sockets, epoll, eventfd, signaux, fork et exec, termios) avant Node.js.
 * **3. Claude Code** : `claude --version`, `claude -p` (connexion par l'abonnement : la page d'Anthropic dans Jet, le
   retour sur la boucle locale), puis l'interface dans le Terminal de Korin (xterm-256color). Les outils qu'il lance
   (`bash`, `git`, `rg`) : ceux de Korin. Mise à jour automatique coupée.
-* **4. Le frontal Korin** : une app UIKit qui pilote la CLI en `stream-json`.
+* **4. Le frontal Korin** (fait le 21/11, essayé sous QEMU ; pas encore publié) : l'app **Claude Code**
+  (`/apps/claudecode.app`, `src/apps/claudecode`), en **Rust sur egui** (l'hôte egui de Korin, docs/EGUI.md), dans le
+  **style des apps Craft** (demande de l'utilisateur : le « Studio » sombre et clair de Craft Anything, Figtree et
+  JetBrains Mono, polices OFL dans `assets/fonts`). Elle pilote la CLI officielle comme l'Agent SDK : un process
+  `claude -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages
+  --permission-prompt-tool stdio [--resume ID] [--model] [--permission-mode]` par conversation qui travaille, une
+  ligne JSON par message (cli.rs). Ce qu'elle offre :
+  - les **conversations** de la CLI (`~/.claude/projects/*/*.jsonl`, store.rs) : la liste (recherche, épinglées,
+    dossiers, puis par date : aujourd'hui, hier, cette semaine…), **changer** de conversation (un clic : le fil est
+    relu du fichier ; `--resume` à la demande suivante), **renommer** (une ligne `custom-title`, comme `/rename` de
+    la CLI), **supprimer** (le fichier et le dossier des sous-agents, après confirmation), **ranger** : dossiers
+    (créer, renommer, monter, descendre, supprimer ; y glisser une conversation, ou « Ranger dans ▸ »), épingler ;
+    ce rangement est à l'app, `~/.config/claudecode/organize.json` (organize.rs) ;
+  - le **fil** (chat.rs, md.rs) : défilant (il suit le bas tant qu'on n'est pas remonté), le texte au fil de l'eau
+    (`stream_event`), le Markdown (titres, listes, citations, `code`, gras, liens, blocs de code avec Copier), la
+    réflexion repliée, chaque outil en carte (sa ligne, puis entrée et résultat dépliables), les **demandes
+    d'autorisation** (Autoriser, Autoriser et ne plus demander, Refuser : `control_response` à `can_use_tool`) ;
+    **tout le texte se sélectionne à la souris et se copie** (Ctrl+C ; « Copier la réponse », « Copier la
+    conversation ») ;
+  - la demande (Entrée envoie, Maj+Entrée va à la ligne ; Arrêter = `interrupt`), le modèle et le mode d'autorisation
+    (Demander avant d'agir, Accepter les modifications, Planifier, Tout autoriser), plusieurs conversations qui
+    travaillent en même temps (un point dans la liste), « Se connecter à votre compte Claude… » quand la CLI dit
+    « Not logged in » (`claude auth login` : la page d'Anthropic dans Jet).
+  Essais : `TEST=1 bash tools/claudecode/build.sh` (7 essais des modules sur la machine de construction, dont le
+  protocole contre une fausse CLI), puis sous QEMU (`tools/linux/exectest/run.sh` avec `APPS=claudecode`,
+  `TREE=` un `~/.claude` d'exemple ; `rclick:`, `drag:`, `wheel:` ajoutés à tools/python/pctest.py) : liste, dossiers,
+  épingles, ouvrir, défiler, menu contextuel, glisser dans un dossier, sélectionner et copier, renommer, thème
+  sombre, et **une vraie conversation par la CLI officielle sous Korin** (l'ouverture de session, la réponse « Not
+  logged in », le bouton de connexion qui ouvre Jet). Pas essayé sans compte : une vraie réponse, les autorisations
+  à l'écran.
 * **5. L'installation** (faite le 21/11, essayée sous QEMU ; pas encore publiée) : décisions de l'utilisateur : un
   paquet « virtuel » **`claude-code`** qui télécharge le binaire officiel **à l'installation**, **pour tout le
   système** (`/devtools/claude-code/claude` ; réglages et connexion dans le `~/.claude` de chacun), **version

@@ -1,0 +1,34 @@
+//! Claude Code pour Korin (/apps/claudecode.app) : le frontal de la CLI officielle de Claude Code, en Rust sur egui,
+//! dans le style des apps Craft (docs/etude/LINUX-HOST.md, jalon 4). La CLI (paquet claude-code) fait tout le
+//! travail et garde les conversations ; l'app les montre, les range et les pilote (cli.rs).
+
+#![cfg_attr(not(target_os = "korin"), allow(dead_code))]
+
+mod app;
+mod chat;
+mod cli;
+mod md;
+mod organize;
+mod store;
+mod theme;
+
+#[cfg(target_os = "korin")]
+fn main() {
+    let ctx = egui::Context::default();
+    let mut app = app::App::new(&ctx, Box::new(|| egui_korin::system_theme() == egui::Theme::Dark));
+    let mut options = egui_korin::Options::new("Claude Code").size(1180, 780);
+    options.min_size = Some([720, 480]);
+    let r = egui_korin::run_with(options, &ctx, move |ctx, input, _host| ctx.run_ui(input, |ui| app.ui(ui)));
+    if let Err(e) = r {
+        eprintln!("claudecode : {e}");
+        std::process::exit(1);
+    }
+}
+
+/// Ailleurs que sur Korin : rien à montrer (les modules s'essaient par `cargo test`).
+#[cfg(not(target_os = "korin"))]
+fn main() {
+    let ctx = egui::Context::default();
+    let _ = app::App::new(&ctx, Box::new(|| true));
+    eprintln!("claudecode : une app de Korin (egui-korin) ; ici, seulement cargo test");
+}

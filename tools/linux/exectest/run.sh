@@ -6,7 +6,8 @@
 #   sh tools/linux/exectest/run.sh            sortie : build/pc/linux/exectest/run/run.txt
 #   EXTRA="/chemin/prog …"                     d'autres exécutables de Linux copiés dans /home/lx
 #   MEM=4G : la mémoire de QEMU (2G par défaut) ; APPS="terminal" : ces apps de build/pc/apps (l'écran : shot:, type:, key:)
-#   EXTRA_BIN=… (dans /bin), CA_EXTRA=certificat (ajouté à /etc/ca-bundle), EXTRA_MB=N (place libre en plus)
+#   EXTRA_BIN=… (dans /bin), CA_EXTRA=certificat (ajouté à /etc/ca-bundle), EXTRA_MB=N (place libre en plus),
+#   TREE=dossier (recopié à la racine)
 #   ONLY="sleep:10|@60 /bin/linuxhost run /home/lx/hello"   seulement ces commandes ; PORT : telnet (2394)
 set -eu
 ROOT=$(cd "$(dirname "$0")/../../.." && pwd)
@@ -32,7 +33,8 @@ for a in ${APPS:-}; do	# (APPS="terminal jet" : sh tools/pc/apps.sh terminal ; j
 	if [ -d "build/pc/apps/sdroot/apps/$a.app" ]; then cp -r "build/pc/apps/sdroot/apps/$a.app" "$T/apps/"; else cp -r "build/pc/sysroot/apps/$a.app" "$T/apps/"; fi
 done
 cp src/sys/linuxhost/xdg-open "$T/bin/xdg-open"
-for f in ${EXTRA_BIN:-}; do cp "$f" "$T/bin/"; done	# (EXTRA_BIN="build/pc/apps/sdroot/bin/pkg" : un autre programme de /bin)
+for f in ${EXTRA_BIN:-}; do cp "$f" "$T/bin/"; done
+[ -z "${TREE:-}" ] || cp -r "$TREE"/. "$T/"	# (TREE=dossier : son contenu recopié à la racine du disque d'essai)	# (EXTRA_BIN="build/pc/apps/sdroot/bin/pkg" : un autre programme de /bin)
 [ -z "${CA_EXTRA:-}" ] || cat "$CA_EXTRA" >>"$T/etc/ca-bundle"	# (le proxy TLS du cloud : /root/.ccr/ca-bundle.crt ; disque d'essai seulement)
 printf 'password = essai\n' >"$T/etc/remote.txt"
 grep -q "^/sys/svc/telnetd" "$T/etc/services.txt" || printf '/sys/svc/telnetd\n' >>"$T/etc/services.txt"
