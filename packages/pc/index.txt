@@ -2071,3 +2071,18 @@ needs = craft, abi >= 626
 required = 0
 restart = 0
 content = 1692fb007efc0cd3855d5ba6ed2f201bffbc4e495fa5ea9aa16545c521b108ca
+
+[cadcraft]
+title = CADCraft
+version = 1.0.0
+category = Suite ArtCraft
+author = Korin OS
+summary = La CAO libre CADCraft (storytold) : dessin technique et conception assistés par ordinateur, DXF.
+size = 23946265
+installed = 59751953
+sha256 = 7095f7184b506acbe9f23f09ec918c62b0aefa613b8fa7878adae3a8a60318a3
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-cadcraft-1.0.0.opk
+needs = craft, abi >= 626
+required = 0
+restart = 0
+content = f472536e6b6e68e47b37555eeca3bc468443e31ccc654ccb0c90fffb1c8989f6
