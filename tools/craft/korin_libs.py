@@ -245,3 +245,68 @@ edit("crates/menu/src/driver.rs", [
     ('    CLIPBOARD.contains(c) || craft_keymap::text_editing_chords(craft_keymap::Platform::Mac).contains(c)',
      '    CLIPBOARD.contains(c) || craft_keymap::text_editing_chords(if cfg!(target_os = "korin") { craft_keymap::Platform::current() } else { craft_keymap::Platform::Mac }).contains(c)'),
 ])
+
+# craft-window (révisions récentes : PhotoCraft) : le menu natif est dans craft_window::native_menu (mac.rs sur AppKit,
+# other.rs ailleurs) ; sous Korin, mac.rs (muda, qui a la plateforme Korin) avec un petit module à la place d'AppKit,
+# comme pour craft-menu plus haut ; le premier menu (celui de l'app) s'appelle « * » pour muda-korin
+edit("crates/window/Cargo.toml", [
+    ('[target.\'cfg(target_os = "macos")\'.dependencies]\nmuda = { version = "0.21.2", default-features = false, optional = true }',
+     '[target.\'cfg(target_os = "korin")\'.dependencies]\nmuda-korin = { package = "muda", version = "0.21.2", default-features = false }\n\n'
+     '[target.\'cfg(target_os = "macos")\'.dependencies]\nmuda = { version = "0.21.2", default-features = false, optional = true }'),
+])
+edit("crates/window/src/native_menu.rs", [
+    ('#[cfg(all(target_os = "macos", feature = "appkit"))]\nmod mac;\n#[cfg(all(target_os = "macos", feature = "appkit"))]\nuse mac as imp;\n'
+     '#[cfg(not(all(target_os = "macos", feature = "appkit")))]\nmod other;\n#[cfg(not(all(target_os = "macos", feature = "appkit")))]\nuse other as imp;',
+     '#[cfg(any(all(target_os = "macos", feature = "appkit"), target_os = "korin"))]\nmod mac;\n'
+     '#[cfg(any(all(target_os = "macos", feature = "appkit"), target_os = "korin"))]\nuse mac as imp;\n'
+     '#[cfg(not(any(all(target_os = "macos", feature = "appkit"), target_os = "korin")))]\nmod other;\n'
+     '#[cfg(not(any(all(target_os = "macos", feature = "appkit"), target_os = "korin")))]\nuse other as imp;'),
+])
+edit("crates/window/src/native_menu/mac.rs", [
+    ('use muda::accelerator::{Accelerator, Code, Modifiers};\nuse muda::{CheckMenuItem, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};\n'
+     'use objc2::{MainThreadMarker, sel};\nuse objc2_app_kit::{NSApplication, NSEventModifierFlags, NSEventType};\n'
+     'use objc2_foundation::{NSBundle, NSLocale, NSObjectProtocol, NSString};',
+     '#[cfg(target_os = "korin")]\nextern crate muda_korin as muda;\n'
+     'use muda::accelerator::{Accelerator, Code, Modifiers};\nuse muda::{CheckMenuItem, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};\n'
+     '#[cfg(target_os = "macos")]\nuse objc2::{MainThreadMarker, sel};\n#[cfg(target_os = "macos")]\n'
+     'use objc2_app_kit::{NSApplication, NSEventModifierFlags, NSEventType};\n#[cfg(target_os = "macos")]\n'
+     'use objc2_foundation::{NSBundle, NSLocale, NSObjectProtocol, NSString};\n'
+     '#[cfg(target_os = "korin")]\nuse korin_appkit::{MainThreadMarker, NSApplication, NSEventModifierFlags, NSEventType};\n\n'
+     '/// Korin : ce que ce fichier demande à AppKit (tools/craft/korin_libs.py).\n'
+     '#[cfg(target_os = "korin")]\n#[allow(non_snake_case, non_upper_case_globals, dead_code, clippy::unused_self)]\n'
+     'mod korin_appkit {\n'
+     '    #[derive(Clone, Copy)]\n    pub struct MainThreadMarker;\n'
+     '    impl MainThreadMarker {\n        pub fn new() -> Option<MainThreadMarker> {\n            Some(MainThreadMarker)\n        }\n    }\n'
+     '    #[derive(Clone, Copy, PartialEq, Eq)]\n    pub struct NSEventType(u8);\n'
+     '    impl NSEventType {\n        pub const KeyDown: NSEventType = NSEventType(1);\n    }\n'
+     '    #[derive(Clone, Copy)]\n    pub struct NSEventModifierFlags(u8);\n'
+     '    impl NSEventModifierFlags {\n        pub const Command: NSEventModifierFlags = NSEventModifierFlags(1);\n'
+     '        pub const Control: NSEventModifierFlags = NSEventModifierFlags(16);\n'
+     '        pub const Option: NSEventModifierFlags = NSEventModifierFlags(2);\n'
+     '        pub const Shift: NSEventModifierFlags = NSEventModifierFlags(4);\n'
+     '        pub fn contains(self, o: NSEventModifierFlags) -> bool {\n            self.0 & o.0 != 0\n        }\n    }\n'
+     '    pub struct KeyEvent(NSEventModifierFlags);\n'
+     '    impl KeyEvent {\n        pub fn r#type(&self) -> NSEventType {\n            NSEventType::KeyDown\n        }\n'
+     '        pub fn modifierFlags(&self) -> NSEventModifierFlags {\n            self.0\n        }\n    }\n'
+     '    pub struct MainMenu;\n'
+     '    impl MainMenu {\n        pub fn highlightedItem(&self) -> Option<()> {\n            None\n        }\n'
+     '        pub fn cancelTracking(&self) {}\n    }\n'
+     '    pub struct NSApplication;\n'
+     '    impl NSApplication {\n        pub fn sharedApplication(_mtm: MainThreadMarker) -> NSApplication {\n            NSApplication\n        }\n'
+     '        /// un choix par un raccourci de la barre : Ctrl de Korin -> ⌘ (le cmd de craft hors de macOS) ; un clic : None\n'
+     '        pub fn currentEvent(&self) -> Option<KeyEvent> {\n'
+     '            super::muda::korin_key_mods().map(|(c, a, s)| KeyEvent(NSEventModifierFlags(c as u8 | (a as u8) << 1 | (s as u8) << 2)))\n        }\n'
+     '        pub fn hide(&self, _sender: Option<&()>) {}\n'
+     '        pub fn hideOtherApplications(&self, _sender: Option<&()>) {}\n'
+     '        pub fn mainMenu(&self) -> Option<MainMenu> {\n            None\n        }\n    }\n'
+     '}'),
+    ('pub fn system_title(english: &str) -> String {',
+     '/// Korin : les titres anglais (pas de table d\'AppKit)\n#[cfg(target_os = "korin")]\n'
+     'pub fn system_title(english: &str) -> String {\n    english.to_owned()\n}\n\n#[cfg(target_os = "macos")]\n'
+     'pub fn system_title(english: &str) -> String {'),
+    ('            for m in &bar.menus {\n                let (sub, ids) = submenu(&mut entries, m)?;\n                menu.append(&sub)?;',
+     '            for (_mi, m) in bar.menus.iter().enumerate() {\n                let (sub, ids) = submenu(&mut entries, m)?;\n'
+     '                // Korin : le premier menu (celui de l\'app) va dans le menu au nom de l\'app de la barre (muda-korin)\n'
+     '                #[cfg(target_os = "korin")]\n                if _mi == 0 {\n                    sub.set_text("*");\n                }\n'
+     '                menu.append(&sub)?;'),
+])
