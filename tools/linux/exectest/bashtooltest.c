@@ -1,7 +1,7 @@
 /* bashtooltest -- l'hôte Linux (docs/etude/LINUX-HOST.md) : une commande lancée comme l'outil Bash de Claude Code
  * (Bun) : bash -c -l, l'entrée sur /dev/null, la sortie dans un tube (ou une paire de sockets) non bloquant lu par
  * epoll, un tube « | head » dans la commande, puis waitpid. Sur le ZBook, ce bash tournait à vide sans lancer ls.
- *   linuxhost run bashtooltest [pipe|socket]     -> la sortie de ls, le code, RÉUSSI */
+ *   linuxhost run bashtooltest [pipe|socket] [commande]     -> la sortie (ls par défaut), le code, RÉUSSI */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
@@ -33,7 +33,7 @@ int main (int argc, char **argv)
 	posix_spawn_file_actions_addopen (&fa, 0, "/dev/null", O_RDONLY, 0);
 	posix_spawn_file_actions_adddup2 (&fa, fd[1], 1);
 	posix_spawn_file_actions_adddup2 (&fa, fd[1], 2);
-	char *cmd = "{ shopt -u extglob; } >/dev/null 2>&1 || true && eval 'ls /etc 2>&1 | head -3' < /dev/null && pwd -P >| /tmp/bashtool-cwd";
+	char *cmd = argc > 2 ? argv[2] : "{ shopt -u extglob; } >/dev/null 2>&1 || true && eval 'ls /etc 2>&1 | head -3' < /dev/null && pwd -P >| /tmp/bashtool-cwd";
 	char *av[] = { "bash", "-c", "-l", cmd, 0 };
 	pid_t pid;
 	int e = posix_spawn (&pid, "/bin/bash", &fa, 0, av, environ);

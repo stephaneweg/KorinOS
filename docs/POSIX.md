@@ -431,7 +431,7 @@ plutôt que contourné dans CPython :
 | `sysconf (_SC_TTY_NAME_MAX)` | `misc.c` | 32 ; `os.ttyname` de CPython le demande avant `ttyname_r` (sinon `EINVAL`) |
 | `ESHUTDOWN` | `include/errno.h` | newlib le réserve à `__LINUX_ERRNO_EXTENSIONS__` (même numéro, 110) ; le module `errno` de CPython l'exporte |
 | **`bind` sur le port 0** | `socket.c` | netd n'en choisit pas (`EINVAL`) : libposix prend un port éphémère libre (49152 à 65535, à partir d'un point au hasard, le suivant si `EADDRINUSE`) ; `getsockname` le rend. Le même trou que pour Node ([NODEJS.md](NODEJS.md) §5.3), réglé côté libposix |
-| **`poll` sur un tube : `POLLOUT` seulement avec `PIPE_BUF` octets libres** | `poll.c`, op `V_PIPE_ROOM` (48) de vfs (`src/svc/vfs`, `src/inc/fs.inc`) | avant, toujours prêt : un `write` de `PIPE_BUF` octets attendait après un `poll` « prêt », et `communicate ()` de `subprocess` se bloquait quand le fils remplissait `stderr` avant de lire son entrée. vfs donne la place libre (l'anneau de 4 Ko) ; sans lecteur : `POLLERR` ; un vfs ancien (`E_INVAL`) : toujours prêt, comme avant |
+| **`poll` sur un tube : `POLLOUT` seulement avec `PIPE_BUF` octets libres** | `poll.c`, op `V_PIPE_ROOM` (48) de vfs (`src/svc/vfs`, `src/inc/fs.inc`) | avant, toujours prêt : un `write` de `PIPE_BUF` octets attendait après un `poll` « prêt », et `communicate ()` de `subprocess` se bloquait quand le fils remplissait `stderr` avant de lire son entrée. vfs donne la place libre (l'anneau de 64 Ko) ; sans lecteur : `POLLERR` ; un vfs ancien (`E_INVAL`) : toujours prêt, comme avant |
 
 ## Ajouts pour Rust (12/11/2026, [RUST.md](RUST.md))
 

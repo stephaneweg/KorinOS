@@ -17,7 +17,7 @@
 #include "vfs.h"
 
 #define PIPE_MAX 128
-#define PIPE_CAP 4096 /* (puissance de 2) */
+#define PIPE_CAP 65536 /* (puissance de 2 ; 64 Ko comme Linux : bash y écrit un here-document entier avant de lancer la commande) */
 #define PIPE_FICHIER 2
 #define PIPE_CHEMIN 256
 #define END_MAX 512

@@ -58,10 +58,15 @@ export ac_cv_func_mmap_fixed_mapped=no
 # les outils de la construction (mkbuiltins, mksignames) : le GCC de WSL, en C17 (GCC 15 prend C23, ou f () ne
 # prend aucun argument)
 export CC_FOR_BUILD="${CC_FOR_BUILD:-gcc -std=gnu17}"
+# un here-document court va dans un tube, ecrit d'un coup avant de lancer la commande, s'il tient dans
+# HEREDOC_PIPESIZE (par defaut la taille d'un tube mesuree sur la machine de construction, 64 Ko sous Linux) :
+# un tube de Korin fait 64 Ko (vfs, depuis le 21/11/2026 ; 4 Ko avant : bash attendait sans fin, le snapshot de
+# shell de Claude Code), mais l'anneau garde un octet vide. Plus long : un fichier temporaire.
+HEREDOC="-DHEREDOC_PIPESIZE=65535"
 "$WORK/src/$V/configure" --build=x86_64-pc-linux-gnu --host=$TARGET --prefix=/ \
 	--without-bash-malloc --disable-nls --enable-job-control --enable-static-link \
 	--without-curses --enable-readline --with-installed-readline=no \
-	CC="$WORK/bin/korin-cc" AR=${TC}ar RANLIB=${TC}ranlib CFLAGS="-O2 -g0 $CPU$WARN" \
+	CC="$WORK/bin/korin-cc" AR=${TC}ar RANLIB=${TC}ranlib CFLAGS="-O2 -g0 $CPU$WARN $HEREDOC" \
 	> configure.log 2>&1 || { tail -30 configure.log; exit 1; }
 make -j8 > make.log 2>&1 || { grep -n 'error:\|undefined reference' make.log | head -40; exit 1; }
 mkdir -p "$(dirname "$OUT")"
