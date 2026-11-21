@@ -41,3 +41,6 @@ absents du cloud ; republier `pc` d'abord : panel et menubar qui cachent « Craf
   lib/uikit.so` : une autre session avait publié .69 avec un noyau plus neuf que notre sysroot), `craft` et 17 apps 1.0.1
   `--abi 627`. Transit par `craft-opk-transit-2` (à effacer aussi). Piège corrigé : un menu donné **avant la fenêtre**
   (muda) appelait UIKit pas encore ouvert → saut à 0 ; `egui-korin/csrc/host.c` le garde jusqu'à `kh_open`.
+- **Piège (21/11, rapporté par l'utilisateur sur le ZBook)** : après pc .70/.71, plus de barre de menus et 9 apps Craft
+  qui sautaient à 0 : l'initrd du paquet gardait UIKit 220 (le noyau prend les kits de l'initrd avant /lib), publié par
+  `--only` sans l'initrd. Corrigé par pc 2026.11.72 ; `pub.py pc` refait désormais l'initrd (`tools/pc/initrd_kits.py`).

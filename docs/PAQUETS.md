@@ -291,6 +291,13 @@ Un paquet cité du Pi (`arch = any`) passe par `publish.sh` ; un paquet nouveau,
 nouveau prend celui des kits du source, que le système publié n'a peut-être pas encore (rust 1.97.1 demandait 627,
 le système publié 626 : rust 1.97.1-2).
 
+**Les kits de l'initrd du PC** (21/11/2026) : le noyau prend un kit dans `korin/initrd.tar` avant `/lib`
+(`src/kernel/core/kits.c`, `sys_lib_open`) ; un initrd qui garde un kit plus ancien que `lib/` fait échouer ce qui a
+besoin du nouveau (menubar : « kit absent ou trop ancien : /lib/uikit », code 127 ; les apps egui sautent à 0 sur une
+fonction absente). `pub.py pc` refait donc l'initrd publié quand un de ses kits a une version plus basse que celui de
+`lib/` (`tools/pc/initrd_kits.py`, la version est le mot qui suit « AKIT ») ; `pc` 2026.11.70 et .71 avaient UIKit 220
+dans l'initrd et 221 dans `lib/`, corrigé par .72.
+
 ## Ce qui diffère d'Onyx
 
 - Pas de `pkg assoc` ni `fileassoc.ini` / `runners.ini` : ARMPI lit `opens =` dans `app.txt`.
