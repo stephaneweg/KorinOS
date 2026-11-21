@@ -1984,18 +1984,18 @@ content = 0d06cb713f3de29ffce12455f66ae66b387fc7c4541cf95772275859d09b5ac3
 
 [materialcraft]
 title = MaterialCraft
-version = 1.0.1
+version = 1.0.2
 category = Suite ArtCraft
 author = Korin OS
 summary = Les matériaux procéduraux libres MaterialCraft (storytold), par nœuds.
-size = 32583811
-installed = 50844111
-sha256 = 8317e89b6ed9539f03b324f69c9f707f6f5b8f26ef8479ff6b9c2bf47d24196b
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-materialcraft-1.0.1.opk
-needs = craft, abi >= 627
+size = 32566333
+installed = 50757807
+sha256 = 1787eea7e49b8eac0a8adf4edc06f5bcdcc711a73d4368831e3852b32664a25e
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-materialcraft-1.0.2.opk
+needs = craft, abi >= 628
 required = 0
 restart = 0
-content = 1ae28a454c73f729057039132e90a99dc0b69911863a56c9a8046b967470f756
+content = 399c1ee9be0465d1254465eab64c15b3eaa27f2e28ca75791da205ae8633f03d
 
 [filmcraft]
 title = FilmCraft
