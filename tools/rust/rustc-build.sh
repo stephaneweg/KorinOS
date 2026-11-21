@@ -5,7 +5,8 @@
 #     bash tools/rust/rustc-build.sh            stage 1 : rustc de l'hôte + la std de x86_64-unknown-korin
 #     TARGETS="x86_64-unknown-korin aarch64-unknown-korin" bash tools/rust/rustc-build.sh   les deux
 #     KORIN_HOSTS=x86_64-unknown-korin bash tools/rust/rustc-build.sh    puis rustc pour Korin (stage 2, hôte korin :
-#                                            LLVM pour Korin construit par bootstrap, librustc_driver.so, rustc)
+#                                            LLVM pour Korin construit par bootstrap, librustc_driver.so, rustc ;
+#                                            KORIN_HOSTS doit être aussi dans TARGETS)
 # Les sources de rust-lang/rust à la 1.97.1 (rustc-1.97.1-src.tar.xz, sha256 vérifié), avec :
 #   tools/rust/rustc.patch   le compilateur : Os::Korin, spec/base/korin.rs, les deux cibles, la doc de plateforme,
 #                            l'essai d'assembleur, la liste des cibles inconnues du compilateur d'amorçage (bootstrap)
@@ -85,14 +86,14 @@ if [ ! -x "$L/bin/llvm-config" ]; then
 fi
 [ "${SRC_ONLY:-0}" = 1 ] && exit 0
 
-# 3. bootstrap.toml : l'hôte, les cibles de Korin et leur chaîne C (gcc + posix.specs)
-TL=""
+# 3. bootstrap.toml : l'hôte, les cibles de Korin et leur chaîne C (gcc + posix.specs) ; pour une cible de Korin qui est
+#    aussi un hôte (KORIN_HOSTS), le llvm-config natif de son LLVM quand il existe (étape 5)
 for t in $TARGETS; do
 	a=${t%%-*}
 	case $a in
-	x86_64)  K=${KORIN_RUST:-$HOME/.cache/korin-rust-x86_64}; TC=${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-
+	x86_64)  TC=${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-
 		SPECS=$ROOT/build/pc/posix/lib/posix.specs ;;
-	aarch64) K=${KORIN_RUST:-$HOME/.cache/korin-rust}; TC=${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-
+	aarch64) TC=${KORIN_TOOLCHAINS:-/opt/toolchains}/aarch64-onyx-elf-14.2/bin/aarch64-onyx-elf-
 		SPECS=$ROOT/build/posix/lib/posix.specs ;;
 	*) echo "rustc-build : cible inconnue $t" >&2; exit 1 ;;
 	esac
@@ -103,7 +104,18 @@ for t in $TARGETS; do
 		printf '#!/bin/sh\nexec %s%s -specs=%s -D_GNU_SOURCE "$@"\n' "$TC" "$d" "$SPECS" > "$W/bin/$a-korin-$d"
 		chmod +x "$W/bin/$a-korin-$d"
 	done
-	TL="$TL
+	eval "TC_$a=\$TC"
+done
+T="\"$HOST\""
+for t in $TARGETS; do T="$T, \"$t\""; done
+HL="\"$HOST\""
+for h in ${KORIN_HOSTS:-}; do HL="$HL, \"$h\""; done
+write_config () {
+	TL=""
+	for t in $TARGETS; do
+		a=${t%%-*}
+		eval "TC=\$TC_$a"
+		TL="$TL
 [target.$t]
 cc = \"$W/bin/$a-korin-gcc\"
 cxx = \"$W/bin/$a-korin-g++\"
@@ -111,18 +123,20 @@ ar = \"${TC}ar\"
 ranlib = \"${TC}ranlib\"
 linker = \"$W/bin/$a-korin-gcc\"
 "
-done
-T="\"$HOST\""
-for t in $TARGETS; do T="$T, \"$t\""; done
-HL="\"$HOST\""
-for h in ${KORIN_HOSTS:-}; do HL="$HL, \"$h\""; done
-cat > "$S/bootstrap.toml" <<EOF
+		case " ${KORIN_HOSTS:-} " in *" $t "*)
+			[ -x "$S/build/$t/llvm/bin/llvm-config-native" ] &&
+				TL="${TL}llvm-config = \"$S/build/$t/llvm/bin/llvm-config-native\"
+" ;;
+		esac
+	done
+	cat > "$S/bootstrap.toml" <<EOF
 # tools/rust/rustc-build.sh (Korin)
 change-id = "ignore"
 
 [llvm]
 download-ci-llvm = false
-# le LLVM de la CI est une bibliothèque partagée (libLLVM.so, link-type.txt)
+# le LLVM de la CI est une bibliothèque partagée (libLLVM.so, link-type.txt) ; celui de Korin reste statique
+# (rustc.patch)
 link-shared = true
 
 [build]
@@ -142,31 +156,54 @@ debuginfo-level = 0
 llvm-config = "$L/bin/llvm-config"
 $TL
 EOF
+}
+write_config
 
 # 4. stage 1 : rustc de l'hôte et la std des cibles de Korin
 A=$HOST
 for t in $TARGETS; do A="$A,$t"; done
 # (le rustc de stage 1 charge libLLVM.so, qui est dans le LLVM de la CI : pendant la construction par
 # LD_LIBRARY_PATH, puis copiée à côté de lui, dans stage1/lib, son rpath)
-(cd "$S" && LD_LIBRARY_PATH=$L/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} python3 x.py build --stage 1 library --target "$A" -j "$(nproc)")
+export LD_LIBRARY_PATH=$L/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+(cd "$S" && python3 x.py build --stage 1 library --target "$A" -j "$(nproc)")
 ST=$S/build/$HOST/stage1
 cp "$L"/lib/libLLVM*.so* "$ST/lib/"
 "${CARGO_HOME:-$HOME/.cargo}/bin/rustup" toolchain link korin-stage1 "$ST" 2>/dev/null || true
 "$ST/bin/rustc" --print target-list | grep korin
 echo "rustc-build : $ST"
 
-# 5. rustc pour Korin (KORIN_HOSTS) : stage 2, compilé par le stage 1 (seul à connaître les cibles de Korin).
+# 5. rustc pour Korin (KORIN_HOSTS, des cibles de TARGETS) : stage 2, compilé par le stage 1 (seul à connaître les
+#    cibles de Korin).
+#    LLVM pour Korin : construit par bootstrap (rustc.patch : statique, sans .so) ; rustc_llvm le décrit par un
+#    llvm-config qui tourne sur la machine de construction : llvm-config-native, compilé ici de llvm-config.cpp avec la
+#    configuration de la construction de Korin et la bibliothèque Support du LLVM de la CI, posé dans bin/ de
+#    l'installation de Korin (il en déduit le préfixe), puis donné à bootstrap comme llvm-config de Korin (après quoi
+#    bootstrap ne reconstruit plus ce LLVM : effacer build/<hôte>/llvm pour le refaire).
 #    Le programme rustc est l'hôte de librustc_driver.so, de la std et des macros procédurales : il exporte la libc
 #    (-rdynamic) et libstdc++ (dlhost-cxx.ld de libposix, que demande le C++ de LLVM dans librustc_driver) ;
 #    compiler/rustc/build.rs lit KORIN_DLHOST_CXX et KORIN_RUSTC_LINK_ARGS (rustc.patch).
+for h in ${KORIN_HOSTS:-}; do
+	K=$S/build/$h/llvm
+	if [ ! -x "$K/bin/llvm-config-native" ]; then
+		(cd "$S" && python3 x.py build src/llvm-project --target "$h" -j "$(nproc)")
+		O=$W/llvm-config-native-$h
+		mkdir -p "$O"
+		g++ -std=c++17 -O1 -fno-exceptions -fno-rtti -DCMAKE_CFG_INTDIR='"."' -I"$K/build/tools/llvm-config" \
+			-I"$K/build/include" -I"$K/include" -I"$L/include" \
+			-c "$S/src/llvm-project/llvm/tools/llvm-config/llvm-config.cpp" -o "$O/llvm-config.o"
+		LIBLLVM=$(basename "$(ls "$L"/lib/libLLVM-*.so)" .so)
+		g++ "$O/llvm-config.o" -o "$K/bin/llvm-config-native" -L"$L/lib" -l"${LIBLLVM#lib}" -Wl,-rpath,"$L/lib"
+		"$K/bin/llvm-config-native" --version --host-target
+	fi
+done
+write_config
 for h in ${KORIN_HOSTS:-}; do
 	a=${h%%-*}
 	case $a in
 	x86_64) P=$ROOT/build/pc/posix/lib ;;
 	aarch64) P=$ROOT/build/posix/lib ;;
 	esac
-	(cd "$S" && LD_LIBRARY_PATH=$L/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} KORIN_DLHOST_CXX=$P/dlhost-cxx.ld \
-		KORIN_RUSTC_LINK_ARGS="${KORIN_RUSTC_LINK_ARGS:-}" \
+	(cd "$S" && KORIN_DLHOST_CXX=$P/dlhost-cxx.ld KORIN_RUSTC_LINK_ARGS="${KORIN_RUSTC_LINK_ARGS:-}" \
 		python3 x.py build --stage 2 compiler/rustc library --host "$h" --target "$h" -j "$(nproc)")
 	echo "rustc-build : $S/build/$h/stage2"
 done
