@@ -7,7 +7,7 @@ metadata:
 
 Le 21/11/2026, l'utilisateur a demandé d'étudier un nouvel IDE en **Rust avec egui**, dans le style des apps Craft, à
 porter ailleurs ensuite, pour Rust, gcc, asm, FreeBASIC et C#. Étude : docs/etude/IDE-RUST.md (rien de fait ; à
-décider : nom, dépôt, sort du Studio Avalonia).
+décidé : KorinStudio, ce dépôt, il remplacera les autres IDE).
 
 **Rust dans Korin** : une autre session porte rustc, **LLVM est déjà fait** (dit par l'utilisateur le 21/11) ; il
 dira quand c'est fini. Ne pas prévoir de construction déportée de Rust dans l'IDE.
