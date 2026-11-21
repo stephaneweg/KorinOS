@@ -164,10 +164,45 @@ diff -ruN a/compiler/rustc_target/src/spec/targets/x86_64_unknown_korin.rs b/com
 +        options: base,
 +    }
 +}
+diff -ruN a/src/bootstrap/src/core/build_steps/compile.rs b/src/bootstrap/src/core/build_steps/compile.rs
+--- a/src/bootstrap/src/core/build_steps/compile.rs
++++ b/src/bootstrap/src/core/build_steps/compile.rs
+@@ -1505,7 +1505,8 @@
+         );
+         cargo.env("LLVM_STATIC_STDCPP", file);
+     }
+-    if builder.llvm_link_shared() {
++    // Korin OS: a static LLVM (see `llvm.rs`)
++    if builder.llvm_link_shared() && !target.contains("korin") {
+         cargo.env("LLVM_LINK_SHARED", "1");
+     }
+     if builder.config.llvm_use_libcxx {
 diff -ruN a/src/bootstrap/src/core/build_steps/llvm.rs b/src/bootstrap/src/core/build_steps/llvm.rs
 --- a/src/bootstrap/src/core/build_steps/llvm.rs
 +++ b/src/bootstrap/src/core/build_steps/llvm.rs
-@@ -697,6 +697,10 @@
+@@ -403,7 +403,12 @@
+         // which saves both memory during parallel links and overall disk space
+         // for the tools. We don't do this on every platform as it doesn't work
+         // equally well everywhere.
+-        if builder.llvm_link_shared() {
++        // Korin OS: LLVM stays static there, inside librustc_driver (a libLLVM.so would have to carry
++        // libstdc++, whose static archive cannot go into a shared object), whatever the build machine's
++        // LLVM is (`link-shared` for a prebuilt shared LLVM on the build machine).
++        if target.contains("korin") {
++            cfg.define("LLVM_LINK_LLVM_DYLIB", "OFF");
++        } else if builder.llvm_link_shared() {
+             cfg.define("LLVM_LINK_LLVM_DYLIB", "ON");
+         }
+ 
+@@ -577,6 +582,7 @@
+         // some can come from the C++ standard library. Unless we're explicitly requesting LLVM to
+         // be built with debuginfo, strip it away after the fact, to make dist artifacts smaller.
+         if builder.llvm_link_shared()
++            && !target.contains("korin")
+             && builder.config.llvm_optimize
+             && !builder.config.llvm_release_debuginfo
+         {
+@@ -697,6 +703,10 @@
              cfg.define("CMAKE_SYSTEM_NAME", "SunOS");
          } else if target.contains("linux") {
              cfg.define("CMAKE_SYSTEM_NAME", "Linux");
