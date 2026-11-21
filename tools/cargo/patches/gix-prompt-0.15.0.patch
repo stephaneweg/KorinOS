@@ -1,0 +1,109 @@
+diff -ruN a/Cargo.toml b/Cargo.toml
+--- a/Cargo.toml	2026-11-20 23:57:50.556980692 +0000
++++ b/Cargo.toml	2026-11-20 23:57:50.559038464 +0000
+@@ -137,3 +137,6 @@
+ priority = -1
+ 
+ [lints.rust]
++
++[target.'cfg(target_os = "korin")'.dependencies.libc]
++version = "0.2"
+diff -ruN a/src/lib.rs b/src/lib.rs
+--- a/src/lib.rs	2026-11-20 23:57:50.557172936 +0000
++++ b/src/lib.rs	2026-11-20 23:57:50.559313117 +0000
+@@ -5,7 +5,8 @@
+ //! This is a unix-only crate which will return with an error when trying to obtain any prompt on other platforms.
+ //! On those platforms it is common to have helpers which perform this task so it shouldn't be a problem.
+ #![deny(rust_2018_idioms, missing_docs)]
+-#![forbid(unsafe_code)]
++#![cfg_attr(not(target_os = "korin"), forbid(unsafe_code))]
++#![cfg_attr(target_os = "korin", deny(unsafe_code))] // (Korin : la libc pour termios, src/unix.rs)
+ 
+ mod types;
+ pub use types::{Error, Mode, Options};
+diff -ruN a/src/unix.rs b/src/unix.rs
+--- a/src/unix.rs	2026-11-20 23:57:50.557228614 +0000
++++ b/src/unix.rs	2026-11-20 23:57:50.559278176 +0000
+@@ -1,7 +1,7 @@
+ /// The path to the default TTY on linux
+ pub const TTY_PATH: &str = "/dev/tty";
+ 
+-#[cfg(unix)]
++#[cfg(all(unix, not(target_os = "korin")))]
+ pub(crate) mod imp {
+     use std::{
+         fs::File,
+@@ -121,3 +121,73 @@
+         Ok(RestoreTerminalStateOnDrop { fd, state })
+     }
+ }
++
++/// Korin : rustix n'y a pas termios ; l'écho se coupe par la libc (termios de libposix).
++#[cfg(target_os = "korin")]
++pub(crate) mod imp {
++    use std::{
++        fs::File,
++        io::{BufRead, Write},
++        os::fd::AsRawFd,
++    };
++
++    use crate::{unix::TTY_PATH, Error, Mode, Options};
++
++    /// Remet l'état du terminal (l'écho) quand elle disparaît.
++    struct Restore<'a>(&'a File, libc::termios);
++
++    impl Drop for Restore<'_> {
++        fn drop(&mut self) {
++            // SAFETY: un descripteur ouvert et un termios lu par tcgetattr
++            #[allow(unsafe_code)]
++            unsafe {
++                libc::tcsetattr(self.0.as_raw_fd(), libc::TCSAFLUSH, &self.1);
++            }
++        }
++    }
++
++    fn read_line(fd: &File) -> Result<String, Error> {
++        let mut buf_read = std::io::BufReader::with_capacity(64, fd);
++        let mut out = String::with_capacity(64);
++        buf_read.read_line(&mut out)?;
++        Ok(out)
++    }
++
++    /// Ask the user given a `prompt`, returning the result.
++    pub(crate) fn ask(prompt: &str, Options { mode, .. }: &Options<'_>) -> Result<String, Error> {
++        if let Mode::Disable = mode {
++            return Err(Error::Disabled);
++        }
++        let mut fd = std::fs::OpenOptions::new().write(true).read(true).open(TTY_PATH)?;
++        if let Mode::Visible = mode {
++            fd.write_all(prompt.as_bytes())?;
++            return Ok(read_line(&fd)?.trim_end().to_owned());
++        }
++        // SAFETY: un termios rempli par tcgetattr avant usage
++        #[allow(unsafe_code)]
++        let prev = unsafe {
++            let mut t: libc::termios = std::mem::zeroed();
++            if libc::tcgetattr(fd.as_raw_fd(), &mut t) != 0 {
++                return Err(std::io::Error::last_os_error().into());
++            }
++            t
++        };
++        let mut new = prev;
++        new.c_lflag &= !libc::ECHO;
++        new.c_lflag |= libc::ECHONL;
++        // SAFETY: comme plus haut
++        #[allow(unsafe_code)]
++        if unsafe { libc::tcsetattr(fd.as_raw_fd(), libc::TCSAFLUSH, &new) } != 0 {
++            return Err(std::io::Error::last_os_error().into());
++        }
++        let restore = Restore(&fd, prev);
++        (&fd).write_all(prompt.as_bytes())?;
++        let mut out = read_line(&fd)?;
++        drop(restore);
++        out.pop();
++        if out.ends_with('\r') {
++            out.pop();
++        }
++        Ok(out)
++    }
++}

@@ -1,0 +1,61 @@
+diff -ruN a/Cargo.toml b/Cargo.toml
+--- a/Cargo.toml	2026-11-20 23:58:28.043615620 +0000
++++ b/Cargo.toml	2026-11-20 23:58:28.046708832 +0000
+@@ -42,10 +42,13 @@
+ name = "get_size"
+ path = "examples/get_size.rs"
+ 
+-[target."cfg(unix)".dependencies.rustix]
++[target.'cfg(all(unix, not(target_os = "korin")))'.dependencies.rustix]
+ version = "1.0.1"
+ features = ["termios"]
+ 
++[target.'cfg(target_os = "korin")'.dependencies.libc]
++version = "0.2"
++
+ [target."cfg(windows)".dependencies.windows-sys]
+ version = ">=0.59, <=0.61"
+ features = [
+diff -ruN a/src/unix.rs b/src/unix.rs
+--- a/src/unix.rs	2026-11-20 23:58:28.044041769 +0000
++++ b/src/unix.rs	2026-11-20 23:58:28.047236454 +0000
+@@ -21,6 +21,7 @@
+ /// Returns the size of the terminal using the given file descriptor, if available.
+ ///
+ /// If the given file descriptor is not a tty, returns `None`
++#[cfg(not(target_os = "korin"))]
+ pub fn terminal_size_of<Fd: AsFd>(fd: Fd) -> Option<(Width, Height)> {
+     use rustix::termios::{isatty, tcgetwinsize};
+ 
+@@ -38,6 +39,31 @@
+     } else {
+         None
+     }
++}
++
++/// Returns the size of the terminal using the given file descriptor, if available.
++///
++/// Korin : rustix n'y a pas termios ; isatty et l'ioctl TIOCGWINSZ de la libc (libposix).
++#[cfg(target_os = "korin")]
++pub fn terminal_size_of<Fd: AsFd>(fd: Fd) -> Option<(Width, Height)> {
++    use std::os::unix::io::AsRawFd;
++    let fd = fd.as_fd().as_raw_fd();
++    // SAFETY: un descripteur valable (AsFd) et un winsize rempli par l'ioctl
++    let ws = unsafe {
++        if libc::isatty(fd) != 1 {
++            return None;
++        }
++        let mut ws: libc::winsize = std::mem::zeroed();
++        if libc::ioctl(fd, libc::TIOCGWINSZ, &mut ws) != 0 {
++            return None;
++        }
++        ws
++    };
++    if ws.ws_row > 0 && ws.ws_col > 0 {
++        Some((Width(ws.ws_col), Height(ws.ws_row)))
++    } else {
++        None
++    }
+ }
+ 
+ /// Returns the size of the terminal using the given raw file descriptor, if available.
