@@ -37,3 +37,7 @@ absents du cloud ; republier `pc` d'abord : panel et menubar qui cachent « Craf
   clé dans `ONYX_PKG_KEY` (pub.py lit `OnyxPkgKey` : la passer), la Release par un **workflow** sur une branche de
   transit (le proxy refuse les envois binaires et l'effacement de branches : `craft-opk-transit` reste à effacer par
   l'utilisateur), `pub.py --new --api --manual-upload` (archives reproductibles, SHA-256 vérifié avant le commit).
+- **1.0.1 publiés le 21/11** (menus de Korin, bande du titre) : `pc` 2026.11.70 (`--only sys/menubar sys/elegant
+  lib/uikit.so` : une autre session avait publié .69 avec un noyau plus neuf que notre sysroot), `craft` et 17 apps 1.0.1
+  `--abi 627`. Transit par `craft-opk-transit-2` (à effacer aussi). Piège corrigé : un menu donné **avant la fenêtre**
+  (muda) appelait UIKit pas encore ouvert → saut à 0 ; `egui-korin/csrc/host.c` le garde jusqu'à `kh_open`.

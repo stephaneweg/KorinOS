@@ -46,6 +46,12 @@ de transit (`.github/workflows/…` sur une branche sans historique, déclenché
 le jeton d'Actions, puis `pub.py` la retélécharge, vérifie son SHA-256 et commite l'index signé. Une nouvelle version :
 `pub.py <app>` (sans `--new`), même chemin.
 
+**1.0.1 (21/11/2026)** : les menus dans la barre de Korin et la bande du titre pour Elegant ; `craft` 1.0.1, les 17 apps
+1.0.1 avec `abi >= 627` (`ui_menu_states` de UIKit), et `pc` 2026.11.70 (menubar, Elegant, UIKit : `pub.py pc --only
+sys/menubar sys/elegant lib/uikit.so`, pour ne pas reprendre le reste de l'arbre). Les 17 apps essayées sous QEMU :
+toutes s'ouvrent, les menus des neuf apps de muda dans la barre (VectorCraft, SoundCraft, Craft Anything, FilmCraft,
+LightCraft posent leur menu avant la fenêtre : egui-korin le garde jusqu'à `kh_open`, sinon `ui_menu` sautait à 0).
+
 ## Barre de titre et menus sur Korin
 
 Une fenêtre de Korin n'a pas de barre de titre : Elegant dessine ses trois boutons (réduire, agrandir, fermer) sur le
