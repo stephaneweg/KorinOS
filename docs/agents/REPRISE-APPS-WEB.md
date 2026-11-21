@@ -55,6 +55,15 @@ quand `src/lib/posix` est plus récent ; Jet corrige `HOME` lui-même au démarr
 `/home/<app>` vers `HOME/<app>` au premier lancement (comme `/home/jet` et `/home/downloads` déjà). Jet est à
 reconstruire avant jet 1.4.2.
 
+### Publié le 21/11 depuis le cloud
+
+jet 1.4.2 et les quatre apps web (netflix, disneyplus, tf1plus, primevideo 1.0.0) sont publiés (`main` 579b905).
+Jet a été construit dans le cloud (la marche à suivre ci-dessous reste celle de WSL). Envoi dans la Release depuis le
+cloud : le proxy GitHub de la session refuse les corps binaires (415) ; une branche jetable `release-upload/<nom>`
+(l'archive dans `upload/` et `.github/workflows/release-upload.yml`, sans historique commun) la fait envoyer par
+GitHub Actions, puis `pub.py --manual-upload` la vérifie et pousse l'index. Le proxy refuse aussi de supprimer une
+branche (403) : à faire par l'utilisateur. Reste : vérifier sur le ZBook qu'on reste connecté à Spotify.
+
 ### Publier jet 1.4.2 et les apps web (décision de l'utilisateur, 20/11 au soir)
 
 Jet se reconstruit dans le WSL de l'utilisateur (WebKit y est construit ; dans le cloud, plus de 10 h sur 4 cœurs),
