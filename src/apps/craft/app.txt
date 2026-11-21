@@ -1,7 +1,8 @@
-# Manifeste de Craft : le lanceur de la suite Craft de storytold (src/apps/craft, docs/CRAFT.md). Les apps de la
-# suite sont dans la catégorie « Craft », que le lanceur et le menu de Korin ne montrent pas : on les ouvre d'ici.
-name     = Craft
+# Manifeste de la Suite ArtCraft : le lanceur des apps Craft de storytold (src/apps/craft, docs/CRAFT.md). Les apps
+# de la suite sont dans la catégorie « Craft », que le lanceur et le menu de Korin ne montrent pas : on les ouvre d'ici (une
+# seule entrée, « Suite ArtCraft », dans Bureautique). Paquets : craft, et un par app qui en dépend (packages-pc.ini).
+name     = Suite ArtCraft
 category = Bureautique
-description = La suite d'apps libres Craft de storytold : traitement de texte, tableur, présentations, PDF, mise en page, image, vectoriel, son, CAO.
-keywords = craft wordcraft gridcraft deckcraft pdfcraft designcraft photocraft vectorcraft figcraft cadcraft soundcraft suite bureautique storytold
-help = Cliquez une app pour l'ouvrir. Les familles (Documents, Image et dessin, Vidéo et son, Technique) et la recherche filtrent la liste ; une app grisée n'est pas encore construite pour Korin.
+description = Les dix-sept apps libres de storytold (ArtCraft) : traitement de texte, tableur, présentations, PDF, mise en page, photo, vectoriel, interfaces, textures, matériaux, vidéo, effets, animation, son, CAO.
+keywords = artcraft craft storytold suite bureautique wordcraft gridcraft deckcraft pdfcraft designcraft photocraft vectorcraft lightcraft figcraft texturecraft materialcraft filmcraft effectcraft anicraft soundcraft cadcraft craft-anything
+help = Cliquez une app pour l'ouvrir. Les familles (Documents, Image et dessin, Vidéo et son, Technique) et la recherche filtrent la liste. Chaque app a son paquet : une app grisée n'est pas installée, un clic ouvre Logiciels (catégorie « Suite ArtCraft »).

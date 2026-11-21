@@ -40,7 +40,11 @@ if re.search(r'^eframe = \{ version = "0\.36"', s, re.M):
     e036 = os.path.join(os.path.dirname(os.path.normpath(app)), "egui036")
     reg = (glob.glob(os.path.join(os.environ.get("CARGO_HOME", os.path.expanduser("~/.cargo")), "registry", "src",
                                   "index.crates.io-*")) or [""])[0]
-    subprocess.run([sys.executable, "-I", os.path.join(root, "tools", "craft", "egui036.py"), root, e036, reg], check=True)
+    import tomllib
+    lock = tomllib.load(open(os.path.join(app, "Cargo.lock"), "rb"))
+    ev = [q["version"] for q in lock["package"] if q["name"] == "eframe" and q["version"].startswith("0.36.")]
+    subprocess.run([sys.executable, "-I", os.path.join(root, "tools", "craft", "egui036.py"), root, e036, reg] + ev[:1],
+                   check=True)
     EFRAME = 'eframe = { path = "%s/eframe-korin" }' % e036
 fork = re.compile(r'^eframe = \{ git = "https://github\.com/storytold/egui\.git".*$', re.M)
 if fork.search(s):

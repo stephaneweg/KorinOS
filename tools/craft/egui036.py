@@ -4,7 +4,10 @@ et son patch), aux versions 0.36 ; tools/craft/build.sh la fait avant de constru
 branche eframe. Le source reste celui de src/lib (une seule version à suivre) ; ce qui diffère entre 0.36 et 0.37 est
 réécrit ici, et chaque réécriture vérifie qu'elle a trouvé son texte.
 
-    python3 -I tools/craft/egui036.py <racine du dépôt> <dossier de sortie> <registre de cargo (src/index.crates.io-…)>
+    python3 -I tools/craft/egui036.py <racine> <sortie> <registre de cargo (src/index.crates.io-…)> [version d'eframe]
+
+La version d'eframe de la copie est celle du Cargo.lock de l'app (0.36.2) : cargo ne prend un [patch] de version plus
+haute que celle du lock (« patch was not used »), et une app 0.36 n'a pas de fourche d'eframe à remplacer.
 """
 import json
 import os
@@ -15,6 +18,7 @@ import tarfile
 import urllib.request
 
 root, out, reg = sys.argv[1], sys.argv[2], sys.argv[3]
+EFRAME_VERSION = sys.argv[4] if len(sys.argv) > 4 else "0.36.99"
 HDR = "hdrshot-egui-backend-0.2.0"
 
 
@@ -52,7 +56,7 @@ with open(os.path.join(root, "tools", "craft", "patches", HDR + ".patch"), "rb")
     subprocess.run(["patch", "-p1", "-s", "--no-backup-if-mismatch"], stdin=f, cwd=os.path.join(out, "hdrshot"),
                    check=True)
 
-# les versions : egui 0.36, eframe 0.36.99 (un [patch] de « eframe 0.36 »), le rendu CPU par chemin
+# les versions : egui 0.36, eframe à la version du lock de l'app, le rendu CPU par chemin
 edit("hdrshot/Cargo.toml", [('version = "0.37.0"', 'version = "0.36.0"')])
 edit("egui-korin/Cargo.toml", [
     ('egui = { version = "0.37", default-features = false, features = ["default_fonts", "monochrome_emoji_fonts"] }',
@@ -61,7 +65,7 @@ edit("egui-korin/Cargo.toml", [
     ('egui_demo_lib = { version = "0.37"', 'egui_demo_lib = { version = "0.36"'),
 ])
 edit("eframe-korin/Cargo.toml", [
-    ('version = "0.37.99"', 'version = "0.36.99"'),
+    ('version = "0.37.99"', 'version = "%s"' % EFRAME_VERSION),
     ('egui = { version = "0.37"', 'egui = { version = "0.36"'),
     ('egui-wgpu = { version = "0.37"', 'egui-wgpu = { version = "0.36"'),
 ])
