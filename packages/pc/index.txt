@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 23:19
+date = 2026-11-21 23:30
 abi = 628
 packages = 117
 board = pc
@@ -2165,15 +2165,15 @@ content = e97a7187418188f290ddaf843303c01757afdd1cc5889127bbaa831b5f281b99
 
 [korinstudio]
 title = KorinStudio
-version = 0.1.0
+version = 0.1.1
 category = Développement
 author = Korin OS
 summary = L'environnement de développement de Korin, à la manière de VS Code : Rust, C, C++, C#, FreeBASIC, assembleur, Python
-size = 4350363
+size = 4350359
 installed = 9564227
-sha256 = f810e9b5a87e27b4f93b7813d8e2d1fc8fc1987969987725a657c88a887d2d73
-file = pkgs/korinstudio-0.1.0.opk
+sha256 = d7c58c5e0ad9cc682ff63e3fee33fd632252b1b8e55af3a612f07a9d94fdb115
+file = pkgs/korinstudio-0.1.1.opk
 needs = abi >= 628
 required = 0
 restart = 0
-content = 1fda211b06654af7c2df60251f16c71e72c8de9543d971fc77d2a64078829c3d
+content = 6d0eef37968ac9862b821204c58238b217aeae4be1009f16c11df8253006cafb
