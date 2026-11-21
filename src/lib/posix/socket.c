@@ -45,6 +45,7 @@ uint32_t ntohl (uint32_t x) { return __builtin_bswap32 (x); }
 uint16_t ntohs (uint16_t x) { return __builtin_bswap16 (x); }
 
 #define CARRY_CAP	65536
+#define RA_SIZE		8192			/* lecture anticipée des sockets TCP (une zone de NetKit) */
 
 /* ---- NetKit ---- */
 typedef long (*nk_fn) (long, long, long, long, long);
@@ -438,6 +439,28 @@ ssize_t __posix_sock_recv (struct __posix_ofd *d, void *buf, size_t n, int flags
 		}
 		else if (d->sotype == SOCK_DGRAM)
 			k = nk (NK_NET_RECVFROM, d->h, (long) ((char *) buf + got), (long) (n - got), (long) ms, (long) ipport);
+		else if (n - got < RA_SIZE && !(flags & MSG_WAITALL))
+		{
+			/* lecture anticipée : une petite demande (l'en-tête de 5 octets d'un enregistrement TLS, puis son
+			 * corps) prend 8 Ko à netd d'un coup ; le reste attend dans la retenue, la lecture suivante n'a
+			 * plus d'aller et retour (21/11/2026 : git par HTTPS, cinq allers et retours par 16 Ko) */
+			unsigned char ra[RA_SIZE];
+			k = nk (NK_NET_RECV, d->h, (long) ra, (long) sizeof ra, (long) ms, 0);
+			if (k > 0)
+			{
+				size_t take = (size_t) k < n - got ? (size_t) k : n - got;
+				memcpy ((char *) buf + got, ra, take);
+				if ((size_t) k > take)
+				{
+					if (!nowait)
+						__posix_ofd_lock (d);
+					carry_add (d, ra + take, (size_t) k - take);
+					if (!nowait)
+						__posix_ofd_unlock (d);
+				}
+				k = (long) take;
+			}
+		}
 		else
 			k = nk (NK_NET_RECV, d->h, (long) ((char *) buf + got), (long) (n - got), (long) ms, 0);
 		if (nowait)
