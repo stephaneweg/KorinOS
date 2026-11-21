@@ -22,4 +22,10 @@ sans --respect-source-config ; testimage.py --pc veut `. ~/korin-cloud/env.sh` (
 n'avait pas de posix.conf (sysroot.sh cassé dans un clone neuf, corrigé) ; tools/pc/sysroot.sh veut aussi la
 libposix du Pi (NO_TESTS=1 sh tools/posix/build.sh).
 
+Étape 2 faite le 21/11 (docs/RUST.md « La cible dans le compilateur ») : tools/rust/rustc.patch (Os::Korin, base/korin.rs,
+les deux cibles, doc de plateforme, STAGE0_MISSING_TARGETS), tools/rust/rustc-build.sh (~/korin-rustc, LLVM rust-dev
+de la CI, link-shared) ; korintest 52/0 et rdl 14/14 sous QEMU PC avec la cible intégrée ; linker par défaut gcc.
+Pièges : x.py --target en une liste à virgules ; library/Cargo.lock à refaire (--frozen) ; doublons de libc korin avec le
+tronc unix = dead_code refusé par -D warnings (allow ajouté à libc.patch).
+
 Lié : [[armpi-rust]], [[armpi-craft]].

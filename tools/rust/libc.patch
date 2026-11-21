@@ -3,7 +3,7 @@ new file mode 100755
 index 0000000..c570e0f
 --- /dev/null
 +++ b/vendor/libc-0.2.185/src/unix/korin/mod.rs
-@@ -0,0 +1,1423 @@
+@@ -0,0 +1,1430 @@
 +//! Korin OS (aarch64-unknown-korin, x86_64-unknown-korin) : newlib 4.4 des chaînes
 +//! aarch64-onyx-elf et x86_64-onyx-elf, et libposix
 +//! (src/lib/posix du dépôt Korin, docs/RUST.md). Les types, dispositions et valeurs viennent
@@ -13,6 +13,13 @@ index 0000000..c570e0f
 +//!
 +//! Pas d'attribut #[link] : la spec de gcc (posix.specs) relie libposix, newlib et libm aux
 +//! programmes, et rien aux modules (-shared : ils prennent la libc de l'hôte).
++//!
++//! Une cinquantaine de noms d'ici existent aussi dans le tronc Unix (unix/mod.rs : DT_*, IPPROTO_*,
++//! openat, fstatat...), avec les mêmes valeurs : la définition du tronc masque la nôtre (réexportée
++//! par `use korin::*`), d'où « never used ». Ils restent ici : le module sert aussi à la libc des
++//! projets (0.2.191, tools/rust/libc-projects.sh), dont le tronc ne les a pas tous pour korin.
++
++#![allow(dead_code)]
 +
 +use crate::prelude::*;
 +
