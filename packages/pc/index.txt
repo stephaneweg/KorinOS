@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 10:04
+date = 2026-11-21 10:05
 abi = 626
 packages = 117
 board = pc
@@ -1936,3 +1936,18 @@ needs = craft, abi >= 626
 required = 0
 restart = 0
 content = 926ea5d2ff41ca524b528c639fc97a72e5716377699af772503ea2a8e0518558
+
+[vectorcraft]
+title = VectorCraft
+version = 1.0.0
+category = Suite ArtCraft
+author = Korin OS
+summary = L'illustration vectorielle libre VectorCraft (storytold) : tracés, formes, texte, SVG.
+size = 65536749
+installed = 156850392
+sha256 = 166779904e8df507b71d217422d7de6ad093a7eaed54084a3b0223aa76253961
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vectorcraft-1.0.0.opk
+needs = craft, abi >= 626
+required = 0
+restart = 0
+content = 6bcd300cd90ad1106d4288f0732a07a0bb3bce35a9ca098b828752b71d5ce4fa
