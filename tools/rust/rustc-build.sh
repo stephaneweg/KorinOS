@@ -42,6 +42,8 @@ p = sys.argv[1]
 j = json.load(open(p))
 json.dump({"files": {}, "package": j["package"]}, open(p, "w"))
 EOF
+	# libc devient un chemin ([patch] de std.patch) : library/Cargo.lock le dit, x.py le tient figé (--frozen)
+	(cd "$S/library" && RUSTC_BOOTSTRAP=1 cargo update -q -p libc --offline)
 	echo "$STAMP" > "$S/.korin"
 fi
 
