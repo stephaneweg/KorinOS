@@ -319,7 +319,7 @@ impl Studio {
             pending: Vec::new(),
             toasts: Vec::new(),
             last_disk_check: 0.0,
-            studio_exe: std::env::current_exe().unwrap_or_else(|_| PathBuf::from("korinstudio")),
+            studio_exe: studio_exe(),
             allow_close: false,
             now: 0.0,
             menu_sent: String::new(),
@@ -1322,6 +1322,14 @@ impl Studio {
             d.check_disk(now);
         }
     }
+}
+
+/// Le chemin de KorinStudio (pour le relais MCP de Vibe). Sous Korin il vient d'argv[0] (libposix) : lancé du menu
+/// de Korin, ce n'est qu'un nom ; seul un chemin absolu qui existe est pris.
+fn studio_exe() -> PathBuf {
+    std::env::current_exe().ok().filter(|p| p.is_absolute() && p.is_file()).unwrap_or_else(|| {
+        PathBuf::from(if workspace::KORIN { "/apps/korinstudio.app/main" } else { "korinstudio" })
+    })
 }
 
 pub fn split_args(s: &str) -> Vec<String> {

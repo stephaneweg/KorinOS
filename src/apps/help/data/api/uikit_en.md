@@ -748,6 +748,7 @@ The bar adds by itself the menu named after the app (with **Quit**, which arrive
 | `ui_menu` | menu text (0: none) | 0 (< 0: more than 2048 bytes); the labels go through `ui_tr` |
 | `ui_menu_state` | id, `UMS_DISABLED` / `UMS_CHECKED` / 0 | greys out, checks or restores an item |
 | `ui_menu_states` | array of (id, state) pairs as `long`, count | several states at once, sent to the bar once (`ui_menu_state` resends the whole text on every call) |
+| `ui_frame_glyphs` | 1: light, 0: dark | the frame buttons (minimize, maximize, close) drawn light over dark content; the frame is redrawn only when the choice changes (version 222) |
 | `ui_menu_key` | 0 (the event in `ui.ev`) | id of the shortcut (-1: none) |
 | `ui_popup_local` | x, y (in the window), labels, width | context menu → chosen number (-1: cancelled) |
 | `ui_popup` | x, y (on the screen), labels, width | pop-up menu → number (-1: cancelled) |

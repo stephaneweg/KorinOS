@@ -246,6 +246,19 @@ long uk_draw_chrome(void)
 	return uk_call(WS_OP_FRAME);
 }
 
+/* ui_frame_glyphs : x0 = 1 : les boutons du cadre (réduire, agrandir, fermer) en clair, le contenu sous eux
+ * étant foncé (WF_GLYPH_LIGHT, qu'une app ne donnait qu'à la création) ; 0 : en foncé. Pour une app dont le
+ * fond change (les apps egui : egui-korin regarde les pixels sous les boutons) ; le cadre n'est redessiné que
+ * si le choix change -> 0 (version 222) */
+long ui_frame_glyphs(long light)
+{
+	long f = light ? (uk.flags | WF_GLYPH_LIGHT) : (uk.flags & ~(long)WF_GLYPH_LIGHT);
+	if (f == uk.flags)
+		return 0;
+	uk.flags = f;
+	return uk_draw_chrome();
+}
+
 /* ---- menus ---------------------------------------------------------------- */
 
 /* état d'un menu (registres x19..x27 de ui_popup_ex) */

@@ -224,4 +224,5 @@ kit_fn ui_window_place		; x0, x1 = x, y du contenu de la fenetre courante sur l'
 kit_fn ui_window_top		; x0 = 1 : la fenetre courante reste au-dessus des autres, sur tous les espaces ; 0 : comme les autres -> 0 (version 219)
 kit_fn ui_window_pos		; x0 = deux mots ou ecrire x, y du contenu de la fenetre courante sur l'ecran -> 0 (< 0 : inconnue) (version 220)
 kit_fn ui_menu_states		; x0 = tableau de paires (id, etat UMS_*) en mots de 64 bits, x1 = nombre : les etats des entrees de menu d'un coup, un seul envoi -> 0 (version 221)
+kit_fn ui_frame_glyphs		; x0 = 1 : les boutons du cadre en clair (le contenu sous eux est fonce), 0 : en fonce ; redessine le cadre s'il change -> 0 (version 222)
 kit_end

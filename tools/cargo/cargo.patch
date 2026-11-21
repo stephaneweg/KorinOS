@@ -1,0 +1,53 @@
+diff -ruN a/src/cargo/ops/resolve.rs b/src/cargo/ops/resolve.rs
+--- a/src/cargo/ops/resolve.rs
++++ b/src/cargo/ops/resolve.rs
+@@ -838,8 +838,18 @@
+             .insert(pkgid.source_id());
+     }
+ 
++    // Korin OS: the patches of the toolchain's configuration (crates in /devtools/rust/vendor, see
++    // `korin_toolchain_dir`) serve every project, and most use only a few of them: not reported
++    #[cfg(target_os = "korin")]
++    let korin_vendor = crate::util::context::korin_toolchain_dir().map(|d| d.join("vendor"));
+     let mut unemitted_unused_patches = Vec::new();
+     for unused in resolve.unused_patches().iter() {
++        #[cfg(target_os = "korin")]
++        if let (Some(v), Ok(p)) = (&korin_vendor, unused.source_id().url().to_file_path()) {
++            if p.starts_with(v) {
++                continue;
++            }
++        }
+         // Show alternative source URLs if the source URLs being patched
+         // cannot be found in the crate graph.
+         match (
+diff -ruN a/src/cargo/util/context/mod.rs b/src/cargo/util/context/mod.rs
+--- a/src/cargo/util/context/mod.rs
++++ b/src/cargo/util/context/mod.rs
+@@ -1702,6 +1702,16 @@
+             }
+         }
+ 
++        // Korin OS: last, the configuration of the toolchain itself, <cargo>/../etc/cargo/config.toml
++        // (/devtools/rust/etc/cargo/config.toml): the crates that know Korin (libc, getrandom, rustix...), patched and
++        // shipped with the toolchain in <cargo>/../vendor, for every project; the user's configuration comes first.
++        #[cfg(target_os = "korin")]
++        if let Some(dir) = korin_toolchain_dir() {
++            if let Some(path) = self.get_file_path(&dir.join("etc").join("cargo"), "config", true)? {
++                walk(&path)?;
++            }
++        }
++
+         Ok(())
+     }
+ 
+@@ -2603,3 +2613,10 @@
+         assert_sync::<GlobalContext>();
+     }
+ }
++
++/// Korin OS: the toolchain's directory, the parent of cargo's `bin/` (`/devtools/rust`).
++#[cfg(target_os = "korin")]
++pub fn korin_toolchain_dir() -> Option<PathBuf> {
++    let exe = std::env::current_exe().ok()?;
++    Some(exe.parent()?.parent()?.to_path_buf())
++}

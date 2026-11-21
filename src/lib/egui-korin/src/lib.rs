@@ -189,7 +189,9 @@ pub fn run_with(
             {
                 let id = unsafe { sys::kh_menu_key() };
                 if id >= 0 {
-                    menu::chosen(id as i64);
+                    // (craft-menu, comme AppKit : un raccourci est rendu à egui, un clic lance la commande)
+                    let m = (e.mods & sys::MOD_CTRL != 0) as i32 | ((e.mods & sys::MOD_ALT != 0) as i32) << 1 | ((e.mods & sys::MOD_SHIFT != 0) as i32) << 2;
+                    menu::chosen_by_key(id as i64, m);
                     next_frame = Some(Instant::now());
                     continue;
                 }
@@ -278,6 +280,23 @@ pub mod menu {
     /// ce qui a changé pendant la passe).
     pub fn set_hooks(on_chosen: impl Fn(i64) + Send + Sync + 'static, after_pass: impl Fn() + Send + Sync + 'static) {
         *HOOKS.lock().unwrap_or_else(|e| e.into_inner()) = Some((std::sync::Arc::new(on_chosen), std::sync::Arc::new(after_pass)));
+    }
+
+    /// Le choix en cours vient d'un raccourci : ses touches (1 Ctrl, 2 Alt, 4 Maj) ; -1 : d'un clic dans la barre.
+    static KEY_MODS: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(-1);
+
+    /// Un choix par un raccourci de la barre (la touche est prise avant la fenêtre).
+    pub(super) fn chosen_by_key(id: i64, mods: i32) {
+        KEY_MODS.store(mods, std::sync::atomic::Ordering::Relaxed);
+        chosen(id);
+        KEY_MODS.store(-1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// (le `muda` de Korin, pour craft-menu) pendant un choix : ses touches s'il vient d'un raccourci, -1 sinon ;
+    /// l'équivalent du `currentEvent` d'AppKit (un raccourci est rendu à egui, un clic lance la commande)
+    #[unsafe(no_mangle)]
+    pub extern "C" fn egui_korin_menu_key_mods() -> i32 {
+        KEY_MODS.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     pub(super) fn chosen(id: i64) {
@@ -384,6 +403,13 @@ struct Window {
     close_requested: bool,
     maximized: bool,
     render: EguiSoftwareRender,
+    /// l'image se dessine ici, puis seules les lignes qui ont changé vont dans les pixels de la fenêtre : Elegant
+    /// ne voit jamais une image à moitié faite (le fond seul : le scintillement au passage de la souris)
+    back: Vec<[u8; 4]>,
+    /// les pixels de la fenêtre ne correspondent plus à `back` (nouveau tampon) : tout recopier
+    full: bool,
+    /// les boutons du cadre (dessinés par Elegant sur le contenu) sont en clair : le fond sous eux est foncé
+    glyphs_light: Option<bool>,
 }
 
 impl Window {
@@ -393,6 +419,9 @@ impl Window {
             width: 0,
             height: 0,
             pixels: std::ptr::null_mut(),
+            back: Vec::new(),
+            full: true,
+            glyphs_light: None,
             events: Vec::new(),
             modifiers: Modifiers::default(),
             buttons: 0,
@@ -413,6 +442,7 @@ impl Window {
         self.pixels = unsafe { sys::kh_pixels(&mut w, &mut h) };
         self.width = w.max(0) as usize;
         self.height = h.max(0) as usize;
+        self.full = true;
     }
 
     fn pos(&self, e: &sys::Event) -> Pos2 {
@@ -607,13 +637,57 @@ impl Window {
             return;
         }
         let prims = ctx.tessellate(out.shapes, out.pixels_per_point);
-        // les pixels de la fenêtre, 0x00RRGGBB : en mémoire B, G, R, 0 (BGRA)
-        let px = unsafe { std::slice::from_raw_parts_mut(self.pixels as *mut [u8; 4], self.width * self.height) };
+        let (w, h) = (self.width, self.height);
+        // l'image dans le tampon de derrière (0x00RRGGBB : en mémoire B, G, R, 0, l'ordre BGRA)
+        if self.back.len() != w * h {
+            self.back = vec![[0; 4]; w * h];
+            self.full = true;
+        }
         let face = unsafe { sys::kh_token(sys::TJ_FACE) }.to_le_bytes();
-        px.fill([face[0], face[1], face[2], 255]);
-        let mut buf = BufferMutRef::new(px, self.width, self.height);
+        self.back.fill([face[0], face[1], face[2], 255]);
+        let mut buf = BufferMutRef::new(&mut self.back, w, h);
         self.render.render(&mut buf, &prims, &out.textures_delta, out.pixels_per_point);
-        unsafe { sys::kh_update(0, 0, self.width as _, self.height as _) };
+        // puis dans la fenêtre : seulement les lignes qui ont changé, et UIKit ne recopie que leur bande
+        let px = unsafe { std::slice::from_raw_parts_mut(self.pixels as *mut [u8; 4], w * h) };
+        let (mut y0, mut y1) = (h, 0);
+        for y in 0..h {
+            let r = y * w..(y + 1) * w;
+            if self.full || px[r.clone()] != self.back[r.clone()] {
+                px[r.clone()].copy_from_slice(&self.back[r]);
+                y0 = y0.min(y);
+                y1 = y + 1;
+            }
+        }
+        self.full = false;
+        // les boutons du cadre (réduire, agrandir, fermer) sont dessinés par Elegant sur le haut droit du contenu :
+        // en clair sur un fond foncé (la luminance moyenne sous eux, avec une marge pour ne pas basculer sans cesse)
+        if y1 > y0 && y0 < 40 {
+            let (bw, bh, m) = (102usize, 26usize, 5usize); // FRAME_CAP_W, FRAME_CAP_H, FRAME_CAP_MARGIN (uk_consts.h)
+            if w > bw + m && h > bh + m {
+                let mut sum = 0u64;
+                let mut n = 0u64;
+                for y in (m..m + bh).step_by(2) {
+                    for x in (w - m - bw..w - m).step_by(2) {
+                        let [b, g, r, _] = self.back[y * w + x];
+                        sum += (r as u64 * 299 + g as u64 * 587 + b as u64 * 114) / 1000;
+                        n += 1;
+                    }
+                }
+                let lum = sum / n.max(1);
+                let light = match self.glyphs_light {
+                    Some(true) => lum < 150,
+                    Some(false) => lum < 110,
+                    None => lum < 128,
+                };
+                if self.glyphs_light != Some(light) {
+                    self.glyphs_light = Some(light);
+                    unsafe { sys::kh_frame_glyphs(light as _) };
+                }
+            }
+        }
+        if y1 > y0 {
+            unsafe { sys::kh_update(0, y0 as _, w as _, (y1 - y0) as _) };
+        }
     }
 }
 

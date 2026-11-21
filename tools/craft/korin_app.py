@@ -380,12 +380,122 @@ if name == "gridcraft":
          "                paint_title(ui, rect.center(), &title, dirty, max_w, t.text);\n"
          "            }"),
     ])
+# PhotoCraft et PdfCraft : leur barre de menus native (craft-menu, celle de macOS ; Korin par tools/craft/korin_libs.py)
+# va dans la barre de menus de Korin ; leurs menus dans la fenêtre se cachent alors (21/11/2026)
+if name == "photocraft":
+    edit("crates/ui-egui/src/menus/native_menu.rs", [
+        ("/// Installs the macOS menu bar; `None` where there is none (every other platform).\n#[cfg(target_os = \"macos\")]\npub fn install(",
+         "/// Installs the macOS menu bar; `None` where there is none (every other platform).\n" + MK + "\npub fn install("),
+        ("/// Installs the macOS menu bar; `None` where there is none (every other platform).\n#[cfg(not(target_os = \"macos\"))]\npub fn install(",
+         "/// Installs the macOS menu bar; `None` where there is none (every other platform).\n#[cfg(not(any(target_os = \"macos\", target_os = \"korin\")))]\npub fn install("),
+    ])
+    edit("apps/photocraft/src/main.rs", [
+        ("            #[cfg(not(target_os = \"macos\"))]\n            let _ = in_window_menus;",
+         "            // Korin : la barre de menus de Korin (craft-menu)\n            #[cfg(target_os = \"korin\")]\n"
+         "            if !in_window_menus {\n                app.services.native_menu = photocraft_ui_egui::native_menu::install(&cc.egui_ctx, &mut app);\n            }\n"
+         "            #[cfg(not(any(target_os = \"macos\", target_os = \"korin\")))]\n            let _ = in_window_menus;"),
+    ])
+if name == "pdfcraft":
+    edit("crates/ui-egui/src/menus.rs", [
+        ("    #[cfg(target_os = \"macos\")]\n    pub fn install_native_menu(", "    " + MK + "\n    pub fn install_native_menu("),
+    ])
+    edit("apps/pdfcraft/src/main.rs", [
+        ("        if let Some(server) = instance {\n            app.os_events = Some(server.connect(&cc.egui_ctx, native_wayland(cc)));",
+         "        // Korin : la barre de menus de Korin (craft-menu)\n        #[cfg(target_os = \"korin\")]\n"
+         "        if !app.install_native_menu(&cc.egui_ctx) {\n            log::warn!(\"couldn't install the Korin menu bar; the menus stay in the window\");\n        }\n"
+         "        if let Some(server) = instance {\n            app.os_events = Some(server.connect(&cc.egui_ctx, native_wayland(cc)));"),
+    ])
+# TextureCraft et MaterialCraft : leurs menus sont un catalogue (TOP, CATALOG, enabled, invoke) dessiné par egui dans la
+# fenêtre ; sous Korin le même catalogue va dans la barre de menus de Korin (egui_korin::menu : le texte, grisé « d »,
+# coché « c », les choix rendus par take_chosen), et la barre dans la fenêtre n'est plus dessinée (21/11/2026). Les
+# raccourcis restent à l'app (aucune couche muda ne les prend avant la fenêtre).
+def korin_catalog_menu(app_ty, item_ty, label, enabled, checked):
+    rust = """
+/// Korin : le catalogue des menus dans la barre de menus de Korin (tools/craft/korin_app.py).
+#[cfg(target_os = "korin")]
+pub fn korin_menu(app: &mut APP, ctx: &egui::Context) {
+    let mut text = String::new();
+    let mut ids: Vec<&'static str> = Vec::new();
+    for top in TOP {
+        text.push_str(&format!("M{}\\n", korin_clean(tr(top))));
+        let items: Vec<&ITEM> = CATALOG.iter().filter(|i| i.menu == top).collect();
+        let mut subs: Vec<&str> = Vec::new();
+        for item in &items {
+            if let Some(sub) = item.sub {
+                if subs.contains(&sub) {
+                    continue;
+                }
+                subs.push(sub);
+                text.push_str(&format!("S{}\\n", korin_clean(tr(sub))));
+                for x in items.iter().filter(|x| x.sub == Some(sub)) {
+                    korin_item(app, x, &mut text, &mut ids);
+                }
+                text.push_str("E\\n");
+                continue;
+            }
+            korin_item(app, item, &mut text, &mut ids);
+        }
+    }
+    egui_korin::menu::set(&text);
+    for id in egui_korin::menu::take_chosen() {
+        if let Some(cmd) = ids.get(id as usize) {
+            invoke(app, ctx, cmd);
+        }
+    }
+}
+
+#[cfg(target_os = "korin")]
+fn korin_clean(s: &str) -> String {
+    s.replace(['\\t', '\\n'], " ").replace("Shift+", "Maj+")
+}
+
+#[cfg(target_os = "korin")]
+fn korin_item(app: &APP, item: &ITEM, text: &mut String, ids: &mut Vec<&'static str>) {
+    if item.label == "-" {
+        text.push_str("-\\n");
+        return;
+    }
+    let label: String = LABEL;
+    let on: bool = ENABLED;
+    let checked: Option<bool> = CHECKED;
+    let flags = format!("{}{}", if on { "" } else { "d" }, if checked == Some(true) { "c" } else { "" });
+    text.push_str(&format!("I{}{}\\t{}\\t{}\\n", ids.len(), flags, korin_clean(&label), korin_clean(item.shortcut.unwrap_or(""))));
+    ids.push(item.id);
+}
+"""
+    return rust.replace("APP", app_ty).replace("ITEM", item_ty).replace("LABEL", label).replace("ENABLED", enabled).replace("CHECKED", checked)
+
+if name == "texturecraft":
+    korin_dep("crates/ui-egui/Cargo.toml", 'egui-korin = { path = "%s/src/lib/egui-korin" }' % root)
+    edit("crates/ui-egui/src/menus.rs", [
+        ("pub fn menu_bar(app: &mut TextureCraftApp, ui: &mut egui::Ui) {\n    let tk = Tokens::get(ui.ctx());",
+         "pub fn menu_bar(app: &mut TextureCraftApp, ui: &mut egui::Ui) {\n"
+         "    #[cfg(target_os = \"korin\")]\n    {\n        let ctx = ui.ctx().clone();\n        korin_menu(app, &ctx);\n        return;\n    }\n"
+         "    #[allow(unreachable_code)]\n    let tk = Tokens::get(ui.ctx());"),
+        ("/// The check mark an item shows:",
+         korin_catalog_menu("TextureCraftApp", "Item", "item_label(app, item)", "enabled(app, item.id)", "checked(app, item.id)") + "\n/// The check mark an item shows:"),
+    ])
+if name == "materialcraft":
+    korin_dep("crates/ui-egui/Cargo.toml", 'egui-korin = { path = "%s/src/lib/egui-korin" }' % root)
+    edit("crates/ui-egui/src/menus.rs", [
+        ("pub fn menu_bar(app: &mut MaterialCraftApp, ui: &mut egui::Ui) {\n    let tokens = Tokens::get(ui.ctx());",
+         "pub fn menu_bar(app: &mut MaterialCraftApp, ui: &mut egui::Ui) {\n"
+         "    #[cfg(target_os = \"korin\")]\n    {\n        let ctx = ui.ctx().clone();\n        korin_menu(app, &ctx);\n        return;\n    }\n"
+         "    #[allow(unreachable_code)]\n    let tokens = Tokens::get(ui.ctx());"),
+        ("/// Reserve the same checkmark gutter for commands, toggles and submenus.",
+         korin_catalog_menu("MaterialCraftApp", "MenuItem", "tr(item.label).to_string()", "enabled(app, item.id)",
+             "match item.id {\n        \"ui.view.graph\" => Some(true),\n        \"ui.graph.snapToGrid\" => Some(app.ui.prefs.snap_to_grid),\n"
+             "        \"ui.cook.suspend\" => Some(app.cooker.suspended),\n        \"ui.view.toolbar\" => Some(app.ui.prefs.show_toolbar),\n"
+             "        id if id.starts_with(\"ui.preview.\") => id.strip_prefix(\"ui.preview.\").and_then(|size| size.parse::<u32>().ok()).map(|size| size == app.ui.prefs.preview_size),\n"
+             "        id => crate::docking::view_panel(id).map(|panel| app.ui.dock.is_open(panel)),\n    }")
+         + "\n/// Reserve the same checkmark gutter for commands, toggles and submenus."),
+    ])
 if name == "pdfcraft":
     edit("crates/ui-egui/src/chrome.rs", [("        (false, _) => (8, 10),", "        (false, _) => (8, if cfg!(target_os = \"korin\") { 112 } else { 10 }),")])
 if name == "designcraft":
     edit("crates/ui-egui/src/chrome/app_bar.rs", [
         ("            right: if app.custom_titlebar { 0 } else { 10 },",
-         "            right: if app.custom_titlebar { 0 } else if cfg!(target_os = \"korin\") { 112 } else { 10 },"),
+         "            right: if cfg!(target_os = \"korin\") { 112 } else if app.custom_titlebar { 0 } else { 10 },"),
         ("            let cx = full.center().x;\n            if cx - w / 2.0 > menus_end + 12.0 && cx + w / 2.0 < tools_start - 12.0 {\n"
          "                ui.painter().galley(egui::pos2(cx - w / 2.0, full.center().y - galley.size().y / 2.0), galley, t.text);",
          "            let cx = full.center().x;\n"
@@ -397,6 +507,16 @@ if name == "designcraft":
          "            };\n"
          "            if fits {\n"
          "                ui.painter().galley(egui::pos2(tx, full.center().y - galley.size().y / 2.0), galley, t.text);"),
+    ])
+if name == "soundcraft":
+    # la barre d'outils défile horizontalement, plus large que la fenêtre : sous Korin elle s'arrête 112 px avant le
+    # bord droit (les boutons du cadre d'Elegant)
+    edit("crates/ui-egui/src/toolbar.rs", [
+        ("    ui.add_space(4.0);\n    egui::ScrollArea::horizontal()\n        .id_salt(\"edit_toolbar_scroll\")",
+         "    ui.add_space(4.0);\n"
+         "    #[cfg(target_os = \"korin\")]\n"
+         "    let ui = &mut ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_max(ui.cursor().min, egui::pos2(full.max.x - 112.0, full.max.y))));\n"
+         "    egui::ScrollArea::horizontal()\n        .id_salt(\"edit_toolbar_scroll\")"),
     ])
 if name == "lightcraft":
     edit("crates/ui-egui/src/panels/topbar.rs", [
