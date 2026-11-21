@@ -47,4 +47,5 @@ que le cargo de Korin lit (tools/cargo/cargo.patch) ; tools/rust/korin-vendor.sh
 claude-acp a construit un tic-tac-toe en Rust dans Korin. Piège : disque d'essai plein = write rend 0, programmes tronqués.
 Reste : ZBook, Pi, reconstruction depuis zéro. Piège : un paquet --new prend l'abi des kits du source : vérifier [repo] abi.
 
+- **Disque plein** (21/11/2026) : fatfs rendait 0 à `write` (exécutables tronqués par ld, « failed to write whole buffer ») ; corrigé : `E_NOSPC` -> `ENOSPC` (docs/POSIX.md « Disque plein »), korinrt/sh le disent. Disque d'essai : `KORIN_TEST_FREE_MB=1500` pour cargo et rustc.
 Lié : [[armpi-rust]], [[armpi-craft]].

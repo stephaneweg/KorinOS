@@ -501,6 +501,24 @@ et la page n'envoyait pas le mot de passe ([WEBKIT.md](WEBKIT.md), « Connexion 
 * `posixtest` (groupes `mem`, `thread`, `file`, `io`, `time`, `proc`, `ipc`, `signal`, `misc`) passe avec cette
   libposix. Elle ne vaut que pour les programmes reliés ensuite : libposix est liée statiquement.
 
+## Disque plein : `ENOSPC` (21/11/2026)
+
+* **Le défaut** : sur un volume FAT32 ou exFAT plein, fatfs rendait **0** à une écriture (le cluster suivant
+  n'avait pas pu être alloué) : `write ()` rendait 0 sans `errno`, que la plupart des programmes prennent pour un
+  succès ou une boucle sans fin. `ld` laissait des exécutables tronqués (SIGILL, SIGSEGV au lancement), cargo et
+  rustc « failed to write whole buffer », `cp` copiait sans rien dire une partie du fichier.
+* **La correction** : fatfs (`fo_rw` de `fat32.c`, `exfat_rw` de `exfat.c`, et `vol_rw` de `fatfs.asm`) rend
+  `E_NOSPC` quand rien n'a pu être écrit, une écriture courte sinon (la suivante rend `E_NOSPC`) ; AppKit le passe
+  tel quel, libposix en fait `-1` et `errno = ENOSPC`. ext4fs et ramfs le rendaient déjà. Le trou que `pwrite`
+  comble de zéros (sans AppKit) ne boucle plus sur une écriture qui rend 0.
+* **Les commandes en C** (korinrt) : une erreur d'écriture de la sortie standard est gardée (`krt_out_err`) ;
+  `E_NOSPC` donne « `nom: écriture : disque plein` » et le code 1 à la sortie (`cat … > f`). `cp` dit
+  « `cp: destination : disque plein` » (la destination tronquée reste, comme GNU cp). `echo`, `pwd`… intégrés à
+  `sh` et redirigés : même message, code 1. Les commandes en assembleur du Pi ne changent pas.
+* **Essai** (QEMU PC, FAT32 avec 4 Mo libres) : un programme qui écrit par blocs de 64 Ko reçoit `ENOSPC` après
+  4,3 Mo, puis encore à chaque écriture ; un `write ()` de 1000 octets sur le disque plein : `ENOSPC` tout de suite ;
+  `cp`, `cat >`, `echo >` : le message et le code 1 ; la place libérée (`rm`), l'écriture repart.
+
 ## Ce qui manque (ENOSYS, ou sans effet)
 
 * **Processus** : `exec*` garde le pid (section « exec » ; repli : lancer, attendre, finir) ;

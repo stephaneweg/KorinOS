@@ -99,6 +99,7 @@ long cmd_jobs(char **argv);
 long cmd_fg(char **argv);
 long cmd_bg(char **argv);
 void flush(void);
+extern long out_werr;
 void term_putb(int c);
 void term_puts(const char *s);
 void term_write(const void *b, u64 n);

@@ -252,7 +252,7 @@ ouverts) :
 | 12 `FS_CLOSE` | a = numéro | devient un **appel** quand il vient d'appkit (réponse 0) ; reste un avis venant du noyau |
 | 14 `FS_BUFFER` | – | a = numéro du tampon partagé (créé et accordé à `MSG_PID`, 64 Ko) ; l'appelant le mappe (`buf_map`) |
 | 15 `FS_READ_BUF` | a numéro, b position, c octets (≤ 64 Ko) | octets, lus au début du tampon |
-| 16 `FS_WRITE_BUF` | a numéro, b position, c octets (dans le tampon) | octets, b nouvelle taille |
+| 16 `FS_WRITE_BUF` | a numéro, b position, c octets (dans le tampon) | octets, b nouvelle taille ; `E_NOSPC` si le volume est plein avant le premier octet (une écriture courte s'il se remplit en cours : jamais 0, 21/11/2026, [POSIX.md](POSIX.md) « Disque plein ») |
 | 17 `FS_CHARGER` (étape 6) | a numéro | a = tampon de la taille du fichier, rempli et accordé : chargement entier **sans copie** |
 | 0xFFFF avis de fin | a = pid | fichiers du pid fermés, tampon libéré |
 

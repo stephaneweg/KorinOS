@@ -504,8 +504,13 @@ long exfat_rw(struct fo *f, u8 *buf, u64 len, int write)
 		u64 csize = (u64)1 << v->cshift;
 		long whole = write && len >= csize && !(pos & (csize - 1));
 		u64 c = ex_cluster_at(f, rank, write, whole);
-		if (!c)
+		if (!c) {
+			/* disque plein : E_NOSPC si rien n'a été écrit, sinon une écriture courte (la suivante
+			   rend E_NOSPC) ; jamais 0, que write() prendrait pour un succès */
+			if (write && !total)
+				return E_NOSPC;
 			break;
+		}
 		u64 lba, cs;
 		fat_clus_lba(v, c, &lba, &cs);
 		u64 mask = ((u64)1 << cs) - 1;

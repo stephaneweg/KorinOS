@@ -17,8 +17,12 @@ static int copy(const char *path)
 		long n = sys_read(fd, buf, T_READ);
 		if (n <= 0)
 			break;
-		if (sys_write(1, buf, (u64)n) < 0)
+		long w = sys_write(1, buf, (u64)n);
+		if (w < 0) { /* (E_NOSPC : exit le dit, code 1) */
+			if (!krt_out_err)
+				krt_out_err = w;
 			break;
+		}
 	}
 	in_close(fd);
 	return 0;

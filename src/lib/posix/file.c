@@ -384,7 +384,8 @@ ssize_t __posix_pwrite (struct __posix_ofd *d, const void *buf, size_t n, off_t 
 		static const char z[512];
 		__armpi_fsys (SYS_SEEK, d->h, size, SEEK_SET);
 		for (long left = off - size; left > 0 && r >= 0; left -= r)
-			r = __armpi_fsys (SYS_WRITE, d->h, (long) z, left > 512 ? 512 : left);
+			if (!(r = __armpi_fsys (SYS_WRITE, d->h, (long) z, left > 512 ? 512 : left)))
+				r = -28;		/* (ENOSPC ; 0 bouclait ici) */
 	}
 	if (r >= 0)
 	{
