@@ -80,7 +80,7 @@
  pub use context_menu::ContextMenu;
 --- a/src/platform_impl/korin/mod.rs
 +++ b/src/platform_impl/korin/mod.rs
-@@ -0,0 +1,454 @@
+@@ -0,0 +1,455 @@
 +// La plateforme Korin de muda (tools/craft/crate_korin.py, docs/CRAFT.md) : les menus dans la barre de menus de Korin
 +// (UIKit ui_menu, par l'hôte egui-korin). La couche commune de muda garde l'état des entrées (textes, coches, grisé,
 +// raccourcis, enfants) ; ici, à chaque changement, l'arbre du menu installé (Menu::init_for_nsapp, comme sur macOS)
@@ -399,12 +399,13 @@
 +        let top = root.items();
 +        for (n, k) in top.iter().enumerate() {
 +            let MenuItemKind::Submenu(s) = k else { continue };
-+            // le menu de l'app (macOS) : le premier, s'il a Services, Masquer ou Quitter
++            // le menu de l'app (macOS) : le premier, s'il a Services, Masquer ou Quitter, ou s'il s'appelle « * »
++            // (craft-menu sous Korin : tools/craft/korin_libs.py)
 +            let app_menu = n == 0
-+                && s.items().iter().any(|c| {
++                && (s.text() == "*" || s.items().iter().any(|c| {
 +                    matches!(c, MenuItemKind::Predefined(p) if matches!(p.state.borrow().predefined_item_type,
 +                        PredefinedMenuItemType::Services | PredefinedMenuItemType::Hide | PredefinedMenuItemType::Quit))
-+                });
++                }));
 +            let mark = b.text.len();
 +            if app_menu {
 +                b.text.push_str("M*\n");

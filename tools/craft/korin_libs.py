@@ -223,6 +223,13 @@ edit("crates/menu/src/mac.rs", [
 edit("crates/menu/src/model.rs", [
     ('#[cfg(any(target_os = "macos", test))]\npub(crate) fn native_id(', '#[cfg(any(target_os = "macos", target_os = "korin", test))]\npub(crate) fn native_id('),
 ])
+# le menu de l'app (MenuRole::App, le premier de la disposition Mac) s'appelle « * » : muda-korin le verse dans le
+# menu au nom de l'app de la barre de Korin (« M* ») au lieu d'en faire un menu de plus
+edit("crates/menu/src/mac.rs", [
+    ('    let sub = Submenu::new(escape(&m.title), true);\n    append(entries, &sub, &m.children)?;',
+     '    let title = if cfg!(target_os = "korin") && m.role == MenuRole::App { "*".to_string() } else { escape(&m.title) };\n'
+     '    let sub = Submenu::new(title, true);\n    append(entries, &sub, &m.children)?;'),
+])
 # Korin : pas de Masquer ni de Masquer les autres, de Services ni de Tout afficher (la barre n'en a pas)
 edit("crates/menu/src/layout.rs", [
     ('    menu.extend([options.standard(Standard::Services), Node::Separator]);\n    let mut hide = Item::new(',

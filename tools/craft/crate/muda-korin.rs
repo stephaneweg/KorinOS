@@ -316,12 +316,13 @@ fn publish() {
         let top = root.items();
         for (n, k) in top.iter().enumerate() {
             let MenuItemKind::Submenu(s) = k else { continue };
-            // le menu de l'app (macOS) : le premier, s'il a Services, Masquer ou Quitter
+            // le menu de l'app (macOS) : le premier, s'il a Services, Masquer ou Quitter, ou s'il s'appelle « * »
+            // (craft-menu sous Korin : tools/craft/korin_libs.py)
             let app_menu = n == 0
-                && s.items().iter().any(|c| {
+                && (s.text() == "*" || s.items().iter().any(|c| {
                     matches!(c, MenuItemKind::Predefined(p) if matches!(p.state.borrow().predefined_item_type,
                         PredefinedMenuItemType::Services | PredefinedMenuItemType::Hide | PredefinedMenuItemType::Quit))
-                });
+                }));
             let mark = b.text.len();
             if app_menu {
                 b.text.push_str("M*\n");
