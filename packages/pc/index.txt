@@ -1951,3 +1951,18 @@ needs = craft, abi >= 626
 required = 0
 restart = 0
 content = 6bcd300cd90ad1106d4288f0732a07a0bb3bce35a9ca098b828752b71d5ce4fa
+
+[lightcraft]
+title = LightCraft
+version = 1.0.0
+category = Suite ArtCraft
+author = Korin OS
+summary = La photothèque libre LightCraft (storytold) : classer, développer les fichiers RAW, retouche non destructive.
+size = 30769908
+installed = 78986283
+sha256 = 952f1612f5f80162c962de40b73337fdfb6b6a2d5c33559a6fcc85eefdc0f322
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-lightcraft-1.0.0.opk
+needs = craft, abi >= 626
+required = 0
+restart = 0
+content = d5859f5df6737d196874687f76623fb16347a9789bbb40f5c4f372e604ac701c
