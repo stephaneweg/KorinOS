@@ -12,3 +12,9 @@
 #ifndef _POSIX_ARG_MAX
 #define _POSIX_ARG_MAX 4096		/* le minimum de POSIX pour ARG_MAX (LLVM) */
 #endif
+#ifndef CHARCLASS_NAME_MAX
+#define CHARCLASS_NAME_MAX 14		/* le nom d'une classe [:alpha:] (regcomp, regex/) */
+#endif
+#ifndef RE_DUP_MAX
+#define RE_DUP_MAX 255			/* {n,m} au plus (regcomp) */
+#endif
