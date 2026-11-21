@@ -56,8 +56,8 @@ repris d'un jeu existant), doc `docs/TERRACUBE.md`.
 
 - 20/11 : la main en vue (render.cpp drawHand : bloc en cube, objets en relief depuis l'alpha de l'atlas, bras nu ;
   geste, fissures, éclats, fumée) ; démo MCP « temple aztèque » réussie (examples/temple_mcp.py, 80 appels, ~18 s
-  par appel sous QEMU) ; la compétence korin-terracube va dans le paquet terracube (comme korin-forge avec Forge),
-  vibe/claude/mai l'excluent. L'utilisateur demande : fetch de main avant tout changement ou publication.
+  par appel sous QEMU) ; la compétence korin-terracube va dans le paquet terracube (comme korin-forge avec Forge ; depuis le
+  21/11 dans /apps/terracube.app/SKILL.md, voir [[armpi-competences-apps]]). L'utilisateur demande : fetch de main avant tout changement ou publication.
 
 - 20/11 (1.4.1) : l'agent de l'utilisateur (Claude Code sous Korin, en Python) a fait un escalier caché qui sort du
   sol (va-et-vient à deux comparateurs) en ~1 h : il a dû lire sim.cpp pour les règles exactes. D'où : get_blocks

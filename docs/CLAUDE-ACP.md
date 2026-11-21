@@ -70,6 +70,16 @@ Le prompt système : les consignes de l'agent, `AGENTS.md`, la liste des compét
 pour toutes les séances), puis le dossier de travail, la date et les `AGENTS.md` / `CLAUDE.md` du projet et de ses
 parents.
 
+**Les compétences des apps** (21/11) : une app peut apporter la sienne, `/apps/<app>.app/SKILL.md`, déclarée par
+`skill = SKILL.md` dans son `app.txt` ([ABI.md](ABI.md)). `find_skills` (`claude_acp/agent.py`, `app_skills`) lit
+les manifestes de `/apps` au début de chaque séance et ajoute ces compétences à la liste. Celle d'une app l'emporte
+sur une copie du même nom dans `skills/` : les comptes gardent les copies d'avant (`korin-forge`,
+`korin-terracube`), et libacp ne retire rien de `skills/`. L'outil `skill` donne le `SKILL.md` et la liste des
+fichiers du dossier de l'app. mai-acp fait de même, par le même code. Vibe trouve les mêmes fichiers par
+`VIBE_SKILL_PATHS=["/apps"]`, que libacp (`acp_home`) lui donne ; ses `skill_paths` passent avant ses copies. Une
+app installée par un paquet apporte donc sa compétence sans reconstruire l'agent. Aujourd'hui : Forge, TerraCube,
+Arabesque et Koton.
+
 ## Les serveurs MCP (16/11)
 
 `claude_acp/mcp.py` est un client MCP en transport « Streamable HTTP » (MCP 2025-06-18). Chaque message part en

@@ -905,11 +905,11 @@ que l'interface. L'utilisateur les voit tout de suite dans la fenêtre, et Annul
 * **La taille** : Forge passe de 21 à 32 Mo, car les écrivains STEP et IGES d'OpenCASCADE sont maintenant liés (ils
   serviront aussi à l'étape 5).
 * **Les agents** :
-  * la compétence **`korin-forge`** (`tools/vibe/home/skills`) dit à Vibe et à Claude comment brancher Forge, la
+  * la compétence **`korin-forge`** (`src/apps/forge/SKILL.md` depuis le 21/11, avant `tools/vibe/home/skills`) dit à Vibe et à Claude comment brancher Forge, la
     règle d'or (lire la topologie avant de citer une face, vérifier par capture), les repères et des recettes ;
   * **claude-acp** a maintenant un client MCP (`claude_acp/mcp.py`, docs/CLAUDE-ACP.md). Ses outils s'appellent
     `forge_*`, comme chez Vibe ;
-  * la compétence est livrée **avec le paquet forge** (`[app.forge] files` ; `[vibe]` et `[claude]` la laissent) :
+  * la compétence est livrée **avec le paquet forge**, dans le dossier de l'app (clé `skill` de `app.txt`, docs/ABI.md) :
     elle décrit les outils de cette version de Forge, et ne sert à rien sans elle. Elle ne coûte rien si l'agent
     n'est pas installé. Il n'y a pas de troisième paquet.
 

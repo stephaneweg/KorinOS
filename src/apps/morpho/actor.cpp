@@ -62,8 +62,9 @@ void Actor::start (int a, Pet &p)
 		break;
 	}
 	case A_PLAY:
-		ballOn = true; ballHeld = false; ballIdle = 0; catches = 0;
-		ball = pos + fwdOf (yaw) * 0.6f + V3 (0, 0.09f, 0); ballV = V3 ();
+		// (la balle tombe du ciel devant lui, et rebondit)
+		ballOn = true; ballHeld = false; ballIdle = 0; catches = 0; misses = 0; playT = 0; jumpT = -1; ballBounces = 0;
+		ball = pos + fwdOf (yaw) * 0.7f + V3 (0, 1.2f, 0); ballV = V3 ((frand () - 0.5f) * 1.2f, 0, (frand () - 0.5f) * 1.2f);
 		break;
 	case A_EVOLVE:
 		from = p.prev; to = p.g; morph = 0; walking = false;
@@ -73,26 +74,45 @@ void Actor::start (int a, Pet &p)
 		from = p.prev; to = p.g; walking = false; hatchCrack = 0.3f;
 		break;
 	case A_HAPPY: sound (SND_HAPPY); break;
-	case A_REFUSE: sound (SND_SAD); break;
+	case A_REFUSE: sound (SND_REFUSE); break;
 	case A_BATH: sound (SND_SPLASH); break;
 	case A_GONE: ballOn = false; break;
 	default: break;
 	}
 }
 
+// le joueur relance la balle : vers le point du sol visé (from : l'œil, pour la frapper si on clique dessus)
 void Actor::throwBall (const V3 &from_, const V3 &to_)
 {
 	if (!ballOn) return;
 	V3 dst = to_;
 	float r = sqrtf (dst.x * dst.x + dst.z * dst.z);
-	if (r > 1.4f) dst = dst * (1.4f / r);
-	ballHeld = false;
-	ball = from_;
-	const float T = 0.95f;
-	ballV = (dst - from_) * (1 / T) + V3 (0, 0.5f * 9.8f * T, 0);
-	ballV.y = fmaxf (ballV.y, 1.5f);
+	if (r > 1.3f) dst = dst * (1.3f / r);
+	if (ballHeld) { ballHeld = false; ball += V3 (0, 0.08f, 0); }
+	V3 d (dst.x - ball.x, 0, dst.z - ball.z);
+	float dl = len (d);
+	ballV = (dl > 0.01f ? d * (clampf (dl * 1.3f, 0.9f, 2.4f) / dl) : V3 ()) + V3 (0, fmaxf (ballV.y, 4.0f), 0);
 	ballIdle = 0;
 	sound (SND_BOUNCE);
+	(void) from_;
+}
+bool Actor::hitBall (const V3 &o, const V3 &d) const
+{
+	if (!ballOn) return false;
+	V3 oc = ball - o;
+	float t = dot (oc, d);
+	return t > 0 && len (oc - d * t) < 0.16f;
+}
+// un clic sur la balle : elle file, en s'éloignant de l'œil
+void Actor::smackBall (const V3 &d)
+{
+	if (!ballOn) return;
+	if (ballHeld) { ballHeld = false; ball += V3 (0, 0.08f, 0); }
+	V3 h = norm (V3 (d.x, 0, d.z) + V3 (0.0001f, 0, 0));
+	ballV = h * 2.0f + V3 (0, 4.6f, 0);
+	ballIdle = 0;
+	emit (P_SPARK, ball, 4, 0xFFFFFF, 0.05f);
+	sound (SND_CATCH);
 }
 
 bool Actor::clickPoop (const V3 &o, const V3 &d)
@@ -252,7 +272,7 @@ void Actor::update (float dt, Pet &p, const V3 &camEye, const V3 *cursor)
 		{
 			if (med) { emit (P_STAR, out.top, 6, 0x9CF0A0, 0.2f); act = A_IDLE; }
 			else if (food == FOOD_TREAT) { start (A_HAPPY, p); emit (P_HEART, out.top, 3, 0xFF5A8A, 0.15f); }
-			else { act = A_IDLE; emit (P_HEART, out.top, 1, 0xFF5A8A, 0.1f); }
+			else { act = A_IDLE; emit (P_HEART, out.top, 1, 0xFF5A8A, 0.1f); sound (SND_YUM); }
 		}
 		break;
 	}
@@ -304,61 +324,115 @@ void Actor::update (float dt, Pet &p, const V3 &camEye, const V3 *cursor)
 		break;
 	case A_PLAY:
 	{
-		// la balle
-		const float R = 0.09f;
+		// la balle rebondit sans fin dans l'arène ; il court sous elle et saute pour l'attraper
+		const float R = 0.09f, ARENA = 1.3f, GR = 7.0f;
+		playT += dt; ballIdle += dt;
+		look = ball; lookFree = false;
 		if (!ballHeld)
 		{
-			ballV.y -= 9.8f * dt;
+			ballV.y -= GR * dt;
 			ball += ballV * dt;
 			if (ball.y < R)
 			{
 				ball.y = R;
-				if (ballV.y < -0.6f) { ballV.y = -ballV.y * 0.55f; ballV.x *= 0.8f; ballV.z *= 0.8f; sound (SND_BOUNCE); }
-				else ballV.y = 0;
-				float k = expf (-1.6f * dt); ballV.x *= k; ballV.z *= k;
+				if (ballV.y < 0)
+				{
+					ballV.y = -ballV.y * 0.86f;
+					if (ballV.y < 2.8f) ballV.y = 2.8f + frand () * 0.6f;	// (elle rebondit toujours)
+					ballBounces++;
+					sound (SND_BOUNCE);
+				}
 			}
+			// les bords de l'arène
 			float r = sqrtf (ball.x * ball.x + ball.z * ball.z);
-			if (r > 1.5f) { V3 n = V3 (ball.x, 0, ball.z) * (1 / r); float vn = dot (ballV, n); if (vn > 0) ballV -= n * (vn * 1.6f); ball.x = n.x * 1.5f; ball.z = n.z * 1.5f; }
-			ballSpin += len (V3 (ballV.x, 0, ballV.z)) * dt / R;
-			ballIdle += dt;
-			// il court après
-			V3 mouthFlat = V3 (out.mouth.x, 0, out.mouth.z);
-			V3 to = V3 (ball.x, 0, ball.z) - fwdOf (yaw) * (len (mouthFlat - V3 (pos.x, 0, pos.z)));
-			float d = len (V3 (ball.x, 0, ball.z) - mouthFlat);
-			if (d > 0.18f + 0.05f * size) { target = to; walking = true; wantSpeed = (G.legs ? 1.1f : 0.7f) * fmaxf (size, 0.55f); }
-			else walking = false;
-			look = ball; lookFree = false;
-			if (d < 0.2f + 0.08f * size && ball.y < 0.45f && len (ballV) < 3.5f && actT > 0.4f)
+			if (r > ARENA)
 			{
-				ballHeld = true; actT = 0.4f; catches++;
-				p.playCatch ();
-				sound (SND_CATCH);
-				emit (P_STAR, ball, 5, 0xFFE070, 0.1f);
-				ballIdle = 0;
+				V3 n = V3 (ball.x, 0, ball.z) * (1 / r);
+				float vn = dot (ballV, n);
+				if (vn > 0) ballV -= n * (vn * 1.95f);
+				ball.x = n.x * ARENA; ball.z = n.z * ARENA;
 			}
-			if (ballIdle > 6 && len (ballV) < 0.2f && !walking)
+			// (jamais immobile au sol : une vitesse de côté entre deux bornes)
+			V3 hv (ballV.x, 0, ballV.z);
+			float hs = len (hv);
+			if (hs < 0.35f) { float an = frand () * 2 * PI; hv = V3 (cosf (an), 0, sinf (an)) * 0.45f; }
+			else if (hs > 1.5f) hv = hv * (1.5f / hs);
+			ballV.x = hv.x; ballV.z = hv.z;
+			ballSpin += len (hv) * dt / R;
+			// où elle va retomber : il court là-bas
+			float tl = (ballV.y + sqrtf (fmaxf (0, ballV.y * ballV.y + 2 * GR * (ball.y - R)))) / GR;
+			V3 land (ball.x + ballV.x * tl, 0, ball.z + ballV.z * tl);
+			float lr = sqrtf (land.x * land.x + land.z * land.z);
+			if (lr > ARENA) land = land * (ARENA / lr);
+			V3 mouthFlat (out.mouth.x, 0, out.mouth.z), bodyFlat (pos.x, 0, pos.z);
+			float mouthAhead = len (mouthFlat - bodyFlat);
+			float reach = 0.22f + 0.1f * size;
+			float dBall = len (V3 (ball.x, 0, ball.z) - mouthFlat);
+			if (jumpT < 0)
 			{
-				// (personne ne lance : il pousse la balle lui-même)
-				float a = frand () * 2 * PI;
-				ballV = V3 (cosf (a) * 1.1f, 2.2f, sinf (a) * 1.1f); ballIdle = 0;
-				sound (SND_BOUNCE);
+				V3 to = land - norm (land - bodyFlat + V3 (0.0001f, 0, 0)) * mouthAhead;
+				walking = len (to - bodyFlat) > 0.06f;
+				target = to;
+				wantSpeed = (G.legs ? 1.7f : 1.1f) * fmaxf (size, 0.6f);
+				// le saut : la balle tout près, à portée de saut, qui descend (ou presque)
+				float jumpReach = 0.32f + 0.38f * size;
+				float above = ball.y - out.mouth.y;
+				if (dBall < reach * 1.6f && above > -0.12f && above < jumpReach && ballV.y < 1.5f)
+				{
+					jumpT = 0; jumpH = clampf (above + 0.08f, 0.06f, jumpReach); jumpDone = false;
+					// (réussir : plus souvent joueur, en forme ; moins souvent gros ou fatigué)
+					float chance = 0.55f + (G.trait == TR_PLAYFUL ? 0.15f : 0) + 0.2f * (p.st[N_ENERGY] / 100) - (p.fat > 0.6f ? 0.15f : 0);
+					jumpHit = frand () < clampf (chance, 0.35f, 0.9f);
+				}
 			}
-			if (ballIdle > 4 && actT > 25) { ballOn = false; act = A_IDLE; }
+			else
+			{
+				// en l'air
+				jumpT += dt;
+				const float JT = 0.55f;
+				hop = fmaxf (0, sinf (PI * jumpT / JT)) * jumpH;
+				squash = jumpT < 0.08f ? 0.88f : 1.06f;
+				mouth = smooth (0, 0.22f, jumpT) * (1 - smooth (0.3f, 0.5f, jumpT));
+				flap = 1; walking = false;
+				if (!jumpDone && jumpT > JT * 0.42f)
+				{
+					jumpDone = true;
+					if (jumpHit && dBall < reach * 2.0f)
+					{
+						ballHeld = true; holdT = 0; catches++;
+						p.playCatch ();
+						sound (SND_CATCH);
+						emit (P_STAR, ball, 7, 0xFFE070, 0.12f);
+					}
+					else
+					{
+						// raté : la balle lui rebondit sur la tête
+						V3 away = norm (V3 (ball.x - out.head.x, 0, ball.z - out.head.z) + V3 (0.0001f, 0, 0));
+						ballV = away * 1.5f + V3 (0, 3.8f, 0);
+						misses++;
+						sound (SND_MISS);
+					}
+				}
+				if (jumpT > JT) { jumpT = -1; hop = 0; }
+			}
+			// (personne ne joue avec lui depuis longtemps, ou il est épuisé : la partie s'arrête)
+			if ((ballIdle > 40 && playT > 30) || p.st[N_ENERGY] < 8) { ballOn = false; act = A_IDLE; jumpT = -1; }
 		}
 		else
 		{
+			// il la tient, content, puis la relance en l'air
+			holdT += dt;
 			ball = out.mouth + fwdOf (yaw) * (0.05f + R) + V3 (0, -0.02f, 0);
-			hop = actT < 1.0f ? fmaxf (0, sinf ((actT - 0.4f) / 0.6f * PI)) * 0.12f : 0;
-			happyEyes = true; flap = 1;
-			look = camEye; lookFree = false;
-			if (actT > 1.3f)
+			if (jumpT >= 0) { jumpT += dt; hop = fmaxf (0, sinf (PI * jumpT / 0.55f)) * jumpH; if (jumpT > 0.55f) jumpT = -1; }
+			happyEyes = holdT > 0.15f && holdT < 0.9f; flap = 1;
+			look = camEye;
+			if (holdT > 1.1f)
 			{
 				ballHeld = false;
-				V3 tc = norm (camFlat);
-				ballV = tc * 0.9f + V3 (0, 1.2f, 0);
-				ballIdle = 0;
-				actT = 0.5f;
-				lookCamFor = 3;
+				float an = yaw + (frand () - 0.5f) * 2.2f;
+				ballV = V3 (sinf (an), 0, cosf (an)) * (0.6f + frand () * 0.6f) + V3 (0, 4.2f, 0);
+				ball += V3 (0, 0.08f, 0);
+				sound (SND_BOUNCE);
 			}
 		}
 		break;

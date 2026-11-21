@@ -11,14 +11,28 @@ static int opts; /* bits : 1 -v, 2 -n, 4 -c, 8 -l, 16 -q, 32 nom devant */
 static int code = 1;
 static struct regex *re;
 
+/* une ligne qui contient des octets nuls (un fichier binaire : une base SQLite commence par « SQLite format 3 » et
+ * un nul) : chaque morceau entre deux nuls est cherché, comme le texte entier de grep -a (un motif ne contient
+ * jamais de nul) ; sans cela tout ce qui suit le premier nul de la ligne était invisible */
+static int match(char *l, u64 len, const char *caps[RE_CAPS])
+{
+	for (char *e = l + len;;) {
+		if (re_search(re, l, l, caps))
+			return 1;
+		l += strlen(l) + 1;
+		if (l > e)
+			return 0;
+	}
+}
+
 static void process(const char *name)
 {
-	u64 lnum = 0, found = 0;
+	u64 lnum = 0, found = 0, len;
 	const char *caps[RE_CAPS];
 	char *l;
-	while ((l = rd_line(&krt_in, 0))) {
+	while ((l = rd_line(&krt_in, &len))) {
 		lnum++;
-		int m = re_search(re, l, l, caps);
+		int m = match(l, len, caps);
 		if (opts & 1)
 			m ^= 1;
 		if (!m)
@@ -39,7 +53,7 @@ static void process(const char *name)
 			out_putn(lnum);
 			out_putc(':');
 		}
-		out_puts(l);
+		out_write(l, len); /* (la ligne entière, ses nuls compris, comme grep -a) */
 		out_nl();
 	}
 	if (opts & 8) {

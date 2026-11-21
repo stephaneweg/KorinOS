@@ -18,6 +18,7 @@ noir en bas), un vignettage doux, un halo derrière l'animal.
     sh tools/morpho/run.sh gallery 4 1 4 3 out.png   # sur l'hôte Linux : des créatures adultes au hasard
     sh tools/morpho/run.sh shot out.png MORPHO_ARGS="new stage=3 hour=19" MORPHO_DO="1:feed 1.5:meal"
     sh tools/morpho/sheet.sh out.png "titre|VAR=... VAR=..." ...   # une planche de scénarios
+    sh tools/morpho/run.sh sound DOSSIER         # la musique et les bruitages en .wav (AudioKit pour l'hôte, banque FM)
 
 Traduction : `data/lang-en.txt`, posé dans `/apps/morpho.app/` et lu par l'app (`ui_tr_load`) : le paquet est complet seul.
 Sauvegarde : `HOME:/morpho/pet.ini`. Essais : `main new` (nouvel œuf), `speed=N`, `hour=H`, `stage=N`, `seed=N`,
@@ -33,9 +34,10 @@ Sauvegarde : `HOME:/morpho/pet.ini`. Essais : `main new` (nouvel œuf), `speed=N
 | `render.cpp` | éclairage par sommet (lumière de studio qui suit la caméra, ciel et sol, reflet, contre-jour) ; l'heure ne fait que teinter le fond et la lumière (nuit plus bleue, aube et crépuscule plus chauds, lampe éteinte : lune) ; le fond 2D (dégradé tramé, halo, socle) |
 | `scene.cpp` | le dessin par `gk_draw` dans le cadre de la vue ; au processeur, demi-taille quand une image dépasse 45 ms |
 | `pet.cpp` | la vie : besoins, sommeil, crottes, maladie, poids, stades, départ ; rattrapage du temps passé app fermée (plus doux, au plus 3 jours) ; sauvegarde |
-| `actor.cpp` | ce que fait l'animal (flâner, regarder, manger, jouer à la balle, dormir, bain, médicament, câlin, éclosion, métamorphose) -> une pose ; les objets 3D et les particules |
+| `actor.cpp` | ce que fait l'animal (flâner, regarder, manger, jouer à la balle qui rebondit (il court dessous, saute, l'attrape ou la rate), dormir, bain, médicament, câlin, éclosion, métamorphose) -> une pose ; les objets 3D et les particules |
 | `hud.cpp` | la mise en page (`layout` : portrait ou large, la place de la vue ; compacte quand la place manque, des icônes seules) et l'interface 2D aux jetons du thème : en-tête, jauges, soins à icônes dessinées, choix du repas, tiroir de la fiche, messages, bulle, cartes des grands moments |
-| `main.cpp` | fenêtre, boucle (30 images/s au plus, `WEV_FRAME`), souris, clavier, menus, sons (voix FM d'AudioKit, plus aiguë quand il est petit) |
+| `sound.h` | le son, dans un fil à lui, sur le synthé General MIDI d'AudioKit : une musique générée (grille, nappe, basse, harpe, mélodie pentatonique en motifs variés) qui suit l'humeur, des bruitages en couches (voix d'ocarina, percussions, glockenspiel, harpe, chœur) ; un limiteur doux |
+| `main.cpp` | fenêtre, boucle (30 images/s au plus, `WEV_FRAME`), affichage en double tampon (surface de deux images, `ui_surface_source`), souris, clavier, menus |
 
 ## Les stades
 

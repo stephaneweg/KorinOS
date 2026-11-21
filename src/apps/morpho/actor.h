@@ -17,7 +17,8 @@ enum PKind { P_HEART, P_STAR, P_Z, P_NOTE, P_DROP, P_STINK, P_BUBBLE, P_CRUMB, P
 struct Particle { int kind; V3 p, v; float life, max, size, spin; unsigned col; };
 
 struct Poop { V3 p; float age, scale; };
-enum { SND_HAPPY, SND_SAD, SND_EAT, SND_BOUNCE, SND_CATCH, SND_POP, SND_EVOLVE, SND_HATCH, SND_YUCK, SND_SPLASH, SND_CLEAN, SND_PURR, SND_CRACK };
+enum { SND_HAPPY, SND_SAD, SND_EAT, SND_BOUNCE, SND_CATCH, SND_POP, SND_EVOLVE, SND_HATCH, SND_YUCK, SND_SPLASH, SND_CLEAN, SND_PURR, SND_CRACK,
+       SND_YUM, SND_REFUSE, SND_MISS };
 
 struct Actor
 {
@@ -39,6 +40,7 @@ struct Actor
 	int food = 0; float foodLeft = 0; V3 foodAt;
 	// la balle
 	bool ballOn = false, ballHeld = false; V3 ball, ballV; float ballIdle = 0, ballSpin = 0; int catches = 0;
+	int misses = 0, ballBounces = 0; float playT = 0, holdT = 0, jumpT = -1, jumpH = 0; bool jumpHit = false, jumpDone = false;
 	// le reste
 	std::vector<Poop> poops;
 	std::vector<Particle> parts;
@@ -58,6 +60,8 @@ struct Actor
 	void build (CreatureMeshes &M, Mesh &props, Mesh &propsSheets, Mesh &propsAlpha);
 	void emit (int kind, const V3 &at, int n, unsigned col, float spread = 0.2f);
 	void throwBall (const V3 &from, const V3 &to);
+	bool hitBall (const V3 &rayO, const V3 &rayD) const;
+	void smackBall (const V3 &rayD);
 	bool clickPoop (const V3 &rayO, const V3 &rayD);	// une crotte touchée : enlevée
 	bool hitPet (const V3 &rayO, const V3 &rayD) const;
 };

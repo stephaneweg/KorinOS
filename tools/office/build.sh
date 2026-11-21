@@ -95,6 +95,7 @@ for app; do
 	fi
 	${TC}strip -o "$A/main" "$O/main"
 	cp app.txt "$A/"
+	[ ! -f SKILL.md ] || cp SKILL.md "$A/"	# (la compétence des agents : clé skill de app.txt, docs/ABI.md)
 	[ ! -d data ] || cp -r data/. "$A/"
 	# (les préréglages d'exemple d'Arabesque : HOME:/arabesque, le paquet arabesque-samples)
 	[ "$app" != arabesque ] || [ ! -d presets ] || { mkdir -p "$OUT/sdroot/home/public/arabesque"; cp presets/*.arb "$OUT/sdroot/home/public/arabesque/"; }
