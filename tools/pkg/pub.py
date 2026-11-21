@@ -374,6 +374,19 @@ def main ():
 		if len (extra) > 15: say ("            ...")
 	if missing:
 		say ("  %d fichier(s) de l'archive absents de l'arbre (gardes tels quels)%s" % (len (missing), " : " + ", ".join (missing[:5]) if len (missing) <= 5 else ""))
+	# PC : un kit de korin/initrd.tar ne doit pas etre plus ancien que celui de lib/ (le noyau prend l'initrd d'abord : tools/pc/initrd_kits.py) ;
+	# un initrd qui en garde un plus ancien est refait ici, sur ce qui sera publie (21/11/2026)
+	if pc and "korin/initrd.tar" in base_data:
+		sys.path.insert (0, os.path.join (ROOT, "tools", "pc"))
+		import initrd_kits
+		final = dict (base_data)
+		for f, new, *_ in changed + added: final[f] = new
+		libs = {f[4:]: d for f, d in final.items () if f.startswith ("lib/") and f.endswith (".so") and "/" not in f[4:]}
+		fixed = initrd_kits.sync (final["korin/initrd.tar"], libs)
+		if fixed is not None:
+			old = initrd_kits.kits (final["korin/initrd.tar"])
+			say ("  initrd    korin/initrd.tar : kits plus anciens que lib/ remplaces (%s)" % ", ".join (n for n in sorted (old) if n in libs and initrd_kits.version (libs[n]) > initrd_kits.version (old[n])))
+			changed = [c for c in changed if c[0] != "korin/initrd.tar"] + [("korin/initrd.tar", fixed, False, tree_path ("korin/initrd.tar"))]
 	# (--abi seul, autre que celui du manifeste publie : une nouvelle version sans fichier change, pour un paquet publie
 	# avec un abi que le systeme n'a pas encore ; rust 1.97.1-2, 21/11/2026)
 	if not changed and not added and not dropped and not (a.abi and a.abi != base_abi):
