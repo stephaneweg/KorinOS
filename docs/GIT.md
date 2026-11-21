@@ -192,8 +192,10 @@ github : connecté.
 ```
 
 1. **Le client** : une « OAuth App » de GitHub avec « Enable Device Flow » coché. Son Client ID n'est pas secret
-   dans ce flux (pas de `client_secret`). Sans Client ID livré (`[github]` de `/etc/oauth/providers.ini`, ce qui
-   est le cas aujourd'hui), l'assistant fait créer une fois celle de l'utilisateur : il affiche les valeurs à mettre
+   dans ce flux (pas de `client_secret`). Korin livre le sien depuis `pc` 2026.11.78 (l'OAuth App « Korin », 21/11 ;
+   `[github]` de `/etc/oauth/providers.ini`, jetons qui n'expirent pas) : rien à créer, seulement le code à taper.
+   Sans Client ID livré (une section `[github]` sans `client_id`), l'assistant fait créer une fois celle de
+   l'utilisateur : il affiche les valeurs à mettre
    (nom « Korin », `http://127.0.0.1` pour la page d'accueil et le retour, Device Flow coché), ouvre
    `https://github.com/settings/applications/new` dans Jet si on l'a voulu, demande le Client ID sur le terminal,
    puis `oauth setup github provider=github client_id=… scope='repo workflow'` (dans le compte de l'utilisateur).

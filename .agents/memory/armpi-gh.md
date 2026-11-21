@@ -47,3 +47,9 @@ reject -> forget. Essai : scratchpad prep.py (copie de build/pc/sysroot sans dev
 `tools/python/pctest.py run` (image build/pc/pytest/disk.img). Publié dans pc 2026.11.77 avec les volets Comptes en
 ligne et Coffre ([[armpi-oauth]], [[armpi-coffre]]). Reste : un vrai push vers github.com depuis le ZBook (créer
 l'OAuth App « Korin » avec Device Flow, le Client ID est demandé au premier push ou par Réglages › Comptes en ligne).
+
+**21/11, client livré** : l'utilisateur a créé l'OAuth App GitHub « Korin » (Device Flow coché, ni « wildcard
+matching » ni « expire user access token » : jetons durables, le chemin vérifié ; des jetons de 8 h demanderaient que
+git-credential-korin demande toujours à oauthd plutôt qu'au coffre). Client ID Ov23liuX6RMNkkcSZ4Fh, pas secret en
+code d'appareil : en clair dans skel/pc/etc/oauth/providers.ini [github], publié dans pc 2026.11.78 (providers.ini
+publié repris de l'archive, section [github] remplacée). Plus de création d'app ni de question : seulement le code.

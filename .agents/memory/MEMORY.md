@@ -127,7 +127,7 @@
 - [Batterie du PC](armpi-batterie.md) — acpid sur ACPICA (17/11) : %, temps restant, alertes, extinction à 5 %, profil d'énergie, icône de la barre ; QEMU seulement
 - [Coffre à secrets](armpi-coffre.md) — 18/11 : fait sur le PC (keyvault, TPM, migrations), vérifié sous QEMU ; ZBook, vrai TPM et enforce restent
 - [build world du PC](armpi-build-world-pc.md) — après Jet : nettoyer build, tout reconstruire (libposix relinkée partout, GCC STAGES=posix), tout publier, nouvelle clé
-- [Identification GitHub](armpi-gh.md) — code d'appareil dans git-credential-korin (oauthd : provider github, jetons durables), Réglages › Comptes en ligne et › Coffre (21/11) ; QEMU PC vérifié, pc 2026.11.77 ; reste un vrai push sur le ZBook ; pas de gh
+- [Identification GitHub](armpi-gh.md) — code d'appareil dans git-credential-korin (oauthd : provider github, jetons durables), Réglages › Comptes en ligne et › Coffre (21/11) ; QEMU PC vérifié, pc 2026.11.77 ; client « Korin » livré (Ov23liuX6RMNkkcSZ4Fh) dans pc 2026.11.78 ; reste un vrai push sur le ZBook ; pas de gh
 - [Sécurité contre le web](armpi-securite.md) — plan du 18/11 : enforce, SMEP/SMAP, unveil pour Jet, ASLR, pledge ; docs/etude/SECURITE.md, rien de fait
 - [Ports construits dans Korin](armpi-ports-dans-korin.md) — plan du 18/11 : libs tierces en .so/.a, outils de construction, puis tous les ports (SDL, STK, Python, Godot, WebKit…) dans Korin sur le ZBook ; rien de fait
 - [Spotify et Jamendo](armpi-musique.md) — Jamendo fait (18/11) ; Spotify = le lecteur web dans sa fenêtre sur le moteur de Jet (mode app, Widevine), librespot retiré (20/11) ; docs/etude/MUSIQUE.md

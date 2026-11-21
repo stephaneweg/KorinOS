@@ -85,7 +85,8 @@ client_id = 85ccaf6e-81ff-4a62-9194-930fc36429ad   ; « Onyx Mail », le même q
 tenant = common
 
 [github]
-scope = repo workflow                           ; pas de client_id livré : l'OAuth App de l'utilisateur (GIT.md)
+client_id = Ov23liuX6RMNkkcSZ4Fh                ; l'OAuth App « Korin » de GitHub (code d'appareil, pas de secret)
+scope = repo workflow
 ```
 
 `oauth setup gdrive/perso provider=google` suffit donc. Le compte ne recopie pas ces valeurs (`accounts.ini` n'a que
