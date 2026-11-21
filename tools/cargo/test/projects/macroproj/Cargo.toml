@@ -1,0 +1,6 @@
+# macroproj : une macro procédurale (une .so que rustc charge par dlopen) et un script de construction (build.rs,
+# compilé puis lancé), construits par cargo et rustc dans Korin (docs/RUST.md, « rustc dans Korin »). Sans
+# dépendance de crates.io : l'API proc_macro seule.
+[workspace]
+members = ["hello-derive", "app"]
+resolver = "2"

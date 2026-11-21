@@ -540,7 +540,8 @@ et la page n'envoyait pas le mot de passe ([WEBKIT.md](WEBKIT.md), « Connexion 
   2 s de précision sur FAT : [FICHIERS.md](FICHIERS.md)), pas de droits sauf le bit d'exécution
   (section plus haut), pas de propriétaires (`chown` sans effet), pas de liens (`link`, `symlink` → `ENOSYS`,
   `readlink` → `EINVAL`), `rename` : sans copie sur un même volume, d'un volume à l'autre un
-  fichier est recopié et un répertoire rend `EXDEV` ; `ftruncate` relit et réécrit le fichier, 64 fichiers ouverts au plus par process (AppKit),
+  fichier est recopié et un répertoire rend `EXDEV` ; `ftruncate` relit et réécrit le fichier, 64 fichiers ouverts au plus par process (AppKit ; `getrlimit (RLIMIT_NOFILE)` le dit depuis le 21/11/2026,
+  `rlim_max` et `_SC_OPEN_MAX` restent à 1024, la table des descripteurs),
   `statvfs` donne la vraie place du volume (FS_INFO de son service ; place inconnue : `f_blocks` = 0 ;
   `fstatvfs` : des valeurs fixes), pas de verrous (`flock`, `F_SETLK` : 0).
 * **IPC** : pas de socket `AF_UNIX` nommé (`socket (AF_UNIX)`, `bind`, `connect` : seulement

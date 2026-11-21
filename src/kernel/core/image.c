@@ -24,7 +24,8 @@
 #include <korin/vm.h>
 
 #define IMG_MAX 128
-#define PATH 80
+#define PATH IMAGE_PATH_MAX
+#define IML_PATH 80 /* le chemin dans une entrée d'IMAGE_LIST (128 o, ABI) : tronqué */
 #define WIN_BASE 0x6C00000000ULL
 #define WIN_SIZE (4ULL << 30)
 #define WIN_MAX 4
@@ -107,10 +108,10 @@ void image_hold(struct image *im)
 
 /* le chemin déclaré et l'empreinte SHA-256 du contenu (calculée une fois : les pages d'une image scellée ne
  * changent plus) ; l'appelant tient une référence */
-void image_identity(struct image *im, char path[80], uint8_t hash[32])
+void image_identity(struct image *im, char *path, uint64_t n, uint8_t hash[32])
 {
-	memcpy(path, im->path, PATH);
-	path[PATH - 1] = 0;
+	memcpy(path, im->path, n < PATH ? n : PATH);
+	path[n - 1] = 0;
 	if (!im->hashed) {
 		struct sha256 s;
 		sha256_init(&s);
@@ -402,7 +403,8 @@ int64_t sys_image_list(uint64_t buf, uint64_t max)
 			x[3] = (uint64_t)im->refs;
 			x[4] = im->lazy;
 			x[5] = (im->pinned ? IML_PIN : 0) | (im->sys ? IML_SYS : 0);
-			memcpy(&x[6], im->path, PATH);
+			memcpy(&x[6], im->path, IML_PATH);
+			((char *)&x[6])[IML_PATH - 1] = 0;
 		}
 	spin_unlock_irqrestore(&img_lock, f);
 	int64_t r = copy_to_user(buf, e, n * 128) ? E_FAULT : (int64_t)n;

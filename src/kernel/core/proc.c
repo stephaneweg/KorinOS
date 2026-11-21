@@ -426,7 +426,7 @@ int64_t sys_proc_exe(int64_t pid, uint64_t out)
 		return E_SRCH;
 	}
 	if (im) {
-		image_identity(im, x->exe, x->hash);
+		image_identity(im, x->exe, sizeof x->exe, x->hash);
 		image_put(im);
 		x->flags |= 1;
 	}
@@ -624,7 +624,7 @@ static int64_t sys_exec_image(struct thread *t, struct process *p, uint64_t path
 {
 	struct image *im = 0;
 	if (!pr[6]) {
-		char ipath[80];
+		char ipath[IMAGE_PATH_MAX];
 		if (copy_string_from_user(ipath, path, sizeof ipath) <= 0)
 			return E_INVAL;
 		im = image_get(ipath, size, 0);
@@ -747,7 +747,7 @@ int64_t sys_spawn_preloaded(uint64_t upath, uint64_t fsize, uint64_t params)
 	int uid;
 	if (spawn_uid(me, pr[2], &uid))
 		return E_PERM;
-	char path[80];
+	char path[IMAGE_PATH_MAX];
 	if (copy_string_from_user(path, upath, sizeof path) <= 0)
 		return E_INVAL;
 	struct image *im = image_get(path, fsize, rights);

@@ -27,7 +27,10 @@ void image_hold(struct image *im);
 /* mappe l'image dans un espace : pages partagées, copie sur écriture, .bss paresseux */
 int image_map(struct image *im, struct vm_space *vm, struct mm *mm, uint64_t *entry, uint64_t *top);
 void image_proc_exit(struct process *p);
-/* chemin déclaré (80 o) et SHA-256 du contenu d'une image tenue (SYS_PROC_EXE) */
-void image_identity(struct image *im, char path[80], uint8_t hash[32]);
+/* chemin d'une image : celui que vfs a résolu (PATH_MAX de vfs) ; 80 octets jusqu'au 21/11/2026, trop peu pour
+ * les programmes de cargo (target/debug/build/<caisse>-<empreinte>/build-script-build : EINVAL à l'exec) */
+#define IMAGE_PATH_MAX 256
+/* chemin déclaré (tronqué à n octets) et SHA-256 du contenu d'une image tenue (SYS_PROC_EXE) */
+void image_identity(struct image *im, char *path, uint64_t n, uint8_t hash[32]);
 
 #endif
