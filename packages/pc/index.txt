@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 01:24
+date = 2026-11-21 01:25
 abi = 626
 packages = 117
 board = pc
@@ -1219,18 +1219,18 @@ content = 9dcc6ae967cf3770ce2c99171be88fcde48a3415e593ca9e6fbeae8163173869
 
 [koton]
 title = Koton
-version = 1.0.10
+version = 1.0.11
 category = Multimédia
 author = Korin OS
 summary = Le studio de musique
-size = 2110153
-installed = 4132729
-sha256 = 1e0349ea6d983cea9862a57f5083943538f507bd1cde4cbb1ecadaed335d362c
-file = pkgs/koton-1.0.10.opk
+size = 2116254
+installed = 4146779
+sha256 = 4afa6ed31a0c7dd5620965ef9f11d831eb7fa371ca2fa9935be7097bf89c0d82
+file = pkgs/koton-1.0.11.opk
 needs = llm, abi >= 626
 required = 0
 restart = 0
-content = 6cecab2d65c2b50908f2ce0d1dc69013f8352fd94cc0d2dfabde954f2719bedf
+content = 2e0e10da8ec61a2cbd1cfccce680eb41667da5c1a77d1be936e0b9bd7b0c9340
 
 [letters]
 title = Letters
