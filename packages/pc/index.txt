@@ -2089,18 +2089,18 @@ content = 47fef4aa7f6e0bf29968834088c098c4cd0d80d8362ebcc40e894bffe41643f6
 
 [linuxhost]
 title = Hôte Linux
-version = 1.0.4
+version = 1.0.5
 category = Développement
 author = Korin OS
 summary = Lance des programmes de Linux x86-64 sur Korin, sans les modifier (linuxhost run PROGRAMME) : ce qui fait tourner Claude Code
-size = 294304
+size = 295863
 installed = 618180
-sha256 = 83bcb1195009ca494cf1fc330f7736a47e26b0a3561953e9b403125d904a3919
-file = pkgs/linuxhost-1.0.4.opk
+sha256 = 67e1ff97cda933ab38589955bbda5beec3aaf4fb365e740af4d3fafbd2ee4eb8
+file = pkgs/linuxhost-1.0.5.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = c9e020b2740bbc0dd9b852cb8c10b9d334b975375fddb87948b09323e516e9a9
+content = 4f8694512e704a5438b9950034238243a7edd61e48a3f9d85f2893c7aa513756
 
 [claude-code]
 title = Claude Code
