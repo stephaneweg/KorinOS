@@ -12,4 +12,7 @@ if [ ! -f "$B" ]; then
 	exit 127
 fi
 export DISABLE_AUTOUPDATER=1
+# les commandes de Linux avec leurs options (paquet unixtools, BusyBox : env, awk, xargs, sed -E, sort -k...) devant
+# celles de /bin, pour Claude seulement : il écrit ses commandes comme sous Linux
+[ ! -x /devtools/bin/busybox ] || case ":$PATH:" in *:/devtools/bin:*) ;; *) export PATH="/devtools/bin:$PATH" ;; esac
 exec /bin/linuxhost run "$B" "$@"

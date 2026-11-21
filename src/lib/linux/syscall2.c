@@ -983,6 +983,70 @@ static long do_getrusage (long who, long *ru)
 	return 0;
 }
 
+/* « /proc/self/fd/N/reste » (et /proc/thread-self/fd, /dev/fd) : sous Linux, le dossier ouvert N sert de chemin. Claude
+ * Code crée et ouvre ainsi ses dossiers de travail sans suivre de lien (mkdir("/proc/self/fd/N/tasks")) : ENOENT ici
+ * lui faisait croire le dossier supprimé (« held directory vanished », plus aucune commande). Le chemin est récrit
+ * avec celui du descripteur (libposix __posix_fd_path) ; « /proc/self/fd/N » seul aussi, sauf pour readlink (proc_link). */
+static const char *fd_prefix (const char *p)
+{
+	if (!p)
+		return 0;
+	if (!strncmp (p, "/proc/self/fd/", 14))
+		return p + 14;
+	if (!strncmp (p, "/proc/thread-self/fd/", 21))
+		return p + 21;
+	if (!strncmp (p, "/dev/fd/", 8))
+		return p + 8;
+	return 0;
+}
+
+static const char *fd_path_rewrite (const char *p, int whole, char *buf, size_t cap)
+{
+	extern char *__posix_fd_path (int fd, char *buf, size_t cap);
+	const char *n = fd_prefix (p);
+	if (!n || *n < '0' || *n > '9')
+		return p;
+	char *end;
+	long fd = strtol (n, &end, 10);
+	if (*end != '/' && (*end || !whole))
+		return p;
+	char dir[1024];
+	if (!__posix_fd_path ((int) fd, dir, sizeof dir))
+		return p;
+	size_t l = strlen (dir);
+	while (l > 1 && dir[l - 1] == '/')
+		dir[--l] = 0;
+	snprintf (buf, cap, "%s%s", dir, end);
+	return buf;
+}
+
+/* les arguments chemins des appels de Linux : récrits en place (syscall.c, avant tout le reste) */
+void lx_rewrite_fd_paths (long nr, long *a, long *b, long *c, long *d)
+{
+	static __thread char b1[1100], b2[1100];
+	long *x = 0, *y = 0;
+	int whole = 1;
+	switch (nr)
+	{
+	case 2: case 4: case 6: case 21: case 76: case 80: case 83: case 84: case 85: case 87: case 90: case 92: case 94:
+	case 137:
+		x = a; break;
+	case 89: x = a; whole = 0; break;
+	case 82: case 86: x = a; y = b; break;
+	case 88: x = b; break;
+	case 257: case 258: case 260: case 262: case 263: case 268: case 269: case 439: case 280: case 332: case 437:
+		x = b; break;
+	case 267: x = b; whole = 0; break;
+	case 264: case 316: case 265: x = b; y = d; break;
+	case 266: x = c; break;
+	default: return;
+	}
+	if (x && *x)
+		*x = (long) fd_path_rewrite ((const char *) *x, whole, b1, sizeof b1);
+	if (y && *y)
+		*y = (long) fd_path_rewrite ((const char *) *y, whole, b2, sizeof b2);
+}
+
 int lx_syscall2 (long nr, long a, long b, long c, long d, long e, long f, long *ret)
 {
 	(void) f;

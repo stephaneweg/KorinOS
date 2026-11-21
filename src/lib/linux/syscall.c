@@ -472,6 +472,10 @@ static long linux_syscall_ (long nr, long a, long b, long c, long d, long e, lon
 	(void) e;
 	if (nr >= 0 && nr < 512)
 		linux_syscall_count[nr]++;
+	{
+		extern void lx_rewrite_fd_paths (long nr, long *a, long *b, long *c, long *d);
+		lx_rewrite_fd_paths (nr, &a, &b, &c, &d);	/* (/proc/self/fd/N/… : syscall2.c) */
+	}
 	long r2;
 	if (lx_syscall2 (nr, a, b, c, d, e, f, &r2))	/* (syscall2.c : ceux d'un exécutable, jalon 3) */
 		return r2;

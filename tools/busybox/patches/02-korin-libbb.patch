@@ -1,0 +1,25 @@
+--- a/include/libbb.h	2026-11-21 21:22:52.000314726 +0000
++++ b/include/libbb.h	2026-11-21 21:22:52.015350434 +0000
+@@ -687,6 +687,10 @@
+ #define piped_pair(pair)  pipe(&((pair).rd))
+ #define xpiped_pair(pair) xpipe(&((pair).rd))
+ 
++/* Korin OS : libposix n'a pas SOCK_RDM (la valeur de Linux) */
++#ifndef SOCK_RDM
++# define SOCK_RDM 4
++#endif
+ /* Useful for having small structure members/global variables */
+ typedef int8_t socktype_t;
+ typedef int8_t family_t;
+@@ -1091,6 +1095,11 @@
+ /* Convert each alpha char in str to lower-case */
+ char* str_tolower(char *str) FAST_FUNC;
+ 
++#if defined(__ARMPI_POSIX__)
++/* newlib a itoa et utoa à trois arguments : ceux de BusyBox sous un autre nom (Korin OS) */
++# define utoa bb_utoa
++# define itoa bb_itoa
++#endif
+ char *utoa(unsigned n) FAST_FUNC;
+ char *itoa(int n) FAST_FUNC;
+ /* Returns a pointer past the formatted number, does NOT null-terminate */

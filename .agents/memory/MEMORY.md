@@ -35,7 +35,7 @@
 - [Idée UnionFS](armpi-idee-unionfs.md) — pour plus tard : deux volumes vus comme un seul, le plus récent gagne
 - [Idée mount dans un dossier](armpi-idee-mount-dossier.md) — pour plus tard : VFS monte un device dans un dossier, comme Linux
 - [Courier](armpi-courier.md) — client HTTP d'Onyx en C# sur WinForms, dans main ; apps .NET sous QEMU : lancer depuis le bureau, AZERTY, sans préchargement
-- [Paquets](armpi-paquets.md) — pkg, pkgd, pkgman, dépôt packages/ de KorinOS, gros paquets split + Release, comment publier
+- [Paquets](armpi-paquets.md) — pkg, pkgd, pkgman, dépôt packages/ de KorinOS, gros paquets split + Release, comment publier ; **avant chaque publication : git fetch origin main, voir ce qui a changé, fusionner** (règle de l'utilisateur, 21/11)
 - [Ports de novembre](armpi-ports-novembre.md) — 2048, invaders, arkanoid, cartes, presse-papier, agenda, notes, pdf, photos, paint et courier C++ sur claude/onyx-apps
 - [Ports de novembre 2](armpi-ports-novembre2.md) — jeux, taskman, archiver, iconedit, fractales, disks, Manette, impression, icones ; dans main, paquets 2026.11.1 publies
 - [Mail, IRC, Telegram](armpi-mail-irc-telegram.md) — ports d'Onyx, dans main, QEMU sur serveurs tools/nettest ; ne jamais lancer sans cible locale ; à adapter au chrome sans barre
