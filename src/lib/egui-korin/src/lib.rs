@@ -376,6 +376,11 @@ struct Window {
     close_requested: bool,
     maximized: bool,
     render: EguiSoftwareRender,
+    /// l'image se dessine ici, puis seules les lignes qui ont changé vont dans les pixels de la fenêtre : Elegant
+    /// ne voit jamais une image à moitié faite (le fond seul : le scintillement au passage de la souris)
+    back: Vec<[u8; 4]>,
+    /// les pixels de la fenêtre ne correspondent plus à `back` (nouveau tampon) : tout recopier
+    full: bool,
 }
 
 impl Window {
@@ -385,6 +390,8 @@ impl Window {
             width: 0,
             height: 0,
             pixels: std::ptr::null_mut(),
+            back: Vec::new(),
+            full: true,
             events: Vec::new(),
             modifiers: Modifiers::default(),
             buttons: 0,
@@ -405,6 +412,7 @@ impl Window {
         self.pixels = unsafe { sys::kh_pixels(&mut w, &mut h) };
         self.width = w.max(0) as usize;
         self.height = h.max(0) as usize;
+        self.full = true;
     }
 
     fn pos(&self, e: &sys::Event) -> Pos2 {
@@ -599,13 +607,31 @@ impl Window {
             return;
         }
         let prims = ctx.tessellate(out.shapes, out.pixels_per_point);
-        // les pixels de la fenêtre, 0x00RRGGBB : en mémoire B, G, R, 0 (BGRA)
-        let px = unsafe { std::slice::from_raw_parts_mut(self.pixels as *mut [u8; 4], self.width * self.height) };
+        let (w, h) = (self.width, self.height);
+        // l'image dans le tampon de derrière (0x00RRGGBB : en mémoire B, G, R, 0, l'ordre BGRA)
+        if self.back.len() != w * h {
+            self.back = vec![[0; 4]; w * h];
+            self.full = true;
+        }
         let face = unsafe { sys::kh_token(sys::TJ_FACE) }.to_le_bytes();
-        px.fill([face[0], face[1], face[2], 255]);
-        let mut buf = BufferMutRef::new(px, self.width, self.height);
+        self.back.fill([face[0], face[1], face[2], 255]);
+        let mut buf = BufferMutRef::new(&mut self.back, w, h);
         self.render.render(&mut buf, &prims, &out.textures_delta, out.pixels_per_point);
-        unsafe { sys::kh_update(0, 0, self.width as _, self.height as _) };
+        // puis dans la fenêtre : seulement les lignes qui ont changé, et UIKit ne recopie que leur bande
+        let px = unsafe { std::slice::from_raw_parts_mut(self.pixels as *mut [u8; 4], w * h) };
+        let (mut y0, mut y1) = (h, 0);
+        for y in 0..h {
+            let r = y * w..(y + 1) * w;
+            if self.full || px[r.clone()] != self.back[r.clone()] {
+                px[r.clone()].copy_from_slice(&self.back[r]);
+                y0 = y0.min(y);
+                y1 = y + 1;
+            }
+        }
+        self.full = false;
+        if y1 > y0 {
+            unsafe { sys::kh_update(0, y0 as _, w as _, (y1 - y0) as _) };
+        }
     }
 }
 
