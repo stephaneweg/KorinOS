@@ -286,8 +286,8 @@ build_one () { # nom
 		fi ;;
 	pinball|arabesque)	# (la physique d'Onyx, le moteur d'Arabesque : mêmes bits partout)
 		FLAGS="$FLAGS -ffp-contract=off" ;;
-	vibe|claude|mai)	# (libacp, le client ACP de Vibe : src/lib/acp, compilée avec l'app, comme tools/office/build.sh ;
-		# claude, mai : le source de Vibe avec le profil Claude ou MAI, src/apps/claude/main.c, src/apps/mai/main.c)
+	vibe|mai)	# (libacp, le client ACP de Vibe : src/lib/acp, compilée avec l'app, comme tools/office/build.sh ;
+		# mai : le source de Vibe avec le profil MAI, src/apps/mai/main.c ; l'app Claude, profil Claude, retirée le 21/11/2026)
 		FLAGS="$FLAGS -I$ROOT/src/lib/acp" ;;
 	win16)	# (les programmes de Windows 3.x, docs/etude/WIN16.md : le cœur i486 de MAME, mame/, est inclus par cpu.cpp)
 		FLAGS="$FLAGS -O3 -w" ;;
