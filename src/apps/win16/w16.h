@@ -37,6 +37,8 @@ uint16_t global_alloc (uint32_t size, int code);
 void global_free (uint16_t sel);
 uint32_t global_size (uint16_t sel);
 int global_realloc (uint16_t sel, uint32_t size);
+int global_discarded (uint16_t sel);
+void global_set_discarded (uint16_t sel, int on);
 uint16_t sel_alias (uint16_t sel, int code);
 int sel_is_code (uint16_t sel);
 uint32_t lin_alloc (uint32_t size);	/* mémoire linéaire sans sélecteur */
@@ -85,10 +87,12 @@ struct w16_module
 };
 extern const struct w16_module w16_modules[];
 enum { MOD_KERNEL, MOD_USER, MOD_GDI, MOD_MMSYSTEM, MOD_COMMDLG, MOD_KEYBOARD, MOD_TOOLHELP, MOD_WIN87EM, MOD_SHELL,
-	MOD_VER, MOD_LZEXPAND, MOD_SYSTEM, MOD_SOUND, MOD_DDEML, MAX_BUILTIN = 16 };
+	MOD_VER, MOD_LZEXPAND, MOD_SYSTEM, MOD_SOUND, MOD_DDEML, MOD_WINSOCK, MAX_BUILTIN = 16 };
 const struct w16_api *api_lookup (int mod, int ord);
 
 int api_find_module (const char *name);
+void ws_poll (void);			/* winsock.c : WSAAsyncSelect */
+int ws_wait_ms (int max);
 int api_find_name (int mod, const char *name);
 uint32_t api_entry (int mod, int ord);	/* seg:off du point d'entrée de cet ordinal */
 
@@ -119,10 +123,12 @@ struct ne_module
 	int is_dll, refs, nsegs, autodata;
 	uint16_t hmodule, hinstance;
 	uint16_t cs, ip, ss, sp, heap_size, stack_size;
+	int heap_last;		/* DGROUP = données, pile, tas local à la fin (SP posé par le chargeur) */
 	uint16_t segs[256];
 	uint32_t sizes[256];
 	uint8_t ent_seg[NE_MAX_ENTRY];
 	uint16_t ent_off[NE_MAX_ENTRY];
+	uint8_t ent_flags[NE_MAX_ENTRY];	/* 1 : exporté ; 2 : utilise le segment de données commun */
 	char modnames[64][16];
 };
 extern struct ne_module *ne_modules[MAX_MODULES];

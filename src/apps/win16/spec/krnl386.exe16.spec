@@ -1,7 +1,7 @@
 # 1-207 are the basic functions, those are (with minor variations)
 # present in win31, win95 and nt351
 
-1   stub FatalExit
+1   pascal FatalExit(word) FatalExit16
 2   pascal -ret16 ExitKernel() ExitKernel16
 3   pascal GetVersion() GetVersion16
 4   pascal -ret16 LocalInit(word word word) LocalInit16

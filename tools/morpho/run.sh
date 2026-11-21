@@ -5,6 +5,7 @@
 #
 #   sh tools/morpho/run.sh gallery <stade 0..5> <graine> <col> <lig> out.png [heure]   des créatures au hasard
 #   sh tools/morpho/run.sh shot out.png [VAR=valeur ...]                               une image du jeu (host.cpp)
+#   sh tools/morpho/run.sh sound DOSSIER                                               la musique et les bruitages en .wav
 #
 # Il faut le GCC de l'hôte, FreeType (libfreetype-dev), python3 et PIL (le .png).
 set -eu
@@ -37,5 +38,16 @@ shot)
 	out=$2; shift 2
 	(cd "$B" && env MORPHO_FONTS="${MORPHO_FONTS:-$ROOT/sdcard/fonts}" "$@" "$B/host" "$B/shot.ppm")
 	pngout "$B/shot.ppm" "$out"
+	;;
+sound)
+	# (le synthé d'AudioKit pour l'hôte : sa banque FM, la SoundFont n'est pas dans le dépôt)
+	for f in ak_synth ak_fm ak_fmtab ak_gmbank; do
+		gcc -O2 -w -I"$ROOT/src/kits/audiokit" -DKORIN_KIT_H -DKIT_HIDDEN= -include stddef.h -include stdint.h -include string.h \
+			-c "$ROOT/src/kits/audiokit/$f.c" -o "$B/ak_$f.o"
+	done
+	gcc -O2 -w -c "$ROOT/tools/morpho/host_ak.c" -o "$B/host_ak.o"
+	$CXX -o "$B/sndtest" "$ROOT/tools/morpho/sndtest.cpp" "$B"/ak_ak_*.o "$B/host_ak.o" -lm -lpthread
+	mkdir -p "$2"
+	"$B/sndtest" "$2"
 	;;
 esac

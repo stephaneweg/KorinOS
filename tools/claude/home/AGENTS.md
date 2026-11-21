@@ -44,6 +44,10 @@ crois savoir : l'API de Korin ne se devine pas.
 * Un **jeu d'arcade en C** (casse-briques, tir, puzzle... comme Tetris, Invaders, Arkanoid) : `korin-game` (le
   cadre des jeux du système, joint) avec `korin-app`.
 * Un **jeu Godot** (projet Godot 4, export en app de Korin) : `korin-godot` (sur le PC).
+* **Se servir d'une app** (créer un morceau pour Arabesque ou Koton, un fichier qu'elle ouvre, la piloter) : une app
+  peut apporter **sa propre compétence**, `korin-<app>` dans la liste ci-dessous (son `app.txt` a la clé
+  `skill = SKILL.md`, le fichier est dans `/apps/<app>.app/`). Charge-la avant de lire les sources de l'app ; sans
+  compétence ni serveur MCP, lis ses exemples (`/home/public/<app>`), puis ses sources.
 
 **Avant d'écrire une app, lis une app de Korin qui fait quelque chose de proche** : ne pars pas de rien.
 

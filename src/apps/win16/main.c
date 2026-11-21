@@ -103,7 +103,9 @@ int main (int argc, char **argv)
 	}
 	if (getenv ("W16_TRACE"))
 		w16_trace = atoi (getenv ("W16_TRACE"));
-	snprintf (w16_self, sizeof w16_self, "%s", argv[0]);	/* (WinExec relance ce programme) */
+	/* (WinExec relance ce programme ; sous Korin, argv[0] est le nom du process, pas son chemin : lancé par
+	   Fichiers ou le lanceur, « main » ; le programme est alors celui du paquet) */
+	snprintf (w16_self, sizeof w16_self, "%s", strchr (argv[0], '/') ? argv[0] : "/apps/win16.app/main");
 	int ui = be_init ();
 	/* Z: : le dossier dos/ à côté du programme (COMMAND.COM), ou W16_DOSDIR */
 	{
@@ -112,7 +114,7 @@ int main (int argc, char **argv)
 			snprintf (w16_dosdir, sizeof w16_dosdir, "%s", e);
 		else
 		{
-			snprintf (w16_dosdir, sizeof w16_dosdir, "%s", argv[0]);
+			snprintf (w16_dosdir, sizeof w16_dosdir, "%s", w16_self);
 			char *sl = strrchr (w16_dosdir, '/');
 			if (sl)
 				snprintf (sl, sizeof w16_dosdir - (size_t) (sl - w16_dosdir), "/dos");
@@ -120,6 +122,9 @@ int main (int argc, char **argv)
 				snprintf (w16_dosdir, sizeof w16_dosdir, "dos");
 		}
 	}
+	/* (lancé sans fichier, depuis le lanceur du bureau : l'invite du DOS, comme --dos) */
+	if (i >= argc && ui)
+		dos_prompt = 1;
 	if (dos_prompt || (i < argc && is_batch (argv[i])))
 	{
 		/* l'invite du DOS (--dos), ou un .BAT : COMMAND.COM (FreeCOM) sur Z:, D: = le dossier courant ou celui du .BAT */

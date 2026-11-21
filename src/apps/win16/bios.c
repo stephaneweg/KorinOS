@@ -61,6 +61,9 @@ static int pic_best (struct pic *p)
 }
 
 /* la prochaine IRQ à servir -> son vecteur (et elle passe en service), -1 sinon */
+/* une interruption attend-elle (sans l'acquitter, contrairement à pic_pending) ? */
+int pic_waiting (void) { return pic_best (&pic[0]) >= 0; }
+
 int pic_pending (void)
 {
 	int i = pic_best (&pic[0]);

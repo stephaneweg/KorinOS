@@ -350,6 +350,7 @@ extern void api_FarGetOwner16 (struct w16call *c) __attribute__ ((weak));
 extern void api_FarSetOwner16 (struct w16call *c) __attribute__ ((weak));
 extern void api_FastWindowFrame16 (struct w16call *c) __attribute__ ((weak));
 extern void api_FatalAppExit16 (struct w16call *c) __attribute__ ((weak));
+extern void api_FatalExit16 (struct w16call *c) __attribute__ ((weak));
 extern void api_FileCDR16 (struct w16call *c) __attribute__ ((weak));
 extern void api_FileOpenDlgProc16 (struct w16call *c) __attribute__ ((weak));
 extern void api_FileSaveDlgProc16 (struct w16call *c) __attribute__ ((weak));
@@ -1262,6 +1263,23 @@ extern void api_WNetViewQueueDialog16 (struct w16call *c) __attribute__ ((weak))
 extern void api_WNetWatchQueue16 (struct w16call *c) __attribute__ ((weak));
 extern void api_WNetWriteJob16 (struct w16call *c) __attribute__ ((weak));
 extern void api_WOW16Call (struct w16call *c) __attribute__ ((weak));
+extern void api_WSAAsyncGetHostByAddr16 (struct w16call *c) __attribute__ ((weak));
+extern void api_WSAAsyncGetHostByName16 (struct w16call *c) __attribute__ ((weak));
+extern void api_WSAAsyncGetProtoByName16 (struct w16call *c) __attribute__ ((weak));
+extern void api_WSAAsyncGetProtoByNumber16 (struct w16call *c) __attribute__ ((weak));
+extern void api_WSAAsyncGetServByName16 (struct w16call *c) __attribute__ ((weak));
+extern void api_WSAAsyncGetServByPort16 (struct w16call *c) __attribute__ ((weak));
+extern void api_WSAAsyncSelect16 (struct w16call *c) __attribute__ ((weak));
+extern void api_WSACancelAsyncRequest16 (struct w16call *c) __attribute__ ((weak));
+extern void api_WSACancelBlockingCall16 (struct w16call *c) __attribute__ ((weak));
+extern void api_WSACleanup16 (struct w16call *c) __attribute__ ((weak));
+extern void api_WSAGetLastError16 (struct w16call *c) __attribute__ ((weak));
+extern void api_WSAIsBlocking16 (struct w16call *c) __attribute__ ((weak));
+extern void api_WSARecvEx16 (struct w16call *c) __attribute__ ((weak));
+extern void api_WSASetBlockingHook16 (struct w16call *c) __attribute__ ((weak));
+extern void api_WSASetLastError16 (struct w16call *c) __attribute__ ((weak));
+extern void api_WSAStartup16 (struct w16call *c) __attribute__ ((weak));
+extern void api_WSAUnhookBlockingHook16 (struct w16call *c) __attribute__ ((weak));
 extern void api_WaitEvent16 (struct w16call *c) __attribute__ ((weak));
 extern void api_WaitForMultipleObjects16 (struct w16call *c) __attribute__ ((weak));
 extern void api_WaitForMultipleObjectsEx16 (struct w16call *c) __attribute__ ((weak));
@@ -1291,6 +1309,7 @@ extern void api__EnterSysLevel (struct w16call *c) __attribute__ ((weak));
 extern void api__EnterWin16Lock (struct w16call *c) __attribute__ ((weak));
 extern void api__LeaveSysLevel (struct w16call *c) __attribute__ ((weak));
 extern void api__LeaveWin16Lock (struct w16call *c) __attribute__ ((weak));
+extern void api___WSAFDIsSet16 (struct w16call *c) __attribute__ ((weak));
 extern void api___WinEm87Info (struct w16call *c) __attribute__ ((weak));
 extern void api___WinEm87Restore (struct w16call *c) __attribute__ ((weak));
 extern void api___WinEm87Save (struct w16call *c) __attribute__ ((weak));
@@ -1316,13 +1335,33 @@ extern void api__lcreat16 (struct w16call *c) __attribute__ ((weak));
 extern void api__llseek16 (struct w16call *c) __attribute__ ((weak));
 extern void api__lopen16 (struct w16call *c) __attribute__ ((weak));
 extern void api__lwrite16 (struct w16call *c) __attribute__ ((weak));
+extern void api_accept16 (struct w16call *c) __attribute__ ((weak));
 extern void api_auxGetDevCaps16 (struct w16call *c) __attribute__ ((weak));
 extern void api_auxGetNumDevs16 (struct w16call *c) __attribute__ ((weak));
 extern void api_auxGetVolume16 (struct w16call *c) __attribute__ ((weak));
 extern void api_auxOutMessage16 (struct w16call *c) __attribute__ ((weak));
 extern void api_auxSetVolume16 (struct w16call *c) __attribute__ ((weak));
+extern void api_bind16 (struct w16call *c) __attribute__ ((weak));
+extern void api_closesocket16 (struct w16call *c) __attribute__ ((weak));
+extern void api_connect16 (struct w16call *c) __attribute__ ((weak));
+extern void api_default_hook (struct w16call *c) __attribute__ ((weak));
 extern void api_fpe_return (struct w16call *c) __attribute__ ((weak));
+extern void api_gethostbyaddr16 (struct w16call *c) __attribute__ ((weak));
+extern void api_gethostbyname16 (struct w16call *c) __attribute__ ((weak));
+extern void api_gethostname16 (struct w16call *c) __attribute__ ((weak));
+extern void api_getpeername16 (struct w16call *c) __attribute__ ((weak));
+extern void api_getprotobyname16 (struct w16call *c) __attribute__ ((weak));
+extern void api_getprotobynumber16 (struct w16call *c) __attribute__ ((weak));
+extern void api_getservbyname16 (struct w16call *c) __attribute__ ((weak));
+extern void api_getservbyport16 (struct w16call *c) __attribute__ ((weak));
+extern void api_getsockname16 (struct w16call *c) __attribute__ ((weak));
+extern void api_getsockopt16 (struct w16call *c) __attribute__ ((weak));
 extern void api_hmemcpy16 (struct w16call *c) __attribute__ ((weak));
+extern void api_htonl16 (struct w16call *c) __attribute__ ((weak));
+extern void api_htons16 (struct w16call *c) __attribute__ ((weak));
+extern void api_inet_addr16 (struct w16call *c) __attribute__ ((weak));
+extern void api_inet_ntoa16 (struct w16call *c) __attribute__ ((weak));
+extern void api_ioctlsocket16 (struct w16call *c) __attribute__ ((weak));
 extern void api_joyGetDevCaps16 (struct w16call *c) __attribute__ ((weak));
 extern void api_joyGetNumDevs16 (struct w16call *c) __attribute__ ((weak));
 extern void api_joyGetPos16 (struct w16call *c) __attribute__ ((weak));
@@ -1333,6 +1372,7 @@ extern void api_joySetCalibration16 (struct w16call *c) __attribute__ ((weak));
 extern void api_joySetCapture16 (struct w16call *c) __attribute__ ((weak));
 extern void api_joySetThreshold16 (struct w16call *c) __attribute__ ((weak));
 extern void api_keybd_event16 (struct w16call *c) __attribute__ ((weak));
+extern void api_listen16 (struct w16call *c) __attribute__ ((weak));
 extern void api_lstrcat16 (struct w16call *c) __attribute__ ((weak));
 extern void api_lstrcatn16 (struct w16call *c) __attribute__ ((weak));
 extern void api_lstrcmpA (struct w16call *c) __attribute__ ((weak));
@@ -1433,7 +1473,17 @@ extern void api_mmioWrite16 (struct w16call *c) __attribute__ ((weak));
 extern void api_mmsystemGetVersion16 (struct w16call *c) __attribute__ ((weak));
 extern void api_mouse_event16 (struct w16call *c) __attribute__ ((weak));
 extern void api_next_intcb (struct w16call *c) __attribute__ ((weak));
+extern void api_ntohl16 (struct w16call *c) __attribute__ ((weak));
+extern void api_ntohs16 (struct w16call *c) __attribute__ ((weak));
+extern void api_recv16 (struct w16call *c) __attribute__ ((weak));
+extern void api_recvfrom16 (struct w16call *c) __attribute__ ((weak));
+extern void api_select16 (struct w16call *c) __attribute__ ((weak));
+extern void api_send16 (struct w16call *c) __attribute__ ((weak));
+extern void api_sendto16 (struct w16call *c) __attribute__ ((weak));
+extern void api_setsockopt16 (struct w16call *c) __attribute__ ((weak));
+extern void api_shutdown16 (struct w16call *c) __attribute__ ((weak));
 extern void api_sndPlaySound16 (struct w16call *c) __attribute__ ((weak));
+extern void api_socket16 (struct w16call *c) __attribute__ ((weak));
 extern void api_stub_USER_486 (struct w16call *c) __attribute__ ((weak));
 extern void api_stub_USER_488 (struct w16call *c) __attribute__ ((weak));
 extern void api_stub_USER_491 (struct w16call *c) __attribute__ ((weak));
@@ -1486,7 +1536,7 @@ extern void api_wsprintf16 (struct w16call *c) __attribute__ ((weak));
 extern void api_wvsprintf16 (struct w16call *c) __attribute__ ((weak));
 
 static const struct w16_api api_kernel[] = {
-	{ 1, 3, 0, "FatalExit", 0, 0, 0 },
+	{ 1, 0, 0, "FatalExit", "w", api_FatalExit16, 0 },
 	{ 2, 0, 1, "ExitKernel", "", api_ExitKernel16, 0 },
 	{ 3, 0, 0, "GetVersion", "", api_GetVersion16, 0 },
 	{ 4, 0, 1, "LocalInit", "www", api_LocalInit16, 0 },
@@ -3347,6 +3397,58 @@ static const struct w16_api api_ddeml[] = {
 	{ 37, 0, 0, "DdeReconnect", "l", api_DdeReconnect, 0 },
 };
 
+static const struct w16_api api_winsock[] = {
+	{ 1, 0, 1, "accept", "wpp", api_accept16, 0 },
+	{ 2, 0, 1, "bind", "wpw", api_bind16, 0 },
+	{ 3, 0, 1, "closesocket", "w", api_closesocket16, 0 },
+	{ 4, 0, 1, "connect", "wpw", api_connect16, 0 },
+	{ 5, 0, 1, "getpeername", "wpp", api_getpeername16, 0 },
+	{ 6, 0, 1, "getsockname", "wpp", api_getsockname16, 0 },
+	{ 7, 0, 1, "getsockopt", "wwwpp", api_getsockopt16, 0 },
+	{ 8, 0, 0, "htonl", "l", api_htonl16, 0 },
+	{ 9, 0, 1, "htons", "w", api_htons16, 0 },
+	{ 10, 0, 0, "inet_addr", "p", api_inet_addr16, 0 },
+	{ 11, 0, 0, "inet_ntoa", "l", api_inet_ntoa16, 0 },
+	{ 12, 0, 1, "ioctlsocket", "wlp", api_ioctlsocket16, 0 },
+	{ 13, 0, 1, "listen", "ww", api_listen16, 0 },
+	{ 14, 0, 0, "ntohl", "l", api_ntohl16, 0 },
+	{ 15, 0, 1, "ntohs", "w", api_ntohs16, 0 },
+	{ 16, 0, 1, "recv", "wpww", api_recv16, 0 },
+	{ 17, 0, 1, "recvfrom", "wpwwpp", api_recvfrom16, 0 },
+	{ 18, 0, 1, "select", "wpppp", api_select16, 0 },
+	{ 19, 0, 1, "send", "wpww", api_send16, 0 },
+	{ 20, 0, 1, "sendto", "wpwwpw", api_sendto16, 0 },
+	{ 21, 0, 1, "setsockopt", "wwwpw", api_setsockopt16, 0 },
+	{ 22, 0, 1, "shutdown", "ww", api_shutdown16, 0 },
+	{ 23, 0, 1, "socket", "www", api_socket16, 0 },
+	{ 51, 0, 0, "gethostbyaddr", "pww", api_gethostbyaddr16, 0 },
+	{ 52, 0, 0, "gethostbyname", "p", api_gethostbyname16, 0 },
+	{ 53, 0, 0, "getprotobyname", "p", api_getprotobyname16, 0 },
+	{ 54, 0, 0, "getprotobynumber", "w", api_getprotobynumber16, 0 },
+	{ 55, 0, 0, "getservbyname", "pp", api_getservbyname16, 0 },
+	{ 56, 0, 0, "getservbyport", "wp", api_getservbyport16, 0 },
+	{ 57, 0, 0, "gethostname", "pw", api_gethostname16, 0 },
+	{ 101, 0, 1, "WSAAsyncSelect", "wwwl", api_WSAAsyncSelect16, 0 },
+	{ 102, 0, 1, "WSAAsyncGetHostByAddr", "wwpwwPw", api_WSAAsyncGetHostByAddr16, 0 },
+	{ 103, 0, 1, "WSAAsyncGetHostByName", "wwtPw", api_WSAAsyncGetHostByName16, 0 },
+	{ 104, 0, 1, "WSAAsyncGetProtoByNumber", "wwwPw", api_WSAAsyncGetProtoByNumber16, 0 },
+	{ 105, 0, 1, "WSAAsyncGetProtoByName", "wwtPw", api_WSAAsyncGetProtoByName16, 0 },
+	{ 106, 0, 1, "WSAAsyncGetServByPort", "wwwtPw", api_WSAAsyncGetServByPort16, 0 },
+	{ 107, 0, 1, "WSAAsyncGetServByName", "wwttPw", api_WSAAsyncGetServByName16, 0 },
+	{ 108, 0, 1, "WSACancelAsyncRequest", "w", api_WSACancelAsyncRequest16, 0 },
+	{ 109, 0, 1, "WSASetBlockingHook", "P", api_WSASetBlockingHook16, 0 },
+	{ 110, 0, 1, "WSAUnhookBlockingHook", "", api_WSAUnhookBlockingHook16, 0 },
+	{ 111, 0, 1, "WSAGetLastError", "", api_WSAGetLastError16, 0 },
+	{ 112, 0, 0, "WSASetLastError", "w", api_WSASetLastError16, 0 },
+	{ 113, 0, 1, "WSACancelBlockingCall", "", api_WSACancelBlockingCall16, 0 },
+	{ 114, 0, 1, "WSAIsBlocking", "", api_WSAIsBlocking16, 0 },
+	{ 115, 0, 0, "WSAStartup", "wp", api_WSAStartup16, 0 },
+	{ 116, 0, 0, "WSACleanup", "", api_WSACleanup16, 0 },
+	{ 151, 0, 1, "__WSAFDIsSet", "wp", api___WSAFDIsSet16, 0 },
+	{ 1107, 0, 1, "WSARecvEx", "wpwp", api_WSARecvEx16, 0 },
+	{ 2000, 0, 1, "default_hook", "", api_default_hook, 0 },
+};
+
 const struct w16_module w16_modules[] = {
 	{ "KERNEL", api_kernel, 475 },
 	{ "USER", api_user, 556 },
@@ -3362,5 +3464,6 @@ const struct w16_module w16_modules[] = {
 	{ "SYSTEM", api_system, 11 },
 	{ "SOUND", api_sound, 18 },
 	{ "DDEML", api_ddeml, 27 },
+	{ "WINSOCK", api_winsock, 49 },
 	{ 0, 0, 0 }
 };

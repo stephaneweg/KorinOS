@@ -117,18 +117,30 @@ traite_fichier:
 	prologue
 	stp	x27,x28,[sp,-16]!
 	stp	x23,x24,[sp,-16]!
+	stp	x20,x21,[sp,-16]!
 	mov	x28,x0
 	mov	x27,0				; numero de ligne
 	mov	x24,0				; lignes trouvees
 .l:	bl	t_lire_ligne
 	cbz	x0,.f
 	mov	x23,x0
+	add	x21,x0,x1			; fin de la ligne (son nul)
+	mov	x20,x0				; morceau cherche
 	add	x27,x27,1
-	mov	x0,x26
-	mov	x1,x23
-	mov	x2,x23
+; une ligne avec des octets nuls (fichier binaire : une base SQLite commence par
+; « SQLite format 3 » et un nul) : chaque morceau entre deux nuls est cherche,
+; sinon tout ce qui suit le premier nul etait invisible
+.m:	mov	x0,x26
+	mov	x1,x20
+	mov	x2,x20
 	bl	re_cherche
-	tbz	x22,0,.pv
+	cbnz	x0,.tr
+.s:	ldrb	w0,[x20],1			; apres le nul suivant
+	cbnz	w0,.s
+	cmp	x20,x21
+	b.ls	.m
+	mov	x0,0
+.tr:	tbz	x22,0,.pv
 	eor	x0,x0,1
 .pv:	cbz	x0,.l
 	add	x24,x24,1
@@ -168,7 +180,8 @@ traite_fichier:
 .pc2:	mov	x0,x24
 	bl	t_putn
 	bl	t_nl
-.out:	ldp	x23,x24,[sp],16
+.out:	ldp	x20,x21,[sp],16
+	ldp	x23,x24,[sp],16
 	ldp	x27,x28,[sp],16
 	epilogue
 include '../../inc/regex.inc'

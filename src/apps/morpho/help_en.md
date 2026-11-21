@@ -25,7 +25,8 @@ When it needs something, a bubble appears above its head.
 ## Actions
 
 - **Feed** (N), then **Meal**, **Fruit** or **Treat** (1, 2, 3).
-- **Play** (J): a ball appears; click in the scene to throw it, it runs to catch it and brings it back.
+- **Play** (J): a ball drops and bounces; it runs under it and jumps to catch it (more or less skilfully, depending on
+  its shape, energy and character). Click the ball to hit it, or the floor to send it there.
 - **Wash** (L): a bubble bath, and everything cleaned up.
 - **Heal** (O): medicine (it does not like it, but it cures it).
 - **Bedtime / Light on** (E): switch the light off for the night, or back on.
@@ -43,6 +44,7 @@ it leaves earlier, and also leaves an egg.
 ## Pace
 
 The **Pace** menu speeds time up (×10, ×60) to watch it grow without waiting for days. **Game > New egg** starts over;
-**Rename** (F2) gives it another name.
+**Rename** (F2) gives it another name; **Sound** and **Music** turn the effects or the music off (a gentle music,
+never quite the same, that follows its mood: day, night, sadness).
 
 The save file is `HOME:/morpho/pet.ini`.

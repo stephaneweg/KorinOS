@@ -9,6 +9,16 @@
 #   sh tools/webkit/sysroot.sh
 set -e
 WK_ENV_SELF=$0
+# les en-tetes de libposix, seulement ceux qui changent : un cp -r leur donnait a tous une date neuve, et ninja
+# recompilait WebKit en entier (plus d'une heure) a chaque libposix refaite, meme sans changement d'en-tete
+copy_headers ()
+{
+	(cd "$1" && find . -type f) | while read -r f; do
+		cmp -s "$1/$f" "$2/$f" 2>/dev/null && continue
+		mkdir -p "$(dirname "$2/$f")"
+		cp "$1/$f" "$2/$f"
+	done
+}
 . "$(dirname "$0")/env.sh"
 P=$WK_OUT/posix
 if [ "$ARCH" = x86_64 ]; then
@@ -16,7 +26,7 @@ if [ "$ARCH" = x86_64 ]; then
 	# -export-dynamic, *cc1plus : le g++ de x86_64-*-elf ne passe pas %(cpp) a cc1plus), __onyx__ en plus
 	ARCH=x86_64 NO_TESTS=1 SYSROOT=$P OUT=$WK_OUT/posix-obj sh "$ARMPI/tools/posix/build.sh"
 	mkdir -p "$ONYX_SYSROOT/lib/pkgconfig" "$ONYX_SYSROOT/include"
-	cp -r "$P/include/." "$ONYX_SYSROOT/include/"
+	copy_headers "$P/include" "$ONYX_SYSROOT/include"
 	cp "$P/lib/libposix.a" "$P/lib/crt0posix.o" "$P/lib/posix.ld" "$P/lib/dlhost.ld" "$P/lib/dlhost-cxx.ld" 		"$P/lib/dlmod.o" "$P/lib/libgcc_mod.a" "$ONYX_SYSROOT/lib/"
 	L=$ONYX_SYSROOT/lib
 	D="-isystem $ONYX_SYSROOT/include -DFD_SETSIZE=1024 -D__unix__=1 -D__unix=1 -D__onyx__=1 -D__armpi__=1 %{pthread:-D_REENTRANT}"
@@ -35,7 +45,7 @@ if [ "$ARCH" = x86_64 ]; then
 fi
 NO_TESTS=1 SYSROOT=$P OUT=$WK_OUT/posix-obj sh "$ARMPI/tools/posix/build.sh"
 mkdir -p "$ONYX_SYSROOT/lib/pkgconfig" "$ONYX_SYSROOT/include"
-cp -r "$P/include/." "$ONYX_SYSROOT/include/"
+copy_headers "$P/include" "$ONYX_SYSROOT/include"
 cp "$P/lib/libposix.a" "$P/lib/crt0posix.o" "$P/lib/posix.ld" "$ONYX_SYSROOT/lib/"
 L=$ONYX_SYSROOT/lib
 cat > "$L/onyx-cc.specs" <<EOF

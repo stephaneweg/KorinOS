@@ -131,18 +131,66 @@ ce qui n'a pas été vérifié. Du Markdown simple (le terminal le rend en parti
 
 
 def find_skills():
-    """Les compétences : $CLAUDE_ACP_HOME/skills/<nom>/SKILL.md (nom -> dossier, description)."""
+    """Les compétences (nom -> dossier, description) : $CLAUDE_ACP_HOME/skills/<nom>/SKILL.md, puis celles des apps
+    installées (app_skills) ; celle d'une app l'emporte sur une copie du même nom dans skills/ (une ancienne copie
+    d'avant que la compétence vienne avec son app)."""
     skills, desc = {}, {}
     d = os.path.join(home(), "skills")
-    if not os.path.isdir(d):
-        return skills, desc
-    for name in sorted(os.listdir(d)):
-        f = os.path.join(d, name, "SKILL.md")
+    if os.path.isdir(d):
+        for name in sorted(os.listdir(d)):
+            f = os.path.join(d, name, "SKILL.md")
+            if not os.path.isfile(f):
+                continue
+            skills[name] = os.path.join(d, name)
+            desc[name] = _frontmatter(f).get("description", "")
+    for name, (adir, text) in app_skills().items():
+        skills[name] = adir
+        desc[name] = text
+    return dict(sorted(skills.items())), dict(sorted(desc.items()))
+
+
+# le dossier des apps installées (docs/ABI.md) ; un essai hors de Korin le change par CLAUDE_ACP_APPS
+APPS_ENV = "CLAUDE_ACP_APPS"
+
+
+def app_skills():
+    """Les compétences des apps : /apps/<app>.app/app.txt a la clé `skill = SKILL.md` (docs/ABI.md), le fichier à
+    côté du manifeste, avec son frontmatter `name` et `description` comme les autres (Vibe le trouve au même endroit
+    par VIBE_SKILL_PATHS, que libacp donne). Nom -> (dossier de l'app, description). Une app sans la clé n'en a pas,
+    même avec un SKILL.md."""
+    out = {}
+    base = os.environ.get(APPS_ENV) or "/apps"
+    try:
+        names = sorted(os.listdir(base))
+    except OSError:
+        return out
+    for app in names:
+        adir = os.path.join(base, app)
+        if _manifest_key(os.path.join(adir, "app.txt"), "skill") != "SKILL.md":
+            continue
+        f = os.path.join(adir, "SKILL.md")
         if not os.path.isfile(f):
             continue
-        skills[name] = os.path.join(d, name)
-        desc[name] = _frontmatter(f).get("description", "")
-    return skills, desc
+        fm = _frontmatter(f)
+        name = fm.get("name") or app.split(".")[0]
+        out[name] = (adir, fm.get("description", ""))
+    return out
+
+
+def _manifest_key(path, key):
+    """La valeur d'une clé d'un app.txt (`clé = valeur`, `#` commence un commentaire), ou None."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.split("#", 1)[0]
+                if "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                if k.strip() == key:
+                    return v.strip()
+    except OSError:
+        pass
+    return None
 
 
 def _frontmatter(path):

@@ -5,8 +5,8 @@
 /sans titre.txt = /untitled.txt
 Fichier = File
 Nouveau = New
-Ouvrir le chemin = Open Path
-Parcourir… = Browse…
+Ouvrir… = Open…
+Enregistrer = Save
 Enregistrer sous… = Save As…
 Construire = Build
 Fermer = Close
@@ -32,3 +32,6 @@ Erreur - = Error -
 Rechercher = Find
 Texte à chercher (sans tenir compte de la casse) : = Text to find (ignoring case):
 Introuvable = Not found
+Enregistrer les modifications avant de fermer ? = Save changes before closing?
+Enregistrer les modifications avant de commencer un nouveau texte ? = Save changes before starting a new text?
+Enregistrer les modifications avant d'ouvrir un autre fichier ? = Save changes before opening another file?

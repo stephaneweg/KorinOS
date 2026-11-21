@@ -32,6 +32,12 @@ U=$WK_OUT/uikit
 [ -f "$BUILD/lib/libWebKit.a" ] || { echo "build-jet.sh : pas de $BUILD/lib/libWebKit.a : sh tools/mesa/build-webkit.sh" >&2; exit 1; }
 # (refaite aussi quand UIKit a de nouvelles fonctions : ui_window_place, ui_window_top de webapp.cpp)
 [ -f "$U/libuikit_c.a" ] && [ ! "$ARMPI/src/kits/uikit/uikit.abi" -nt "$U/libuikit_c.a" ] || sh "$HERE/build-ui.sh"
+# (et la libposix du sysroot quand src/lib/posix est plus récent : Jet la lie en statique ; une copie du 16/11 au matin
+# laissait HOME à /home sous un compte, et Jet écrivait dans /home/downloads, /home/spotify -- 20/11)
+if [ ! -f "$S/lib/libposix.a" ] || [ -n "$(find "$ARMPI/src/lib/posix" -type f -newer "$S/lib/libposix.a" | head -n 1)" ]; then
+	echo "jet : libposix du sysroot refaite (tools/webkit/sysroot.sh)"
+	sh "$HERE/sysroot.sh"
+fi
 
 # les sources C++ avec la commande meme d'une source de WebKit (en-tetes prives, configuration)
 ref=UIProcess/API/C/onyx/WKRunLoop.cpp

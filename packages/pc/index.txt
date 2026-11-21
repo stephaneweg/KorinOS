@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-20 22:08
+date = 2026-11-21 09:35
 abi = 626
 packages = 117
 board = pc
@@ -99,33 +99,33 @@ content = d13e5d6c0b64ea2f44c7206e0c5dcd8c994410958ec34d3ca24348a1547e8bdf
 
 [terracube]
 title = TerraCube
-version = 1.4.1
+version = 1.4.2
 category = Jeux
 author = Korin OS
 summary = Bac à sable de blocs en 3D par le GPU, modes créatif et survie, fabrication sur une grille, eau et lave qui coulent, circuits de cuivre et pistons, animaux et créatures de la nuit, musique générative, pilotable par Python, BASIC ou un agent IA (MCP)
-size = 852280
-installed = 1907542
-sha256 = 6161c739cdbb16b719e1918c8181b882840daf05d935e22d62e3b86b4deb631f
-file = pkgs/terracube-1.4.1.opk
+size = 831900
+installed = 1858984
+sha256 = bc053b37696ff3d0ef19a9dd39972dd931283021c69f5ac72daacc6d617fd747
+file = pkgs/terracube-1.4.2.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 652f4b562d4309c2ae55b5a291082aba5838093197e4c2b76099b8444b662146
+content = 5dbdcd50fcea186f20f494edb60ef2a5166a33fcc564f8c350daa4c3f8b9c766
 
 [jet]
 title = Jet
-version = 1.4.1
+version = 1.4.3
 category = Internet
 author = Korin OS
 summary = Le navigateur, sur WebKit
-size = 55658503
-installed = 139420959
-sha256 = aea3cb8c79152604094c6fc9925198b4fbfa11f2739b40eda025f33560f014af
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.1.opk
+size = 55662067
+installed = 139421087
+sha256 = d45b6ad5e129c1c363573cea29cbd5fd3f220f9e7f3588b21d3051c6af4d0fe1
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.3.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 515580f079efc79306b620c6500eb39abb5f86fee75c5bbc0595dc357368ff01
+content = ff109aa3de384be9f2ac6ed6e7cb5dd0735530d96ce9edd23b30c3618bbf7276
 
 [spotify]
 title = Spotify
@@ -144,33 +144,33 @@ content = b57a4a85cba3d597e4a7b3ba6596d9ba7219495472518734c6f2a061be2c554a
 
 [win16]
 title = Windows 3.x
-version = 1.0.1
+version = 1.0.7
 category = Émulateurs
 author = Korin OS
 summary = 
-size = 680836
-installed = 1544502
-sha256 = 36dfad766f4d77574e37b652a94735fe82186121bddd770601275fb51ba8b148
-file = pkgs/win16-1.0.1.opk
+size = 731854
+installed = 1655185
+sha256 = 86e537dc0183dfceb277688059f1de2fe30e3bf6182d927dc9e13026c1a4a353
+file = pkgs/win16-1.0.7.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 6ea1840054148867fb03c82687bc36ce4d08835702e702d0de629326820faeba
+content = 516a8587fc244059df633bf7f0952852e7a2d91f74a812c28ca8a9387ea8c7ad
 
 [morpho]
 title = Morpho
-version = 1.0.0
+version = 1.0.1
 category = Jeux
 author = Korin OS
 summary = Un animal de compagnie en 3D à nourrir, soigner et faire jouer, qui évolue de l'œuf à l'âge d'ancien, différent à chaque stade
-size = 379389
-installed = 767438
-sha256 = 03270ed63f9c2fba698cae356b0e7bf8935e8dbf8b1efbf919339921659f2b08
-file = pkgs/morpho-1.0.0.opk
+size = 391378
+installed = 792576
+sha256 = b267feda3c90dcf45a0caac06c8232220c589d36d798e7e361aaaeadf61853a1
+file = pkgs/morpho-1.0.1.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 6b3325bb0e73d20b8b024fce31c314b1660d12f773726498c50362365f73e1ec
+content = 1ed897c3c1436c173dc1585ff0f13199a42ffae587eca0515ab9e2e50688aede
 
 [pkgman]
 title = Logiciels
@@ -512,18 +512,18 @@ content = a50ab76c8a7a51009d8ae52d350ea54617bb7028b3c984e6fa8707b7c95b871d
 
 [claude]
 title = Claude (API)
-version = 1.0.7
+version = 1.0.8
 category = Développement
 author = Korin OS
 summary = Claude, l'agent de code d'Anthropic, par sa clé d'API : l'app Claude, ou agent --claude au Terminal
-size = 8004196
-installed = 17827814
-sha256 = f31007feceddb6d5537c2f91c3fdd5c00643580c59f0dd0ddc3e68e180aacb53
-file = pkgs/claude-1.0.7.opk
+size = 8084788
+installed = 18038457
+sha256 = a06855397a57e6ca1935426b3475ea98beff6ee6be31c4d9d2130422e55f64b9
+file = pkgs/claude-1.0.8.opk
 needs = vibe, abi >= 626
 required = 0
 restart = 0
-content = b362b021108d2e679473b0c969cdaf3560f9de8025be43358f1cd9b04aa9f249
+content = f9e909f36d289b4c63d396abb4e52daed6877dc4c78e06a0dab8d4ae7f18c925
 
 [vibe-data-1]
 title = Mistral Vibe (1/2)
@@ -559,18 +559,18 @@ content = 4a62f5b65e76b629ed9b38197e4b13cefd661b379360c0c35ad7d50d0e65c422
 
 [vibe]
 title = Mistral Vibe
-version = 1.0.6
+version = 1.0.7
 category = Développement
 author = Korin OS
 summary = L'agent de code de Mistral : l'app Vibe, le client terminal agent, vibe-acp, et ses compétences de Korin (apps en C, C#, FreeBASIC, diagnostic)
-size = 534880
-installed = 1163704
-sha256 = 08f1f713afdd5275aa3ab2732712a0d9ab8846ea95d4c390e96ae70b8ecdd9ec
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vibe-1.0.6.opk
+size = 536926
+installed = 1172742
+sha256 = a01538416c15681b7bfac6267732a961ba720b6f39e412e4269e49fc394d325b
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vibe-1.0.7.opk
 needs = python, bash, git, rg, vibe-data-1, vibe-data-2, abi >= 626
 required = 0
 restart = 0
-content = f7a9f9e3874ff1a3b04037b557e54fd27865ca693d11d8b509a6885ca0759b73
+content = 57824ad560c30c3010c4cf4c9e1d1ae5022ec7f340d823874774cd6eb2138ca1
 
 [bash]
 title = GNU bash
@@ -739,18 +739,18 @@ content = 9651f661dbc590aad6e129adcd1ae6d847f34a7ac621233890d8a89895498bd1
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.64
+version = 2026.11.68
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 32021840
-installed = 96349481
-sha256 = 6abdab8b7f5aef35fdc2e8b551bc36cd46b561b369e4122de92e9e178bab06dc
-file = pkgs/pc-2026.11.64.opk
+size = 32023827
+installed = 96354216
+sha256 = c0cb65e53f3185221e0a7946e120e5e3c42a054b59022127a6c1c07b5aa12d3d
+file = pkgs/pc-2026.11.68.opk
 needs = 
 required = 1
 restart = 1
-content = 83027325be9ef7e18511845c3fbb3648a73ee8d49cad81b0051102e33195e6d2
+content = bb235c612073d70a8e65083fe465945d6a90482253d1c20fae550dc40457f83c
 
 [2048]
 title = 2048
@@ -769,18 +769,18 @@ content = 9f3244bd42488815f7682ae113124deaad03bea4677881900b3e4fd5302ed6f4
 
 [arabesque]
 title = Arabesque
-version = 1.3.6
+version = 1.3.7
 category = Multimédia
 author = Korin OS
 summary = 
-size = 284831
-installed = 587949
-sha256 = 63831dbf40974410abdf0d743c12fbe35a8fdc12cc00ff0b2d85d46aa8928b0f
-file = pkgs/arabesque-1.3.6.opk
+size = 291484
+installed = 602035
+sha256 = 2c6a89f83df5f369f658763e5d368cf635c8863a7732ee7183249ac622ea2fa8
+file = pkgs/arabesque-1.3.7.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 7ccc26a7b128b0cea5d8b0f380bc893551e72ad226c32d19a7c18b4e0e374c8b
+content = 6a69066ad9ee63e42da5e8a7ef1719dae518af2bfb928043318d006b49492130
 
 [archiver]
 title = Archiveur
@@ -1024,18 +1024,18 @@ content = 792079d68767402d32b6552f4362830db0203ba1d457e4f365b9fd448337a48c
 
 [forge]
 title = Forge
-version = 1.3.6
+version = 1.3.7
 category = Création
 author = Korin OS
 summary = La CAO de Korin : solides exacts d'OpenCASCADE, formes au geste, pousser/tirer, congés sur toute arête, historique modifiable, pilotable par un agent (MCP)
-size = 12874517
-installed = 31824718
-sha256 = 925554aca8942cc49ea38224b5ca3c11366a6cd8b0b0334754d8e1edbd03378f
-file = pkgs/forge-1.3.6.opk
+size = 12869637
+installed = 31814447
+sha256 = a9c36a30e27df55bcb9c47009f0df1a6f4559d5ad442dbf8de416b54061457d9
+file = pkgs/forge-1.3.7.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 5bc59facbb9bb4d2a9866051e02c6662c3781f6591f6f9e4df17ba37ebcd5672
+content = a63665aa94e8d7596b7db6e1bc775f2b2dc5ae5747fcb2d57b871289b7f66511
 
 [freecell]
 title = FreeCell
@@ -1219,18 +1219,18 @@ content = 9dcc6ae967cf3770ce2c99171be88fcde48a3415e593ca9e6fbeae8163173869
 
 [koton]
 title = Koton
-version = 1.0.10
+version = 1.0.11
 category = Multimédia
 author = Korin OS
 summary = Le studio de musique
-size = 2110153
-installed = 4132729
-sha256 = 1e0349ea6d983cea9862a57f5083943538f507bd1cde4cbb1ecadaed335d362c
-file = pkgs/koton-1.0.10.opk
+size = 2116254
+installed = 4146779
+sha256 = 4afa6ed31a0c7dd5620965ef9f11d831eb7fa371ca2fa9935be7097bf89c0d82
+file = pkgs/koton-1.0.11.opk
 needs = llm, abi >= 626
 required = 0
 restart = 0
-content = 6cecab2d65c2b50908f2ce0d1dc69013f8352fd94cc0d2dfabde954f2719bedf
+content = 2e0e10da8ec61a2cbd1cfccce680eb41667da5c1a77d1be936e0b9bd7b0c9340
 
 [letters]
 title = Letters
@@ -1771,3 +1771,63 @@ needs = abi >= 626
 required = 0
 restart = 0
 content = 52ffb51db0987d9d52118fa44d3b3db2ec0a42ffa809faf3711909bae23a7205
+
+[netflix]
+title = Netflix
+version = 1.0.0
+category = Multimédia
+author = Korin OS
+summary = Netflix : le site de Netflix dans sa fenêtre (Widevine), avec votre compte
+size = 124254
+installed = 264013
+sha256 = c5b5288144d7ab5e247daedd01646c66c78ae20fea33caff5e246e7607b9a934
+file = pkgs/netflix-1.0.0.opk
+needs = jet >= 1.4.2, abi >= 626
+required = 0
+restart = 0
+content = 2495df31a3bafa931edcd27ddfa32b3ab9ef0794052f868051363b84de12fb65
+
+[disneyplus]
+title = Disney+
+version = 1.0.0
+category = Multimédia
+author = Korin OS
+summary = Disney+ : le site de Disney+ dans sa fenêtre (Widevine), avec votre compte
+size = 124692
+installed = 263833
+sha256 = 6e11b0bf7016508dad07c2bc0108f98cc0fd6bcddbfe75351408b5353914454b
+file = pkgs/disneyplus-1.0.0.opk
+needs = jet >= 1.4.2, abi >= 626
+required = 0
+restart = 0
+content = 2f864fbcbc03b334eda6f225a6f7ba80b7e668c8b49bb6b7f0e57ad3bc2b246c
+
+[tf1plus]
+title = TF1+
+version = 1.0.0
+category = Multimédia
+author = Korin OS
+summary = TF1+ : le site de TF1+ (direct et replay) dans sa fenêtre (Widevine), avec votre compte
+size = 126192
+installed = 263817
+sha256 = b5576b34990f35684c51d743f4fb538c4dabf1245f81941d088d748cbabe3894
+file = pkgs/tf1plus-1.0.0.opk
+needs = jet >= 1.4.2, abi >= 626
+required = 0
+restart = 0
+content = fdf6f712e48a7b10ac48a1487f56bc7a7153e3682a7afaff8bb440fd36bf26ba
+
+[primevideo]
+title = Prime Video
+version = 1.0.0
+category = Multimédia
+author = Korin OS
+summary = Prime Video : le site de Prime Video dans sa fenêtre (Widevine), avec votre compte Amazon
+size = 125660
+installed = 263951
+sha256 = 5b77e28e55404cb68db4d5003cbe8d8006142f851a2502c5eac535bd44fd1fc8
+file = pkgs/primevideo-1.0.0.opk
+needs = jet >= 1.4.2, abi >= 626
+required = 0
+restart = 0
+content = 24141fc6644c58b165bbfc15644cb0021086ec0893fb8aff96f3bab533411ac5

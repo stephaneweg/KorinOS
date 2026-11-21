@@ -149,6 +149,10 @@ static uint32_t lin_size (uint32_t lin)
 }
 
 static uint32_t gsize[LDT_ENTRIES];	/* taille demandée de chaque bloc global (par son premier sélecteur) */
+static uint8_t gdisc[LDT_ENTRIES];	/* jeté (GlobalDiscard) : la poignée reste, GlobalLock rend NULL */
+
+int global_discarded (uint16_t sel) { return sel_valid (sel) && gdisc[SEL_INDEX (sel)]; }
+void global_set_discarded (uint16_t sel, int on) { if (sel_valid (sel)) gdisc[SEL_INDEX (sel)] = (uint8_t) on; }
 
 /* (comme Windows et Wine : les blocs globaux vont par 32 octets, et GlobalSize rend la taille arrondie ; le tas
    de la bibliothèque C de VBRUN300 pose sa fin d'après GlobalSize et la manque si elle est impaire) */
@@ -162,6 +166,7 @@ uint16_t global_alloc (uint32_t size, int code)
 		return 0;
 	uint16_t sel = sel_alloc (lin, size ? size : 1, code);
 	gsize[SEL_INDEX (sel)] = size ? size : 1;
+	gdisc[SEL_INDEX (sel)] = 0;
 	return sel;
 }
 
@@ -174,6 +179,7 @@ void global_free (uint16_t sel)
 	for (int k = 0; k < (count ? count : 1); k++)
 		sel_free ((uint16_t) (sel + (k << 3)));
 	gsize[SEL_INDEX (sel)] = 0;
+	gdisc[SEL_INDEX (sel)] = 0;
 	lin_free (lin);
 }
 

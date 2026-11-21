@@ -29,7 +29,8 @@ def main():
     entries = {}
     for mod, body in re.findall(r'static const struct w16_api api_(\w+)\[\] = \{(.*?)\n\};', table, re.S):
         for m in re.finditer(r'\{ (\d+), (\d), \d, "(\w+)", [^,]+, (\w+)', body):
-            entries[(mod.upper(), int(m.group(1)))] = (m.group(3), m.group(4))
+            # (une constante, « equate » : __AHINCR, __WINFLAGS… : rien à écrire)
+            entries[(mod.upper(), int(m.group(1)))] = (m.group(3), 'equate' if m.group(2) == '4' else m.group(4))
     for exe in sys.argv[1:]:
         out = subprocess.run([sys.executable, '-I', os.path.join(ROOT, 'tools', 'win16', 'nedump.py'), exe],
                              capture_output=True, text=True).stdout
@@ -47,7 +48,7 @@ def main():
                     if not hit:
                         continue
                     name, fn = hit[0]
-                if (fn == '0' or fn not in defined) and (mod, name) not in missing:
+                if fn != 'equate' and (fn == '0' or fn not in defined) and (mod, name) not in missing:
                     missing.append((mod, name))
         print(f'{os.path.basename(exe)} : {len(missing)} fonctions pas encore écrites')
         for mod, name in missing:

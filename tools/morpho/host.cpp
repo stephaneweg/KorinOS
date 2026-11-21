@@ -169,6 +169,13 @@ int main (int argc, char **argv)
 				dos[i].done = true;
 				int a = actOf (dos[i].what);
 				if (a >= 0) action (a);
+				else if (!strncmp (dos[i].what, "click=", 6))
+				{
+					// (un vrai clic : déplacement, appui, relâchement, par onMouse)
+					int x = 0, y = 0; sscanf (dos[i].what + 6, "%d,%d", &x, &y);
+					onMouse (0, x, y, 0); onMouse (1, x, y, 1); onMouse (2, x, y, 0);
+					fprintf (stderr, "clic (%d, %d) : interface %d, repas ouvert %d, acte %d\n", x, y, g_hud.hit (x, y), g_hud.feedOpen, g_act.act);
+				}
 				else if (!strcmp (dos[i].what, "throw")) g_act.throwBall (g_scene.cam.eye + V3 (0, -0.4f, -0.5f), V3 (0.6f, 0, 0.4f));
 				else if (!strcmp (dos[i].what, "stroke")) g_caressHold = 3;
 				else if (!strcmp (dos[i].what, "evolve")) { g_pet.stageAge = g_pet.stageLen () - 0.01; }
@@ -181,7 +188,7 @@ int main (int argc, char **argv)
 		if (g_mx >= 0) g_hud.hover = g_hud.hit (g_mx, g_my);
 		struct timespec a0, a1; clock_gettime (CLOCK_MONOTONIC, &a0);
 		app_frame (dt, dt);
-		if (getenv ("MORPHO_TRACE") && f % 15 == 0) fprintf (stderr, "t=%.1f act=%d actT=%.2f ball=%d held=%d (%.2f %.2f %.2f) pos=(%.2f %.2f) fun=%.0f\n", (double) tt, g_act.act, (double) g_act.actT, g_act.ballOn, g_act.ballHeld, (double) g_act.ball.x, (double) g_act.ball.y, (double) g_act.ball.z, (double) g_act.pos.x, (double) g_act.pos.z, (double) g_pet.st[N_FUN]);
+		if (getenv ("MORPHO_TRACE") && f % 15 == 0) fprintf (stderr, "t=%.1f act=%d actT=%.2f ball=%d held=%d (%.2f %.2f %.2f) pos=(%.2f %.2f) fun=%.0f att=%d rat=%d saut=%.2f\n", (double) tt, g_act.act, (double) g_act.actT, g_act.ballOn, g_act.ballHeld, (double) g_act.ball.x, (double) g_act.ball.y, (double) g_act.ball.z, (double) g_act.pos.x, (double) g_act.pos.z, (double) g_pet.st[N_FUN], g_act.catches, g_act.misses, (double) g_act.jumpT);
 		clock_gettime (CLOCK_MONOTONIC, &a1);
 		sum += (double) (a1.tv_sec - a0.tv_sec) * 1000 + (double) (a1.tv_nsec - a0.tv_nsec) / 1e6;
 	}

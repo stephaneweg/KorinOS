@@ -30,6 +30,7 @@ struct obj
 	uint32_t *px32;
 	uint16_t mask;			/* icône : le masque (bitmap) ; image = color */
 	uint16_t image;
+	int dim_x, dim_y;		/* bitmap : SetBitmapDimension (0,1 mm) */
 	/* palette */
 	int npal;
 	uint32_t *pal;
@@ -91,6 +92,7 @@ struct dc
 	struct dcstate save[MAX_SAVE];
 	int nsave;
 	int dx0, dy0, dx1, dy1, dirty;
+	int nc;				/* le rectangle de la fenêtre (cadre, barre de titre : mdi.c), pas la zone cliente */
 };
 static struct dc dcs[MAX_DC];
 #define DC_HANDLE(i) ((uint16_t) (0x7000 + (i) * 4))
@@ -135,12 +137,33 @@ static int dc_surface (struct dc *d, struct surf *s)
 		s->stride = stride;
 		s->w = pw;
 		s->h = ph;
+		if (d->nc)
+		{
+			int ncx, ncy, ww, wh;
+			if (user_nc_rect (d->hwnd, &ncx, &ncy, &ww, &wh))
+			{
+				ox -= ncx;
+				oy -= ncy;
+				cw = ww;
+				ch = wh;
+			}
+		}
 		s->ox = ox;
 		s->oy = oy;
 		s->cx0 = ox < 0 ? 0 : ox;
 		s->cy0 = oy < 0 ? 0 : oy;
 		s->cx1 = ox + cw > pw ? pw : ox + cw;
 		s->cy1 = oy + ch > ph ? ph : oy + ch;
+		/* (une fille : découpée par les zones clientes de ses parents ; une fenêtre MDI tirée en dehors ne
+		   déborde pas) */
+		int ax0, ay0, ax1, ay1;
+		if (user_ancestor_clip (d->hwnd, &ax0, &ay0, &ax1, &ay1))
+		{
+			if (s->cx0 < ax0) s->cx0 = ax0;
+			if (s->cy0 < ay0) s->cy0 = ay0;
+			if (s->cx1 > ax1) s->cx1 = ax1;
+			if (s->cy1 > ay1) s->cy1 = ay1;
+		}
 	}
 	if (d->s.clip_on)
 	{
@@ -439,6 +462,18 @@ uint16_t gdi_dc_for_window (uint16_t hwnd)
 	/* WS_CLIPCHILDREN : les fenêtres filles visibles sont exclues du dessin du parent */
 	struct dc *d = dc_get (h);
 	d->s.nex = user_child_rects (hwnd, d->s.ex, MAX_EXCL);
+	/* WS_CLIPSIBLINGS : les sœurs devant aussi (les fenêtres MDI qui se chevauchent) */
+	d->s.nex += user_sibling_rects (hwnd, 0, d->s.ex + d->s.nex, MAX_EXCL - d->s.nex);
+	return h;
+}
+
+/* le DC du rectangle entier de la fenêtre (cadre et barre de titre d'une fille : mdi.c) */
+uint16_t gdi_dc_for_window_nc (uint16_t hwnd)
+{
+	uint16_t h = dc_new (0, hwnd);
+	struct dc *d = dc_get (h);
+	d->nc = 1;
+	d->s.nex = user_sibling_rects (hwnd, 1, d->s.ex, MAX_EXCL);
 	return h;
 }
 
@@ -638,10 +673,45 @@ static int dtext (struct dc *d, struct surf *s, int x, int y, const uint8_t *str
 	if (opaque)
 		dfill (s, x, y, x + w, y + h, bk, 13);
 	int cw = s->cx1 - s->cx0, ch = s->cy1 - s->cy0;
+	/* (les rectangles exclus, filles et sœurs devant, que le texte toucherait : leurs points sont gardés et remis
+	 * après ; le tracé du texte de Korin ne connaît que le rectangle de découpe) */
+	struct { int x0, y0, x1, y1; uint32_t *save; } keep[MAX_EXCL];
+	int nk = 0;
+	int tx0 = x + s->ox, ty0 = y + s->oy, tx1 = tx0 + w + h / 2, ty1 = ty0 + h;
+	for (int i = 0; i < d->s.nex && nk < MAX_EXCL; i++)
+	{
+		int ex0 = d->s.ex[i][0] + s->ox, ey0 = d->s.ex[i][1] + s->oy, ex1 = d->s.ex[i][2] + s->ox, ey1 = d->s.ex[i][3] + s->oy;
+		if (ex0 < tx0) ex0 = tx0;
+		if (ey0 < ty0) ey0 = ty0;
+		if (ex1 > tx1) ex1 = tx1;
+		if (ey1 > ty1) ey1 = ty1;
+		if (ex0 < s->cx0) ex0 = s->cx0;
+		if (ey0 < s->cy0) ey0 = s->cy0;
+		if (ex1 > s->cx1) ex1 = s->cx1;
+		if (ey1 > s->cy1) ey1 = s->cy1;
+		if (ex1 <= ex0 || ey1 <= ey0)
+			continue;
+		uint32_t *sv = malloc (sizeof *sv * (size_t) (ex1 - ex0) * (size_t) (ey1 - ey0));
+		if (!sv)
+			continue;
+		for (int yy = ey0; yy < ey1; yy++)
+			memcpy (sv + (size_t) (yy - ey0) * (size_t) (ex1 - ex0), s->px + (size_t) yy * (size_t) s->stride + (size_t) ex0,
+				sizeof *sv * (size_t) (ex1 - ex0));
+		keep[nk].x0 = ex0; keep[nk].y0 = ey0; keep[nk].x1 = ex1; keep[nk].y1 = ey1; keep[nk].save = sv;
+		nk++;
+	}
 	if (d->kind == 1)
 		be_text_buf (s->px, s->w, s->h, x + s->ox, y + s->oy, buf, rgb, s->cx0, s->cy0, cw, ch, f->px, f->fstyle);
 	else
 		be_text (s->be, x + s->ox, y + s->oy, buf, rgb, s->cx0, s->cy0, cw, ch, f->px, f->fstyle);
+	for (int i = nk - 1; i >= 0; i--)
+	{
+		int kw = keep[i].x1 - keep[i].x0;
+		for (int yy = keep[i].y0; yy < keep[i].y1; yy++)
+			memcpy (s->px + (size_t) yy * (size_t) s->stride + (size_t) keep[i].x0, keep[i].save + (size_t) (yy - keep[i].y0) * (size_t) kw,
+				sizeof (uint32_t) * (size_t) kw);
+		free (keep[i].save);
+	}
 	if (f->underline)
 		dfill (s, x, y + be_font_ascent (f->px) + 1, x + w, y + be_font_ascent (f->px) + 2, rgb, 13);
 	touch (s, x + s->ox, y + s->oy, x + s->ox + w, y + s->oy + h);
@@ -911,6 +981,184 @@ uint16_t gdi_bitmap_from_dib (const uint8_t *dib, uint32_t size)
 }
 
 /* ======================================================================== icônes */
+/* Comme Windows 3.1, une icône est un bloc de mémoire globale : CURSORICONINFO (point chaud, largeur, hauteur,
+ * octets par ligne, plans, bits par point), le masque ET (1 bit, lignes de 16 bits), puis l'image (ici 24 bits
+ * par point, B V R) ; le Gestionnaire de programmes les lit (DumpIcon, GlobalLock) pour les copier dans ses
+ * groupes, et les refait par CreateIcon. L'objet de dessin (image et masque) est gardé à côté. */
+#define MAX_ICON 512
+static struct { uint16_t sel, obj; } icons[MAX_ICON];
+
+static uint16_t icon_obj (uint16_t h)
+{
+	struct obj *o = obj_get (h);
+	if (o && o->type == OBJ_ICON)
+		return h;
+	for (int i = 0; i < MAX_ICON; i++)
+		if (icons[i].sel && (icons[i].sel | 7) == (h | 7))
+			return icons[i].obj;
+	return 0;
+}
+
+static uint16_t icon_publish (uint16_t hobj)
+{
+	struct obj *o = obj_get (hobj);
+	struct obj *img = o ? obj_get (o->image) : 0, *m = o ? obj_get (o->mask) : 0;
+	if (!img || !m)
+		return 0;
+	int w = o->w, h = o->h;
+	int awb = ((w + 15) >> 4) << 1, xwb = ((w * 24 + 15) >> 4) << 1;
+	uint16_t sel = global_alloc ((uint32_t) (12 + awb * h + xwb * h), 0);
+	if (!sel)
+		return 0;
+	uint32_t b = sel_base (sel);
+	uint8_t *p = lin_ptr (b);
+	memset (p, 0, (size_t) (12 + awb * h + xwb * h));
+	wr16 (b, (uint16_t) (w / 2));
+	wr16 (b + 2, (uint16_t) (h / 2));
+	wr16 (b + 4, (uint16_t) w);
+	wr16 (b + 6, (uint16_t) h);
+	wr16 (b + 8, (uint16_t) xwb);
+	p[10] = 1;
+	p[11] = 24;
+	uint8_t *a = p + 12, *x = a + awb * h;
+	for (int yy = 0; yy < h; yy++)
+		for (int xx = 0; xx < w; xx++)
+		{
+			int tr = m->px32[yy * w + xx] != 0;
+			if (tr)
+				a[yy * awb + (xx >> 3)] |= (uint8_t) (0x80 >> (xx & 7));
+			uint32_t c = tr ? 0 : img->px32[yy * w + xx];
+			uint8_t *q = x + yy * xwb + xx * 3;
+			q[0] = (uint8_t) c;
+			q[1] = (uint8_t) (c >> 8);
+			q[2] = (uint8_t) (c >> 16);
+		}
+	for (int i = 0; i < MAX_ICON; i++)
+		if (!icons[i].sel || !sel_valid (icons[i].sel))
+		{
+			icons[i].sel = sel;
+			icons[i].obj = hobj;
+			return sel;
+		}
+	return hobj;	/* (table pleine : l'objet seul, qui se dessine mais ne se lit pas) */
+}
+
+/* une icône d'après ses bits (CreateIcon, les groupes du Gestionnaire de programmes) : masque ET 1 bit ; image en
+ * 1 plan de 1, 4, 8, 24 ou 32 bits par point, ou 4 plans de 1 bit (la VGA, ligne par ligne) */
+static uint32_t vga16 (int i)
+{
+	static const uint32_t pal[16] = { 0x000000, 0x800000, 0x008000, 0x808000, 0x000080, 0x800080, 0x008080, 0xc0c0c0,
+		0x808080, 0xff0000, 0x00ff00, 0xffff00, 0x0000ff, 0xff00ff, 0x00ffff, 0xffffff };
+	return pal[i & 15];
+}
+
+static uint16_t icon_from_bits (int w, int h, int planes, int bpp, const uint8_t *andb, const uint8_t *xorb)
+{
+	if (w <= 0 || h <= 0 || w > 256 || h > 256)
+		return 0;
+	uint16_t hi = obj_new (OBJ_ICON);
+	struct obj *o = obj_get (hi);
+	if (!o)
+		return 0;
+	uint16_t img = bitmap_new (w, h, 24), msk = bitmap_new (w, h, 1);
+	o->image = img;
+	o->mask = msk;
+	o->w = w;
+	o->h = h;
+	struct obj *im = obj_get (img), *m = obj_get (msk);
+	int awb = ((w + 15) >> 4) << 1;
+	int xwb = ((w * (planes == 1 ? bpp : 1) + 15) >> 4) << 1;
+	for (int y = 0; y < h; y++)
+		for (int x = 0; x < w; x++)
+		{
+			m->px32[y * w + x] = andb && (andb[y * awb + (x >> 3)] >> (7 - (x & 7))) & 1 ? 0xffffff : 0;
+			uint32_t c = 0;
+			if (!xorb)
+				c = 0;
+			else if (planes > 1)
+			{
+				int k = 0;
+				for (int pl = 0; pl < planes && pl < 8; pl++)
+					k |= ((xorb[(y * planes + pl) * xwb + (x >> 3)] >> (7 - (x & 7))) & 1) << pl;
+				c = vga16 (k);
+			}
+			else
+			{
+				const uint8_t *r = xorb + y * xwb;
+				switch (bpp)
+				{
+				case 1: c = (r[x >> 3] >> (7 - (x & 7))) & 1 ? 0xffffff : 0; break;
+				case 4: c = vga16 (x & 1 ? r[x >> 1] & 15 : r[x >> 1] >> 4); break;
+				case 8: c = r[x] < 16 ? vga16 (r[x]) : (uint32_t) r[x] * 0x010101u; break;
+				case 24: c = (uint32_t) (r[3 * x + 2] << 16 | r[3 * x + 1] << 8 | r[3 * x]); break;
+				case 32: c = (uint32_t) (r[4 * x + 2] << 16 | r[4 * x + 1] << 8 | r[4 * x]); break;
+				}
+			}
+			im->px32[y * w + x] = c;
+		}
+	return icon_publish (hi);
+}
+
+/* l'icône des programmes sans icône (IDI_APPLICATION…) : une fenêtre avec sa barre de titre */
+uint16_t gdi_icon_default (void)
+{
+	static uint16_t def;
+	if (def && icon_obj (def))
+		return def;
+	uint8_t andb[32 * 4], xorb[32 * 32 * 3];
+	memset (andb, 0, sizeof andb);
+	for (int y = 0; y < 32; y++)
+		for (int x = 0; x < 32; x++)
+		{
+			uint32_t c;
+			if (y < 3 || y > 28 || x < 2 || x > 29)
+			{
+				andb[y * 4 + (x >> 3)] |= (uint8_t) (0x80 >> (x & 7));
+				c = 0;
+			}
+			else if (y == 3 || y == 28 || x == 2 || x == 29)
+				c = 0x000000;
+			else if (y < 9)
+				c = 0x000080;
+			else
+				c = 0xffffff;
+			uint8_t *q = xorb + (y * 32 + x) * 3;
+			q[0] = (uint8_t) c;
+			q[1] = (uint8_t) (c >> 8);
+			q[2] = (uint8_t) (c >> 16);
+		}
+	def = icon_from_bits (32, 32, 1, 24, andb, xorb);
+	return def;
+}
+
+/* CreateIcon (instance, largeur, hauteur, plans, bits par point, masque ET, image) */
+void api_CreateIcon16 (struct w16call *c)
+{
+	c->ret = icon_from_bits ((int16_t) c->a[1], (int16_t) c->a[2], (uint8_t) c->a[3], (uint8_t) c->a[4],
+		c->a[5] ? far_ptr (c->a[5]) : 0, c->a[6] ? far_ptr (c->a[6]) : 0);
+}
+
+/* DumpIcon (CURSORICONINFO, longueur, image, masque) : où sont les parties d'une icône verrouillée (comme Wine) */
+void api_DumpIcon16 (struct w16call *c)
+{
+	uint32_t info = c->a[0];
+	if (!info)
+	{
+		c->ret = 0;
+		return;
+	}
+	uint32_t b = far_lin (info);
+	int w = rd16 (b + 4), h = rd16 (b + 6), wb = rd16 (b + 8);
+	int sx = h * wb, sa = h * (((w + 15) >> 4) << 1);
+	if (c->a[1])
+		wr16 (far_lin (c->a[1]), (uint16_t) (12 + sa + sx));
+	if (c->a[3])
+		wr32 (far_lin (c->a[3]), info + 12);
+	if (c->a[2])
+		wr32 (far_lin (c->a[2]), info + 12 + (uint32_t) sa);
+	c->ret = (uint32_t) (uint16_t) sx | (uint32_t) (uint16_t) sx << 16;
+}
+
 uint16_t gdi_icon_load (uint16_t hinst, uint32_t name)
 {
 	if (!hinst || !SELECTOROF (name) && OFFSETOF (name) >= 32512 && !hinst)
@@ -966,13 +1214,13 @@ uint16_t gdi_icon_load (uint16_t hinst, uint32_t name)
 	for (int y = 0; y < h; y++)
 		for (int x = 0; x < w; x++)
 			m->px32[(h - 1 - y) * w + x] = (and_bits[y * mstride + (x >> 3)] >> (7 - (x & 7))) & 1 ? 0xffffff : 0;
-	return hi;
+	return icon_publish (hi);
 }
 
 void gdi_icon_draw (uint16_t hdc, int x, int y, uint16_t hicon)
 {
 	struct dc *d = dc_get (hdc);
-	struct obj *o = obj_get (hicon);
+	struct obj *o = obj_get (icon_obj (hicon));
 	struct surf s;
 	if (!d || !o || o->type != OBJ_ICON || !dc_surface (d, &s))
 		return;
@@ -2706,4 +2954,102 @@ void gdi_init (void)
 	objs[15] = (struct obj) { .type = OBJ_PALETTE, .stock = 1, .npal = 20 };	/* DEFAULT_PALETTE */
 	objs[15].pal = malloc (20 * 4);
 	memcpy (objs[15].pal, sys20, sizeof sys20);
+}
+
+/* ======================================================================== fonctions de Windows 3.11 (21/11) */
+/* GetDCOrg : l'origine du DC à l'écran (la zone cliente de sa fenêtre ; 0,0 pour un DC de mémoire) */
+void api_GetDCOrg16 (struct w16call *c)
+{
+	struct dc *d = dc_get ((uint16_t) c->a[0]);
+	int x = 0, y = 0;
+	if (d && d->kind == 0 && d->hwnd)
+		user_client_origin (d->hwnd, &x, &y);
+	c->ret = PAIR (x, y);
+}
+
+void api_GetBrushOrg16 (struct w16call *c)
+{
+	struct dc *d = dc_get ((uint16_t) c->a[0]);
+	c->ret = d ? PAIR (d->s.brush_x, d->s.brush_y) : 0;
+}
+
+/* les dimensions d'un bitmap en 0,1 mm : seulement gardées pour le programme */
+void api_GetBitmapDimension16 (struct w16call *c)
+{
+	struct obj *o = obj_get ((uint16_t) c->a[0]);
+	c->ret = o ? PAIR (o->dim_x, o->dim_y) : 0;
+}
+void api_SetBitmapDimension16 (struct w16call *c)
+{
+	struct obj *o = obj_get ((uint16_t) c->a[0]);
+	c->ret = 0;
+	if (!o)
+		return;
+	c->ret = PAIR (o->dim_x, o->dim_y);
+	o->dim_x = (int16_t) c->a[1];
+	o->dim_y = (int16_t) c->a[2];
+}
+
+/* LineDDA (x1, y1, x2, y2, procédure, donnée) : la procédure pour chaque point de la ligne, le dernier exclu */
+void api_LineDDA16 (struct w16call *c)
+{
+	int x = (int16_t) c->a[0], y = (int16_t) c->a[1], x2 = (int16_t) c->a[2], y2 = (int16_t) c->a[3];
+	uint32_t proc = c->a[4], data = c->a[5];
+	int dx = abs (x2 - x), sx = x < x2 ? 1 : -1, dy = -abs (y2 - y), sy = y < y2 ? 1 : -1, err = dx + dy;
+	for (int guard = 0; (x != x2 || y != y2) && guard < 65536; guard++)
+	{
+		uint16_t args[4] = { (uint16_t) x, (uint16_t) y, (uint16_t) (data >> 16), (uint16_t) data };
+		call16 (proc, args, 4, ne_ds_for (proc));
+		int e2 = 2 * err;
+		if (e2 >= dy) { err += dy; x += sx; }
+		if (e2 <= dx) { err += dx; y += sy; }
+	}
+	c->ret = 1;
+}
+
+/* GetCharABCWidths : les polices TrueType seulement ; ici aucune : échec, le programme prend GetCharWidth */
+void api_GetCharABCWidths16 (struct w16call *c) { c->ret = 0; }
+
+/* EnumFontFamilies : les mêmes polices qu'EnumFonts (les structures du début sont les mêmes) */
+void api_EnumFontFamilies16 (struct w16call *c) { api_EnumFonts16 (c); }
+
+void api_UpdateColors16 (struct w16call *c) { c->ret = 0; }
+void api_ExtFloodFill16 (struct w16call *c) { api_FloodFill16 (c); }
+void api_EnumObjects16 (struct w16call *c) { c->ret = 0; }
+
+/* les métafichiers : pas encore (CreateMetaFile échoue, le programme s'en passe : OLE, le presse-papiers) */
+void api_CreateMetaFile16 (struct w16call *c) { c->ret = 0; }
+void api_CloseMetaFile16 (struct w16call *c) { c->ret = 0; }
+void api_SetMetaFileBits16 (struct w16call *c) { c->ret = 0; }
+void api_EnumMetaFile16 (struct w16call *c) { c->ret = 0; }
+void api_PlayMetaFileRecord16 (struct w16call *c) { c->ret = 0; }
+
+/* ScrollDC (hdc, dx, dy, rect à faire défiler, découpe, région, rect à repeindre) : comme ScrollWindow, le plus
+ * simple et toujours juste : tout le rectangle est à repeindre, et la fenêtre du DC est invalidée */
+void api_ScrollDC16 (struct w16call *c)
+{
+	extern void api_InvalidateRect16 (struct w16call *);
+	struct dc *d = dc_get ((uint16_t) c->a[0]);
+	int r[4] = { 0, 0, 0, 0 };
+	uint32_t src = c->a[4] ? c->a[4] : c->a[3];
+	if (src)
+	{
+		uint32_t p = far_lin (src);
+		for (int i = 0; i < 4; i++)
+			r[i] = (int16_t) rd16 (p + 2 * (uint32_t) i);
+	}
+	if (c->a[5])
+		gdi_set_rect_rgn ((uint16_t) c->a[5], r[0], r[1], r[2], r[3]);
+	if (c->a[6])
+	{
+		uint32_t p = far_lin (c->a[6]);
+		for (int i = 0; i < 4; i++)
+			wr16 (p + 2 * (uint32_t) i, (uint16_t) r[i]);
+	}
+	if (d && d->kind == 0 && d->hwnd)
+	{
+		struct w16call iv = { .a = { d->hwnd, 0, 1 }, .n = 3 };
+		api_InvalidateRect16 (&iv);
+	}
+	c->ret = 1;
 }

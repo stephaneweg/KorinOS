@@ -598,3 +598,31 @@ void api_LoadModule16 (struct w16call *c)
 	(void) pb;
 	c->ret = win_exec (cmd);
 }
+
+/* pour ShellExecute (misc.c) : lancer un programme comme WinExec -> > 32 si lancé */
+uint16_t lz_win_exec (const char *cmd) { return win_exec (cmd); }
+
+/* VerLanguageName (langue, tampon, taille) : le nom d'une langue (CP1252) */
+void api_VerLanguageName16 (struct w16call *c)
+{
+	static const struct { uint16_t id; const char *name; } langs[] = {
+		{ 0x0409, "Anglais (\xc9tats-Unis)" }, { 0x0809, "Anglais (Royaume-Uni)" }, { 0x040c, "Fran\xe7" "ais" },
+		{ 0x080c, "Fran\xe7" "ais (Belgique)" }, { 0x0c0c, "Fran\xe7" "ais (Canada)" }, { 0x100c, "Fran\xe7" "ais (Suisse)" },
+		{ 0x0407, "Allemand" }, { 0x0410, "Italien" }, { 0x040a, "Espagnol" }, { 0x0413, "N\xe9" "erlandais" },
+		{ 0x0816, "Portugais" }, { 0x0000, "Langue neutre" } };
+	uint16_t id = (uint16_t) c->a[0];
+	const char *n = "Langue inconnue";
+	for (unsigned i = 0; i < sizeof langs / sizeof langs[0]; i++)
+		if (langs[i].id == id)
+			n = langs[i].name;
+	int cap = (int16_t) c->a[2];
+	c->ret = 0;
+	if (!c->a[1] || cap <= 0)
+		return;
+	int l = (int) strlen (n);
+	if (l > cap - 1)
+		l = cap - 1;
+	memcpy (far_ptr (c->a[1]), n, (size_t) l);
+	((char *) far_ptr (c->a[1]))[l] = 0;
+	c->ret = (uint32_t) l;
+}

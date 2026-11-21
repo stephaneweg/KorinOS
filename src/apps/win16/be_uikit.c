@@ -351,6 +351,11 @@ int be_file_save (const char *dir, const char *name, const char *filter, char *o
 	return r == 1;
 }
 
+int be_ask (const char *title, const char *prompt, char *buf, int cap)
+{
+	return ui_ask ((long) title, (long) prompt, (long) buf, cap) == 1;
+}
+
 long be_color (const char *title, uint32_t rgb)
 {
 	return ui_color_dialog ((long) title, rgb);

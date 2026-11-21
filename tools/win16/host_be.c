@@ -1,7 +1,7 @@
 /* host_be.c -- win16 sur l'hôte (WSL), pour les essais sans Korin : l'affichage de be.h en mémoire.
  *
  * Les fenêtres sont des tampons de pixels ; le texte est tracé en blocs (une case par caractère) et noté sur
- * stderr. Les événements viennent de W16_SCRIPT (« menu:ID », « click:X,Y », « key:CODE,CHAR », « keyup:CODE », « close »,
+ * stderr. Les événements viennent de W16_SCRIPT (« menu:ID », « click:X,Y », « down:X,Y », « move:X,Y », « up:X,Y », « key:CODE,CHAR », « keyup:CODE », « close »,
  * « wait:N », séparés par des espaces ; « win:N » choisit la fenêtre) ; script fini, quand le programme attend
  * sans rien à faire, la dernière fenêtre ouverte reçoit « fermer » (après W16_IDLE attentes, 3 par défaut).
  * Chaque fenêtre est écrite en PPM dans W16_SHOT (dossier) à sa fermeture, et sur « shot ».
@@ -259,6 +259,20 @@ int be_wait (int ms, struct be_event *ev)
 			}
 			return 1;
 		}
+		if (!strncmp (w, "down:", 5))	/* (un glisser : down:X,Y move:X,Y up:X,Y) */
+		{
+			ev->type = BE_MOUSE_DOWN;
+			ev->button = 1;
+			sscanf (w + 5, "%d,%d", &ev->x, &ev->y);
+			return 1;
+		}
+		if (!strncmp (w, "move:", 5))
+		{
+			ev->type = BE_MOUSE_MOVE;
+			ev->button = 1;
+			sscanf (w + 5, "%d,%d", &ev->x, &ev->y);
+			return 1;
+		}
 		if (!strncmp (w, "up:", 3))
 		{
 			ev->type = BE_MOUSE_UP;
@@ -377,6 +391,17 @@ int be_file_save (const char *dir, const char *name, const char *filter, char *o
 	if (!e)
 		return 0;
 	snprintf (out, (size_t) cap, "%s", e);
+	return 1;
+}
+
+/* (W16_ASK : la réponse ; sans elle, annulé) */
+int be_ask (const char *title, const char *prompt, char *buf, int cap)
+{
+	const char *e = getenv ("W16_ASK");
+	fprintf (stderr, "[hôte] question « %s » : %s -> %s\n", title, prompt, e ? e : "annulé");
+	if (!e)
+		return 0;
+	snprintf (buf, (size_t) cap, "%s", e);
 	return 1;
 }
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """pub.py -- publier un seul paquet de Korin OS, a partir de son archive publiee (docs/PAQUETS.md, « Publier un paquet »).
 
-    python tools/pkg/pub.py NOM [--pi] [--tree DOSSIER] [--dry-run] [--yes] [--only MOTIF...] [--add-new] [--new] [--abi N]
+    python tools/pkg/pub.py NOM [--pi] [--tree DOSSIER] [--dry-run] [--yes] [--only MOTIF...] [--add-new] [--drop MOTIF...] [--new] [--abi N]
 
 --new : un paquet absent de l'index publie (pas d'archive de base) : tous ses fichiers sont pris dans l'arbre,
 version de versions.ini ou 1.0.0, section ajoutee a la fin de l'index.
@@ -128,16 +128,82 @@ def versions_get (text, sections, name):
 def key_file (opt):
 	for k in (opt, os.environ.get ("ONYX_PKG_KEY_FILE"), DEFAULT_KEY):
 		if k and os.path.isfile (k): return k, None
-	v = os.environ.get ("OnyxPkgKey")
+	v = os.environ.get ("OnyxPkgKey") or os.environ.get ("ONYX_PKG_KEY")
 	if v:	# (la cle PEM elle-meme, parfois sur une ligne : remise en PEM dans un temporaire, rien n'est affiche)
 		import textwrap
 		m = re.search (r"-+BEGIN ([A-Z ]+?)-+\s*(.*?)\s*-+END", v, re.S)
-		if not m: die ("OnyxPkgKey n'est pas une cle PEM")
+		if not m: die ("OnyxPkgKey (ONYX_PKG_KEY) n'est pas une cle PEM")
 		h, b = m.group (1), re.sub (r"\s", "", m.group (2))
 		fd, path = tempfile.mkstemp (suffix = ".pem")
 		with os.fdopen (fd, "w") as f: f.write ("-----BEGIN %s-----\n%s\n-----END %s-----\n" % (h, "\n".join (textwrap.wrap (b, 64)), h))
 		return path, path
 	return None, None
+
+# ---- la Release « packages » : par gh, ou (--api, le cloud) par l'API REST de GitHub avec curl, la connexion
+# GitHub de la session etant appliquee par le proxy (pas de jeton ici)
+API = False
+
+def api_json (url):
+	r = subprocess.run (["curl", "-sS", "-f", "-H", "Accept: application/vnd.github+json", url], capture_output = True)
+	if r.returncode: die ("API GitHub : %s : %s" % (url, r.stderr.decode ("utf-8", "replace").strip ()))
+	import json
+	return json.loads (r.stdout)
+
+def rel_info ():
+	return api_json ("https://api.github.com/repos/%s/releases/tags/packages" % GH_REPO)
+
+def rel_assets ():
+	"""-> les noms des archives de la Release"""
+	if API: return [x["name"] for x in rel_info ()["assets"]]
+	r = subprocess.run (["gh", "release", "view", "packages", "-R", GH_REPO, "--json", "assets", "-q", ".assets[].name"], capture_output = True, text = True)
+	if r.returncode: die ("gh release view : " + r.stderr.strip ())
+	return r.stdout.split ()
+
+def rel_download (fname, dest_dir):
+	os.makedirs (dest_dir, exist_ok = True)
+	if not API:
+		r = subprocess.run (["gh", "release", "download", "packages", "-R", GH_REPO, "-p", fname, "-D", dest_dir, "--clobber"])
+		if r.returncode: die ("gh release download a echoue")
+		return
+	ids = [x["id"] for x in rel_info ()["assets"] if x["name"] == fname]
+	if not ids: die ("%s n'est pas dans la Release" % fname)
+	r = subprocess.run (["curl", "-sS", "-f", "-L", "-H", "Accept: application/octet-stream", "-o", os.path.join (dest_dir, fname),
+		"https://api.github.com/repos/%s/releases/assets/%d" % (GH_REPO, ids[0])])
+	if r.returncode: die ("telechargement de %s par l'API a echoue" % fname)
+
+MANUAL = False
+
+def rel_wait (path):
+	"""(--manual-upload) l'archive deposee a la main dans la Release : attendue (la liste lue par l'API toutes les
+	20 s), telechargee et comparee octet pour octet avant d'aller plus loin (l'index n'est pousse qu'apres)"""
+	import time
+	name, want = os.path.basename (path), sha256 (open (path, "rb").read ())
+	say ("pub: deposer %s (%d octets, SHA-256 %s) dans la Release « packages » :" % (path, os.path.getsize (path), want))
+	say ("pub:   https://github.com/%s/releases/edit/packages  (glisser le fichier, puis « Update release »)" % GH_REPO)
+	for _ in range (int (os.environ.get ("PUB_WAIT_MIN", "180")) * 3):
+		got = [x for x in rel_info ()["assets"] if x["name"] == name]
+		if got and got[0].get ("state", "uploaded") == "uploaded" and got[0]["size"] == os.path.getsize (path):
+			d = tempfile.mkdtemp ()
+			rel_download (name, d)
+			ok = sha256 (open (os.path.join (d, name), "rb").read ()) == want
+			shutil.rmtree (d, ignore_errors = True)
+			if not ok: die ("%s dans la Release n'a pas le SHA-256 attendu : rien n'est pousse" % name)
+			say ("pub: %s est dans la Release, SHA-256 verifie" % name)
+			return
+		time.sleep (20)
+	die ("%s n'est pas apparue dans la Release : rien n'est pousse" % name)
+
+def rel_upload (path):
+	if MANUAL: return rel_wait (path)
+	if not API:
+		if subprocess.run (["gh", "release", "upload", "packages", "-R", GH_REPO, path]).returncode: die ("gh release upload a echoue")
+		return
+	rid = rel_info ()["id"]
+	r = subprocess.run (["curl", "-sS", "-f", "-X", "POST", "-H", "Accept: application/vnd.github+json", "-H", "Content-Type: application/octet-stream",
+		"--data-binary", "@" + path, "https://uploads.github.com/repos/%s/releases/%d/assets?name=%s" % (GH_REPO, rid, os.path.basename (path))],
+		capture_output = True)
+	if r.returncode: die ("envoi de %s par l'API a echoue : %s" % (os.path.basename (path), r.stderr.decode ("utf-8", "replace").strip ()))
+	if rel_assets ().count (os.path.basename (path)) != 1: die ("%s n'apparait pas dans la Release apres l'envoi" % os.path.basename (path))
 
 def link_or_copy (src, dst):
 	os.makedirs (os.path.dirname (dst), exist_ok = True)
@@ -155,6 +221,7 @@ def main ():
 	ap.add_argument ("--yes", action = "store_true", help = "sans demander confirmation")
 	ap.add_argument ("--only", nargs = "+", default = [], help = "remplacer seulement ces fichiers (motifs de packages.ini)")
 	ap.add_argument ("--add-new", action = "store_true", help = "ajouter les fichiers du paquet absents de l'archive")
+	ap.add_argument ("--drop", nargs = "+", default = [], help = "retirer de l'archive les fichiers de ces motifs (que packages.ini ne donne plus au paquet)")
 	ap.add_argument ("--new", action = "store_true", help = "un paquet absent de l'index publie : tous ses fichiers, pris dans l'arbre")
 	ap.add_argument ("--abi", type = int, help = "le besoin abi >= N du manifeste (defaut : celui du publie)")
 	ap.add_argument ("--force", action = "store_true", help = "continuer si le content publie ne se recalcule pas")
@@ -162,8 +229,13 @@ def main ():
 	ap.add_argument ("--base", default = "origin/main", help = "la reference git du depot publie (defaut : origin/main)")
 	ap.add_argument ("--no-fetch", action = "store_true", help = "ne pas faire git fetch au debut")
 	ap.add_argument ("--no-push", action = "store_true", help = "commiter sans pousser")
+	ap.add_argument ("--api", action = "store_true", help = "la Release par l'API REST de GitHub (curl) au lieu de gh : le cloud")
+	ap.add_argument ("--manual-upload", action = "store_true", help = "avec --api : l'archive de la Release deposee a la main (le proxy du cloud refuse les envois binaires) ; attendue et verifiee avant le push")
 	ap.add_argument ("--message", default = "", help = "ce qui change, ajoute au titre du commit")
 	a = ap.parse_args ()
+	global API, MANUAL
+	API = a.api or a.manual_upload
+	MANUAL = a.manual_upload
 
 	pc = not a.pi
 	if pc: os.environ["ARCH"] = "x86_64"
@@ -204,10 +276,8 @@ def main ():
 	elif is_release:
 		local = os.path.join (release_dir, os.path.basename (oldfile))
 		if not (os.path.isfile (local) and mkrepo.sha256_file (local) == o["sha256"]):
-			say ("pub: gh release download %s" % os.path.basename (oldfile))
-			os.makedirs (release_dir, exist_ok = True)
-			r = subprocess.run (["gh", "release", "download", "packages", "-R", GH_REPO, "-p", os.path.basename (oldfile), "-D", release_dir, "--clobber"])
-			if r.returncode: die ("gh release download a echoue")
+			say ("pub: %s release download %s" % ("API" if API else "gh", os.path.basename (oldfile)))
+			rel_download (os.path.basename (oldfile), release_dir)
 		base_bytes = open (local, "rb").read ()
 	else:
 		base_bytes = git_blob (a.base, repo_rel + "/" + oldfile)
@@ -276,6 +346,12 @@ def main ():
 	added = []
 	for f in extra:
 		if (a.add_new or is_new) and wanted (f, pc and f in GUARDED): added.append ((f, open (os.path.join (P["src"][f], f), "rb").read (), False, os.path.join (P["src"][f], f)))
+	# (--drop : les fichiers que le paquet n'a plus ; jamais un fichier que packages.ini lui donne encore)
+	dropped = [f for f in order if any (mkrepo.matches (f, p) for p in a.drop)]
+	still = [f for f in dropped if f in P["files"]]
+	if still: die ("--drop : %s encore donne(s) au paquet par %s" % (", ".join (still[:5]), os.path.basename (ini)))
+	changed = [c for c in changed if c[0] not in dropped]
+	missing = [f for f in missing if f not in dropped]
 	def when (tp): return datetime.datetime.fromtimestamp (os.path.getmtime (tp)).strftime ("%d/%m %H:%M")
 	say ("")
 	say ("%s %s (%s), arbre %s :" % (name, oldver, "Release" if is_release else repo_rel + "/pkgs", os.path.relpath (tree, ROOT)))
@@ -283,6 +359,8 @@ def main ():
 		say ("  remplace  %-60s %10d -> %-10d %s%s" % (f, len (base_data[f]), len (new), when (tp), "  (fusion des cles)" if merged else ""))
 	for f, new, merged, tp in added:
 		say ("  ajoute    %-60s %10d  %s" % (f, len (new), when (tp)))
+	for f in dropped:
+		say ("  retire    %-60s %10d" % (f, len (base_data[f])))
 	for f, guarded in skipped:
 		say ("  garde     %s (differe : %s)" % (f, "une reconstruction brute l'abime, --only pour le prendre" if guarded else "hors de --only"))
 	if extra and not a.add_new and not is_new:
@@ -291,7 +369,7 @@ def main ():
 		if len (extra) > 15: say ("            ...")
 	if missing:
 		say ("  %d fichier(s) de l'archive absents de l'arbre (gardes tels quels)%s" % (len (missing), " : " + ", ".join (missing[:5]) if len (missing) <= 5 else ""))
-	if not changed and not added:
+	if not changed and not added and not dropped:
 		shutil.rmtree (TMP, ignore_errors = True)
 		say ("pub: rien n'a change dans %s : rien a publier" % name)
 		return
@@ -312,7 +390,7 @@ def main ():
 		os.makedirs (os.path.dirname (os.path.join (stage, f)), exist_ok = True)
 		open (os.path.join (stage, f), "wb").write (new)
 		if f not in order: order.append (f)
-	files = list (order)
+	files = [f for f in order if f not in dropped]
 	data = { f: open (os.path.join (stage, f), "rb").read () for f in files }
 	P2 = dict (P); P2["files"] = files; P2["src"] = { f: stage for f in files }
 	P2["bytes"] = sum (len (data[f]) for f in files)
@@ -423,12 +501,10 @@ def main ():
 	if git_blob ("HEAD", repo_rel + "/index.txt") != idx_bytes:
 		die ("HEAD porte un %s/index.txt qui n'est pas celui de %s (un commit pas pousse ?) : rien n'est publie" % (repo_rel, a.base))
 	if is_release:
-		assets = subprocess.run (["gh", "release", "view", "packages", "-R", GH_REPO, "--json", "assets", "-q", ".assets[].name"], capture_output = True, text = True)
-		if assets.returncode: die ("gh release view : " + assets.stderr.strip ())
-		if os.path.basename (opk) in assets.stdout.split ():
+		if os.path.basename (opk) in rel_assets ():
 			die ("%s est deja dans la Release : rien n'est publie" % os.path.basename (opk))
-		say ("pub: gh release upload %s" % os.path.basename (opk))
-		if subprocess.run (["gh", "release", "upload", "packages", "-R", GH_REPO, opk]).returncode: die ("gh release upload a echoue")
+		say ("pub: %s release upload %s" % ("a la main" if MANUAL else "API" if API else "gh", os.path.basename (opk)))
+		rel_upload (opk)
 	vtext = (git_blob ("HEAD", "tools/pkg/versions.ini") or b"").decode ("utf-8")	# (apres la fusion)
 	paths = {}					# chemin du depot -> octets (None : retire)
 	paths[repo_rel + "/index.txt"] = new_idx
