@@ -88,6 +88,8 @@ change-id = "ignore"
 
 [llvm]
 download-ci-llvm = false
+# le LLVM de la CI est une bibliothèque partagée (libLLVM.so, link-type.txt)
+link-shared = true
 
 [build]
 build = "$HOST"
