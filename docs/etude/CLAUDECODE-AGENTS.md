@@ -33,7 +33,9 @@ conversation ; plus tard Vibe, Kimi, MAI, etc. Rien n'est fait : c'est l'étude.
 5. **Les paquets** : l'app reste dans `claude-code` et ne dépend d'aucun autre agent (détection au lancement). Pour le
    mode « clé d'API », remettre un paquet **sans app** : la commande `claude-acp`, `claude_acp` et le SDK `anthropic`
    (ce que portait `[claude]`, moins `apps/claude.app`) ; MAI le prend aussi.
-6. **Kimi** et les suivants : s'ils parlent ACP (à vérifier pour Kimi CLI), une ligne de plus dans `AgentKind` ; sinon
+6. **Kimi** : sans doute par Vibe (idée de l'utilisateur), qui prend d'autres fournisseurs de modèles par sa
+   configuration : un « moteur » Vibe avec un modèle Kimi plutôt qu'un agent de plus. Les suivants : s'ils parlent ACP,
+   une ligne de plus dans `AgentKind` ; sinon
    un pilote de plus dans la bibliothèque. Sous Korin : comme pour Claude Code, par l'hôte Linux si l'agent n'existe
    qu'en binaire Linux, ou en Python s'il en est.
 
