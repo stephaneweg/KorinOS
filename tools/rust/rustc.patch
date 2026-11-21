@@ -180,7 +180,7 @@ diff -ruN a/src/bootstrap/src/core/build_steps/compile.rs b/src/bootstrap/src/co
 diff -ruN a/src/bootstrap/src/core/build_steps/llvm.rs b/src/bootstrap/src/core/build_steps/llvm.rs
 --- a/src/bootstrap/src/core/build_steps/llvm.rs
 +++ b/src/bootstrap/src/core/build_steps/llvm.rs
-@@ -403,7 +403,12 @@
+@@ -403,7 +403,16 @@
          // which saves both memory during parallel links and overall disk space
          // for the tools. We don't do this on every platform as it doesn't work
          // equally well everywhere.
@@ -190,11 +190,15 @@ diff -ruN a/src/bootstrap/src/core/build_steps/llvm.rs b/src/bootstrap/src/core/
 +        // LLVM is (`link-shared` for a prebuilt shared LLVM on the build machine).
 +        if target.contains("korin") {
 +            cfg.define("LLVM_LINK_LLVM_DYLIB", "OFF");
++            // nor LLVM's other shared objects (they would carry libstdc++ too), nor plugins
++            cfg.define("LLVM_TOOL_LTO_BUILD", "OFF");
++            cfg.define("LLVM_TOOL_REMARKS_SHLIB_BUILD", "OFF");
++            cfg.define("LLVM_ENABLE_PLUGINS", "OFF");
 +        } else if builder.llvm_link_shared() {
              cfg.define("LLVM_LINK_LLVM_DYLIB", "ON");
          }
  
-@@ -577,6 +582,7 @@
+@@ -577,6 +586,7 @@
          // some can come from the C++ standard library. Unless we're explicitly requesting LLVM to
          // be built with debuginfo, strip it away after the fact, to make dist artifacts smaller.
          if builder.llvm_link_shared()
@@ -202,7 +206,7 @@ diff -ruN a/src/bootstrap/src/core/build_steps/llvm.rs b/src/bootstrap/src/core/
              && builder.config.llvm_optimize
              && !builder.config.llvm_release_debuginfo
          {
-@@ -697,6 +703,10 @@
+@@ -697,6 +707,10 @@
              cfg.define("CMAKE_SYSTEM_NAME", "SunOS");
          } else if target.contains("linux") {
              cfg.define("CMAKE_SYSTEM_NAME", "Linux");
