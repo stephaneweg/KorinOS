@@ -63,6 +63,14 @@ copy_files build/kits/x86_64 "$OUT/lib" '*.so'
 # bash (GNU bash 5.2.37 : ARCH=x86_64 sh tools/bash/build.sh, docs/BASH.md), s'il est construit : la
 # console texte et le Terminal le prennent à la place de sh, comme sur le Pi
 [ -f build/pc/bash/bash ] && cp build/pc/bash/bash "$OUT/bin/bash"
+# l'hôte Linux (sh tools/linux/build.sh ; paquet linuxhost) et la commande claude (paquet claude-code : le binaire de
+# Claude Code n'est jamais ici, le paquet le télécharge chez Anthropic ; docs/etude/LINUX-HOST.md)
+if [ -f build/pc/linux/linuxhost ]; then
+	cp build/pc/linux/linuxhost "$OUT/bin/linuxhost"
+	cp src/sys/linuxhost/xdg-open src/sys/linuxhost/claude "$OUT/bin/"
+	mkdir -p "$OUT/devtools/claude-code"
+	cp src/sys/linuxhost/README-claude-code.txt "$OUT/devtools/claude-code/README.txt"
+fi
 # gltest (Mesa iris et le service intelgpu : tools/mesa/build-iris.sh), s'il est construit
 [ -f build/pc/mesa/sdroot/bin/gltest ] && cp build/pc/mesa/sdroot/bin/gltest "$OUT/bin/"
 # GlKit du PC (Mesa iris et softpipe en kit partagé : tools/mesa/build-glkit-pc.sh), s'il est construit ; pas dans

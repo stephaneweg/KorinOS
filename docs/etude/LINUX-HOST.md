@@ -172,8 +172,22 @@ sockets, epoll, eventfd, signaux, fork et exec, termios) avant Node.js.
   retour sur la boucle locale), puis l'interface dans le Terminal de Korin (xterm-256color). Les outils qu'il lance
   (`bash`, `git`, `rg`) : ceux de Korin. Mise à jour automatique coupée.
 * **4. Le frontal Korin** : une app UIKit qui pilote la CLI en `stream-json`.
-* **5. L'installation** : comme Widevine (cdmupdate), le binaire n'entre jamais dans nos paquets ; un installateur le
-  télécharge chez Anthropic, vérifie son empreinte, et le pose dans le dossier de l'utilisateur.
+* **5. L'installation** (faite le 21/11, essayée sous QEMU ; pas encore publiée) : décisions de l'utilisateur : un
+  paquet « virtuel » **`claude-code`** qui télécharge le binaire officiel **à l'installation**, **pour tout le
+  système** (`/devtools/claude-code/claude` ; réglages et connexion dans le `~/.claude` de chacun), **version
+  épinglée** (2.1.330, SHA-256 `f390eaa0…` = celui du `manifest.json` d'Anthropic et du binaire essayé). Le binaire
+  n'entre jamais dans nos paquets : la nouvelle clé **`fetch`** des paquets (pkglib.h, mkrepo.py ; docs/PAQUETS.md)
+  le prend sur `downloads.claude.ai/claude-code-releases/2.1.330/linux-x64/claude`. Le paquet pose `/bin/claude`
+  (src/sys/linuxhost/claude : `DISABLE_AUTOUPDATER=1`, `linuxhost run /devtools/claude-code/claude "$@"`) et demande
+  `linuxhost` (nouveau paquet : `bin/linuxhost`, `bin/xdg-open`), bash, git, rg, python et `pkgman >= 1.0.21`.
+  Essai : `pkg add` d'une archive d'essai : 363 Mo téléchargés et vérifiés, `claude --version` par la commande,
+  réinstallation sans retéléchargement, `pkg delete` qui retire tout.
+* **Craft Anything** trouve Claude Code par la commande `claude` (le `PATH`, et `~/.local/bin`, `~/.claude/local`…
+  : `crates/platform/src/which.rs` de storytold) : `/bin/claude` du paquet suffit ; il le lance par des tubes
+  (`claude -p --output-format stream-json`). À essayer avec l'app sur le PC.
+* **Ensuite** (demande de l'utilisateur, 21/11) : une fois Claude Code officiel essayé et fonctionnel sur le PC,
+  retirer « l'autre Claude » : le paquet `[claude]` (Claude par clé d'API : `claude-acp`, `apps/claude.app`,
+  `.claude-acp/`) ; attention, `[mai]` en dépend (`oai_acp` reprend `claude_acp`) : garder `claude_acp` pour MAI.
 
 ## 6. Risques
 

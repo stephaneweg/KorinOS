@@ -1194,7 +1194,7 @@ public:
 		auto put = [&] (const char *s) { size_t l = strlen (s); if (dl + l + 1 >= cap) { cap = (dl + l + 1) * 2; dbt = (char *) realloc (dbt, cap); } memcpy (dbt + dl, s, l + 1); dl += l; };
 		char line[512];
 		put ("# installe par pkg\n[package]\n");
-		static const char *const keys[] = { "name", "title", "version", "category", "author", "summary", "needs", "required", "restart", "config", 0 };
+		static const char *const keys[] = { "name", "title", "version", "category", "author", "summary", "needs", "required", "restart", "config", "fetch", 0 };
 		for (int i = 0; keys[i]; i++) { snprintf (line, sizeof line, "%s = %s\n", keys[i], man.get ("", keys[i])); put (line); }
 		if (*bootPats) { put ("boot = "); put (bootPats); put ("\n"); }
 		if (p && *p->part) { snprintf (line, sizeof line, "part = %s\n", p->part); put (line); }
@@ -1265,6 +1265,46 @@ public:
 			r.step (name, done, total);
 		}
 		ar_close (a);
+		// fetch = CHEMIN TAILLE SHA256 URL [; …] : des fichiers que le paquet ne porte pas (le logiciel d'un éditeur qui
+		// ne se redistribue pas : Claude Code, docs/etude/LINUX-HOST.md), téléchargés en HTTPS à l'installation, de la
+		// taille et du SHA-256 du manifeste (signé avec l'index) ; inscrits dans la base, retirés avec le paquet. Un
+		// fichier déjà là, du même SHA-256, n'est pas retéléchargé (une mise à jour qui ne change que le paquet).
+		const char *fx = man.get ("", "fetch");
+		if (rc == OK && *fx && stage) { rc = E_BADPKG; r.sayf ("%s : fetch et restart ensemble : refusé", name); }
+		for (const char *f = fx; rc == OK && *f; )
+		{
+			while (*f == ' ' || *f == ';') f++;
+			if (!*f) break;
+			const char *e = strchr (f, ';'); size_t fl = e ? (size_t) (e - f) : strlen (f);
+			char ent[2400]; if (fl >= sizeof ent) { rc = E_BADPKG; break; }
+			memcpy (ent, f, fl); ent[fl] = 0; f += fl;
+			char rel[260], hx[80], url[2200]; unsigned long long want = 0;
+			if (sscanf (ent, "%259s %llu %79s %2199s", rel, &want, hx, url) != 4 || strlen (hx) != 64 || forbidden (rel)
+			    || strncmp (url, "https://", 8) || !want)
+			{ rc = E_BADPKG; r.sayf ("%s : fetch illisible : %s", name, ent); break; }
+			char dest[320], tmp[330], hh[65];
+			snprintf (dest, sizeof dest, "%s/%s", root, rel);
+			if (sha_file (dest, hh) && eq (hh, hx)) r.sayf ("%s : %s déjà là", name, rel);
+			else
+			{
+				snprintf (tmp, sizeof tmp, "%s.pkgtmp", dest);
+				mkparent (tmp);
+				r.sayf ("%s : téléchargement de %s (%llu Mo)", name, url, want >> 20);
+				bool ok; u64 got;
+				{
+					FileSink fs (tmp);
+					if (!fs.ok ()) { rc = E_IO; r.sayf ("écriture impossible : %s", tmp); break; }
+					ok = http_get (url, fs, (u64) want, strrchr (rel, '/') ? strrchr (rel, '/') + 1 : rel, r);
+					fs.sha.hex (hh); got = fs.n;
+				}
+				if (!ok) { unlink (tmp); rc = r.cancelled () ? E_CANCEL : E_NET; break; }
+				if (got != (u64) want || !eq (hh, hx))
+				{ unlink (tmp); rc = E_BADPKG; r.sayf ("%s : %s : taille ou SHA-256 différents de ceux du paquet : refusé", name, rel); break; }
+				if (!move (tmp, dest)) { unlink (tmp); rc = E_IO; r.sayf ("remplacement impossible : %s", dest); break; }
+			}
+			snprintf (line, sizeof line, "%s = %s\n", rel, hx); put (line);
+			files++;
+		}
 		if (rc != OK) { free (dbt); free (mv); if (stage) { char st[200]; snprintf (st, sizeof st, PKG_STAGE "/%s", name); remove_tree (st); } return rc; }
 		// les fichiers de l'ancienne version absents de la nouvelle s'en vont (ceux que l'utilisateur a changes restent)
 		Ini now; now.parse (sdup (dbt));

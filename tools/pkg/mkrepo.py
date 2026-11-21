@@ -125,7 +125,8 @@ def plan (sd, boot, ini):
 		      "required": sec.get ("required", "0"), "restart": sec.get ("restart", "0"),
 		      "publish": sec.get ("publish", "1"), "release": sec.get ("release", "0"),
 		      "config_pats": split (sec.get ("config", "")), "merge_pats": split (sec.get ("merge", "")), "boot_pats": split (sec.get ("boot", "")), "part": "",
-		      "replaces": [n.strip () for n in sec.get ("replaces", "").split (",") if n.strip ()] }
+		      "replaces": [n.strip () for n in sec.get ("replaces", "").split (",") if n.strip ()],
+		      "fetch": " ".join (sec.get ("fetch", "").split ()) }
 		p["files"] = take (name, pats)
 		p["src"] = src
 		# root = DOSSIER : les fichiers sont la s'ils ne sont pas sur la carte (build/gcc/sdroot)
@@ -195,6 +196,8 @@ def manifest_text (p, version, abi):
 		 "installed = %d" % p["bytes"], "config = " + " ".join (cfgfiles)]
 	if p["boot_pats"]: lines.append ("boot = " + " ".join (p["boot_pats"]))	# (ses fichiers de demarrage : /boot/)
 	if p["replaces"]: lines.append ("replaces = " + ", ".join (p["replaces"]))
+	# des fichiers téléchargés à l'installation, chez leur éditeur (CHEMIN TAILLE SHA256 URL ; …) : pkglib.h
+	if p.get ("fetch"): lines.append ("fetch = " + p["fetch"])
 	# les listes de lignes qu'une app change (services.txt) : pkg y ajoute les lignes nouvelles du paquet
 	merge = [f for f in cfgfiles if any (matches (f, c) for c in p["merge_pats"])]
 	if merge: lines.append ("merge = " + " ".join (merge))
@@ -285,10 +288,17 @@ def main ():
 		hashes = [(f, sha256_file (os.path.join (p["src"][f], f))) for f in p["files"]]
 		p["hashes"] = hashes
 		p["bytes"] = sum (os.path.getsize (os.path.join (p["src"][f], f)) for f in p["files"])
+		# (fetch : CHEMIN TAILLE SHA256 URL ; … : leur taille compte dans ce qu'il prend sur le disque)
+		for ent in (e.split () for e in p.get ("fetch", "").split (";") if e.strip ()):
+			if len (ent) != 4 or len (ent[2]) != 64 or not ent[3].startswith ("https://") or not ent[1].isdigit ():
+				errors.append ("%s : fetch illisible : %s" % (p["name"], " ".join (ent)))
+			else:
+				p["bytes"] += int (ent[1])
 		# le contenu : les fichiers et ce que le manifeste en dit (un nouveau besoin : une nouvelle version)
 		desc = "needs %s\nconfig %s\nrequired %s\nrestart %s\n" % (p["needs"], p["config_pats"], p["required"], p["restart"])
 		if p["replaces"]: desc += "replaces %s\n" % p["replaces"]
 		if p["boot_pats"]: desc += "boot %s\n" % p["boot_pats"]	# (/boot/ : un autre manifeste)
+		if p.get ("fetch"): desc += "fetch %s\n" % p["fetch"]		# (une autre version de l'éditeur)
 		p["content"] = hashlib.sha256 ((desc + "".join ("%s %s\n" % h for h in hashes)).encode ()).hexdigest ()
 		ver = V.get (p["name"], datetime.date.today ().strftime ("%Y.%m.0") if p["name"] == SYSTEM else "1.0.0")
 		# (PC : le meme paquet publie pour le Pi, au meme contenu : sa version et son archive, arch = any)
