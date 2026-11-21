@@ -47,7 +47,10 @@ sed 's/=.*//' "$B/korin.config" > "$B/korin.keys"
 grep -v -F -w -f "$B/korin.keys" "$B/.config" > "$B/.config.base" || true
 cat "$B/.config.base" "$B/korin.config" > "$B/.config"
 yes "" | make -C "$S" O="$B" oldconfig >> "$B/config.log" 2>&1
-make -C "$S" O="$B" CC="$WORK/bin/korin-cc" AR=${TC}ar STRIP=${TC}strip HOSTCC="gcc" -j8 busybox > "$B/make.log" 2>&1 || {
+# (pas de shell dans BusyBox : bash est celui de Korin ; le choix « sh » de oldconfig prend ash par défaut)
+sed -i 's/^CONFIG_SH_IS_ASH=y/# CONFIG_SH_IS_ASH is not set/; s/^# CONFIG_SH_IS_NONE is not set/CONFIG_SH_IS_NONE=y/; s/^CONFIG_SHELL_ASH=y/# CONFIG_SHELL_ASH is not set/' "$B/.config"
+yes "" | make -C "$S" O="$B" oldconfig >> "$B/config.log" 2>&1
+make -C "$S" O="$B" CC="$WORK/bin/korin-cc" LD=${TC}ld AR=${TC}ar STRIP=${TC}strip HOSTCC="gcc" -j8 busybox > "$B/make.log" 2>&1 || {
 	grep -n 'error:\|undefined reference' "$B/make.log" | head -40; exit 1; }
 rm -rf "$OUT"
 mkdir -p "$OUT/devtools/bin"
@@ -55,7 +58,7 @@ ${TC}strip "$B/busybox" -o "$OUT/devtools/bin/busybox"
 # les commandes construites (busybox --list), un lanceur chacune
 "$ROOT/tools/busybox/list.sh" "$B" > "$OUT/applets.list"
 while read -r a; do
-	[ "$a" = busybox ] && continue
+	case $a in busybox|"["|"[[") continue ;; esac	# ([ et [[ : ceux de bash)
 	printf '#!/bin/bash\nexec /devtools/bin/busybox %s "$@"\n' "$a" > "$OUT/devtools/bin/$a"
 	chmod +x "$OUT/devtools/bin/$a"
 done < "$OUT/applets.list"
