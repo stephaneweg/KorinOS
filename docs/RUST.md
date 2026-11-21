@@ -378,6 +378,66 @@ Tout le reste de LLVM compile sans retouche : **117 bibliothèques** (≈ 530 Mo
 
 Tailles strippées : `llc` 66 Mo, `opt` 66 Mo, `llvm-mc` 14 Mo (chacun avec tout LLVM en statique).
 
+## rustc dans Korin (21/11/2026)
+
+Quatrième étape, celle qui termine le port : **rustc 1.97.1 tourne dans Korin PC** (`/devtools/rust/bin/rustc`, à côté
+de `cargo`, dans le `PATH`), compile, lie par le GCC de Korin, et cargo s'en sert : dépendances de crates.io, macros
+procédurales, scripts de construction. **QEMU q35 seulement** ; pas encore sur le ZBook, pas pour le Pi.
+
+```sh
+KORIN_HOSTS=x86_64-unknown-korin bash tools/rust/rustc-build.sh   # stage 2 avec Korin pour hôte ; ≈ 1 h 30 sur 4 cœurs
+                                                                  # (LLVM pour Korin ≈ 1 h) -> build/pc/rust/toolchain
+ARCH=x86_64 sh tools/gcc/build.sh                                 # GCC dans Korin (l'éditeur de liens de rustc)
+sh tools/pc/sysroot.sh && sh tools/pc/sysroot_gcc.sh && sh tools/pc/sysroot_cargo.sh   # /devtools/gcc, /devtools/rust
+```
+
+### Comment rustc est fait pour Korin
+
+| Morceau | Pour Korin |
+|---|---|
+| le compilateur d'amorçage | le stage 1 de [« La cible dans le compilateur »](#la-cible-dans-le-compilateur-21112026) (Linux, il connaît les cibles de Korin) compile le stage 2 pour l'hôte `x86_64-unknown-korin` |
+| `rustc` (4 Mo) | l'**hôte** de tout le reste : il exporte la libc (`-rdynamic`) et libstdc++ (`dlhost-cxx.ld` de libposix), et ne charge que `librustc_driver.so` (`DT_NEEDED`, lu par libposix : un programme de Korin n'a pas de `PT_DYNAMIC`) ; `compiler/rustc/build.rs` (rustc.patch) y ajoute `-rdynamic`, `-lstdc++`, `KORIN_DLHOST_CXX`, `KORIN_RUSTC_LINK_ARGS` (`-tls-reserve=0x40000`) |
+| `librustc_driver.so` (297 Mo) | le compilateur, la std et **LLVM en statique**, sans libstdc++ (`rustc_llvm/build.rs` : son archive statique a une TLS qu'une `.so` ne peut pas porter) : 415 symboles attendus de l'hôte, tous exportés par `rustc` (le seul absent, `_ZTH10_tls_errno`, est faible) ; TLS 12,9 Ko |
+| LLVM pour Korin | construit par bootstrap : `CMAKE_SYSTEM_NAME=Linux` pour `korin` (sinon `Generic`, sans Unix), ni `libLLVM.so`, ni `libLTO`, ni `libRemarks`, ni greffons, `CMAKE_SKIP_RPATH` (outils statiques) — `link-shared = true` reste vrai pour le LLVM de la CI de la machine de construction |
+| `llvm-config` | `rustc_llvm` interroge un `llvm-config` qui tourne sur la machine de construction : `llvm-config-native`, compilé par `rustc-build.sh` de `llvm-config.cpp` avec la configuration de la construction de Korin et la Support de la CI, posé dans `bin/` de l'installation de Korin (il en déduit préfixe et bibliothèques) et donné à bootstrap comme `llvm-config` de Korin |
+| les caisses vendues du compilateur | `libc` 0.2.183 reçoit le module `korin` (`libc.patch`) ; `tools/rust/rustc-vendor/` : `getrandom` 0.2.16, 0.3.3, 0.4.2, `rustix` 1.1.2 (`tools/craft/rustix_korin.py`) |
+| le compilateur lui-même | `rustc_driver_impl` sans `ctrlc` (sa `nix` ne connaît pas Korin ; un Ctrl-C arrête rustc par l'action par défaut du signal) ; `target_os = "korin"` déclaré à bootstrap (`EXTRA_CHECK_CFGS`) pour le stage 0 ; `struct flock` de newlib dans `libc.patch` (verrous de `rustc_data_structures`) |
+| la std de la chaîne | celle du stage 1 (même source, même version : ce que fait la distribution de Rust pour un hôte croisé), `.rlib` **et** `.rmeta` (les `.rlib` n'y portent qu'un résumé des métadonnées) |
+
+### Ce que Korin a dû changer
+
+* **Les chemins d'exec du noyau du PC** (`src/kernel/core/proc.c`, `image.c`) : 80 octets, et un programme au chemin plus
+  long rendait `EINVAL` (cargo lance `target/debug/build/<caisse>-<empreinte>/build-script-build`). 256
+  (`IMAGE_PATH_MAX`) ; `SYS_PROC_EXE` et `IMAGE_LIST` gardent leur forme, tronqués à leur champ. `ktest` 59/0 ;
+  `mtest` 17/2, deux échecs qui existaient avant (vérifié avec le noyau d'avant). **Le noyau du Pi (assembleur) n'a
+  pas été regardé.**
+* **`getrlimit (RLIMIT_NOFILE)`** rend 64, ce que Korin laisse vraiment ouvert (AppKit) ; `rlim_max` et
+  `_SC_OPEN_MAX` restent à 1024. bfd (ld) garde `rlim_cur / 8` fichiers ouverts : avec 1024, il échouait au 65e
+  (« File descriptor value too large ») dès une soixantaine d'objets. Le `ld` de Korin est relié
+  (`RELINK=1 ARCH=x86_64 sh tools/gcc/build.sh`).
+* les enveloppes de gcc et g++ de `rustc-build.sh` ajoutent `-D_GNU_SOURCE` (sans lui, newlib cache POSIX à LLVM, en
+  `-std=c++17`).
+
+### Essais (QEMU q35, 2 Go, 4 cœurs, 21/11/2026)
+
+| Essai | Résultat |
+|---|---|
+| `rustc -vV` | `rustc 1.97.1 (8bab26f4f 2026-07-14)`, `host: x86_64-unknown-korin`, `LLVM version: 22.1.6` |
+| `rustc --crate-type=rlib -O mylib.rs` (traits, génériques, macros) | 11 s |
+| `rustc -O --emit=obj,asm hello.rs` | 30 à 40 s ; l'assembleur ne diffère de celui du rustc de Linux que par le chemin des sources de `core` (`/rustc/<commit>/…`, remappé) |
+| `rustc -O hello.rs` puis `./hello` | lié par le GCC de Korin : `hello from rustc on Korin: fib(30) = 832040, …` |
+| `cargo build` de `libproj` (cfg-if, either, heck, itoa) | 1 min 43 s |
+| `cargo run` de `proj` (les mêmes, un programme) | téléchargées, compilées, liées, lancées : `korin_cargo` (2 min) |
+| `cargo run -p app` de `macroproj` (`tools/cargo/test/projects/macroproj`) | **la macro procédurale** `#[derive(Hello)]` (une `.so` chargée par `dlopen` dans le rustc de Korin), **le `build.rs`** compilé et lancé (`TARGET` = `x86_64-unknown-korin`), le programme : `Point : 2 champ(s), macro chargée par rustc dans Korin (3, 4)` (2 min) |
+
+### Ce qui reste
+
+* le vrai ZBook ; un paquet `/devtools/rust` (≈ 450 Mo : `pkg`, gros paquet découpé) ;
+* le Pi (`aarch64-unknown-korin` comme hôte) : rien n'est fait ; son noyau en assembleur a peut-être la même limite de
+  chemin ;
+* une construction de `rustc-build.sh` depuis zéro (celle-ci s'est faite par étapes, les patchs appliqués aussi dans
+  l'arbre) ; les essais de la suite de rustc (`x.py test`) pour l'hôte Korin.
+
 ## Limites connues
 
 * **Pas essayé sur le Pi ni sur le vrai ZBook.** Sous QEMU seulement.

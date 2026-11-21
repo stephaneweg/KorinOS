@@ -1,5 +1,9 @@
 # cargo dans Korin PC
 
+**21/11/2026 : rustc tourne aussi dans Korin PC** ([RUST.md](RUST.md), « rustc dans Korin ») : `cargo build`, `cargo run`,
+les macros procédurales et les scripts de construction marchent ; ce que la suite dit de « ce qui demande rustc » ne
+vaut plus quand `/devtools/rust/bin/rustc` est là.
+
 Premier pas du port de Rust **dans** Korin (et non plus seulement vers Korin, [RUST.md](RUST.md)) : **cargo 0.98.0**,
 le gestionnaire de projets de Rust 1.97.1, construit pour `x86_64-unknown-korin` et lancé dans Korin. Fait le
 21/11/2026 dans une session du cloud ; **QEMU q35 seulement**, pas encore essayé sur le ZBook.

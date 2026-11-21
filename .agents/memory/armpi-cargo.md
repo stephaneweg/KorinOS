@@ -34,4 +34,11 @@ symbole manquant ; opt/llc dans Korin = sortie identique à Linux. À retenir po
 pas dans une .so (TLS) -> la prendre chez l'hôte (dlhost-cxx.ld) ; bootstrap donne CMAKE_SYSTEM_NAME=Generic à « korin »
 (à patcher en Linux dans llvm.rs).
 
+Étapes 4-5 faites le 21/11 (docs/RUST.md « rustc dans Korin ») : rustc + librustc_driver.so (LLVM statique, sans
+libstdc++ ; rustc l'exporte par dlhost-cxx.ld) construits par KORIN_HOSTS=x86_64-unknown-korin rustc-build.sh ;
+/devtools/rust ; cargo build/run, proc-macro, build.rs marchent sous QEMU. Corrigé en route : noyau PC (chemins d'exec
+80 -> 256), libposix RLIMIT_NOFILE=64 (bfd). Pièges : cargo ne recompile pas une caisse vendue patchée (effacer
+stage2-rustc/.../libX) ; changer bootstrap recompile tout le stage 1 ; mtest 17/2 existait avant.
+Reste : ZBook, paquet, Pi, reconstruction depuis zéro.
+
 Lié : [[armpi-rust]], [[armpi-craft]].
