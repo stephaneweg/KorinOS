@@ -13,6 +13,7 @@ OUT=${1:-build/pc/sysroot}
 [ -d "$OUT/bin" ] || { echo "absent : $OUT (d'abord : sh tools/pc/sysroot.sh)"; exit 1; }
 A=build/craft/x86_64/apps
 [ -d "$A/craft.app" ] || { echo "Suite ArtCraft pas construite ($A : bash tools/craft/all.sh)"; exit 0; }
+mkdir -p "$OUT/apps"
 n=0
 for d in "$A"/*.app; do
 	a=$(basename "$d" .app)

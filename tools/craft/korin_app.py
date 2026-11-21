@@ -158,6 +158,14 @@ if name == "craft-anything":
          "# Korin : libc, sans nix (tools/craft/korin_app.py)\n[target.'cfg(target_os = \"korin\")'.dependencies]\nlibc = \"0.2\"\n\n"
          "[target.'cfg(all(unix, not(target_os = \"korin\")))'.dependencies]\nnix = "),
     ])
+    # portable-pty (nix 0.28, serial2) : les terminaux de la capture, pour Linux, macOS et Windows ; Korin capture par
+    # des tubes (le chemin « piped », comme FreeBSD)
+    edit("crates/platform/Cargo.toml", [
+        ('portable-pty = "0.9"\n', ""),
+        ("# Korin : libc, sans nix (tools/craft/korin_app.py)\n",
+         "# Korin : libc, sans nix ni portable-pty (tools/craft/korin_app.py)\n"
+         "[target.'cfg(not(target_os = \"korin\"))'.dependencies]\nportable-pty = \"0.9\"\n\n"),
+    ])
     edit("crates/platform/src/fs.rs", [
         ("        options.custom_flags(nix::libc::O_NONBLOCK);",
          "        #[cfg(target_os = \"korin\")]\n        options.custom_flags(libc::O_NONBLOCK);\n"
