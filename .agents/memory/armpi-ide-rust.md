@@ -23,3 +23,11 @@ Voir [[armpi-craft]], [[armpi-ide-avalonia]], [[armpi-rust]].
 
 **Dans ce dépôt** (décidé le 21/11 : il a tout pour Korin). **Nom : KorinStudio** (choisi le 21/11, après DevCraft écarté : Telerik DevCraft existe) ; `src/apps/korinstudio`, catégorie
 **Développement**, pas dans la Suite ArtCraft.
+
+21/11 (soir) : **KorinStudio v0.1 fait** (demande : « l'air pro comme VS Code », un copilote Vibe/Claude Code/claude-acp
+qui crée des projets et travaille dans l'IDE) : `src/apps/korinstudio` (Rust, egui 0.37 ; eframe sur l'hôte,
+egui-korin sous Korin car l'eframe de Korin suit la fourche d'egui de storytold), `tools/korinstudio/build.sh`,
+docs/KORINSTUDIO.md. Serveur MCP 127.0.0.1:7314 (15 outils, `approve` pour Claude Code, `--mcp-bridge` stdio pour
+Vibe), `~/.config/korinstudio/mcp.json`. Essayé : Linux (Xvfb) avec le vrai Claude Code : create_project, write_file,
+build, run d'un projet Rust en 16 s ; Korin sous QEMU : s'ouvre, menus dans la barre, thème clair. Pas encore publié
+(paquet à ajouter). Suite : LSP, éditeur à soi, pty.

@@ -1,0 +1,7 @@
+# Manifeste de KorinStudio (src/apps/korinstudio, docs/KORINSTUDIO.md) : l'environnement de développement de Korin.
+name     = KorinStudio
+category = Développement
+opens    = rs c h cpp hpp cc cs bas bi asm inc s py toml json md sh mk csproj txt ini xml axaml
+description = L'environnement de développement de Korin, à la manière de VS Code : Rust, C, C++, C#, FreeBASIC, assembleur, Python ; construire, lancer, erreurs cliquables, Git, terminal ; un copilote (Claude Code, Claude, Mistral Vibe, MAI) qui crée les projets et travaille dans l'IDE.
+keywords = ide éditeur code programmer développement rust c cpp csharp freebasic basic assembleur python copilote claude vibe mcp vscode
+help = Ctrl+P ouvre un fichier, Ctrl+Maj+P les commandes, Ctrl+Maj+B construit, F5 exécute, Ctrl+Alt+I ouvre le copilote. Le copilote agit dans l'IDE par le serveur MCP de KorinStudio (port 7314).

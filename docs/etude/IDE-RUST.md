@@ -2,7 +2,11 @@
 
 Étude du 21/11/2026, demandée par l'utilisateur : un nouvel IDE écrit en **Rust avec egui**, dans le style des apps
 Craft, **portable** (Korin d'abord, puis Windows, Linux, macOS), qui prend en charge **Rust, C (gcc), l'assembleur,
-FreeBASIC, le BASIC et C#**. Rien n'est fait.
+FreeBASIC, le BASIC et C#**.
+
+**Commencé le 21/11** : la première version est faite, [../KORINSTUDIO.md](../KORINSTUDIO.md) (étapes 0, 2, 4 et une
+partie de 1, 3 et 5 : interface de VS Code, éditeur coloré, construire et lancer, problèmes, recherche, Git, terminal
+simple, copilote et serveur MCP).
 
 **Précisions de l'utilisateur (21/11)** : la cible est **le PC** (Korin x86-64) ; **à terme ce sera le seul IDE** de
 Korin (il remplace le Studio Avalonia, QBStudio…), et il prend aussi **le BASIC**.

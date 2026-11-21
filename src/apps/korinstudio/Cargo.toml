@@ -1,0 +1,29 @@
+[package]
+# KorinStudio : l'IDE de Korin (docs/KORINSTUDIO.md), en Rust et egui, portable : Korin PC (egui-korin, construit
+# par tools/korinstudio/build.sh), Linux, Windows, macOS (eframe de crates.io).
+name = "korinstudio"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+egui = { version = "0.37", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+regex = { version = "1", default-features = false, features = ["std", "unicode-perl"] }
+
+# sous Korin : la fenêtre d'egui-korin (docs/EGUI.md), sans eframe (celui de Korin suit la fourche d'egui de storytold)
+[target.'cfg(target_os = "korin")'.dependencies]
+egui-korin = { path = "../../lib/egui-korin" }
+
+[target.'cfg(not(target_os = "korin"))'.dependencies]
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
+
+[profile.release]
+opt-level = 3
+debug = false
+strip = true
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("korin"))'] }
