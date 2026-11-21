@@ -351,6 +351,16 @@ date restent. **Réglages > Effacer les cookies et données des sites…** (et l
 `engine_clear_site_data` (cookies, localStorage, IndexedDB, service workers, Cache Storage, cache HTTP,
 caches en mémoire).
 
+**Le process réseau tournait à vide (corrigé le 21/11, `tools/webkit/ports/curl/build.sh`)** : au repos, sur une
+page fixe, le thread `curlThread` (l'ordonnanceur de curl de WebKit) faisait 36 000 à 49 000 appels système par
+seconde, depuis toujours (jet 1.4.1 aussi). Son attente, `curl_multi_poll` sans limite de temps, porte sur le réveil
+de curl, un tube chez Onyx ; or le `poll()` de libposix n'attend dans le noyau (HANDLE_WAIT) que les canaux locaux
+(`socketpair` AF_UNIX) et la mémoire partagée : un tube ou une socket de NetKit est regardé par une boucle en espace
+utilisateur, 1000 fois par seconde (`src/lib/posix/poll.c`). Sur le PC, curl se construit maintenant avec un réveil en
+`socketpair` AF_UNIX (`HAVE_PIPE=0`, `HAVE_SOCKETPAIR=1`, sockets Unix) : 0 appel par seconde au repos. Pendant un
+transfert, les sockets de NetKit gardent la boucle de 1 ms (à faire : une attente de netd dans le noyau). Trouvé par
+les noms des threads (libposix les donne au noyau : `cpuwatch`), `pctest.py rips:N` et `tools/linux/polltest`.
+
 **Cookies perdus en quittant (corrigé le 20/11, `tools/webkit/patches/0011-cookies-commit.patch`)** : on ne
 restait pas connecté à Spotify. `CookieJarDB::hasCookies` et `hasHttpOnlyCookie` (curl) laissaient leur requête
 préparée sur sa ligne trouvée, sans `reset()` : l'instruction restait active, et SQLite repousse le commit de toute

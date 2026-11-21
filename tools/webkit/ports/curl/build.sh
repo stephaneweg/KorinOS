@@ -20,6 +20,12 @@ onyx_install_deps
 [ -f "$ONYX_SYSROOT/lib/libssl.a" ] || sh "$PORTS/openssl/build.sh"
 
 S=$ONYX_SYSROOT
+# Korin PC: the wake-up is an AF_UNIX socketpair, not a pipe. libposix's poll() waits for local channels in the
+# kernel (HANDLE_WAIT) but looks at pipes and NetKit sockets in a user-space loop, 1000 times a second: the
+# scheduler's thread (curlThread), waiting on its pipe without a time limit, made 36,000 calls a second and kept
+# netd busy on a page at rest (20/11/2026). (The Pi: unchanged, not tried there.)
+WAKE="-DHAVE_SOCKETPAIR=0 -DENABLE_UNIX_SOCKETS=OFF"
+[ "${ONYX_ARCH:-}" = x86_64 ] && WAKE="-DHAVE_SOCKETPAIR=1 -DHAVE_PIPE=0 -DENABLE_UNIX_SOCKETS=ON"
 echo "curl: configure (CMake, the Onyx toolchain file)"
 onyx_cmake -S "$SRC" -B "$B" -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON -DBUILD_STATIC_CURL=ON \
 	-DBUILD_CURL_EXE=ON -DBUILD_TESTING=OFF -DBUILD_EXAMPLES=OFF -DBUILD_LIBCURL_DOCS=OFF \
@@ -33,9 +39,9 @@ onyx_cmake -S "$SRC" -B "$B" -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON -DBU
 	-DBROTLIDEC_LIBRARY="$S/lib/libbrotlidec.a" -DCURL_ZSTD=OFF \
 	-DCURL_USE_LIBPSL=OFF -DCURL_USE_LIBSSH2=OFF -DCURL_USE_LIBSSH=OFF -DUSE_LIBIDN2=OFF \
 	-DCURL_USE_GSSAPI=OFF -DCURL_DISABLE_LDAP=ON -DCURL_DISABLE_LDAPS=ON -DENABLE_IPV6=OFF \
-	-DENABLE_UNIX_SOCKETS=OFF -DENABLE_THREADED_RESOLVER=ON -DCURL_DISABLE_SOCKETPAIR=OFF \
+	-DENABLE_THREADED_RESOLVER=ON -DCURL_DISABLE_SOCKETPAIR=OFF $WAKE \
 	-DCURL_CA_BUNDLE="/etc/ca-bundle" -DCURL_CA_PATH=none \
-	-DHAVE_POLL_FINE=1 -DHAVE_SOCKETPAIR=0 -DHAVE_EVENTFD=0 \
+	-DHAVE_POLL_FINE=1 -DHAVE_EVENTFD=0 \
 	-DCMAKE_INSTALL_PREFIX="$S" >"$B/configure.log" || { tail -40 "$B/configure.log"; exit 1; }
 grep -E "Protocols:|Features:|Enabled SSL backends" "$B/configure.log" || true
 echo "curl: build"
