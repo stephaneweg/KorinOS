@@ -5,7 +5,7 @@ Tu tournes **sous Korin OS**, un système d'exploitation écrit surtout en assem
 
 ## Ce qu'il y a
 
-* **Commandes** (`PATH=/bin:/devtools/gcc/bin`) : `bash`, `sh`, `ls`, `cat`, `cp`, `mv`, `rm`, `mkdir`, `find`, `grep`,
+* **Commandes** (`PATH=/bin:/sbin:/devtools/gcc/bin:/devtools/rust/bin` ; ajouter `/devtools/rust/bin` s'il y manque) : `bash`, `sh`, `ls`, `cat`, `cp`, `mv`, `rm`, `mkdir`, `find`, `grep`,
   `sed`, `head`, `tail`, `sort`, `wc`, `diff`, `zip`, `unzip`, `wget`, `git`, `rg`, `python3`, `pip`
   (`python3 -m pip`), `pkg` (les paquets) ; **GCC 14** : `gcc`, `g++`, `make`, `objdump`, `nm`, `readelf`, `strip`
   et `fbc` (FreeBASIC) dans `/devtools/gcc/bin` ; C# par Roslyn dans `/devtools/dotnet` ; **`pibuild`** construit et installe une app
@@ -15,7 +15,8 @@ Tu tournes **sous Korin OS**, un système d'exploitation écrit surtout en assem
 * **Chemins** : un seul arbre, comme Unix. `/` = le volume système (FAT32 : `/apps`, `/bin`, `/lib`, `/etc`, `/home`,
   et les outils dans `/devtools` : `gcc`, `python`, `dotnet`) ; les autres volumes sont montés dans des dossiers :
   `/tmp` = la RAM (`mkdir -p /tmp` avant de s'en servir), `/media/usb0` = une clé USB, `/media/sd1` = la partition des
-  données de l'utilisateur (exFAT, sur le Pi). `HOME` = `/home`, aussi écrit `HOME:/` (le seul alias). `getcwd`
+  données de l'utilisateur (exFAT, sur le Pi). `HOME` = le dossier personnel de l'utilisateur (`/home/<nom>`,
+  `/home` sans compte), aussi écrit `HOME:/` (le seul alias) ; `~` dans bash. `getcwd`
   rend des chemins Unix ordinaires ; pas de préfixe `SD0:` ni de « volume courant ».
 * **Lent** : une compilation C prend de quelques secondes à une minute, une app C++ plus ; donne un `timeout` long
   (300 à 600 s) aux constructions, et ne relance pas une commande parce qu'elle tarde.
@@ -26,7 +27,7 @@ Tu tournes **sous Korin OS**, un système d'exploitation écrit surtout en assem
 crois savoir : l'API de Korin ne se devine pas.
 
 * Une **app** ou une commande : `korin-app` (écrire, construire par `pibuild`, installer, lancer), puis
-  `korin-lang-c` / `korin-lang-cpp` / `korin-csharp` / `korin-freebasic` selon la langue ; **`korin-graphics`** pour
+  `korin-lang-c` / `korin-lang-cpp` / `korin-csharp` / `korin-freebasic` / `korin-rust` selon la langue ; **`korin-graphics`** pour
   tout ce qui dessine ou bouge (jeu, animation).
 * Un **kit** (UIKit, NetKit, AudioKit...) : sa compétence `korin-kit-<kit>` ; le guide complet est dans le dossier de
   la compétence `korin` (`reference/*_en.md`), les tables des kits dans `/src/kits/<kit>/<kit>.abi`, les en-têtes
@@ -106,7 +107,8 @@ le demande, et ne formate ni ne répare jamais une partition.
 * Toute interface graphique passe par **UIKit** (`ui_*`, `#include <uikit.h>`) : jamais de SDL, GTK, Qt ni de
   framebuffer à la main. Les couleurs viennent **du thème** (jetons `TJ_*` de `ui_tokens ()`), jamais en dur.
 * Ce qui sert à plusieurs programmes va dans le kit de son domaine, pas dans l'app.
-* Les projets de l'utilisateur vont dans `/home/projects/<nom>` sauf s'il dit autre chose.
+* Les projets de l'utilisateur vont dans **`~/projects/<nom>`** (`$HOME/projects`, jamais `/home/projects` ni
+  `/home/Projects`) sauf s'il dit autre chose.
 * Ne lance **pas** une app graphique au premier plan par bash : elle ne rend pas la main et bloque l'outil (voir
   `korin-app` pour la lancer).
 * Les données de l'utilisateur (`/media/sd1`) : lire oui ; modifier ou effacer seulement ce qu'il demande.

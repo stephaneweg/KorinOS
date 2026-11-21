@@ -91,7 +91,8 @@ def pc():
     if os.environ.get("KORIN_TEST_CA"):
         with open(os.path.join(t, "etc", "ca-bundle"), "a", encoding="ascii", newline="\n") as f:
             f.write("\n" + open(os.environ["KORIN_TEST_CA"], encoding="ascii").read())
-    mb = max(65, du(t) // (1 << 20) + 48)		# (de la place pour les fichiers des essais)
+    # (de la place pour les fichiers des essais ; KORIN_TEST_FREE_MB : plus, pour cargo et ses téléchargements)
+    mb = max(65, du(t) // (1 << 20) + int(os.environ.get("KORIN_TEST_FREE_MB", "48")))
     img = os.path.join(out, "disk.img")
     subprocess.check_call([sys.executable, "-I", "tools/pc/mkkorindisk.py", img, "--layout", "zbook",
                            "--sysroot", t, "--esp", esp, "--korin-mb", str(mb),

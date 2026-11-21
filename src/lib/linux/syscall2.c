@@ -514,12 +514,13 @@ static long proc_link (const char *path, char *buf, size_t n)
 		v = linux_exe_path ? linux_exe_path : "/bin/linuxhost";
 	else if (!strncmp (path, "/proc/self/fd/", 14) || !strncmp (path, "/proc/thread-self/fd/", 21))
 	{
-		/* le chemin d'un dossier ouvert (Bun : open (O_PATH), puis ce readlink, pour le vrai chemin du dossier
-		   courant) ; celui d'un fichier : pas connu ici */
+		/* le chemin d'un fichier ou d'un dossier ouvert (Bun : open, puis ce readlink, pour le vrai chemin ; un
+		   « /dev/fd/N » ici faisait poser a Claude Code ses verrous en /dev/fd/N.lock, refuses, puis attendre) */
 		extern char *__posix_at_path (int dirfd, const char *name, char *buf, size_t cap);
+		extern char *__posix_fd_path (int fd, char *buf, size_t cap);
 		int fd = atoi (strrchr (path, '/') + 1);
 		static __thread char dir[1024];
-		if (__posix_at_path (fd, "", dir, sizeof dir))
+		if (__posix_fd_path (fd, dir, sizeof dir) || __posix_at_path (fd, "", dir, sizeof dir))
 		{
 			size_t l = strlen (dir);
 			while (l > 1 && dir[l - 1] == '/')

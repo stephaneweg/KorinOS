@@ -10,7 +10,7 @@ Une app Korin est un dossier **`/apps/<nom>.app/`** (aussi écrit `/apps/<nom>.a
 qui contient **`main`** (l'exécutable, un ELF statique AArch64) et **`app.txt`** (le manifeste). Le menu Korin, le
 lanceur du panneau et PocketQI la trouvent tout seuls : rien d'autre à enregistrer.
 
-On ne l'écrit pas à la main dans `/apps` : on écrit les sources dans **`/home/projects/<nom>/`**, puis
+On ne l'écrit pas à la main dans `/apps` : on écrit les sources dans **`~/projects/<nom>/`**, puis
 **`pibuild`** compile, lie avec tous les kits et installe. (Si `/devtools/gcc/bin/gcc` manque : `pkg add gcc make` ; si
 `/devtools/gcc/lib/libuikit.a` manque : `pkg update gcc`, à demander à l'utilisateur.) Pour
 une app en C# ou en FreeBASIC : compétences `korin-csharp`, `korin-freebasic`.
@@ -19,14 +19,14 @@ une app en C# ou en FreeBASIC : compétences `korin-csharp`, `korin-freebasic`.
 
 1. Choisir un **nom en anglais**, en minuscules, sans espace (`counter`, `notes2`) : le dossier des sources, l'app
    installée (`/apps/<nom>.app`) et l'argument de `pibuild` portent ce nom.
-2. Créer `/home/projects/<nom>/` avec :
+2. Créer `~/projects/<nom>/` avec :
    * `main.c` (ou `main.cpp`) ; **tous** les `.c` et `.cpp` du dossier et de ses sous-dossiers sont compilés ;
    * `app.txt`, le manifeste (plus bas) ;
    * au besoin `data/lang-en.txt` (traduction anglaise), `help_fr.md` et `help_en.md` (l'aide du menu Aide).
 3. Construire et installer :
 
    ```sh
-   pibuild app /home/projects/<nom> <nom>
+   pibuild app ~/projects/<nom> <nom>
    ```
 
    Réussi quand la dernière ligne est `Installe : /apps/<nom>.app/main`. Les erreurs de `gcc` s'affichent comme

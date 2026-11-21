@@ -38,7 +38,7 @@ Korin OS has **a single tree**, as on Unix: `/` is the system volume, and the ot
 | `x`, `./x`, `../x` | relative to the current folder (`chdir`, `getcwd`) |
 | `/dev/null`, `/dev/zero`, `/dev/urandom`, `/dev/random`, `/dev/stdin`, `/dev/stdout`, `/dev/stderr`, `/dev/tty` | pseudo-files |
 
-`getcwd` and `realpath` return plain absolute paths (`/home/projects/x`, `/bin/sh`), without `.`, `..` or links; `realpath` keeps a `HOME:/` prefix as it was written. An app writes the user's documents under `HOME:/` (`HOME:/documents`...) rather than a fixed `/home`: the home folder will depend on the user once accounts exist. In POSIX, `HOME` is `/home` and `PATH` is `/bin:/sbin:/devtools/gcc/bin:/devtools/rust/bin` by default.
+`getcwd` and `realpath` return plain absolute paths (`/home/anna/projects/x`, `/bin/sh`), without `.`, `..` or links; `realpath` keeps a `HOME:/` prefix as it was written. An app writes the user's documents under `HOME:/` (`HOME:/documents`...) rather than a fixed `/home`: the home folder will depend on the user once accounts exist. In POSIX, `HOME` is `/home` and `PATH` is `/bin:/sbin:/devtools/gcc/bin:/devtools/rust/bin` by default.
 
 > **Note**: on the Pi, `/media/sd1` is the user's personal partition (exFAT); a program writes there only what the user asks it to.
 

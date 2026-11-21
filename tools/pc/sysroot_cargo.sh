@@ -3,6 +3,7 @@
 # build/pc/sysroot) :
 #     devtools/rust/bin/cargo   cargo 0.98.0 (bash tools/cargo/build.sh -> build/pc/cargo/cargo)
 #     devtools/rust/bin/rustc, devtools/rust/lib   rustc 1.97.1 pour Korin et sa std, s'ils sont construits
+#     devtools/rust/vendor, devtools/rust/etc/cargo/config.toml   les caisses qui connaissent Korin (korin-vendor.sh)
 #                               (KORIN_HOSTS=x86_64-unknown-korin bash tools/rust/rustc-build.sh)
 #     etc/ca-bundle             les autorités de https (crates.io), si l'arbre ne l'a pas (comme sysroot_git.sh)
 #
@@ -30,6 +31,16 @@ if [ -x "$TCH/bin/rustc" ]; then
 	cp "$TCH/bin/rustc" "$OUT/devtools/rust/bin/rustc"
 	cp -r "$TCH/lib" "$OUT/devtools/rust/"
 	echo "$OUT : /devtools/rust/bin/rustc et sa bibliothèque ($(du -sh "$TCH" | cut -f1))"
+	# les caisses de crates.io qui connaissent Korin et la configuration de cargo qui les donne à tous les projets
+	# (bash tools/rust/korin-vendor.sh -> build/pc/rust/korin-vendor)
+	KV=build/pc/rust/korin-vendor
+	if [ -f "$KV/etc/cargo/config.toml" ]; then
+		rm -rf "$OUT/devtools/rust/vendor" "$OUT/devtools/rust/etc"
+		cp -r "$KV/vendor" "$KV/etc" "$OUT/devtools/rust/"
+		echo "$OUT : /devtools/rust/vendor ($(ls "$KV/vendor" | wc -l) caisses) et etc/cargo/config.toml"
+	else
+		echo "caisses de Korin pas préparées ($KV : bash tools/rust/korin-vendor.sh)"
+	fi
 else
 	echo "rustc pour Korin pas construit ($TCH : KORIN_HOSTS=x86_64-unknown-korin bash tools/rust/rustc-build.sh)"
 fi

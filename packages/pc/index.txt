@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 18:13
+date = 2026-11-21 19:44
 abi = 626
 packages = 117
 board = pc
@@ -512,18 +512,18 @@ content = a50ab76c8a7a51009d8ae52d350ea54617bb7028b3c984e6fa8707b7c95b871d
 
 [claude]
 title = Claude (API)
-version = 1.0.8
+version = 1.0.9
 category = Développement
 author = Korin OS
 summary = Claude, l'agent de code d'Anthropic, par sa clé d'API : l'app Claude, ou agent --claude au Terminal
-size = 8084788
-installed = 18038457
-sha256 = a06855397a57e6ca1935426b3475ea98beff6ee6be31c4d9d2130422e55f64b9
-file = pkgs/claude-1.0.8.opk
+size = 8092848
+installed = 18053826
+sha256 = 8f9508c965c637587f14bf61550e8b6c50f73bec8869754ab8f6a2587aca70eb
+file = pkgs/claude-1.0.9.opk
 needs = vibe, abi >= 626
 required = 0
 restart = 0
-content = f9e909f36d289b4c63d396abb4e52daed6877dc4c78e06a0dab8d4ae7f18c925
+content = c4645e1ed7756ea88bd1dc75bd2eff487ce66c1c4206d5cd5afa8e12ce0a61c1
 
 [vibe-data-1]
 title = Mistral Vibe (1/2)
@@ -559,18 +559,18 @@ content = 4a62f5b65e76b629ed9b38197e4b13cefd661b379360c0c35ad7d50d0e65c422
 
 [vibe]
 title = Mistral Vibe
-version = 1.0.7
+version = 1.0.8
 category = Développement
 author = Korin OS
 summary = L'agent de code de Mistral : l'app Vibe, le client terminal agent, vibe-acp, et ses compétences de Korin (apps en C, C#, FreeBASIC, diagnostic)
-size = 536926
-installed = 1172742
-sha256 = a01538416c15681b7bfac6267732a961ba720b6f39e412e4269e49fc394d325b
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vibe-1.0.7.opk
-needs = python, bash, git, rg, vibe-data-1, vibe-data-2, abi >= 626
+size = 544912
+installed = 1188144
+sha256 = c32b6f6849c2f8a2e931e2cced8f327535eb5c0ee2bd53ebb112dda8c92c5758
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vibe-1.0.8.opk
+needs = python, bash, git, rg, abi >= 626
 required = 0
 restart = 0
-content = 57824ad560c30c3010c4cf4c9e1d1ae5022ec7f340d823874774cd6eb2138ca1
+content = 03a740ca122677ba801806f740eadab05ad27e287abbba1584ec41ce56bb4027
 
 [bash]
 title = GNU bash
@@ -739,18 +739,18 @@ content = 9651f661dbc590aad6e129adcd1ae6d847f34a7ac621233890d8a89895498bd1
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.72
+version = 2026.11.73
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 31985401
-installed = 96296097
-sha256 = f32a9e5f89f4309cd43f9d993ad1ece8099fa396f9b57790f4a82484bcf91805
-file = pkgs/pc-2026.11.72.opk
+size = 31985410
+installed = 96296131
+sha256 = 46443b0112dcfddc0e599f11ce84b0f2144663a0200be160b345d05e2703ecd1
+file = pkgs/pc-2026.11.73.opk
 needs = 
 required = 1
 restart = 1
-content = 2ebd0f9ca8612facbedf23d6cafc63f24537e8c8825581d2c58f3b82b30467f8
+content = 8476c903ddded1f6ed1c6ab17b15ef52d178a61628f0b7ac8ecbea1a5f01b54a
 
 [2048]
 title = 2048
@@ -2104,33 +2104,33 @@ content = 6ece06302780b3339d19e56ecc524ed39676504042306bfab0f8e0dfda7d1ace
 
 [linuxhost]
 title = Hôte Linux
-version = 1.0.0
+version = 1.0.1
 category = Développement
 author = Korin OS
 summary = Lance des programmes de Linux x86-64 sur Korin, sans les modifier (linuxhost run PROGRAMME) : ce qui fait tourner Claude Code
-size = 293326
+size = 293523
 installed = 614084
-sha256 = 7e9123f2a9462d0a23785f4dc66a4d4434cd9fac06ff2e65255095e0dd95c301
-file = pkgs/linuxhost-1.0.0.opk
+sha256 = 1555851530dc0ae68d02b23a56fa76c474cb55a053e5ccf93aa5c9838de16432
+file = pkgs/linuxhost-1.0.1.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 9a160cb312678648533df99c6774b0be31e47bec421d58366f0b68a24eeaa2fe
+content = bbe8254c53337ff137473521168c2ac3f6b66f5083806bfd9deef8a7a569e810
 
 [claude-code]
 title = Claude Code
-version = 2.1.330
+version = 2.1.330.1
 category = Développement
 author = Korin OS
-summary = Claude Code, l'agent de code d'Anthropic, par votre abonnement Claude (Pro, Max, Team) : la commande claude au Terminal, et Craft Anything s'en sert
-size = 1861
-installed = 381122877
-sha256 = 6ffe15522979ce4f512fdd012f1b74ecd28e378d9140059b63ef29b350a33099
-file = pkgs/claude-code-2.1.330.opk
-needs = linuxhost, bash, git, rg, python, pkgman >= 1.0.21, abi >= 626
+summary = Claude Code, l'agent de code d'Anthropic, par votre abonnement Claude (Pro, Max, Team) : la commande claude au Terminal, et Craft Anything s'en sert (téléchargé chez Anthropic à l'installation, 380 Mo)
+size = 3336230
+installed = 388409859
+sha256 = 1a953f1fc42f92152c9f985b4e657227172b8e727445144cd1b1d0aed0a1dde6
+file = pkgs/claude-code-2.1.330.1.opk
+needs = linuxhost, bash, git, rg, python, pkgman >= 1.0.21, abi >= 627
 required = 0
 restart = 0
-content = a0bc74b15cf6b2b540a802c1b62f40ff9d4ab34aa1ca971ab41a96a61c53f5d0
+content = 1afc29a78ce1c4463eacb98988e318789244d15f9b089223a4f058fb0d085b5b
 
 [rust-data-1]
 title = Rust (1/1)

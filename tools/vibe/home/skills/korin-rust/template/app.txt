@@ -1,0 +1,3 @@
+name     = Compteur
+category = Accessoires
+description = Un compteur : le modèle d'app en Rust de la compétence korin-rust.

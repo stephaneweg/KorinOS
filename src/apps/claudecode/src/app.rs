@@ -58,6 +58,8 @@ pub struct App {
     current: Option<String>,
     search: String,
     dialog: Dialog,
+    /// Le sélecteur de dossier à ouvrir (main.rs : Host::folder_choose), sur ce dossier.
+    pub folder_request: Option<String>,
     t: Tokens,
     dark: Option<bool>,
     last_scan: Instant,
@@ -85,6 +87,7 @@ impl App {
             current: None,
             search: String::new(),
             dialog: Dialog::None,
+            folder_request: None,
             t: Tokens::studio(),
             dark: None,
             last_scan: Instant::now(),
@@ -340,6 +343,14 @@ impl App {
             (21, if theme == "dark" { 2 } else { 0 }),
             (22, if theme == "light" { 2 } else { 0 }),
         ]
+    }
+
+    /// Le dossier choisi dans le sélecteur de Korin : celui de la nouvelle conversation.
+    pub fn folder_chosen(&mut self, dir: String) {
+        if let Dialog::NewChat { cwd } = &mut self.dialog {
+            let t = dir.trim_end_matches('/');
+            *cwd = if t.is_empty() { "/".to_owned() } else { t.to_owned() };
+        }
     }
 
     /// Un choix dans la barre de menus ; rend true pour Quitter.
@@ -871,15 +882,27 @@ impl App {
             }
             Dialog::NewChat { cwd } => {
                 let recent = self.org.recent_dirs.clone();
+                let mut pick = false;
                 let r = modal(ctx, "nouvelle", "Nouvelle conversation", |ui| {
                     ui.label(RichText::new("Le dossier où Claude travaillera (il y lit et modifie les fichiers, avec votre accord) :").color(t.text_dim));
-                    let e = ui.add(TextEdit::singleline(cwd).font(theme::mono(theme::CODE)).desired_width(420.0));
-                    if ui.memory(|m| m.focused().is_none()) {
-                        e.request_focus();
-                    }
-                    for d in recent.iter().take(5) {
-                        if ui.add(Label::new(RichText::new(format!("↺ {d}")).font(egui::FontId::proportional(theme::LABEL)).color(t.accent_ink)).sense(Sense::click())).clicked() {
-                            *cwd = d.clone();
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        egui::Frame::new().fill(t.field).stroke(egui::Stroke::new(1.0, t.card_border)).corner_radius(theme::R).inner_margin(egui::Margin::symmetric(8, 5)).show(ui, |ui| {
+                            ui.set_width(330.0);
+                            ui.add(Label::new(RichText::new(format!("🗀  {cwd}")).font(theme::mono(theme::CODE)).color(t.text)).truncate());
+                        });
+                        if ui.button("Choisir…").on_hover_text("Le sélecteur de dossier de Korin").clicked() {
+                            pick = true;
+                        }
+                    });
+                    let others: Vec<&String> = recent.iter().filter(|d| *d != cwd).take(5).collect();
+                    if !others.is_empty() {
+                        ui.add_space(4.0);
+                        ui.label(RichText::new("Récents").font(theme::medium(theme::CAPTION)).color(t.text_faint));
+                        for d in others {
+                            if ui.add(Label::new(RichText::new(format!("↺ {d}")).font(egui::FontId::proportional(theme::LABEL)).color(t.accent_ink)).sense(Sense::click())).clicked() {
+                                *cwd = d.clone();
+                            }
                         }
                     }
                     let ok = Path::new(cwd.trim()).is_dir();
@@ -889,6 +912,10 @@ impl App {
                     let r = buttons(ui, &t, "Commencer", ok && ui.input(|i| i.key_pressed(Key::Enter)));
                     if r == Some(true) && !ok { None } else { r }
                 });
+                if pick {
+                    // (le sélecteur s'ouvre hors de la passe d'egui : main.rs, par Host::folder_choose)
+                    self.folder_request = Some(cwd.clone());
+                }
                 match r {
                     Some(true) => {
                         let d = cwd.trim().trim_end_matches('/').to_owned();

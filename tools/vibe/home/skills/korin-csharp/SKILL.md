@@ -16,15 +16,15 @@ c'est **`pibuild`** qui compile.
 * Un dossier avec des `.cs` (sans `.csproj`) :
 
   ```sh
-  pibuild app /home/projects/<nom> <nom>     # -> /apps/<nom>.app/main (une DLL), avec app.txt et data/
-  pibuild bin /home/projects/<nom> <nom>     # -> /bin/<nom> (programme de terminal)
-  pibuild lib /home/projects/<nom> <nom>     # -> /devtools/dotnet/<nom>.dll, une bibliothèque pour tous les programmes
+  pibuild app ~/projects/<nom> <nom>     # -> /apps/<nom>.app/main (une DLL), avec app.txt et data/
+  pibuild bin ~/projects/<nom> <nom>     # -> /bin/<nom> (programme de terminal)
+  pibuild lib ~/projects/<nom> <nom>     # -> /devtools/dotnet/<nom>.dll, une bibliothèque pour tous les programmes
   ```
 
   Tous les `.cs` du dossier et des sous-dossiers sont compilés (pour une app, chaque `lib/<x>/` devient `x.dll` à
   côté). Les `.ui` (fenêtres WinForms en XML) sont compilés avec le code. Réussi quand la dernière ligne est
   `Installe : /apps/<nom>.app/main`.
-* Un dossier avec un **`.csproj`** : `pibuild /home/projects/<nom> <nom>`, et c'est le projet qui décide
+* Un dossier avec un **`.csproj`** : `pibuild ~/projects/<nom> <nom>`, et c'est le projet qui décide
   (`OutputType` `Exe`/`WinExe` → app ; `Library` → `/devtools/dotnet`). Lu par `csbuild`, un sous-ensemble de MSBuild :
   `Compile`, `Reference` (`/devtools/dotnet/ref`), `ProjectReference`, `ImplicitUsings`, `Nullable`, `LangVersion`,
   `DefineConstants`, `Condition` simples. `PackageReference` seulement pour ce qui est dans `/devtools/dotnet/ref` ou
