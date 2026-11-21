@@ -391,6 +391,12 @@ ARCH=x86_64 sh tools/gcc/build.sh                                 # GCC dans Kor
 sh tools/pc/sysroot.sh && sh tools/pc/sysroot_gcc.sh && sh tools/pc/sysroot_cargo.sh   # /devtools/gcc, /devtools/rust
 ```
 
+Retoucher le compilateur : modifier l'arbre `~/korin-rustc/src`, puis `bash tools/rust/rustc-mkpatch.sh [fichier nouveau...]`
+refait `tools/rust/rustc.patch` (les fichiers qu'il touche déjà, plus ceux donnés) et vérifie qu'il s'applique sur des
+sources neuves ; mettre à jour le tampon `~/korin-rustc/src/.korin` (commande dans le script) pour que `rustc-build.sh`
+garde l'arbre au lieu de le refaire. Vérifié le 21/11/2026 : les patchs du dépôt, rejoués sur les sources de la 1.97.1,
+redonnent l'arbre construit (seule différence : `struct flock` en plus dans la `libc` de la `std`, sans effet sur elle).
+
 ### Comment rustc est fait pour Korin
 
 | Morceau | Pour Korin |

@@ -181,7 +181,8 @@ echo "rustc-build : $ST"
 #    bootstrap ne reconstruit plus ce LLVM : effacer build/<hôte>/llvm pour le refaire).
 #    Le programme rustc est l'hôte de librustc_driver.so, de la std et des macros procédurales : il exporte la libc
 #    (-rdynamic) et libstdc++ (dlhost-cxx.ld de libposix, que demande le C++ de LLVM dans librustc_driver) ;
-#    compiler/rustc/build.rs lit KORIN_DLHOST_CXX et KORIN_RUSTC_LINK_ARGS (rustc.patch).
+#    compiler/rustc/build.rs lit KORIN_DLHOST_CXX et KORIN_RUSTC_LINK_ARGS (rustc.patch ; par défaut -tls-reserve=0x40000,
+#    la réserve TLS des .so chargées au démarrage, avec laquelle la chaîne publiée a été construite).
 for h in ${KORIN_HOSTS:-}; do
 	K=$S/build/$h/llvm
 	if [ ! -x "$K/bin/llvm-config-native" ]; then
@@ -203,7 +204,7 @@ for h in ${KORIN_HOSTS:-}; do
 	x86_64) P=$ROOT/build/pc/posix/lib ;;
 	aarch64) P=$ROOT/build/posix/lib ;;
 	esac
-	(cd "$S" && KORIN_DLHOST_CXX=$P/dlhost-cxx.ld KORIN_RUSTC_LINK_ARGS="${KORIN_RUSTC_LINK_ARGS:-}" \
+	(cd "$S" && KORIN_DLHOST_CXX=$P/dlhost-cxx.ld KORIN_RUSTC_LINK_ARGS="${KORIN_RUSTC_LINK_ARGS--tls-reserve=0x40000}" \
 		python3 x.py build --stage 2 compiler/rustc library --host "$h" --target "$h" -j "$(nproc)")
 	echo "rustc-build : $S/build/$h/stage2"
 done

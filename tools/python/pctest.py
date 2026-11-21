@@ -13,7 +13,8 @@
       « @600 commande » : jusqu'à 600 s (60 sinon) ; « rips:N » : N relevés du RIP de chaque processeur, avec son CR3 (profil) ; puis arrête QEMU. --hostfwd tcp::P-:Q en plus
       (plusieurs permis). « shot:NOM » : une capture de l'écran (build/pc/pytest/NOM.png) ; « sleep:S » : attendre ;
       « click:X,Y » : un clic gauche (écran de 1280×800, avec --qemu "-device usb-tablet,bus=xhci.0") ;
-      « dblclick:X,Y » : un double-clic ; « key:ctrl-c tab ret » : des touches (noms de sendkey de QEMU) ;
+      « dblclick:X,Y » : un double-clic ; « rclick:X,Y » : un clic droit ; « drag:X1,Y1,X2,Y2 » : glisser ;
+      « wheel:X,Y,N » : N crans de molette (négatif : vers le haut) ; « key:ctrl-c tab ret » : des touches (noms de sendkey de QEMU) ;
       « type:TEXTE » : un texte tapé (sans Entrée ; le noyau décode en AZERTY : qemu_pc.azerty_keys).
       Le journal du noyau : build/pc/pytest/debug.log.
 Les ports par défaut évitent ceux des autres essais (4461, 4471) ; QMP sur PORT + 1000.
@@ -137,6 +138,43 @@ def run(a):
                     q.cmd("input-send-event", events=[{"type": "btn", "data": {"down": down, "button": "left"}}])
                     time.sleep(0.15)
                 print("clic :", x, y, flush=True)
+                continue
+            if c.startswith("rclick:"):  # un clic droit en X,Y (menus contextuels)
+                x, y = (int(v) for v in c[7:].split(","))
+                q.cmd("input-send-event", events=[{"type": "abs", "data": {"axis": "x", "value": x * 32767 // 1279}},
+                                                  {"type": "abs", "data": {"axis": "y", "value": y * 32767 // 799}}])
+                time.sleep(0.3)
+                for down in (True, False):
+                    q.cmd("input-send-event", events=[{"type": "btn", "data": {"down": down, "button": "right"}}])
+                    time.sleep(0.15)
+                print("clic droit :", x, y, flush=True)
+                continue
+            if c.startswith("drag:"):  # glisser de X1,Y1 à X2,Y2, bouton gauche tenu, en dix pas
+                x1, y1, x2, y2 = (int(v) for v in c[5:].split(","))
+                def at(x, y):
+                    q.cmd("input-send-event", events=[{"type": "abs", "data": {"axis": "x", "value": x * 32767 // 1279}},
+                                                      {"type": "abs", "data": {"axis": "y", "value": y * 32767 // 799}}])
+                at(x1, y1)
+                time.sleep(0.3)
+                q.cmd("input-send-event", events=[{"type": "btn", "data": {"down": True, "button": "left"}}])
+                time.sleep(0.2)
+                for k in range(1, 11):
+                    at(x1 + (x2 - x1) * k // 10, y1 + (y2 - y1) * k // 10)
+                    time.sleep(0.08)
+                time.sleep(0.3)
+                q.cmd("input-send-event", events=[{"type": "btn", "data": {"down": False, "button": "left"}}])
+                print("glissé :", x1, y1, "->", x2, y2, flush=True)
+                continue
+            if c.startswith("wheel:"):  # la molette en X,Y : N crans (positif : vers le bas)
+                x, y, n = (int(v) for v in c[6:].split(","))
+                q.cmd("input-send-event", events=[{"type": "abs", "data": {"axis": "x", "value": x * 32767 // 1279}},
+                                                  {"type": "abs", "data": {"axis": "y", "value": y * 32767 // 799}}])
+                time.sleep(0.2)
+                for _ in range(abs(n)):
+                    for down in (True, False):
+                        q.cmd("input-send-event", events=[{"type": "btn", "data": {"down": down, "button": "wheel-down" if n > 0 else "wheel-up"}}])
+                    time.sleep(0.05)
+                print("molette :", x, y, n, flush=True)
                 continue
             if c.startswith("dblclick:"):  # un double-clic gauche en X,Y (comme click:, appuis rapprochés)
                 x, y = (int(v) for v in c[9:].split(","))

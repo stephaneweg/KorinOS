@@ -1,0 +1,29 @@
+[package]
+name = "claudecode"
+version = "1.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "Claude Code pour Korin : le frontal de la CLI officielle d'Anthropic (sessions, chat), sur egui (docs/etude/LINUX-HOST.md)"
+publish = false
+
+[[bin]]
+name = "claudecode"
+path = "src/main.rs"
+
+[dependencies]
+egui = { version = "0.37", default-features = false, features = ["default_fonts"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# l'hôte egui de Korin (docs/EGUI.md) : seulement pour la cible de Korin ; ailleurs (cargo test sur la machine de
+# construction) les modules sans fenêtre s'essaient seuls
+[target.'cfg(target_os = "korin")'.dependencies]
+egui-korin = { path = "../../lib/egui-korin" }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("korin"))'] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 4
