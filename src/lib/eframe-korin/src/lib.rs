@@ -123,6 +123,12 @@ impl Frame {
         None
     }
 
+    /// L'état de rendu GPU : jamais sur Korin (l'app prend son chemin CPU).
+    #[cfg(feature = "wgpu")]
+    pub fn wgpu_render_state(&self) -> Option<&egui_wgpu::RenderState> {
+        self.wgpu_render_state.as_ref()
+    }
+
     pub fn is_web(&self) -> bool {
         false
     }

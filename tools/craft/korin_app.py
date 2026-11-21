@@ -127,4 +127,10 @@ if name == "figcraft":
         ('    #[cfg(not(any(windows, unix)))]\n    {\n        false',
          '    #[cfg(any(target_os = "korin", not(any(windows, unix))))]\n    {\n        false'),
     ])
+if name == "soundcraft":
+    # l'hôte VST3 : pas de fenêtre pour l'éditeur d'un greffon sur Korin (« unsupported », comme les autres systèmes)
+    edit("crates/vst3-host/src/ffi.rs", [
+        ('#[cfg(not(any(target_os = "macos", windows, unix)))]\n#[path = "ffi/window/other.rs"]',
+         '#[cfg(any(target_os = "korin", not(any(target_os = "macos", windows, unix))))]\n#[path = "ffi/window/other.rs"]'),
+    ])
 print("korin_app : %s retouchée" % name)
