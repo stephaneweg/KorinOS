@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 16:18
+date = 2026-11-21 16:19
 abi = 626
 packages = 117
 board = pc
@@ -420,18 +420,18 @@ content = 2b1dc17504fffb8a51599dd6ec7a19e2f755adcef386655c2ac5243cd03532b2
 
 [gcc]
 title = GCC et G++
-version = 1.0.12
+version = 1.0.13
 category = Développement
 author = Korin OS
 summary = Le compilateur C et C++ de Korin OS, les relais des kits et les outils (/devtools/gcc)
-size = 16414370
-installed = 54655364
-sha256 = 476c191ccf7ac2537195642a0c39d00d4d13861e4032041749fa22916884bf60
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-gcc-1.0.12.opk
+size = 16416183
+installed = 54657698
+sha256 = d2dd23856579e2369e6ccb78f71877cd74e43293f2c255fa955892e07cd741fd
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-gcc-1.0.13.opk
 needs = make, gcc-data-1, abi >= 626
 required = 0
 restart = 0
-content = 691aed79d85eafdb297b51326054afa95313f7169f33204e8b15cf48bd71a753
+content = 29f5af4f1590971e1887355b93af797da05bbcdad364b55d7fbce8bd437c69dc
 
 [avalonia]
 title = Avalonia
