@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 23:14
+date = 2026-11-21 23:15
 abi = 626
 packages = 117
 board = pc
@@ -1909,18 +1909,18 @@ content = 88648cdfc0cdc86e3dbc772d44ad498ae0edb28c49e27dc9701c6b3f2bd8c126
 
 [photocraft]
 title = PhotoCraft
-version = 1.0.1
+version = 1.0.2
 category = Suite ArtCraft
 author = Korin OS
 summary = L'éditeur d'images libre PhotoCraft (storytold) : calques, sélections, retouche, peinture.
-size = 82354873
-installed = 199949836
-sha256 = b443baeb95084c8bec5d7b9ec7e40b91cae663b7c6e3791c72daa3e512c9daa2
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-photocraft-1.0.1.opk
-needs = craft, abi >= 627
+size = 82430653
+installed = 200122604
+sha256 = b067ca3face3746e1699ed16bf7d047131f2f5b5afa26549c2557f3c6cb150c3
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-photocraft-1.0.2.opk
+needs = craft, abi >= 628
 required = 0
 restart = 0
-content = 914a5a62f09f6d58d7597c10498559075ca0aa96f7a66e17191ddd5d6b06a726
+content = 06096a536d031abff1c16cb462aa6c3436db54a14efbaf68b8ef4e5938cbbcf5
 
 [vectorcraft]
 title = VectorCraft
