@@ -1924,18 +1924,18 @@ content = 06096a536d031abff1c16cb462aa6c3436db54a14efbaf68b8ef4e5938cbbcf5
 
 [vectorcraft]
 title = VectorCraft
-version = 1.0.1
+version = 1.0.2
 category = Suite ArtCraft
 author = Korin OS
 summary = L'illustration vectorielle libre VectorCraft (storytold) : tracés, formes, texte, SVG.
-size = 65595195
-installed = 156972984
-sha256 = 2e5f84f8ad94006ee3728d1f10fccaa7bfcae302f2bb9ebb81d88aaad2a79f5e
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vectorcraft-1.0.1.opk
-needs = craft, abi >= 627
+size = 65597364
+installed = 156973112
+sha256 = ebd2e81d9c0fb0d435922514d06d23d39ac958eb6f3bd8ca210ee29e7b7f9a1b
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vectorcraft-1.0.2.opk
+needs = craft, abi >= 628
 required = 0
 restart = 0
-content = cf2b916bb82db4acb459f72dab8105909779aea7dd5d01b2174902332741d25f
+content = 3e668dc11ce781f1f404e33da0b0fcd5d78852b0ef27e412ff79c4fd9bf5c578
 
 [lightcraft]
 title = LightCraft
