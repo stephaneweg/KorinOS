@@ -43,6 +43,14 @@ unsafe extern "C" {
     fn kh_menu_states(pairs: *const c_long, n: c_long) -> c_long;
     fn egui_korin_menu_hooks(on_chosen: extern "C" fn(i64), after_pass: extern "C" fn());
     fn egui_korin_menu_inject(code: i32);
+    fn egui_korin_menu_key_mods() -> i32;
+}
+
+/// Pendant un choix dans la barre (le gestionnaire de MenuEvent) : (Ctrl, Alt, Maj) s'il vient d'un raccourci, None
+/// pour un clic ; craft-menu s'en sert comme du `currentEvent` d'AppKit (muda::korin_key_mods).
+pub fn key_mods() -> Option<(bool, bool, bool)> {
+    let m = unsafe { egui_korin_menu_key_mods() };
+    if m < 0 { None } else { Some((m & 1 != 0, m & 2 != 0, m & 4 != 0)) }
 }
 
 /// Un changement depuis la dernière publication (texte, état, enfants).
@@ -308,12 +316,13 @@ fn publish() {
         let top = root.items();
         for (n, k) in top.iter().enumerate() {
             let MenuItemKind::Submenu(s) = k else { continue };
-            // le menu de l'app (macOS) : le premier, s'il a Services, Masquer ou Quitter
+            // le menu de l'app (macOS) : le premier, s'il a Services, Masquer ou Quitter, ou s'il s'appelle « * »
+            // (craft-menu sous Korin : tools/craft/korin_libs.py)
             let app_menu = n == 0
-                && s.items().iter().any(|c| {
+                && (s.text() == "*" || s.items().iter().any(|c| {
                     matches!(c, MenuItemKind::Predefined(p) if matches!(p.state.borrow().predefined_item_type,
                         PredefinedMenuItemType::Services | PredefinedMenuItemType::Hide | PredefinedMenuItemType::Quit))
-                });
+                }));
             let mark = b.text.len();
             if app_menu {
                 b.text.push_str("M*\n");

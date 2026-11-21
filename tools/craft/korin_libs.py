@@ -171,3 +171,77 @@ edit("crates/ui-shell/src/shell/title_bar/title.rs", [
      "        if cfg!(target_os = \"korin\") {\n            let _ = centre;\n            return (0.0, width);\n        }\n"
      "        ((centre - width / 2.0).clamp(0.0, free - width), width)"),
 ])
+
+# craft-menu : le menu natif de macOS sert aussi sur Korin (21/11/2026) : la barre de menus de Korin est faite comme
+# celle de macOS (un menu au nom de l'app, les autres ensuite) et muda a une plateforme Korin (crate/muda-korin.rs).
+# Ce que mac.rs demande à AppKit est remplacé par un petit module : pas de Masquer (sans objet), pas de menu ouvert à
+# suivre, et le « currentEvent » d'AppKit (un choix vient-il d'un raccourci ?) donné par egui-korin, qui prend les
+# raccourcis de la barre avant la fenêtre : un raccourci est rendu à egui (un champ de texte garde Ctrl+C), un clic
+# lance la commande. Ctrl de Korin est le « cmd » de craft (Ctrl hors de macOS).
+edit("crates/menu/Cargo.toml", [
+    ('[target.\'cfg(target_os = "macos")\'.dependencies]\nmuda = { version = "0.21.2", default-features = false }',
+     '[target.\'cfg(target_os = "korin")\'.dependencies]\nmuda = { version = "0.21.2", default-features = false }\n\n'
+     '[target.\'cfg(target_os = "macos")\'.dependencies]\nmuda = { version = "0.21.2", default-features = false }'),
+])
+edit("crates/menu/src/lib.rs", [
+    ('#[cfg(target_os = "macos")]\npub mod mac;', '#[cfg(any(target_os = "macos", target_os = "korin"))]\npub mod mac;'),
+])
+edit("crates/menu/src/mac.rs", [
+    ('use objc2::MainThreadMarker;\nuse objc2_app_kit::{NSApplication, NSEventModifierFlags, NSEventType};',
+     '#[cfg(target_os = "macos")]\nuse objc2::MainThreadMarker;\n#[cfg(target_os = "macos")]\n'
+     'use objc2_app_kit::{NSApplication, NSEventModifierFlags, NSEventType};\n'
+     '#[cfg(target_os = "korin")]\nuse korin_appkit::{MainThreadMarker, NSApplication, NSEventModifierFlags, NSEventType};\n\n'
+     '/// Korin : ce que ce fichier demande à AppKit (tools/craft/korin_libs.py).\n'
+     '#[cfg(target_os = "korin")]\n#[allow(non_snake_case, non_upper_case_globals, dead_code, clippy::unused_self)]\n'
+     'mod korin_appkit {\n'
+     '    #[derive(Clone, Copy)]\n    pub struct MainThreadMarker;\n'
+     '    impl MainThreadMarker {\n        pub fn new() -> Option<MainThreadMarker> {\n            Some(MainThreadMarker)\n        }\n    }\n'
+     '    #[derive(Clone, Copy, PartialEq, Eq)]\n    pub struct NSEventType(u8);\n'
+     '    impl NSEventType {\n        pub const KeyDown: NSEventType = NSEventType(1);\n    }\n'
+     '    #[derive(Clone, Copy)]\n    pub struct NSEventModifierFlags(u8);\n'
+     '    impl NSEventModifierFlags {\n        pub const Command: NSEventModifierFlags = NSEventModifierFlags(1);\n'
+     '        pub const Control: NSEventModifierFlags = NSEventModifierFlags(16);\n'
+     '        pub const Option: NSEventModifierFlags = NSEventModifierFlags(2);\n'
+     '        pub const Shift: NSEventModifierFlags = NSEventModifierFlags(4);\n'
+     '        pub fn contains(self, o: NSEventModifierFlags) -> bool {\n            self.0 & o.0 != 0\n        }\n    }\n'
+     '    pub struct KeyEvent(NSEventModifierFlags);\n'
+     '    impl KeyEvent {\n        pub fn r#type(&self) -> NSEventType {\n            NSEventType::KeyDown\n        }\n'
+     '        pub fn modifierFlags(&self) -> NSEventModifierFlags {\n            self.0\n        }\n    }\n'
+     '    pub struct MainMenu;\n'
+     '    impl MainMenu {\n        pub fn highlightedItem(&self) -> Option<()> {\n            None\n        }\n'
+     '        pub fn cancelTracking(&self) {}\n    }\n'
+     '    pub struct NSApplication;\n'
+     '    impl NSApplication {\n        pub fn sharedApplication(_mtm: MainThreadMarker) -> NSApplication {\n            NSApplication\n        }\n'
+     '        /// Ctrl de Korin -> le cmd de craft (⌘), comme hors de macOS\n'
+     '        pub fn currentEvent(&self) -> Option<KeyEvent> {\n'
+     '            muda::korin_key_mods().map(|(c, a, s)| KeyEvent(NSEventModifierFlags(c as u8 | (a as u8) << 1 | (s as u8) << 2)))\n        }\n'
+     '        pub fn hide(&self, _sender: Option<&()>) {}\n'
+     '        pub fn hideOtherApplications(&self, _sender: Option<&()>) {}\n'
+     '        pub fn mainMenu(&self) -> Option<MainMenu> {\n            None\n        }\n    }\n'
+     '}'),
+])
+edit("crates/menu/src/model.rs", [
+    ('#[cfg(any(target_os = "macos", test))]\npub(crate) fn native_id(', '#[cfg(any(target_os = "macos", target_os = "korin", test))]\npub(crate) fn native_id('),
+])
+# le menu de l'app (MenuRole::App, le premier de la disposition Mac) s'appelle « * » : muda-korin le verse dans le
+# menu au nom de l'app de la barre de Korin (« M* ») au lieu d'en faire un menu de plus
+edit("crates/menu/src/mac.rs", [
+    ('    let sub = Submenu::new(escape(&m.title), true);\n    append(entries, &sub, &m.children)?;',
+     '    let title = if cfg!(target_os = "korin") && m.role == MenuRole::App { "*".to_string() } else { escape(&m.title) };\n'
+     '    let sub = Submenu::new(title, true);\n    append(entries, &sub, &m.children)?;'),
+])
+# Korin : pas de Masquer ni de Masquer les autres, de Services ni de Tout afficher (la barre n'en a pas)
+edit("crates/menu/src/layout.rs", [
+    ('    menu.extend([options.standard(Standard::Services), Node::Separator]);\n    let mut hide = Item::new(',
+     '    #[cfg(not(target_os = "korin"))]\n    menu.extend([options.standard(Standard::Services), Node::Separator]);\n    let mut hide = Item::new('),
+    ('    menu.push(Node::Item(hide));\n    let mut hide_others',
+     '    #[cfg(not(target_os = "korin"))]\n    menu.push(Node::Item(hide));\n    #[cfg(target_os = "korin")]\n    let _ = hide;\n    let mut hide_others'),
+    ('    menu.extend([Node::Item(hide_others), options.standard(Standard::ShowAll), Node::Separator]);',
+     '    #[cfg(not(target_os = "korin"))]\n    menu.extend([Node::Item(hide_others), options.standard(Standard::ShowAll), Node::Separator]);\n'
+     '    #[cfg(target_os = "korin")]\n    let _ = hide_others;'),
+])
+# les touches d'édition d'un champ de texte : celles de Korin (Ctrl+Gauche : un mot), pas celles de macOS
+edit("crates/menu/src/driver.rs", [
+    ('    CLIPBOARD.contains(c) || craft_keymap::text_editing_chords(craft_keymap::Platform::Mac).contains(c)',
+     '    CLIPBOARD.contains(c) || craft_keymap::text_editing_chords(if cfg!(target_os = "korin") { craft_keymap::Platform::current() } else { craft_keymap::Platform::Mac }).contains(c)'),
+])

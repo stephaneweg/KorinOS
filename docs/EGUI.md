@@ -58,8 +58,10 @@ du PC (`wsl sh tools/pc/apps.sh` : `build/pc/gcc/include/kits/uikit_abi.h`, `bui
     (`TJ_DARK`) devient celui d'egui ; `WEV_FOCUS`.
 - **La boucle** : on attend un évènement jusqu'à la prochaine image demandée par egui (`repaint_delay` ; 15 ms au
   plus vite), on prend ceux qui suivent sans attendre, puis une passe. Sans animation ni évènement, rien ne tourne.
-- **Le dessin** : le fond aux couleurs du thème (`TJ_FACE`), puis la toile d'`hdrshot-egui-backend` (mise en cache
-  par primitive) composée dessus, puis `ui_update` de toute la fenêtre. Les pixels de Korin sont `0x00RRGGBB` en
+- **Le dessin** : dans un **tampon de derrière** (21/11/2026) : le fond aux couleurs du thème (`TJ_FACE`), puis la toile
+  d'`hdrshot-egui-backend` (mise en cache par primitive) composée dessus ; puis seules les lignes qui ont changé vont
+  dans les pixels de la fenêtre, et `ui_update` de leur bande. Avant, le dessin se faisait dans les pixels mêmes :
+  Elegant, qui compose la fenêtre quand il veut (le curseur qui bouge), montrait parfois le fond seul (scintillement). Les pixels de Korin sont `0x00RRGGBB` en
   petit-boutiste, soit B, G, R, 0 en mémoire : l'ordre `Bgra` de la caisse.
 
 ## Essayer sous QEMU PC
@@ -125,8 +127,8 @@ ramène la taille demandée à la place de l'écran (sans le dock ni la barre de
 
 ## Limites et suite
 
-- **Toute la fenêtre est recopiée à chaque image** (`ui_update` de tout) ; la caisse sait quelles tuiles ont changé :
-  ne montrer qu'elles.
+- Toute l'image est redessinée à chaque passe (dans le tampon de derrière) ; seule la bande des lignes changées va à
+  l'écran. La caisse sait quelles tuiles ont changé : ne redessiner qu'elles.
 - Pas d'IME (saisie composée), pas de dépôt de fichiers (`WEV_DROP`), pas de textures d'images de l'app au-delà de
   celles d'egui (la caisse ne prend pas encore les textures « utilisateur »).
 - Une seule fenêtre (pas de fenêtres secondaires d'egui, les « viewports »).

@@ -40,8 +40,15 @@ const APPS: &[App] = &[
 ];
 
 /// Le dossier de l'app (/apps/craft.app) : là où est ce programme.
+/// Sous Korin, le chemin du programme vient d'argv[0] (libposix, dl.c) : lancé du menu de Korin, c'est un nom seul,
+/// et le dossier « icons » serait cherché dans le dossier courant (les cartes restaient des carrés unis). Seul un
+/// dossier absolu qui a ses icônes est pris.
 fn home() -> PathBuf {
-    std::env::current_exe().ok().and_then(|p| p.parent().map(Path::to_path_buf)).unwrap_or_else(|| PathBuf::from("/apps/craft.app"))
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(Path::to_path_buf))
+        .filter(|d| d.is_absolute() && d.join("icons").is_dir())
+        .unwrap_or_else(|| PathBuf::from("/apps/craft.app"))
 }
 
 /// Logiciels, le gestionnaire de paquets (chaque app de la suite a son paquet, qui dépend de celui du lanceur).

@@ -633,6 +633,7 @@ UKF long ui_tr_load(long a0);
 UKF long ui_lang(void);
 UKF long ui_menu_state(long a0, long a1);
 UKF long ui_menu_states(long a0, long a1);
+UKF long ui_frame_glyphs(long light);
 UKF long ui_menu_key(long a0);
 UKF long ui_font_italic(void);
 UKF long ui_calendar(long a0, long a1, long a2, long a3, long a4);
