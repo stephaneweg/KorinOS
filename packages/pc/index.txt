@@ -2041,3 +2041,18 @@ needs = craft, abi >= 626
 required = 0
 restart = 0
 content = c4ebbc6c62c4431747b37a71bf158e8df27e0f25a52eef6a36c9c21506396088
+
+[anicraft]
+title = AniCraft
+version = 1.0.0
+category = Suite ArtCraft
+author = Korin OS
+summary = L'animation vectorielle 2D libre AniCraft (storytold).
+size = 19042258
+installed = 44035219
+sha256 = e834a7cb779f806350b2ba0a65e2249f69b2b6e0bd2bf210c80e397bf54d35c3
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-anicraft-1.0.0.opk
+needs = craft, abi >= 626
+required = 0
+restart = 0
+content = 5064d99c0da3cb32ffd9eb95c9398fde3cf68a633bb1cb882656530eaf87b5e9
