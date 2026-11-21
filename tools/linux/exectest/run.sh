@@ -23,12 +23,13 @@ gcc -O2 -no-pie "$S/tlstest.c" -o "$B/tlstest-nopie"
 gcc -O2 "$S/spawntest.c" -o "$B/spawntest"
 gcc -O2 "$S/epolltest.c" -o "$B/epolltest"
 gcc -O2 "$S/sigchldtest.c" -o "$B/sigchldtest"
+gcc -O2 "$S/bashtooltest.c" -o "$B/bashtooltest"
 T=$OUT/execroot
 rm -rf "$T"; mkdir -p "$T"
 for d in build/pc/sysroot/*; do case $(basename "$d") in apps|devtools|python) continue ;; esac; cp -r "$d" "$T/"; done
 cp "$OUT/linuxhost" "$T/bin/linuxhost"
 mkdir -p "$T/home/lx"
-cp "$B/hello" "$B/hello-nopie" "$B/tlstest" "$B/tlstest-nopie" "$B/spawntest" "$B/epolltest" "$B/sigchldtest" "$T/home/lx/"
+cp "$B/hello" "$B/hello-nopie" "$B/tlstest" "$B/tlstest-nopie" "$B/spawntest" "$B/epolltest" "$B/sigchldtest" "$B/bashtooltest" "$T/home/lx/"
 for f in ${EXTRA:-}; do cp "$f" "$T/home/lx/"; done
 mkdir -p "$T/apps"
 for a in ${APPS:-}; do	# (APPS="terminal jet" : sh tools/pc/apps.sh terminal ; jet : build/pc/sysroot)
