@@ -141,4 +141,4 @@
 - [Win16](armpi-win16.md) — 20/11 : apps Windows 3.x d'après winevdm, couche maison sur UIKit, GPL-2 accepté, Open Watcom ; src/apps/win16, docs/etude/WIN16.md
 - [Tampon de stdio](armpi-stdio-tampon.md) — fread lent (tampon newlib 1 Ko) corrigé dans libposix le 20/11 (stdiobuf.c, 64 Ko) ; seulement pour les programmes reliés ensuite
 - [Compétences des apps](armpi-competences-apps.md) — 21/11 : clé skill = SKILL.md de app.txt, lue par claude-acp et Vibe (VIBE_SKILL_PATHS) ; Forge, TerraCube, Arabesque, Koton ; publiés le 21/11 (sauf mai et koton du Pi)
-- [IDE en Rust](armpi-ide-rust.md) — 21/11 : étude d'un IDE egui style Craft, PC, seul IDE à terme, BASIC aussi ; rustc porté par une autre session (LLVM fait) ; étude Craft Anything + claude-acp/Vibe/Jet
+- [KorinStudio](armpi-ide-rust.md) — 21/11 : étude d'un IDE egui style Craft, PC, seul IDE à terme, BASIC aussi ; rustc porté par une autre session (LLVM fait) ; étude Craft Anything + claude-acp/Vibe/Jet

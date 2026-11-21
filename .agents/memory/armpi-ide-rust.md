@@ -1,6 +1,6 @@
 ---
 name: armpi-ide-rust
-description: "21/11 : étude d'un IDE en Rust/egui style Craft (Rust, gcc, asm, FreeBASIC, C#), portable ; rustc porté par une autre session (LLVM fait)"
+description: "21/11 : KorinStudio, étude d'un IDE en Rust/egui style Craft (Rust, gcc, asm, FreeBASIC, C#), portable ; rustc porté par une autre session (LLVM fait)"
 metadata:
   type: project
 ---
@@ -21,4 +21,5 @@ Chromium par un serveur CDP, § 4 bis).
 
 Voir [[armpi-craft]], [[armpi-ide-avalonia]], [[armpi-rust]].
 
-**Dans ce dépôt** (décidé le 21/11 : il a tout pour Korin). Nom proposé par l'utilisateur : DevCraft (Telerik DevCraft existe déjà, signalé).
+**Dans ce dépôt** (décidé le 21/11 : il a tout pour Korin). **Nom : KorinStudio** (choisi le 21/11, après DevCraft écarté : Telerik DevCraft existe) ; `src/apps/korinstudio`, catégorie
+**Développement**, pas dans la Suite ArtCraft.

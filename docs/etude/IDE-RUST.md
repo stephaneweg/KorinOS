@@ -1,4 +1,4 @@
-# Un IDE en Rust et egui pour Korin (et ailleurs)
+# KorinStudio : un IDE en Rust et egui pour Korin (et ailleurs)
 
 Étude du 21/11/2026, demandée par l'utilisateur : un nouvel IDE écrit en **Rust avec egui**, dans le style des apps
 Craft, **portable** (Korin d'abord, puis Windows, Linux, macOS), qui prend en charge **Rust, C (gcc), l'assembleur,
@@ -106,8 +106,8 @@ sur Linux/Windows pour aller vite, puis sous QEMU.
 
 ## 6. Ce qu'il faut décider
 
-- **Le nom** (en anglais, règle du dépôt) : l'utilisateur propose « DevCraft » (21/11) ; Telerik DevCraft (Progress, des
-  composants .NET) porte déjà ce nom.
+- ~~Le nom~~ : décidé, **KorinStudio** (21/11) : `src/apps/korinstudio` → `/apps/korinstudio.app`, catégorie
+  **Développement** (pas dans la Suite ArtCraft) ; un paquet à lui dans `packages-pc.ini`.
 - ~~Où vit le code~~ : décidé, **ce dépôt** (il a tout ce qu'il faut pour Korin ; 21/11) : `src/apps/<nom>`, construit par
   une recette comme `tools/craft`.
 - **Rust dans Korin** : le port de rustc est en cours (autre session, LLVM fait) ; l'utilisateur dira quand il est fini.
