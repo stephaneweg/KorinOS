@@ -333,6 +333,7 @@ long op_ping(u8 *m);
 long op_info(u8 *m);
 long op_ifaces(u8 *m);
 long op_shutdown(u8 *m);
+long op_poll(u8 *m);
 void sko_fork(u64 child, u64 parent);
 void net_close_all(u64 pid);
 

@@ -621,7 +621,7 @@ static const op_fn op_table[NET_OP_SOCKETS + 1] = {
 	0, op_open, op_socket, op_connect, op_bind, op_listen, /* 0-5 */
 	op_accept, op_send, op_recv, op_close, op_sendto, /* 6-10 */
 	op_recv, /* 11 recvfrom */
-	op_resolve, op_ping, op_info, op_ifaces, op_time, op_ntp, 0, 0, /* 12-19 */
+	op_resolve, op_ping, op_info, op_ifaces, op_time, op_ntp, op_poll, 0, /* 12-19 (18 : poll) */
 	op_if_register, op_if_state, op_doorbell, op_stats, op_shutdown, op_sockets, /* 20-25 */
 };
 

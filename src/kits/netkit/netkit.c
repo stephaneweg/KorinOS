@@ -340,6 +340,32 @@ long net_recvfrom(long sd, void *buf, long max, long ms, uint32_t *from)
 	return recv_common(sd, buf, (unsigned long)max, (unsigned long)ms, from, NET_OP_RECVFROM);
 }
 
+/* attente sur plusieurs sockets (poll et select de libposix) : ents = n x {u32 sd, u32 événements}, rendus à la
+ * place des demandés ; netd dort sur son futex jusqu'à un changement -> sockets prêts, 0 à l'échéance */
+#define NET_OP_POLL 18
+long net_poll(void *ents, long n, long ms)
+{
+	if (n < 0 || n > NET_INLINE / 8)
+		return -22;
+	unsigned long deadline = ms < 0 ? ~0UL : deadline_of((unsigned long)ms);
+	msg_t m;
+	long r;
+	for (;;) {
+		m[0] = NET_OP_POLL;
+		m[1] = (uint64_t)n;
+		m[2] = slice_of(deadline);
+		m[3] = m[4] = 0;
+		*(uint32_t *)((uint8_t *)m + MSG_LEN) = (uint32_t)(n * 8);
+		memcpy((uint8_t *)m + MSG_DATA, ents, (size_t)n * 8);
+		r = ncall(m);
+		if (r != 0 || (unsigned long)time_ms() >= deadline)
+			break;
+	}
+	if (r >= 0)
+		memcpy(ents, (uint8_t *)m + MSG_DATA, (size_t)n * 8);
+	return r;
+}
+
 long net_resolve(const char *name)
 {
 	msg_t m = {NET_OP_RESOLVE};

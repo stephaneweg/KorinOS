@@ -370,7 +370,7 @@ int __posix_carry_fill (struct __posix_ofd *d)
 		r = 0;
 	else
 	{
-		unsigned char tmp[2048];
+		unsigned char tmp[8192];			/* (une zone de NetKit : 2 Ko bridaient un téléchargement) */
 		long k = nk (NK_NET_RECV, d->h, (long) tmp, sizeof tmp, 0, 0);
 		if (k > 0)
 			r = carry_add (d, tmp, (size_t) k) == 0 ? 1 : -1;
@@ -400,6 +400,16 @@ ssize_t __posix_sock_recv (struct __posix_ofd *d, void *buf, size_t n, int flags
 		__posix_ofd_lock (d);
 		size_t c = __posix_carry_take (d, (char *) buf + got, n - got, (flags & MSG_PEEK) != 0);
 		got += c;
+		/* la retenue (une sonde de poll) ne suffit pas : ce qui est déjà arrivé dans netd la complète, sans
+		 * attendre ; sinon un client qui fait poll puis recv (curl) ne recevait que la sonde à chaque tour */
+		if (c && got < n && !(flags & (MSG_PEEK | MSG_WAITALL)) && !d->eof && d->sotype == SOCK_STREAM)
+		{
+			long k = nk (NK_NET_RECV, d->h, (long) ((char *) buf + got), (long) (n - got), 0, 0);
+			if (k > 0)
+				got += (size_t) k;
+			else if (k == 0)
+				d->eof = 1;
+		}
 		if (got == n || (got && !(flags & MSG_WAITALL)) || (got && (flags & MSG_PEEK)) || d->eof)
 		{
 			__posix_ofd_unlock (d);

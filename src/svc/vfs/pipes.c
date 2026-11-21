@@ -6,7 +6,9 @@
  *    Après un fork, le fils tient tous les bouts du père, aux mêmes numéros.
  *    Le bout se ferme avec son dernier propriétaire ; la fin (0) vient quand
  *    plus aucun pid ne tient d'écrivain.
- *  * Lecture : ce qui est là (<= 464 o) ; vide avec un écrivain : E_AGAIN
+ *  * Lecture : ce qui est là (<= 464 o ; V_PIPE_READ_BULK : <= 64 Ko, écrits directement dans la mémoire de
+ *    l'appelant par SVC_MAP_CALLER, et V_PIPE_WRITE_BULK de même : 464 octets par aller et retour limitaient git,
+ *    21/11/2026) ; vide avec un écrivain : E_AGAIN
  *    (PIPE_NOWAIT) ou réponse différée (WAIT_MS au plus, WAIT_COURT avec
  *    PIPE_SHORT : puis E_AGAIN). Écriture : ce qui tient (0 : plein) ; E_PIPE
  *    sans lecteur.
@@ -41,6 +43,7 @@ struct wait {
 	long req; /* numéro de la requête (0 : libre) */
 	u64 end;  /* poignée */
 	u64 bytes;
+	u64 bulk; /* V_PIPE_READ_BULK : l'adresse du tampon de l'appelant (0 : dans le message) */
 	u64 limit; /* échéance (ms) */
 	u64 pid;
 };
@@ -123,31 +126,38 @@ static u64 pipe_avail(struct pipe *p)
 	return (p->head - p->tail) & (PIPE_CAP - 1);
 }
 
+/* (par memcpy, en deux morceaux au tour de l'anneau) */
 static u64 pipe_take(struct pipe *p, u64 num, u8 *dst, u64 max)
 {
 	u8 *d = pipe_data[num];
-	u64 h = p->head, t = p->tail, n = 0;
-	while (n < max && t != h) {
-		dst[n++] = d[t];
-		t = (t + 1) & (PIPE_CAP - 1);
-	}
-	p->tail = t;
+	u64 t = p->tail, n = pipe_avail(p);
+	if (n > max)
+		n = max;
+	u64 a = PIPE_CAP - t < n ? PIPE_CAP - t : n;
+	memcpy(dst, d + t, a);
+	memcpy(dst + a, d, n - a);
+	p->tail = (t + n) & (PIPE_CAP - 1);
 	return n;
 }
 
 static u64 pipe_put(struct pipe *p, u64 num, const u8 *src, u64 len)
 {
 	u8 *d = pipe_data[num];
-	u64 h = p->head, t = p->tail, n = 0;
-	while (n < len) {
-		u64 nx = (h + 1) & (PIPE_CAP - 1);
-		if (nx == t) /* plein */
-			break;
-		d[h] = src[n++];
-		h = nx;
-	}
-	p->head = h;
+	u64 h = p->head, room = (PIPE_CAP - 1) - pipe_avail(p); /* (l'anneau garde un octet vide) */
+	u64 n = len < room ? len : room;
+	u64 a = PIPE_CAP - h < n ? PIPE_CAP - h : n;
+	memcpy(d + h, src, a);
+	memcpy(d, src + a, n - a);
+	p->head = (h + n) & (PIPE_CAP - 1);
 	return n;
+}
+
+/* la mémoire de l'appelant d'une requête (SVC_MAP_CALLER) -> adresse ici, < 0 si refusée */
+static long caller_map(long req, u64 addr, u64 len, int write)
+{
+	if (!addr || !len)
+		return E_INVAL;
+	return korin_sys4(SYS_SVC_MAP_CALLER, req, addr, len, write ? MC_WRITE : 0);
 }
 
 /* lecture en attente, résultat, octets déjà dans rmsg : réponse (différée) */
@@ -172,6 +182,15 @@ static void pipe_serve(u64 num)
 		if (n != num)
 			continue;
 		if (pipe_avail(p)) {
+			if (w->bulk) { /* (V_PIPE_READ_BULK : dans la mémoire de l'appelant) */
+				u64 k = pipe_avail(p) < w->bytes ? pipe_avail(p) : w->bytes;
+				long va = caller_map(w->req, w->bulk, k, 1);
+				if (va < 0)
+					wait_reply(w, va, 0);
+				else
+					wait_reply(w, (long)pipe_take(p, num, (u8 *)va, k), 0);
+				continue;
+			}
 			u64 k = pipe_take(p, num, rmsg.data, w->bytes);
 			wait_reply(w, k, k);
 		} else if (!p->writers) { /* plus d'écrivain : fin */
@@ -410,14 +429,25 @@ long ops_pipes(int *deferred)
 	}
 	u64 num;
 	struct pipe *p = end_pipe(e, &num);
-	if (op == V_PIPE_READ) {
+	if (op == V_PIPE_READ || op == V_PIPE_READ_BULK) {
 		if (e->mode != 1)
 			return E_BADF;
 		m->len = 0;
-		u64 n = (u64)m->b > FS_DATA_MAX ? FS_DATA_MAX : (u64)m->b;
+		int bulk = op == V_PIPE_READ_BULK;
+		u64 cap = bulk ? PIPE_BULK_MAX : FS_DATA_MAX;
+		u64 n = (u64)m->b > cap ? cap : (u64)m->b;
 		if (!n)
 			return 0;
+		if (bulk && !m->d)
+			return E_INVAL;
 		if (pipe_avail(p)) {
+			if (bulk) {
+				u64 k = pipe_avail(p) < n ? pipe_avail(p) : n;
+				long va = caller_map(current_req, (u64)m->d, k, 1);
+				if (va < 0)
+					return E_INVAL; /* (pas de SVC_MAP_CALLER : le client revient aux messages) */
+				return (long)pipe_take(p, num, (u8 *)va, k);
+			}
 			u64 k = pipe_take(p, num, m->data, n);
 			m->len = (u32)k;
 			return k;
@@ -433,6 +463,7 @@ long ops_pipes(int *deferred)
 			w->req = current_req;
 			w->end = m->a;
 			w->bytes = n;
+			w->bulk = bulk ? (u64)m->d : 0;
 			w->pid = pid;
 			w->limit = korin_sys0(SYS_TIME_MS) + ((m->c & PIPE_SHORT) ? WAIT_COURT : WAIT_MS);
 			*deferred = 1;
@@ -448,9 +479,24 @@ long ops_pipes(int *deferred)
 		m->len = 0;
 		return (PIPE_CAP - 1) - pipe_avail(p);
 	}
-	u64 len = m->len > FS_DATA_MAX ? FS_DATA_MAX : m->len;
-	u64 k = pipe_put(p, num, m->data, len);
-	m->len = 0;
+	u64 k;
+	if (op == V_PIPE_WRITE_BULK) { /* depuis la mémoire de l'appelant : ce qui tient */
+		u64 room = (PIPE_CAP - 1) - pipe_avail(p);
+		u64 len = (u64)m->b > PIPE_BULK_MAX ? PIPE_BULK_MAX : (u64)m->b;
+		if (len > room)
+			len = room;
+		m->len = 0;
+		if (!len)
+			return 0;
+		long va = caller_map(current_req, (u64)m->d, len, 0);
+		if (va < 0)
+			return E_INVAL;
+		k = pipe_put(p, num, (const u8 *)va, len);
+	} else {
+		u64 len = m->len > FS_DATA_MAX ? FS_DATA_MAX : m->len;
+		k = pipe_put(p, num, m->data, len);
+		m->len = 0;
+	}
 	if (k) /* des lecteurs attendaient ? */
 		pipe_serve(num);
 	return k;

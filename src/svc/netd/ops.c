@@ -435,6 +435,97 @@ out:
 	return r;
 }
 
+/* 18 poll(a nombre, b délai ms ; données : nombre x {u32 sd, u32 événements}) -> sockets prêts ; données : les
+ * événements rendus à la place des demandés. Événements : 1 lecture (données, connexion à accepter, fin), 4 écriture
+ * (place dans l'anneau d'émission), 8 erreur, 16 fin (FIN, RST), 32 descripteur inconnu. L'attente dort sur net_gen
+ * (net_wait), comme recv : poll et select de libposix y attendent au lieu de sonder chaque socket toutes les
+ * millisecondes (21/11/2026 : git-remote-https à 73 % de SYS_YIELD, smbd à 24 000 appels/s au repos, et leurs sondes
+ * disputaient net_lock au thread de la pile). */
+#define PL_IN 1
+#define PL_OUT 4
+#define PL_ERR 8
+#define PL_HUP 16
+#define PL_NVAL 32
+#define PL_MAX (NET_INLINE / 8)
+
+static u32 sk_ready(struct sock *s, u32 ev)
+{
+	u32 r = 0;
+	if (s->type == SOCK_UDP) {
+		if (s->rxhead != s->rxtail)
+			r |= PL_IN;
+		r |= PL_OUT;
+	} else if (s->state == TCP_LISTEN) {
+		for (int i = 0; i < MAX_SOCK; i++) {
+			struct sock *c = &sock_table[i];
+			if (c->used && c->parent == s && c->state >= TCP_ESTAB) {
+				r |= PL_IN;
+				break;
+			}
+		}
+	} else {
+		u64 f = s->flags;
+		if (s->rxhead != s->rxtail)
+			r |= PL_IN;
+		if (f & F(SKF_RX_FIN))
+			r |= PL_IN | PL_HUP;
+		if (f & (F(SKF_RESET) | F(SKF_TIMEOUT) | F(SKF_REFUSED)))
+			r |= PL_IN | PL_ERR | PL_HUP;
+		if ((s->state == TCP_ESTAB || s->state == TCP_CLOSE_WAIT) && SK_RING - (s->txhead - s->txtail) > 0)
+			r |= PL_OUT;
+	}
+	return r & (ev | PL_ERR | PL_HUP);
+}
+
+long op_poll(u8 *m)
+{
+	u64 n = W64(m, MSG_A);
+	if (n > PL_MAX) /* (pas MSG_LEN : dispatch le remet à 0 avant l'opération) */
+		return E_INVAL;
+	u8 *d = m + MSG_DATA;
+	u32 sd[PL_MAX], ev[PL_MAX];
+	for (u64 i = 0; i < n; i++) {
+		sd[i] = W32(d, i * 8);
+		ev[i] = W32(d, i * 8 + 4);
+	}
+	u64 pid = W32(m, MSG_PID);
+	u64 end = time_ms() + wait_cap(W64(m, MSG_B));
+	long r;
+	int waited = 0, gathered = 0;
+	for (;;) {
+		u32 gen = net_gen_now(); /* (avant de regarder : net_wait) */
+		r = 0;
+		int small = 0; /* (un flux TCP prêt avec moins de 16 Ko, sans fin) */
+		nl_take();
+		for (u64 i = 0; i < n; i++) {
+			struct sock *s = sko_find(sd[i], pid) ? sk_get(sd[i], pid) : 0;
+			u32 got = s && s->used ? sk_ready(s, ev[i]) : PL_NVAL;
+			W32(d, i * 8 + 4) = got;
+			if (got)
+				r++;
+			if ((got & PL_IN) && s->type == SOCK_TCP && s->state != TCP_LISTEN && !(got & PL_HUP) &&
+			    s->rxhead - s->rxtail < 16384)
+				small = 1;
+		}
+		nl_drop();
+		/* réveillé par les premières trames d'un flux : 2 ms de plus, une fois, comme recv (sinon le client lit
+		 * une trame par tour de poll : un aller et retour pour 1460 octets) */
+		if (r && small && waited && !gathered && time_ms() + 2 < end) {
+			gathered = 1;
+			thread_sleep(2);
+			continue;
+		}
+		if (r || time_ms() >= end)
+			break;
+		net_wait(gen, end);
+		waited = 1;
+	}
+	for (u64 i = 0; i < n; i++)
+		W32(d, i * 8) = sd[i];
+	W32(m, MSG_LEN) = (u32)(n * 8);
+	return r;
+}
+
 /* 9 close(a sd) : l'appelant le quitte ; fermé avec son dernier propriétaire */
 long op_close(u8 *m)
 {

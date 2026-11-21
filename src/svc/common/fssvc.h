@@ -91,6 +91,9 @@ _Static_assert(sizeof(struct msg) == 512, "message de 512 octets");
 #define V_END_FILE 45
 #define V_PIPE_ROOM 48
 #define V_PIPE_DUMP 52
+#define V_PIPE_READ_BULK 54  /* comme V_PIPE_READ, b octets (64 Ko au plus) écrits par vfs à l'adresse d (SVC_MAP_CALLER) */
+#define V_PIPE_WRITE_BULK 55 /* comme V_PIPE_WRITE, b octets lus par vfs à l'adresse d ; E_INVAL : vfs ancien */
+#define PIPE_BULK_MAX 65536
 #define PIPE_NOWAIT 1
 #define PIPE_SHORT 2
 

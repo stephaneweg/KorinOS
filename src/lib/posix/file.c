@@ -123,20 +123,35 @@ int openat (int dirfd, const char *path, int flags, ...)
 int creat (const char *path, mode_t mode) { return __posix_open (path, O_WRONLY | O_CREAT | O_TRUNC, (int) mode); }
 
 /* ---- tubes de vfs ---- */
+/* tubes en bloc (V_PIPE_*_BULK : vfs lit ou ecrit jusqu'a 64 Ko directement dans notre memoire) ; un vfs
+ * ancien les refuse (E_INVAL) : 464 octets par message, comme avant (21/11/2026 : git, ses deux tubes de
+ * 464 octets par aller et retour) */
+static int s_pipe_bulk_off;
+
 long __posix_pipe_read (long h, void *buf, size_t n, int nowait)
 {
 	struct __armpi_msg m;
-	if (n > ARMPI_PIPE_CHUNK)
-		n = ARMPI_PIPE_CHUNK;
+	int bulk = n > ARMPI_PIPE_CHUNK && !s_pipe_bulk_off;
+	if (n > (bulk ? ARMPI_PIPE_BULK : ARMPI_PIPE_CHUNK))
+		n = bulk ? ARMPI_PIPE_BULK : ARMPI_PIPE_CHUNK;
 	for (;;)
 	{
 		memset (&m, 0, 48);
-		m.op = V_PIPE_READ;
+		m.op = bulk ? V_PIPE_READ_BULK : V_PIPE_READ;
 		m.a = h;
 		m.b = (long) n;
 		m.c = nowait ? PIPE_NOWAIT : PIPE_SHORT;
+		m.d = bulk ? (long) buf : 0;
 		unsigned sigs = __posix_sig_intr;
 		long r = __armpi_vfs_call (&m);
+		if (bulk && r == -22)
+		{
+			s_pipe_bulk_off = 1;		/* (vfs ancien) */
+			bulk = 0;
+			if (n > ARMPI_PIPE_CHUNK)
+				n = ARMPI_PIPE_CHUNK;
+			continue;
+		}
 		if (r == -11 && !nowait)
 		{
 			/* (une attente de vfs dure 1 s au plus) : un signal livre entre-temps (sans
@@ -145,7 +160,7 @@ long __posix_pipe_read (long h, void *buf, size_t n, int nowait)
 				return -4;
 			continue;
 		}
-		if (r > 0)
+		if (r > 0 && !bulk)
 			memcpy (buf, m.data, (size_t) r);
 		return r;
 	}
@@ -184,14 +199,28 @@ static ssize_t pipe_write (struct __posix_ofd *d, const void *buf, size_t n)
 	while (done < n)
 	{
 		size_t c = n - done;
-		if (c > ARMPI_PIPE_CHUNK)
-			c = ARMPI_PIPE_CHUNK;
+		int bulk = c > ARMPI_PIPE_CHUNK && !s_pipe_bulk_off;
+		if (c > (bulk ? ARMPI_PIPE_BULK : ARMPI_PIPE_CHUNK))
+			c = bulk ? ARMPI_PIPE_BULK : ARMPI_PIPE_CHUNK;
 		memset (&m, 0, 48);
-		m.op = V_PIPE_WRITE;
+		m.op = bulk ? V_PIPE_WRITE_BULK : V_PIPE_WRITE;
 		m.a = d->h;
-		m.len = (unsigned) c;
-		memcpy (m.data, (const char *) buf + done, c);
+		if (bulk)
+		{
+			m.b = (long) c;
+			m.d = (long) ((const char *) buf + done);
+		}
+		else
+		{
+			m.len = (unsigned) c;
+			memcpy (m.data, (const char *) buf + done, c);
+		}
 		long r = __armpi_vfs_call (&m);
+		if (bulk && r == -22)
+		{
+			s_pipe_bulk_off = 1;		/* (vfs ancien : 464 octets par message) */
+			continue;
+		}
 		if (r < 0)
 		{
 			if (done)

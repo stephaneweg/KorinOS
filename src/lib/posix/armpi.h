@@ -118,6 +118,7 @@ void *__armpi_netkit (unsigned rank);		/* une fonction de NetKit (0 : pas de Net
 #define NK_NET_SHUTDOWN		29		/* (sd) : FIN apres la file, on recoit toujours */
 #define NK_NET_TIME		17		/* (&{utc, ntp, ms}) -> secondes UTC (0 : inconnue) */
 #define NK_NET_FORK_CHILD	32		/* () : dans le fils d'un fork, le tampon du pere oublie */
+#define NK_NET_POLL		46		/* (entrees {u32 sd, u32 ev}, n, ms) -> prets ; netd en C seulement (poll.c) */
 #define NK_MIN_VERSION		18
 #define ARMPI_NET_FOREVER	(~0UL)		/* attente de NetKit : sans limite */
 
@@ -144,6 +145,9 @@ long __armpi_vfs_call (struct __armpi_msg *m);	/* -> resultat (reponse dans m) *
 #define V_PIPE_ROOM		48		/* a bout d'ecriture -> octets libres, E_PIPE ; E_INVAL : vfs ancien */
 #define VFS_PATHQ		24		/* donnees : chemin -> 1 s'il est virtuel (/etc/paths.txt) */
 #define VFS_PATHLIST		25		/* a premiere entree -> nombre, b suivante ; donnees : virtuel, 0, physique interne, 0... */
+#define V_PIPE_READ_BULK	54		/* comme V_PIPE_READ, b octets (64 Ko) ecrits par vfs a l'adresse d */
+#define V_PIPE_WRITE_BULK	55		/* comme V_PIPE_WRITE, b octets lus a l'adresse d ; E_INVAL : vfs ancien */
+#define ARMPI_PIPE_BULK		65536
 #define PIPE_NOWAIT		1
 #define PIPE_SHORT		2		/* V_PIPE_READ : 1 s d'attente au plus */
 #define ARMPI_PIPE_CHUNK	464

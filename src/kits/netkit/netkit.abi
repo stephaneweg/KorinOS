@@ -49,4 +49,5 @@ kit_fn oauth_error		; x0 = tampon, x1 = taille -> octets : la derniere erreur de
 kit_fn oauth_list		; x0 = tampon, x1 = taille -> octets : une ligne par compte (nom, etat, fournisseur ; tabulations)
 kit_fn oauth_remove		; x0 = compte -> 0 : compte retire (configuration et jetons)
 kit_fn oauth_info		; x0 = compte, x1 = tampon, x2 = taille -> octets : la configuration (sans le secret)
+kit_fn net_poll		; x0 = entrees {u32 sd, u32 evenements} (rendus a la place), x1 = nombre (56 au plus), x2 = ms -> sockets prets (1 lire, 4 ecrire, 8 erreur, 16 fin, 32 inconnu ; poll de libposix)
 kit_end

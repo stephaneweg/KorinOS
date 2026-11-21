@@ -968,6 +968,10 @@ oauth_info:
 	mov	x0,-38
 	ret
 
+; net_poll : seulement dans le NetKit en C (netd en C, op 18) ; libposix retombe sur ses sondes
+net_poll:	mov	x0,-38
+	ret
+
 ; copies privees (un kit ne depend pas encore d'un autre kit)
 include '../../inc/lib.inc'
 
