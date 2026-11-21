@@ -1906,3 +1906,18 @@ needs = craft, abi >= 626
 required = 0
 restart = 0
 content = b87d2a0653d44c0e9bc834b7244ecf12b10a0e2a1998118290da3f39908abe86
+
+[designcraft]
+title = DesignCraft
+version = 1.0.0
+category = Suite ArtCraft
+author = Korin OS
+summary = La mise en page libre DesignCraft (storytold) : maquettes, gabarits, publication.
+size = 39739498
+installed = 95081251
+sha256 = 1ba5ca917572e991d206d1a7d61a92b350cde76f3a0a3840c9048544d34f8cf6
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-designcraft-1.0.0.opk
+needs = craft, abi >= 626
+required = 0
+restart = 0
+content = 5cc0bb3ea4576572726f30cc10252f67285b0578e11a228f2d5485ff351bbb31
