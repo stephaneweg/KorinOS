@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 09:56
+date = 2026-11-21 10:03
 abi = 626
 packages = 117
 board = pc
@@ -1846,3 +1846,18 @@ needs = abi >= 626
 required = 0
 restart = 0
 content = 4f60bfc8c195d47773da1965a4a5b5e13460e81dd69eace67489d4041f14886f
+
+[wordcraft]
+title = WordCraft
+version = 1.0.0
+category = Suite ArtCraft
+author = Korin OS
+summary = Le traitement de texte libre WordCraft (storytold) : ruban, styles, tableaux, suivi des modifications, références, lit et écrit le .docx.
+size = 60948442
+installed = 161785567
+sha256 = b53c11acc2eb534c28b70dcd3ae870aee079bebef24ba1cbe04e5244d5aaa8af
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-wordcraft-1.0.0.opk
+needs = craft, abi >= 626
+required = 0
+restart = 0
+content = 5c2b167421a882e1aef263c623f08d0d2dffba8c257e52e747918fdb3468047f
