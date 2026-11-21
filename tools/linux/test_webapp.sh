@@ -35,6 +35,9 @@ cp -r "$APPDIR" "$T/apps/$APP.app"
 [ ! -f "tools/icons/rendered/$APP.rgba" ] || cp "tools/icons/rendered/$APP.rgba" "$T/apps/$APP.app/icon.rgba"
 grep -qx /apps/jet.app/libexec "$T/etc/exec.txt" || echo /apps/jet.app/libexec >>"$T/etc/exec.txt"
 touch "$T/etc/web-console"
+# CA_EXTRA=fichier.pem : des autorités de plus dans le ca-bundle du disque d'essai seulement (un proxy TLS entre QEMU et
+# Internet, comme celui d'un agent du cloud ; jamais dans un paquet)
+[ -z "${CA_EXTRA:-}" ] || cat "$CA_EXTRA" >>"$T/etc/ca-bundle"
 # (PROBE=1 : chaque page écrit ses cookies lisibles dans la console, 5 s après son début)
 # PROBE_JS : un script de plus, au début de chaque page (avant la ligne des cookies)
 [ -z "${PROBE_JS:-}" ] || printf '%s\n' "$PROBE_JS" >>"$T/etc/web-probe.js"
@@ -49,6 +52,9 @@ if [ -n "${ACCOUNT_HOME:-}" ]; then
 	echo ancien >"$T/home/$APP/webkit/old.txt"
 	echo ancien >"$T/home/downloads/old.txt"
 fi
+# FAKE_CDM=1 : un faux module Widevine dans le dossier du compte (l'app ne demande plus de le télécharger et charge sa
+# page ; pour un essai sans contenu protégé, quand Google n'est pas joignable)
+[ -z "${FAKE_CDM:-}" ] || { mkdir -p "$T${ACCOUNT_HOME:-/home}/.jet/widevine"; echo faux >"$T${ACCOUNT_HOME:-/home}/.jet/widevine/libwidevinecdm.so"; }
 printf 'password = essai\n' >"$T/etc/remote.txt"
 grep -q "/sys/svc/telnetd" "$T/etc/services.txt" || printf '# essai : telnet\n/sys/svc/telnetd\n' >>"$T/etc/services.txt"
 MB=$(( $(du -sm "$T" | cut -f1) + 200 ))
