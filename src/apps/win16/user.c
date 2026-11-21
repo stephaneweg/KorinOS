@@ -309,6 +309,8 @@ static void wnd_geometry (struct wnd *w)
 
 static uint16_t sel_scratch;	/* un bloc pour les structures passées aux procédures (CREATESTRUCT…) */
 
+static void size_move_msgs (struct wnd *w);
+
 static uint16_t create_window (uint32_t exstyle, int k, uint32_t cname, const char *text_raw, uint32_t wname, uint32_t style,
 	int x, int y, int cw, int ch, uint16_t parent, uint16_t menu, uint16_t hinst, uint32_t param)
 {
@@ -396,8 +398,16 @@ static uint16_t create_window (uint32_t exstyle, int k, uint32_t cname, const ch
 	w = wnd_get (hwnd);
 	if (!w)
 		return 0;
-	user_send (hwnd, WM_SIZE, 0, (uint32_t) w->cw | (uint32_t) w->ch << 16);
-	user_send (hwnd, WM_MOVE, 0, (uint32_t) (uint16_t) (w->x < 0 ? 0 : w->x) | (uint32_t) (uint16_t) (w->y < 0 ? 0 : w->y) << 16);
+	/* (comme Windows et Wine, WIN_NEED_SIZE : une fenêtre principale reçoit WM_SIZE et WM_MOVE à son premier
+	   affichage, pas ici ; Write de Windows 3.11 dimensionnait dans WM_SIZE des filles pas encore créées et
+	   s'arrêtait sur « Mémoire insuffisante ») */
+	if (style & (WS_CHILD | WS_POPUP))
+		size_move_msgs (w);
+	else
+		w->need_size = 1;
+	w = wnd_get (hwnd);
+	if (!w)
+		return 0;
 	if ((style & WS_CHILD) && parent)
 		user_send (parent, 0x0210, WM_CREATE, MAKESEGPTR (w->id, hwnd));	/* WM_PARENTNOTIFY */
 	if (style & WS_VISIBLE)
@@ -408,6 +418,17 @@ static uint16_t create_window (uint32_t exstyle, int k, uint32_t cname, const ch
 	}
 	w16_log ("fenêtre %04x (%s) « %s » : %d×%d\n", hwnd, classes[k].name, w ? w->text : "", w ? w->cw : 0, w ? w->ch : 0);
 	return hwnd;
+}
+
+/* WM_SIZE puis WM_MOVE, avec la taille et la place de la zone cliente */
+static void size_move_msgs (struct wnd *w)
+{
+	uint16_t hwnd = w->hwnd;
+	w->need_size = 0;
+	user_send (hwnd, WM_SIZE, 0, (uint32_t) w->cw | (uint32_t) w->ch << 16);
+	w = wnd_get (hwnd);
+	if (w)
+		user_send (hwnd, WM_MOVE, 0, (uint32_t) (uint16_t) (w->x < 0 ? 0 : w->x) | (uint32_t) (uint16_t) (w->y < 0 ? 0 : w->y) << 16);
 }
 
 uint16_t user_create (uint32_t exstyle, const char *cls, const char *text, uint32_t style, int x, int y, int w, int h,
@@ -656,6 +677,9 @@ void api_ShowWindow16 (struct w16call *c)
 		}
 	}
 	user_send (hwnd, WM_SHOWWINDOW, (uint16_t) show, 0);
+	w = wnd_get (hwnd);
+	if (w && show && w->need_size)
+		size_move_msgs (w);
 	ctrl_native_sync_tree (hwnd);	/* (les widgets de UIKit des filles suivent) */
 	w = wnd_get (hwnd);
 	if (!w)
@@ -742,6 +766,18 @@ void api_ValidateRect16 (struct w16call *c)
 }
 
 void api_ValidateRgn16 (struct w16call *c) { api_ValidateRect16 (c); }
+
+/* GetUpdateRgn : la zone à repeindre est un rectangle ; rend NULLREGION (1) ou SIMPLEREGION (2) */
+void api_GetUpdateRgn16 (struct w16call *c)
+{
+	struct wnd *w = wnd_get ((uint16_t) c->a[0]);
+	int inv = w && w->invalid;
+	gdi_set_rect_rgn ((uint16_t) c->a[1], inv ? w->ix0 : 0, inv ? w->iy0 : 0, inv ? w->ix1 : 0, inv ? w->iy1 : 0);
+	c->ret = w ? (inv ? 2 : 1) : 0;
+}
+
+/* GetWindowTask : un seul programme par win16 (un autre programme est un autre win16) : la tâche courante */
+void api_GetWindowTask16 (struct w16call *c) { c->ret = wnd_get ((uint16_t) c->a[0]) || c->a[0] == HWND_DESKTOP ? task.psp : 0; }
 
 void api_GetUpdateRect16 (struct w16call *c)
 {
@@ -1389,6 +1425,7 @@ static int timers_wait_ms (int max)
 			if (d < best)
 				best = d < 0 ? 0 : d;
 		}
+	best = ws_wait_ms (best);	/* (des sockets en WSAAsyncSelect : regarder souvent) */
 	int m = mm_next_ms ();
 	if (m >= 0 && m < best)
 		best = m;
@@ -1502,6 +1539,7 @@ int user_take (struct qmsg *m, uint16_t hwnd, uint16_t lo, uint16_t hi, int remo
 		menu_publish_pending ();
 		mm_poll ();
 		timers_due ();
+		ws_poll ();	/* (WINSOCK : les messages de WSAAsyncSelect) */
 		/* (les événements de Korin sont lus à chaque appel, pas seulement file vide : ils sont datés à leur
 		 * arrivée, un double-clic reste un double-clic même si le programme a été long entre les deux) */
 		{
@@ -2783,7 +2821,16 @@ void api_CreateCaret16 (struct w16call *c) { (void) c; }
 void api_DestroyCaret16 (struct w16call *c) { (void) c; }
 void api_ShowCaret16 (struct w16call *c) { (void) c; }
 void api_HideCaret16 (struct w16call *c) { (void) c; }
-void api_SetCaretPos16 (struct w16call *c) { (void) c; }
+static int caret_x, caret_y;
+void api_SetCaretPos16 (struct w16call *c) { caret_x = (int16_t) c->a[0]; caret_y = (int16_t) c->a[1]; }
+void api_GetCaretPos16 (struct w16call *c)
+{
+	if (c->a[0])
+	{
+		wr16 (far_lin (c->a[0]), (uint16_t) caret_x);
+		wr16 (far_lin (c->a[0]) + 2, (uint16_t) caret_y);
+	}
+}
 
 /* crochets (SetWindowsHook) : acceptés, jamais appelés */
 void api_SetWindowsHook16 (struct w16call *c) { (void) c; c->ret = 0; }

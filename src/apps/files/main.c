@@ -3789,7 +3789,7 @@ static void ctx_menu (long x, long y)
 		if (nsel == 1)
 			act[n++] = A_RENAME;
 		act[n++] = A_DELETE;
-		if (nsel == 1 && ent_ptr (cursel)->kind == K_DIR && place_find (make_full (cursel)) < 0)
+		if (nsel == 1 && ent_ptr (cursel)->kind == K_DIR && place_find ((make_full (cursel), fullpath)) < 0)
 			act[n++] = A_PIN;	/* (un dossier pas encore epingle ; Retirer : clic droit dans le panneau) */
 	}
 	const char *other = base_name (panes[!act_pane ()].path);
@@ -3820,7 +3820,7 @@ static void ctx_menu (long x, long y)
 	case A_DELETE: delete_sel (); break;
 	case A_PASTE: paste (); break;
 	case A_NEWDIR: new_folder (); break;
-	case A_PIN: place_pin (make_full (cursel), 1); break;
+	case A_PIN: place_pin ((make_full (cursel), fullpath), 1); break;
 	}
 }
 

@@ -150,8 +150,13 @@ static uint32_t lin_size (uint32_t lin)
 
 static uint32_t gsize[LDT_ENTRIES];	/* taille demandée de chaque bloc global (par son premier sélecteur) */
 
+/* (comme Windows et Wine : les blocs globaux vont par 32 octets, et GlobalSize rend la taille arrondie ; le tas
+   de la bibliothèque C de VBRUN300 pose sa fin d'après GlobalSize et la manque si elle est impaire) */
+#define GROUND(n) (((n) + 31u) & ~31u)
+
 uint16_t global_alloc (uint32_t size, int code)
 {
+	size = GROUND (size ? size : 1);
 	uint32_t lin = lin_alloc (size ? size : 1);
 	if (!lin)
 		return 0;
@@ -185,8 +190,7 @@ int global_realloc (uint16_t sel, uint32_t size)
 	int i = SEL_INDEX (sel);
 	if (!sel_valid (sel) || !gsize[i])
 		return 0;
-	if (!size)
-		size = 1;
+	size = GROUND (size ? size : 1);
 	uint32_t old = gsize[i];
 	int oc = (int) ((old + 0xffff) >> 16), nc = (int) ((size + 0xffff) >> 16);
 	if (!oc) oc = 1;

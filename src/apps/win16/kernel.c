@@ -214,12 +214,15 @@ static void drives_init (const char *home)
 	FILE *f = fopen (ini, "r");
 	if (f)
 	{
+		/* « C=/chemin », « C = /chemin », « C: = /chemin » ; sans section, ou dans [drives] ; « ; » et « # » :
+		   des commentaires ; une valeur vide retire le lecteur */
 		char line[700];
-		int in = 0;
+		int in = 1, n = 0;
 		while (fgets (line, sizeof line, f))
 		{
 			char *s = line;
-			while (*s == ' ' || *s == '\t')
+			while (*s == ' ' || *s == '\t' || (unsigned char) *s == 0xef || (unsigned char) *s == 0xbb
+				|| (unsigned char) *s == 0xbf)	/* (et la marque UTF-8 d'un éditeur) */
 				s++;
 			s[strcspn (s, "\r\n")] = 0;
 			if (*s == '[')
@@ -227,14 +230,35 @@ static void drives_init (const char *home)
 				in = !strncasecmp (s, "[drives]", 8);
 				continue;
 			}
-			if (!in || !s[0] || s[0] == ';' || s[1] != '=')
+			if (!in || !isalpha ((unsigned char) s[0]))
 				continue;
+			char *q = s + 1;
+			if (*q == ':')
+				q++;
+			while (*q == ' ' || *q == '\t')
+				q++;
+			if (*q != '=')
+				continue;
+			q++;
+			while (*q == ' ' || *q == '\t')
+				q++;
+			size_t l = strlen (q);
+			while (l && (q[l - 1] == ' ' || q[l - 1] == '\t'))
+				q[--l] = 0;
+			if (l >= 2 && (q[0] == '"' || q[0] == '\'') && q[l - 1] == q[0])
+			{
+				q[l - 1] = 0;
+				q++;
+			}
 			int d = toupper ((unsigned char) s[0]) - 'A' + 1;
-			if (d >= 1 && d <= 26)
-				drive_set (d, s[2] ? s + 2 : 0);
+			drive_set (d, *q ? q : 0);
+			n++;
 		}
 		fclose (f);
+		fprintf (stderr, "win16 : %s lu (%d lecteur%s)\n", ini, n, n > 1 ? "s" : "");
 	}
+	else
+		fprintf (stderr, "win16 : pas de %s (lecteurs par défaut)\n", ini);
 	for (int d = 1; d <= 26; d++)
 		if (drive_arg[d])
 			drive_set (d, drive_arg[d][0] ? drive_arg[d] : 0);
@@ -243,6 +267,9 @@ static void drives_init (const char *home)
 		snprintf (drive_c, sizeof drive_c, "%s", drives[3]);
 		mkdir (drive_c, 0755);
 	}
+	for (int d = 1; d <= 26; d++)
+		if (drives[d])
+			fprintf (stderr, "win16 : %c: = %s\n", 'A' + d - 1, drives[d][0] ? drives[d] : "/");
 }
 
 /* un nom DOS -> chemin de l'hôte ; les composants existants sont pris avec leur casse réelle */
@@ -479,19 +506,34 @@ void api_WIN16_OpenFile16 (struct w16call *c)
 	int mode = (int) c->a[2];
 	char dos[300];
 	snprintf (dos, sizeof dos, "%s", name);
+	int builtin = 0;
 	if (!strchr (dos, '\\') && !strchr (dos, ':'))
 	{
-		/* (un nom seul : le dossier courant, puis celui du programme, puis C:\WINDOWS) */
+		/* (un nom seul : le dossier courant, celui du programme, C:\WINDOWS, puis C:\WINDOWS\SYSTEM) */
 		char path[700];
-		const char *tries[3] = { "", "D:\\", "C:\\WINDOWS\\" };
-		for (int i = 0; i < 3; i++)
+		const char *tries[4] = { "", "D:\\", "C:\\WINDOWS\\", "C:\\WINDOWS\\SYSTEM\\" };
+		int found = 0;
+		for (int i = 0; i < 4 && !found; i++)
 		{
 			char t[300];
 			snprintf (t, sizeof t, "%s%s", tries[i], name);
 			if (dos_to_host (t, path, sizeof path) && !access (path, F_OK))
 			{
 				snprintf (dos, sizeof dos, "%s", t);
-				break;
+				found = 1;
+			}
+		}
+		/* une DLL intégrée (DDEML.DLL…) n'a pas de fichier : sous Windows, elle serait dans C:\WINDOWS\SYSTEM
+		   (le moteur de VB3 vérifie par OF_EXIST que ddeml.dll existe avant de s'en servir) */
+		const char *dot = strrchr (name, '.');
+		if (!found && dot && (!strcasecmp (dot, ".dll") || !strcasecmp (dot, ".drv") || !strcasecmp (dot, ".exe")))
+		{
+			char base[80];
+			snprintf (base, sizeof base, "%.*s", (int) (dot - name), name);
+			if (api_find_module (base) >= 0)
+			{
+				snprintf (dos, sizeof dos, "C:\\WINDOWS\\SYSTEM\\%s", name);
+				builtin = 1;
 			}
 		}
 	}
@@ -513,7 +555,7 @@ void api_WIN16_OpenFile16 (struct w16call *c)
 	}
 	if (mode & 0x4000)	/* OF_EXIST */
 	{
-		c->ret = dos_to_host (dos, path, sizeof path) && !access (path, F_OK) ? 1 : 0xffff;
+		c->ret = builtin || (dos_to_host (dos, path, sizeof path) && !access (path, F_OK)) ? 1 : 0xffff;
 		if (o && c->ret == 0xffff)
 			o[2] = 2;
 		return;
@@ -539,12 +581,34 @@ void api_GetSystemDirectory16 (struct w16call *c) { c->ret = (uint32_t) put_str 
 void api_GetDriveType16 (struct w16call *c) { c->ret = c->a[0] < 26 && drive_root ((int) c->a[0] + 1) ? 3 : 0; }	/* DRIVE_FIXED */
 void api_SetHandleCount16 (struct w16call *c) { c->ret = c->a[0] < MAX_FH ? c->a[0] : MAX_FH; }
 
+/* GetTempFileName (lecteur, préfixe, numéro, tampon) : comme Windows, un numéro 0 cherche un nom libre et CRÉE le
+ * fichier (vide) pour le réserver ; Write de Windows 3.11 l'ouvre ensuite par DOS et s'arrêtait sur « Mémoire
+ * insuffisante » quand il manquait */
 void api_GetTempFileName16 (struct w16call *c)
 {
 	static unsigned n = 1;
-	char s[80];
-	unsigned u = c->a[2] ? c->a[2] : n++;
-	snprintf (s, sizeof s, "C:\\WINDOWS\\TEMP\\%.3s%04X.TMP", w16_raw (c->a[1]), u & 0xffff);
+	char s[80], host[700];
+	unsigned u = c->a[2] ? c->a[2] : 0;
+	for (int tries = 0; tries < 0x10000; tries++)
+	{
+		if (!c->a[2])
+		{
+			u = n++ & 0xffff;
+			if (!u)
+				u = n++ & 0xffff;
+		}
+		snprintf (s, sizeof s, "C:\\WINDOWS\\TEMP\\%.3s%04X.TMP", w16_raw (c->a[1]), u & 0xffff);
+		if (c->a[2] || !dos_to_host (s, host, sizeof host))
+			break;
+		int fd = open (host, O_WRONLY | O_CREAT | O_EXCL, 0644);
+		if (fd >= 0)
+		{
+			close (fd);
+			break;
+		}
+		if (errno != EEXIST)
+			break;
+	}
 	put_str (c->a[3], s, 144);
 	c->ret = u;
 }
@@ -810,17 +874,33 @@ void api_WriteProfileString16 (struct w16call *c)
 /* ======================================================================== la tâche */
 static uint16_t builtin_hmod[MAX_BUILTIN];
 
-/* les lecteurs (C:, D:, E:, drives.ini) et le dossier courant D:\ ; aussi pour la machine DOS (dos.c) */
+/* le dossier de l'utilisateur : $HOME quand c'est un vrai dossier de compte (/home/<nom>) ; sinon, dans Korin,
+ * l'alias HOME: de vfs (le home de l'uid de l'appelant, même quand HOME est resté le « /home » d'un père sans
+ * compte) ; sur l'hôte, $HOME tel quel */
+const char *kernel_user_home (void)
+{
+	const char *h = getenv ("HOME");
+#ifdef W16_HOST
+	return h && *h ? h : "/home";
+#else
+	if (h && !strncmp (h, "/home/", 6) && h[6] && h[6] != '/')
+		return h;
+	return "HOME:";
+#endif
+}
+
+/* les lecteurs (C:, D:, E:, drives.ini) et le dossier courant D:\ ; aussi pour la machine DOS (dos.c) :
+ * C: = <home>/win16/c, drives.ini dans <home>/win16 */
 void kernel_drives_init (void)
 {
 	/* C: et son WINDOWS */
-	const char *home = getenv ("HOME");
-	snprintf (drive_c, sizeof drive_c, "%s/win16/c", home && *home ? home : "/home");
+	const char *home = kernel_user_home ();
+	snprintf (drive_c, sizeof drive_c, "%s/win16/c", home);
 	char p[700];
-	snprintf (p, sizeof p, "%s/win16", home && *home ? home : "/home");
+	snprintf (p, sizeof p, "%s/win16", home);
 	mkdir (p, 0755);
 	mkdir (drive_c, 0755);
-	drives_init (home && *home ? home : "/home");
+	drives_init (home);
 	snprintf (p, sizeof p, "%s/WINDOWS", drive_c);
 	mkdir (p, 0755);
 	snprintf (p, sizeof p, "%s/WINDOWS/SYSTEM", drive_c);
@@ -875,7 +955,9 @@ void kernel_set_cmdline (const char *args)
 	if (n)
 		p[o++] = ' ';
 	memcpy (p + o, args, (size_t) n);
-	p[o + n] = 0x0d;
+	/* (comme Windows, d'après winevdm : 0Dh seulement quand la ligne est vide ; sinon la chaîne finit par 0, car
+	   ES:BX d'InitTask est le lpCmdLine de WinMain et le Command$ de Visual Basic garderait le 0Dh) */
+	p[o + n] = n ? 0 : 0x0d;
 }
 
 /* InitTask (KERNEL.91, registres) : INSTANCEDATA au début de DS, tas local, registres de retour, un mot 0 empilé */
@@ -896,6 +978,16 @@ void api_InitTask16 (struct w16call *c)
 		extern void local_init (uint16_t sel, uint16_t start, uint16_t end);
 		uint32_t size = task.main->sizes[task.main->autodata];
 		uint32_t end = size > bx ? size - bx : size, start = end > cx ? end - cx : 16;
+		if (task.main->heap_last)
+		{
+			/* (données, pile, tas : le tas à la fin, au-dessus de la pile ; LocalAlloc le fait grandir ; la fin
+			   est celle du segment, arrondi à 32 octets comme les blocs globaux) */
+			size = sel_limit (cpu_sreg (S_DS)) + 1;
+			end = size;
+			start = size > cx ? size - cx : 16;
+			if (start < (uint32_t) task.sp)
+				start = task.sp;
+		}
 		local_init (cpu_sreg (S_DS), (uint16_t) start, (uint16_t) (end > 0xffff ? 0xffff : end));
 	}
 	uint8_t *psp = lin_ptr (sel_base (task.psp));
@@ -1520,6 +1612,15 @@ static uint16_t largest_free (uint16_t sel, int sum)
 	return (uint16_t) (best > 0xffff ? 0xffff : best);
 }
 
+/* LocalHandleDelta : combien de poignées le tas local ajoute à la fois (0 : la valeur seule) ; ici un simple réglage */
+void api_LocalHandleDelta16 (struct w16call *c)
+{
+	static uint16_t delta = 32;
+	if (c->a[0])
+		delta = (uint16_t) c->a[0];
+	c->ret = delta;
+}
+
 void api_LocalCompact16 (struct w16call *c) { c->ret = largest_free (cpu_sreg (S_DS), 0); }
 void api_LocalCountFree16 (struct w16call *c) { c->ret = largest_free (cpu_sreg (S_DS), 1); }
 void api_LocalHeapSize16 (struct w16call *c)
@@ -1640,8 +1741,11 @@ static uint32_t ds_dx (void) { return MAKESEGPTR (cpu_sreg (S_DS), DX); }
 
 void w16_terminate (int code);
 
+static int dos_last_err;	/* (rendue par l'INT 21h 59h : le Dir$ de Visual Basic s'en sert) */
+
 static void dos_err (int code)
 {
+	dos_last_err = code;
 	set16 (R_EAX, (uint16_t) code);
 	set_cf (1);
 }
@@ -1661,10 +1765,14 @@ static int wild_match (const char *pat, const char *name)
 		{
 			if (!pat[1])
 				return 1;
-			for (const char *n = name; *n; n++)
+			/* (toutes les suites du nom, la vide comprise : « *.* » doit prendre « WIN16 ») */
+			for (const char *n = name;; n++)
+			{
 				if (wild_match (pat + 1, n))
 					return 1;
-			return wild_match (pat + 1, name);
+				if (!*n)
+					return 0;
+			}
 		}
 		if (!*name)
 			return !strcmp (pat, ".*") || !strcmp (pat, "*") ;
@@ -1817,6 +1925,14 @@ static int find_next (void)
 
 void dos_int21 (void)
 {
+	/* (débogage : W16_DOSLOG=1 note chaque appel, avec le nom de fichier quand il y en a un) */
+	static int doslog = -1;
+	if (doslog < 0)
+		doslog = getenv ("W16_DOSLOG") != 0;
+	if (doslog)
+		w16_log ("   INT 21h AX=%04x DX=%04x (%s)\n", AX, DX,
+			AH == 0x39 || AH == 0x3a || AH == 0x3b || AH == 0x3c || AH == 0x3d || AH == 0x41 || AH == 0x43 || AH == 0x4e
+				? w16_raw (ds_dx ()) : "");
 	set_cf (0);
 	switch (AH)
 	{
@@ -2018,6 +2134,8 @@ void dos_int21 (void)
 		snprintf (d, 64, "%s", drv == cur_drive ? cur_dir : "");
 		for (char *q = d; *q; q++)
 			*q = (char) toupper ((unsigned char) *q);
+		/* (comme MS-DOS : AX = 0100h en cas de succès ; Write de Windows 3.11 cherche la fin du chemin avec AL) */
+		set16 (R_EAX, 0x0100);
 		break;
 	}
 	case 0x4c:	/* fin du programme */
@@ -2057,8 +2175,10 @@ void dos_int21 (void)
 			memcpy (d + 0x1e, "KORIN", 6);
 			break;
 		}
+		/* (comme MS-DOS : 12h quand rien ne répond au motif, 3 quand le dossier n'existe pas ; le Dir$ de Visual
+		   Basic rend "" sur 12h et lève l'erreur 53 sur tout autre code) */
 		if (!find_next ())
-			dos_err (AH == 0x4e ? 2 : 18);
+			dos_err (AH == 0x4e && !find_d ? 3 : 18);
 		break;
 	case 0x51:
 	case 0x62:	/* le PSP */
@@ -2076,9 +2196,15 @@ void dos_int21 (void)
 		set16 (R_ECX, 0);
 		set16 (R_EDX, (uint16_t) ((26 << 9) | (1 << 5) | 1));
 		break;
-	case 0x59:	/* erreur étendue */
-		set16 (R_EAX, 0);
+	case 0x59:	/* erreur étendue : le code, la classe (BH), l'action conseillée (BL), le lieu (CH) */
+	{
+		int e = dos_last_err;
+		int notfound = e == 2 || e == 3 || e == 18;
+		set16 (R_EAX, (uint16_t) e);
+		set16 (R_EBX, (uint16_t) (e ? (notfound ? 8 : e == 5 ? 3 : 13) << 8 | (notfound ? 3 : 4) : 0));
+		set16 (R_ECX, (uint16_t) ((e ? 2 : 0) << 8 | (CX & 0xff)));	/* (lieu : un disque) */
 		break;
+	}
 	default:
 		w16_log ("INT 21h AH=%02xh pas prise en charge\n", AH);
 		dos_err (1);

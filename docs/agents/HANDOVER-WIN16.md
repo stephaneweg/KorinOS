@@ -17,7 +17,27 @@ Pour reprendre dans une session du cloud. Lire d'abord `docs/agents/CLOUD.md` (m
   par `posix_spawn`, avec `--drive D=` du parent).
 - **Paquet PC `win16` 1.0.0 publié** (7733638d) ; ce qui est venu depuis (installations, VB3) **n'est pas publié**.
 
-## Le chantier en cours : installer Art Song 2.0 (`SETUP.EXE`)
+## Mise à jour du 20/11 (session du cloud) : l'installation va au bout sur l'hôte
+
+Avec les archives de l'utilisateur (`artsng21.zip`, `VBRUN300.zip`, jamais dans le dépôt), SETUP.EXE puis SETUP1
+(VB3) installent Art Song dans `C:\ARTSNG20` (« ART SONG Installation is Complete! »), et l'ARTSNG20.EXE installé
+démarre. Détail des causes et des correctifs : `docs/etude/WIN16.md`, « L'installation d'Art Song va au bout ». Ce
+qui reste :
+
+- essayer la même chose **sous QEMU PC** (`tools/win16/test_pc.sh`) puis dans Korin sur le ZBook ;
+- pas de serveur DDE : le groupe du Gestionnaire de programmes n'est pas créé (des raccourcis Korin à la place ?) ;
+- les questions ouvertes plus bas (paquet « win16-support », publication de win16 1.0.1 : `versions.ini` est monté,
+  rien n'est publié).
+
+Le script de l'hôte qui valide la boîte « Install To » (le clic sur Continue ; sans lui, `W16_IDLE` ferme la boîte
+et VB la recharge vide, d'où « Error While Attempting to Create Directories ») :
+
+```sh
+cd $HOME/win16/c/WINDOWS && W16_IDLE=15 W16_SCRIPT="wait:60 win:3 click:140,122 win:0" \
+  …/build/win16/host/win16 --drive D=/tmp/ainst setup1.exe D:
+```
+
+## Le chantier d'avant : installer Art Song 2.0 (`SETUP.EXE`)
 
 L'utilisateur a choisi « faire marcher VBRUN300 » (plutôt qu'une commande `expand`).
 

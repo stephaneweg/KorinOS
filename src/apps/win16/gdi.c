@@ -79,6 +79,7 @@ struct dcstate
 	int cur_x, cur_y;
 	int wox, woy, wex, wey, vox, voy, vex, vey;
 	int clip_on, cl, ct, cr, cb;	/* découpe (coordonnées de l'appareil) */
+	int brush_x, brush_y;		/* origine des motifs (SetBrushOrg ; les motifs pleins n'en dépendent pas) */
 	int nex, ex[MAX_EXCL][4];	/* rectangles exclus (ExcludeClipRect, filles de WS_CLIPCHILDREN) */
 };
 struct dc
@@ -1760,6 +1761,92 @@ void api_ExtTextOut16 (struct w16call *c)
 	d->s.cur_x = cx;
 }
 
+/* TabbedTextOut : les tabulations vont au taquet suivant (aucun : tous les 8 caractères moyens ; un seul : un pas
+ * régulier ; plusieurs : les positions, depuis nTabOrigin) ; rend la largeur et la hauteur du texte */
+static uint32_t tabbed_text (struct dc *d, int x0, int y, const uint8_t *str, int n, int ntabs, uint32_t tabs, int origin);
+
+void api_TabbedTextOut16 (struct w16call *c)
+{
+	c->ret = tabbed_text (dc_get ((uint16_t) c->a[0]), (int16_t) c->a[1], (int16_t) c->a[2],
+		c->a[3] ? far_ptr (c->a[3]) : (const uint8_t *) "", (int16_t) c->a[4], (int16_t) c->a[5],
+		c->a[6] ? far_lin (c->a[6]) : 0, (int16_t) c->a[7]);
+}
+
+/* GetTabbedTextExtent (hdc, texte, longueur, nombre de taquets, taquets) : la mesure de TabbedTextOut sans tracer */
+void api_GetTabbedTextExtent16 (struct w16call *c)
+{
+	struct dc *d = dc_get ((uint16_t) c->a[0]);
+	struct dc probe;
+	if (d)
+	{
+		probe = *d;
+		probe.kind = 2;	/* (un DC d'information : rien n'est tracé) */
+	}
+	c->ret = tabbed_text (d ? &probe : 0, 0, 0, c->a[1] ? far_ptr (c->a[1]) : (const uint8_t *) "", (int16_t) c->a[2],
+		(int16_t) c->a[3], c->a[4] ? far_lin (c->a[4]) : 0, 0);
+}
+
+static uint32_t tabbed_text (struct dc *d, int x0, int y, const uint8_t *str, int n, int ntabs, uint32_t tabs, int origin)
+{
+	struct obj *f = d ? font_of (d, 0) : &objs[13];
+	int h = be_font_height (f->px);
+	int step = 8 * (text_extent (f, "x") > 0 ? text_extent (f, "x") : 8);
+	if (ntabs == 1 && tabs && (int16_t) rd16 (tabs) > 0)
+		step = (int16_t) rd16 (tabs);
+	int x = x0;
+	struct dcstate save = d ? d->s : (struct dcstate) { 0 };
+	if (d)
+		d->s.align &= ~1;	/* (TA_UPDATECP : la position courante se règle à la fin) */
+	for (int i = 0; i < n;)
+	{
+		int j = i;
+		while (j < n && str[j] != '\t')
+			j++;
+		char buf[2048];
+		w16_to_utf8 (str + i, j - i, buf, sizeof buf);
+		if (d && j > i)
+			text_at (d, x, y, str + i, j - i, 0, 0);
+		x += text_extent (f, buf);
+		if (j >= n)
+			break;
+		/* le taquet suivant */
+		int rel = x - origin, next = -1;
+		if (ntabs > 1 && tabs)
+			for (int k = 0; k < ntabs; k++)
+			{
+				int t = (int16_t) rd16 (tabs + 2 * (uint32_t) k);
+				if (t > rel)
+				{
+					next = t;
+					break;
+				}
+			}
+		if (next < 0)
+			next = (rel / step + 1) * step;
+		x = origin + next;
+		i = j + 1;
+	}
+	if (d)
+	{
+		int cx = save.cur_x + (x - x0);
+		d->s.align = save.align;
+		if (d->s.align & 1)
+			d->s.cur_x = cx;
+	}
+	return PAIR (x - x0, h);
+}
+
+void api_SetBrushOrg16 (struct w16call *c)
+{
+	struct dc *d = dc_get ((uint16_t) c->a[0]);
+	c->ret = 0;
+	if (!d)
+		return;
+	c->ret = PAIR (d->s.brush_x, d->s.brush_y);
+	d->s.brush_x = (int16_t) c->a[1];
+	d->s.brush_y = (int16_t) c->a[2];
+}
+
 void api_GetTextExtent16 (struct w16call *c)
 {
 	struct dc *d = dc_get ((uint16_t) c->a[0]);
@@ -2483,6 +2570,18 @@ void api_CombineRgn16 (struct w16call *c)
 	}
 	d->rl = l; d->rt = t; d->rr = r; d->rb = bt;
 	c->ret = r > l && bt > t ? 2 : 1;
+}
+
+void gdi_set_rect_rgn (uint16_t hrgn, int l, int t, int r, int b)
+{
+	struct obj *o = obj_get (hrgn);
+	if (o)
+	{
+		o->rl = l; o->rt = t; o->rr = r; o->rb = b;
+		free (o->pts);
+		o->pts = 0;
+		o->npts = 0;
+	}
 }
 
 void api_SetRectRgn16 (struct w16call *c)

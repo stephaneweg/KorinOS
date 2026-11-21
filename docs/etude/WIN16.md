@@ -38,8 +38,11 @@ page proche ; écarts : menus dans la barre de Korin, polices de Korin (un peu p
 rognés à droite), boîte « About » sans le mot « UNREGISTERED » (texte plus large que son étiquette).
 
 **Lecteurs** (réglages de chaque utilisateur) : C: = `HOME:/win16/c` (avec `C:\WINDOWS\WIN.INI`), D: = le dossier
-du programme, E: = tout l'arbre de Korin ; `HOME:/win16/drives.ini` (section `[drives]`, `C=/dossier`) et l'option
-`--drive C=/dossier` les changent.
+du programme, E: = tout l'arbre de Korin ; `HOME:/win16/drives.ini` (`C=/dossier`, aussi `C = /dossier` ou
+`C: = "/dossier"`, avec ou sans section `[drives]`) et l'option `--drive C=/dossier` les changent. `HOME:` est
+`/home/<utilisateur>` : win16 prend `$HOME` quand il désigne un dossier de compte, sinon l'alias `HOME:` de vfs (le
+home de l'uid, même quand `HOME` est resté à `/home`). Au démarrage, win16 écrit sur stderr le `drives.ini` lu et
+chaque lecteur.
 
 **Programmes DOS, étape D1 (20/11, § 9)** : un `.exe` sans en-tête NE ou un `.COM` part dans la machine DOS de
 win16 (`dos.c`, `bios.c`, `vga.c`) : mode réel du cœur de MAME, MCB, PSP, environnement, chargeur MZ, EXEC avec
@@ -110,6 +113,36 @@ lance un autre win16 (posix_spawn, même D: que le parent). Le SETUP.EXE d'Art S
 VER.DLL et SETUPKIT.DLL dans C:WINDOWS et lance SETUP1.EXE ; mais SETUP1 est un programme Visual Basic 3 qui
 demande VBRUN300.DLL (le moteur de Microsoft, absent de l'archive). La détection Windows ou DOS lit maintenant
 l'en-tête par lseek et read et l'écrit sur stderr.
+
+**L'installation d'Art Song va au bout (20/11, hôte)**, avec le VBRUN300.DLL de l'utilisateur dans
+`C:\WINDOWS\SYSTEM` : SETUP.EXE, puis SETUP1 (VB3), le dossier `C:\ARTSNG20` choisi, les 17 fichiers décompressés
+(MUSICLAB.DLL dans `C:\WINDOWS\SYSTEM`), « ART SONG Installation is Complete! » ; l'ARTSNG20.EXE installé (le même,
+octet pour octet, que celui de `expand.py`) démarre. Ce qu'il a fallu :
+
+* `OpenFile` (OF_EXIST | OF_SEARCH) cherche aussi dans `C:\WINDOWS\SYSTEM`, et une DLL intégrée (`ddeml.dll`) y
+  compte comme présente : VB3 vérifie que le fichier existe avant d'utiliser DDEML (« DDE requires ddeml.dll ») ;
+* la ligne de commande d'InitTask (ES:BX, le `lpCmdLine` de WinMain) finit par 0, pas par 0Dh (0Dh seulement quand
+  elle est vide, comme winevdm) : le `Command$` de VB gardait le 0Dh et le chemin source devenait `D:<CR>\…` ;
+* INT 21h : FindFirst sans résultat rend 12h (« plus de fichiers ») et 3 si le dossier manque, comme MS-DOS (le
+  `Dir$` de VB rend "" sur 12h et lève l'erreur 53 sur tout autre code) ; 59h rend le dernier code d'erreur (avec la
+  classe, l'action et le lieu) au lieu de 0 ;
+* les blocs globaux vont par 32 octets et `GlobalSize` rend la taille arrondie (comme Windows et Wine) : le tas de
+  la bibliothèque C de VBRUN300 posait sa fin d'après une taille impaire et sortait du segment (exception 13) ;
+* écrites : GetFileVersionInfoSize, GetFileVersionInfo, VerQueryValue (la VERSIONINFO d'un NE, compressé ou non),
+  GetWindowTask, GetUpdateRgn, GetCaretPos, SetBrushOrg, TabbedTextOut, GetTabbedTextExtent, GetKBCodePage ;
+* les INT 34h à 3Dh de l'émulation flottante de Microsoft sont remplacées par FWAIT et l'instruction x87, comme
+  Wine (VBRUN300 se sert de l'INT 3Dh).
+
+Pas de serveur DDE (PROGMAN) : VB l'accepte, le groupe de programmes n'est pas créé. Pas encore essayé sous QEMU PC
+ni dans Korin.
+
+**Le clavier du DOS sous Korin (20/11)** : l'invite de FreeCOM ne répondait à aucune touche dans Korin (sur l'hôte,
+si). Pendant une attente (INT 21h 07h, INT 16h), la boucle ne servait les IRQ qu'une fois tous les 16 tours, chaque
+tour dormant jusqu'à 20 ms : sous Korin, ces attentes sont réelles, et l'IRQ 0 du minuteur, toujours prête et plus
+prioritaire, passait chaque fois avant l'IRQ 1 du clavier. Maintenant, une attente ne dort que si aucune IRQ n'attend
+(`pic_waiting`), et les IRQ sont servies dès le tour suivant. Essayé sous QEMU PC (`ver`, `dir` tapés par sendkey).
+Aussi : le motif `*.*` prend les noms sans extension (le `DIR` de FreeCOM ne montrait ni les dossiers ni ces
+fichiers).
 
 **Pour l'utilisateur** : `win16.app` déclare `.exe`, `.com` et `.bat` ; un double-clic dans Fichiers lance win16, qui
 choisit seul Windows 3.x (en-tête NE) ou DOS. Les `.bat` sont aussi déclarés par l'Éditeur (`/etc/fileassoc.ini`
@@ -510,6 +543,74 @@ QuickBASIC et les programmes QBasic, à mesurer sur le Pi 4 pour les démos SVGA
 **FreeCOM 0.86** pour COMMAND.COM. **Le PC seulement** : « pas besoin le pi pour l'instant » (l'étape D7, la
 construction et la mesure sur le Pi, est retirée ; rien n'est construit ni essayé pour le Pi, ni pour Win16 ni pour
 le DOS).
+
+## 10. Le mode protégé de la machine DOS (étude du 20/11/2026, rien d'engagé)
+
+Demandé par l'utilisateur après l'essai de l'installation de Windows for Workgroups 3.11 (sa copie) : la partie DOS
+d'INSTALL.EXE va au bout, puis elle lance `C:\WINDOWS\SYSTEM\DOSX.EXE` (l'extenseur du mode standard), qui
+s'arrête aussitôt ; `WIN.COM` n'est jamais construit et le reste de la copie, fait sous Windows, n'a pas lieu.
+
+### 10.1 Ce qu'on a déjà
+
+* Le **cœur i486 de MAME** sait tout faire : mode réel, mode protégé 16 et 32 bits, pagination, mode V86, x87.
+  La machine DOS (`dos.c`, `bios.c`) le garde en mode réel ; le côté Windows (`run.c`, `mem.c`) le tient en mode
+  protégé 16 bits avec **notre LDT** (8192 sélecteurs, `sel_alloc`, `global_alloc`) et des sélecteurs réservés
+  aux points d'entrée de l'API. Les deux côtés partagent la mémoire émulée (**32 Mo**, `W16_MEM_SIZE`).
+* XMS (`xms.c`, avec la ligne A20) et EMS ; l'INT 15h 88h rend 0 (pas de mémoire étendue « brute ») ; ni DPMI
+  (INT 2Fh 1687h, INT 31h), ni VCPI (INT 67h DEh).
+
+### 10.2 Trois niveaux possibles
+
+| Niveau | Ce qui tourne | Ce qu'il faut | Effort |
+|---|---|---|---|
+| **A. Hôte DPMI 0.9** | les programmes DOS 32 bits : DOS/4GW (DOOM, Duke Nukem 3D, Tomb Raider, la plupart des jeux de 1993-1997), DJGPP, PMODE/W, CauseWay | INT 2Fh 1687h et le passage en mode protégé ; INT 31h : descripteurs (0000h-000Ch), mémoire DOS (0100h-0102h), vecteurs et exceptions (0200h-0205h), appels en mode réel (0300h-0302h), rappels (0303h-0304h), version (0400h), mémoire (0500h-0503h, au-dessus du Mo), verrous (0600h-0601h : sans effet), adresses physiques (0800h : le LFB de la VESA), IF virtuel (0900h-0902h) ; le renvoi des IRQ et des INT logicielles vers le mode réel | 1 à 2 semaines |
+| **B. Windows 3.1 en mode standard** (`DOSX.EXE`, KRNL286/KRNL386) | Windows 3.1 entier dans une fenêtre (bureau 640 × 480 en 16 couleurs par VGA.DRV) | DOSX n'est pas un client DPMI : il passe **lui-même** en mode protégé (LGDT, LIDT, CR0 ou LMSW), prend l'IDT, le PIC et le minuteur, revient au mode réel par le contrôleur du clavier (64h, FEh) et l'octet d'arrêt du CMOS, ou par CR0 ; il veut l'INT 15h 87h (copie en mémoire étendue), et ses pilotes (VGA.DRV, KEYBOARD.DRV, MOUSE.DRV, COMM.DRV) parlent au matériel émulé. Notre BIOS « de haut niveau » (des points d'arrêt en F000) doit alors se comporter comme un vrai BIOS sous un extenseur | des semaines, résultat incertain |
+| **C. Windows en mode 386 étendu** (`WIN386.EXE`, le seul de WfW 3.11) | WfW 3.11 entier | le niveau B, plus le mode V86 avec le DOS dedans, la pagination, l'anneau 0 et les VxD, les bitmaps d'E/S ; en pratique un PC complet (ce que font DOSBox-X ou 86Box) | très long |
+
+### 10.3 Recommandation
+
+* **Faire A** (un hôte DPMI dans win16), pour les programmes DOS 32 bits : c'est le chantier « Tomb Raider »
+  noté après D6, et il réutilise ce qui existe (la LDT et les sélecteurs de `mem.c`, `dos_int21` pour l'INT 21h
+  renvoyée, l'XMS pour la mémoire). Étapes :
+  * **P1** : INT 2Fh 1687h, le saut en mode protégé (sélecteurs de CS, DS, SS, ES du client, PSP, environnement),
+    INT 31h 0000h-000Ch, 0100h-0102h, 0400h, 0500h-0503h, 0600h-0601h ; l'INT 21h en mode protégé passe à
+    `dos_int21` (fonctions à pointeurs : copie par un tampon sous le Mo, comme le fait DOS/4GW lui-même) ;
+    essai : un programme DOS/4GW d'Open Watcom (`wcl386 -l=dos4g`, DOS4GW.EXE est redistribuable avec Open
+    Watcom) ;
+  * **P2** : 0200h-0205h (vecteurs et exceptions), le renvoi des IRQ (minuteur, clavier, Sound Blaster, souris)
+    vers les gestionnaires du mode protégé, 0300h-0302h ; essai : un jeu en DOS/4GW de la collection de
+    l'utilisateur ;
+  * **P3** : 0303h (rappels du mode réel : le gestionnaire de la souris), 0800h (le LFB de la VESA), 0900h ;
+    essai : DJGPP (sans CWSDPMI), PMODE/W ;
+  * **P4** (à part) : la vitesse. Le cœur de MAME est un interpréteur ; DOOM devrait aller, Tomb Raider (rendu
+    logiciel pensé pour un Pentium) demandera sans doute un recompilateur, et un lecteur de CD (MSCDEX, images
+    ISO/CUE).
+* **Ne pas faire B ni C** : win16 lance déjà les programmes de Windows 3.x eux-mêmes, chacun dans ses fenêtres
+  de Korin, ce que Windows entier dans une fenêtre de 640 × 480 ne ferait pas ; c'était la voie « DOSBox avec
+  Windows 3.1 » (§ 4.2) écartée par l'utilisateur. Pour récupérer les programmes d'une disquette de Windows,
+  `EXPAND.EXE` de la disquette marche dans FreeCOM (`EXPAND C:\TEMP\WIN311\NOTEPAD.EX_ C:\APPS\NOTEPAD.EXE`).
+
+### 10.4 Essais des programmes de Windows for Workgroups 3.11 (20/11, hôte)
+
+Décompressés par `EXPAND.EXE` dans FreeCOM : le Bloc-notes (après la correction du tas local à la fin du segment
+de données), la Calculatrice, l'Horloge, le Solitaire, le Démineur, la Table de caractères et le Terminal
+s'ouvrent ; le Gestionnaire de fichiers, le Gestionnaire de programmes et Sysedit demandent **MDI** (`MDIClient`,
+`DefFrameProc`, `DefMDIChildProc`) ; Write et Cardfile demandent `OLECLI.DLL`, le Presse-papiers `NDDEAPI.DLL`,
+Paintbrush `PBRUSH.DLL` (des DLL de Windows qui sont sur la disquette). Restent aussi de petites fonctions
+(MapVirtualKey, VkKeyScan, AdjustWindowRect, GetDCOrg, SystemParametersInfo, FlashWindow, WNetGetConnection).
+
+### 10.5 WINSOCK.DLL (20/11)
+
+`winsock.c` : Windows Sockets 1.1 sur les sockets de Korin (libposix) : sockets bloquants (attente par poll),
+`select`, `ioctlsocket` (FIONBIO, FIONREAD), options (`SOL_SOCKET` et les `SO_*` de Winsock traduits),
+`gethostbyname` et les autres fonctions de la base des noms (structures 16 bits dans une zone statique),
+`WSAAsyncSelect` (les messages FD_* postés par la boucle des messages de USER, réarmés par recv, send, accept),
+`WSAAsyncGet*` (réponse immédiate). Essai : `tools/win16/tests/wsock.c` avec le serveur d'écho
+`tools/win16/tests/echo.py` : **tout passe sur l'hôte** ; **sous Korin (QEMU PC)**, la partie bloquante passe
+(par 10.0.2.2), mais en asynchrone les octets envoyés après FD_CONNECT ne partent qu'à la fermeture du socket
+(le serveur les reçoit 5 s plus tard) : `send` rend la bonne taille, `op_send` de netd met les octets en file et
+appelle `tcp_output`, qui ne les émet pas ; **défaut de netd (ou de son dialogue avec le réseau de QEMU) à
+suivre**, pas de WINSOCK.
 
 ## Sources (consultées le 20/11/2026)
 

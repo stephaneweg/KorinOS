@@ -36,6 +36,7 @@ void kernel_drives_init (void);
 #define NOEPI		2		/* (un gestionnaire qui a déjà réglé CS:IP et la pile : EXEC) */
 
 int dos_hold;			/* garder la fenêtre à la fin (un .BAT : main.c) */
+static int irq_now;		/* (une attente vient de rendre la main : servir les IRQ tout de suite) */
 static int closed_by_user (void) { return dos_closed; }
 static uint16_t cur_psp, root_psp;
 static uint16_t last_ret;		/* le code de retour du dernier enfant (4Dh) */
@@ -1337,9 +1338,14 @@ static void trap (uint32_t ip)
 	if (r == WAIT)
 	{
 		last_wait = here;
-		/* (le gestionnaire sera rappelé ; les IRQ passent entre-temps) */
+		/* (le gestionnaire sera rappelé ; les IRQ passent entre-temps, servies dès le tour suivant de run :
+		   avec une seule IRQ par attente de 20 ms, l'IRQ 0 du minuteur, toujours prête après une vraie attente
+		   et plus prioritaire, passait chaque fois avant celle du clavier, qui ne passait jamais : sous Korin,
+		   l'invite de FreeCOM ne répondait pas au clavier ; on ne dort que si rien n'attend) */
 		cpu_set_flags (cpu_flags () | 0x200);
-		bios_idle (20);
+		if (!pic_waiting ())
+			bios_idle (20);
+		irq_now = 1;
 		return;
 	}
 	epilogue ();
@@ -1350,8 +1356,9 @@ static void run (void)
 	unsigned n = 0;
 	while (!w16_exit)
 	{
-		if (!(++n & 15))
+		if (!(++n & 15) || irq_now)
 		{
+			irq_now = 0;
 			if (!(n & 1023))
 				bios_poll (0);
 			if (cpu_flags () & 0x200)

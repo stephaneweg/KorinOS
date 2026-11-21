@@ -17,7 +17,10 @@ mkdir -p "$OUT"
 cd "$OUT"
 for f in "$ROOT"/tools/win16/tests/*.c; do
 	n=$(basename "$f" .c)
-	wcl -q -bt=windows -l=windows -ms -zW -fe="$n.exe" "$f" >"$n.log" 2>&1 || { cat "$n.log" >&2; exit 1; }
+	# (WINSOCK : winsock.lib d'Open Watcom pour les sources qui incluent winsock.h)
+	libs=
+	! grep -q '<winsock.h>' "$f" || libs=winsock.lib
+	wcl -q -bt=windows -l=windows -ms -zW -fe="$n.exe" "$f" $libs >"$n.log" 2>&1 || { cat "$n.log" >&2; exit 1; }
 	rm -f "$n.o" "$n.obj"
 	# (les ressources : <nom>.rc à côté du .c, compilées par wrc et ajoutées à l'exécutable)
 	if [ -f "${f%.c}.rc" ]; then
