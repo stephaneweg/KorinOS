@@ -1849,18 +1849,18 @@ content = 04221035a6f7e359644f0d4a0435321c43a305191099c820b03ca596c4e0e38b
 
 [gridcraft]
 title = GridCraft
-version = 1.0.1
+version = 1.0.2
 category = Suite ArtCraft
 author = Korin OS
 summary = Le tableur libre GridCraft (storytold) : feuilles de calcul, formules, graphiques, analyse de données, lit et écrit le .xlsx.
-size = 15147139
-installed = 35725156
-sha256 = c327f3203dd5e3f9c8191c20f79506c0931d2bc482f95e2227601f6735402f71
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-gridcraft-1.0.1.opk
-needs = craft, abi >= 627
+size = 15148393
+installed = 35729412
+sha256 = f74c5f0dc93e4c4df93d36a5c6e8375cf5d5f3c3dcce9bf0f80e87a863015e68
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-gridcraft-1.0.2.opk
+needs = craft, abi >= 628
 required = 0
 restart = 0
-content = 138c4d26c0f22e5cca5e13cb7cc746a628c277f86f05d0af059c870bd62f7f81
+content = eb4146848bf0ff8c5b93eff979ec81257ebf3d5a9672280d2476fc4d9103062b
 
 [deckcraft]
 title = DeckCraft
