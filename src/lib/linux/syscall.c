@@ -30,6 +30,7 @@
 #include <unistd.h>
 
 #include "linux.h"
+#include "glibc_internal.h"
 
 /* numéros d'appels de Linux x86-64 (arch/x86/entry/syscalls/syscall_64.tbl) */
 #define LNR_read		0
@@ -138,6 +139,9 @@ static int synth_slot (long fd)
 	return (int) (fd - SYNTH_BASE);
 }
 
+/* syscall2.c : les autres fichiers de /proc (statm, stat, status, meminfo, cpuinfo…) */
+char *lx_proc_more (const char *path, size_t *len);
+
 /* le contenu d'un chemin de /proc (malloc), ou NULL */
 static char *synth_content (const char *path, size_t *len)
 {
@@ -149,6 +153,8 @@ static char *synth_content (const char *path, size_t *len)
 		if (b)
 			*len = linux_maps (b, cap);
 	}
+	else if ((b = lx_proc_more (path, len)) != 0)
+		;
 	else if (!strcmp (path, "/proc/net/unix"))
 	{
 		static const char h[] = "Num       RefCount Protocol Flags    Type St Inode Path\n";
@@ -164,7 +170,7 @@ static char *synth_content (const char *path, size_t *len)
 	return b;
 }
 
-static long synth_open (const char *path)
+long lx_synth_open (const char *path)
 {
 	size_t len = 0;
 	char *data = synth_content (path, &len);
@@ -224,7 +230,7 @@ static long synth_io (int si, long nr, long b, long c, long d)
 }
 
 /* drapeaux d'open de Linux -> libposix */
-static int open_flags (long f)
+int lx_open_flags (long f)
 {
 	int r = (int) (f & 3);	/* O_RDONLY, O_WRONLY, O_RDWR : les mêmes */
 	if (f & 0x40) r |= O_CREAT;
@@ -249,13 +255,13 @@ static long do_open (const char *path, long flags, long mode)
 	if (!path)
 		return -14;	/* EFAULT */
 	if (!strncmp (path, "/proc/", 6))
-		return synth_open (path);
-	int fd = open (path, open_flags (flags), (int) mode);
+		return lx_synth_open (path);
+	int fd = open (path, lx_open_flags (flags), (int) mode);
 	return fd < 0 ? -linux_errno (errno) : fd;
 }
 
 /* struct stat de Linux x86-64 (144 octets) depuis celle de libposix */
-static void stat_out (void *out, const struct stat *st)
+void lx_stat_out (void *out, const struct stat *st)
 {
 	uint64_t *q = out;
 	memset (out, 0, 144);
@@ -427,12 +433,48 @@ static void not_served (long nr)
 	fprintf (stderr, "liblinux : appel système de Linux %ld non servi (ENOSYS)\n", nr);
 }
 
+static long linux_syscall_ (long nr, long a, long b, long c, long d, long e, long f);
+
+/* LINUX_TRACE_SYS=fichier : chaque appel de Linux (numéro, arguments, résultat) noté dans ce fichier */
 long linux_syscall (long nr, long a, long b, long c, long d, long e, long f)
+{
+	static int tfd = -2;
+	if (tfd == -2)
+	{
+		const char *p = getenv ("LINUX_TRACE_SYS");
+		tfd = p ? open (p, O_WRONLY | O_CREAT | O_TRUNC | O_APPEND, 0644) : -1;
+	}
+	if (tfd < 0)
+		return linux_syscall_ (nr, a, b, c, d, e, f);
+	long r = linux_syscall_ (nr, a, b, c, d, e, f);
+	char line[200];
+	int n = snprintf (line, sizeof line, "[%ld] %ld (%#lx, %#lx, %#lx, %#lx) = %ld\n", (long) syscall (SYS_gettid), nr, a, b, c, d, r);
+	if (nr == 257 || nr == 2 || nr == 262 || nr == 4 || nr == 21 || nr == 332 || nr == 59 || nr == 89)
+	{
+		const char *path = (const char *) (nr == 257 || nr == 262 || nr == 332 ? b : a);
+		n = snprintf (line, sizeof line, "[%ld] %ld (%ld, \"%.100s\", %#lx) = %ld\n", (long) syscall (SYS_gettid), nr,
+			      a, path ? path : "(null)", nr == 257 || nr == 262 ? c : b, r);
+	}
+	if (nr == 233 && d)	/* epoll_ctl : l'événement (12 octets de Linux) */
+		n = snprintf (line, sizeof line, "[%ld] 233 (ep %ld, op %ld, fd %ld, ev %#x, data %#llx) = %ld\n",
+			      (long) syscall (SYS_gettid), a, b, c, *(const unsigned *) d,
+			      (unsigned long long) *(const uint64_t *) ((const char *) d + 4), r);
+	if ((nr == 232 || nr == 281 || nr == 441) && r > 0)	/* epoll_wait : le premier événement rendu */
+		n = snprintf (line, sizeof line, "[%ld] %ld (ep %ld) = %ld : ev %#x, data %#llx\n", (long) syscall (SYS_gettid),
+			      nr, a, r, *(const unsigned *) b, (unsigned long long) *(const uint64_t *) ((const char *) b + 4));
+	write (tfd, line, (size_t) n);
+	return r;
+}
+
+static long linux_syscall_ (long nr, long a, long b, long c, long d, long e, long f)
 {
 	(void) d;
 	(void) e;
 	if (nr >= 0 && nr < 512)
 		linux_syscall_count[nr]++;
+	long r2;
+	if (lx_syscall2 (nr, a, b, c, d, e, f, &r2))	/* (syscall2.c : ceux d'un exécutable, jalon 3) */
+		return r2;
 	int si = synth_slot (a);
 	if (si >= 0 && (nr == LNR_read || nr == LNR_close || nr == LNR_lseek || nr == LNR_fstat || nr == LNR_pread64))
 		return synth_io (si, nr, b, c, d);
@@ -455,7 +497,7 @@ long linux_syscall (long nr, long a, long b, long c, long d, long e, long f)
 			return -14;
 		if (!strncmp (path, "/proc/", 6))
 		{
-			long fd = synth_open (path);
+			long fd = lx_synth_open (path);
 			if (fd < 0)
 				return fd;
 			synth_io (synth_slot (fd), LNR_fstat, (long) out, 0, 0);
@@ -465,7 +507,7 @@ long linux_syscall (long nr, long a, long b, long c, long d, long e, long f)
 		struct stat st;
 		if (stat (path, &st) < 0)
 			return fail ();
-		stat_out (out, &st);
+		lx_stat_out (out, &st);
 		return 0;
 	}
 	case LNR_fstat:
@@ -473,7 +515,7 @@ long linux_syscall (long nr, long a, long b, long c, long d, long e, long f)
 		struct stat st;
 		if (fstat ((int) a, &st) < 0)
 			return fail ();
-		stat_out ((void *) b, &st);
+		lx_stat_out ((void *) b, &st);
 		return 0;
 	}
 	case LNR_pread64:

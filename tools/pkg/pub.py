@@ -303,7 +303,7 @@ def main ():
 		base_abi = int (m.group (1)) if m else None
 
 	# ---- 3. le paquet selon packages.ini, et le content publie recalcule ----
-	pkgs, _ = mkrepo.plan (tree, None, ini)
+	pkgs, _ = mkrepo.plan (tree, None, ini, known = set (idx.sections ()))	# (un besoin publié mais pas construit ici)
 	P = next ((p for p in pkgs if p["name"] == name), None)
 	if P is None: die ("%s : pas dans %s, ou pas construit dans %s" % (name, os.path.basename (ini), tree))
 	if is_new and P.get ("release") == "1":
@@ -313,6 +313,7 @@ def main ():
 		desc = "needs %s\nconfig %s\nrequired %s\nrestart %s\n" % (P["needs"], P["config_pats"], P["required"], P["restart"])
 		if P["replaces"]: desc += "replaces %s\n" % P["replaces"]
 		if P["boot_pats"]: desc += "boot %s\n" % P["boot_pats"]
+		if P.get ("fetch"): desc += "fetch %s\n" % P["fetch"]		# (comme mkrepo.py)
 		return hashlib.sha256 ((desc + "".join ("%s %s\n" % (f, sha256 (data[f])) for f in files)).encode ()).hexdigest ()
 	rank = { f: i for i, f in enumerate (P["files"]) }
 	got = content (order, base_data) if not is_new else None
@@ -398,6 +399,8 @@ def main ():
 	data = { f: open (os.path.join (stage, f), "rb").read () for f in files }
 	P2 = dict (P); P2["files"] = files; P2["src"] = { f: stage for f in files }
 	P2["bytes"] = sum (len (data[f]) for f in files)
+	for ent in (e.split () for e in P.get ("fetch", "").split (";") if e.strip ()):	# (fetch : téléchargé à l'installation)
+		if len (ent) == 4 and ent[1].isdigit (): P2["bytes"] += int (ent[1])
 	man, needs_all, _ = mkrepo.manifest_text (P2, ver, abi)
 	newcontent = content (files, data)
 	prefix = mkrepo.RELEASE_PREFIX

@@ -16,6 +16,7 @@
 #define SVC_OP_END 0xFFFF
 #define SVC_OP_SIGNAL 0xFFFD
 #define INIT_OP_LAUNCH 1
+#define INIT_LAUNCH_UID_TAG 0x5549440000000000ull /* (INIT_OP_LAUNCH, c) « UID » | uid voulu (demandeur d'uid 0) */
 #define INIT_OP_KIT_LOAD 2
 #define INIT_OP_REBOOT 3
 #define INIT_OP_SVC_STOP 4  /* données : la ligne de services.txt -> 0 (plus relancé, arrêté), E_NOENT, E_PERM */

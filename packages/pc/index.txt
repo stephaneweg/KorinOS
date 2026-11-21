@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 10:07
+date = 2026-11-21 13:58
 abi = 626
 packages = 117
 board = pc
@@ -174,18 +174,18 @@ content = 1ed897c3c1436c173dc1585ff0f13199a42ffae587eca0515ab9e2e50688aede
 
 [pkgman]
 title = Logiciels
-version = 1.0.19
+version = 1.0.21
 category = Système
 author = Korin OS
 summary = Les paquets : la commande pkg, le gestionnaire Logiciels (et son volet dans Réglages), le service pkgd
-size = 4603188
-installed = 11770523
-sha256 = 5774415939fb434e4da0c7a49f851a34a4d89b0c0d4dfff98870330f473ffc90
-file = pkgs/pkgman-1.0.19.opk
+size = 4605274
+installed = 11778715
+sha256 = baf1d19cc4dd84f9e839fde7a25a79ec31a8d792c16264ef4764c224c25fdb9d
+file = pkgs/pkgman-1.0.21.opk
 needs = abi >= 626
 required = 1
 restart = 0
-content = 95bb30244774fa9865acfd0d1dd46331dd3f71188fbd8c04fed7dbda04bedd40
+content = 206cbe1193c7b5d267cce41f723098e6c0a7b303bd6a0c241269129b4fae022a
 
 [soundfonts]
 title = Banque de sons General MIDI
@@ -739,18 +739,18 @@ content = 9651f661dbc590aad6e129adcd1ae6d847f34a7ac621233890d8a89895498bd1
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.68
+version = 2026.11.69
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 32023827
-installed = 96354216
-sha256 = c0cb65e53f3185221e0a7946e120e5e3c42a054b59022127a6c1c07b5aa12d3d
-file = pkgs/pc-2026.11.68.opk
+size = 31988470
+installed = 96248712
+sha256 = 41b681cfe6a90173acd39a539f793710018999613f73b0b136ddcfb03a48041e
+file = pkgs/pc-2026.11.69.opk
 needs = 
 required = 1
 restart = 1
-content = bb235c612073d70a8e65083fe465945d6a90482253d1c20fae550dc40457f83c
+content = 60091b4668ca97bca21e9689d3695eb5e8e2aa64b80b7fdf77f5dc78d40b3392
 
 [2048]
 title = 2048
@@ -2101,3 +2101,33 @@ needs = craft, abi >= 626
 required = 0
 restart = 0
 content = 90664764bb03276c5ea3dd3b4e3df40425eca9c05bb08bfb0660c516e9fed168
+
+[linuxhost]
+title = Hôte Linux
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Lance des programmes de Linux x86-64 sur Korin, sans les modifier (linuxhost run PROGRAMME) : ce qui fait tourner Claude Code
+size = 293326
+installed = 614084
+sha256 = 7e9123f2a9462d0a23785f4dc66a4d4434cd9fac06ff2e65255095e0dd95c301
+file = pkgs/linuxhost-1.0.0.opk
+needs = abi >= 626
+required = 0
+restart = 0
+content = 9a160cb312678648533df99c6774b0be31e47bec421d58366f0b68a24eeaa2fe
+
+[claude-code]
+title = Claude Code
+version = 2.1.330
+category = Développement
+author = Korin OS
+summary = Claude Code, l'agent de code d'Anthropic, par votre abonnement Claude (Pro, Max, Team) : la commande claude au Terminal, et Craft Anything s'en sert
+size = 1861
+installed = 381122877
+sha256 = 6ffe15522979ce4f512fdd012f1b74ecd28e378d9140059b63ef29b350a33099
+file = pkgs/claude-code-2.1.330.opk
+needs = linuxhost, bash, git, rg, python, pkgman >= 1.0.21, abi >= 626
+required = 0
+restart = 0
+content = a0bc74b15cf6b2b540a802c1b62f40ff9d4ab34aa1ca971ab41a96a61c53f5d0

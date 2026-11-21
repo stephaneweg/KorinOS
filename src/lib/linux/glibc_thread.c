@@ -59,12 +59,23 @@ static clockid_t clock_of (int linux_id)
 	return linux_id == 1 || linux_id == 4 || linux_id == 6 || linux_id == 7 ? CLOCK_MONOTONIC : CLOCK_REALTIME;
 }
 
-/* ---- mutex ---- */
+/* ---- mutex : le type (__kind, l'int au décalage 16 du pthread_mutex_t de glibc : 1 récursif, 2 avec
+   vérification ; aussi posé par PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP) lu à la fabrication de la boîte ---- */
+static __thread int s_mutex_kind;
+
 static void *mutex_make (void)
 {
 	pthread_mutex_t *m = malloc (sizeof *m);
-	if (m)
-		pthread_mutex_init (m, 0);
+	if (!m)
+		return 0;
+	pthread_mutexattr_t a;
+	pthread_mutexattr_init (&a);
+	if (s_mutex_kind == 1)
+		pthread_mutexattr_settype (&a, PTHREAD_MUTEX_RECURSIVE);
+	else if (s_mutex_kind == 2)
+		pthread_mutexattr_settype (&a, PTHREAD_MUTEX_ERRORCHECK);
+	pthread_mutex_init (m, &a);
+	pthread_mutexattr_destroy (&a);
 	return m;
 }
 
@@ -74,12 +85,17 @@ static void mutex_unmake (void *p)
 	free (p);
 }
 
-static pthread_mutex_t *M (void *obj) { return box (obj, mutex_make, mutex_unmake); }
+static pthread_mutex_t *M (void *obj)
+{
+	s_mutex_kind = ((const int *) obj)[4] & 3;
+	return box (obj, mutex_make, mutex_unmake);
+}
 
 static int lx_mutex_init (void *m, const void *attr)
 {
-	(void) attr;
 	memset (m, 0, 40);
+	if (attr)
+		((int *) m)[4] = *(const int *) attr & 3;
 	return 0;
 }
 
@@ -97,6 +113,7 @@ static int lx_mutex_destroy (void *m)
 
 static int lx_mutexattr_init (void *a) { memset (a, 0, 4); return 0; }
 static int lx_mutexattr_destroy (void *a) { (void) a; return 0; }
+static int lx_mutexattr_settype (int *a, int t) { if (t < 0 || t > 3) return 22; *a = t; return 0; }
 
 /* ---- conditions : condattr de glibc = un int ; on y garde l'horloge de Linux + 1 ---- */
 static int lx_condattr_init (int *a) { *a = 0; return 0; }
@@ -234,6 +251,8 @@ struct lx_attr
 	uint32_t magic;
 	uint32_t detached;
 	uint64_t stacksize;
+	uint64_t stackaddr;	/* (pthread_attr_setstack : la base, gardée ; pthread_getattr_np : la pile du thread) */
+	uint64_t guard;
 };
 #define LX_ATTR_MAGIC 0x4c584154	/* 'LXAT' */
 
@@ -247,9 +266,73 @@ static int lx_attr_init (struct lx_attr *a)
 static int lx_attr_destroy (struct lx_attr *a) { (void) a; return 0; }
 static int lx_attr_setdetachstate (struct lx_attr *a, int d) { a->detached = d == 1; return 0; }	/* (1 : DETACHED) */
 static int lx_attr_setstacksize (struct lx_attr *a, size_t n) { a->stacksize = n; return 0; }
+static int lx_attr_getstacksize (const struct lx_attr *a, size_t *n) { *n = a->stacksize ? a->stacksize : 8 << 20; return 0; }
+static int lx_attr_setstack (struct lx_attr *a, void *p, size_t n) { a->stackaddr = (uint64_t) (uintptr_t) p; a->stacksize = n; return 0; }
+static int lx_attr_getstack (const struct lx_attr *a, void **p, size_t *n)
+{
+	*p = (void *) (uintptr_t) a->stackaddr;
+	*n = a->stacksize;
+	return 0;
+}
+static int lx_attr_getguardsize (const struct lx_attr *a, size_t *n) { *n = a->guard; return 0; }
+static int lx_attr_setguardsize (struct lx_attr *a, size_t n) { a->guard = n; return 0; }
+static int lx_attr_getdetachstate (const struct lx_attr *a, int *d) { *d = (int) a->detached; return 0; }
+
+/* la pile du thread (JavaScriptCore borne son analyse de la pile par elle) : celle de libposix ; le fil
+   principal d'un exécutable lancé par linux_exec est sur la pile que exec.c lui a faite */
+void *linux_main_stack_lo, *linux_main_stack_hi;	/* exec.c */
+
+static int lx_getattr_np (unsigned long t, struct lx_attr *a)
+{
+	lx_attr_init (a);
+	if (linux_main_stack_hi && (pthread_t) t == pthread_self () && (uintptr_t) &a > (uintptr_t) linux_main_stack_lo
+	    && (uintptr_t) &a < (uintptr_t) linux_main_stack_hi)
+	{
+		a->stackaddr = (uint64_t) (uintptr_t) linux_main_stack_lo;
+		a->stacksize = (uint64_t) ((char *) linux_main_stack_hi - (char *) linux_main_stack_lo);
+		return 0;
+	}
+	pthread_attr_t pa;
+	if (pthread_getattr_np ((pthread_t) t, &pa) != 0)
+		return 3;	/* ESRCH */
+	void *p = 0;
+	size_t n = 0;
+	pthread_attr_getstack (&pa, &p, &n);
+	pthread_attr_destroy (&pa);
+	a->stackaddr = (uint64_t) (uintptr_t) p;
+	a->stacksize = n;
+	return 0;
+}
+
+void (*linux_thread_hook) (void);	/* exec.c : le TLS de l'exécutable dans chaque thread */
+
+struct lx_start
+{
+	void *(*fn) (void *);
+	void *arg;
+};
+
+static void *lx_trampoline (void *p)
+{
+	struct lx_start st = *(struct lx_start *) p;
+	free (p);
+	if (linux_thread_hook)
+		linux_thread_hook ();
+	return st.fn (st.arg);
+}
 
 static int lx_create (unsigned long *t, const struct lx_attr *a, void *(*fn) (void *), void *arg)
 {
+	if (linux_thread_hook)
+	{
+		struct lx_start *st = malloc (sizeof *st);
+		if (!st)
+			return 11;	/* EAGAIN */
+		st->fn = fn;
+		st->arg = arg;
+		fn = lx_trampoline;
+		arg = st;
+	}
 	pthread_attr_t pa;
 	pthread_attr_init (&pa);
 	if (a && a->magic == LX_ATTR_MAGIC)
@@ -264,6 +347,8 @@ static int lx_create (unsigned long *t, const struct lx_attr *a, void *(*fn) (vo
 	pthread_attr_destroy (&pa);
 	if (!r)
 		*t = (unsigned long) pt;
+	else if (fn == lx_trampoline)
+		free (arg);
 	return lx_perr (r);
 }
 
@@ -299,6 +384,49 @@ static int lx_sched_cpucount (size_t size, const void *set)
 	return n;
 }
 
+static int lx_setcancelstate (int st, int *old) { (void) st; if (old) *old = 0; return 0; }
+
+/* __cxa_thread_atexit_impl : les destructeurs des variables thread_local de C++, à la fin du thread (une clé de
+   pthread par thread qui en a) ; ceux du fil principal à la sortie du process */
+struct lx_tdtor { void (*fn) (void *); void *obj; struct lx_tdtor *next; };
+static pthread_key_t s_tdtor_key;
+static pthread_once_t s_tdtor_once = PTHREAD_ONCE_INIT;
+static __thread struct lx_tdtor *s_tdtors;
+
+static void tdtor_run (void *p)
+{
+	(void) p;
+	while (s_tdtors)
+	{
+		struct lx_tdtor *d = s_tdtors;
+		s_tdtors = d->next;
+		d->fn (d->obj);
+		free (d);
+	}
+}
+
+static void tdtor_main (void) { tdtor_run (0); }
+static void tdtor_init (void)
+{
+	pthread_key_create (&s_tdtor_key, tdtor_run);
+	atexit (tdtor_main);
+}
+
+static int lx_cxa_thread_atexit (void (*fn) (void *), void *obj, void *dso)
+{
+	(void) dso;
+	pthread_once (&s_tdtor_once, tdtor_init);
+	struct lx_tdtor *d = malloc (sizeof *d);
+	if (!d)
+		return -1;
+	d->fn = fn;
+	d->obj = obj;
+	d->next = s_tdtors;
+	s_tdtors = d;
+	pthread_setspecific (s_tdtor_key, (void *) 1);	/* (non nul : le destructeur de la clé sera appelé) */
+	return 0;
+}
+
 /* priorités : acceptées, sans effet */
 static int lx_setpriority (int which, unsigned who, int prio) { (void) which; (void) who; (void) prio; return 0; }
 static int lx_sched_setscheduler (int pid, int pol, const void *p) { (void) pid; (void) pol; (void) p; return 0; }
@@ -328,6 +456,13 @@ const struct lx_entry lx_table_thread[] =
 	LX_W ("pthread_attr_init", lx_attr_init), LX_W ("pthread_attr_destroy", lx_attr_destroy),
 	LX_W ("pthread_attr_setdetachstate", lx_attr_setdetachstate),
 	LX_W ("pthread_attr_setstacksize", lx_attr_setstacksize),
+	LX_W ("pthread_attr_getstacksize", lx_attr_getstacksize), LX_W ("pthread_attr_setstack", lx_attr_setstack),
+	LX_W ("pthread_attr_getstack", lx_attr_getstack), LX_W ("pthread_attr_getguardsize", lx_attr_getguardsize),
+	LX_W ("pthread_attr_setguardsize", lx_attr_setguardsize),
+	LX_W ("pthread_attr_getdetachstate", lx_attr_getdetachstate), LX_W ("pthread_getattr_np", lx_getattr_np),
+	LX_W ("pthread_mutexattr_settype", lx_mutexattr_settype), LX_F (pthread_exit),
+	LX_W ("pthread_setcancelstate", lx_setcancelstate), LX_W ("__pthread_key_create", lx_key_create),
+	LX_W ("__cxa_thread_atexit_impl", lx_cxa_thread_atexit), LX_W ("__cxa_thread_atexit", lx_cxa_thread_atexit),
 	LX_W ("pthread_create", lx_create), LX_W ("pthread_join", lx_join), LX_W ("pthread_detach", lx_detach),
 	LX_W ("pthread_self", lx_pthread_self), LX_W ("pthread_setname_np", lx_setname),
 	LX_W ("pthread_key_create", lx_key_create), LX_W ("pthread_key_delete", lx_key_delete),

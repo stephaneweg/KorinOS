@@ -43,9 +43,18 @@ alors écrite sur la carte. Le certificat HTTPS est vérifié par `/etc/ca-bundl
 ## Un paquet
 
 Un `.opk` est un ZIP dont l'arborescence est celle de `/`, plus `PKG/manifest.ini` (`name`, `title`, `version`,
-`category`, `author`, `summary`, `needs`, `required`, `restart`, `installed`, `config`, `boot`, `replaces`).
+`category`, `author`, `summary`, `needs`, `required`, `restart`, `installed`, `config`, `boot`, `replaces`, `fetch`).
 
 - **`needs`** : d'autres paquets (`fmtracker`, `koton >= 1.2`), et `abi >= N`.
+- **`fetch`** (depuis le 21/11, pkgman 1.0.21) : `CHEMIN TAILLE SHA256 URL[;CHEMIN …]` (dans `packages*.ini`, pas
+  d'espace avant « ; » : le lecteur d'ini de mkrepo y verrait un commentaire, comme dans `summary`) : des fichiers que le paquet ne
+  porte pas, parce que leur éditeur ne permet pas qu'on les redistribue (Claude Code, paquet `claude-code` :
+  docs/etude/LINUX-HOST.md), téléchargés en HTTPS à l'installation, chez l'éditeur, puis vérifiés par la taille et
+  le SHA-256 écrits dans le manifeste (signé, comme toute l'archive, par l'index). Ils sont inscrits dans la base comme
+  les autres fichiers du paquet (retirés avec lui) ; un fichier déjà là, du même SHA-256, n'est pas retéléchargé.
+  Pas avec `restart`. Un paquet qui en a demande `pkgman >= 1.0.21` (un `pkg` plus ancien poserait le reste sans
+  lui). La version de l'éditeur est épinglée : une nouvelle se publie après essai, en changeant `fetch` et la version
+  du paquet.
 - **Gros paquets** : GitHub refuse un fichier de plus de 100 Mo. `split = MOTIF MO` dans `packages.ini` met les
   fichiers qui suivent le motif dans des paquets `<nom>-data-1`, `-2`… de moins de MO Mo, que le paquet demande
   par `needs` : `pkg` et Logiciels les installent avec lui (SuperTux, SuperTuxKart).

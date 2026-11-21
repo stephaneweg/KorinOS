@@ -31,11 +31,15 @@ struct linux_module;
 #define LINUX_LOAD_STUBS	1	/* un import absent devient une fonction qui le nomme et arrête le
 					   process quand elle est appelée (sinon : le chargement échoue) */
 #define LINUX_LOAD_NOINIT	2	/* ne pas appeler les constructeurs (DT_INIT, DT_INIT_ARRAY) */
+#define LINUX_LOAD_EXE		4	/* un exécutable (ET_EXEC ou PIE) : constructeurs par __libc_start_main,
+					   TLS statique (exec.c) */
 
 /* charge l'image (le fichier .so en mémoire, que l'appelant garde ou libère ensuite) ;
    NULL si refusée, avec la raison dans err */
 struct linux_module *linux_load (const void *image, size_t size, const char *name, int flags,
 				 char *err, size_t errlen);
+/* la même chose depuis un fichier, lu par morceaux (en-têtes, puis chaque segment à sa place) */
+struct linux_module *linux_load_file (const char *path, int flags, char *err, size_t errlen);
 /* l'adresse d'un symbole défini et exporté par le module, NULL s'il n'y est pas */
 void *linux_sym (struct linux_module *m, const char *name);
 /* appelle les destructeurs (__cxa_atexit du module, DT_FINI_ARRAY, DT_FINI) et libère la mémoire */
@@ -64,6 +68,33 @@ int linux_errno_korin (int linux_errno);
 void *linux_tls_get_addr (const uint64_t *ti);
 /* elf.c : /proc/self/maps au format de Linux (programme hôte, modules, pile) ; rend la longueur */
 size_t linux_maps (char *buf, size_t cap);
+
+/* ---- exécutables (docs/etude/LINUX-HOST.md, jalon 1) ---- */
+struct linux_exe_info
+{
+	uint64_t entry, phdr;		/* _start ; les en-têtes de programme en mémoire (AT_PHDR) */
+	int phnum;
+	uint64_t stack_size;		/* PT_GNU_STACK (0 : rien demandé) */
+	const void *tls_init;		/* PT_TLS : image de .tdata, tailles, alignement ; tls_span : le bloc */
+	uint64_t tls_filesz, tls_memsz, tls_align, tls_span;	/* sous %fs (variante II) */
+};
+/* elf.c : ce qu'un exécutable chargé (LINUX_LOAD_EXE) demande pour démarrer */
+void linux_exe_info (struct linux_module *m, struct linux_exe_info *x);
+/* elf.c : l'exécutable que va démarrer _start (son __libc_start_main : constructeurs, environ, fin) */
+void linux_exe_start (struct linux_module *m);
+/* elf.c : __libc_start_main de glibc */
+int linux_libc_start_main (int (*main_fn) (int, char **, char **), int argc, char **argv,
+			   void (*init) (int, char **, char **), void (*fini) (void), void (*rtld_fini) (void),
+			   void *stack_end);
+/* exec.c : charge l'exécutable path et le démarre dans ce process, sur sa propre pile (argv[0] : son
+   nom) ; ne revient qu'en cas d'échec (raison dans err). L'hôte doit être lié avec la réserve de TLS des
+   exécutables (tools/linux/build.sh : posix-lx.ld, à 0x4000_0000) */
+int linux_exec (const char *path, int argc, char **argv, char **envp, int flags, char *err, size_t errlen);
+/* glibc_misc.c : le vecteur auxiliaire de l'exécutable lancé (getauxval), NULL sinon */
+extern const unsigned long *linux_auxv;
+/* glibc_thread.c : appelée au début de chaque thread créé par le code Linux (exec.c : le TLS de
+   l'exécutable), NULL sinon */
+extern void (*linux_thread_hook) (void);
 
 /* nombre d'appels traduits, par numéro de Linux (diagnostic : linuxhost --stats) */
 extern unsigned long linux_syscall_count[512];

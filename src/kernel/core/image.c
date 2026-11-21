@@ -195,6 +195,7 @@ int image_map(struct image *im, struct vm_space *vm, struct mm *mm, uint64_t *en
 			lazy = first;
 		if (end > *top)
 			*top = end;
+		mm_note_image(mm, first);
 		int congruent = (ph.vaddr % PAGE_SIZE) == (ph.offset % PAGE_SIZE);
 		for (uint64_t va = first; va < lazy && va < end; va += PAGE_SIZE) {
 			int fl = (w ? VM_W : 0) | (x ? VM_X : 0);
