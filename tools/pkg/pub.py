@@ -506,7 +506,7 @@ def main ():
 	if git_blob ("HEAD", repo_rel + "/index.txt") != idx_bytes:
 		die ("HEAD porte un %s/index.txt qui n'est pas celui de %s (un commit pas pousse ?) : rien n'est publie" % (repo_rel, a.base))
 	if is_release:
-		if os.path.basename (opk) in rel_assets ():
+		if os.path.basename (opk) in rel_assets () and not MANUAL:	# (--manual-upload : deja deposee, verifiee par rel_wait)
 			die ("%s est deja dans la Release : rien n'est publie" % os.path.basename (opk))
 		say ("pub: %s release upload %s" % ("a la main" if MANUAL else "API" if API else "gh", os.path.basename (opk)))
 		rel_upload (opk)
