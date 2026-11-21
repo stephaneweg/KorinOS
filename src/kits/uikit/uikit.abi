@@ -223,4 +223,5 @@ kit_fn ui_drag_image		; x0, x1, x2, x3 = rectangle du contenu de la fenetre cour
 kit_fn ui_window_place		; x0, x1 = x, y du contenu de la fenetre courante sur l'ecran (son cadre autour) : elle y va, quelle que soit sa couche -> 0 (version 218)
 kit_fn ui_window_top		; x0 = 1 : la fenetre courante reste au-dessus des autres, sur tous les espaces ; 0 : comme les autres -> 0 (version 219)
 kit_fn ui_window_pos		; x0 = deux mots ou ecrire x, y du contenu de la fenetre courante sur l'ecran -> 0 (< 0 : inconnue) (version 220)
+kit_fn ui_menu_states		; x0 = tableau de paires (id, etat UMS_*) en mots de 64 bits, x1 = nombre : les etats des entrees de menu d'un coup, un seul envoi -> 0 (version 221)
 kit_end

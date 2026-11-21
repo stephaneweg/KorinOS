@@ -36,7 +36,7 @@ fi
 # 3. l'interface C d'UIKit pour le PC (build/pc/gcc : uikit_abi.h, libuikit.a), que le relais d'egui-korin prend ;
 #    tools/pc/apps.sh la fait avec toutes les apps C : ici, UIKit seul, de la même façon
 G=$ROOT/build/pc/gcc
-if [ ! -f "$G/lib/libuikit.a" ] || [ ! -f "$G/include/kits/uikit_abi.h" ]; then
+if [ ! -f "$G/lib/libuikit.a" ] || [ ! -f "$G/include/kits/uikit_abi.h" ] || [ src/kits/uikit/uikit.abi -nt "$G/lib/libuikit.a" ]; then
 	say "UIKit depuis le C (tools/kits/abi2c.py --arch x86_64)"
 	Wk=$ROOT/build/craft/kits
 	rm -rf "$Wk" && mkdir -p "$Wk" "$G/lib" "$G/include/kits"

@@ -172,6 +172,12 @@ pub fn run_with(
                 next_frame = Some(Instant::now());
                 continue;
             }
+            if t == sys::WEV_MENU {
+                // un choix dans la barre de menus de Korin : gardé pour l'app (menu::take_chosen)
+                menu::chosen(e.code as i64);
+                next_frame = Some(Instant::now());
+                continue;
+            }
             if win.event(&e) {
                 next_frame = Some(Instant::now());
             }
@@ -187,6 +193,63 @@ pub fn run_with(
         if host.close {
             return Ok(());
         }
+    }
+}
+
+/// La barre de menus de Korin, en haut de l'écran (UIKit `ui_menu`) : le texte des menus de la fenêtre
+/// (lignes `M<titre>`, `I<id>[d][c]<tab><libellé><tab><raccourci>`, `-`, `S<titre>` … `E` pour un sous-menu),
+/// les états des entrées, et les choix de l'utilisateur. À appeler depuis la passe d'egui (le fil de la fenêtre).
+pub mod menu {
+    use super::sys;
+    use std::sync::Mutex;
+
+    static CHOSEN: Mutex<Vec<i64>> = Mutex::new(Vec::new());
+    /// Deux tampons à adresse fixe, en alternance : UIKit reconnaît un texte déjà traduit à son adresse, il faut
+    /// donc une autre adresse pour un autre texte, et la même mémoire tant qu'il s'en sert.
+    static BUFS: Mutex<(Vec<u8>, Vec<u8>, bool, String)> = Mutex::new((Vec::new(), Vec::new(), false, String::new()));
+
+    /// Le plus long texte que la barre accepte (WS_MENU_MAX).
+    pub const MAX: usize = 16384;
+
+    /// Publie le texte des menus (vide : plus de menu). Sans effet s'il n'a pas changé. -> false : trop long.
+    pub fn set(text: &str) -> bool {
+        if text.len() >= MAX {
+            return false;
+        }
+        let mut b = BUFS.lock().unwrap_or_else(|e| e.into_inner());
+        if b.3 == text {
+            return true;
+        }
+        if b.0.capacity() < MAX + 1 {
+            b.0 = Vec::with_capacity(MAX + 1);
+            b.1 = Vec::with_capacity(MAX + 1);
+        }
+        b.2 = !b.2;
+        let buf = if b.2 { &mut b.0 } else { &mut b.1 };
+        buf.clear();
+        buf.extend_from_slice(text.as_bytes());
+        buf.push(0);
+        let ptr = buf.as_ptr();
+        b.3 = text.to_owned();
+        unsafe { sys::kh_menu_set(if text.is_empty() { std::ptr::null() } else { ptr.cast() }) >= 0 }
+    }
+
+    /// Les états de plusieurs entrées d'un coup : (id, 0 normale | 1 grisée | 2 cochée | 3 les deux).
+    pub fn set_states(states: &[(i64, i64)]) {
+        if states.is_empty() {
+            return;
+        }
+        let flat: Vec<std::ffi::c_long> = states.iter().flat_map(|&(id, s)| [id as std::ffi::c_long, s as std::ffi::c_long]).collect();
+        unsafe { sys::kh_menu_states(flat.as_ptr(), states.len() as std::ffi::c_long) };
+    }
+
+    pub(super) fn chosen(id: i64) {
+        CHOSEN.lock().unwrap_or_else(|e| e.into_inner()).push(id);
+    }
+
+    /// Les entrées choisies dans la barre depuis le dernier appel (leur id).
+    pub fn take_chosen() -> Vec<i64> {
+        std::mem::take(&mut *CHOSEN.lock().unwrap_or_else(|e| e.into_inner()))
     }
 }
 

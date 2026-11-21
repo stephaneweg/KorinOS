@@ -540,10 +540,9 @@ long ui_menu(long a0)
 	return menu_send();
 }
 
-/* x0 = id, x1 = état (UMS_DISABLED, UMS_CHECKED ; 0 : normal) : renvoie les menus */
-long ui_menu_state(long a0, long a1)
+/* (ui_menu_state, ui_menu_states) id, état : retenu dans la table des états, sans envoi */
+static void menu_state_set(long a0, long a1)
 {
-	menu_need();
 	long base = menu_base().r0;             /* une place libre ou la sienne */
 	long fr = -1;
 	long e = 0;
@@ -564,6 +563,23 @@ long ui_menu_state(long a0, long a1)
 		STX(e, 0, a0);
 		STX(e, 8, a1 | 0x100);              /* (place prise) */
 	}
+}
+
+/* x0 = id, x1 = état (UMS_DISABLED, UMS_CHECKED ; 0 : normal) : renvoie les menus */
+long ui_menu_state(long a0, long a1)
+{
+	menu_need();
+	menu_state_set(a0, a1);
+	return menu_send();
+}
+
+/* x0 = tableau de paires (id, état) en long, x1 = nombre de paires : les états d'un coup, puis
+ * un seul envoi des menus (ui_menu_state renvoie tout le texte à chaque appel) */
+long ui_menu_states(long a0, long a1)
+{
+	menu_need();
+	for (long i = 0; i < a1; i++)
+		menu_state_set(LDX(a0, i * 16), LDX(a0, i * 16 + 8));
 	return menu_send();
 }
 

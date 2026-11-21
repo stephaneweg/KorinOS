@@ -141,3 +141,10 @@ int kh_folder_choose (const char *dir, char *buf, long cap)
 
 /* ouvre un fichier ou une adresse avec l'app associee */
 void kh_open_with (const char *path) { ui_open_with ((long) path); }
+
+/* la barre de menus de Korin : le texte des menus de la fenetre (lignes M, I, -, S ... E ; 0 : plus de
+ * menu) ; l'adresse change a chaque nouveau texte (UIKit reconnait un texte deja traduit a son adresse) */
+long kh_menu_set (const char *text) { return ui_menu ((long) text); }
+
+/* les etats de plusieurs entrees (paires id, UMS_* en long), un seul envoi */
+long kh_menu_states (const long *pairs, long n) { return ui_menu_states ((long) pairs, n); }

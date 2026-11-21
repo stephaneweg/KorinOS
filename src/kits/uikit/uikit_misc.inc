@@ -6,7 +6,7 @@
 
 UK_TIP_MS	= 600			; survol avant l'infobulle
 UK_DRAG_PX	= 6			; deplacement qui commence un glisser
-UK_MENU_IDS	= 64			; etats d'entrees de menu retenus
+UK_MENU_IDS	= 1024			; etats d'entrees de menu retenus
 
 ; ---------------------------------------------------------------------------
 ;  Forme du curseur

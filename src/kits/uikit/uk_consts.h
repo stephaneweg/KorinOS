@@ -54,7 +54,7 @@
 #define WS_OP_WIN_MOVE 16
 #define WS_OP_WIN_CLOSE 17
 #define WS_WIN_DESKTOP 0xFFFFFFFFUL
-#define WS_MENU_MAX 0x1000
+#define WS_MENU_MAX 0x4000
 #define WS_MENU_PIECE 464
 #define WS_MENU_TITLE 128
 #define WS_MENU_GPIECE 336
@@ -689,7 +689,7 @@
 /* uikit_misc.inc */
 #define UK_TIP_MS 600
 #define UK_DRAG_PX 6
-#define UK_MENU_IDS 64
+#define UK_MENU_IDS 1024
 #define UK_NFONTS 10
 /* uikit_more.inc */
 #define UK_CAL_HEAD 30
