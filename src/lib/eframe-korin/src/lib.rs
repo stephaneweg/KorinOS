@@ -8,10 +8,11 @@
 use std::fmt;
 
 pub use egui;
+pub use egui::{emath, epaint};
 #[cfg(feature = "wgpu")]
 pub use egui_wgpu;
 #[cfg(feature = "wgpu")]
-pub use egui_wgpu::wgpu;
+pub use egui_wgpu::{SurfaceConfig, WgpuConfiguration, wgpu};
 pub use egui::{IconData, ViewportBuilder};
 pub use winit;
 use raw_window_handle::{DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle};

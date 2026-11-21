@@ -29,10 +29,19 @@ def edit(rel, pairs, count_min=1):
 
 
 # eframe -> l'eframe de Korin : la ligne de la fourche dans [patch.crates-io], ou une ligne de plus (l'app prend
-# l'eframe de crates.io)
+# l'eframe de crates.io). Une app encore sur egui 0.36 prend la copie 0.36 de l'hôte (tools/craft/egui036.py), à côté
+# des dépôts des apps
 EFRAME = 'eframe = { path = "%s/src/lib/eframe-korin" }' % root
 p = os.path.join(app, "Cargo.toml")
 s = open(p, encoding="utf-8").read()
+if re.search(r'^eframe = \{ version = "0\.36"', s, re.M):
+    import glob
+    import subprocess
+    e036 = os.path.join(os.path.dirname(os.path.normpath(app)), "egui036")
+    reg = (glob.glob(os.path.join(os.environ.get("CARGO_HOME", os.path.expanduser("~/.cargo")), "registry", "src",
+                                  "index.crates.io-*")) or [""])[0]
+    subprocess.run([sys.executable, "-I", os.path.join(root, "tools", "craft", "egui036.py"), root, e036, reg], check=True)
+    EFRAME = 'eframe = { path = "%s/eframe-korin" }' % e036
 fork = re.compile(r'^eframe = \{ git = "https://github\.com/storytold/egui\.git".*$', re.M)
 if fork.search(s):
     s = fork.sub(EFRAME, s)
@@ -128,6 +137,11 @@ if name == "figcraft":
          '    #[cfg(any(target_os = "korin", not(any(windows, unix))))]\n    {\n        false'),
     ])
 if name == "soundcraft":
+    # winit (pour X11 sur les BSD : « Unix ni macOS ni Linux », ce qu'est Korin) ne sert pas sur Korin
+    edit("apps/soundcraft/Cargo.toml", [
+        ("[target.'cfg(all(unix, not(any(target_os = \"macos\", target_os = \"linux\"))))'.dependencies]\nwinit",
+         "[target.'cfg(all(unix, not(any(target_os = \"macos\", target_os = \"linux\", target_os = \"korin\"))))'.dependencies]\nwinit"),
+    ])
     # l'hôte VST3 : pas de fenêtre pour l'éditeur d'un greffon sur Korin (« unsupported », comme les autres systèmes)
     edit("crates/vst3-host/src/ffi.rs", [
         ('#[cfg(not(any(target_os = "macos", windows, unix)))]\n#[path = "ffi/window/other.rs"]',
