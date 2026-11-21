@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 23:32
+date = 2026-11-21 23:51
 abi = 629
 packages = 117
 board = pc
@@ -604,18 +604,18 @@ content = 3e6ec8f492001cdf29dbdf24eeeccea476719291ae98c0ae4100b24fbe883205
 
 [git]
 title = Git
-version = 2.51.3
+version = 2.51.4
 category = Développement
 author = Korin OS
 summary = Le gestionnaire de versions git 2.51 : dépôts locaux, clone, fetch et push en HTTP et HTTPS
-size = 7946762
+size = 7947622
 installed = 18546552
-sha256 = d650eef0c5f880ac928037adc073592726496928d9690137cad06b6ef643d2a5
-file = pkgs/git-2.51.3.opk
+sha256 = 00dd3a7763d53d9d06f92b02d62fd485c6a9b711367126d11a580a4e855189cc
+file = pkgs/git-2.51.4.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 13f8ae7452962b821224d401a8df90633e01187c71a04eda93d02bfc12470b9f
+content = a4f64665a25456b708baa5f30244cf548269afa001ae8b8ed7b7116c1b118a5d
 
 [webstudio-templates]
 title = Modèles de sites (WebStudio)
