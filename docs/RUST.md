@@ -339,6 +339,45 @@ chaîne avec `posix.specs`.
 | `korintest` et `rdl` construits par ce rustc (`cargo build --target x86_64-unknown-korin`, `RUSTC` = stage 1, sans `-Zbuild-std`), QEMU q35 | `korintest` : **52 essais, 0 échec** (`current_exe` rend maintenant `/home/rust/builtin/korintest`, un chemin absolu) ; `rdlhost librdl.so` : **14 sur 14** |
 | `korintest` pour `aarch64-unknown-korin` | se construit et se lie (pas lancé) |
 
+## LLVM pour Korin (21/11/2026)
+
+Troisième étape : **LLVM compilé pour Korin PC comme hôte**, et essayé dans Korin. C'est le LLVM de Rust 1.97.1
+(`src/llvm-project`, 22.1.6-rust), avec les moteurs X86 et AArch64 (ceux de rustc), compilé en croisé par le g++ de
+`x86_64-onyx-elf` sur libposix.
+
+```sh
+bash tools/rust/llvm-build.sh             # ~/korin-rustc/llvm-korin-x86_64 ; outils d'essai dans build/pc/rust/tests/llvm
+```
+
+| Où | Quoi |
+|---|---|
+| `tools/rust/llvm-build.sh` | les sources de `rustc-build.sh` (`SRC_ONLY=1`), CMake avec `tools/cao/korin.cmake` (Korin vu comme un « Linux » sans `__linux__` : les chemins POSIX génériques de LLVM), `llvm-tblgen` du LLVM de la CI (même version) ; puis les bibliothèques et `llc`, `opt`, `llvm-mc`, `llvm-config` |
+| `tools/rust/llvm.patch` | `lib/Support/Unix/Path.inc` : sous Korin (`__armpi__`, la macro que donne `posix.specs`), `statvfs` a le `f_flag` de POSIX (le chemin générique de LLVM lisait le `f_flags` des `statfs` de BSD) et pas de `MNT_LOCAL` (tout est local, les partages sont sous `/net`). `rustc-build.sh` l'applique aussi |
+| libposix | ce que LLVM a demandé : `sysexits.h` (codes de 4.3BSD : LLVM rend `EX_IOERR` sur un tube cassé), `_POSIX_ARG_MAX` (`limits.h`), `AT_PAGESZ` rendu par `getauxval` |
+
+Tout le reste de LLVM compile sans retouche : **117 bibliothèques** (≈ 530 Mo non strippées), et les outils se lient
+**sans aucun symbole manquant** dans libposix et newlib. Deux remarques pour l'édition de liens :
+
+* `korin.cmake` met `-specs` dans `CMAKE_CXX_FLAGS` et dans les options d'édition de liens ; CMake passe les deux, et
+  gcc refuse une spec lue deux fois (« attempt to rename spec 'link' ») : `llvm-build.sh` vide les secondes.
+* une `.so` de LLVM (`libLTO.so`) qui embarque le `libstdc++.a` statique ne se lie pas (sa TLS n'est pas faite pour une
+  bibliothèque partagée) : coupée (`LLVM_TOOL_LTO_BUILD=OFF`). **Ce sera le point de `librustc_driver.so`** (LLVM, donc
+  du C++, dans une bibliothèque partagée) : elle devra prendre libstdc++ chez son hôte, comme les modules C++ de
+  libposix (`dlhost-cxx.ld`), pas l'embarquer.
+
+### Essais (QEMU q35, 21/11/2026)
+
+| Essai | Résultat |
+|---|---|
+| `llvm-config --version --host-target --targets-built` | `22.1.6-rust-1.97.1-stable`, `x86_64-unknown-korin`, `X86 AArch64` |
+| `llc --version` | les moteurs X86 et AArch64 ; processeur de l'hôte vu comme `athlon-xp` (le processeur de QEMU en TCG ; sans effet tant qu'on ne demande pas `-C target-cpu=native`) |
+| `opt -O2 -S hello.ll` (`tools/rust/tests/llvm/hello.ll` : `printf`, une fonction récursive) | 4 s ; **identique** à la sortie du même `opt` sous Linux (`diff`) |
+| `llc -O2 -filetype=obj` et `llc -O2` (assembleur) | 6 s chacun ; l'objet **identique octet par octet** à celui de Linux (le `hexdump` de Korin sur les deux), l'assembleur identique |
+| `llvm-mc` sur cet assembleur | un objet de la même taille |
+| le programme lié depuis cet objet | `hello from llc on Korin PC`, `fib(20) 6765` |
+
+Tailles strippées : `llc` 66 Mo, `opt` 66 Mo, `llvm-mc` 14 Mo (chacun avec tout LLVM en statique).
+
 ## Limites connues
 
 * **Pas essayé sur le Pi ni sur le vrai ZBook.** Sous QEMU seulement.

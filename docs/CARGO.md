@@ -102,6 +102,7 @@ cargo lance `rustc -vV` (version, cible) avant tout ce qui dépend de la cible o
 ## La suite
 
 L'ordre décidé le 20/11/2026 (Korin PC) : cargo croisé (ce document), puis la cible intégrée au compilateur
-(**faite le 21/11**, [RUST.md](RUST.md) « La cible dans le compilateur »), LLVM pour Korin, `librustc_driver.so` (bibliothèque Rust
+(**faite le 21/11**, [RUST.md](RUST.md) « La cible dans le compilateur »), LLVM pour Korin (**fait le 21/11**,
+[RUST.md](RUST.md) « LLVM pour Korin »), `librustc_driver.so` (bibliothèque Rust
 `dylib`, jamais essayée sur Korin), les macros procédurales (`.so` chargées par `dlopen` dans rustc), et le paquet
 `/devtools/rust`.

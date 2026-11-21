@@ -8,6 +8,8 @@
 #   tools/rust/rustc.patch   le compilateur : Os::Korin, spec/base/korin.rs, les deux cibles, la doc de plateforme,
 #                            l'essai d'assembleur, la liste des cibles inconnues du compilateur d'amorçage (bootstrap)
 #   tools/rust/std.patch, tools/rust/libc.patch   la std et la libc (les mêmes que pour rust-src)
+#   tools/rust/llvm.patch    LLVM (src/llvm-project) pour Korin comme hôte (tools/rust/llvm-build.sh)
+# SRC_ONLY=1 : seulement les sources patchées et le LLVM de la CI (tools/rust/llvm-build.sh).
 # LLVM de l'hôte : celui de la CI de Rust pour ce même commit (rust-dev, LLVM 22.1.6), au lieu de le construire.
 # Travail dans ~/korin-rustc (KORIN_RUSTC) : src/ (refait si un patch change), ci-llvm/, build/ (gardé).
 # Résultat : $KORIN_RUSTC/src/build/x86_64-unknown-linux-gnu/stage1 (lié à rustup sous le nom « korin-stage1 »).
@@ -25,7 +27,8 @@ mkdir -p "$W/dl"
 [ -f "$W/dl/rustc-$V-src.tar.xz" ] || curl -sSfL "https://static.rust-lang.org/dist/rustc-$V-src.tar.xz" -o "$W/dl/rustc-$V-src.tar.xz"
 (cd "$W/dl" && echo "$SRC_SHA  rustc-$V-src.tar.xz" | sha256sum -c - >/dev/null)
 S=$W/src
-STAMP=$(cat "$ROOT/tools/rust/rustc.patch" "$ROOT/tools/rust/std.patch" "$ROOT/tools/rust/libc.patch" | sha256sum | cut -c1-16)
+STAMP=$(cat "$ROOT/tools/rust/rustc.patch" "$ROOT/tools/rust/std.patch" "$ROOT/tools/rust/libc.patch" \
+	"$ROOT/tools/rust/llvm.patch" | sha256sum | cut -c1-16)
 if [ "$(cat "$S/.korin" 2>/dev/null)" != "$STAMP" ]; then
 	# (build/ est gardé : il ne dépend que des sources, que cargo et bootstrap suivent)
 	[ -d "$S/build" ] && mv "$S/build" "$W/build.keep"
@@ -34,6 +37,7 @@ if [ "$(cat "$S/.korin" 2>/dev/null)" != "$STAMP" ]; then
 	tar xJf "$W/dl/rustc-$V-src.tar.xz" -C "$S" --strip-components=1
 	[ -d "$W/build.keep" ] && mv "$W/build.keep" "$S/build"
 	(cd "$S" && patch -p1 -s < "$ROOT/tools/rust/rustc.patch")
+	(cd "$S/src/llvm-project" && patch -p1 -s < "$ROOT/tools/rust/llvm.patch")
 	(cd "$S/library" && patch -p1 -s < "$ROOT/tools/rust/libc.patch" && patch -p1 -s < "$ROOT/tools/rust/std.patch")
 	# les fichiers de libc changent : la somme de contrôle du vendeur ne vaut plus
 	python3 -I - "$S/library/vendor/libc-0.2.185/.cargo-checksum.json" <<'EOF'
@@ -55,6 +59,7 @@ if [ ! -x "$L/bin/llvm-config" ]; then
 	rm -rf "$L" && mkdir -p "$L"
 	tar xJf "$W/dl/$f" -C "$L" --strip-components=2
 fi
+[ "${SRC_ONLY:-0}" = 1 ] && exit 0
 
 # 3. bootstrap.toml : l'hôte, les cibles de Korin et leur chaîne C (gcc + posix.specs)
 TL=""
