@@ -113,4 +113,18 @@ if name == "pdfcraft":
                                      ('#[cfg(target_arch = "wasm32")]', '#[cfg(%s)]' % NO_AWS)])
     edit("crates/sign/src/lib.rs", [("pub fn init_crypto() {\n    aws_lc_rs::init();\n}",
                                      "pub fn init_crypto() {\n    #[cfg(not(target_os = \"korin\"))]\n    aws_lc_rs::init();\n}")])
+if name == "figcraft":
+    # services.rs : le dossier des réglages (XDG_CONFIG_HOME) et la langue (LANGUAGE, LANG) sont du POSIX que Korin a :
+    # leur branche Unix reste à Korin (écrite autrement, korin_cfg.py ne la réécrit pas) ; le mouvement réduit
+    # (gsettings) prend le repli « ni Unix ni Windows » (non)
+    keep = '#[cfg(all(unix, not(any(target_os = "macos"))))]'
+    edit("apps/figcraft/src/services.rs", [
+        ('    #[cfg(all(unix, not(target_os = "macos")))]\n    let base = std::env::var_os("XDG_CONFIG_HOME")',
+         '    // Korin aussi (tools/craft/korin_app.py)\n    ' + keep + '\n    let base = std::env::var_os("XDG_CONFIG_HOME")'),
+        ('    // gettext\'s `LANGUAGE` priority list ("fr:de"), then the locale ("fr_FR.UTF-8").\n'
+         '    #[cfg(all(unix, not(target_os = "macos")))]',
+         '    // gettext\'s `LANGUAGE` priority list ("fr:de"), then the locale ("fr_FR.UTF-8"). Korin aussi.\n    ' + keep),
+        ('    #[cfg(not(any(windows, unix)))]\n    {\n        false',
+         '    #[cfg(any(target_os = "korin", not(any(windows, unix))))]\n    {\n        false'),
+    ])
 print("korin_app : %s retouchée" % name)
