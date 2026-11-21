@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 16:05
+date = 2026-11-21 16:06
 abi = 626
 packages = 117
 board = pc
@@ -1864,18 +1864,18 @@ content = 8975455c6f3cfe63e1bbde3f1ec4a00845c3050dadbd9b7513480aa872450573
 
 [gridcraft]
 title = GridCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = Le tableur libre GridCraft (storytold) : feuilles de calcul, formules, graphiques, analyse de données, lit et écrit le .xlsx.
-size = 15062058
-installed = 35534660
-sha256 = 7f10595e6f5824ac45f711c41210685cb54eef64848152be385f0e4ff0fc95e9
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-gridcraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 15147139
+installed = 35725156
+sha256 = c327f3203dd5e3f9c8191c20f79506c0931d2bc482f95e2227601f6735402f71
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-gridcraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = 22788e10fb26996b56854f015feb030d626ddf0c34c63d4d2806630dd1764df4
+content = 138c4d26c0f22e5cca5e13cb7cc746a628c277f86f05d0af059c870bd62f7f81
 
 [deckcraft]
 title = DeckCraft
