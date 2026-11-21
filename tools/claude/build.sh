@@ -54,7 +54,7 @@ printf 'tools/claude/build.sh\n' > "$SP/jiter-0.12.0.dist-info/INSTALLER"
 for p in anthropic docstring_parser sniffio claude_acp jiter; do
 	"$BUILD_PYTHON" -I -m compileall -q -j0 --invalidation-mode checked-hash "$SP/$p" >/dev/null
 done
-printf '#!/bin/python3\nimport sys\nfrom claude_acp.main import main\nsys.exit(main())\n' > "$D/bin/claude-acp"
+printf '#!/bin/python3\nimport os, sys\n# (unixtools : /devtools/bin devant /bin pour les commandes de l agent, BusyBox)\nif os.path.isfile("/devtools/bin/busybox") and "/devtools/bin" not in os.environ.get("PATH", "").split(":"):\n    os.environ["PATH"] = "/devtools/bin:" + os.environ.get("PATH", "/bin:/sbin")\nfrom claude_acp.main import main\nsys.exit(main())\n' > "$D/bin/claude-acp"
 chmod +x "$D/bin/claude-acp"
 "$BUILD_PYTHON" -I "$ROOT/tools/claude/home.py" "$D"
 du -sh "$SP/anthropic" "$SP/claude_acp" "$D/.claude-acp"
