@@ -53,3 +53,7 @@ matching » ni « expire user access token » : jetons durables, le chemin véri
 git-credential-korin demande toujours à oauthd plutôt qu'au coffre). Client ID Ov23liuX6RMNkkcSZ4Fh, pas secret en
 code d'appareil : en clair dans skel/pc/etc/oauth/providers.ini [github], publié dans pc 2026.11.78 (providers.ini
 publié repris de l'archive, section [github] remplacée). Plus de création d'app ni de question : seulement le code.
+
+**21/11, validé en réel par l'utilisateur** : connexion à GitHub par le code d'appareil avec le client « Korin » livré
+(pc 2026.11.78), « bien plus simple que devoir renseigner un client_id ». Essai suivant de l'utilisateur : fetch puis
+push d'un petit fichier par Claude Code dans Korin (résultat à noter).

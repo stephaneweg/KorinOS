@@ -222,7 +222,7 @@ compte vers `http://10.0.2.2:8090/gh/…`) : `git credential fill` lance la conn
 `slow_down` respecté) et rend `x-access-token` et le jeton ; `approve` le garde au coffre ; le `fill` suivant le
 rend sans réseau ; oauthd tué puis relancé par NetKit rend le même jeton (durable, au coffre) ; `reject` fait
 `oauth forget github` ; `GIT_TERMINAL_PROMPT=0` ne connecte pas. **Pas encore** contre le vrai GitHub (le réseau du
-cloud l'intercepte) : premier essai réel sur le ZBook. Le Pi : oauthd n'y est pas encore construit, l'assistant y
+cloud l'intercepte) ; **connexion réelle validée par l'utilisateur le 21/11** (client « Korin », pc 2026.11.78). Le Pi : oauthd n'y est pas encore construit, l'assistant y
 fait comme avant.
 
 ## Limites
