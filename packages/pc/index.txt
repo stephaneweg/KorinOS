@@ -1981,3 +1981,18 @@ needs = craft, abi >= 626
 required = 0
 restart = 0
 content = 94da16c3a10bb8f203ebb0fd2a36798be4ca10111c55c4259cc53cc06958c1a7
+
+[texturecraft]
+title = TextureCraft
+version = 1.0.0
+category = Suite ArtCraft
+author = Korin OS
+summary = La peinture de textures 3D libre TextureCraft (storytold).
+size = 16736511
+installed = 40021481
+sha256 = 8025baf4b03d8deb67f9e26818ad9477cc441d1ff548f7f4c85bd92d536f3e50
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-texturecraft-1.0.0.opk
+needs = craft, abi >= 626
+required = 0
+restart = 0
+content = ab507676d17e6aabdb475355329c1a7ed1054da74c086a52aa8c4dc59efd354f
