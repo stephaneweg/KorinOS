@@ -126,6 +126,7 @@ static long mb_n = 1;       /* titres connus (Korin compris) */
 static long mb_shown = 1;   /* titres dessinés (zones de clic valides) */
 static char *mb_end;        /* fin du texte des menus */
 static char *mb_ptr[MB_MAX]; /* titres ([1] : nom de l'application) */
+static char *mb_app;        /* « M* » : les lignes du menu au nom de l'application (0 : aucune) */
 static long mb_x0[MB_MAX], mb_x1[MB_MAX]; /* zones de clic : début, fin */
 static long mb_ids[MB_ITEMS]; /* menu ouvert : id de chaque ligne */
 static char app_title[WS_MENU_TITLE];
@@ -601,7 +602,15 @@ static void app_menu(long t)
 		*wp++ = '-'; /* menu Aide de l'application : un trait, puis ses lignes */
 		*wp++ = 0;
 		mb_ids[mb_lines++] = -2;
-	} else if (t == 1) { /* menu de l'application : Quitter (-1) */
+	} else if (t == 1) { /* menu de l'application : ses lignes (« M* »), puis Quitter (-1) */
+		if (mb_app) {
+			mb_lines_of(mb_next(mb_app - 1), 0);
+			if (mb_lines) {
+				*wp++ = '-';
+				*wp++ = 0;
+				mb_ids[mb_lines++] = -2;
+			}
+		}
 		mb_item(tr(s_quitter), -1);
 		goto show;
 	}
@@ -708,13 +717,16 @@ static void open_menus(long t)
 static void menu_parse(void)
 {
 	mb_n = 1;
+	mb_app = 0;
 	if (!mb_serial) /* pas de menu : Korin seul */
 		return;
 	mb_ptr[1] = app_title;
 	long k = 2;
 	char *p = spec_buf;
 	while (p < mb_end) {
-		if (*p == 'M' && k < MB_MAX)
+		if (*p == 'M' && p[1] == '*' && (p[2] == 10 || p[2] == 13 || !p[2]) && !mb_app)
+			mb_app = p + 1; /* « M* » : les lignes du menu au nom de l'application */
+		else if (*p == 'M' && k < MB_MAX)
 			mb_ptr[k++] = p + 1;
 		while (p < mb_end) {
 			char c = *p;

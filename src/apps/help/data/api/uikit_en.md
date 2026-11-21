@@ -739,6 +739,7 @@ Each app publishes its menus in the **menu bar** at the top of the screen with `
 - `I<id>\t<label>\t<shortcut>` an item (decimal id ≥ 0, optional shortcut); right after the id, `d` greys the item out and `c` checks it (`I4c\tMono`);
 - `-` a separator;
 - `S<title>` … `E`: a submenu inside a menu (its lines in between, one level only: a submenu inside a submenu is skipped). The text is at most 16 KB, 14 menus, 160 lines per menu or submenu.
+- `M*`: a menu without a title, whose lines go into the menu named after the app, before **Quit** (About, Settings…).
 
 The bar adds by itself the menu named after the app (with **Quit**, which arrives as `WEV_CLOSE`) and the **Help** menu when the app has a `help_fr.md` or a `help_en.md`. A choice arrives as `WEV_MENU`, the id in `EV_CODE`. The shortcut is only displayed: the program passes the keys its widgets did not take to `ui_menu_key`, which returns the id of the item with that shortcut ("Ctrl+S", "Ctrl+Maj+Z", "Alt+X", "F3"; *Maj* is Shift).
 

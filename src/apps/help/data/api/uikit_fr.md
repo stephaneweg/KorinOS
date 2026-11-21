@@ -739,6 +739,7 @@ Chaque app publie ses menus dans la **barre de menus** en haut de l'écran par `
 - `I<id>\t<libellé>\t<raccourci>` une entrée (id décimal ≥ 0, raccourci facultatif) ; juste après l'id, `d` grise l'entrée et `c` la coche (`I4c\tMono`) ;
 - `-` un séparateur ;
 - `S<titre>` … `E` : un sous-menu dans un menu (ses lignes entre les deux, un seul niveau : un sous-menu dans un sous-menu est sauté). Le texte fait 16 Ko au plus, 14 menus, 160 lignes par menu ou sous-menu.
+- `M*` : un menu sans titre, dont les lignes vont dans le menu au nom de l'app, avant **Quitter** (À propos, Réglages…).
 
 La barre ajoute d'elle-même le menu au nom de l'app (avec **Quitter**, qui arrive en `WEV_CLOSE`) et le menu **Aide** quand l'app a un `help_fr.md` ou un `help_en.md`. Un choix arrive en `WEV_MENU`, l'id dans `EV_CODE`. Le raccourci n'est qu'affiché : le programme passe les touches que ses widgets n'ont pas prises à `ui_menu_key`, qui rend l'id de l'entrée dont c'est le raccourci (« Ctrl+S », « Ctrl+Maj+Z », « Alt+X », « F3 »).
 
