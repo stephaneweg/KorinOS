@@ -177,7 +177,7 @@ def rel_wait (path):
 	"""(--manual-upload) l'archive deposee a la main dans la Release : attendue (la liste lue par l'API toutes les
 	20 s), telechargee et comparee octet pour octet avant d'aller plus loin (l'index n'est pousse qu'apres)"""
 	import time
-	name, want = os.path.basename (path), mkrepo.sha256_file (path)
+	name, want = os.path.basename (path), sha256 (open (path, "rb").read ())
 	say ("pub: deposer %s (%d octets, SHA-256 %s) dans la Release « packages » :" % (path, os.path.getsize (path), want))
 	say ("pub:   https://github.com/%s/releases/edit/packages  (glisser le fichier, puis « Update release »)" % GH_REPO)
 	for _ in range (int (os.environ.get ("PUB_WAIT_MIN", "180")) * 3):
@@ -185,7 +185,7 @@ def rel_wait (path):
 		if got and got[0].get ("state", "uploaded") == "uploaded" and got[0]["size"] == os.path.getsize (path):
 			d = tempfile.mkdtemp ()
 			rel_download (name, d)
-			ok = mkrepo.sha256_file (os.path.join (d, name)) == want
+			ok = sha256 (open (os.path.join (d, name), "rb").read ()) == want
 			shutil.rmtree (d, ignore_errors = True)
 			if not ok: die ("%s dans la Release n'a pas le SHA-256 attendu : rien n'est pousse" % name)
 			say ("pub: %s est dans la Release, SHA-256 verifie" % name)
