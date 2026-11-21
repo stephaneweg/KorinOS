@@ -27,6 +27,13 @@ fn main() {
             }
         }
         let out = ctx.run_ui(input, |ui| app.ui(ui));
+        if let Some(dir) = app.folder_request.take() {
+            // (le sélecteur de dossier d'UIKit, demandé par la boîte « Nouvelle conversation »)
+            if let Some(d) = host.folder_choose(&dir) {
+                app.folder_chosen(d);
+            }
+            ctx.request_repaint();
+        }
         egui_korin::menu::set_states(&app.menu_states());
         out
     });

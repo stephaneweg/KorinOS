@@ -90,6 +90,14 @@ impl Host {
         (ok != 0).then(|| from_c(&buf))
     }
 
+    /// Le sélecteur de dossier de Korin (UIKit), ouvert sur `dir` : le dossier choisi.
+    pub fn folder_choose(&mut self, dir: &str) -> Option<String> {
+        let d = cstr(dir);
+        let mut buf = vec![0u8; 1024];
+        let ok = unsafe { sys::kh_folder_choose(d.as_ptr(), buf.as_mut_ptr().cast(), buf.len() as _) };
+        (ok != 0).then(|| from_c(&buf))
+    }
+
     pub fn message(&mut self, title: &str, text: &str) {
         let (t, x) = (cstr(title), cstr(text));
         unsafe { sys::kh_message(t.as_ptr(), x.as_ptr()) }
