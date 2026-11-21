@@ -54,6 +54,12 @@ if [ -n "${ACCOUNT_HOME:-}" ]; then
 fi
 # FAKE_CDM=1 : un faux module Widevine dans le dossier du compte (l'app ne demande plus de le télécharger et charge sa
 # page ; pour un essai sans contenu protégé, quand Google n'est pas joignable)
+# CDM_SO=…/libwidevinecdm.so : le vrai module (et son manifest.json voisin s'il est là) dans le dossier du compte
+if [ -n "${CDM_SO:-}" ]; then
+	mkdir -p "$T${ACCOUNT_HOME:-/home}/.jet/widevine"
+	cp "$CDM_SO" "$T${ACCOUNT_HOME:-/home}/.jet/widevine/libwidevinecdm.so"
+	[ ! -f "$(dirname "$CDM_SO")/manifest.json" ] || cp "$(dirname "$CDM_SO")/manifest.json" "$T${ACCOUNT_HOME:-/home}/.jet/widevine/"
+fi
 [ -z "${FAKE_CDM:-}" ] || { mkdir -p "$T${ACCOUNT_HOME:-/home}/.jet/widevine"; echo faux >"$T${ACCOUNT_HOME:-/home}/.jet/widevine/libwidevinecdm.so"; }
 printf 'password = essai\n' >"$T/etc/remote.txt"
 grep -q "/sys/svc/telnetd" "$T/etc/services.txt" || printf '# essai : telnet\n/sys/svc/telnetd\n' >>"$T/etc/services.txt"
