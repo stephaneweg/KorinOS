@@ -604,18 +604,18 @@ content = 3e6ec8f492001cdf29dbdf24eeeccea476719291ae98c0ae4100b24fbe883205
 
 [git]
 title = Git
-version = 2.51.2
+version = 2.51.3
 category = Développement
 author = Korin OS
 summary = Le gestionnaire de versions git 2.51 : dépôts locaux, clone, fetch et push en HTTP et HTTPS
-size = 7944017
+size = 7946762
 installed = 18546552
-sha256 = 363579ab23a36fc84751c586beea8012adc975860a1a1778bc1658bfe397fba8
-file = pkgs/git-2.51.2.opk
+sha256 = d650eef0c5f880ac928037adc073592726496928d9690137cad06b6ef643d2a5
+file = pkgs/git-2.51.3.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = d8e3c07f415832ab432243b0c9f49046f0320c0b0fef2b089f01e22c25cc3cd4
+content = 13f8ae7452962b821224d401a8df90633e01187c71a04eda93d02bfc12470b9f
 
 [webstudio-templates]
 title = Modèles de sites (WebStudio)
