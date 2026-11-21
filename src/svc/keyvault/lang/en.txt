@@ -1,0 +1,26 @@
+# sys/svc/keyvault : anglais, le volet Réglages › Coffre (applet/applet.cpp ; clés : les textes du source)
+Coffre = Vault
+Coffre à secrets = Secret vault
+Réglages veut lire les secrets du système. = Settings wants to read the system secrets.
+Le coffre de votre compte est ouvert. = Your account's vault is open.
+Le coffre de votre compte est fermé : il s'ouvrira à la première demande (mot de passe). = Your account's vault is locked: it will open at the first request (password).
+Pas encore de coffre : il naîtra au premier secret rangé. = No vault yet: it will be created with the first stored secret.
+Le coffre ne répond pas. = The vault does not answer.
+Lecture du coffre… = Reading the vault…
+Le coffre ne peut pas être lu = The vault cannot be read
+secret = secret
+secrets = secrets
+Mot de passe refusé. Le mot de passe de votre compte : = Password refused. Your account's password:
+Pour voir ou effacer un secret, le mot de passe de votre compte (valable 5 minutes) : = To see or delete a secret, your account's password (valid for 5 minutes):
+Vérification du mot de passe… = Checking the password…
+Cette fenêtre se fermera dans = This window will close in
+Le secret ne peut pas être lu = The secret cannot be read
+Valeur copiée dans le presse-papier. = Value copied to the clipboard.
+Effacer le secret = Delete the secret
+Le programme devra le redemander (mot de passe, jeton, connexion). = The program will have to ask for it again (password, token, sign-in).
+Le secret ne peut pas être effacé = The secret cannot be deleted
+Secret effacé. = Secret deleted.
+Secrets du système = System secrets
+Les mots de passe, jetons et clés que les programmes ont rangés dans le coffre. Les valeurs ne se montrent qu'après le mot de passe de votre compte. = The passwords, tokens and keys that programs have stored in the vault. Values are only shown after your account's password.
+Secrets = Secrets
+Afficher… = Show…

@@ -24,7 +24,7 @@ rm -rf "$SP/oai_acp"
 cp -r "$ROOT/tools/oai/oai_acp" "$SP/oai_acp"
 find "$SP/oai_acp" -name __pycache__ -prune -exec rm -rf {} +
 "$BUILD_PYTHON" -I -m compileall -q -j0 --invalidation-mode checked-hash "$SP/oai_acp" >/dev/null
-printf '#!/bin/python3\nimport sys\nfrom oai_acp.main import main\nsys.exit(main(["--profile", "mai"] + sys.argv[1:]))\n' \
+printf '#!/bin/python3\nimport os, sys\n# (unixtools : /devtools/bin devant /bin pour les commandes de l agent, BusyBox)\nif os.path.isfile("/devtools/bin/busybox") and "/devtools/bin" not in os.environ.get("PATH", "").split(":"):\n    os.environ["PATH"] = "/devtools/bin:" + os.environ.get("PATH", "/bin:/sbin")\nfrom oai_acp.main import main\nsys.exit(main(["--profile", "mai"] + sys.argv[1:]))\n' \
 	> "$D/bin/mai-acp"
 chmod +x "$D/bin/mai-acp"
 "$BUILD_PYTHON" -I "$ROOT/tools/claude/home.py" "$D" .mai-acp

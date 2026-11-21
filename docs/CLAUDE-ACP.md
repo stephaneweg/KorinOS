@@ -1,5 +1,9 @@
 # claude-acp : Claude sur Korin, par la clé d'API
 
+> **21/11/2026** : le paquet `[claude]` et l'app Claude sont retirés, remplacés par le Claude Code officiel
+> (paquet `claude-code`). Le code de claude-acp reste dans `tools/claude` : MAI repose sur lui, et il pourra devenir un
+> second mode de l'app Claude Code. La suite décrit claude-acp tel qu'il était distribué.
+
 `claude-acp` est un agent de code qui tourne **sur Korin** et parle à l'API de Claude par le SDK Python officiel
 (`anthropic`). Il lit, écrit et modifie des fichiers, lance des commandes par bash, cherche dans le code, charge les
 compétences de Korin, et peut ainsi créer, modifier et construire des apps et le système lui-même. Il demande
@@ -21,11 +25,10 @@ agent --claude                # le client terminal, dans le dossier de travail
 agent --claude --continue     # reprend la dernière séance de ce dossier
 ```
 
-Ou l'app **Claude** (lanceur, catégorie Développement) : la façade graphique de Vibe avec le profil Claude
-(`src/apps/claude/main.c` inclut `src/apps/vibe/main.c` avec `KORIN_CLAUDE` défini). Sans clé, elle ouvre d'elle-même
-le dialogue « Clé d'API de Claude » (champ masqué, bouton vers la console dans Jet), qui écrit `.env` et relance
-claude-acp ; Menu Claude > Clé d'API... le rouvre. Le modèle vient de `config.toml` (pas de question à chaque séance) ;
-Menu Claude > Modèle de la séance... le change. Le journal : `~/.local/claude-acp/logs/agent.log`.
+L'app **Claude** (la façade graphique de Vibe avec le profil Claude, `KORIN_CLAUDE`) est **retirée depuis le
+21/11/2026**, comme le paquet `[claude]` : le Claude Code officiel (paquet `claude-code`, l'app Claude Code) la remplace.
+Le code de claude-acp reste (`tools/claude`) : MAI repose sur lui, et il pourra devenir un second mode de l'app Claude
+Code (par clé d'API) ; l'ancienne app est dans l'historique git (`src/apps/claude`, avant le 21/11/2026).
 
 Dans `agent --claude` : Entrée envoie ; Échap interrompt le tour ; Maj+Tab change le mode (`ask`, `accept-edits` :
 les fichiers sans demander, `auto-approve` : rien ne demande) ; `/model` change de modèle ; `/cost` donne les jetons
@@ -45,7 +48,7 @@ prise dans le contexte.
 | `tools/claude/build.sh` | le SDK, `claude_acp`, `/bin/claude-acp` et `.claude-acp/` dans l'arbre de la carte (appelé par `site-packages.sh`) |
 | `tools/claude/fakeapi.py`, `acptest.py` | une fausse API Messages (flux SSE) et l'essai de bout en bout, sans clé ni crédit |
 | `tools/agent/agent.c` | le client terminal : `--claude` lance `claude-acp` |
-| `src/apps/claude/` | l'app Claude : le source de Vibe (`src/apps/vibe/main.c`, macros `IS_CLAUDE`, `AGENT_NAME`, `VC`), son manifeste ; icône `claude` de `tools/icons/art.py` |
+| `src/apps/claude/` | (retirée le 21/11/2026, dans l'historique git) l'app Claude : le source de Vibe avec `KORIN_CLAUDE` |
 
 Le dossier de l'agent est `$CLAUDE_ACP_HOME`, par défaut `~/.local/claude-acp` (`/home/.local/claude-acp`), sous
 `~/.local/<app>` comme les données des autres apps (décision du 18/11, [etude/MULTI-UTILISATEUR.md](etude/MULTI-UTILISATEUR.md),

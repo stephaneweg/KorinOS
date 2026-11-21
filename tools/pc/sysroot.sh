@@ -78,6 +78,12 @@ if [ -f build/pc/linux/linuxhost ]; then
 	cat src/sys/linuxhost/CLAUDE-korin.md "$OUT/etc/claude-code/.claude/AGENTS.md" >"$OUT/etc/claude-code/CLAUDE.md"
 	rm "$OUT/etc/claude-code/.claude/AGENTS.md"
 fi
+# les unixtools (BusyBox : sh tools/busybox/build.sh ; paquet unixtools) : /devtools/bin
+if [ -x build/pc/busybox/devtools/bin/busybox ]; then
+	rm -rf "$OUT/devtools/bin"
+	mkdir -p "$OUT/devtools"
+	cp -r build/pc/busybox/devtools/bin "$OUT/devtools/bin"
+fi
 # gltest (Mesa iris et le service intelgpu : tools/mesa/build-iris.sh), s'il est construit
 [ -f build/pc/mesa/sdroot/bin/gltest ] && cp build/pc/mesa/sdroot/bin/gltest "$OUT/bin/"
 # GlKit du PC (Mesa iris et softpipe en kit partagé : tools/mesa/build-glkit-pc.sh), s'il est construit ; pas dans

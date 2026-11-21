@@ -32,3 +32,9 @@ QEMU n'est que dans WSL (OVMF sans shell) : image d'essai avec EFI/BOOT/BOOTX64.
 Claude.Cle1…), `kv_list_match` avec un motif (`Gemini.*`), la liste des clés plus gardée dans les réglages mais
 demandée au coffre à l'ouverture de la liste déroulante ; Koton d'abord (aujourd'hui un seul secret `ai-keys`
 en JSON), sans migration (installation neuve : `ai-keys` et la migration depuis settings.json retirés), puis PocketQI et les autres. Décision : tout nom en UTF-8 accepté (sauf caractères de contrôle), le premier `.` sépare le fournisseur. Détail : docs/KEYVAULT.md §9.
+
+**Gestionnaire du coffre (21/11, demande de l'utilisateur)** : KV_MGR_LIST/GET/DELETE (13-15) servis à Réglages seul
+(/apps/control.app[/main]) ; valeur et effacement après le mot de passe du compte, vérifié sur l'enveloppe, puis 5 min
+pour le process (choix de l'utilisateur) ; KVF_SYSTEM = coffre du compte system après l'élévation (5 min ensuite).
+Volet src/svc/keyvault/applet/applet.cpp -> sys/applets/vault.so (« Coffre », build_keyvault) : liste, Afficher (30 s),
+Copier, Supprimer, Secrets du système. docs/KEYVAULT.md § 4 bis. Vérifié sous QEMU PC ; publié pc 2026.11.77.

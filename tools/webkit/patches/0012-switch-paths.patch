@@ -1,0 +1,105 @@
+diff -ru -U2 a/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/LayerTreeHostOnyx.cpp b/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/LayerTreeHostOnyx.cpp
+--- a/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/LayerTreeHostOnyx.cpp	2026-11-21 22:34:03.856148598 +0000
++++ b/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/LayerTreeHostOnyx.cpp	2026-11-21 22:34:03.858813860 +0000
+@@ -101,7 +101,7 @@
+ }
+ 
+ // For comparisons on the machine, files whose presence is a switch (an environment variable says
+-// the same: ONYX_WEB_GPU_CPU for SD:/etc/web-gpu-cpu, and so on):
++// the same: ONYX_WEB_GPU_CPU for /etc/web-gpu-cpu, and so on):
+ //   web-gpu-cpu      gpucomp's CPU path composites;
+ //   web-gpu-copy     the frame is composited into a buffer of gpucomp's and copied into the surface;
+ //   web-gpu-debug    the layer tree and each layer's paints in the log;
+@@ -132,20 +132,20 @@
+     m_layerTreeContext.contextID = reinterpret_cast<uint64_t>(this);
+ 
+     gpc_config configuration = { allocateForCompositor, freeForCompositor, 0 };
+-    if (testSwitch("ONYX_WEB_GPU_CPU", "SD:/etc/web-gpu-cpu"))
++    if (testSwitch("ONYX_WEB_GPU_CPU", "/etc/web-gpu-cpu"))
+         configuration.flags |= GPC_F_CPU;
+     m_compositor = gpc_create(&configuration);
+-    m_compositesIntoSurface = !testSwitch("ONYX_WEB_GPU_COPY", "SD:/etc/web-gpu-copy");
+-    m_logsLayerTree = testSwitch("ONYX_WEB_GPU_DEBUG", "SD:/etc/web-gpu-debug");
+-    m_acceleratesAnimations = !testSwitch("ONYX_WEB_GPU_NOANIM", "SD:/etc/web-gpu-noanim");
+-    m_usesOpacityGroups = !testSwitch("ONYX_WEB_GPU_NOGROUPS", "SD:/etc/web-gpu-nogroups");
+-    GraphicsLayerOnyx::setTracesInvalidations(testSwitch("ONYX_WEB_GPU_TRACE", "SD:/etc/web-gpu-trace"));
+-    setOnyxCullsLeafLayersWhenPainting(!testSwitch("ONYX_WEB_GPU_NOCULL", "SD:/etc/web-gpu-nocull"));
+-    m_mainThreadRasterises = !testSwitch("ONYX_WEB_GPU_MAINWAITS", "SD:/etc/web-gpu-mainwaits");
+-    m_usesCores = !testSwitch("ONYX_WEB_GPU_NOCORES", "SD:/etc/web-gpu-nocores");
++    m_compositesIntoSurface = !testSwitch("ONYX_WEB_GPU_COPY", "/etc/web-gpu-copy");
++    m_logsLayerTree = testSwitch("ONYX_WEB_GPU_DEBUG", "/etc/web-gpu-debug");
++    m_acceleratesAnimations = !testSwitch("ONYX_WEB_GPU_NOANIM", "/etc/web-gpu-noanim");
++    m_usesOpacityGroups = !testSwitch("ONYX_WEB_GPU_NOGROUPS", "/etc/web-gpu-nogroups");
++    GraphicsLayerOnyx::setTracesInvalidations(testSwitch("ONYX_WEB_GPU_TRACE", "/etc/web-gpu-trace"));
++    setOnyxCullsLeafLayersWhenPainting(!testSwitch("ONYX_WEB_GPU_NOCULL", "/etc/web-gpu-nocull"));
++    m_mainThreadRasterises = !testSwitch("ONYX_WEB_GPU_MAINWAITS", "/etc/web-gpu-mainwaits");
++    m_usesCores = !testSwitch("ONYX_WEB_GPU_NOCORES", "/etc/web-gpu-nocores");
+     bool usesCores = m_usesCores;
+     startCoresIfNeeded();
+-    if (testSwitch("ONYX_WEB_GPU_CORETEST", "SD:/etc/web-gpu-coretest"))
++    if (testSwitch("ONYX_WEB_GPU_CORETEST", "/etc/web-gpu-coretest"))
+         runCoreTest();
+ 
+     auto& size = m_webPage.size();
+@@ -916,7 +916,7 @@
+         logLine("painting on %u cores again (%u app cores taken)", m_workerCount + (m_mainThreadRasterises ? 1 : 0), m_workerCount);
+ }
+ 
+-// SD:/etc/web-gpu-coretest: each stage of WebCore's OnyxCoreTest.cpp as a job of its own on an app
++// /etc/web-gpu-coretest: each stage of WebCore's OnyxCoreTest.cpp as a job of its own on an app
+ // core, said before it starts ("starts": the last line of the log if the core takes the kernel
+ // down) and after it returns -- "ok in N us", the fault (with the stage's breadcrumb: how far it
+ // got) or a result that is not the main thread's. It stops at the first failure. Its last stage
+@@ -1247,7 +1247,7 @@
+     m_hasPendingTiles = false;
+     m_hasRunningAnimations = false;
+     m_offscreenTileBudget = m_isShortOfTextureMemory ? 0 : offscreenTilesPerFrame;
+-    // (SD:/etc/web-gpu-debug: the layer tree in the log, for the first walks and whenever the number
++    // (/etc/web-gpu-debug: the layer tree in the log, for the first walks and whenever the number
+     // of layers drawn changed.)
+     m_logsLayers = m_logsLayerTree && (m_loggedLayerCount != m_previousFrameLayers.size() || m_loggedWalks < 5);
+     if (m_logsLayers) {
+@@ -1367,7 +1367,7 @@
+             elapsed.seconds(), m_framesComposited, m_framesWithoutRenderingUpdate, m_picturesUploaded, m_tilesPainted, m_rectsPainted, static_cast<unsigned>(m_pixelsPainted), (m_paintTime + m_recordTime + m_rasterWallTime).milliseconds(), m_uploadTime.milliseconds(), m_compositeTime.milliseconds(),
+             m_textureCount + static_cast<unsigned>(m_colorTextures.size()), static_cast<unsigned>(m_texturePixels * 4 >> 20), static_cast<unsigned>(m_frameLayers.size()), m_groupsRendered, statistics.last_gpu_calls, statistics.last_cpu_layers);
+     }
+-    // (SD:/etc/web-gpu-debug: where a frame's time goes -- the page's own update, the walk of the
++    // (/etc/web-gpu-debug: where a frame's time goes -- the page's own update, the walk of the
+     // layers with its paints, and within the paints: the Skia surface and context made, WebCore's
+     // painting, the two let go.)
+     if (m_logsLayerTree && m_framesRendered) {
+@@ -1403,10 +1403,10 @@
+ // The conditions that give an element a layer of its own (WebChromeClient). The frames' own layers
+ // always (so that scrolling paints nothing again); an element with an animation or a transition of
+ // opacity or of a transform (then moved or faded by the compositor, not painted again); a video
+-// (its pictures are a texture). Not the elements with a 3D transform, unless SD:/etc/web-gpu-3d
++// (its pictures are a texture). Not the elements with a 3D transform, unless /etc/web-gpu-3d
+ // exists (many pages give one to many elements; a layer is drawn by its transform's 2D affine
+ // part); no canvas.
+-// SD:/etc/web-gpu-stage1: none of them (the frames' layers only).
++// /etc/web-gpu-stage1: none of them (the frames' layers only).
+ unsigned onyxCompositingTriggers()
+ {
+     static unsigned triggers;
+@@ -1415,17 +1415,17 @@
+         // (No trigger at all would switch compositing off -- RenderLayerCompositor::
+         // cacheAcceleratedCompositingFlags --: the plugins' is given, there are no plugins.)
+         triggers = ChromeClient::PluginTrigger;
+-        if (testSwitch("ONYX_WEB_GPU_STAGE1", "SD:/etc/web-gpu-stage1"))
++        if (testSwitch("ONYX_WEB_GPU_STAGE1", "/etc/web-gpu-stage1"))
+             return;
+         triggers |= ChromeClient::AnimationTrigger | ChromeClient::AnimatedOpacityTrigger;
+         // A WebGL canvas is a layer too: the GPU copies it into a texture of the compositor.
+         triggers |= ChromeClient::CanvasTrigger;
+         // A video is a layer whose pictures the compositor draws from a texture (GraphicsLayerOnyx-
+         // Contents): painted into the page's tiles, a picture cost ~190 ms of the main thread on a
+-        // Pi 4 and five in six were dropped. SD:/etc/web-gpu-novideo: as before.
+-        if (!testSwitch("ONYX_WEB_GPU_NOVIDEO", "SD:/etc/web-gpu-novideo"))
++        // Pi 4 and five in six were dropped. /etc/web-gpu-novideo: as before.
++        if (!testSwitch("ONYX_WEB_GPU_NOVIDEO", "/etc/web-gpu-novideo"))
+             triggers |= ChromeClient::VideoTrigger;
+-        if (testSwitch("ONYX_WEB_GPU_3D", "SD:/etc/web-gpu-3d"))
++        if (testSwitch("ONYX_WEB_GPU_3D", "/etc/web-gpu-3d"))
+             triggers |= ChromeClient::ThreeDTransformTrigger;
+     });
+     return triggers;

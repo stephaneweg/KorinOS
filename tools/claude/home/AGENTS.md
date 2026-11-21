@@ -12,6 +12,9 @@ Tu tournes **sous Korin OS**, un système d'exploitation écrit surtout en assem
   ou une commande ; **`fasmarm`** assemble l'assembleur du système. Les commandes de `/bin` sont en assembleur, avec peu
   d'options GNU : pas de `which` (`command -v`), `ps`, `top`, `curl`, `awk`, `xargs`, `sort -k` ; regex sans `{n,m}`.
   `bash`, `git`, `rg` sont complets. Scripts en `#!/bin/bash` (pas de `/usr/bin/env`).
+* **Avec le paquet unixtools** (BusyBox), `/devtools/bin` est devant `/bin` dans ton `PATH` : `awk`, `xargs`, `which`,
+  `env`, `sed -E`, `grep -E`, `sort -k`, `find -regex`, `head -c`, `tar`, `diff`, `sha256sum`, `timeout`… avec leurs
+  options habituelles (`command -v busybox` pour savoir s'il est là ; sinon `pkg add unixtools`).
 * **Chemins** : un seul arbre, comme Unix. `/` = le volume système (FAT32 : `/apps`, `/bin`, `/lib`, `/etc`, `/home`,
   et les outils dans `/devtools` : `gcc`, `python`, `dotnet`) ; les autres volumes sont montés dans des dossiers :
   `/tmp` = la RAM (`mkdir -p /tmp` avant de s'en servir), `/media/usb0` = une clé USB, `/media/sd1` = la partition des

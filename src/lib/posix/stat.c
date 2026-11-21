@@ -115,7 +115,9 @@ static void owner (struct stat *st, long long attr)
 	st->st_uid = (uid_t) (u - 1);
 	int x = (st->st_mode & 0100) != 0, dir = S_ISDIR (st->st_mode);
 	int kind = (int) ((a >> 56) & 3);
-	mode_t m = kind == 1 ? (dir || x ? 0700 : 0600) : kind == 2 ? (dir || x ? 0777 : 0666) : (dir || x ? 0755 : 0644);
+	mode_t m = kind == 1 ? (dir || x ? 0700 : 0600) : kind == 2 ? (dir ? 01777 : x ? 0777 : 0666) : (dir || x ? 0755 : 0644);
+	/* (un dossier public, /tmp : 1777 comme sous Linux, le bit « sticky » ; Claude Code refuse un dossier ouvert à
+	   tous sans lui dans le chemin de ses fichiers de travail, « tasks dir moved or linked », 21/11/2026) */
 	st->st_mode = (st->st_mode & S_IFMT) | m;
 }
 
@@ -190,6 +192,9 @@ int __posix_fstat (struct __posix_ofd *d, struct stat *st)
 		return 0;
 	}
 	case POSIX_FD_DIR:
+		/* (les mêmes propriétaire, droits et dates que stat sur son chemin : Claude Code compare les deux) */
+		if (d->path && __posix_path_stat (d->path, st) == 0 && S_ISDIR (st->st_mode))
+			return 0;
 		fill (st, d->path, 0, 1, 0);
 		return 0;
 	case POSIX_FD_PIPE_R:

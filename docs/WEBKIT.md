@@ -592,6 +592,51 @@ dégradés défilée par `requestAnimationFrame` pendant 30 s, un cercle animé 
 Le journal dit maintenant `painting on N cores (N-1 app cores + the main thread)`. À mesurer sur le ZBook : tf1.fr
 (paint en ms par 2 s, `media: … dropped`), netflix.com au repos (composite en ms par 2 s).
 
+## Fluidité sur Netflix et Disney+ : l'analyse (21/11/2026)
+
+Retour du ZBook : Netflix, Disney+ saccadent au défilement et à l'animation qui agrandit une vignette ; Spotify et
+Wikipédia sont fluides. Le trajet d'une image sur le PC :
+
+| Étape | Qui | Où |
+|---|---|---|
+| scripts, styles, mise en page, `requestAnimationFrame` | processeur | fil principal du process web |
+| dessin des tuiles (Skia logiciel ; enregistré par le fil principal, rejoué sur 7 fils) | processeur | fils de tracé |
+| téléversement des tuiles (`glTexImage2D`) | processeur → GPU | fil principal |
+| composition des couches (tuiles, vidéo, animations de transform et d'opacité) | **GPU** (iris) | fil principal |
+| relecture de l'image composée (`glReadPixels`, attendue) | GPU → processeur | fil principal |
+| copie de la surface dans le tampon arrière, puis vers le framebuffer GOP (sans échange de pages ni vsync) | processeur | Elegant |
+
+Ce qui pèse sur ces sites (déduit du code, à confirmer par la mesure) :
+
+* **Tout est sur le fil principal**, celui du JavaScript du site : `LayerTreeHostOnyx` compose dans un minuteur de
+  ce fil, et `ENABLE_ASYNC_SCROLLING` est éteint. Netflix et Disney+ sont de grosses apps React : quand leurs scripts
+  travaillent, ni le défilement ni les animations n'avancent. Chrome et Safari défilent et animent sur un autre fil.
+* **Pas de couche pour les transformations 3D** (`translate3d`, `translateZ(0)`, très employés par les carrousels) :
+  ces éléments sont peints dans les tuiles de la page ; une transition sur l'un d'eux lui donne une couche à son
+  début (tout son contenu redessiné par le processeur) et la retire à la fin (la page repeinte dessous). Prévu :
+  `ONYX_WEB_GPU_3D`.
+* **Les interrupteurs en fichiers ne marchaient plus** : `LayerTreeHostOnyx` cherchait `SD:/etc/web-gpu-*`, que vfs
+  refuse depuis l'arbre unique du 15/11 (un ancien chemin à volume). Les variables d'environnement marchent (le
+  process web hérite de celui de Jet). Patch **`0012-switch-paths.patch`** : `/etc/web-gpu-*` (appliqué à
+  `webkit-gl` le 21/11, pas encore construit).
+
+Essai sur le ZBook, au Terminal (le journal ne garde que 64 Ko : relever après chaque essai) :
+
+```
+/apps/jet.app/main https://www.netflix.com                     # défiler 10 s, ouvrir trois vignettes, fermer Jet
+journal | grep "web: gpu" > ~/jet-a.txt
+ONYX_WEB_GPU_3D=1 /apps/jet.app/main https://www.netflix.com   # pareil
+journal | grep "web: gpu" > ~/jet-b.txt
+```
+
+Lire une ligne `2.0 s: N frames … paint X ms, upload Y ms, composite Z ms` : N / 2 = images/s ; si N est bas alors
+que X + Y + Z est loin de 2000 ms, c'est le JavaScript ou la mise en page du site qui tient le fil principal.
+
+Chantiers possibles, du moins cher au plus cher : les couches 3D par défaut sur le PC (si l'essai B est meilleur) ;
+la composition directement dans la surface (plus de `glReadPixels` ni d'attente du GPU sur le fil principal, comme
+`armgl_window`) ; le compositeur sur son propre fil avec le défilement asynchrone (le défilement et les animations ne
+dépendent plus des scripts : le vrai gain sur ces sites) ; le dessin des tuiles par le GPU (Skia Ganesh sur iris).
+
 ## hCaptcha (14/11/2026)
 
 Retour du ZBook (Jet 1.3.0) : sur claude.ai, le défi hCaptcha s'affiche, l'utilisateur le réussit, il revient sans fin.

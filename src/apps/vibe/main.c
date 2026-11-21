@@ -7,7 +7,7 @@
  *
  *   vibe [--cwd DOSSIER] [--continue] [--agent COMMANDE] [--account] [--debug]
  *
- * Le même source fait l'app Claude (src/apps/claude, KORIN_CLAUDE défini) : la façade de claude-acp, l'agent sur l'API
+ * Le même source faisait l'app Claude (KORIN_CLAUDE, retirée le 21/11/2026 : Claude Code la remplace), et fait MAI : la façade de claude-acp, l'agent sur l'API
  * de Claude (docs/CLAUDE-ACP.md). Ce qui change : le nom affiché, l'agent lancé (claude-acp), le dossier
  * ($CLAUDE_ACP_HOME, ~/.local/claude-acp : journal logs/agent.log, le dossier de travail), « Clé d'API... » à la place de
  * l'assistant de comptes (la clé dans .env ; le dialogue s'ouvre aussi quand claude-acp dit qu'elle manque ou qu'elle
@@ -66,9 +66,10 @@
 
 #define TR(s)	((const char *) ui_tr ((long) (s)))
 
-/* le profil : Vibe, Claude (src/apps/claude) ou MAI (src/apps/mai) ; VC : la chaîne de Vibe ou celle de Claude (les
-   traductions de Vibe restent celles de ses chaînes). IS_CLAUDE : un agent par clé d'API (Claude ou MAI) ; MAI
-   prend les chaînes de Claude, où « Claude » devient « MAI » et « claude-acp » « mai-acp » (après la traduction) */
+/* le profil : Vibe ou MAI (src/apps/mai) ; VC : la chaîne de Vibe ou celle de l'agent par clé d'API (les traductions
+   de Vibe restent celles de ses chaînes). IS_CLAUDE : un agent par clé d'API, sur claude_acp (MAI ; l'app Claude, profil
+   KORIN_CLAUDE, est retirée depuis le 21/11/2026 : Claude Code la remplace) ; MAI prend les chaînes de Claude, où
+   « Claude » devient « MAI » et « claude-acp » « mai-acp » (après la traduction) */
 #if defined (KORIN_MAI)
 #define IS_CLAUDE	1
 #define IS_MAI		1
@@ -77,14 +78,6 @@
 #define AGENT_PROFILE	ACP_PROFILE_MAI
 #define AGENT_HOME_ENV	"MAI_ACP_HOME"
 #define VC(v, c)	mai_str (TR (c))
-#elif defined (KORIN_CLAUDE)
-#define IS_CLAUDE	1
-#define IS_MAI		0
-#define AGENT_NAME	"Claude"
-#define AGENT_CMD	"claude-acp"
-#define AGENT_PROFILE	ACP_PROFILE_CLAUDE
-#define AGENT_HOME_ENV	"CLAUDE_ACP_HOME"
-#define VC(v, c)	TR (c)
 #else
 #define IS_CLAUDE	0
 #define IS_MAI		0

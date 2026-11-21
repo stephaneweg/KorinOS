@@ -194,6 +194,14 @@ impl App {
                 match ev {
                     Event::Json(v) => {
                         let was_busy = o.thread.busy;
+                        if v.get("type").and_then(|x| x.as_str()) == Some("control_response")
+                            && v["response"]["subtype"].as_str() == Some("error")
+                        {
+                            // (un changement de mode ou de modèle refusé par la CLI : le dire)
+                            let e = v["response"]["error"].as_str().unwrap_or("refusé").to_owned();
+                            o.thread.note(format!("Claude Code a refusé le changement : {e}"), true);
+                            continue;
+                        }
                         if v.get("type").and_then(|x| x.as_str()) == Some("control_request") {
                             let sub = v["request"]["subtype"].as_str().unwrap_or("").to_owned();
                             if sub != "can_use_tool" {
@@ -652,8 +660,24 @@ impl App {
                             }
                         }
                     });
+                    let (mode0, model0) = (self.org.permission_mode.clone(), self.org.model.clone());
                     combo(ui, "mode", &mut self.org.permission_mode, &MODES, "default");
                     combo(ui, "modele", &mut self.org.model, &MODELS, "");
+                    // (un changement vaut aussi pour les conversations dont la CLI tourne déjà : elle ne relit pas ses
+                    // options de lancement)
+                    if self.org.permission_mode != mode0 || self.org.model != model0 {
+                        self.org.save();
+                        for o in self.open.values_mut() {
+                            if let Some(c) = o.cli.as_mut() {
+                                if self.org.permission_mode != mode0 {
+                                    c.set_permission_mode(&self.org.permission_mode);
+                                }
+                                if self.org.model != model0 {
+                                    c.set_model(&self.org.model);
+                                }
+                            }
+                        }
+                    }
                 });
             });
             let o = &self.open[&key];

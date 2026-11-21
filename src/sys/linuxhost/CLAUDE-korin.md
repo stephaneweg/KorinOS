@@ -12,6 +12,10 @@ Skill ne les montre pas, lis-les à la main (`SKILL.md`, puis les fichiers de so
 - `/.claude-acp/skills/<nom>/` : les mêmes que les premières, si claude-acp est installé ;
 - `/apps/<app>.app/SKILL.md` : celle d'une app (Forge, TerraCube…).
 
+**Tes commandes** : `/devtools/bin` est devant `/bin` dans ton `PATH` (paquet unixtools, BusyBox) : `awk`, `xargs`,
+`which`, `env`, `sed -E`, `grep -E`, `sort -k`, `find -regex`, `head -c`, `tar`, `diff`, `sha256sum`, `timeout`… avec
+leurs options habituelles. Sans ce paquet, ce sont les commandes de `/bin`, en assembleur, avec peu d'options.
+
 Les consignes qui suivent sont celles des agents de Korin (claude-acp, Vibe) ; « l'outil `skill` » y est ton outil
 Skill.
 

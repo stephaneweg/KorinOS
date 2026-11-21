@@ -42,15 +42,6 @@ if [ -f "$A/main" ]; then
 else
 	echo "sysroot_python : pas de vibe.app (sh tools/pc/apps.sh vibe)"
 fi
-# l'app Claude (sh tools/pc/apps.sh claude : le source de Vibe, profil Claude), avec son icône
-C=build/pc/apps/sdroot/apps/claude.app
-if [ -f "$C/main" ]; then
-	mkdir -p "$OUT/apps/claude.app"
-	cp -r "$C"/. "$OUT/apps/claude.app/"
-	cp tools/icons/rendered/claude.rgba "$OUT/apps/claude.app/icon.rgba"
-else
-	echo "sysroot_python : pas de claude.app (sh tools/pc/apps.sh claude)"
-fi
 # l'app MAI (sh tools/pc/apps.sh mai : le source de Vibe, profil MAI), avec son icône
 C=build/pc/apps/sdroot/apps/mai.app
 if [ -f "$C/main" ]; then

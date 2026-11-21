@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 21:10
+date = 2026-11-21 22:50
 abi = 626
 packages = 117
 board = pc
@@ -420,18 +420,18 @@ content = 2b1dc17504fffb8a51599dd6ec7a19e2f755adcef386655c2ac5243cd03532b2
 
 [gcc]
 title = GCC et G++
-version = 1.0.13
+version = 1.0.14
 category = Développement
 author = Korin OS
 summary = Le compilateur C et C++ de Korin OS, les relais des kits et les outils (/devtools/gcc)
-size = 16416183
-installed = 54657698
-sha256 = d2dd23856579e2369e6ccb78f71877cd74e43293f2c255fa955892e07cd741fd
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-gcc-1.0.13.opk
-needs = make, gcc-data-1, abi >= 626
+size = 16440124
+installed = 54720233
+sha256 = 356d2df0d2e2fee5710632b7a1141469b09f775496fcbcc603b03c378971b3bf
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-gcc-1.0.14.opk
+needs = make, abi >= 626
 required = 0
 restart = 0
-content = 29f5af4f1590971e1887355b93af797da05bbcdad364b55d7fbce8bd437c69dc
+content = a8c42449b63503ee7f2f482499e610bef78aa18b08908905de10ce8d7580b813
 
 [avalonia]
 title = Avalonia
@@ -510,21 +510,6 @@ required = 0
 restart = 0
 content = a50ab76c8a7a51009d8ae52d350ea54617bb7028b3c984e6fa8707b7c95b871d
 
-[claude]
-title = Claude (API)
-version = 1.0.9
-category = Développement
-author = Korin OS
-summary = Claude, l'agent de code d'Anthropic, par sa clé d'API : l'app Claude, ou agent --claude au Terminal
-size = 8092848
-installed = 18053826
-sha256 = 8f9508c965c637587f14bf61550e8b6c50f73bec8869754ab8f6a2587aca70eb
-file = pkgs/claude-1.0.9.opk
-needs = vibe, abi >= 626
-required = 0
-restart = 0
-content = c4645e1ed7756ea88bd1dc75bd2eff487ce66c1c4206d5cd5afa8e12ce0a61c1
-
 [vibe-data-1]
 title = Mistral Vibe (1/2)
 version = 1.0.1
@@ -559,18 +544,18 @@ content = 4a62f5b65e76b629ed9b38197e4b13cefd661b379360c0c35ad7d50d0e65c422
 
 [vibe]
 title = Mistral Vibe
-version = 1.0.8
+version = 1.0.9
 category = Développement
 author = Korin OS
 summary = L'agent de code de Mistral : l'app Vibe, le client terminal agent, vibe-acp, et ses compétences de Korin (apps en C, C#, FreeBASIC, diagnostic)
-size = 544912
-installed = 1188144
-sha256 = c32b6f6849c2f8a2e931e2cced8f327535eb5c0ee2bd53ebb112dda8c92c5758
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vibe-1.0.8.opk
+size = 546215
+installed = 1191196
+sha256 = 072a08987db3f593a950b359de4b8d449fc9e30a220fd6493e75976cdfdc8575
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vibe-1.0.9.opk
 needs = python, bash, git, rg, abi >= 626
 required = 0
 restart = 0
-content = 03a740ca122677ba801806f740eadab05ad27e287abbba1584ec41ce56bb4027
+content = 9641cbd4a85fc3389095aa190dc27cca0ff9fb21011ca03682e601d0f7486fb0
 
 [bash]
 title = GNU bash
@@ -739,18 +724,18 @@ content = 9651f661dbc590aad6e129adcd1ae6d847f34a7ac621233890d8a89895498bd1
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.75
+version = 2026.11.79
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 32004924
-installed = 96322579
-sha256 = 73359576421b8e712a71a0e807742f7e30a80e7113ddbc72a1b5048c5c87d755
-file = pkgs/pc-2026.11.75.opk
+size = 32028500
+installed = 96374522
+sha256 = 8b0e614db18234ab5f4a97396ff6276a1f5552d0ab83b5e7692787f9d2b264e5
+file = pkgs/pc-2026.11.79.opk
 needs = 
 required = 1
 restart = 1
-content = 4bff867963d25c25958ff015a66076f709056bf2b907a3a5b019cd69efcdf161
+content = 1eeb6cc7c696718c605c9c606e49a817515052cc7c342e1eba97c81c09f8b11f
 
 [2048]
 title = 2048
@@ -1759,18 +1744,18 @@ content = cede316a55cdf944bafe30dd53dd4542eb6e76f66fdb23cd6306dbb247e52917
 
 [weather]
 title = Météo
-version = 1.0.1
+version = 1.0.2
 category = Accessoires
 author = Korin OS
 summary = La météo et les prévisions d'une ville (Open-Meteo), et sa carte sur le bureau
-size = 155006
-installed = 332597
-sha256 = fca60e01f8eb706b33f0adf840bad6a06b5ba055172a902f59f8da199a6493cf
-file = pkgs/weather-1.0.1.opk
+size = 158718
+installed = 340789
+sha256 = f620ebf3d81ab0a6c9fcffe485ec1dad5e8d7185244e4cfe9d483bd7f9649a04
+file = pkgs/weather-1.0.2.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 52ffb51db0987d9d52118fa44d3b3db2ec0a42ffa809faf3711909bae23a7205
+content = df1f1711272d2817a9389d1f70b8f0ac30c33009b39ead75e87b8270e7d4330c
 
 [netflix]
 title = Netflix
@@ -2104,33 +2089,33 @@ content = 6ece06302780b3339d19e56ecc524ed39676504042306bfab0f8e0dfda7d1ace
 
 [linuxhost]
 title = Hôte Linux
-version = 1.0.2
+version = 1.0.4
 category = Développement
 author = Korin OS
 summary = Lance des programmes de Linux x86-64 sur Korin, sans les modifier (linuxhost run PROGRAMME) : ce qui fait tourner Claude Code
-size = 293525
-installed = 614084
-sha256 = 9cdecb0a5a675a252489fe5159771d4c94f2fa896bbb3bf0ee6382d7b9d24247
-file = pkgs/linuxhost-1.0.2.opk
+size = 294304
+installed = 618180
+sha256 = 83bcb1195009ca494cf1fc330f7736a47e26b0a3561953e9b403125d904a3919
+file = pkgs/linuxhost-1.0.4.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 57da89454fe872544a5d5c28a06c5eaf7ba095976743da592818b24ecaace214
+content = c9e020b2740bbc0dd9b852cb8c10b9d334b975375fddb87948b09323e516e9a9
 
 [claude-code]
 title = Claude Code
-version = 2.1.330.2
+version = 2.1.330.4
 category = Développement
 author = Korin OS
 summary = Claude Code, l'agent de code d'Anthropic, par votre abonnement Claude (Pro, Max, Team) : la commande claude au Terminal, et Craft Anything s'en sert (téléchargé chez Anthropic à l'installation, 380 Mo)
-size = 3716410
-installed = 389289270
-sha256 = fd7de05e7b907e6f0cfdd4a6dd4f1bf4a7059c55c4e90846a850cfcc94cdfd3e
-file = pkgs/claude-code-2.1.330.2.opk
+size = 3723778
+installed = 389314737
+sha256 = 59a8b247dc705f42a2df267980f7ad9fa6e5abaf84cc7640ee97333c6cd341b1
+file = pkgs/claude-code-2.1.330.4.opk
 needs = linuxhost, bash, git, rg, python, pkgman >= 1.0.21, abi >= 627
 required = 0
 restart = 0
-content = 7ec9c56e6a63886e461f4df8061827ad1468e9847c89fa7f9c5ace868de19fdd
+content = 1968b654087c54d057de8ed52034fb3bb4c3c8f956c4de6f9bc2c01595b07612
 
 [rust-data-1]
 title = Rust (1/1)
@@ -2162,3 +2147,18 @@ needs = gcc >= 1.0.13, pc >= 2026.11.73, rust-data-1, abi >= 626
 required = 0
 restart = 0
 content = 64eb5e0849530400b2ee6b3ef88d661e5617a98eb5c398d9f85826746f7f410e
+
+[unixtools]
+title = Outils Unix
+version = 1.37.1
+category = Développement
+author = Korin OS
+summary = Les commandes de Linux avec leurs options habituelles (BusyBox) : awk, xargs, which, env, sed -E, grep -E, sort -k, find -regex, tar, diff, sha256sum... dans /devtools/bin, à côté de celles de /bin
+size = 328894
+installed = 576300
+sha256 = 973c21dd19f6c43c0054c684c4b36c2cb1bef0d79f2157889456e220ed099ac3
+file = pkgs/unixtools-1.37.1.opk
+needs = bash, pc >= 2026.11.76, abi >= 626
+required = 0
+restart = 0
+content = e97a7187418188f290ddaf843303c01757afdd1cc5889127bbaa831b5f281b99

@@ -68,6 +68,9 @@ pub fn args(l: &Launch) -> Vec<String> {
         "--include-partial-messages",
         "--permission-prompt-tool",
         "stdio",
+        // (le mode « Tout autoriser » choisi en cours de conversation : Claude Code ne l'accepte que lancé ainsi ; le
+        // mode de départ reste celui de --permission-mode)
+        "--allow-dangerously-skip-permissions",
     ]
     .iter()
     .map(|s| s.to_string())
@@ -150,6 +153,22 @@ impl Cli {
         self.send(&json!({ "type": "control_request", "request_id": id, "request": { "subtype": "interrupt" } }))
     }
 
+    /// Change le mode d'autorisation de la conversation en cours (`default`, `acceptEdits`, `plan`, `bypassPermissions`).
+    pub fn set_permission_mode(&mut self, mode: &str) -> bool {
+        let id = format!("korin-{}", self.next_id);
+        self.next_id += 1;
+        let mode = if mode.is_empty() { "default" } else { mode };
+        self.send(&json!({ "type": "control_request", "request_id": id, "request": { "subtype": "set_permission_mode", "mode": mode } }))
+    }
+
+    /// Change le modèle de la conversation en cours (vide : celui de la CLI).
+    pub fn set_model(&mut self, model: &str) -> bool {
+        let id = format!("korin-{}", self.next_id);
+        self.next_id += 1;
+        let model = if model.is_empty() { Value::Null } else { Value::String(model.to_owned()) };
+        self.send(&json!({ "type": "control_request", "request_id": id, "request": { "subtype": "set_model", "model": model } }))
+    }
+
     /// La réponse à un `can_use_tool` : autorisé (avec l'entrée de l'outil, et des règles à retenir), ou refusé.
     pub fn answer_permission(&mut self, request_id: &str, allow: bool, input: &Value, remember: Option<&Value>) -> bool {
         let decision = if allow {
@@ -223,7 +242,7 @@ mod tests {
         let a = args(&Launch { resume: Some("abc".into()), model: "opus".into(), permission_mode: "plan".into(), ..Default::default() });
         let s = a.join(" ");
         assert!(s.starts_with("-p --input-format stream-json --output-format stream-json"));
-        assert!(s.contains("--permission-prompt-tool stdio"));
+        assert!(s.contains("--permission-prompt-tool stdio --allow-dangerously-skip-permissions"));
         assert!(s.contains("--resume abc --model opus --permission-mode plan"));
         let b = args(&Launch { permission_mode: "default".into(), ..Default::default() }).join(" ");
         assert!(!b.contains("--permission-mode") && !b.contains("--resume"));

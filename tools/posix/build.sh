@@ -55,7 +55,7 @@ CFLAGS="$MCPU -O2 -g0 -Wall -Wextra -Wno-unused-parameter -fno-stack-protector \
  -fno-pic -fno-pie -ffunction-sections -fdata-sections -fno-builtin-malloc \
  -D_GNU_SOURCE -DFD_SETSIZE=1024 -isystem $SRC/include -I$SRC -I$OUT"
 OBJS=""
-for f in "$SRC"/*.c; do
+for f in "$SRC"/*.c "$SRC"/regex/*.c; do	# (regex/ : le moteur de musl, regcomp et regexec)
 	b=$(basename "$f" .c)
 	o="$OUT/obj/$b.o"
 	extra=""
