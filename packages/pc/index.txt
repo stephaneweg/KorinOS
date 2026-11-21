@@ -1924,18 +1924,18 @@ content = f09fa6bc43ea1405cb8b71713987e000c1020e7298a301187a46a41c35ee265d
 
 [photocraft]
 title = PhotoCraft
-version = 1.0.0
+version = 1.0.1
 category = Suite ArtCraft
 author = Korin OS
 summary = L'éditeur d'images libre PhotoCraft (storytold) : calques, sélections, retouche, peinture.
-size = 82350057
-installed = 199949804
-sha256 = 57df3dddfa60b3b0afab1c609d6f5631866d3b86ab2014acd9900f144385c35d
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-photocraft-1.0.0.opk
-needs = craft, abi >= 626
+size = 82354873
+installed = 199949836
+sha256 = b443baeb95084c8bec5d7b9ec7e40b91cae663b7c6e3791c72daa3e512c9daa2
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-photocraft-1.0.1.opk
+needs = craft, abi >= 627
 required = 0
 restart = 0
-content = 926ea5d2ff41ca524b528c639fc97a72e5716377699af772503ea2a8e0518558
+content = 914a5a62f09f6d58d7597c10498559075ca0aa96f7a66e17191ddd5d6b06a726
 
 [vectorcraft]
 title = VectorCraft
