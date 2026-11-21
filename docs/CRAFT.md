@@ -46,6 +46,27 @@ de transit (`.github/workflows/…` sur une branche sans historique, déclenché
 le jeton d'Actions, puis `pub.py` la retélécharge, vérifie son SHA-256 et commite l'index signé. Une nouvelle version :
 `pub.py <app>` (sans `--new`), même chemin.
 
+## Barre de titre et menus sur Korin
+
+Une fenêtre de Korin n'a pas de barre de titre : Elegant dessine ses trois boutons (réduire, agrandir, fermer) sur le
+contenu, en haut à droite (`FRAME_CAP_W`, 102 px). Sur Korin, les apps :
+
+- **ne dessinent pas leurs propres boutons de fenêtre** (le cadre, le bord et le redimensionnement sont ceux d'Elegant) ;
+- **laissent 112 px libres à droite** dans leur bande du haut ;
+- **mettent leur titre à gauche**, après l'icône et les premiers contrôles, au lieu de le centrer.
+
+Les retouches sont app par app (`tools/craft/korin_app.py`, section « la barre de titre sur Korin ») et, pour la
+barre de `craft-ui-shell` (WordCraft, PhotoCraft), dans `tools/craft/korin_libs.py` (`Ends::of` : une réserve de
+112 px à l'extrémité de droite ; `Title::span` : le titre au début de la place libre).
+
+**Les menus vont dans la barre de menus de Korin**, comme sur macOS : chaque app prend sur Korin son chemin « menu
+natif » (`muda::Menu::init_for_nsapp`), et son menu dans la fenêtre est caché. `muda` 0.21.2 a une plateforme Korin
+(`tools/craft/crate/muda-korin.rs`, patch fait par `crate_korin.py`) : le menu installé est relu après chaque passe
+d'egui et publié (`egui_korin::menu`, UIKit `ui_menu`) ; un choix rejoue l'action de l'entrée (`MenuEvent`, coche,
+Copier/Coller/Annuler donnés à egui). La barre de Korin a gagné pour cela les sous-menus (`S<titre>` … `E`, un
+niveau ; plus profond, muda les aplatit : « Exporter › PDF »), le menu de l'app (`M*` : ses lignes dans le menu au
+nom de l'app, avant Quitter), 14 menus, 160 lignes par menu, 16 Ko de texte, et `ui_menu_states` (UIKit, version 221).
+
 ## Construire
 
 ```sh

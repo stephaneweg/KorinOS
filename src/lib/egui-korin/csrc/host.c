@@ -148,3 +148,6 @@ long kh_menu_set (const char *text) { return ui_menu ((long) text); }
 
 /* les etats de plusieurs entrees (paires id, UMS_* en long), un seul envoi */
 long kh_menu_states (const long *pairs, long n) { return ui_menu_states ((long) pairs, n); }
+
+/* la touche du dernier evenement (kh_event) est-elle le raccourci d'une entree des menus ? -> son id (-1 : non) */
+long kh_menu_key (void) { return ui_menu_key (0); }

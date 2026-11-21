@@ -45,6 +45,7 @@ unsafe extern "C" {
     pub fn kh_open_with(path: *const c_char);
     pub fn kh_menu_set(text: *const c_char) -> c_long;
     pub fn kh_menu_states(pairs: *const c_long, n: c_long) -> c_long;
+    pub fn kh_menu_key() -> c_long;
 }
 
 // les types d'évènements (WEV_*)

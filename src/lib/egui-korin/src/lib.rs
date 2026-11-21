@@ -172,6 +172,20 @@ pub fn run_with(
                 next_frame = Some(Instant::now());
                 continue;
             }
+            // les raccourcis des menus (le muda de Korin) : comme sur macOS, la barre les prend avant la fenêtre ;
+            // seulement avec Ctrl ou Alt, ou une touche F (une lettre seule reste au champ de texte)
+            if t == sys::WEV_KEY
+                && e.kind != 0
+                && menu::active()
+                && (e.mods & (sys::MOD_CTRL | sys::MOD_ALT) != 0 || (0x3A..=0x45).contains(&e.code))
+            {
+                let id = unsafe { sys::kh_menu_key() };
+                if id >= 0 {
+                    menu::chosen(id as i64);
+                    next_frame = Some(Instant::now());
+                    continue;
+                }
+            }
             if t == sys::WEV_MENU {
                 // un choix dans la barre de menus de Korin : gardé pour l'app (menu::take_chosen)
                 menu::chosen(e.code as i64);
@@ -264,6 +278,11 @@ pub mod menu {
             Some(h) => h(id),
             None => CHOSEN.lock().unwrap_or_else(|e| e.into_inner()).push(id),
         }
+    }
+
+    /// Une couche de menus est installée (set_hooks) : les raccourcis passent par la barre.
+    pub(super) fn active() -> bool {
+        HOOKS.lock().unwrap_or_else(|e| e.into_inner()).is_some()
     }
 
     pub(super) fn after_pass() {
