@@ -10,7 +10,9 @@ metadata:
 
 **Règle de l'utilisateur (21/11/2026) : avant chaque publication, `git fetch origin main` et regarder ce qui a changé**
 (`git log HEAD..origin/main`, l'index `packages/pc/index.txt`) : d'autres sessions publient en parallèle (pc, rust, apps).
-Fusionner main d'abord, puis bâtir sur la dernière version publiée (pour `pc` : vérifier les kits de `lib/` et de
+Fusionner main d'abord, puis bâtir sur la dernière version publiée. Le niveau d'ABI du système est `etc/pkg/abi` du
+paquet pc (la somme des tables des kits de lib/) : `pub.py pc` le refait désormais, comme l'initrd (pc .80 disait 626 avec
+des kits à 628 ; korinstudio, abi >= 628, refusait de s'installer ; corrigé par .81). (pour `pc` : vérifier les kits de `lib/` et de
 `korin/initrd.tar`, ne rien écraser de ce qu'une autre session a publié) ; pousser sur origin/main juste après.
 
 Port du gestionnaire d'Onyx : `src/lib/pkg/pkglib.h`, `/bin/pkg`, `src/sys/pkgd`, `src/apps/pkgman`, `tools/pkg/`, doc `docs/PAQUETS.md`. Depot : `https://stephaneweg.github.io/onyx-packages/armpi` (sous-dossier `armpi` de stephaneweg/onyx-packages, clone local `C:\Projects\onyx-packages`), board = armpi. Cle privee : `C:\Projects\onyx_pkg-key.pem.txt` (la meme qu'Onyx, verifie) ; ne jamais l'afficher.
