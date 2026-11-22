@@ -1,6 +1,6 @@
 # korin-mcp : le serveur MCP de Korin
 
-*22/11/2026. Fait : le serveur (`src/sys/mcp`), l'enregistrement pour Claude Code (paquet `claude-code`) et pour
+*22/11/2026. Fait et essayé sous QEMU PC (§ 5) : le serveur (`src/sys/mcp`), l'enregistrement pour Claude Code (paquet `claude-code`) et pour
 Vibe (libacp). Étude d'origine, plus large : [etude/MCP.md](etude/MCP.md).*
 
 `korin-mcp` donne aux agents de code (Claude Code, la CLI officielle sous l'hôte Linux ; Vibe ; tout client MCP) des
@@ -34,13 +34,14 @@ Tous les outils sauf `send_signal` et `launch` ne font que lire (annotation `rea
 sauf les journaux de ce qu'il lance. Les accords restent ceux du client : Claude Code demande avant chaque outil MCP
 (sauf réglage contraire de l'utilisateur), et korin-mcp refuse de lui-même ce qui est listé ci-dessus.
 
-Exemple (`korin-mcp --call cpu '{"sample_ms":500,"top":2}'`) :
+Exemple, sous QEMU (outil `cpu`, `{"sample_ms":500,"top":2}`) :
 
 ```json
-{"sample_ms":500,"cores":2,"per_core":[{"core":0,"load_percent":3,"busy_ms":2210}, …],
- "memory":{"total_kb":4064256,"free_kb":3701248,"used_kb":363008},"uptime_ms":61234,"processes":31,
- "context_switches":181220,"top_threads":[{"pid":12,"process":"netd","tid":40,"thread":"netd","core":1,
- "cpu_percent":1.2,"runtime_ms":844}, …]}
+{"sample_ms":500,"cores":2,"per_core":[{"core":0,"load_percent":4,"busy_ms":2040},{"core":1,"load_percent":26,
+"busy_ms":9907}],"memory":{"total_kb":4182508,"free_kb":4112920,"used_kb":69588},"uptime_ms":36049,"processes":30,
+"context_switches":198735,"top_threads":[{"pid":12,"process":"usbd","tid":31,"thread":"usbd","core":0,
+"cpu_percent":5.8,"runtime_ms":1028},{"pid":24,"process":"usbnet","tid":70,"thread":"usbnet","core":0,
+"cpu_percent":2.6,"runtime_ms":370}]}
 ```
 
 ## 2. Le protocole
@@ -65,7 +66,7 @@ Le serveur est en **C sur libposix**, comme `linuxhost`, `pkg`, `webd`, et non e
   journal, mémoire, fenêtres, capture et intelgpu n'ont pas d'interface en Python ; il aurait fallu un module C de
   toute façon ;
 * **aucune dépendance** : le paquet `python` (CPython 3.14, ≈ 100 Mo) n'est pas demandé, korin-mcp marche sur un
-  système qui n'a que `claude-code` ; un binaire de ≈ 100 Ko, qui démarre tout de suite (Claude Code lance ses
+  système qui n'a que `claude-code` ; un binaire de 350 Ko, qui démarre tout de suite (Claude Code lance ses
   serveurs à chaque séance) ;
 * libposix plutôt que korinrt (le runtime des commandes de `/bin`) : `snprintf`, `malloc`, `opendir`, `stat`,
   `regcomp`, `fnmatch`, `posix_spawn`, `waitpid` sont là ; korinrt n'a pas de quoi écrire du JSON de taille libre.
@@ -128,6 +129,10 @@ est installé. Construire : `ARCH=x86_64 sh tools/posix/build.sh` (une fois), `s
   `send_signal` par `--call` ; puis **Claude Code 2.1.330 lui-même, sous linuxhost**, lance korin-mcp comme serveur
   MCP (`claude mcp add -s user`, `claude mcp list` : « ✔ Connected »). Aucun compte ni aucune clé : `mcp list` ne
   fait que le contrôle des serveurs.
+* **Résultat du 22/11** (cloud, QEMU q35, bureau Elegant) : `mcp pctest : RÉUSSI (39 vérifications, 0 échecs)` ; la
+  capture de 1280×800 réduite à 320×200 fait 17 Ko de PNG (encodée en 12 ms) ; Claude Code 2.1.330 : « korin-direct:
+  /bin/korin-mcp - ✔ Connected ». Pas essayé : une vraie séance de Claude Code qui appelle les outils (il faut un
+  compte : à faire sur le ZBook), Vibe, le ZBook lui-même (intelgpu, Wi-Fi), le Pi.
 
 ## 6. Ce qui reste
 

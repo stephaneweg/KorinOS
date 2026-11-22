@@ -39,7 +39,7 @@ Le 15/11/2026, l'utilisateur a demandé une étude d'un serveur MCP sur Korin, p
 
 **22/11 : korin-mcp v1 fait** (demande de l'utilisateur : instrumenter l'OS pour Claude Code, claude-acp, Vibe par des
 outils structurés ; docs/MCP-KORIN.md). **C sur libposix** (pas Python : appels système directs, aucune dépendance,
-binaire de ~100 Ko), `src/sys/mcp` → `/bin/korin-mcp`, `sh tools/mcp/build.sh` (constantes et rangs de NetKit tirés
+binaire de 350 Ko), `src/sys/mcp` → `/bin/korin-mcp`, `sh tools/mcp/build.sh` (constantes et rangs de NetKit tirés
 des .inc/.abi ; `--host` : essais JSON et PNG). 17 outils : processes, process, cpu, kernel_log, list_dir, read_file,
 find_files, volumes, packages, services, gpu, network, time, windows, screenshot (PNG maison, png.c), send_signal,
 launch. Garde-fous : read_file refuse les secrets ; launch refuse /sys, /sbin, rm/mkfs/gpt/sudo…, /media/sd1 ;
@@ -54,3 +54,7 @@ send_signal refuse /sys sans allow_system.
 - Piège du cloud : la CLI `claude` du conteneur répond vraiment (le proxy authentifie) même avec `env -i` et un HOME
   vide : n'y lancer que `--version` et `mcp …` ; `claude config list` (pas une sous-commande) devient une invite.
 - Paquet : bin/korin-mcp dans **claude-code** (2.1.330.9) ; vibe 1.0.10 (libacp) ; rien de publié.
+- **Essayé le 22/11 sous QEMU PC** (`python3 -I tools/mcp/pctest.py`, bureau Elegant) : RÉUSSI, 39 vérifications ;
+  Claude Code 2.1.330 sous linuxhost : `claude mcp list` → « korin-direct: /bin/korin-mcp - ✔ Connected ». Pièges du
+  banc : pas de « | » dans les commandes (séparateur de ONLY) ; Claude Code avec `< /dev/null` (sinon il mange ce que
+  le banc tape). Pas essayé : une vraie séance qui appelle les outils (compte : sur le ZBook), Vibe, le Pi.
