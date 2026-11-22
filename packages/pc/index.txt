@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-22 23:29
+date = 2026-11-22 23:30
 abi = 629
 packages = 117
 board = pc
@@ -2507,3 +2507,18 @@ needs = openssl-dev, nghttp2-dev, brotli-dev, zlib-dev, abi >= 629
 required = 0
 restart = 0
 content = 1ab1da9beda36c73e27ffd5c545e134d8bb9a835a897803b1f275eff5383fb42
+
+[harfbuzz-dev]
+title = HarfBuzz (développement)
+version = 14.5.1
+category = Développement
+author = Korin OS
+summary = HarfBuzz 14.5.1 : libharfbuzz.a, libharfbuzz-icu.a, harfbuzz/ (licence MIT)
+size = 1239425
+installed = 3701607
+sha256 = 54e4285d42bc6c6e78b19813f9ffb9e427a935b474de060d26e8b585c6a3fb39
+file = pkgs/harfbuzz-dev-14.5.1.opk
+needs = freetype-dev, icu-dev, abi >= 629
+required = 0
+restart = 0
+content = b4dab0a21f0d439ab234327acdc81c80b681ef4d77eaf426a1765aee4b256511
