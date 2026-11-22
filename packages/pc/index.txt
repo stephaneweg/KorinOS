@@ -724,18 +724,18 @@ content = f619c4b3e11f51b737aa037d2b337fc844d46f7e7dd7a4014fe39097c6151b65
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.83
+version = 2026.11.84
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 32037489
+size = 32037478
 installed = 96388818
-sha256 = d5e5b321dfcc64625063d0bcb0463f350a53c39dedb4c54b8b89dc09280bb5b6
-file = pkgs/pc-2026.11.83.opk
+sha256 = 5d9889099018f40803dc576f34cf2f79d22bd5aab9d56a60f0bc4288d265d236
+file = pkgs/pc-2026.11.84.opk
 needs = 
 required = 1
 restart = 1
-content = 69f6146f0e64f5321ea012c8b001b6cbf08c561883d6ee23d1a4638d672c4719
+content = d7ad62742cfd4ec6275447973fda1490b419eebd12aaf7ee4b34973dec052bb3
 
 [2048]
 title = 2048
