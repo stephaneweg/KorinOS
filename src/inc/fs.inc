@@ -71,6 +71,8 @@ VFS_VOLUMES	= 22			; -> b = nombre ; donnees : nom 16, source 24, service 16
 VFS_MOUNTS	= 53			; -> b = nombre ; donnees : par volume, nom interne, 0, point de montage, 0
 V_PIPE_READ_BULK = 54			; comme V_PIPE_READ : b octets (64 Ko au plus) ecrits par vfs a l'adresse d de l'appelant
 V_PIPE_WRITE_BULK = 55			; comme V_PIPE_WRITE : b octets lus a l'adresse d ; E_INVAL : vfs ancien (464 o par message)
+V_PIPE_RING	= 56			; a poignee -> tampon partage de l'anneau du tube (PC, vfs en C ; src/svc/common/fssvc.h)
+V_PIPE_KICK	= 57			; a poignee : un ecrivain de l'anneau a ecrit (vfs a des lectures en attente)
 VFS_PATHMAP	= 23			; donnees : chemin virtuel, 0, chemin physique, 0 (/etc/paths.txt)
 VFS_PATHQ	= 24			; donnees : chemin -> 1 s'il passe par un chemin virtuel, sinon 0
 VFS_PATHLIST	= 25			; a = premiere entree -> nombre rendu, b = entree suivante ;

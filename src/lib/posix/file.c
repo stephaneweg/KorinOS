@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <limits.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -128,8 +129,275 @@ int creat (const char *path, mode_t mode) { return __posix_open (path, O_WRONLY 
  * 464 octets par aller et retour) */
 static int s_pipe_bulk_off;
 
+/* ---- anneaux partages (PC, 22/11/2026, docs/etude/ANNEAUX.md § 4) : apres RING_MIN octets passes par messages
+ * sur une poignee, on demande a vfs l'anneau du tube (V_PIPE_RING : un tampon partage du noyau) ; ensuite lecture et
+ * ecriture s'y font sans message, l'attente sur les futex de son en-tete (partages entre process : cle = adresse
+ * physique). Un verrou par sens (plusieurs process tiennent souvent un meme bout : bash et ses fils) ; vfs rend
+ * ceux d'un process mort. vfs refuse (Pi, plus d'anneau libre) : les messages, comme avant. */
+#define RING_MIN	65536
+#define RING_SLOTS	32
+#define RING_WAIT_MS	100		/* (une attente se relit au moins ainsi : un reveil perdu ne bloque pas) */
+#define RING_TRIES	4
+
+struct pring
+{
+	long h;				/* poignee (0 : libre) */
+	struct __armpi_pipe_ring *r;	/* l'en-tete, 0 : messages */
+	long buf;
+	unsigned long long moved;	/* octets passes par messages */
+	int tries;
+};
+static struct pring s_pr[RING_SLOTS];
+static volatile unsigned s_prLock;
+static int s_ring_off;			/* vfs sans anneaux : 1 */
+static unsigned s_ring_pid;		/* notre pid + 1 (les verrous des anneaux) */
+
+void __posix_pipe_ring_fork_child (void)
+{
+	s_ring_pid = 0;			/* (le fils garde les anneaux mappes du pere : meme adresses) */
+}
+
+static inline void ring_relax (void)
+{
+#if defined(__aarch64__)
+	__asm__ volatile ("yield" ::: "memory");
+#else
+	__asm__ volatile ("pause" ::: "memory");
+#endif
+}
+
+static struct pring *pr_find (long h, int make)
+{
+	struct pring *f = 0;
+	for (int i = 0; i < RING_SLOTS; i++)
+	{
+		if (s_pr[i].h == h)
+			return &s_pr[i];
+		if (!f && !s_pr[i].h)
+			f = &s_pr[i];
+	}
+	if (make && f)
+	{
+		memset (f, 0, sizeof *f);
+		f->h = h;
+	}
+	return make ? f : 0;
+}
+
+/* l'anneau de la poignee h, s'il y en a un (en demandant a vfs quand le flux le vaut) */
+static struct __armpi_pipe_ring *ring_of (long h, size_t more)
+{
+	if (s_ring_off)
+		return 0;
+	struct __armpi_pipe_ring *r = 0;
+	__posix_lock (&s_prLock);
+	struct pring *p = pr_find (h, 1);
+	if (p)
+	{
+		p->moved += more;
+		r = p->r;
+		if (!r && p->moved >= RING_MIN && p->tries < RING_TRIES)
+		{
+			p->tries++;
+			struct __armpi_msg m;
+			memset (&m, 0, 48);
+			m.op = V_PIPE_RING;
+			m.a = h;
+			long b = __armpi_vfs_call (&m);
+			if (b == -22)
+				s_ring_off = 1;		/* (Pi, vfs ancien) */
+			else if (b >= 0)
+			{
+				/* (SYS_BUF_GRANT ne vaut que pour le dernier process autorise : refus, on redemandera) */
+				long va = __armpi_sys1 (SYS_BUF_MAP, b);
+				struct __armpi_pipe_ring *x = (struct __armpi_pipe_ring *) va;
+				if (va > 0 && x->magic == ARMPI_RING_MAGIC)
+				{
+					p->r = r = x;
+					p->buf = b;
+				}
+				else
+					p->moved = 0;
+			}
+			else
+				p->moved = 0;		/* (plus d'anneau libre : plus tard) */
+		}
+	}
+	__posix_unlock (&s_prLock);
+	return r;
+}
+
+static unsigned ring_me (void)
+{
+	if (!s_ring_pid)
+		s_ring_pid = (unsigned) __armpi_sys0 (SYS_GETPID) + 1;
+	return s_ring_pid;
+}
+
+static void ring_lock (volatile unsigned *l)
+{
+	unsigned me = ring_me ();
+	for (int k = 0;; k++)
+	{
+		unsigned z = 0;
+		if (__atomic_compare_exchange_n (l, &z, me, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
+			return;
+		if (k < 256)
+			ring_relax ();
+		else
+			__armpi_sys0 (SYS_YIELD);
+	}
+}
+
+static void ring_unlock (volatile unsigned *l)
+{
+	__atomic_store_n (l, 0, __ATOMIC_RELEASE);
+}
+
+static void ring_wake (volatile unsigned *seq, volatile unsigned *waiters)
+{
+	__atomic_add_fetch (seq, 1, __ATOMIC_RELEASE);
+	if (__atomic_load_n (waiters, __ATOMIC_ACQUIRE))
+		__armpi_sys2 (SYS_FUTEX_WAKE, seq, 0x7FFFFFFF);
+}
+
+/* dort jusqu'a un changement de seq (RING_WAIT_MS au plus), si cond est encore vraie apres s'etre compte */
+#define RING_SLEEP(seq, waiters, cond) do { \
+	unsigned s_ = __atomic_load_n (&(seq), __ATOMIC_ACQUIRE); \
+	__atomic_add_fetch (&(waiters), 1, __ATOMIC_ACQ_REL); \
+	if (cond) \
+		__armpi_sys3 (SYS_FUTEX_WAIT, &(seq), s_, RING_WAIT_MS); \
+	__atomic_sub_fetch (&(waiters), 1, __ATOMIC_ACQ_REL); \
+} while (0)
+
+static inline unsigned ring_avail (struct __armpi_pipe_ring *r)
+{
+	return (__atomic_load_n (&r->head, __ATOMIC_ACQUIRE) - __atomic_load_n (&r->tail, __ATOMIC_ACQUIRE)) &
+	       (ARMPI_RING_CAP - 1);
+}
+
+/* lecture sur l'anneau -> octets, 0 fin, -11 (nowait), -4 (signal) */
+static long ring_read (struct __armpi_pipe_ring *r, void *buf, size_t n, int nowait)
+{
+	unsigned char *d = (unsigned char *) r + ARMPI_RING_HDR;
+	for (;;)
+	{
+		if (ring_avail (r))
+		{
+			ring_lock (&r->rlock);
+			unsigned t = __atomic_load_n (&r->tail, __ATOMIC_ACQUIRE), k = ring_avail (r);
+			if (k > n)
+				k = (unsigned) n;
+			unsigned a = ARMPI_RING_CAP - t < k ? ARMPI_RING_CAP - t : k;
+			memcpy (buf, d + t, a);
+			memcpy ((unsigned char *) buf + a, d, k - a);
+			__atomic_store_n (&r->tail, (t + k) & (ARMPI_RING_CAP - 1), __ATOMIC_RELEASE);
+			ring_unlock (&r->rlock);
+			if (k)
+			{
+				ring_wake (&r->rseq, &r->wwait);
+				return k;
+			}
+			continue;
+		}
+		if (!__atomic_load_n (&r->writers, __ATOMIC_ACQUIRE))
+		{
+			if (ring_avail (r))	/* (ecrit juste avant la fin) */
+				continue;
+			return 0;
+		}
+		if (nowait)
+			return -11;
+		unsigned sigs = __posix_sig_intr;
+		RING_SLEEP (r->wseq, r->rwait, !ring_avail (r) && __atomic_load_n (&r->writers, __ATOMIC_ACQUIRE));
+		if (__posix_sig_intr != sigs)
+			return -4;
+	}
+}
+
+/* ecriture sur l'anneau -> octets (moins que n : nowait et plein), -11, -32 (plus de lecteur), -4 */
+static long ring_write (long h, struct __armpi_pipe_ring *r, const void *buf, size_t n, int nowait)
+{
+	unsigned char *d = (unsigned char *) r + ARMPI_RING_HDR;
+	size_t done = 0;
+	/* (PIPE_BUF octets au plus : d'un seul morceau, POSIX) */
+	unsigned need = n <= PIPE_BUF ? (unsigned) n : 1;
+	while (done < n)
+	{
+		if (!__atomic_load_n (&r->readers, __ATOMIC_ACQUIRE))
+			return done ? (long) done : -32;
+		unsigned room = (ARMPI_RING_CAP - 1) - ring_avail (r);
+		if (room >= need)
+		{
+			ring_lock (&r->wlock);
+			unsigned hd = __atomic_load_n (&r->head, __ATOMIC_ACQUIRE);
+			room = (ARMPI_RING_CAP - 1) - ring_avail (r);
+			unsigned k = room;
+			if (k > n - done)
+				k = (unsigned) (n - done);
+			if (k < need)
+				k = 0;
+			unsigned a = ARMPI_RING_CAP - hd < k ? ARMPI_RING_CAP - hd : k;
+			memcpy (d + hd, (const unsigned char *) buf + done, a);
+			memcpy (d, (const unsigned char *) buf + done + a, k - a);
+			__atomic_store_n (&r->head, (hd + k) & (ARMPI_RING_CAP - 1), __ATOMIC_RELEASE);
+			ring_unlock (&r->wlock);
+			if (k)
+			{
+				done += k;
+				ring_wake (&r->wseq, &r->rwait);
+				if (__atomic_load_n (&r->vfs_wait, __ATOMIC_ACQUIRE))
+				{
+					struct __armpi_msg m;	/* (un lecteur par messages attend dans vfs) */
+					memset (&m, 0, 48);
+					m.op = V_PIPE_KICK;
+					m.a = h;
+					__armpi_vfs_call (&m);
+				}
+				continue;
+			}
+		}
+		if (nowait)
+			return done ? (long) done : -11;
+		unsigned sigs = __posix_sig_intr;
+		RING_SLEEP (r->rseq, r->wwait, (ARMPI_RING_CAP - 1) - ring_avail (r) < need &&
+			    __atomic_load_n (&r->readers, __ATOMIC_ACQUIRE));
+		if (__posix_sig_intr != sigs)
+			return done ? (long) done : -4;
+	}
+	return (long) done;
+}
+
+/* poll d'un bout d'ecriture sur l'anneau -> place libre, -32 plus de lecteur ; -1 : pas d'anneau (demander a vfs) */
+long __posix_pipe_room (long h)
+{
+	struct __armpi_pipe_ring *r = ring_of (h, 0);
+	if (!r)
+		return -1;
+	if (!__atomic_load_n (&r->readers, __ATOMIC_ACQUIRE))
+		return -32;
+	return (long) ((ARMPI_RING_CAP - 1) - ring_avail (r));
+}
+
+/* la poignee est rendue : son anneau aussi */
+static void ring_forget (long h)
+{
+	__posix_lock (&s_prLock);
+	struct pring *p = pr_find (h, 0);
+	if (p)
+	{
+		if (p->r)
+			__armpi_sys1 (SYS_BUF_FREE, p->buf);
+		memset (p, 0, sizeof *p);
+	}
+	__posix_unlock (&s_prLock);
+}
+
 long __posix_pipe_read (long h, void *buf, size_t n, int nowait)
 {
+	struct __armpi_pipe_ring *rg = ring_of (h, 0);
+	if (rg)
+		return ring_read (rg, buf, n, nowait);
 	struct __armpi_msg m;
 	int bulk = n > ARMPI_PIPE_CHUNK && !s_pipe_bulk_off;
 	if (n > (bulk ? ARMPI_PIPE_BULK : ARMPI_PIPE_CHUNK))
@@ -162,12 +430,15 @@ long __posix_pipe_read (long h, void *buf, size_t n, int nowait)
 		}
 		if (r > 0 && !bulk)
 			memcpy (buf, m.data, (size_t) r);
+		if (r > 0)
+			ring_of (h, (size_t) r);	/* (compte ; l'anneau au prochain appel) */
 		return r;
 	}
 }
 
 int __posix_pipe_close (long h)
 {
+	ring_forget (h);
 	struct __armpi_msg m;
 	memset (&m, 0, 48);
 	m.op = V_PIPE_CLOSE;
@@ -198,6 +469,17 @@ static ssize_t pipe_write (struct __posix_ofd *d, const void *buf, size_t n)
 	size_t done = 0;
 	while (done < n)
 	{
+		struct __armpi_pipe_ring *rg = ring_of (d->h, 0);
+		if (rg)
+		{
+			long r = ring_write (d->h, rg, (const char *) buf + done, n - done, (d->flags & O_NONBLOCK) != 0);
+			if (r < 0)
+				return done ? (ssize_t) done : POSIX_SYS (r);
+			done += (size_t) r;
+			if ((size_t) r == 0 || (d->flags & O_NONBLOCK))
+				break;
+			continue;
+		}
 		size_t c = n - done;
 		int bulk = c > ARMPI_PIPE_CHUNK && !s_pipe_bulk_off;
 		if (c > (bulk ? ARMPI_PIPE_BULK : ARMPI_PIPE_CHUNK))
@@ -227,6 +509,8 @@ static ssize_t pipe_write (struct __posix_ofd *d, const void *buf, size_t n)
 				break;
 			return POSIX_SYS (r);	/* E_PIPE : plus de lecteur */
 		}
+		if (r > 0)
+			ring_of (d->h, (size_t) r);	/* (compte : l'anneau au tour suivant si le flux le vaut) */
 		if (r == 0)
 		{
 			/* plein : sans attente, ce qui est passe (ou EAGAIN) ; sinon on reessaie */
@@ -440,7 +724,10 @@ int __posix_ofd_release (struct __posix_ofd *d)
 		break;
 	case POSIX_FD_PIPE_R:
 	case POSIX_FD_PIPE_W:
-		__posix_pipe_close (d->h);
+		/* (une autre description de ce process tient la meme poignee : vfs la garde. Au demarrage apres
+		 * exec, celles de 0-2 faites par tty.c sont remplacees par celles passees par l'exec, meme poignee) */
+		if (!__posix_ofd_handle_shared (d))
+			__posix_pipe_close (d->h);
 		break;
 	case POSIX_FD_SOCKET:
 		r = __posix_sock_close (d);

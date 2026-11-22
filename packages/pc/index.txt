@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-22 01:37
+date = 2026-11-22 02:33
 abi = 629
 packages = 117
 board = pc
@@ -174,18 +174,18 @@ content = 1ed897c3c1436c173dc1585ff0f13199a42ffae587eca0515ab9e2e50688aede
 
 [pkgman]
 title = Logiciels
-version = 1.0.21
+version = 1.0.22
 category = Système
 author = Korin OS
 summary = Les paquets : la commande pkg, le gestionnaire Logiciels (et son volet dans Réglages), le service pkgd
-size = 4605274
-installed = 11778715
-sha256 = baf1d19cc4dd84f9e839fde7a25a79ec31a8d792c16264ef4764c224c25fdb9d
-file = pkgs/pkgman-1.0.21.opk
+size = 4615618
+installed = 11799195
+sha256 = 0899d16656fcc23b656c63b50bc7e57625ab1cd04fda586728112792d60ce5fa
+file = pkgs/pkgman-1.0.22.opk
 needs = abi >= 626
 required = 1
 restart = 0
-content = 206cbe1193c7b5d267cce41f723098e6c0a7b303bd6a0c241269129b4fae022a
+content = 3ee4ea03346b32386f07096de142937fb87e16c99bc7182ca84cf0ebe98ac407
 
 [soundfonts]
 title = Banque de sons General MIDI
@@ -559,18 +559,18 @@ content = 9641cbd4a85fc3389095aa190dc27cca0ff9fb21011ca03682e601d0f7486fb0
 
 [bash]
 title = GNU bash
-version = 1.0.8
+version = 1.0.9
 category = Développement
 author = Korin OS
 summary = Le shell de GNU (5.2.37) : édition de ligne, historique, complétion, scripts
-size = 712997
-installed = 1411248
-sha256 = aa2b547521e18d587826b9cc2f5275510059cabb045fbb227fda062b34a3632d
-file = pkgs/bash-1.0.8.opk
+size = 715459
+installed = 1415344
+sha256 = 0cac8e0b5fa1f16cd48c2360de5f22d45b19682832d0d65fd21682673972f132
+file = pkgs/bash-1.0.9.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 928ac91d105fd2b97ef0fa88b398d8c5af7710ed205e595fe9f9359decf35bd9
+content = 2c98d9bc1ff979880952f50eb1e9e4a8a37a4235cdbb54a4cdd6d0c2a55c3520
 
 [llm]
 title = llm
@@ -604,18 +604,18 @@ content = 3e6ec8f492001cdf29dbdf24eeeccea476719291ae98c0ae4100b24fbe883205
 
 [git]
 title = Git
-version = 2.51.4
+version = 2.51.5
 category = Développement
 author = Korin OS
 summary = Le gestionnaire de versions git 2.51 : dépôts locaux, clone, fetch et push en HTTP et HTTPS
-size = 7947622
-installed = 18546552
-sha256 = 00dd3a7763d53d9d06f92b02d62fd485c6a9b711367126d11a580a4e855189cc
-file = pkgs/git-2.51.4.opk
+size = 7952849
+installed = 18558840
+sha256 = 0ac199ba00a2302fc88c4cad6b28b89503f2893a32e821dfb3c5896a0d728b34
+file = pkgs/git-2.51.5.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = a4f64665a25456b708baa5f30244cf548269afa001ae8b8ed7b7116c1b118a5d
+content = 93902cc75915e47da602b2e51b28a78a8277a9cd59fbbce22c3262092bab3050
 
 [webstudio-templates]
 title = Modèles de sites (WebStudio)
@@ -694,48 +694,48 @@ content = 4d093df519910dcb66bd4cba30f8ddf6bd8b179b41f69cf9a8966dcc1c01d1dc
 
 [webd]
 title = Serveur web
-version = 1.0.6
+version = 1.0.7
 category = Internet
 author = Korin OS
 summary = Le serveur web de Korin (webd) : sites, liaisons http et https, certificats, et son volet dans Réglages
-size = 4414717
-installed = 11414096
-sha256 = 61929ccc6f7d4b77859aadcfe398d21270fc156c29d0b55e3556bd85d5c7ee41
-file = pkgs/webd-1.0.6.opk
+size = 4421854
+installed = 11438672
+sha256 = 4f452a4bcbe7d920b5dab21b18f307c6c66ed70bdfd3f09ac14ef83ee53bda60
+file = pkgs/webd-1.0.7.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 43ef104aa371a2b55fa3cec3156193f8e68880be158faea63a464f81f9173a92
+content = ba59877b34d88744d65312e460c29e62634fcae9d0eb932a411c3517282a3055
 
 [smbd]
 title = Partage de fichiers (SMB)
-version = 1.0.6
+version = 1.0.7
 category = Internet
 author = Korin OS
 summary = Partage des dossiers de Korin avec Windows, macOS et Linux (SMB 2 et 3) : le serveur smbd et le volet Partages de Réglages
-size = 383901
-installed = 764680
-sha256 = 2a80ff2dd2836d0943f558240ed53ad07b5cd23fe168d7b0041281508abafb97
-file = pkgs/smbd-1.0.6.opk
+size = 389271
+installed = 781064
+sha256 = 0c618a9df1406a84204017e395cc0d79e55eb4fe530030f8121831e0cd6df0b7
+file = pkgs/smbd-1.0.7.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = f619c4b3e11f51b737aa037d2b337fc844d46f7e7dd7a4014fe39097c6151b65
+content = abbe00f72f244a9ded8a32ece9a30d41e4882fa84f05b9a081019e35c1ec0163
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.85
+version = 2026.11.87
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 32037640
-installed = 96387890
-sha256 = dfe6d110da4bae60c54f6894ec313c784c9e672148df0d75614b27c478fdec59
-file = pkgs/pc-2026.11.85.opk
+size = 32079012
+installed = 96463314
+sha256 = 9bf7e36677f31bbb4d1baeaae840360aee085969223e7012b7311ac83f3f1bca
+file = pkgs/pc-2026.11.87.opk
 needs = 
 required = 1
 restart = 1
-content = 63077546d313b4f742dc3115a745ae9c47d9920ec14eef95825b763c4bb3d5ec
+content = 68a671e6725a3477bb888dc1c537fa860f0ad39718acf198fbff79b6687c9f7f
 
 [2048]
 title = 2048
@@ -2089,18 +2089,18 @@ content = 47fef4aa7f6e0bf29968834088c098c4cd0d80d8362ebcc40e894bffe41643f6
 
 [linuxhost]
 title = Hôte Linux
-version = 1.0.7
+version = 1.0.8
 category = Développement
 author = Korin OS
 summary = Lance des programmes de Linux x86-64 sur Korin, sans les modifier (linuxhost run PROGRAMME) : ce qui fait tourner Claude Code
-size = 298370
-installed = 626372
-sha256 = cfcfb9ad04451e9dc2982f9e5f79d3560efc13d38f63b3fc6a641639e84eaf7d
-file = pkgs/linuxhost-1.0.7.opk
+size = 299991
+installed = 630468
+sha256 = bc6b0fcdf4e1a2f7062b04f118184913a9c6f37b994b83b93608e405226e5e7d
+file = pkgs/linuxhost-1.0.8.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 6a96ae0fc9cbc851b81fcad1e64b9b0ac99a393442e1d37fab0716ab444a173f
+content = cb7444b2cace9a2a049ee90d9c850d7a91bc38449c7c20c107731b8ba1aa6fd9
 
 [claude-code]
 title = Claude Code

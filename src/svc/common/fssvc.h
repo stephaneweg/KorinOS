@@ -94,6 +94,26 @@ _Static_assert(sizeof(struct msg) == 512, "message de 512 octets");
 #define V_PIPE_READ_BULK 54  /* comme V_PIPE_READ, b octets (64 Ko au plus) écrits par vfs à l'adresse d (SVC_MAP_CALLER) */
 #define V_PIPE_WRITE_BULK 55 /* comme V_PIPE_WRITE, b octets lus par vfs à l'adresse d ; E_INVAL : vfs ancien */
 #define PIPE_BULK_MAX 65536
+#define V_PIPE_RING 56 /* a poignée -> numéro d'un tampon (SYS_BUF_MAP) : l'anneau du tube, partagé (PC) ; E_AGAIN : plus
+                        * d'anneau libre (le client garde les messages) ; E_INVAL : pas d'anneau ici (Pi, vfs ancien) */
+#define V_PIPE_KICK 57 /* a poignée : un écrivain de l'anneau a écrit pendant que vfs a des lectures en attente sur ce tube */
+/* l'anneau partagé d'un tube (docs/etude/ANNEAUX.md § 4 ; le même dans libposix, armpi.h) : PIPE_RING_HDR octets
+ * d'en-tête puis les PIPE_RING_CAP octets des données. head et tail : indices dans l'anneau (un octet reste vide) ;
+ * wseq / rseq : futex (données écrites / place rendue, et tout changement de readers, writers) avec leurs dormeurs ;
+ * wlock / rlock : pid + 1 de l'écrivain / du lecteur qui copie (plusieurs process tiennent souvent un même bout) ;
+ * readers, writers : bouts encore ouverts (vfs seul les écrit) ; vfs_wait : vfs a des lectures en attente (un
+ * écrivain de l'anneau lui envoie alors V_PIPE_KICK) */
+#define PIPE_RING_HDR 4096
+#define PIPE_RING_CAP 65536
+#define PIPE_RING_MAGIC 0x50524E47
+struct pipe_ring {
+	volatile u32 head, tail;
+	volatile u32 wseq, rseq;
+	volatile u32 rwait, wwait;
+	volatile u32 wlock, rlock;
+	volatile u32 readers, writers;
+	volatile u32 vfs_wait, magic;
+};
 #define PIPE_NOWAIT 1
 #define PIPE_SHORT 2
 

@@ -124,6 +124,17 @@ struct __posix_ofd *__posix_ofd_new (int type, int flags)
 	return d;
 }
 
+int __posix_ofd_handle_shared (struct __posix_ofd *d)
+{
+	int r = 0;
+	__posix_lock (&s_ofdLock);
+	for (struct __posix_ofd *o = s_ofds; o && !r; o = o->all_next)
+		if (o != d && o->h == d->h && (o->type == POSIX_FD_PIPE_R || o->type == POSIX_FD_PIPE_W))
+			r = 1;
+	__posix_unlock (&s_ofdLock);
+	return r;
+}
+
 static struct __posix_ofd *console (int which)
 {
 	struct __posix_ofd *d = __posix_ofd_new (POSIX_FD_CONSOLE, which == 0 ? O_RDONLY : O_WRONLY);

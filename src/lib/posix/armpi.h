@@ -148,6 +148,21 @@ long __armpi_vfs_call (struct __armpi_msg *m);	/* -> resultat (reponse dans m) *
 #define V_PIPE_READ_BULK	54		/* comme V_PIPE_READ, b octets (64 Ko) ecrits par vfs a l'adresse d */
 #define V_PIPE_WRITE_BULK	55		/* comme V_PIPE_WRITE, b octets lus a l'adresse d ; E_INVAL : vfs ancien */
 #define ARMPI_PIPE_BULK		65536
+#define V_PIPE_RING		56		/* a poignee -> tampon partage de l'anneau du tube ; E_AGAIN, E_INVAL : messages */
+#define V_PIPE_KICK		57		/* a poignee : ecrit pendant que vfs a des lectures en attente */
+/* l'anneau partage d'un tube : le meme que dans vfs (src/svc/common/fssvc.h, struct pipe_ring) */
+#define ARMPI_RING_HDR		4096
+#define ARMPI_RING_CAP		65536
+#define ARMPI_RING_MAGIC	0x50524E47
+struct __armpi_pipe_ring
+{
+	volatile unsigned head, tail;
+	volatile unsigned wseq, rseq;
+	volatile unsigned rwait, wwait;
+	volatile unsigned wlock, rlock;
+	volatile unsigned readers, writers;
+	volatile unsigned vfs_wait, magic;
+};
 #define PIPE_NOWAIT		1
 #define PIPE_SHORT		2		/* V_PIPE_READ : 1 s d'attente au plus */
 #define ARMPI_PIPE_CHUNK	464
