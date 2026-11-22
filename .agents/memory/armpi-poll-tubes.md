@@ -75,3 +75,17 @@ wait_slots ; netd : SYS_YIELD + 2 SYS_TIME_MS entre deux trames pendant NET_BUSY
 (pause, cpu_relax) ; nvme lit l'heure tous les 16 tours après 256 tours libres ; netd regarde ses anneaux NET_SPIN
 fois avant de céder. QEMU (wget 30 Mo vers le disque) : nvme 61 000 -> 4 800, netd 81 000 -> 17 700, 15,4 -> 13,3 s.
 Publié pc .85 (netd et nvme seuls, l'initrd refait depuis celui de .84).
+
+**22/11 : tubes en anneaux partagés, faits (demande de l'utilisateur)** (docs/etude/ANNEAUX.md § 7). Un tampon du noyau
+par tube, créé par vfs à la demande (V_PIPE_RING 56, après 64 Ko par messages ; au plus 24 : le noyau n'a que 128
+tampons ; SYS_BUF_GRANT = un seul pid à la fois, le client redemande), donné aux seuls process qui tiennent un bout
+(pas un tampon commun : tous verraient tous les tubes). En-tête struct pipe_ring (fssvc.h / armpi.h) : head, tail,
+futex wseq/rseq + dormeurs, wlock/rlock (pid+1 ; vfs rend ceux d'un mort), readers/writers (vfs), vfs_wait
+(V_PIPE_KICK 57). vfs sert toujours les clients par messages sur le même anneau. Aussi : 0-2 qui sont des tubes de vfs
+deviennent des bouts de tube de libposix (avant : AppKit, 464 o/message, somme de 2 ms quand plein) ; piège corrigé :
+au démarrage après exec, les descriptions de tty.c sont remplacées par celles de l'exec (même poignée) et leur
+fermeture rendait la poignée à vfs (EBADF) -> __posix_ofd_handle_shared ; vfs coupait une écriture <= PIPE_BUF quand
+la place manquait (deux écrivains mêlés). Banc src/lib/posix/test/ringtest.c. QEMU : gen|check 24 -> 85 Mo/s ; git
+clone HTTP 23,3 -> 16,7 s, HTTPS 24,5 -> 18,8 s. Publié : pc .86 (vfs), linuxhost 1.0.8, git 2.51.5, bash 1.0.9.
+Commandes en asm encore lentes (AppKit 464 o) : chantier à part. Jet : l'autre session le relie (pas de recompilation
+de WebKit : en-têtes publics de libposix inchangés, sauf EPOLLONESHOT).
