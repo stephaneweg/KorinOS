@@ -96,6 +96,7 @@ struct ring_hdr {                 /* 64 octets, à NET_RING_HDR + 64 x (anneau +
 #define WSTACK 32768    /* pile d'un thread */
 #define WAIT_MAX 25000  /* attente d'une requête (svc_call : 30 s) */
 #define IF_MAX 4
+#define NET_SPIN 2048 /* pauses entre deux regards du thread de la pile pendant un transfert (des dizaines de µs) */
 #define NET_BUSY_MS 5   /* ms sans trame avant de revenir au repos (50 : jamais au repos sur un Wi-Fi bavard) */
 #define NET_TICK_MS 10  /* sommeil : une minuterie TCP en cours */
 #define NET_DHCP_MS 100 /*   adresse pas encore obtenue */

@@ -67,3 +67,11 @@ EPOLLOUT|ONESHOT par Bun -> epoll_wait rendait aussitôt, sans fin, pendant les 
 oneshottest du scratchpad). Ajouté LINUX_COUNT_SYS=fichier (compteurs par appel et par chemin, réécrits toutes les 5 s :
 l'utilisateur trouvait LINUX_TRACE_SYS trop lent). linuxhost 1.0.7 ; netd (anneau refusé aux sockets fermées) dans pc
 .84. À mesurer sur le ZBook : sysstat pendant un clone lancé par Claude Code.
+
+**22/11, ZBook après linuxhost 1.0.7 / pc .84 : git clone lancé par Claude Code à 8-11 Mo/s** (6 avant) ;
+LINUX_COUNT_SYS : linuxhost ~1 000 appels de Linux/s (surtout clock_gettime, sans noyau), sysstat 3 162/s. Restaient
+nvme 1 545 000/s et netd 1 098 000/s : attentes actives avec un appel par tour (nvme : SYS_TIME_MS à chaque tour de
+wait_slots ; netd : SYS_YIELD + 2 SYS_TIME_MS entre deux trames pendant NET_BUSY_MS). Corrigé : d'abord sur place
+(pause, cpu_relax) ; nvme lit l'heure tous les 16 tours après 256 tours libres ; netd regarde ses anneaux NET_SPIN
+fois avant de céder. QEMU (wget 30 Mo vers le disque) : nvme 61 000 -> 4 800, netd 81 000 -> 17 700, 15,4 -> 13,3 s.
+Publié pc .85 (netd et nvme seuls, l'initrd refait depuis celui de .84).
