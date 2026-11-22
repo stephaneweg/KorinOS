@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-22 14:51
+date = 2026-11-22 14:56
 abi = 629
 packages = 117
 board = pc
@@ -1773,19 +1773,19 @@ restart = 0
 content = 9ca39788d3024382e5ddcb2d528eb799ac080650ad77845c4280466c00be1a0e
 
 [disneyplus]
-title = disneyplus
-version = 1.0.1
-category = Autres
+title = Disney+
+version = 1.0.2
+category = Multimédia
 author = Korin OS
 summary = Disney+ : le site de Disney+ dans sa fenêtre (Widevine), avec votre compte
-size = 124762
-installed = 263939
-sha256 = 1061862aebacc412ef4db2b37b8d73f57f053802e5b41dbcd30c567e9c393cb3
-file = pkgs/disneyplus-1.0.1.opk
-needs = jet >= 1.4.2, abi >= 626
+size = 127827
+installed = 272402
+sha256 = 3e4f8f7f878445d2502b1fde554f460857273c077705f2baadb6355ae381e78d
+file = pkgs/disneyplus-1.0.2.opk
+needs = jet >= 1.4.5, abi >= 626
 required = 0
 restart = 0
-content = eb269df6f1984a74a7e4c4d20d40d475213a5b1bcbc179dfe7dbd9245415beab
+content = 1967278f6920e926d75b27c3ce3a4529c1854ed46073699910ddd07eba54c24c
 
 [tf1plus]
 title = tf1plus
