@@ -11,3 +11,4 @@
 /apps/jet.app/libexec
 /devtools/rust/bin
 /devtools/bin
+/apps/godot.app/templates
