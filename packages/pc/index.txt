@@ -2387,3 +2387,18 @@ needs = abi >= 629
 required = 0
 restart = 0
 content = e394ef4402015523150403064fafbdfd03324ff0e69cc62c13c2e3fd201f02d7
+
+[freetype-dev]
+title = FreeType (développement)
+version = 2.14.3
+category = Développement
+author = Korin OS
+summary = FreeType 2.14.3 : libfreetype.a, freetype2/ (licence FreeType)
+size = 718234
+installed = 2340246
+sha256 = 3f16871f879a0615a2501ee7b8469c5e95a31e0c7809584ca621ec821947447c
+file = pkgs/freetype-dev-2.14.3.opk
+needs = zlib-dev, libpng-dev, abi >= 629
+required = 0
+restart = 0
+content = 292eb2c930b1b089498a26f48d16b9a6c6b3e415bccab358f1b875509ad944fb
