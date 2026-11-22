@@ -2357,3 +2357,18 @@ needs = abi >= 629
 required = 0
 restart = 0
 content = 194c05828092238661d79e1632538efbc0258eadf0e7db06d1399ebd0bb4cbe5
+
+[libpng-dev]
+title = libpng (développement)
+version = 1.6.44
+category = Développement
+author = Korin OS
+summary = libpng 1.6.44 : libpng16.a (et libpng.a), png.h, libpng16/ (licence libpng)
+size = 492822
+installed = 1465435
+sha256 = 8a1b0b9852780f57711e4f1c41ef70c5a0ceecddf52e610889ff30e8ea2c5fb4
+file = pkgs/libpng-dev-1.6.44.opk
+needs = zlib-dev, abi >= 629
+required = 0
+restart = 0
+content = e7de20f60a42e69b7ac9b51361ee93dfded51880df457a3e902bb661b1f35390
