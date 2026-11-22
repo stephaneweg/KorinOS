@@ -89,3 +89,19 @@ la place manquait (deux écrivains mêlés). Banc src/lib/posix/test/ringtest.c.
 clone HTTP 23,3 -> 16,7 s, HTTPS 24,5 -> 18,8 s. Publié : pc .86 (vfs), linuxhost 1.0.8, git 2.51.5, bash 1.0.9.
 Commandes en asm encore lentes (AppKit 464 o) : chantier à part. Jet : l'autre session le relie (pas de recompilation
 de WebKit : en-têtes publics de libposix inchangés, sauf EPOLLONESHOT).
+
+**22/11 (suite) : programmes reliés à la nouvelle libposix (demande de l'utilisateur ; Jet et ses apps web : l'autre
+session).** Publiés : pc .87 (oauthd, keyvault, smbfs, gdrivefs, Réglages, oauth, secret), webd 1.0.7, smbd 1.0.7, pkgman
+1.0.22, unixtools 1.37.2, python 1.0.6 (seul bin/python3), make 1.0.3, gcc-data-1 1.0.3 (cc1, cc1plus, collect2), gcc
+1.0.15 (bin/, as, ld, libposix.a, dlhost.ld, sys/epoll.h ; --force : l'index publié n'avait pas le besoin gcc-data-1
+que mkrepo ajoute aux paquets découpés ; libc/libstdc++/libgcc gardés : ceux du cloud ne diffèrent que par les
+chemins). gltest pas refait (Mesa). Trouvé en route : poll d'un tube lisait 464 o d'avance (retenue) et le read
+suivant ne rendait qu'eux -> avec l'anneau, poll regarde sans lire et dort sur son futex (Python capture_output 16 Mo :
+40,8 -> 0,93 s) ; vfs relit la place sous le verrou (deux écrivains mêlés une fois sur deux) : pc .88, linuxhost 1.0.9.
+Pièges : `secret` lancé depuis un bash interactif est refusé (identité = le père, un interprète sans script) : normal ;
+une publication de la Release attend la branche jetable release-upload/NOM-VERSION (git commit-tree d'un arbre
+upload/<archive>, push, workflow release-upload.yml par actions_run_trigger) ; si une autre session publie pendant
+l'attente, pub.py commite sans pousser : git revert (reset --hard refusé), merge, relancer pub.py (archive identique).
+Les sources du cloud : tools/extra/fetch.sh (SANS_WEBKIT=1) pour src/extra, tools/cloud/setup.sh python pour
+BUILD_PYTHON. bash, git et unixtools ont la libposix d'avant la correction de poll (sans gravité : ils lisent leurs
+tubes par read) ; à relier à la prochaine occasion.
