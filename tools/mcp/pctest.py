@@ -256,12 +256,12 @@ def main():
             "@60 " + M + " --call screenshot '{\"max_width\":640}'; echo rc=$?",
         ]
         if claude:
-            env = "HOME=/home/lx "
+            env = "HOME=/home/lx "  # (et < /dev/null : sinon Claude Code lit ce que le banc tape au terminal)
             cmds += [
-                "@300 " + env + "/bin/claude --version; echo rc=$?",
-                "@300 " + env + "/bin/claude mcp add -s user korin-direct -- " + M + "; echo rc=$?",
-                "@300 " + env + "/bin/claude mcp list > /tmp/mcplist.txt 2>&1; echo rc=$?; cat /tmp/mcplist.txt",
-                "@300 " + env + "/bin/claude mcp get korin-direct > /tmp/mcpget.txt 2>&1; echo rc=$?; cat /tmp/mcpget.txt",
+                "@300 " + env + "/bin/claude --version < /dev/null; echo rc=$?",
+                "@300 " + env + "/bin/claude mcp add -s user korin-direct -- " + M + " < /dev/null; echo rc=$?",
+                "@300 " + env + "/bin/claude mcp list < /dev/null > /tmp/mcplist.txt 2>&1; echo rc=$?; cat /tmp/mcplist.txt",
+                "@300 " + env + "/bin/claude mcp get korin-direct < /dev/null > /tmp/mcpget.txt 2>&1; echo rc=$?; cat /tmp/mcpget.txt",
             ]
         env = dict(os.environ, ONLY="|".join(cmds), TREE=tree, MEM="4G", EXTRA_MB=str(extra_mb),
                    CA_EXTRA="/root/.ccr/ca-bundle.crt" if os.path.isfile("/root/.ccr/ca-bundle.crt") else "")
@@ -282,8 +282,8 @@ def main():
     else:
         if '"sent":true' not in text:
             fails.append("--call send_signal : pas de \"sent\":true")
-        if '"command":"sleep 60"' not in text:
-            fails.append("--call process : la commande lancée n'apparaît pas")
+        if '"name":"sleep","state":"running"' not in text:
+            fails.append("--call process : le process lancé (sleep) n'apparaît pas")
     if "programme de /sys (service, pilote) : refusé sans allow_system" not in text:
         fails.append("--call send_signal vfs : pas refusé")
     if "bonjour de korin-mcp" not in text:
