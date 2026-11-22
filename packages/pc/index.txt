@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-22 23:28
+date = 2026-11-22 23:29
 abi = 629
 packages = 117
 board = pc
@@ -2402,3 +2402,18 @@ needs = zlib-dev, libpng-dev, abi >= 629
 required = 0
 restart = 0
 content = 292eb2c930b1b089498a26f48d16b9a6c6b3e415bccab358f1b875509ad944fb
+
+[icu-dev]
+title = ICU (développement)
+version = 78.3.0
+category = Développement
+author = Korin OS
+summary = ICU 78.3 : libicuuc.a, libicui18n.a, libicudata.a (les données), unicode/ (licence Unicode)
+size = 11819413
+installed = 36586229
+sha256 = b57667af7bb321eb70dcf59b7bdbfc8ab529c2cfc8936d055f10c25121f24ff1
+file = pkgs/icu-dev-78.3.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+content = 9ee9206d7e308931ca86b86ed93ea2b309888921dd76630a6b33b9f5e896952b
