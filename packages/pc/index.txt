@@ -694,18 +694,18 @@ content = 4d093df519910dcb66bd4cba30f8ddf6bd8b179b41f69cf9a8966dcc1c01d1dc
 
 [webd]
 title = Serveur web
-version = 1.0.6
+version = 1.0.7
 category = Internet
 author = Korin OS
 summary = Le serveur web de Korin (webd) : sites, liaisons http et https, certificats, et son volet dans Réglages
-size = 4414717
-installed = 11414096
-sha256 = 61929ccc6f7d4b77859aadcfe398d21270fc156c29d0b55e3556bd85d5c7ee41
-file = pkgs/webd-1.0.6.opk
+size = 4421854
+installed = 11438672
+sha256 = 4f452a4bcbe7d920b5dab21b18f307c6c66ed70bdfd3f09ac14ef83ee53bda60
+file = pkgs/webd-1.0.7.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 43ef104aa371a2b55fa3cec3156193f8e68880be158faea63a464f81f9173a92
+content = ba59877b34d88744d65312e460c29e62634fcae9d0eb932a411c3517282a3055
 
 [smbd]
 title = Partage de fichiers (SMB)
