@@ -2312,3 +2312,18 @@ needs = abi >= 629
 required = 0
 restart = 0
 content = d2c49ea84bd307e80918000f1fd1682daeb1a6326836783a6a7596c49e5e0d44
+
+[ruby]
+title = Ruby
+version = 3.3.6
+category = Développement
+author = Korin OS
+summary = Ruby 3.3.6 (/devtools/gcc/bin/ruby), tout statique, avec sa bibliothèque standard (/devtools/gcc/lib/ruby) : l'offlineasm de JavaScriptCore, erb, irb
+size = 6111760
+installed = 16766761
+sha256 = 6f7493587045e2b74112e46b267a635d8a6b91cd48f94d1de3b6ef2c2cee57d3
+file = pkgs/ruby-3.3.6.opk
+needs = abi >= 629
+required = 0
+restart = 0
+content = a23398a1a19f2f04cdda905cf29a68ffb78380b2718c1ed574ed3e49c0ced43c
