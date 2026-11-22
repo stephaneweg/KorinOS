@@ -33,3 +33,12 @@ libposix : oauthd, keyvault, webd, pkg…) ; ils gardent l'ancien poll jusqu'à 
 docs/etude/ANNEAUX.md (anneaux partagés pour sockets et tubes, futex partagés ?), après une mesure sysstat sur le ZBook.
 L'utilisateur a demandé si git natif sur les kits était envisageable : déconseillé (git entier sur POSIX), décision non
 prise. Voir [[armpi-chantier-perf]], [[armpi-gh]].
+
+**22/11 (nuit)** : sur le ZBook, clone 1,8 Mo/s avec l'app Claude Code ouverte (même vers /tmp), **11 Mo/s depuis le
+Terminal** sans elle : le bruit de fond de Claude Code (linuxhost ~46 000 appels/s, netd 100 000, vfs 49 000) étouffait
+netd et vfs. Cause : epoll de libposix en tranches de 5 ms, poll mélangé (eventfd = canaux du noyau, sockets, tubes) à
+la ms avec un appel à vfs par tube, et EPOLLET qui tournait à vide sur une socket toujours prête en écriture. Corrigé :
+canal de réveil d'epoll (socketpair), EPOLLET déjà dit masqué jusqu'à la fin de sa fenêtre de 50 ms, poll mélangé qui
+dort sur les canaux (ou netd) et regarde le reste de 1 à 16 ms. Banc idletest (scratchpad, Linux, sous linuxhost) :
+linuxhost 11 502 -> 1 119 appels/s. Publié : linuxhost 1.0.6. Restent à relier : l'app claudecode, python, etc. ; nvme
+à optimiser (155 000 appels/s pendant une écriture ext4 ; attente wait_slots par SYS_IRQ_WAIT de 5 ms).
