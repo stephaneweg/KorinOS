@@ -2327,3 +2327,18 @@ needs = abi >= 629
 required = 0
 restart = 0
 content = a23398a1a19f2f04cdda905cf29a68ffb78380b2718c1ed574ed3e49c0ced43c
+
+[cmake]
+title = CMake
+version = 3.31.6
+category = Développement
+author = Korin OS
+summary = CMake 3.31.6 (/devtools/gcc/bin/cmake, ctest, cpack
+size = 21412213
+installed = 48726711
+sha256 = 24cacae577c25de3d65c6b39eae7e868e6a4b920e40eebc6bec9922c0378e75f
+file = pkgs/cmake-3.31.6.opk
+needs = abi >= 629
+required = 0
+restart = 0
+content = b18e7b871b10110851474e3146a3a8b565f25e4ad837176d48147e69fd398018
