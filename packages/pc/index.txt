@@ -2492,3 +2492,18 @@ needs = abi >= 629
 required = 0
 restart = 0
 content = 0dc19615cb143500fb1139704e7b36f8dd26c4d5fc673c1c7971755aafb70eb3
+
+[curl-dev]
+title = curl (développement)
+version = 8.16.0
+category = Développement
+author = Korin OS
+summary = libcurl 8.16.0 (sur OpenSSL, nghttp2, brotli, zlib) : libcurl.a, curl/ (licence curl)
+size = 682650
+installed = 2376455
+sha256 = 2e8d53b962407ba0d4416c115dd36a52f22887e90265ac4617199d4a7997f991
+file = pkgs/curl-dev-8.16.0.opk
+needs = openssl-dev, nghttp2-dev, brotli-dev, zlib-dev, abi >= 629
+required = 0
+restart = 0
+content = 1ab1da9beda36c73e27ffd5c545e134d8bb9a835a897803b1f275eff5383fb42
