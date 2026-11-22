@@ -2447,3 +2447,18 @@ needs = zlib-dev, icu-dev, abi >= 629
 required = 0
 restart = 0
 content = 98e6977c71cfc4b440bf6bb49d81294c21199c8accbc465a81972595ba285f14
+
+[brotli-dev]
+title = Brotli (développement)
+version = 1.1.0
+category = Développement
+author = Korin OS
+summary = Brotli 1.1.0, le décodeur : libbrotlidec.a, brotli/ (licence MIT)
+size = 101134
+installed = 242994
+sha256 = 90c07c32a44669c35cdae0c627edecaff81295fe87875307fc5172188dd86238
+file = pkgs/brotli-dev-1.1.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+content = bf351998d9addc6c1155d17ae8118a8d22b2d4ac91576faef5c1c530164a0745
