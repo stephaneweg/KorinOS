@@ -2297,3 +2297,18 @@ needs = abi >= 629
 required = 0
 restart = 0
 content = 10a445ae6a3d1d6f05443a97391fa643e4d1f4dbaf01a66c2e8f5a3ad13b0ff3
+
+[perl]
+title = Perl
+version = 5.40.0
+category = Développement
+author = Korin OS
+summary = Perl 5.40.0 (/devtools/gcc/bin/perl), tout statique, avec la bibliothèque standard (/devtools/gcc/lib/perl5) : les générateurs de WebKit, les scripts de configure, h2xs, prove...
+size = 9589485
+installed = 36510115
+sha256 = bcc0f2cd31cbbc7e41957d992b65e6b793ed09beb5c68901d8da8db107d74e6e
+file = pkgs/perl-5.40.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+content = d2c49ea84bd307e80918000f1fd1682daeb1a6326836783a6a7596c49e5e0d44
