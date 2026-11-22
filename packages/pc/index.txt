@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-22 02:33
+date = 2026-11-22 02:35
 abi = 629
 packages = 117
 board = pc
@@ -2150,18 +2150,18 @@ content = 64eb5e0849530400b2ee6b3ef88d661e5617a98eb5c398d9f85826746f7f410e
 
 [unixtools]
 title = Outils Unix
-version = 1.37.1
+version = 1.37.2
 category = Développement
 author = Korin OS
 summary = Les commandes de Linux avec leurs options habituelles (BusyBox) : awk, xargs, which, env, sed -E, grep -E, sort -k, find -regex, tar, diff, sha256sum... dans /devtools/bin, à côté de celles de /bin
-size = 328894
-installed = 576300
-sha256 = 973c21dd19f6c43c0054c684c4b36c2cb1bef0d79f2157889456e220ed099ac3
-file = pkgs/unixtools-1.37.1.opk
+size = 332816
+installed = 584492
+sha256 = b2a95e0c56705060d5e8d792ac3513ed71b659fa098aeccfe68d45d5047ca2ed
+file = pkgs/unixtools-1.37.2.opk
 needs = bash, pc >= 2026.11.76, abi >= 626
 required = 0
 restart = 0
-content = e97a7187418188f290ddaf843303c01757afdd1cc5889127bbaa831b5f281b99
+content = 47d61992d6e0be72c10540377fe2146d4d68f9b1bb4744ad314af16a14b16f24
 
 [korinstudio]
 title = KorinStudio
