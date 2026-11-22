@@ -2417,3 +2417,18 @@ needs = abi >= 629
 required = 0
 restart = 0
 content = 9ee9206d7e308931ca86b86ed93ea2b309888921dd76630a6b33b9f5e896952b
+
+[sqlite-dev]
+title = SQLite (développement)
+version = 3.50.4
+category = Développement
+author = Korin OS
+summary = SQLite 3.50.4 : libsqlite3.a, sqlite3.h (domaine public)
+size = 1016343
+installed = 3072498
+sha256 = 5c09f2b21ea132fe7fbd693a72d296d53ce65872d423232afcc3c1bb76c7358b
+file = pkgs/sqlite-dev-3.50.4.opk
+needs = abi >= 629
+required = 0
+restart = 0
+content = a3afc3af687fdab4a50641f8ab793395c8e7fc1ca3a1f1e15435b7459c9877dc
