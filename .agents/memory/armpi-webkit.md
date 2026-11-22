@@ -42,3 +42,10 @@ dormait 50 ms (délai décidé avant le lot) et une fin de lot arrivée pendant 
 peut toucher tous les pilotes (nvme, usbd, hda, iwl…) ; pas corrigé dans le noyau (autre session, risque). Contourné
 dans intelgpu (d57ee0f) : 1 s après une activité, sommeil de 1 ms ; publié pc 2026.11.91. À mesurer de nouveau.
 Pour recueillir les messages d'une app lancée au Terminal : `2>&1 | cat > fichier` (grep peut garder sa sortie).
+**22/11 : pc .91 mesuré sur le ZBook (Netflix)** : attente des clients 0,22 ms en moyenne (3,7 au pire), moteur
+0,27 ms (au lieu de 26 / 50 ms et 7,7 ms) : le contournement d'intelgpu marche. Restent des 50 ms pour le premier lot
+après plus d'une seconde de repos (le défaut de sys_irq_wait, noyau).
+**Régression libposix trouvée (pour la session des tubes, d552ab2)** : après un `execv` (app web Netflix -> Jet), la
+sortie d'erreur des process lancés ensuite par posix_spawn (le process web de Jet) ne passe plus par le tube hérité du
+Terminal (`/apps/netflix.app/main 2>&1 | cat > f` : seules les lignes du process UI) ; Jet lancé directement : bon.
+Reproduit sous QEMU (jet 1.4.4, libposix de pc .88). Avec jet 1.4.3 (libposix d'avant), ça passait.
