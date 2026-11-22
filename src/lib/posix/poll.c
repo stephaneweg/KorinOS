@@ -204,6 +204,11 @@ int poll (struct pollfd *fds, nfds_t n, int timeout)
 	/* netd attend pour les sockets s'il a net_poll et qu'ils tiennent dans un message */
 	int np = !s_np_off && socks > 0 && socks <= NP_MAX;
 	unsigned long long end = timeout < 0 ? ~0ULL : __posix_mono_ns () + (unsigned long long) timeout * 1000000ULL;
+	/* un ensemble mélangé (canaux du noyau, sockets, tubes) ne s'attend pas d'un seul appel : on dort sur une
+	 * source (les canaux s'il y en a : un eventfd réveille tout de suite ; sinon netd), et les autres sont
+	 * regardées entre deux sommes, de plus en plus espacés tant que rien ne bouge (1 à 16 ms ; avant : toutes
+	 * les ms, un appel à vfs par tube et un à netd : Claude Code au repos, 46 000 appels par seconde) */
+	int bk = 1;
 	int r;
 	for (;;)
 	{
@@ -231,21 +236,19 @@ int poll (struct pollfd *fds, nfds_t n, int timeout)
 		for (nfds_t i = 0; i < n; i++)
 			if (d[i] == 0 && fds[i].fd >= 0)
 				r++;			/* (POLLNVAL) */
-		/* les canaux : tout de suite, ou toute l'attente s'ils sont seuls */
-		int ms = 0;
-		if (r == 0 && others == 0 && bad == 0 && (np ? socks == 0 : socks == 0))
+		int others2 = others + (np ? 0 : socks);	/* (sans net_poll : les sockets sont sondés) */
+		int only_handles = nh > 0 && others2 == 0 && !np && bad == 0;
+		int only_socks = np && others2 == 0 && nh == 0 && bad == 0;
+		long left = -1;
+		if (timeout >= 0)
 		{
-			if (timeout < 0)
-				ms = -1;
-			else
-			{
-				unsigned long long now = __posix_mono_ns ();
-				ms = now >= end ? 0 : (int) ((end - now + 999999ULL) / 1000000ULL);
-			}
+			unsigned long long now = __posix_mono_ns ();
+			left = now >= end ? 0 : (long) ((end - now + 999999ULL) / 1000000ULL);
 		}
+		/* sans attendre (ou toute l'attente pour une source seule) */
 		if (nh > 0)
 		{
-			int k = __posix_handle_poll (hh, hev, hrev, nh, ms);
+			int k = __posix_handle_poll (hh, hev, hrev, nh, r == 0 && only_handles ? (int) left : 0);
 			if (k < 0 && errno != EINTR)
 			{
 				r = -1;
@@ -258,21 +261,12 @@ int poll (struct pollfd *fds, nfds_t n, int timeout)
 					r++;
 			}
 		}
-		/* les sockets : netd, sans attendre s'il y a deja du pret ou autre chose a regarder ; sinon toute
-		 * l'attente (seuls des sockets), ou 1 ms (avec des tubes : le tour suivant les regarde) */
-		if (np)
+		if (np && (ne > 0 || (r == 0 && only_socks && left != 0)))
 		{
-			long wait = 0;
-			if (r == 0 && timeout != 0)
-			{
-				unsigned long long now = __posix_mono_ns ();
-				long left = timeout < 0 ? -1 : now >= end ? 0 : (long) ((end - now + 999999ULL) / 1000000ULL);
-				wait = (others == 0 && nh == 0 && bad == 0) ? left : (left < 0 || left > 1 ? 1 : left);
-			}
-			long k = ne > 0 || wait != 0 ? net_poll_call (ents, ne, wait) : 0;
+			long k = net_poll_call (ents, ne, r == 0 && only_socks ? left : 0);
 			if (k < 0)
 			{
-				s_np_off = 1;		/* (pas de net_poll : les sondes d'avant, des le tour suivant) */
+				s_np_off = 1;		/* (pas de net_poll : les sondes d'avant, dès le tour suivant) */
 				np = 0;
 				continue;
 			}
@@ -296,26 +290,40 @@ int poll (struct pollfd *fds, nfds_t n, int timeout)
 					r++;
 				}
 			}
-			if (r || timeout == 0 || __posix_mono_ns () >= end)
-				break;
-			if (others == 0 && nh == 0 && bad == 0)
-				continue;		/* (netd a pris l'attente) */
-			if (wait != 0)
-				continue;		/* (la milliseconde d'attente : dans netd) */
 		}
 		if (r || timeout == 0 || __posix_mono_ns () >= end)
 			break;
-		if (others == 0 && bad == 0 && nh > 0 && socks == 0)
-			continue;		/* (l'attente du noyau a pris le temps) */
+		if (only_handles || only_socks)
+			continue;		/* (l'attente du noyau ou de netd a pris le temps) */
+		/* ensemble mélangé : un somme sur la meilleure source, puis tout est regardé de nouveau */
+		long w = left < 0 || bk < left ? bk : left;
 		if (nh > 0)
 		{
-			/* 1 ms d'attente, reveillee par un canal pret */
-			int k = __posix_handle_poll (hh, hev, hrev, nh, 1);
-			if (k > 0)
+			if (__posix_handle_poll (hh, hev, hrev, nh, (int) w) > 0)
+			{
+				bk = 1;
 				continue;
+			}
+		}
+		else if (np && ne > 0)
+		{
+			long k = net_poll_call (ents, ne, w);
+			if (k < 0)
+			{
+				s_np_off = 1;
+				np = 0;
+				continue;
+			}
+			if (k > 0)
+			{
+				bk = 1;
+				continue;
+			}
 		}
 		else
-			__posix_sleep_ns (1000000ULL);
+			__posix_sleep_ns ((unsigned long long) w * 1000000ULL);
+		if (bk < 16)
+			bk *= 2;
 	}
 	for (nfds_t i = 0; i < n; i++)
 		if (d[i])
