@@ -2207,3 +2207,18 @@ needs = abi >= 629
 required = 0
 restart = 0
 content = 29f730bbccaba2e228237aeb4c7e079699b323ef0329a84c66d5f56c879f393d
+
+[libjpeg-turbo]
+title = libjpeg-turbo
+version = 3.1.4
+category = Développement
+author = Korin OS
+summary = La bibliothèque JPEG libjpeg-turbo 3.1.4 avec son SIMD x86-64 (SSE2 et AVX2, choisis au lancement
+size = 314681
+installed = 1276620
+sha256 = 1cce5159ba799c1545e7a3bd7a0187e65ee7914cf2b7a89d2df62a92240a57d7
+file = pkgs/libjpeg-turbo-3.1.4.opk
+needs = abi >= 629
+required = 0
+restart = 0
+content = bee48bee7db576cd813c73ac547f089a373e6839ac235d83ce7b9609642c2608
