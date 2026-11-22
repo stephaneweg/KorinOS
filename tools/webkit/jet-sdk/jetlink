@@ -1,0 +1,21 @@
+#!/bin/bash
+# jetlink [SORTIE] : relie Jet dans Korin avec le GCC du paquet gcc, à partir du SDK (défaut : /tmp/jet-main, en
+# mémoire : un gros fichier écrit directement sur le disque a dépassé le délai du service de fichiers sous QEMU).
+# Puis : sudo cp /apps/jet.app/main /apps/jet.app/main.orig (une fois), sudo cp /tmp/jet-main /apps/jet.app/main
+SDK=${JETSDK:-/devtools/jet-sdk}
+OUT=${1:-/tmp/jet-main}
+GXX=${GXX:-/devtools/gcc/bin/g++}
+cd "$SDK/webcore" || exit 1
+L=$SDK/sysroot/lib
+t0=$(date +%s)
+"$GXX" $SPECS -Wl,--gc-sections -Wl,--wrap=vpx_codec_dec_init_ver -Wl,--wrap=dav1d_open \
+	jet_main.o jet_engine_webkit.o jet_webapp.o jet_present.o webkit2_armpi.o gpucomp.o gpucomp_armpi.o \
+	-Wl,--start-group lib/libWebKit.a lib/libWebCore.a lib/libPAL.a lib/libJavaScriptCore.a lib/libWTF.a lib/libbmalloc.a -Wl,--end-group \
+	"$SDK/uikit/libuikit_c.a" "$SDK/av/libonyxav.a" "$SDK/ffmpeg/libavformat.a" "$SDK/ffmpeg/libavcodec.a" "$SDK/ffmpeg/libswscale.a" "$SDK/ffmpeg/libavutil.a" \
+	$L/libskia.a $L/libharfbuzz-icu.a $L/libharfbuzz.a $L/libfreetype.a $L/libpng16.a $L/libjpeg.a $L/libwebpmux.a $L/libwebpdemux.a \
+	$L/libwebp.a $L/libsharpyuv.a $L/libcurl.a $L/libssl.a $L/libcrypto.a $L/libnghttp2.a $L/libbrotlidec.a $L/libxml2.a \
+	$L/libsqlite3.a $L/libz.a $L/libicui18n.a $L/libicuuc.a $L/libicudata.a \
+	-Wl,--start-group lib/libANGLE.a lib/libGLESv2.a "$SDK/glkit/libglkit.a" $L/libz.a -Wl,--end-group -o "$OUT.tmp" || { echo "jetlink : ÉCHEC" >&2; exit 1; }
+/devtools/gcc/bin/strip -o "$OUT" "$OUT.tmp" && rm -f "$OUT.tmp"
+echo "jetlink : $OUT en $(( $(date +%s) - t0 )) s"
+ls -l "$OUT"

@@ -1,0 +1,46 @@
+#!/bin/bash
+# jetbuild FICHIER... : recompile, dans Korin, l'objet de WebKit qui contient FICHIER (un .cpp de webkit-gl/Source,
+# chemin depuis Source/ ou complet ; ou un objet de commands.txt). WebKit compile ses .cpp par lots (UnifiedSource-*.cpp) :
+# c'est le lot qui est recompilé. L'objet est écrit à sa place : les archives minces de webcore/lib le prennent ;
+# ensuite : jetlink.
+SDK=${JETSDK:-/devtools/jet-sdk}
+cd "$SDK/webcore" || exit 1
+[ $# -gt 0 ] || { echo "jetbuild FICHIER.cpp... (ex. : jetbuild WebCore/Modules/websockets/WebSocketExtensionParser.cpp)"; exit 2; }
+rc=0
+for f in "$@"; do
+	f=${f#$SDK/webkit-gl/Source/}
+	f=${f#Source/}
+	line=
+	if grep -q "^$f	" "$SDK/commands.txt"; then
+		line=$(grep -m1 "^$f	" "$SDK/commands.txt")
+	else
+		comp=${f%%/*}
+		rest=${f#*/}
+		# le lot qui l'inclut : #include "<chemin dans son composant>"
+		bundle=$(grep -l -F "#include \"$rest\"" "$SDK"/webcore/*/DerivedSources/unified-sources/*.cpp 2>/dev/null | head -1)
+		if [ -n "$bundle" ]; then
+			key=$(basename "$bundle")
+			line=$(grep -m1 -F "/unified-sources/$key " "$SDK/commands.txt")
+			echo "jetbuild : $f est dans le lot $key"
+		else
+			line=$(grep -m1 -F "/$f " "$SDK/commands.txt")
+		fi
+	fi
+	if [ -z "$line" ]; then
+		echo "jetbuild : pas de commande pour $f" >&2
+		rc=1
+		continue
+	fi
+	obj=${line%%	*}
+	cmd=${line#*	}
+	echo "jetbuild : $obj"
+	t0=$(date +%s)
+	if eval "$cmd"; then
+		echo "jetbuild : fait en $(( $(date +%s) - t0 )) s"
+	else
+		echo "jetbuild : ÉCHEC ($f)" >&2
+		rc=1
+	fi
+done
+[ $rc = 0 ] && echo "ensuite : jetlink"
+exit $rc

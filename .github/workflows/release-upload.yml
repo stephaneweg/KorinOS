@@ -1,4 +1,4 @@
-# Release upload : les archives d'une branche jetable release-upload/<nom> (dossier upload/, *.opk) ajoutées à la
+# Release upload : les archives d'une branche jetable release-upload/<nom> (dossier upload/, *.opk et *.zip : le SDK de Jet) ajoutées à la
 # Release « packages », puis la branche supprimée. Pour une publication depuis le cloud (docs/PAQUETS.md, « Publier
 # un paquet ») : le proxy GitHub d'un agent refuse les envois binaires et la suppression d'une branche, mais il peut
 # pousser une branche et lancer ce workflow (workflow_dispatch, entrée « branch »).
@@ -49,7 +49,7 @@ jobs:
           set -eu
           have=$(gh release view packages -R "$GITHUB_REPOSITORY" --json assets -q '.assets[] | "\(.name) \(.size)"')
           n=0
-          for f in upload/*.opk; do
+          for f in upload/*.opk upload/*.zip; do
             [ -f "$f" ] || continue
             n=$((n + 1))
             name=$(basename "$f")
