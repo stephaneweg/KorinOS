@@ -38,6 +38,7 @@ static u8 banned[CTX_MAX];
 static u32 done_tail[CTX_MAX];
 static int hang_row;
 static long idle_wait_since;
+static u64 t_submit, t_done; /* (µs) la soumission en cours : partie, fin vue */
 int simu_hang_later; /* simu-hang avec « test » : le faux moteur se bloque à l'essai 3 seulement */
 
 #define ST_CTX_CTL 3
@@ -308,6 +309,7 @@ static long queue_sub(int c)
 	s->ctx = c;
 	s->seq = seq;
 	s->tail = ctxs[c].tail;
+	s->t_queued = eng_us();
 	ctxs[c].last_seq = seq;
 	ctxs[c].queued++;
 	S.status[IGS_SUBMITTED] = seq;
@@ -361,13 +363,18 @@ static void submit_head(void)
 	int c = h->ctx;
 	struct ctx *x = &ctxs[c];
 	u32 last = h->seq, tail = h->tail;
+	u64 t = eng_us();
+	eng_stat(ST_QUEUE, t - h->t_queued);
 	for (int k = 1; k < sub_n; k++) {
 		struct sub *s = &subs[(sub_head + k) % SUB_MAX];
 		if (s->ctx != c)
 			break;
 		last = s->seq;
 		tail = s->tail;
+		eng_merged++;
+		eng_stat(ST_QUEUE, t - s->t_queued);
 	}
+	t_submit = t;
 	volatile u32 *st = state_page(x);
 	if (S.golden_ok)
 		st[ST_CTX_CTL] = MASKED_ON(1u << 3) | MASKED_OFF(1u << 0);
@@ -390,6 +397,7 @@ static void submit_head(void)
 	S.run_done_seen = 0;
 	S.submits++;
 	idle_wait_since = 0;
+	t_done = 0;
 }
 
 /* les lots finis sortent de la file */
@@ -512,6 +520,21 @@ void eng_poll(void)
 	if (S.busy) {
 		int fin = seq_done(S.run_last);
 		long now = now_ms();
+		if (fin && !t_done) {
+			t_done = eng_us();
+			eng_stat(ST_RUN, t_done - t_submit);
+		}
+		/* fini, pas encore « repos » : le changement de contexte suit de quelques µs ; l'attendre sur place
+		 * (200 µs au plus) plutôt qu'au réveil suivant du fil (une interruption de plus, un passage de
+		 * l'ordonnanceur), le lot suivant part aussitôt */
+		if (fin && !idle && !G.simu) {
+			while (!idle && eng_us() - t_done < 200)
+				idle = csb_read();
+			if (!idle)
+				eng_idle_late++;
+		}
+		if (fin && idle && t_done)
+			eng_stat(ST_IDLE, eng_us() - t_done);
 		if (idle && fin) {
 			S.busy = 0;
 		} else if (idle && !fin) {
@@ -567,6 +590,41 @@ static int wait_self(u32 seq, long ms)
 			return -1;
 		korin_sys1(SYS_SLEEP, 1);
 	}
+}
+
+/* ---- le temps des lots (µs, compteur du processeur : SYS_CLOCK_GET 3) */
+static u64 tsc_per_ms;
+static inline u64 rdtsc(void)
+{
+	u32 lo, hi;
+	__asm__ volatile("rdtsc" : "=a"(lo), "=d"(hi));
+	return (u64)hi << 32 | lo;
+}
+
+u64 eng_us(void)
+{
+	if (!tsc_per_ms) {
+		long hz = korin_sys1(SYS_CLOCK_GET, 3);
+		tsc_per_ms = hz > 1000 ? (u64)hz / 1000 : 0;
+		if (!tsc_per_ms)
+			tsc_per_ms = ~0ull; /* pas de compteur : le temps en ms */
+	}
+	if (tsc_per_ms == ~0ull)
+		return (u64)now_ms() * 1000;
+	return rdtsc() * 1000 / tsc_per_ms;
+}
+
+static struct { u64 n, sum, max; } stats[ST_N];
+u64 eng_waits_now, eng_waits_later, eng_idle_late, eng_merged;
+
+void eng_stat(int kind, u64 us)
+{
+	if (kind < 0 || kind >= ST_N || us > 60000000)
+		return;
+	stats[kind].n++;
+	stats[kind].sum += us;
+	if (us > stats[kind].max)
+		stats[kind].max = us;
 }
 
 u64 eng_timestamp(void)
@@ -859,5 +917,23 @@ void eng_status(char *b, int max)
 		      S.irq >= 0 ? "MSI" : "par sondage", (unsigned long)S.irqs, (unsigned long)S.spurious,
 		      (unsigned long)S.ctx_switches);
 	n += rps_status(b + n, max - n);
+	(void)n;
+}
+
+void eng_times(char *b, int max)
+{
+	int n = 0;
+	static const char *const nm[ST_N] = {"file", "moteur", "fin->repos", "attente"};
+	n += snprintf(b + n, max - n, "  temps des lots depuis le dernier status (µs, moyenne/pire, nombre) :\n   ");
+	for (int k = 0; k < ST_N && n < max; k++)
+		n += snprintf(b + n, max - n, " %s %lu/%lu (%lu)", nm[k],
+			      (unsigned long)(stats[k].n ? stats[k].sum / stats[k].n : 0), (unsigned long)stats[k].max,
+			      (unsigned long)stats[k].n);
+	if (n < max)
+		n += snprintf(b + n, max - n, "\n  attentes : %lu tout de suite, %lu plus tard ; repos en retard %lu ; lots joints %lu\n",
+			      (unsigned long)eng_waits_now, (unsigned long)eng_waits_later, (unsigned long)eng_idle_late,
+			      (unsigned long)eng_merged);
+	memset(stats, 0, sizeof stats);
+	eng_waits_now = eng_waits_later = eng_idle_late = eng_merged = 0;
 	(void)n;
 }
