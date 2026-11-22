@@ -7,8 +7,9 @@
  * Jet en mode app (execv : le même process, donc la même app pour le panneau) :
  *   /apps/jet.app/main --app=<nom> [--gpu | --nogpu] [adresse]
  * Le reste (le titre, l'adresse de départ, les domaines gardés, le lecteur) est dans /apps/<nom>.app/webapp.txt ;
- * « url.<langue> = ... » y donne l'adresse de départ propre à la langue des Réglages (/etc/system.ini), passée à Jet
- * par ce lanceur quand on ne lui en donne pas. La fenêtre, la session (HOME/<nom>/webkit), la proposition du module
+ * « url.<langue>-<pays> = ... » (url.fr-be), puis « url.<langue> = ... » (url.fr) y donnent l'adresse de départ propre
+ * à la langue (/etc/system.ini) et au pays (/etc/options.txt) des Réglages, passée à Jet par ce lanceur quand on ne
+ * lui en donne pas. La fenêtre, la session (HOME/<nom>/webkit), la proposition du module
  * Widevine et la carte de lecture réduite sont dans Jet (src/extra/onyxports/jet/webapp.cpp).
  *
  * MIT License -- Copyright (c) 2026 Stéphane Wegener.
@@ -67,13 +68,40 @@ static void system_lang (char *out, size_t cap)
 	fclose (f);
 }
 
-/* l'adresse de départ propre à une langue : « url.<langue> = ... » de /apps/<nom>.app/webapp.txt (Disney+ :
- * url.fr = .../fr-fr/home, sans la redirection de la page d'accueil) -> 1 si trouvée */
-static int lang_url (const char *name, const char *lang, char *out, size_t cap)
+/* le pays (Réglages, Clavier, langue et région) : « pays=XX » de /etc/options.txt, en minuscules ; « fr » sans cette
+ * clé (comme le volet des Réglages) */
+static void system_country (char *out, size_t cap)
+{
+	snprintf (out, cap, "fr");
+	FILE *f = fopen ("/etc/options.txt", "rb");
+	if (!f) return;
+	char line[256];
+	while (fgets (line, sizeof line, f))
+	{
+		if (strncmp (line, "pays", 4) != 0) continue;
+		const char *s = line + 4;
+		while (*s == ' ' || *s == '\t' || *s == '=') s++;
+		size_t k = 0;
+		while (k + 1 < cap && k < 3 && ((s[k] >= 'a' && s[k] <= 'z') || (s[k] >= 'A' && s[k] <= 'Z')))
+		{
+			out[k] = (char) (s[k] | 0x20);
+			k++;
+		}
+		if (k == 2) out[k] = 0;
+		else snprintf (out, cap, "fr");
+		break;
+	}
+	fclose (f);
+}
+
+/* l'adresse de départ propre à une langue ou à une langue et un pays : « url.<suffixe> = ... » de
+ * /apps/<nom>.app/webapp.txt (Disney+ : url.fr = .../fr-fr/home ; TF1+ : url.fr-be = .../fr-be/, sans la redirection
+ * ni la question du site) -> 1 si trouvée */
+static int config_url (const char *name, const char *suffix, char *out, size_t cap)
 {
 	char path[160], key[24];
 	snprintf (path, sizeof path, "/apps/%s.app/webapp.txt", name);
-	snprintf (key, sizeof key, "url.%s", lang);
+	snprintf (key, sizeof key, "url.%s", suffix);
 	FILE *f = fopen (path, "rb");
 	if (!f) return 0;
 	char line[1024];
@@ -109,8 +137,8 @@ int main (int argc, char **argv)
 		perror ("webapp: " JET);
 		return 1;
 	}
-	/* (--gpu, --nogpu et une adresse en https passent à Jet ; sans adresse, celle de la langue de l'interface si
-	 * webapp.txt en a une, sinon Jet prend url de webapp.txt) */
+	/* (--gpu, --nogpu et une adresse en https passent à Jet ; sans adresse, celle de la langue et du pays des
+	 * Réglages (url.fr-be), sinon de la langue (url.fr), si webapp.txt en a une ; sinon Jet prend url de webapp.txt) */
 	char *args[8];
 	int n = 0, has_url = 0;
 	args[n++] = (char *) JET;
@@ -123,8 +151,11 @@ int main (int argc, char **argv)
 		}
 	if (!has_url)
 	{
+		char country[4], both[16];
 		system_lang (lang, sizeof lang);
-		if (lang_url (name, lang, url, sizeof url)) args[n++] = url;
+		system_country (country, sizeof country);
+		snprintf (both, sizeof both, "%s-%s", lang, country);
+		if (config_url (name, both, url, sizeof url) || config_url (name, lang, url, sizeof url)) args[n++] = url;
 	}
 	args[n] = 0;
 	if (access (JET, X_OK) == 0)

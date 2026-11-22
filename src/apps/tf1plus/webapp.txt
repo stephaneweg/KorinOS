@@ -1,6 +1,9 @@
 # TF1+ : une app web sur le moteur de Jet (src/extra/onyxports/jet/webapp.cpp ; lanceur : src/lib/webapp/launcher.c)
 title    = TF1+
 url      = https://www.tf1.fr/
+# (en Belgique : la page belge directement, sans la question du site ni le rechargement vers /fr-be/ ;
+#  url.<langue>-<pays> : lu par le lanceur, src/lib/webapp/launcher.c, d'après la langue et le pays des Réglages)
+url.fr-be = https://www.tf1.fr/fr-be/
 sites    = tf1.fr
 # (fenêtre normale au départ, demande de l'utilisateur du 22/11 ; Agrandir ou F11 pour le plein écran)
 maximize = 0
