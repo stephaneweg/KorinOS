@@ -232,6 +232,11 @@ int __posix_open (const char *path, int flags, int mode);
 /* tubes (file.c) : lecture d'un bout (nowait : E_AGAIN plutot qu'attendre) -> octets, 0 fin, < 0 */
 long __posix_pipe_read (long h, void *buf, size_t n, int nowait);
 int __posix_pipe_close (long h);
+long __posix_pipe_room (long h);
+int __posix_pipe_rready (long h);		/* anneau : 1 donnees, 2 fin, 0 rien ; -1 pas d'anneau */
+int __posix_pipe_ring_sleep (long h, int wr, unsigned ms);	/* anneau : dort jusqu'a un changement ; -1 pas d'anneau */		/* anneau partage : place libre, -32 ; -1 : pas d'anneau */
+void __posix_pipe_ring_fork_child (void);
+int __posix_ofd_handle_shared (struct __posix_ofd *d);	/* fd.c : un autre tube de ce process a sa poignee */
 
 /* unlink d'un fichier ouvert dans ce process (fd.c) : vfs efface tout de suite, POSIX garde le
  * contenu jusqu'a la derniere fermeture ; l'effacement est donc differe, et le chemin cache

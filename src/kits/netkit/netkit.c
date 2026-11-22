@@ -69,6 +69,30 @@ static long nk_wifi;   /* canal du service wifi + 1 */
 static uint8_t *nk_buf; /* tampon du process (0 : pas encore ; oublié dans le fils d'un fork) */
 static uint64_t nk_zones; /* zones prises (bits) */
 
+/* ---- anneaux de réception partagés (docs/etude/ANNEAUX.md ; netd en C sur le PC, op 19) : netd verse les données
+ * d'une socket TCP dans un anneau de notre tampon, recv y lit sans message et dort sur le futex de son en-tête */
+#define NET_OP_RING 19
+#define NK_SOCKS 64
+#define NET_CLI_BUF 131072
+#define NET_RING_SZ 65536
+#define NET_RING_HDR NET_CLI_BUF
+#define NET_RING_DATA (NET_CLI_BUF + 4096)
+#define NRF_FIN 1
+#define NRF_ERR 2
+#define NRF_STALL 4
+#define NRF_LIVE 8
+#define E_CONNRESET -104
+struct ring_hdr {
+	volatile uint64_t head, tail;
+	volatile uint32_t seq, flags;
+	uint32_t sd;
+	volatile uint32_t waiters; /* (compté avant de dormir : netd ne réveille que s'il y en a) */
+	uint32_t pad[8];
+};
+static uint64_t nk_rings;        /* anneaux du tampon (0 : netd sans anneaux) */
+static signed char nk_ring[NK_SOCKS]; /* anneau + 1 de chaque socket ; -1 : pas d'anneau (refusé, rendu) */
+static unsigned char nk_tcp[NK_SOCKS];
+
 typedef uint64_t msg_t[SVC_MSG / 8];
 
 static long time_ms(void)
@@ -144,6 +168,7 @@ static uint8_t *nbuf(void)
 	long a = korin_sys1(SYS_BUF_MAP, m[2]);
 	if (a < 0)
 		return 0;
+	nk_rings = m[3] <= 16 ? m[3] : 0; /* (netd sans anneaux : 0, c n'est pas touché) */
 	nk_buf = (uint8_t *)a;
 	return nk_buf;
 }
@@ -195,7 +220,12 @@ static long simple(long op, long a, long b, long c, long d)
 
 long net_socket(long type)
 {
-	return simple(NET_OP_SOCKET, type, 0, 0, 0);
+	long sd = simple(NET_OP_SOCKET, type, 0, 0, 0);
+	if (sd >= 0 && sd < NK_SOCKS) {
+		nk_tcp[sd] = type == 1;
+		nk_ring[sd] = 0;
+	}
+	return sd;
 }
 
 long net_connect(long sd, long ip, long port)
@@ -210,11 +240,17 @@ long net_bind(long sd, long port)
 
 long net_listen(long sd, long backlog)
 {
+	if (sd >= 0 && sd < NK_SOCKS)
+		nk_tcp[sd] = 0; /* (en écoute : pas d'anneau ; ses connexions acceptées en auront) */
 	return simple(NET_OP_LISTEN, sd, backlog, 0, 0);
 }
 
 long net_close(long sd)
 {
+	if (sd >= 0 && sd < NK_SOCKS) {
+		nk_ring[sd] = 0;
+		nk_tcp[sd] = 0;
+	}
 	return simple(NET_OP_CLOSE, sd, 0, 0, 0);
 }
 
@@ -228,6 +264,10 @@ long net_accept(long sd, unsigned long ms)
 	unsigned long deadline = deadline_of(ms);
 	for (;;) {
 		long r = simple(NET_OP_ACCEPT, sd, (long)slice_of(deadline), 0, 0);
+		if (r >= 0 && r < NK_SOCKS) {
+			nk_tcp[r] = 1;
+			nk_ring[r] = 0;
+		}
 		if (r != E_AGAIN || (unsigned long)time_ms() >= deadline)
 			return r;
 	}
@@ -292,6 +332,80 @@ long net_sendto(long sd, const void *buf, long len, long ip, long port)
 	return send_common(sd, buf, (unsigned long)len, d, NET_OP_SENDTO);
 }
 
+static struct ring_hdr *ring_hdr(int slot)
+{
+	return (struct ring_hdr *)(nk_buf + NET_RING_HDR + 64 * (slot + 1));
+}
+
+/* l'anneau de cette socket (en le demandant à netd la première fois) -> numéro, -1 : pas d'anneau */
+static int ring_of(long sd)
+{
+	if (sd < 0 || sd >= NK_SOCKS || !nk_tcp[sd] || nk_ring[sd] < 0)
+		return -1;
+	if (nk_ring[sd] > 0)
+		return nk_ring[sd] - 1;
+	if (!nbuf() || !nk_rings) {
+		nk_ring[sd] = -1;
+		return -1;
+	}
+	long r = simple(NET_OP_RING, sd, 0, 0, 0);
+	if (r < 0 || (uint64_t)r >= nk_rings) {
+		/* (pas encore connectée : on redemandera ; sinon : messages) */
+		nk_ring[sd] = r == E_AGAIN ? 0 : -1;
+		return -1;
+	}
+	nk_ring[sd] = (signed char)(r + 1);
+	return (int)r;
+}
+
+#define RING_GONE 1L << 40
+/* lecture dans l'anneau -> octets, 0 fin, E_AGAIN, E_CONNRESET ; RING_GONE : l'anneau a été rendu (messages) */
+static long ring_recv(long sd, int slot, uint8_t *buf, unsigned long max, unsigned long ms)
+{
+	struct ring_hdr *h = ring_hdr(slot);
+	uint8_t *d = nk_buf + NET_RING_DATA + (uint64_t)slot * NET_RING_SZ;
+	unsigned long deadline = deadline_of(ms);
+	for (;;) {
+		uint32_t seq = __atomic_load_n(&h->seq, __ATOMIC_ACQUIRE);
+		uint32_t fl = __atomic_load_n(&h->flags, __ATOMIC_ACQUIRE);
+		if (!(fl & NRF_LIVE)) {
+			nk_ring[sd] = -1;
+			return RING_GONE;
+		}
+		uint64_t tail = h->tail, head = __atomic_load_n(&h->head, __ATOMIC_ACQUIRE);
+		if (head != tail) {
+			uint64_t k = head - tail < max ? head - tail : max;
+			for (uint64_t done = 0; done < k;) {
+				uint64_t ri = (tail + done) & (NET_RING_SZ - 1), n = k - done;
+				if (n > NET_RING_SZ - ri)
+					n = NET_RING_SZ - ri;
+				memcpy(buf + done, d + ri, n);
+				done += n;
+			}
+			__atomic_store_n(&h->tail, tail + k, __ATOMIC_RELEASE);
+			if (__atomic_load_n(&h->flags, __ATOMIC_ACQUIRE) & NRF_STALL)
+				simple(NET_OP_RING, sd, 1, 0, 0); /* (netd attendait de la place) */
+			return (long)k;
+		}
+		if (fl & NRF_STALL) { /* (vide, mais netd en garde : il verse) */
+			simple(NET_OP_RING, sd, 1, 0, 0);
+			continue;
+		}
+		if (fl & NRF_ERR)
+			return E_CONNRESET;
+		if (fl & NRF_FIN)
+			return 0;
+		unsigned long now = (unsigned long)time_ms();
+		if (now >= deadline)
+			return E_AGAIN;
+		unsigned long left = deadline - now;
+		__atomic_fetch_add(&h->waiters, 1, __ATOMIC_SEQ_CST);
+		if (__atomic_load_n(&h->seq, __ATOMIC_SEQ_CST) == seq) /* (rien de neuf depuis la lecture) */
+			korin_sys3(SYS_FUTEX_WAIT, (long)&h->seq, (long)seq, (long)(left < 1000 ? left : 1000));
+		__atomic_fetch_sub(&h->waiters, 1, __ATOMIC_SEQ_CST);
+	}
+}
+
 /* réception : dans le message (448 octets au plus) ou par une zone (8 Ko au plus) */
 static long recv_common(long sd, uint8_t *buf, unsigned long max, unsigned long ms, uint32_t *from, long op)
 {
@@ -332,12 +446,96 @@ static long recv_common(long sd, uint8_t *buf, unsigned long max, unsigned long 
 
 long net_recv(long sd, void *buf, long max, long ms)
 {
+	int slot = max > 0 ? ring_of(sd) : -1;
+	if (slot >= 0) {
+		long r = ring_recv(sd, slot, buf, (unsigned long)max, (unsigned long)ms);
+		if (r != RING_GONE)
+			return r;
+	}
 	return recv_common(sd, buf, (unsigned long)max, (unsigned long)ms, 0, NET_OP_RECV);
 }
 
 long net_recvfrom(long sd, void *buf, long max, long ms, uint32_t *from)
 {
 	return recv_common(sd, buf, (unsigned long)max, (unsigned long)ms, from, NET_OP_RECVFROM);
+}
+
+/* attente sur plusieurs sockets (poll et select de libposix) : ents = n x {u32 sd, u32 événements}, rendus à la
+ * place des demandés ; netd dort sur son futex jusqu'à un changement -> sockets prêts, 0 à l'échéance */
+#define NET_OP_POLL 18
+/* (net_poll) ce que les anneaux disent sur place : prêts (événements rendus), -1 : une entrée sans anneau */
+static long ring_poll_local(uint32_t *e, long n, uint32_t *bell)
+{
+	long ready = 0;
+	*bell = nk_buf ? __atomic_load_n((volatile uint32_t *)(nk_buf + NET_RING_HDR), __ATOMIC_ACQUIRE) : 0;
+	for (long i = 0; i < n; i++) {
+		long sd = e[i * 2];
+		int slot = ring_of(sd);
+		if (slot < 0)
+			return -1;
+		struct ring_hdr *h = ring_hdr(slot);
+		uint32_t fl = __atomic_load_n(&h->flags, __ATOMIC_ACQUIRE);
+		if (!(fl & NRF_LIVE))
+			return -1;
+		uint32_t got = 0;
+		if (__atomic_load_n(&h->head, __ATOMIC_ACQUIRE) != h->tail || (fl & NRF_STALL))
+			got |= 1;
+		if (fl & NRF_FIN)
+			got |= 1 | 16;
+		if (fl & NRF_ERR)
+			got |= 1 | 8 | 16;
+		e[i * 2 + 1] = got & (e[i * 2 + 1] | 8 | 16);
+		if (e[i * 2 + 1])
+			ready++;
+	}
+	return ready;
+}
+
+long net_poll(void *ents, long n, long ms)
+{
+	if (n < 0 || n > NET_INLINE / 8)
+		return -22;
+	unsigned long deadline = ms < 0 ? ~0UL : deadline_of((unsigned long)ms);
+	/* toutes les sockets ont un anneau : ici, sans message ; l'attente sur la sonnette du process */
+	if (n > 0 && nk_rings) {
+		uint32_t save[NET_INLINE / 4], bell;
+		memcpy(save, ents, (size_t)n * 8);
+		for (;;) {
+			long r = ring_poll_local((uint32_t *)ents, n, &bell);
+			if (r < 0) {
+				memcpy(ents, save, (size_t)n * 8);
+				break; /* (une socket sans anneau : netd, comme avant) */
+			}
+			if (r > 0)
+				return r;
+			unsigned long now = (unsigned long)time_ms();
+			if (now >= deadline)
+				return 0;
+			memcpy(ents, save, (size_t)n * 8);
+			unsigned long left = deadline - now;
+			volatile uint32_t *b = (volatile uint32_t *)(nk_buf + NET_RING_HDR);
+			__atomic_fetch_add(b + 1, 1, __ATOMIC_SEQ_CST);
+			if (__atomic_load_n(b, __ATOMIC_SEQ_CST) == bell)
+				korin_sys3(SYS_FUTEX_WAIT, (long)b, (long)bell, (long)(left < 1000 ? left : 1000));
+			__atomic_fetch_sub(b + 1, 1, __ATOMIC_SEQ_CST);
+		}
+	}
+	msg_t m;
+	long r;
+	for (;;) {
+		m[0] = NET_OP_POLL;
+		m[1] = (uint64_t)n;
+		m[2] = slice_of(deadline);
+		m[3] = m[4] = 0;
+		*(uint32_t *)((uint8_t *)m + MSG_LEN) = (uint32_t)(n * 8);
+		memcpy((uint8_t *)m + MSG_DATA, ents, (size_t)n * 8);
+		r = ncall(m);
+		if (r != 0 || (unsigned long)time_ms() >= deadline)
+			break;
+	}
+	if (r >= 0)
+		memcpy(ents, (uint8_t *)m + MSG_DATA, (size_t)n * 8);
+	return r;
 }
 
 long net_resolve(const char *name)
@@ -462,6 +660,10 @@ long net_ntp_sync(long wait)
 long net_fork_child(void)
 {
 	nk_zones = 0;
+	nk_rings = 0; /* (les anneaux restent au père ; le fils passe par les messages, netd lit l'anneau pour lui) */
+	for (int i = 0; i < NK_SOCKS; i++)
+		if (nk_ring[i] > 0)
+			nk_ring[i] = -1;
 	uint8_t *b = nk_buf;
 	nk_buf = 0;
 	if (b)

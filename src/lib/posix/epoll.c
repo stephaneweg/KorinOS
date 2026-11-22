@@ -5,10 +5,18 @@
  * le socket suivant, qui reprend son numero, recoit EEXIST. Un epoll_wait relit la table par tranches
  * de 5 ms : une entree ajoutee par un autre thread pendant l'attente est vue.
  *
+ * Depuis le 21/11/2026, un canal de reveil (une paire de sockets locales du noyau) fait sortir epoll_wait de son
+ * attente quand un autre thread change la table : plus de tranches de 5 ms (Claude Code au repos : 46 000
+ * appels par seconde).
+ *
  * EPOLLET : un descripteur est signale quand un evenement apparait, puis redit toutes les 50 ms
  * tant qu'il reste pret. poll ne voit que des etats : sans ce rappel, des donnees lues puis
  * remplacees entre deux tranches ne seraient jamais signalees. Le code ecrit pour EPOLLET relit
  * jusqu'a EAGAIN : un rappel de trop ne lui coute qu'un essai.
+ *
+ * EPOLLONESHOT (22/11/2026) : un descripteur signale est mis de cote jusqu'au EPOLL_CTL_MOD suivant, comme
+ * sous Linux. Ignore jusque-la : la sortie d'erreur de Claude Code (Bun), inscrite pour EPOLLOUT|ONESHOT,
+ * faisait rendre epoll_wait aussitot, sans fin, pendant chaque commande (vfs et netd a 170 000 appels/s).
  *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
  * hereby granted, free of charge, to any person obtaining a copy of this software and associated
@@ -26,11 +34,12 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/epoll.h>
+#include <sys/socket.h>
 #include "posix_internal.h"
 
 #define EP_MAX		8			/* epoll par process */
 #define EP_ENTRIES	256			/* descripteurs par epoll */
-#define EP_SLICE_MS	5
+#define EP_SLICE_MS	1000			/* (garde-fou : la table est relue au moins chaque seconde) */
 #define EP_AGAIN_MS	50
 
 struct ep_entry
@@ -39,6 +48,7 @@ struct ep_entry
 	struct epoll_event ev;
 	unsigned seen;				/* EPOLLET : deja signale */
 	long long at;				/* ms du dernier signalement */
+	int off;				/* EPOLLONESHOT : deja signale, en attente d'un EPOLL_CTL_MOD */
 };
 
 struct ep
@@ -46,6 +56,8 @@ struct ep
 	int fd;					/* -1 : libre */
 	int n;
 	volatile unsigned lock;
+	int wake[2];				/* canal de reveil (-1 : aucun : tranches de 5 ms, comme avant) */
+	volatile int waiting;			/* epoll_wait en cours */
 	struct ep_entry e[EP_ENTRIES];
 };
 
@@ -91,6 +103,8 @@ int epoll_create1 (int flags)
 		return -1;
 	}
 	p->fd = fd;
+	if (socketpair (AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0, p->wake) < 0)
+		p->wake[0] = p->wake[1] = -1;
 	__posix_lock (&s_lock);
 	for (int i = 0; i < EP_MAX; i++)
 		if (s_ep[i] == 0)
@@ -139,12 +153,20 @@ int epoll_ctl (int epfd, int op, int fd, struct epoll_event *ev)
 	{
 		p->e[i].ev = *ev;
 		p->e[i].seen = 0;
+		p->e[i].off = 0;
 	}
 	else if (op == EPOLL_CTL_DEL)
 		p->e[i] = p->e[--p->n];
 	else
 		r = EINVAL;
 	__posix_unlock (&p->lock);
+	if (!r && p->waiting && p->wake[1] >= 0)	/* (un epoll_wait d'un autre thread relit la table) */
+	{
+		char c = 1;
+		int e = errno;
+		(void) write (p->wake[1], &c, 1);
+		errno = e;
+	}
 	return r ? POSIX_ERR (r) : 0;
 }
 
@@ -156,28 +178,71 @@ int epoll_wait (int epfd, struct epoll_event *out, int max, int timeout)
 	if (max <= 0)
 		return POSIX_ERR (EINVAL);
 	static __thread struct pollfd *t_pfd;
-	if (t_pfd == 0 && (t_pfd = (struct pollfd *) malloc (EP_ENTRIES * sizeof *t_pfd)) == 0)
+	if (t_pfd == 0 && (t_pfd = (struct pollfd *) malloc ((EP_ENTRIES + 1) * sizeof *t_pfd)) == 0)
 		return POSIX_ERR (ENOMEM);
 	long long end = timeout < 0 ? -1 : (long long) (__posix_mono_ns () / 1000000) + timeout;
 	for (;;)
 	{
+		long long now0 = (long long) (__posix_mono_ns () / 1000000);
+		long long slice = p->wake[0] >= 0 ? EP_SLICE_MS : 5;
 		__posix_lock (&p->lock);
 		int n = p->n;
 		for (int i = 0; i < n; i++)
 		{
-			t_pfd[i].fd = p->e[i].fd;
+			struct ep_entry *e = &p->e[i];
+			t_pfd[i].fd = e->off ? -1 : e->fd;	/* (EPOLLONESHOT deja dit : poll l'ignore) */
 			t_pfd[i].events = 0;
-			if (p->e[i].ev.events & EPOLLIN)
+			if (e->ev.events & EPOLLIN)
 				t_pfd[i].events |= POLLIN;
-			if (p->e[i].ev.events & EPOLLOUT)
+			if (e->ev.events & EPOLLOUT)
 				t_pfd[i].events |= POLLOUT;
+			/* EPOLLET : ce qui a ete dit il y a moins de 50 ms ne serait pas redit : pas demande a poll (un
+			 * socket toujours pret en ecriture faisait rendre poll aussitot, et epoll tournait a vide) ; poll
+			 * rend la main quand la fenetre finit */
+			if ((e->ev.events & EPOLLET) && e->seen && now0 - e->at < EP_AGAIN_MS)
+			{
+				if (e->seen & EPOLLIN)
+					t_pfd[i].events &= (short) ~POLLIN;
+				if (e->seen & EPOLLOUT)
+					t_pfd[i].events &= (short) ~POLLOUT;
+				long long left = EP_AGAIN_MS - (now0 - e->at);
+				if (left < slice)
+					slice = left < 1 ? 1 : left;
+			}
 			t_pfd[i].revents = 0;
 		}
+		int nw = n;
+		if (p->wake[0] >= 0)			/* (le canal de reveil, en dernier) */
+		{
+			t_pfd[nw].fd = p->wake[0];
+			t_pfd[nw].events = POLLIN;
+			t_pfd[nw].revents = 0;
+			nw++;
+		}
+		p->waiting++;
 		__posix_unlock (&p->lock);
 
-		int r = poll (t_pfd, (nfds_t) n, EP_SLICE_MS);
+		long long w = slice;
+		if (timeout >= 0)
+		{
+			long long left = end - now0;
+			if (left < w)
+				w = left < 0 ? 0 : left;
+		}
+		int r = poll (t_pfd, (nfds_t) nw, (int) w);
+		__posix_lock (&p->lock);
+		p->waiting--;
+		__posix_unlock (&p->lock);
 		if (r < 0)
 			return -1;
+		if (nw > n && t_pfd[n].revents)		/* (la table a change : vider le canal, la relire) */
+		{
+			char b[64];
+			int e = errno;
+			while (read (p->wake[0], b, sizeof b) > 0)
+				;
+			errno = e;
+		}
 		long long now = (long long) (__posix_mono_ns () / 1000000);
 		int got = 0;
 		__posix_lock (&p->lock);
@@ -192,6 +257,8 @@ int epoll_wait (int epfd, struct epoll_event *out, int max, int timeout)
 			if (j == p->n)
 				continue;
 			struct ep_entry *e = &p->e[j];
+			if (e->off)
+				continue;
 			unsigned ev = 0;
 			if (t_pfd[i].revents & POLLIN)
 				ev |= EPOLLIN;
@@ -211,6 +278,8 @@ int epoll_wait (int epfd, struct epoll_event *out, int max, int timeout)
 				e->seen = ev;
 				e->at = now;
 			}
+			if (e->ev.events & EPOLLONESHOT)
+				e->off = 1;
 			out[got].events = ev;
 			out[got].data = e->ev.data;
 			got++;

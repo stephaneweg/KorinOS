@@ -39,6 +39,7 @@
 #define IG_OP_RESET_STATS 13 /* a = contexte -> a = remises à zéro en tout, b = lots de ce contexte perdus */
 #define IG_OP_STOP 14       /* (intelgpu stop) : arrêt propre, tout remis comme au départ */
 #define IG_OP_STATUS 15     /* -> données : texte (intelgpu status) */
+#define IG_OP_TIMES 16      /* -> données : texte, le temps des lots depuis la dernière demande (intelgpu status) */
 
 #define IG_EXEC_PRIV 1      /* (service seulement) */
 

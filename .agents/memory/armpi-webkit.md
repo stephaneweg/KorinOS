@@ -22,3 +22,16 @@ process web (pas d'async scrolling) ; pas de couche pour les transforms 3D. Bug 
 SD:/etc/web-gpu-* sont morts depuis l'arbre unique (vfs refuse « NOM: ») ; patch 0012-switch-paths appliqué à
 ~/korin-webkit-x86_64/webkit-gl (cloud), pas construit. Les variables ONYX_WEB_GPU_* marchent. En attente : les
 journaux de l'essai A/B (ONYX_WEB_GPU_3D=1) sur le ZBook.
+**22/11 : mesures sur le ZBook** (Claude Code sous Korin, docs/agents/JET-MESURES.md) : la composition GPU attend
+(15-45 ms/image, CPU 1 ms, NOCORES 1-8 ms) ; piste intelgpu (un lot à la fois, attente du CSB « repos » jusqu'à 50 ms).
+Deuxième série demandée (journal du service, intelgpu status avant/après). Disney+ : 2 × 25 s d'attente dans le cadre
+login.disney.com. Symboles : ~/korin-webkit-x86_64/webcore/bin/jet = paquet jet 1.4.3 (cloud). Pièges : lancée du
+Terminal, une app écrit sur sa sortie (pas au journal) ; `journal` écrit /journal.txt ; `>` seul : les process de Jet
+s'écrasent (position non partagée ?), passer par un tube.
+**22/11 (suite) : publié** pc 2026.11.89 (intelgpu : temps des lots dans `intelgpu status` + IG_OP_TIMES, repos
+attendu sur place 200 µs, attente finie répondue tout de suite ; hidmanager Ctrl+lettre), jet 1.4.4 (libposix de
+pc .88, patch 0012, ligne `web: gpu: gl:` avec ONYX_WEB_GPU_DEBUG ou /etc/web-gpu-debug), claude-code 2.1.330.5
+(Ctrl+Q rendu, libposix neuve). Méthode pc sans tout reconstruire : l'initrd publié modifié membre par membre
+(tarfile ustar), `pub.py pc --tree <dossier> --boot <dossier avec korin/initrd.tar> --only …` (sans --boot, pub
+prend build/pc/esp, périmé ici). Rust : cargo ne relie pas après un libposix neuf (toucher main.rs). En attente :
+mesures du ZBook (lignes gl:, intelgpu status avant/après un défilement de Netflix).

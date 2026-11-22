@@ -1059,6 +1059,7 @@ pid_t fork (void)
 		memset (s_detached, 0, sizeof s_detached);
 		s_init2 = -1;
 		__armpi_netkit_fork_child ();
+		__posix_pipe_ring_fork_child ();
 	}
 	else if (r > 0)
 		child_add ((int) r);

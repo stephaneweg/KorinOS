@@ -1,8 +1,8 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-21 23:30
-abi = 628
+date = 2026-11-22 03:12
+abi = 629
 packages = 117
 board = pc
 
@@ -114,18 +114,18 @@ content = 5dbdcd50fcea186f20f494edb60ef2a5166a33fcc564f8c350daa4c3f8b9c766
 
 [jet]
 title = Jet
-version = 1.4.3
+version = 1.4.4
 category = Internet
 author = Korin OS
 summary = Le navigateur, sur WebKit
-size = 55662067
-installed = 139421087
-sha256 = d45b6ad5e129c1c363573cea29cbd5fd3f220f9e7f3588b21d3051c6af4d0fe1
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.3.opk
+size = 55662011
+installed = 139421119
+sha256 = 22e02950a1aa0f3b9ee5a64521dc8345609d4f69573c0beb6feefffc81b70b98
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.4.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = ff109aa3de384be9f2ac6ed6e7cb5dd0735530d96ce9edd23b30c3618bbf7276
+content = a0210fca395b9d180699220e88b070f559934948ae293db68db46e33e824c00c
 
 [spotify]
 title = Spotify
@@ -174,18 +174,18 @@ content = 1ed897c3c1436c173dc1585ff0f13199a42ffae587eca0515ab9e2e50688aede
 
 [pkgman]
 title = Logiciels
-version = 1.0.21
+version = 1.0.22
 category = Système
 author = Korin OS
 summary = Les paquets : la commande pkg, le gestionnaire Logiciels (et son volet dans Réglages), le service pkgd
-size = 4605274
-installed = 11778715
-sha256 = baf1d19cc4dd84f9e839fde7a25a79ec31a8d792c16264ef4764c224c25fdb9d
-file = pkgs/pkgman-1.0.21.opk
+size = 4615618
+installed = 11799195
+sha256 = 0899d16656fcc23b656c63b50bc7e57625ab1cd04fda586728112792d60ce5fa
+file = pkgs/pkgman-1.0.22.opk
 needs = abi >= 626
 required = 1
 restart = 0
-content = 206cbe1193c7b5d267cce41f723098e6c0a7b303bd6a0c241269129b4fae022a
+content = 3ee4ea03346b32386f07096de142937fb87e16c99bc7182ca84cf0ebe98ac407
 
 [soundfonts]
 title = Banque de sons General MIDI
@@ -250,18 +250,18 @@ content = 61c287d0a3e31caf3aabccdb926bd5efb45ca64df6dc188eb0e55f1555502fc6
 
 [make]
 title = Make et PiBuild
-version = 1.0.2
+version = 1.0.3
 category = Développement
 author = Korin OS
 summary = make et les règles de pibuild (/devtools/gcc/bin/make, /devtools/gcc/share/pibuild.mk) : l'assembleur
-size = 263602
-installed = 517179
-sha256 = 73293624cecda90e35db51280cbfa1946b5fc6bae821248e4b563d5d3e259289
-file = pkgs/make-1.0.2.opk
+size = 267355
+installed = 525371
+sha256 = 03dca8827838efdff99c3d87433f77097fa583e38aef685d67358e79a56c68ca
+file = pkgs/make-1.0.3.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 62829c732c8da4a50422b3e48276812c71e1710a326aadb05eaffc62a728a8cf
+content = c8d223c26bbb4833524f803e86ffc82ebf0a6159429c6bc68387c5d93cb72cd2
 
 [freebasic]
 title = FreeBASIC
@@ -404,34 +404,34 @@ content = ce488f6b73c7327ccb2a087c9b141da9c56a3cb3858a32a187371c32c7b72333
 
 [gcc-data-1]
 title = GCC et G++ (1/1)
-version = 1.0.2
+version = 1.0.3
 category = Développement
 author = Korin OS
 summary = Les données de GCC et G++, partie 1 sur 1
-size = 29727555
-installed = 76442456
-sha256 = 4bf5e0c87c10c7e7dea3a29081eafc438bd6b994956eb26943e58b62e7596584
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-gcc-data-1-1.0.2.opk
+size = 29733573
+installed = 76450648
+sha256 = 878976c83c84de01478b43c7d5cdc44465ed2034ed88d011904ac9e6bcc14056
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-gcc-data-1-1.0.3.opk
 needs = abi >= 626
 required = 0
 restart = 0
 part = gcc
-content = 2b1dc17504fffb8a51599dd6ec7a19e2f755adcef386655c2ac5243cd03532b2
+content = 6e383e1368410c76b4274d27494a60f8c24590b9df39c8dc04160cbd4c85c46e
 
 [gcc]
 title = GCC et G++
-version = 1.0.14
+version = 1.0.15
 category = Développement
 author = Korin OS
 summary = Le compilateur C et C++ de Korin OS, les relais des kits et les outils (/devtools/gcc)
-size = 16440124
-installed = 54720233
-sha256 = 356d2df0d2e2fee5710632b7a1141469b09f775496fcbcc603b03c378971b3bf
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-gcc-1.0.14.opk
-needs = make, abi >= 626
+size = 16475468
+installed = 54787824
+sha256 = 55efef0fd029e58ae07be641e0fb87efeefc5d83f06f04add6159c88447dc3b3
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-gcc-1.0.15.opk
+needs = make, gcc-data-1, abi >= 626
 required = 0
 restart = 0
-content = a8c42449b63503ee7f2f482499e610bef78aa18b08908905de10ce8d7580b813
+content = 09b8c440249b727479120594807083d571e8b8f42bf3c91a7b1850c1ce0b8680
 
 [avalonia]
 title = Avalonia
@@ -497,18 +497,18 @@ content = 7354880489ca7b2d5f12bb8a6546c35c0b7fddbdf42c7c6807eb7d015e508b0e
 
 [python]
 title = Python
-version = 1.0.5
+version = 1.0.6
 category = Développement
 author = Korin OS
 summary = CPython 3.14 : l'interpréteur python3, la bibliothèque standard, pip et setuptools (/devtools/python)
-size = 23261449
-installed = 49035837
-sha256 = 415626014473b899d1eee1db7be46b6bd22871f452f9a7c892d75ef9889d4aaf
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-python-1.0.5.opk
+size = 23284676
+installed = 49084989
+sha256 = 939b98e7749b2cbc214ae7fa2e0dcb201f99c40d39389bfe963a2ac7c0bb45b2
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-python-1.0.6.opk
 needs = pc, abi >= 626
 required = 0
 restart = 0
-content = a50ab76c8a7a51009d8ae52d350ea54617bb7028b3c984e6fa8707b7c95b871d
+content = f019b3f61735c075c12092d8d0c9f2db4e0de3cef57984a3ed691de8571ed890
 
 [vibe-data-1]
 title = Mistral Vibe (1/2)
@@ -559,18 +559,18 @@ content = 9641cbd4a85fc3389095aa190dc27cca0ff9fb21011ca03682e601d0f7486fb0
 
 [bash]
 title = GNU bash
-version = 1.0.7
+version = 1.0.9
 category = Développement
 author = Korin OS
 summary = Le shell de GNU (5.2.37) : édition de ligne, historique, complétion, scripts
-size = 693142
-installed = 1374384
-sha256 = e362250bd6562c10cc7b16f9c67e2a7c534a5ce5d19d5b08299b334b258a4328
-file = pkgs/bash-1.0.7.opk
+size = 715459
+installed = 1415344
+sha256 = 0cac8e0b5fa1f16cd48c2360de5f22d45b19682832d0d65fd21682673972f132
+file = pkgs/bash-1.0.9.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = c6172e3ef427e06e7c3ecfc5740a9ebf2e1325325663af198179d30c2e28e5f9
+content = 2c98d9bc1ff979880952f50eb1e9e4a8a37a4235cdbb54a4cdd6d0c2a55c3520
 
 [llm]
 title = llm
@@ -604,18 +604,18 @@ content = 3e6ec8f492001cdf29dbdf24eeeccea476719291ae98c0ae4100b24fbe883205
 
 [git]
 title = Git
-version = 2.51.2
+version = 2.51.5
 category = Développement
 author = Korin OS
 summary = Le gestionnaire de versions git 2.51 : dépôts locaux, clone, fetch et push en HTTP et HTTPS
-size = 7944017
-installed = 18546552
-sha256 = 363579ab23a36fc84751c586beea8012adc975860a1a1778bc1658bfe397fba8
-file = pkgs/git-2.51.2.opk
+size = 7952849
+installed = 18558840
+sha256 = 0ac199ba00a2302fc88c4cad6b28b89503f2893a32e821dfb3c5896a0d728b34
+file = pkgs/git-2.51.5.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = d8e3c07f415832ab432243b0c9f49046f0320c0b0fef2b089f01e22c25cc3cd4
+content = 93902cc75915e47da602b2e51b28a78a8277a9cd59fbbce22c3262092bab3050
 
 [webstudio-templates]
 title = Modèles de sites (WebStudio)
@@ -694,48 +694,48 @@ content = 4d093df519910dcb66bd4cba30f8ddf6bd8b179b41f69cf9a8966dcc1c01d1dc
 
 [webd]
 title = Serveur web
-version = 1.0.6
+version = 1.0.7
 category = Internet
 author = Korin OS
 summary = Le serveur web de Korin (webd) : sites, liaisons http et https, certificats, et son volet dans Réglages
-size = 4414717
-installed = 11414096
-sha256 = 61929ccc6f7d4b77859aadcfe398d21270fc156c29d0b55e3556bd85d5c7ee41
-file = pkgs/webd-1.0.6.opk
+size = 4421854
+installed = 11438672
+sha256 = 4f452a4bcbe7d920b5dab21b18f307c6c66ed70bdfd3f09ac14ef83ee53bda60
+file = pkgs/webd-1.0.7.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 43ef104aa371a2b55fa3cec3156193f8e68880be158faea63a464f81f9173a92
+content = ba59877b34d88744d65312e460c29e62634fcae9d0eb932a411c3517282a3055
 
 [smbd]
 title = Partage de fichiers (SMB)
-version = 1.0.5
+version = 1.0.7
 category = Internet
 author = Korin OS
 summary = Partage des dossiers de Korin avec Windows, macOS et Linux (SMB 2 et 3) : le serveur smbd et le volet Partages de Réglages
-size = 381617
-installed = 764680
-sha256 = bcbfa587918c7991f6ddf80064dcaccf05814a2ac29094dd0b30b95f84e0003e
-file = pkgs/smbd-1.0.5.opk
+size = 389271
+installed = 781064
+sha256 = 0c618a9df1406a84204017e395cc0d79e55eb4fe530030f8121831e0cd6df0b7
+file = pkgs/smbd-1.0.7.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 9651f661dbc590aad6e129adcd1ae6d847f34a7ac621233890d8a89895498bd1
+content = abbe00f72f244a9ded8a32ece9a30d41e4882fa84f05b9a081019e35c1ec0163
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.81
+version = 2026.11.89
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 32028570
-installed = 96374562
-sha256 = 4540f41c649abb93795c3b3c63e776b64f20966c8508ae01f945d4645e395478
-file = pkgs/pc-2026.11.81.opk
+size = 32082228
+installed = 96464690
+sha256 = 5881b770286feea14743a8c93484fc0059a71531780d1116fe7db40e84dd543e
+file = pkgs/pc-2026.11.89.opk
 needs = 
 required = 1
 restart = 1
-content = 7702be4f37c761ff4da3ed619178154725a22e88708fa07790e5c21bd7e924a8
+content = 825d4dc50dff8a71d2832654624ad93a35960d66b59aadc0f05f2ed660c5c126
 
 [2048]
 title = 2048
@@ -2089,33 +2089,33 @@ content = 47fef4aa7f6e0bf29968834088c098c4cd0d80d8362ebcc40e894bffe41643f6
 
 [linuxhost]
 title = Hôte Linux
-version = 1.0.4
+version = 1.0.9
 category = Développement
 author = Korin OS
 summary = Lance des programmes de Linux x86-64 sur Korin, sans les modifier (linuxhost run PROGRAMME) : ce qui fait tourner Claude Code
-size = 294304
-installed = 618180
-sha256 = 83bcb1195009ca494cf1fc330f7736a47e26b0a3561953e9b403125d904a3919
-file = pkgs/linuxhost-1.0.4.opk
+size = 300372
+installed = 630468
+sha256 = 51772f30775dcf50057304e6cf5bcddf944e7440f867f6fbf53eb9c868581cd4
+file = pkgs/linuxhost-1.0.9.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = c9e020b2740bbc0dd9b852cb8c10b9d334b975375fddb87948b09323e516e9a9
+content = af2f547cc615197d129148483c0b24bdd7752b305b011ace6ee5ff4ce89e9b7b
 
 [claude-code]
 title = Claude Code
-version = 2.1.330.4
+version = 2.1.330.5
 category = Développement
 author = Korin OS
 summary = Claude Code, l'agent de code d'Anthropic, par votre abonnement Claude (Pro, Max, Team) : la commande claude au Terminal, et Craft Anything s'en sert (téléchargé chez Anthropic à l'installation, 380 Mo)
-size = 3723778
-installed = 389314737
-sha256 = 59a8b247dc705f42a2df267980f7ad9fa6e5abaf84cc7640ee97333c6cd341b1
-file = pkgs/claude-code-2.1.330.4.opk
+size = 3727215
+installed = 389322929
+sha256 = 2894b83130643b936eca242c071340f462231a56be1e4cad4cb8a0c7c1d991e1
+file = pkgs/claude-code-2.1.330.5.opk
 needs = linuxhost, bash, git, rg, python, pkgman >= 1.0.21, abi >= 627
 required = 0
 restart = 0
-content = 1968b654087c54d057de8ed52034fb3bb4c3c8f956c4de6f9bc2c01595b07612
+content = f5702f06fd6df4c199c7b18ad1939654028cc202bae4d8b18ccfcfa14217b9b3
 
 [rust-data-1]
 title = Rust (1/1)
@@ -2150,18 +2150,18 @@ content = 64eb5e0849530400b2ee6b3ef88d661e5617a98eb5c398d9f85826746f7f410e
 
 [unixtools]
 title = Outils Unix
-version = 1.37.1
+version = 1.37.2
 category = Développement
 author = Korin OS
 summary = Les commandes de Linux avec leurs options habituelles (BusyBox) : awk, xargs, which, env, sed -E, grep -E, sort -k, find -regex, tar, diff, sha256sum... dans /devtools/bin, à côté de celles de /bin
-size = 328894
-installed = 576300
-sha256 = 973c21dd19f6c43c0054c684c4b36c2cb1bef0d79f2157889456e220ed099ac3
-file = pkgs/unixtools-1.37.1.opk
+size = 332816
+installed = 584492
+sha256 = b2a95e0c56705060d5e8d792ac3513ed71b659fa098aeccfe68d45d5047ca2ed
+file = pkgs/unixtools-1.37.2.opk
 needs = bash, pc >= 2026.11.76, abi >= 626
 required = 0
 restart = 0
-content = e97a7187418188f290ddaf843303c01757afdd1cc5889127bbaa831b5f281b99
+content = 47d61992d6e0be72c10540377fe2146d4d68f9b1bb4744ad314af16a14b16f24
 
 [korinstudio]
 title = KorinStudio

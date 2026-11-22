@@ -365,6 +365,15 @@ long op_recv(u8 *m)
 			r = E_BADF;
 			goto out;
 		}
+		/* (un anneau partagé : ce qui y attend passe d'abord, lu ici par netd) */
+		if (s->ring_cli && s->type == SOCK_TCP) {
+			u64 k = ring_read(s, buf, want);
+			if (k) {
+				r = (long)k;
+				nl_drop();
+				goto out;
+			}
+		}
 		u64 h = s->rxhead, t = s->rxtail;
 		/* réveillé par les premières données d'un flux TCP (il a fallu attendre) et moins de 16 Ko (ou de ce qui est
 		 * demandé) : 2 ms de plus, une fois, pour que la suite arrive ; une trame par réponse, le client refaisait
@@ -435,6 +444,97 @@ out:
 	return r;
 }
 
+/* 18 poll(a nombre, b délai ms ; données : nombre x {u32 sd, u32 événements}) -> sockets prêts ; données : les
+ * événements rendus à la place des demandés. Événements : 1 lecture (données, connexion à accepter, fin), 4 écriture
+ * (place dans l'anneau d'émission), 8 erreur, 16 fin (FIN, RST), 32 descripteur inconnu. L'attente dort sur net_gen
+ * (net_wait), comme recv : poll et select de libposix y attendent au lieu de sonder chaque socket toutes les
+ * millisecondes (21/11/2026 : git-remote-https à 73 % de SYS_YIELD, smbd à 24 000 appels/s au repos, et leurs sondes
+ * disputaient net_lock au thread de la pile). */
+#define PL_IN 1
+#define PL_OUT 4
+#define PL_ERR 8
+#define PL_HUP 16
+#define PL_NVAL 32
+#define PL_MAX (NET_INLINE / 8)
+
+static u32 sk_ready(struct sock *s, u32 ev)
+{
+	u32 r = 0;
+	if (s->type == SOCK_UDP) {
+		if (s->rxhead != s->rxtail)
+			r |= PL_IN;
+		r |= PL_OUT;
+	} else if (s->state == TCP_LISTEN) {
+		for (int i = 0; i < MAX_SOCK; i++) {
+			struct sock *c = &sock_table[i];
+			if (c->used && c->parent == s && c->state >= TCP_ESTAB) {
+				r |= PL_IN;
+				break;
+			}
+		}
+	} else {
+		u64 f = s->flags;
+		if (s->rxhead != s->rxtail || ring_avail(s))
+			r |= PL_IN;
+		if (f & F(SKF_RX_FIN))
+			r |= PL_IN | PL_HUP;
+		if (f & (F(SKF_RESET) | F(SKF_TIMEOUT) | F(SKF_REFUSED)))
+			r |= PL_IN | PL_ERR | PL_HUP;
+		if ((s->state == TCP_ESTAB || s->state == TCP_CLOSE_WAIT) && SK_RING - (s->txhead - s->txtail) > 0)
+			r |= PL_OUT;
+	}
+	return r & (ev | PL_ERR | PL_HUP);
+}
+
+long op_poll(u8 *m)
+{
+	u64 n = W64(m, MSG_A);
+	if (n > PL_MAX) /* (pas MSG_LEN : dispatch le remet à 0 avant l'opération) */
+		return E_INVAL;
+	u8 *d = m + MSG_DATA;
+	u32 sd[PL_MAX], ev[PL_MAX];
+	for (u64 i = 0; i < n; i++) {
+		sd[i] = W32(d, i * 8);
+		ev[i] = W32(d, i * 8 + 4);
+	}
+	u64 pid = W32(m, MSG_PID);
+	u64 end = time_ms() + wait_cap(W64(m, MSG_B));
+	long r;
+	int waited = 0, gathered = 0;
+	for (;;) {
+		u32 gen = net_gen_now(); /* (avant de regarder : net_wait) */
+		r = 0;
+		int small = 0; /* (un flux TCP prêt avec moins de 16 Ko, sans fin) */
+		nl_take();
+		for (u64 i = 0; i < n; i++) {
+			struct sock *s = sko_find(sd[i], pid) ? sk_get(sd[i], pid) : 0;
+			u32 got = s && s->used ? sk_ready(s, ev[i]) : PL_NVAL;
+			W32(d, i * 8 + 4) = got;
+			if (got)
+				r++;
+			if ((got & PL_IN) && s->type == SOCK_TCP && s->state != TCP_LISTEN && !(got & PL_HUP) &&
+			    s->rxhead - s->rxtail < 16384)
+				small = 1;
+		}
+		nl_drop();
+		/* réveillé par les premières trames d'un flux : 2 ms de plus, une fois, comme recv (sinon le client lit
+		 * une trame par tour de poll : un aller et retour pour 1460 octets) */
+		if (r && small && waited && !gathered && time_ms() + 2 < end) {
+			gathered = 1;
+			thread_sleep(2);
+			continue;
+		}
+		if (r || time_ms() >= end)
+			break;
+		net_wait(gen, end);
+		waited = 1;
+	}
+	for (u64 i = 0; i < n; i++)
+		W32(d, i * 8) = sd[i];
+	W32(m, MSG_LEN) = (u32)(n * 8);
+	return r;
+}
+
 /* 9 close(a sd) : l'appelant le quitte ; fermé avec son dernier propriétaire */
 long op_close(u8 *m)
 {
@@ -443,6 +543,8 @@ long op_close(u8 *m)
 	if (!s)
 		return E_BADF;
 	nl_take();
+	if (s->ring_cli && s->ring_cli->pid == pid)
+		ring_release(s, 1);
 	if (s->used && sko_drop(sd, pid))
 		sock_close_locked(s);
 	nl_drop();
@@ -479,6 +581,8 @@ void net_close_all(u64 pid)
 		if (!sk_owners[i][0] || sk_owners[i][1] != (u32)pid)
 			continue;
 		u64 sd = sk_owners[i][0] - 1;
+		if (sock_table[sd].ring_cli && sock_table[sd].ring_cli->pid == pid)
+			ring_release(&sock_table[sd], 1);
 		if (sko_drop(sd, pid) && sock_table[sd].used)
 			sock_close_locked(&sock_table[sd]);
 	}
@@ -616,3 +720,206 @@ long op_ifaces(u8 *m)
 	W32(m, MSG_LEN) = (u32)(n * NIF_ENT);
 	return (long)n;
 }
+
+/* ---- anneaux de réception partagés (docs/etude/ANNEAUX.md, 22/11/2026)
+ * Une socket TCP d'un process peut recevoir dans un anneau de son tampon (op 19) : netd y verse ce qui arrive
+ * (ring_pump, thread de la pile), le process y lit sans message (NetKit : net_recv, net_poll) et dort sur le futex
+ * de l'en-tête ; les pages du tampon sont partagées (VM_SHARED) : un futex y a la même clé chez netd et chez le
+ * process. Les données attendent dans l'anneau interne de la socket quand celui du process est plein (NRF_STALL :
+ * le process relance netd après lecture) ; la fenêtre TCP suit donc toujours la place réelle. */
+#if NET_RINGS
+static struct ring_hdr *ring_hdr_of(struct client *c, u64 slot)
+{
+	return (struct ring_hdr *)(c->adr + NET_RING_HDR + 64 * (slot + 1));
+}
+
+static u8 *ring_data_of(struct client *c, u64 slot)
+{
+	return c->adr + NET_RING_DATA + slot * NET_RING_SZ;
+}
+
+/* un changement : le futex de l'anneau et la sonnette du process (poll de plusieurs sockets) */
+static void ring_signal(struct client *c, struct ring_hdr *h)
+{
+	volatile u32 *bell = (volatile u32 *)(c->adr + NET_RING_HDR);
+	__atomic_fetch_add(&h->seq, 1, __ATOMIC_SEQ_CST);
+	__atomic_fetch_add(bell, 1, __ATOMIC_SEQ_CST);
+	/* (un appel seulement s'il y a un dormeur : NetKit compte avant de dormir et relit seq après) */
+	if (__atomic_load_n(&h->waiters, __ATOMIC_SEQ_CST))
+		korin_sys2(SYS_FUTEX_WAKE, (long)&h->seq, 0x7fffffff);
+	if (__atomic_load_n(bell + 1, __ATOMIC_SEQ_CST))
+		korin_sys2(SYS_FUTEX_WAKE, (long)bell, 0x7fffffff);
+}
+
+/* (net_lock) octets de l'anneau pas encore lus par le process */
+u64 ring_avail(struct sock *s)
+{
+	if (!s->ring_cli)
+		return 0;
+	struct ring_hdr *h = ring_hdr_of(s->ring_cli, s->ring_slot);
+	return __atomic_load_n(&h->head, __ATOMIC_ACQUIRE) - __atomic_load_n(&h->tail, __ATOMIC_ACQUIRE);
+}
+
+/* (net_lock) l'anneau interne -> celui du process, autant qu'il tient ; drapeaux ; réveil */
+void ring_pump(struct sock *s)
+{
+	struct client *c = s->ring_cli;
+	if (!c)
+		return;
+	struct ring_hdr *h = ring_hdr_of(c, s->ring_slot);
+	u8 *d = ring_data_of(c, s->ring_slot);
+	u64 head = h->head, tail = __atomic_load_n(&h->tail, __ATOMIC_ACQUIRE);
+	u64 room = NET_RING_SZ - (head - tail);
+	u64 have = s->rxhead - s->rxtail;
+	u64 k = have < room ? have : room;
+	u64 free_before = sk_rx_free(s);
+	int changed = 0;
+	for (u64 done = 0; done < k;) {
+		u64 ri = (s->rxtail + done) & (SK_RING - 1), wi = (head + done) & (NET_RING_SZ - 1), n = k - done;
+		if (n > SK_RING - ri)
+			n = SK_RING - ri;
+		if (n > NET_RING_SZ - wi)
+			n = NET_RING_SZ - wi;
+		memcpy(d + wi, s->rxbuf + ri, n);
+		done += n;
+	}
+	if (k) {
+		s->rxtail += k;
+		__atomic_store_n(&h->head, head + k, __ATOMIC_RELEASE);
+		changed = 1;
+	}
+	u32 fl = NRF_LIVE;
+	if (s->rxhead != s->rxtail)
+		fl |= NRF_STALL;
+	else if (s->flags & F(SKF_RX_FIN))
+		fl |= NRF_FIN;
+	if (s->flags & (F(SKF_RESET) | F(SKF_TIMEOUT)))
+		fl |= NRF_ERR;
+	if (fl != h->flags) {
+		__atomic_store_n(&h->flags, fl, __ATOMIC_RELEASE);
+		changed = 1;
+	}
+	if (k && free_before < (s->mss << 1))
+		tcp_send_ack(s); /* (la fenêtre était presque fermée : mise à jour) */
+	if (changed)
+		ring_signal(c, h);
+}
+
+/* (net_lock, thread de la pile) toutes les sockets à anneau */
+void rings_pump_all(void)
+{
+	for (int i = 0; i < MAX_SOCK; i++)
+		if (sock_table[i].used && sock_table[i].ring_cli)
+			ring_pump(&sock_table[i]);
+}
+
+/* (net_lock) netd lit lui-même l'anneau (un recv par message : un fils après fork, un NetKit sans anneau) */
+u64 ring_read(struct sock *s, u8 *dst, u64 max)
+{
+	struct client *c = s->ring_cli;
+	if (!c)
+		return 0;
+	struct ring_hdr *h = ring_hdr_of(c, s->ring_slot);
+	u8 *d = ring_data_of(c, s->ring_slot);
+	u64 tail = __atomic_load_n(&h->tail, __ATOMIC_ACQUIRE), head = __atomic_load_n(&h->head, __ATOMIC_ACQUIRE);
+	u64 k = head - tail < max ? head - tail : max;
+	for (u64 done = 0; done < k;) {
+		u64 ri = (tail + done) & (NET_RING_SZ - 1), n = k - done;
+		if (n > NET_RING_SZ - ri)
+			n = NET_RING_SZ - ri;
+		memcpy(dst + done, d + ri, n);
+		done += n;
+	}
+	if (k) {
+		__atomic_store_n(&h->tail, tail + k, __ATOMIC_RELEASE);
+		ring_pump(s);
+	}
+	return k;
+}
+
+/* (net_lock) la socket quitte son anneau ; keep : les octets pas lus repassent devant l'anneau interne (un autre
+ * process tient encore la socket : un fils après fork) */
+void ring_release(struct sock *s, int keep)
+{
+	struct client *c = s->ring_cli;
+	if (!c)
+		return;
+	struct ring_hdr *h = ring_hdr_of(c, s->ring_slot);
+	u8 *d = ring_data_of(c, s->ring_slot);
+	u64 tail = h->tail, k = h->head - tail;
+	if (keep && k && s->rxbuf) {
+		if (sk_rx_free(s) >= k) {
+			s->rxtail -= k;
+			for (u64 done = 0; done < k;) {
+				u64 ri = (tail + done) & (NET_RING_SZ - 1), wi = (s->rxtail + done) & (SK_RING - 1), n = k - done;
+				if (n > NET_RING_SZ - ri)
+					n = NET_RING_SZ - ri;
+				if (n > SK_RING - wi)
+					n = SK_RING - wi;
+				memcpy(s->rxbuf + wi, d + ri, n);
+				done += n;
+			}
+		} else
+			ak_puts("netd : anneau rendu sans place dans la socket : données perdues\n");
+	}
+	__atomic_store_n(&h->flags, 0, __ATOMIC_RELEASE);
+	c->ring_sk[s->ring_slot] = 0;
+	s->ring_cli = 0;
+	s->ring_slot = 0;
+	ring_signal(c, h);
+}
+
+/* 19 ring(a sd, b 0 : un anneau pour cette socket -> son numéro ; 1 : relancer après lecture (NRF_STALL)) */
+long op_ring(u8 *m)
+{
+	u64 sd = W64(m, MSG_A), pid = W32(m, MSG_PID);
+	struct sock *s = sk_get(sd, pid);
+	if (!s)
+		return E_BADF;
+	nl_take();
+	long r = E_INVAL;
+	struct client *c = 0;
+	for (int i = 0; i < CLI_MAX; i++)
+		if (clis[i].pid == pid)
+			c = &clis[i];
+	if (W64(m, MSG_B) == 1) {
+		if (s->ring_cli && s->ring_cli == c)
+			ring_pump(s);
+		nl_drop();
+		return 0;
+	}
+	int owners = 0;
+	for (int i = 0; i < SKO_MAX; i++)
+		owners += sk_owners[i][0] == (u32)sd + 1;
+	if (s->ring_cli)
+		r = s->ring_cli == c ? (long)s->ring_slot : E_INVAL;
+	else if (c && c->rings && s->used && s->type == SOCK_TCP && (s->state == TCP_SYN_SENT || s->state == TCP_SYN_RCVD))
+		r = E_AGAIN; /* (connexion en cours : redemander ; fermée, coupée : jamais d'anneau) */
+	else if (c && c->rings && s->used && s->type == SOCK_TCP && s->state >= TCP_ESTAB && owners == 1) {
+		for (u64 j = 0; j < c->rings; j++) {
+			if (c->ring_sk[j])
+				continue;
+			struct ring_hdr *h = ring_hdr_of(c, j);
+			h->head = h->tail = 0;
+			h->sd = (u32)sd;
+			c->ring_sk[j] = s;
+			s->ring_cli = c;
+			s->ring_slot = j;
+			ring_pump(s); /* (ce qui attendait déjà : dans l'anneau ; drapeaux) */
+			r = (long)j;
+			break;
+		}
+		if (r < 0)
+			r = E_NOSPC;
+	}
+	nl_drop();
+	return r;
+}
+#else
+u64 ring_avail(struct sock *s) { (void)s; return 0; }
+void ring_pump(struct sock *s) { (void)s; }
+void rings_pump_all(void) {}
+u64 ring_read(struct sock *s, u8 *dst, u64 max) { (void)s; (void)dst; (void)max; return 0; }
+void ring_release(struct sock *s, int keep) { (void)s; (void)keep; }
+long op_ring(u8 *m) { (void)m; return E_INVAL; }
+#endif

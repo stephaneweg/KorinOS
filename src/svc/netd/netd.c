@@ -46,6 +46,16 @@ u64 arch_counter(void)
 #endif
 }
 
+/* une courte attente sur place, sans appel au noyau */
+static inline void cpu_relax(void)
+{
+#if defined(__aarch64__)
+	__asm__ volatile("yield" ::: "memory");
+#else
+	__asm__ volatile("pause" ::: "memory");
+#endif
+}
+
 /* fréquence du compteur des temps des pilotes (NST_FREQ) ; PC : pas de pilote, 0 */
 u64 arch_counter_freq(void)
 {
@@ -272,6 +282,8 @@ NORETURN static void stack_thread(void)
 				n++;
 			}
 		}
+		if (n)
+			rings_pump_all(); /* (anneaux partagés : ce qui vient d'arriver) */
 		nl_drop();
 		int changed = n != 0;
 		u64 now = time_ms(); /* minuteries toutes les 10 ms */
@@ -281,6 +293,7 @@ NORETURN static void stack_thread(void)
 			dhcp_timer();
 			if (tcp_timers()) /* (un accusé, une retransmission : rien pour une requête qui attend) */
 				changed = 1;
+			rings_pump_all(); /* (fin, délai : les drapeaux des anneaux) */
 			nl_drop();
 		}
 		/* les requêtes qui attendent (net_wait) : réveillées quand les anneaux sont vides, ou 2 ms au plus après un
@@ -304,7 +317,12 @@ NORETURN static void stack_thread(void)
 		 * sans attendre (le débit) ; NET_BUSY_MS était de 50 ms : une trame toutes les 50 ms (le Wi-Fi d'une maison,
 		 * ses diffusions) et netd ne dormait jamais, un cœur entier ; 5 ms suffisent à un transfert (21/11/2026) */
 		if (now - net_busy_t < NET_BUSY_MS) {
-			korin_sys0(SYS_YIELD);
+			/* (d'abord sur place, sans appel au noyau : 22/11/2026, netd à 1 100 000 appels/s sur le ZBook pendant
+			 * un git clone, SYS_YIELD et deux SYS_TIME_MS entre deux trames) */
+			for (int k = 0; k < NET_SPIN && !net_rx_ready(); k++)
+				cpu_relax();
+			if (!net_rx_ready())
+				korin_sys0(SYS_YIELD);
 			continue;
 		}
 		net_sleep(0);
@@ -483,9 +501,16 @@ static long op_open(u8 *m)
 	struct client *c = cli_find(pid);
 	if (c) {
 		W64(m, MSG_B) = c->num;
+		W64(m, MSG_C) = c->rings;
 		return 0;
 	}
-	long buf = korin_sys1(SYS_BUF_CREATE, NET_CLI_BUF);
+	/* (avec les anneaux partagés s'il y a la place ; sinon le tampon d'avant) */
+	u64 rings = NET_RINGS;
+	long buf = rings ? korin_sys1(SYS_BUF_CREATE, NET_CLI_BUF_RINGS) : -1;
+	if (buf < 0) {
+		rings = 0;
+		buf = korin_sys1(SYS_BUF_CREATE, NET_CLI_BUF);
+	}
 	if (buf < 0)
 		return buf;
 	long r = korin_sys1(SYS_BUF_MAP, buf);
@@ -499,20 +524,24 @@ static long op_open(u8 *m)
 	/* deux threads du process à la fois : un seul tampon, sinon netd écrit dans
 	 * l'un et le client lit l'autre */
 	if ((c = cli_find(pid))) {
-		u64 num = c->num;
+		u64 num = c->num, cr = c->rings;
 		nl_drop();
 		korin_sys1(SYS_BUF_FREE, buf);
 		W64(m, MSG_B) = num;
+		W64(m, MSG_C) = cr;
 		return 0;
 	}
 	for (int i = 0; i < CLI_MAX; i++) {
 		if (clis[i].pid)
 			continue;
+		memset(&clis[i], 0, sizeof clis[i]);
 		clis[i].pid = pid;
 		clis[i].num = (u64)buf;
 		clis[i].adr = adr;
+		clis[i].rings = rings;
 		nl_drop();
 		W64(m, MSG_B) = (u64)buf;
+		W64(m, MSG_C) = rings;
 		return 0;
 	}
 	nl_drop();
@@ -533,6 +562,9 @@ static void cli_gone(u64 pid)
 		nl_drop();
 		return;
 	}
+	for (u64 j = 0; j < c->rings && j < (NET_RINGS ? NET_RINGS : 1); j++) /* (ses anneaux : rendus aux sockets) */
+		if (c->ring_sk[j])
+			ring_release(c->ring_sk[j], 1);
 	c->pid = 0;
 	u64 num = c->num;
 	nl_drop();
@@ -621,7 +653,7 @@ static const op_fn op_table[NET_OP_SOCKETS + 1] = {
 	0, op_open, op_socket, op_connect, op_bind, op_listen, /* 0-5 */
 	op_accept, op_send, op_recv, op_close, op_sendto, /* 6-10 */
 	op_recv, /* 11 recvfrom */
-	op_resolve, op_ping, op_info, op_ifaces, op_time, op_ntp, 0, 0, /* 12-19 */
+	op_resolve, op_ping, op_info, op_ifaces, op_time, op_ntp, op_poll, op_ring, /* 12-19 (18 : poll, 19 : anneau) */
 	op_if_register, op_if_state, op_doorbell, op_stats, op_shutdown, op_sockets, /* 20-25 */
 };
 

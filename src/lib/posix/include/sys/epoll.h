@@ -30,6 +30,7 @@ extern "C" {
 #define EPOLLERR	0x008
 #define EPOLLHUP	0x010
 #define EPOLLRDHUP	0x2000
+#define EPOLLONESHOT	(1U << 30)
 #define EPOLLET		(1U << 31)
 
 typedef union epoll_data

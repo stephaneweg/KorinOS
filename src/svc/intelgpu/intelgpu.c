@@ -656,7 +656,7 @@ static void usage(void)
 	     "la main, tout remis comme avant\n");
 	glog("/sys/svc/intelgpu start [-v] [-p] [simu] [freq=max|rp1|min|<MHz>]   lance le service et attend "
 	     "qu'il soit prêt (fréquence du GPU : max par défaut)\n");
-	glog("/sys/svc/intelgpu status | stop   l'état du service ; son arrêt propre\n");
+	glog("/sys/svc/intelgpu status | stop   l'état du service (et le temps des lots depuis le dernier status) ; son arrêt propre\n");
 }
 
 int main(int argc, char **argv)
@@ -697,8 +697,11 @@ int main(int argc, char **argv)
 		char t[480];
 		if (svc_ask(stop ? IG_OP_STOP : IG_OP_STATUS, t, sizeof t) < 0)
 			return 1;
-		if (status)
+		if (status) {
 			out_text(t);
+			if (svc_ask(IG_OP_TIMES, t, sizeof t) >= 0)
+				out_text(t);
+		}
 		else
 			glog("arrêt demandé : le service rend le GPU comme il l'a trouvé (journal)\n");
 		return 0;

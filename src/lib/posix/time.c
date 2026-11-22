@@ -205,10 +205,22 @@ int __posix_tz_minutes (void)
 
 void __posix_sleep_ns (unsigned long long ns)
 {
-	/* SYS_SLEEP dort en millisecondes ; le reste (moins d'1 ms) : en cedant le processeur */
+	/* SYS_SLEEP dort en millisecondes : arrondi au-dessus (POSIX : au moins le temps demande), et redormir
+	 * plutot que ceder le processeur en boucle si le noyau rend la main un peu tot (le poll de libposix y
+	 * passait 73 % de ses appels en SYS_YIELD, 21/11/2026). Moins d'1 ms : en cedant le processeur. */
 	unsigned long long end = __posix_mono_ns () + ns;
 	if (ns >= 1000000ULL)
-		__armpi_sys1 (SYS_SLEEP, ns / 1000000ULL);
+	{
+		__armpi_sys1 (SYS_SLEEP, (ns + 999999ULL) / 1000000ULL);
+		for (int i = 0; i < 4; i++)
+		{
+			unsigned long long now = __posix_mono_ns ();
+			if (now >= end)
+				return;
+			__armpi_sys1 (SYS_SLEEP, (end - now + 999999ULL) / 1000000ULL);
+		}
+		return;
+	}
 	while (__posix_mono_ns () < end)
 		__armpi_sys0 (SYS_YIELD);
 }

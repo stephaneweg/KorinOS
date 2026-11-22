@@ -156,6 +156,41 @@ static unsigned short s_texFlags[MAX_TEX];	/* le filtre et le repli posés (pour
 
 static void info (const char *s) { snprintf (s_info, sizeof s_info, "%s", s); }
 
+/* ---- le temps de la composition par le GPU (22/11/2026 : 15 à 45 ms par image sur le ZBook, le processeur fait la
+ * même en 1 ms) : avec ONYX_WEB_GPU_DEBUG ou /etc/web-gpu-debug, une ligne toutes les 2 s : compositions, dessin (jusqu'avant la relecture),
+ * relecture (glReadPixels : elle attend le GPU), envois de textures, changements de contexte (ANGLE courant) */
+static int s_timesOn = -1;
+static double s_tDraw, s_tRead, s_tUpload, s_tEnter, s_since;
+static unsigned s_nRender, s_nUpload, s_nSwitch, s_pxRead;
+
+static double now_ms (void)
+{
+	struct timespec ts;
+	clock_gettime (CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec * 1e3 + ts.tv_nsec / 1e6;
+}
+
+static void times_log (void)
+{
+	if (s_timesOn < 0) {
+		const char *e = getenv ("ONYX_WEB_GPU_DEBUG");
+		s_timesOn = (e && *e && *e != '0') || access ("/etc/web-gpu-debug", F_OK) == 0;
+	}
+	if (!s_timesOn)
+		return;
+	double t = now_ms ();
+	if (!s_since)
+		s_since = t;
+	if (t - s_since < 2000)
+		return;
+	fprintf (stderr, "web: gpu: gl: %.1f s: %u compositions (dessin %.1f ms, relecture %.1f ms pour %u kpx), %u envois (%.1f ms), "
+		 "contexte pris %.1f ms (%u fois depuis ANGLE)\n", (t - s_since) / 1e3, s_nRender, s_tDraw, s_tRead, s_pxRead / 1000,
+		 s_nUpload, s_tUpload, s_tEnter, s_nSwitch);
+	s_since = t;
+	s_tDraw = s_tRead = s_tUpload = s_tEnter = 0;
+	s_nRender = s_nUpload = s_nSwitch = s_pxRead = 0;
+}
+
 static int load (void)
 {
 #define L(n) if (!(*(void **) &n = armgl_proc (#n))) return 0
@@ -177,9 +212,14 @@ static int load (void)
 /* le contexte de gpucomp courant (celui d'avant garde) -> 1 */
 static int enter (void)
 {
+	double t = now_ms ();
 	s_savedCtx = egl_GetCurrentContext ();
 	s_savedSurface = egl_GetCurrentSurface (EGL_DRAW);
-	return armgl_make_current (s_ctx, s_surface);
+	if (s_savedCtx)
+		s_nSwitch++;
+	int r = armgl_make_current (s_ctx, s_surface);
+	s_tEnter += now_ms () - t;
+	return r;
 }
 
 static void leave (void)
@@ -278,6 +318,7 @@ int kapi_gpu_texture (int handle, const unsigned *pixels, int w, int h, int stri
 		return -1;
 	if (!enter ())
 		return -1;
+	double t0 = now_ms ();
 	int r = -4;
 	if (handle >= 0 && handle < MAX_TEX && w == 0 && pixels == NULL) {
 		if (s_tex[handle])
@@ -299,6 +340,10 @@ int kapi_gpu_texture (int handle, const unsigned *pixels, int w, int h, int stri
 			glPixelStorei (GL_UNPACK_ROW_LENGTH, 0);
 			s_texFlags[i] = 0xFFFF;
 			r = glGetError () == GL_NO_ERROR ? i : -4;
+			if (pixels) {
+				s_nUpload++;
+				s_tUpload += now_ms () - t0;
+			}
 		}
 	}
 	leave ();
@@ -311,11 +356,14 @@ int kapi_gpu_texture_rect (int handle, int x, int y, int w, int h, const unsigne
 		return -2;
 	if (!enter ())
 		return -1;
+	double t0 = now_ms ();
 	glBindTexture (GL_TEXTURE_2D, s_tex[handle]);
 	glPixelStorei (GL_UNPACK_ALIGNMENT, 4);
 	glPixelStorei (GL_UNPACK_ROW_LENGTH, stride);
 	glTexSubImage2D (GL_TEXTURE_2D, 0, x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 	glPixelStorei (GL_UNPACK_ROW_LENGTH, 0);
+	s_nUpload++;
+	s_tUpload += now_ms () - t0;
 	leave ();
 	return 0;
 }
@@ -352,6 +400,7 @@ int kapi_gpu_render (const struct kapi_gpu_frame *F, const struct kapi_gpu_verte
 		return -2;
 	if (!enter ())
 		return -1;
+	double t0 = now_ms ();
 	/* la cible : un FBO de la taille de la partie (refait quand elle grandit) */
 	if (F->w > s_fboW || F->h > s_fboH || !s_fboTex) {
 		int w = F->w > s_fboW ? F->w : s_fboW, h = F->h > s_fboH ? F->h : s_fboH;
@@ -423,13 +472,20 @@ int kapi_gpu_render (const struct kapi_gpu_frame *F, const struct kapi_gpu_verte
 		glDrawArrays (GL_TRIANGLES, (GLint) B->first, (GLsizei) B->count);
 	}
 	/* la cible relue : la ligne 0 du FBO est le haut */
+	double t1 = now_ms ();
 	glPixelStorei (GL_PACK_ALIGNMENT, 4);
 	glPixelStorei (GL_PACK_ROW_LENGTH, F->stride);
 	glReadPixels (0, 0, F->w, F->h, GL_RGBA, GL_UNSIGNED_BYTE, F->pixels);
 	glPixelStorei (GL_PACK_ROW_LENGTH, 0);
 	glBindFramebuffer (GL_FRAMEBUFFER, 0);
 	int err = glGetError () != GL_NO_ERROR;
+	double t2 = now_ms ();
+	s_nRender++;
+	s_tDraw += t1 - t0;
+	s_tRead += t2 - t1;
+	s_pxRead += (unsigned) (F->w * F->h);
 	leave ();
+	times_log ();
 	return armgl_lost () ? -1 : err ? -2 : 0;
 }
 

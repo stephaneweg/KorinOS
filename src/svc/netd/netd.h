@@ -22,6 +22,31 @@
 #define NIF_E_SSID 32
 #define NIF_ENT 64
 #define NET_CLI_BUF 131072
+/* anneaux de réception partagés (docs/etude/ANNEAUX.md ; le PC : ses futex de pages partagées ont pour clé
+ * l'adresse physique, netd réveille le process directement) : après les zones de NetKit, une page d'en-têtes
+ * (la sonnette du process, puis un en-tête de 64 octets par anneau), puis NET_RINGS anneaux de NET_RING_SZ */
+#ifdef __x86_64__
+#define NET_RINGS 8
+#else
+#define NET_RINGS 0 /* (le Pi : pas de futex partagés entre process ; NetKit passe par les messages) */
+#endif
+#define NET_RING_SZ 65536
+#define NET_RING_HDR NET_CLI_BUF                  /* la page des en-têtes */
+#define NET_RING_DATA (NET_CLI_BUF + 4096)        /* le premier anneau */
+#define NET_CLI_BUF_RINGS (NET_RING_DATA + NET_RINGS * NET_RING_SZ)
+#define NRF_FIN 1   /* le pair a fermé (après les données de l'anneau) */
+#define NRF_ERR 2   /* connexion coupée (RST, délai) */
+#define NRF_STALL 4 /* netd a des données qui attendent de la place : un appel « relancer » après lecture */
+#define NRF_LIVE 8
+struct ring_hdr {                 /* 64 octets, à NET_RING_HDR + 64 x (anneau + 1) */
+	volatile u64 head, tail;  /* compteurs monotones : head écrit par netd, tail par le process */
+	volatile u32 seq;         /* futex : augmente à chaque changement (données, drapeaux) */
+	volatile u32 flags;       /* NRF_* */
+	u32 sd;
+	volatile u32 waiters;     /* le process y dort (NetKit) : netd ne réveille que s'il y en a */
+	u32 pad[8];
+};
+/* la sonnette du process : NET_RING_HDR + 0 (futex), + 4 (ses dormeurs) */
 #define NET_INLINE 448
 #define NR_RX_HEAD 0
 #define NR_RX_TAIL 8
@@ -71,6 +96,7 @@
 #define WSTACK 32768    /* pile d'un thread */
 #define WAIT_MAX 25000  /* attente d'une requête (svc_call : 30 s) */
 #define IF_MAX 4
+#define NET_SPIN 2048 /* pauses entre deux regards du thread de la pile pendant un transfert (des dizaines de µs) */
 #define NET_BUSY_MS 5   /* ms sans trame avant de revenir au repos (50 : jamais au repos sur un Wi-Fi bavard) */
 #define NET_TICK_MS 10  /* sommeil : une minuterie TCP en cours */
 #define NET_DHCP_MS 100 /*   adresse pas encore obtenue */
@@ -198,6 +224,8 @@ struct sock {
 	u64 rx_len;   /* (tcp_input) octets du segment en ordre */
 	u64 ws_ok, snd_shift, rcv_shift;
 	u64 probe_at, probe_n;
+	struct client *ring_cli; /* anneau partagé (ANNEAUX.md) : son process, 0 : aucun */
+	u64 ring_slot;
 };
 
 struct iface {
@@ -217,6 +245,8 @@ struct iface {
 struct client {
 	u64 pid, num;
 	u8 *adr;
+	u64 rings;                   /* anneaux du tampon (0 : tampon d'avant, sans anneaux) */
+	struct sock *ring_sk[NET_RINGS ? NET_RINGS : 1]; /* la socket de chaque anneau (0 : libre) */
 };
 
 /* lectures hors du verrou (attentes) : relues à chaque tour */
@@ -333,6 +363,13 @@ long op_ping(u8 *m);
 long op_info(u8 *m);
 long op_ifaces(u8 *m);
 long op_shutdown(u8 *m);
+long op_poll(u8 *m);
+long op_ring(u8 *m);
+void ring_pump(struct sock *s);
+void rings_pump_all(void);
+void ring_release(struct sock *s, int keep);
+u64 ring_read(struct sock *s, u8 *dst, u64 max);
+u64 ring_avail(struct sock *s);
 void sko_fork(u64 child, u64 parent);
 void net_close_all(u64 pid);
 

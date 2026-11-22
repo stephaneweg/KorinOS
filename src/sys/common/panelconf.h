@@ -26,6 +26,10 @@ extern char pan_pin[PANEL_MAXPINS][AP_NOM];
 void pan_line(char *key, char *val); /* (ini_read) une ligne */
 void pan_add(const char *name);      /* un raccourci de plus */
 void pan_load(void);
+/* réécrit les raccourcis (pan_pin) dans le panel.ini personnel (HOME:/etc), les autres lignes
+ * gardées (sans panel.ini : celles de dock.ini) -> 0, < 0 : erreur */
+#define PAN_FILE 4096
+long pan_save(void);
 /* application -> 1 si elle est une partie du bureau (catégorie Shell : ni dans le lanceur,
  * ni parmi les raccourcis) */
 long pan_shell(long app);

@@ -151,7 +151,10 @@ il s'en sert), `brk`.
   `readlink ("/proc/self/fd/N")` d'un dossier (Bun : le vrai chemin du dossier courant) ; `preadv2`, `pwritev2`,
   `close_range`, `quick_exit`, `execl*`.
 * traces : `LINUX_TRACE_SYS=fichier` (chaque appel de Linux, chemins et événements d'epoll ; dans `/tmp`, la trace
-  sur un disque ralentit trop), `LINUX_TRACE_EXIT=1` (qui termine le process). Le disque d'essai est en snapshot :
+  sur un disque ralentit trop), `LINUX_COUNT_SYS=fichier` (sans ralentir : toutes les 5 s, les appels de ces 5 s
+  triés, avec leur nom, et les chemins les plus demandés ; pour Claude Code pendant une commande),
+  `LINUX_TRACE_EXIT=1` (qui termine le process). Sous Korin, `clock_gettime` (le gros d'une trace de Bun) ne coûte
+  pas d'appel au noyau : le TSC (libposix time.c). Le disque d'essai est en snapshot :
   un fichier se lit par telnet (un petit script dans `EXTRA`, le `|` sépare les commandes de `ONLY`).
 * reste vu : `claude auth status` sort en silence, code 0 (sa boucle d'événements se croit vide avant d'écrire ;
   `-p` et l'interface vont plus loin) ; `link` rend ENOSYS (FAT : à rendre EPERM).

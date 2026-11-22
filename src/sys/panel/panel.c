@@ -3,9 +3,11 @@
  * Collée au bas de l'écran, toute sa largeur, aux couleurs du thème :
  *   - à gauche, le bouton « apps » (grille de 3 x 3) : le lanceur (launcher.c) ;
  *   - au centre, les RACCOURCIS (panelconf : /etc/panel.ini), puis les applications
- *     ouvertes qui n'en ont pas ; un clic lance ou ramène ;
+ *     ouvertes qui n'en ont pas ; un clic lance ou ramène ; un clic droit, leur menu
+ *     (épingler, détacher, lancer un autre process) ;
  *   - à droite, les ESPACES DE TRAVAIL (un carré chacun, leurs fenêtres en petit), la
- *     corbeille, le presse-papiers (sys/clipboard), les réglages, l'alimentation.
+ *     corbeille (masquée pour l'instant), le presse-papiers (sys/clipboard), les réglages,
+ *     l'alimentation.
  * Un trait sous une application ouverte. Fenêtre sans cadre, au-dessus des autres, sans
  * focus ; elle réserve le bas de l'écran. */
 #include "panel.h"
@@ -93,11 +95,9 @@ static void metrics(void)
 	gear_x = x;
 	x -= cur.btn + 4; /* presse-papiers, */
 	clip_x = x;
-	trash_x = -1; /* corbeille, */
-	if (dl_trash) {
-		x -= cur.btn + 4;
-		trash_x = x;
-	}
+	/* la corbeille : masquée tant qu'il n'y en a pas (22/11/2026 ; « corbeille = » de panel.ini
+	 * sans effet). Pour la remettre : si dl_trash, x -= cur.btn + 4 et trash_x = x */
+	trash_x = -1;
 	x -= 10; /* espaces de travail */
 	desk_x = x - (dl_ndesks * (cur.sqw + SQGAP) - SQGAP);
 }
@@ -482,6 +482,102 @@ static void draw(void)
 	ui_update_all();
 }
 
+/* ---------------------------------------------------------------------------
+ *  Menu contextuel d'un emplacement (clic droit)
+ * --------------------------------------------------------------------------- */
+
+#ifndef UMT_MENU
+#define UMT_MENU 6 /* ui_metric : ligne d'un menu */
+#endif
+#define POP_PAD 6   /* marge verticale d'un menu (UK_POP_PAD d'UIKit) */
+#define POP_SEP 11  /* hauteur d'un séparateur (UK_POP_SEP) */
+#define POP_SHADOW 4 /* son ombre (UK_OMBRE) */
+#define POP_W 220
+
+enum { PM_NEW, PM_PIN, PM_UNPIN, PM_SETTINGS }; /* les entrées */
+
+/* application -> son rang parmi les raccourcis (-1 : pas épinglée) */
+static long pin_index(long app)
+{
+	for (long i = 0; i < pan_npin; i++)
+		if (str_eq(pan_pin[i], ap_nom[app]))
+			return i;
+	return -1;
+}
+
+/* emplacement (-1 : la zone des icônes, hors d'un emplacement), x du clic : le menu au-dessus
+ * du panel. Sur un emplacement : l'application, si elle est ouverte (un clic en lance un autre
+ * process) ; « Détacher du panneau » (raccourci) ou « Épingler au panneau » (application
+ * ouverte). Partout : « Paramètres du panneau » (Réglages, son volet) */
+static void slot_menu(long h, long x)
+{
+	long app = h >= 0 ? sl_app[h] : -1;
+	static char labels[AP_LIB + 192];
+	long act[6], n = 0, seps = 0;
+	char *o = labels;
+	if (app >= 0) {
+		if (pids[app]) {
+			o = str_cat(o, app_label(app)) + 1;
+			act[n++] = PM_NEW;
+			o = str_cat(o, "-") + 1;
+			act[n++] = -1;
+			seps++;
+		}
+		if (pin_index(app) >= 0) {
+			o = str_cat(o, lang_tr("Détacher du panneau")) + 1;
+			act[n++] = PM_UNPIN;
+		} else {
+			if (pan_npin >= PANEL_MAXPINS) /* (plus de place : grisé) */
+				*o++ = 1;
+			o = str_cat(o, lang_tr("Épingler au panneau")) + 1;
+			act[n++] = PM_PIN;
+		}
+		o = str_cat(o, "-") + 1;
+		act[n++] = -1;
+		seps++;
+		x = sl_x[h];
+	}
+	o = str_cat(o, lang_tr("Paramètres du panneau")) + 1;
+	act[n++] = PM_SETTINGS;
+	*o = 0;
+	long row = ui_metric(UMT_MENU);
+	if (row <= 0)
+		row = 28;
+	long mh = 2 * POP_PAD + (n - seps) * row + seps * POP_SEP; /* au-dessus du panel */
+	long y = scr[SCR_H] - cur.dh - mh - POP_SHADOW;
+	hover_set(-1);
+	/* (ui_popup rend plusieurs registres : sur le PC, une structure, par krt_call_r4 comme la
+	 * barre de menus ; un appel direct décale les arguments) */
+	long c = krt_call_r4(ui_popup, x, y, (long)labels, POP_W).r0;
+	if (c < 0 || c >= n)
+		return;
+	if (act[c] == PM_SETTINGS) { /* Réglages, ouvert sur le volet du panel */
+		ksys(SYS_SPAWN, (long)"/apps/control.app/main", (long)"panelconf", 0, 0, 0, 0);
+		return;
+	}
+	if (act[c] == PM_NEW) {
+		app_launch(app);
+		return;
+	}
+	if (act[c] == PM_PIN) {
+		if (pan_npin >= PANEL_MAXPINS)
+			return;
+		pan_add(ap_nom[app]);
+	} else if (act[c] == PM_UNPIN) {
+		long i = pin_index(app);
+		if (i < 0)
+			return;
+		pan_npin--; /* les suivants remontent */
+		mem_move(pan_pin[i], pan_pin[i + 1], (u64)(pan_npin - i) * AP_NOM);
+	} else {
+		return;
+	}
+	if (pan_save() < 0)
+		say("panel : panel.ini non écrit\n");
+	slots_build();
+	draw();
+}
+
 /* nouvelle résolution : refait à sa taille, en bas de l'écran */
 static void screen_follow(void)
 {
@@ -567,6 +663,15 @@ int main(int argc, char **argv)
 		long h = hit(*(i32 *)(ui.ev + EV_X), *(i32 *)(ui.ev + EV_Y));
 		if (*(u32 *)(ui.ev + EV_KIND) != 1) {
 			hover_set(h);
+			continue;
+		}
+		if (*(u32 *)(ui.ev + EV_CODE) & 2) { /* clic droit : le menu d'un emplacement, ou de la
+							  zone des icônes (entre « apps » et les bureaux) */
+			long mx = *(i32 *)(ui.ev + EV_X);
+			if (h >= 0 && h < HIT_DESK)
+				slot_menu(h, mx);
+			else if (h == -1 && mx >= cur.btn + 16 && mx < desk_x - 10)
+				slot_menu(-1, mx);
 			continue;
 		}
 		if (h == -1)
