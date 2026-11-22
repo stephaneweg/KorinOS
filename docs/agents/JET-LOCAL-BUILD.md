@@ -120,6 +120,9 @@ d'heure : les compilateurs attendaient le disque à 97 %. Ce qui a été appris 
 
 ## Pour la nouvelle session du cloud : ce qu'il faut faire
 
+0. **D'abord, avant WebKit : rendre le volume système rapide sous charge** — `docs/agents/FICHIERS-PERF.md` (un cache
+   des noms dans `vfs`, avec les absents ; un index par dossier dans `fatfs` ; les lectures en parallèle dans
+   `fatfs`). Demande de l'utilisateur du 22/11/2026 : c'est ce qui a fait s'effondrer la construction locale.
 1. **Reconstruire WebKit pour le PC** avec ce dépôt : `ONYX_CPU_FLAGS` de `tools/webkit/env.sh` (Tiger Lake, sans
    AVX-512), les patchs jusqu'à **0016**, **libjpeg-turbo avec son SIMD x86** (`tools/webkit/ports/libjpeg-turbo/
    build.sh` a `WITH_SIMD=OFF` sur x86-64 : il faut `nasm` et `simd/x86_64`, absent de la copie d'Onyx — prendre la
