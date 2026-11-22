@@ -196,15 +196,17 @@ int mm_add_region(struct mm *mm, uint64_t start, uint64_t end, uint32_t prot, ui
 struct freelist {
 	uint64_t *pages;
 	uint64_t n, cap;
+	uint64_t uncounted; /* pages de la liste que mm->owned ne compte pas (fl_add_page) */
 };
 
-static void fl_add(struct freelist *fl, uint64_t phys)
+/* -> 1 si la page est dans la liste */
+static int fl_add(struct freelist *fl, uint64_t phys)
 {
 	if (fl->n == fl->cap) {
 		uint64_t cap = fl->cap ? fl->cap * 2 : 64;
 		uint64_t *p = kmalloc(cap * 8);
 		if (!p) { /* sans place : on garde la page (fuite plutôt que corruption) */
-			return;
+			return 0;
 		}
 		if (fl->pages) {
 			memcpy(p, fl->pages, fl->n * 8);
@@ -214,6 +216,7 @@ static void fl_add(struct freelist *fl, uint64_t phys)
 		fl->cap = cap;
 	}
 	fl->pages[fl->n++] = phys;
+	return 1;
 }
 
 static void fl_release(struct process *p, struct freelist *fl, int shoot)
@@ -222,8 +225,22 @@ static void fl_release(struct process *p, struct freelist *fl, int shoot)
 		vm_tlb_shootdown(p->vm);
 	for (uint64_t i = 0; i < fl->n; i++)
 		pmm_free(fl->pages[i]);
-	mm_count_owned(p->mm, -(int64_t)fl->n);
+	mm_count_owned(p->mm, -(int64_t)(fl->n - fl->uncounted));
 	kfree(fl->pages);
+}
+
+/* une page retirée de va (pas VM_SHARED) : à rendre ; celle d'un objet (fichier, mémoire partagée)
+ * encore en copie sur écriture n'est pas comptée dans mm->owned (seulement épinglée : pmm_ref),
+ * la rendre ne le décompte pas (sous le verrou, la région encore là) */
+static void fl_add_page(struct mm *mm, struct freelist *fl, uint64_t va, uint64_t phys, int fl_flags)
+{
+	if (!fl_add(fl, phys))
+		return;
+	if (fl_flags & VM_COW) {
+		int ri = find(mm, va);
+		if (ri >= 0 && mm->r[ri].obj)
+			fl->uncounted++;
+	}
 }
 
 /* retire les pages présentes de [s, e[ (sous le verrou) */
@@ -237,7 +254,7 @@ static int drop_pages(struct process *p, uint64_t s, uint64_t e, struct freelist
 			continue;
 		any = 1;
 		if (!(fl_flags & VM_SHARED))
-			fl_add(fl, phys);
+			fl_add_page(p->mm, fl, va, phys, fl_flags);
 	}
 	return any;
 }
@@ -263,8 +280,15 @@ int mm_fault(struct process *p, uint64_t addr, int write, int exec)
 			vm_tlb_shootdown(p->vm);
 		if (old)
 			pmm_free(old);
+		/* compte : une page d'objet (fichier, mémoire partagée) projetée en privé n'était pas à
+		 * lui avant sa copie (+1) ; une page anonyme ou du programme l'était déjà, chez le père
+		 * comme chez le fils (mm_fork copie owned) : copiée ou rendue inscriptible sur place, il
+		 * en a toujours une (avant : +1 à chaque fois, le compteur montait sans fin après un fork,
+		 * jusqu'à dépasser la mémoire de la machine) */
 		if (ret >= 0) {
-			mm->owned++;
+			int ri = find(mm, va);
+			if (ri >= 0 && mm->r[ri].obj)
+				mm->owned++;
 			ret = 0;
 		}
 		spin_unlock_irqrestore(&mm->lock, f);
@@ -468,6 +492,8 @@ static int unmap_range(struct process *p, uint64_t s, uint64_t e, struct freelis
 	struct mm *mm = p->mm;
 	if (split_at(mm, s) || split_at(mm, e))
 		return E_NOMEM;
+	/* les pages d'abord : drop_pages lit encore les régions (fl_add_page) */
+	int any = drop_pages(p, s, e, fl);
 	for (int i = 0; i < mm->n;) {
 		if (mm->r[i].start >= s && mm->r[i].end <= e && (mm->r[i].kind == VMK_ANON || mm->r[i].kind == VMK_SHARED)) {
 			if (mm->r[i].obj) {
@@ -478,7 +504,7 @@ static int unmap_range(struct process *p, uint64_t s, uint64_t e, struct freelis
 		} else
 			i++;
 	}
-	return drop_pages(p, s, e, fl);
+	return any;
 }
 
 /* le premier trou de len octets dans [lo, hi[ (régions triées), 0 s'il n'y en a pas */
@@ -630,7 +656,7 @@ int64_t sys_vm_protect(uint64_t addr, uint64_t size, uint64_t prot)
 			int fl2;
 			uint64_t phys = vm_unmap_page(p->vm, va, &fl2);
 			if (phys && !(fl2 & VM_SHARED))
-				fl_add(&fl, phys);
+				fl_add_page(mm, &fl, va, phys, fl2);
 			shoot |= phys != 0;
 		} else
 			shoot |= vm_protect_page(p->vm, va, vm_prot((uint32_t)prot));
