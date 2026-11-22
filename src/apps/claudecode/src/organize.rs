@@ -34,6 +34,15 @@ pub struct Organize {
     /// Le thème : « system », « dark », « light ».
     #[serde(default)]
     pub theme: String,
+    /// Le volet « Environnement » à droite (dossier, dépôt, utilisation de l'abonnement) est ouvert.
+    #[serde(default)]
+    pub env_panel: bool,
+    /// La liste des sessions du cloud (Claude Code sur le web) est dépliée.
+    #[serde(default)]
+    pub cloud_open: bool,
+    /// L'onglet du volet : « env » (vide) ou « term ».
+    #[serde(default)]
+    pub env_tab: String,
 }
 
 pub fn path() -> PathBuf {

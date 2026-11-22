@@ -2,7 +2,9 @@
 //! `claude -p --input-format stream-json --output-format stream-json`, un message JSON par ligne dans les deux sens.
 //!
 //! - vers la CLI : `{"type":"user","message":{…}}` (une demande ; le process reste ouvert entre les tours),
-//!   `control_request` `interrupt` (arrêter le tour), `control_response` (la réponse à une demande d'autorisation) ;
+//!   `control_request` `interrupt` (arrêter le tour), `get_usage` (les limites de l'abonnement), `list_cloud_sessions`
+//!   et `get_cloud_session_transcript` (les sessions de Claude Code sur le web), `control_response` (la réponse à une
+//!   demande d'autorisation) ;
 //! - de la CLI : `system` `init` (l'identifiant de la session, le modèle), `stream_event` (le texte au fil de l'eau,
 //!   `--include-partial-messages`), `assistant`, `user` (les résultats des outils), `result` (la fin du tour),
 //!   `control_request` `can_use_tool` (`--permission-prompt-tool stdio` : la CLI demande s'il peut se servir d'un
@@ -144,6 +146,18 @@ impl Cli {
             "message": { "role": "user", "content": [{ "type": "text", "text": text }] },
             "parent_tool_use_id": null,
         }))
+    }
+
+    /// Une demande de contrôle à la CLI (`get_usage`, `list_cloud_sessions`, `get_cloud_session_transcript`…), sous le
+    /// numéro `id` donné par l'app : la réponse (`control_response`) porte ce numéro.
+    pub fn request(&mut self, id: &str, subtype: &str, extra: Value) -> bool {
+        let mut r = json!({ "subtype": subtype });
+        if let (Some(o), Some(e)) = (r.as_object_mut(), extra.as_object()) {
+            for (k, v) in e {
+                o.insert(k.clone(), v.clone());
+            }
+        }
+        self.send(&json!({ "type": "control_request", "request_id": id, "request": r }))
     }
 
     /// Arrête le tour en cours (la CLI rend un `result` interrompu).

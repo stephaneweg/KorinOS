@@ -49,3 +49,8 @@ après plus d'une seconde de repos (le défaut de sys_irq_wait, noyau).
 sortie d'erreur des process lancés ensuite par posix_spawn (le process web de Jet) ne passe plus par le tube hérité du
 Terminal (`/apps/netflix.app/main 2>&1 | cat > f` : seules les lignes du process UI) ; Jet lancé directement : bon.
 Reproduit sous QEMU (jet 1.4.4, libposix de pc .88). Avec jet 1.4.3 (libposix d'avant), ça passait.
+**22/11 : Disney+ (investigation de l'utilisateur, autre session)** : les 2 × 25 s = le WebSocket du SDK de Disney
+dans Jet ; le SDK attend deux fois 15 s avant de se rabattre (puis recommence sur /fr-fr/home). La même poignée de
+main en Python reçoit 101 Switching Protocols : suspect, la vérification de la réponse par le client WebSocket du port
+curl (Connection: Upgrade en TLS avec ALPN h2) — WebCore/platform/network/curl. Écartés : OneID, worker Datadog,
+workers de blob, cookies tiers, en-têtes du navigateur.
