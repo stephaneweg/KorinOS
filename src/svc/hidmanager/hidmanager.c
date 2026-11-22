@@ -808,6 +808,37 @@ static void diffuser_car(const u64 *ev, u32 c)
  * morte) ; les modificateurs (Maj, AltGr) laissent la morte en attente, les
  * autres touches sans caractère (Ctrl+touche, flèches) l'annulent. Le
  * relâchement garde le caractère de la touche (0 pour une morte). */
+/* Ctrl + une lettre : le code HID devient celui de la lettre écrite sur la touche, à sa place sur un clavier
+ * américain (comme les codes virtuels de Windows) ; les raccourcis (UIKit, egui) comparent des codes HID : en
+ * AZERTY, Ctrl+A était le Ctrl+Q américain (22/11/2026). Le relâchement reprend le code de l'appui (la
+ * répétition s'arrête), même si Ctrl a été lâché avant. Les chiffres et le reste gardent leur place. */
+static u8 ctrl_code[KEY_MAP_N]; /* code donné à l'appui de cette touche avec Ctrl (0 : aucun) */
+
+static void ctrl_lettre(u64 *ev)
+{
+	u64 code = ev[1];
+	if (code >= KEY_MAP_N)
+		return;
+	if (!ev[2]) { /* relâchement */
+		if (ctrl_code[code]) {
+			ev[1] = ctrl_code[code];
+			ctrl_code[code] = 0;
+		}
+		return;
+	}
+	ctrl_code[code] = 0;
+	if (!(ev[3] & 0x11) || (ev[3] & 0x40)) /* sans Ctrl, ou avec AltGr */
+		return;
+	u32 c = kb_live[code] | 0x20; /* la lettre de la touche (colonne normale) */
+	if (c < 'a' || c > 'z')
+		return;
+	u64 us = 0x04 + (c - 'a');
+	if (us != code) {
+		ctrl_code[code] = (u8)us;
+		ev[1] = us;
+	}
+}
+
 static void traduire(u64 *ev)
 {
 	if (*(u32 *)ev != EV_KEY)
@@ -817,6 +848,7 @@ static void traduire(u64 *ev)
 		ev[3] &= 0x7FFFFFFF;
 		return;
 	}
+	ctrl_lettre(ev);
 	long i = key_slot(ev[1], ev[3]);
 	u32 c = i < 0 ? 0 : kb_live[i];
 	int dead = i >= 0 && kb_dead_live[i];
