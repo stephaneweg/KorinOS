@@ -1,0 +1,22 @@
+--- a/src/ninja.cc
++++ b/src/ninja.cc
+@@ -249,5 +249,10 @@
+     return 3;
+   default:
++#ifdef __armpi__
++    // Korin OS : 64 fichiers ouverts par process ; chaque commande en cours prend un tube (au-delà de ≈ 20, EMFILE)
++    return processors + 2 < 16 ? processors + 2 : 16;
++#else
+     return processors + 2;
++#endif
+   }
+ }
+--- a/src/util.cc
++++ b/src/util.cc
+@@ -902,5 +902,5 @@
+   return 1.0 / (1 << SI_LOAD_SHIFT) * si.loads[0];
+ }
+-#elif defined(__HAIKU__)
++#elif defined(__HAIKU__) || defined(__armpi__)	// (Korin OS : pas de getloadavg)
+ double GetLoadAverage() {
+     return -0.0f;
