@@ -1,7 +1,7 @@
 # Étude : réseau et tubes sans aller et retour (anneaux partagés)
 
 Demandée le 21/11/2026, après la lenteur de `git clone` sur le ZBook (500 Ko/s, puis 1,5 Mo/s, quand pkg
-télécharge à 16 Mo/s). Rien n'est fait de ce qui suit ; ce qui est fait est au § 1.
+télécharge à 16 Mo/s). § 3 (sockets) fait le 22/11 (pc 2026.11.83) : voir la fin. § 4 (tubes) pas fait.
 
 ## 1. Où en est-on (21/11)
 
@@ -64,3 +64,20 @@ créer, fermer, et attendre quand l'anneau est vide (ou plein).
 Mesurer d'abord sur le ZBook ce qui reste (sysstat pendant un clone : appels par seconde de
 `git-remote-https`, `git`, `index-pack`, netd, vfs) : si netd et vfs ne sont plus les goulots, ce chantier
 peut attendre.
+
+## 6. Fait le 22/11 : les sockets (§ 3)
+
+Choix de l'utilisateur : les sockets d'abord, réveils par futex partagés. Le noyau du PC en avait déjà (une page
+`VM_SHARED`, comme les tampons `SYS_BUF_*`, a pour clé son adresse physique) : rien à changer dans le noyau.
+
+- **Tampon du process** (`op_open` de netd) : les zones de NetKit (128 Ko, inchangées), une page d'en-têtes (la
+  sonnette du process et ses dormeurs, puis 64 octets par anneau : `head`, `tail`, `seq`, `flags`, `waiters`), 8
+  anneaux de 64 Ko. Un NetKit plus ancien n'en voit que les zones. Le Pi : `NET_RINGS` 0.
+- **netd** : op 19 (`b` = 0 : un anneau pour cette socket ; 1 : relancer) ; `ring_pump` (thread de la pile, après
+  chaque lot de trames et les minuteries) verse l'anneau interne dans celui du process ; plein : `NRF_STALL`, les
+  données attendent, la fenêtre TCP suit ; `NRF_FIN`, `NRF_ERR` ; un recv par message lit l'anneau (`ring_read`) ;
+  le process de l'anneau ferme sa copie : les octets non lus repassent devant l'anneau interne (`ring_release`).
+- **NetKit** : `net_recv` lit l'anneau et dort sur `seq` ; `net_poll` regarde les anneaux sur place et dort sur la
+  sonnette ; les sockets en écoute n'ont pas d'anneau ; dans le fils d'un fork, les messages.
+- **Mesures (QEMU PC)** : `wget` de 30 Mo 7,2 → 5,6 s ; netd pendant un clone HTTPS 96 000 → 40 000 appels/s ;
+  `ringfork` (fork après une lecture) : les 99 990 octets, dans l'ordre.

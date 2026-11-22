@@ -42,3 +42,14 @@ canal de réveil d'epoll (socketpair), EPOLLET déjà dit masqué jusqu'à la fi
 dort sur les canaux (ou netd) et regarde le reste de 1 à 16 ms. Banc idletest (scratchpad, Linux, sous linuxhost) :
 linuxhost 11 502 -> 1 119 appels/s. Publié : linuxhost 1.0.6. Restent à relier : l'app claudecode, python, etc. ; nvme
 à optimiser (155 000 appels/s pendant une écriture ext4 ; attente wait_slots par SYS_IRQ_WAIT de 5 ms).
+
+**22/11 (nuit, suite) : anneaux partagés pour les sockets, faits (choix de l'utilisateur : sockets d'abord, futex
+partagés)**. Le noyau du PC avait déjà des futex partagés (pages VM_SHARED : clé = adresse physique) ; les tampons
+SYS_BUF_* sont VM_SHARED : aucun changement du noyau. netd : tampon du process agrandi (zones 128 Ko + page d'en-têtes
++ 8 anneaux de 64 Ko, NET_RINGS 8 sur le PC, 0 sur le Pi), op 19 (b 0 : anneau pour la socket -> numéro, E_AGAIN pas
+encore connectée ; b 1 : relancer), ring_pump depuis le thread de la pile, ring_read pour un recv par message (fils
+après fork), ring_release(keep) à la fermeture par le process de l'anneau (octets non lus remis devant rxbuf), réveils
+seulement s'il y a un dormeur (waiters). NetKit : net_recv lit l'anneau, net_poll regarde les anneaux sur place et
+attend sur la sonnette ; net_listen exclut les sockets en écoute ; net_fork_child : le fils passe aux messages. Banc
+ringfork (scratchpad). QEMU : wget 7,2 -> 5,6 s, netd 96 000 -> 40 000 appels/s pendant un clone HTTPS. Publié : pc
+2026.11.83. Les tubes en anneau : pas faits (étape suivante possible). ZBook : à mesurer.
