@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-22 20:48
+date = 2026-11-22 23:27
 abi = 629
 packages = 117
 board = pc
@@ -2222,3 +2222,18 @@ needs = abi >= 629
 required = 0
 restart = 0
 content = bee48bee7db576cd813c73ac547f089a373e6839ac235d83ce7b9609642c2608
+
+[m4]
+title = GNU m4
+version = 1.4.19
+category = Développement
+author = Korin OS
+summary = Le macroprocesseur GNU m4 1.4.19 (/devtools/gcc/bin/m4) : bison, autoconf
+size = 288439
+installed = 572616
+sha256 = 243b59ac1c66ddb0d7c2526c0214661cc3d1f5cc74a113f3a8ab742bc7229a7e
+file = pkgs/m4-1.4.19.opk
+needs = abi >= 629
+required = 0
+restart = 0
+content = ed7e2a771b567595044f60459e2d02523dd995a89fd814b9007a727ede107f04
