@@ -497,18 +497,18 @@ content = 7354880489ca7b2d5f12bb8a6546c35c0b7fddbdf42c7c6807eb7d015e508b0e
 
 [python]
 title = Python
-version = 1.0.6
+version = 1.0.5
 category = Développement
 author = Korin OS
 summary = CPython 3.14 : l'interpréteur python3, la bibliothèque standard, pip et setuptools (/devtools/python)
-size = 23284676
-installed = 49084989
-sha256 = 939b98e7749b2cbc214ae7fa2e0dcb201f99c40d39389bfe963a2ac7c0bb45b2
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-python-1.0.6.opk
+size = 23261449
+installed = 49035837
+sha256 = 415626014473b899d1eee1db7be46b6bd22871f452f9a7c892d75ef9889d4aaf
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-python-1.0.5.opk
 needs = pc, abi >= 626
 required = 0
 restart = 0
-content = f019b3f61735c075c12092d8d0c9f2db4e0de3cef57984a3ed691de8571ed890
+content = a50ab76c8a7a51009d8ae52d350ea54617bb7028b3c984e6fa8707b7c95b871d
 
 [vibe-data-1]
 title = Mistral Vibe (1/2)
