@@ -1773,19 +1773,19 @@ restart = 0
 content = 9ca39788d3024382e5ddcb2d528eb799ac080650ad77845c4280466c00be1a0e
 
 [disneyplus]
-title = Disney+
-version = 1.0.0
-category = Multimédia
+title = disneyplus
+version = 1.0.1
+category = Autres
 author = Korin OS
 summary = Disney+ : le site de Disney+ dans sa fenêtre (Widevine), avec votre compte
-size = 124692
-installed = 263833
-sha256 = 6e11b0bf7016508dad07c2bc0108f98cc0fd6bcddbfe75351408b5353914454b
-file = pkgs/disneyplus-1.0.0.opk
+size = 124762
+installed = 263939
+sha256 = 1061862aebacc412ef4db2b37b8d73f57f053802e5b41dbcd30c567e9c393cb3
+file = pkgs/disneyplus-1.0.1.opk
 needs = jet >= 1.4.2, abi >= 626
 required = 0
 restart = 0
-content = 2f864fbcbc03b334eda6f225a6f7ba80b7e668c8b49bb6b7f0e57ad3bc2b246c
+content = eb269df6f1984a74a7e4c4d20d40d475213a5b1bcbc179dfe7dbd9245415beab
 
 [tf1plus]
 title = TF1+
