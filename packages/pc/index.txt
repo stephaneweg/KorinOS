@@ -174,18 +174,18 @@ content = 1ed897c3c1436c173dc1585ff0f13199a42ffae587eca0515ab9e2e50688aede
 
 [pkgman]
 title = Logiciels
-version = 1.0.21
+version = 1.0.22
 category = Système
 author = Korin OS
 summary = Les paquets : la commande pkg, le gestionnaire Logiciels (et son volet dans Réglages), le service pkgd
-size = 4605274
-installed = 11778715
-sha256 = baf1d19cc4dd84f9e839fde7a25a79ec31a8d792c16264ef4764c224c25fdb9d
-file = pkgs/pkgman-1.0.21.opk
+size = 4615618
+installed = 11799195
+sha256 = 0899d16656fcc23b656c63b50bc7e57625ab1cd04fda586728112792d60ce5fa
+file = pkgs/pkgman-1.0.22.opk
 needs = abi >= 626
 required = 1
 restart = 0
-content = 206cbe1193c7b5d267cce41f723098e6c0a7b303bd6a0c241269129b4fae022a
+content = 3ee4ea03346b32386f07096de142937fb87e16c99bc7182ca84cf0ebe98ac407
 
 [soundfonts]
 title = Banque de sons General MIDI
