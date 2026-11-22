@@ -22,6 +22,8 @@ void fo_own_clear(long num);
 long fo_own_close(struct msg *m, long num); /* 1 : à fermer */
 void fo_own_end(long pid, void (*close_num)(long num));
 long fo_own_fork(long child, long parent);
+/* pid : fn(num) pour chaque fichier dont il est le seul propriétaire -> 1 dès que fn rend 1 */
+long fo_own_any_last(long pid, long (*fn)(long num));
 void *tampon_de(struct msg *m);          /* tampon de l'appelant, 0 : aucun */
 long op_tampon(struct msg *m);           /* 14 FS_BUFFER */
 void tampons_fin(long pid);

@@ -26,7 +26,8 @@
  * commentaire.
  *
  * Toutes les opérations reçoivent ctx et sont appelées une à la fois (verrou de
- * la couche), sauf denied et log. lba est un secteur du DISQUE (la couche ajoute
+ * la couche), sauf denied et log, et sauf read et read_sg d'un pilote qui
+ * déclare concurrency > 1 (BLK_DRIVER_V3). lba est un secteur du DISQUE (la couche ajoute
  * le début de la partition) ; phys est l'adresse physique de buf (0 : inconnue,
  * le pilote passe alors par son propre tampon). Retour : 0 ou une erreur E_*,
  * rendue telle quelle au client. */
@@ -88,6 +89,8 @@ struct blk_gpt {
 /* ---- le pilote */
 #define BLK_DRIVER_V1 1
 #define BLK_DRIVER_V2 2 /* + plan */
+#define BLK_DRIVER_V3 3 /* + concurrency */
+#define BLK_PAR_MAX 8   /* fils par périphérique au plus (concurrency) */
 
 struct blk_driver {
 	/* -- propriétés */
@@ -146,7 +149,13 @@ struct blk_driver {
 	 * garde -> 0 : la couche rend le disque entier écrivable (la garde du pilote décide de chaque secteur) ;
 	 * 0 (champ) : E_PERM */
 	long (*plan)(void *ctx, struct msg *m);
-	/* (BLK_DRIVER_V3 et suivantes : les nouveaux champs ici, à la fin) */
+	/* -- BLK_DRIVER_V3 */
+	/* lectures (read, read_sg) que le pilote accepte EN MÊME TEMPS, de fils différents (22/11/2026,
+	 * docs/agents/FICHIERS-PERF.md, point 5) : la couche sert alors chaque périphérique par autant de fils
+	 * (BLK_PAR_MAX au plus) et n'appelle plus read ni read_sg sous son verrou ; les écritures et toutes les
+	 * autres opérations restent une à la fois. 0 ou 1 : un appel au pilote à la fois, comme avant */
+	u32 concurrency;
+	/* (BLK_DRIVER_V4 et suivantes : les nouveaux champs ici, à la fin) */
 };
 
 /* sert le pilote : lit la table, enregistre et sert les périphériques ; ne

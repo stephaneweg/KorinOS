@@ -21,12 +21,31 @@
  *    et tout de suite pour O_TRUNC.
  *  * unlink d'un fichier encore ouvert : ses entrées sont effacées, ses clusters
  *    libérés à la dernière fermeture.
- *  * Propriétaires, accès et tampons partagés (ops 14-16) : fsowner.c. */
+ *  * Propriétaires, accès et tampons partagés (ops 14-16) : fsowner.c.
+ *  * Plusieurs fils (22/11/2026, docs/agents/FICHIERS-PERF.md, point 4 ; FT_N, le PC) : les
+ *    lectures (open sans écriture, read, stat, readdir, seek, info) sont servies en parallèle,
+ *    les écritures une à la fois et seules. Un verrou (big) tient tout l'état ; un fil lecteur
+ *    le relâche pendant ses lectures du périphérique (blk_request), chacun dans sa zone de
+ *    transfert du tampon partagé, et ne garde aucun pointeur dans les caches à travers une
+ *    lecture (bc_get lit dans sa zone, puis copie dans le cache des secteurs ; cc_block cherche
+ *    à nouveau le bloc après la lecture). Un écrivain attend qu'aucun lecteur ne soit en cours
+ *    et garde le verrou jusqu'au bout. Une op sur un fichier ouvert le tient (fo->busy) : deux
+ *    ops sur le même fichier se suivent ; une fermeture qui doit écrire repasse en écrivain.
+ *    Les avis (fin de process, fork) sont des écrivains, pris dans l'ordre (recv).
+ *  * Un index par répertoire (dirindex.c) : la recherche d'un nom, trouvé ou non, ne relit
+ *    plus le répertoire. */
 #include "fatfs.h"
 
 #define BC_N 256      /* secteurs en cache (128 Ko) */
 #define BLOC_N 128    /* secteurs par transfert direct (64 Ko : FS_READ_BUF) */
-#define PARTAGE ((BC_N + BLOC_N) * 512) /* tampon partagé avec le périphérique */
+#if defined(__x86_64__)
+#define FT_N 8        /* fils qui servent les requêtes */
+#else
+#define FT_N 1        /* (Pi : un seul, le noyau asm n'a pas été essayé avec plusieurs fils par service) */
+#endif
+#define FT_STACK 131072 /* pile d'un fil, alignée : son contexte (struct tctx) au pied */
+#define PARTAGE ((BC_N + FT_N * BLOC_N) * 512) /* tampon partagé avec le périphérique : le cache des
+							 secteurs, puis une zone de transfert par fil */
 #define OUV_MAX 512   /* fichiers ouverts (.NET en garde beaucoup) */
 #define NO_MAX OUV_MAX
 #define CC_BLOCK_SHIFT 7 /* bloc du cache : 128 secteurs (BLOC_N) */
@@ -45,19 +64,15 @@
 #define DOS_1980 315532800ULL
 
 static long canal_blk;
-static long req_cour; /* numéro de la requête en cours */
-static u64 direct;    /* 1 : la destination est chez l'appelant (op_lire_d) */
 static u8 *cc_base;   /* la région du cache (0 : pas de cache) */
-static u64 cc_max, cc_cap, cc_limit, cc_used, cc_hand, cc_off, cc_skip;
+static u64 cc_max, cc_cap, cc_limit, cc_used, cc_hand, cc_off;
 static u64 cc_hits, cc_misses, cc_evicts;
 u64 cc_disk; /* secteurs du périphérique */
 u64 lecture_seule;
 u64 dos_date_forcee; /* (un utime en cours) */
 static u8 *cache;     /* le tampon partagé (cache des secteurs, puis zone de transfert) */
 static char nom_svc[32], nom_blk[32];
-static struct msg msg __attribute__((aligned(16)));
-static struct msg msg_blk __attribute__((aligned(16)));
-static struct de ren_src, ren_dst, ren_new;
+static struct de ren_src, ren_dst, ren_new; /* (écrivains seulement) */
 static struct vol volume;
 static u64 bc_tags[BC_N];
 static u64 bc_defer, bc_any;
@@ -71,6 +86,100 @@ static u8 cc_refs[CC_BLOCKS_MAX];
 
 static void cc_forget(u64 sector, u64 n);
 static long cc_read(u64 sector, u64 n, u8 *dst);
+
+/* ---- fils : le contexte de chacun, au pied de sa pile (FT_STACK octets, alignée) */
+#define MODE_R 1 /* lecteur : le verrou relâché pendant ses lectures du périphérique */
+#define MODE_W 2 /* écrivain : seul, le verrou gardé */
+struct tctx {
+	struct msg msg;     /* la requête en cours (et sa réponse) */
+	struct msg msg_blk; /* au périphérique */
+	struct de de_op;    /* (l'asm : sur la pile de chaque op) */
+	u64 direct;         /* 1 : la destination est chez l'appelant (op_lire_d) */
+	u64 cc_skip;        /* 1 : un très gros fichier, hors du cache */
+	long req;           /* numéro de la requête en cours */
+	int mode;           /* MODE_R, MODE_W, 0 : hors requête */
+	int idx;            /* sa zone de transfert */
+	struct fo *held;    /* le fichier ouvert tenu (fo->busy) */
+	u8 sec[512] __attribute__((aligned(16)));
+} __attribute__((aligned(16)));
+#define tc ((struct tctx *)((u64)__builtin_frame_address(0) & ~(u64)(FT_STACK - 1)))
+#define ZONE (cache + BC_N * 512 + (u64)tc->idx * BLOC_N * 512) /* sa zone de transfert */
+
+static volatile u32 big;      /* tout l'état de fatfs */
+static volatile u32 recv;     /* un seul fil prend la requête suivante (l'ordre des avis) */
+static volatile u32 cond_seq; /* changements attendus (lecteurs finis, index construit, fichier rendu) */
+static u32 readers;           /* (big) lecteurs en cours */
+static u32 writers_waiting;   /* (big) écrivains qui attendent : pas de nouveau lecteur */
+
+static void mutex_lock(volatile u32 *m)
+{
+	u32 c = 0;
+	if (__atomic_compare_exchange_n(m, &c, 1, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
+		return;
+	if (c != 2)
+		c = __atomic_exchange_n(m, 2, __ATOMIC_ACQUIRE);
+	while (c) {
+		korin_sys3(SYS_FUTEX_WAIT, (long)m, 2, 0);
+		c = __atomic_exchange_n(m, 2, __ATOMIC_ACQUIRE);
+	}
+}
+
+static void mutex_unlock(volatile u32 *m)
+{
+	if (__atomic_fetch_sub(m, 1, __ATOMIC_RELEASE) != 1) {
+		__atomic_store_n(m, 0, __ATOMIC_RELEASE);
+		korin_sys2(SYS_FUTEX_WAKE, (long)m, 1);
+	}
+}
+
+void ft_cond_wait(void)
+{
+	u32 s = __atomic_load_n(&cond_seq, __ATOMIC_ACQUIRE);
+	mutex_unlock(&big);
+	korin_sys3(SYS_FUTEX_WAIT, (long)&cond_seq, s, 0);
+	mutex_lock(&big);
+}
+
+void ft_cond_broadcast(void)
+{
+	__atomic_fetch_add(&cond_seq, 1, __ATOMIC_RELEASE);
+	korin_sys2(SYS_FUTEX_WAKE, (long)&cond_seq, 0x7FFFFFFF);
+}
+
+static void reader_begin(void)
+{
+	mutex_lock(&big);
+	while (writers_waiting)
+		ft_cond_wait();
+	readers++;
+	tc->mode = MODE_R;
+}
+
+static void writer_begin(void)
+{
+	mutex_lock(&big);
+	writers_waiting++;
+	while (readers)
+		ft_cond_wait();
+	writers_waiting--;
+	tc->mode = MODE_W;
+}
+
+/* la fin de la requête : le fichier tenu rendu, le verrou rendu */
+static void op_end(void)
+{
+	if (tc->held) {
+		tc->held->busy = 0;
+		tc->held = 0;
+		ft_cond_broadcast();
+	}
+	if (tc->mode == MODE_R && !--readers)
+		ft_cond_broadcast(); /* (un écrivain attend peut-être) */
+	if (tc->mode == MODE_W && writers_waiting)
+		ft_cond_broadcast();
+	tc->mode = 0;
+	mutex_unlock(&big);
+}
 
 /* ---- dates (src/inc/dostime.inc) : date DOS << 16 | heure DOS, en heure locale
  * comme sous Windows (2 s de précision) ; secondes Unix pour les programmes */
@@ -146,12 +255,18 @@ static long blk_request(long op, u64 sector, u64 count, void *addr)
 {
 	if (op == BLK_WRITE)
 		cc_forget(sector, count);
-	msg_blk.op = op;
-	msg_blk.a = sector;
-	msg_blk.b = count;
-	msg_blk.c = (i64)addr;
-	msg_blk.len = 0;
-	return korin_sys2(SYS_SVC_CALL, canal_blk, &msg_blk);
+	struct msg *mb = &tc->msg_blk;
+	mb->op = op;
+	mb->a = sector;
+	mb->b = count;
+	mb->c = (i64)addr;
+	mb->len = 0;
+	if (tc->mode != MODE_R || (op != BLK_READ && op != BLK_READ_D))
+		return korin_sys2(SYS_SVC_CALL, canal_blk, mb);
+	mutex_unlock(&big); /* (lecteur : les autres fils servent pendant la lecture) */
+	long r = korin_sys2(SYS_SVC_CALL, canal_blk, mb);
+	mutex_lock(&big);
+	return r;
 }
 
 /* secteur -> ses 512 octets en cache, 0 si erreur */
@@ -168,8 +283,21 @@ u8 *bc_get(u64 sector)
 			return 0;
 	}
 	bc_tags[slot] = 0;
-	if (!cc_read(sector, 1, p) && blk_request(BLK_READ, sector, 1, p))
-		return 0;
+	/* lu dans un tampon du fil (le verrou peut être relâché pendant la lecture : un autre fil
+	   peut prendre cette place entre-temps), puis copié dans le cache */
+	u8 *t = tc->sec;
+	if (!cc_read(sector, 1, t)) {
+		u8 *zone = ZONE;
+		if (blk_request(BLK_READ, sector, 1, zone))
+			return 0;
+		memmove(t, zone, 512);
+	}
+	if (bc_dirty[slot]) { /* (pris entre-temps par un secteur différé : écrit d'abord) */
+		bc_dirty[slot] = 0;
+		if (bc_tags[slot] && blk_request(BLK_WRITE, bc_tags[slot] - 1, 1, p))
+			return 0;
+	}
+	memmove(p, t, 512);
 	bc_tags[slot] = sector + 1;
 	return p;
 }
@@ -232,7 +360,7 @@ static void bc_oublier(u64 sector, u64 n)
 /* mis à zéro, BLOC_N secteurs par commande -> 1 */
 long blk_zero(u64 sector, u64 n)
 {
-	u8 *zone = cache + BC_N * 512; /* zone de transfert */
+	u8 *zone = ZONE; /* zone de transfert */
 	while (n) {
 		u64 k = n < BLOC_N ? n : BLOC_N;
 		memset(zone, 0, k << 9);
@@ -248,7 +376,7 @@ long blk_zero(u64 sector, u64 n)
 /* lecture (hors cache des secteurs) ou écriture (et le cache invalidé) -> 1 */
 static long blk_direct(u64 sector, u64 n, u8 *buf, int write)
 {
-	u8 *zone = cache + BC_N * 512; /* zone de transfert : après le cache */
+	u8 *zone = ZONE; /* zone de transfert : après le cache */
 	while (n) {
 		u64 k = n < BLOC_N ? n : BLOC_N;
 		if (write) {
@@ -258,11 +386,11 @@ static long blk_direct(u64 sector, u64 n, u8 *buf, int write)
 			bc_oublier(sector, k); /* secteurs écrits : hors du cache */
 		} else {
 			u64 got = 0;
-			if (!cc_skip)
+			if (!tc->cc_skip)
 				got = cc_read(sector, n, buf);
 			if (got) {
 				k = got;
-			} else if (direct && !((u64)buf & 3) && !blk_request(BLK_READ_D, sector, n, buf)) {
+			} else if (tc->direct && !((u64)buf & 3) && !blk_request(BLK_READ_D, sector, n, buf)) {
 				k = n; /* dans la mémoire de l'appelant */
 			} else {
 				if (blk_request(BLK_READ, sector, k, zone))
@@ -469,11 +597,18 @@ static u8 *cc_block(u64 block)
 		return 0;
 	if (!(++cc_misses & CC_CHECK_MASK))
 		cc_pressure();
+	u8 *zone = ZONE; /* zone de transfert du fil */
+	if (blk_request(BLK_READ, block << CC_BLOCK_SHIFT, BLOC_N, zone))
+		return 0;
+	i = cc_find(block); /* (verrou relâché pendant la lecture : un autre fil l'a peut-être mis) */
+	if (i >= 0) {
+		cc_refs[i] = 1;
+		return cc_base + ((u64)i << 16);
+	}
+	if (!cc_base || cc_off) /* (vidé ou éteint entre-temps) */
+		return 0;
 	i = cc_take();
 	if (i < 0)
-		return 0;
-	u8 *zone = cache + BC_N * 512; /* zone de transfert */
-	if (blk_request(BLK_READ, block << CC_BLOCK_SHIFT, BLOC_N, zone))
 		return 0;
 	u8 *p = cc_base + ((u64)i << 16);
 	memmove(p, zone, CC_BLOCK_BYTES);
@@ -517,6 +652,7 @@ static long op_cache(struct msg *m)
 			cc_off = 0;
 		} else { /* (FS_CC_DROP, FS_CC_OFF, et toute autre valeur, comme l'asm) */
 			cc_drop();
+			di_drop_all(); /* (l'index des répertoires aussi : une mesure à froid) */
 			if (m->a == FS_CC_OFF)
 				cc_off = 1;
 		}
@@ -535,19 +671,68 @@ static long vol_monter(struct vol *v, u64 first)
 	return fat_mount(v, first) || exfat_mount(v, first);
 }
 
-static long vol_chercher(struct vol *v, const char *path, struct de *de)
-{
-	return v->type == 2 ? exfat_lookup(v, path, de) : fat_lookup(v, path, de);
-}
-
-static long vol_lire_rep(struct it *it, struct de *de)
+long vol_lire_rep(struct it *it, struct de *de)
 {
 	return it->vol->type == 2 ? exfat_dir_read(it, de) : dir_read(it, de);
 }
 
+/* le composant name (fin : 0 ou « / ») du répertoire dir -> 1 et *de, 0 absent : par l'index
+ * (dirindex.c), sinon en lisant le répertoire (comme dir_find) */
+static long vol_composant(struct vol *v, u64 dir, const char *name, struct de *de)
+{
+	long r = di_lookup(v, dir, name, de);
+	if (r >= 0)
+		return r;
+	struct it it;
+	dir_open(&it, v, dir);
+	while (vol_lire_rep(&it, de))
+		if (v->type == 2 ? exfat_name_equal(v, name, de->name) : fat_name_equal(name, de->name))
+			return 1;
+	return 0;
+}
+
+/* chemin relatif au volume (« a/b/c ») -> 1 si trouvé ; vide : la racine (comme fat_lookup et
+ * exfat_lookup, chaque répertoire par son index) */
+static long vol_chercher(struct vol *v, const char *p, struct de *de)
+{
+	u64 cur = v->root;
+	de->h.cluster = cur; /* racine : description synthétique */
+	de->h.fsize = 0;
+	de->mtime = 0;
+	de->h.attr = ATTR_DIR;
+	de->h.dir = 0;
+	de->h.index = de->h.first = 0;
+	de->name[0] = 0;
+	for (;;) {
+		while (*p == '/')
+			p++;
+		if (!*p)
+			return 1;
+		if (!(de->h.attr & ATTR_DIR)) /* il faut descendre dans un répertoire */
+			return 0;
+		if (!vol_composant(v, cur, p, de))
+			return 0;
+		cur = de->h.cluster;
+		if (!cur && v->type != 2) /* FAT32 : « .. » vers la racine, cluster 0 */
+			cur = v->root;
+		for (;;) { /* composant suivant */
+			char c = *p++;
+			if (!c)
+				return 1;
+			if (c == '/')
+				break;
+		}
+	}
+}
+
 static long vol_creer(struct vol *v, u64 parent, const char *name, u64 attr, struct de *de)
 {
-	return v->type == 2 ? exfat_create(v, parent, name, attr, de) : fat_create(v, parent, name, attr, de);
+	long r = v->type == 2 ? exfat_create(v, parent, name, attr, de) : fat_create(v, parent, name, attr, de);
+	if (r == 1)
+		di_created(v, parent, name, de);
+	else
+		di_drop(parent); /* (à moitié fait : relu) */
+	return r;
 }
 
 static void vol_maj(struct vol *v, struct dehead *de)
@@ -556,11 +741,13 @@ static void vol_maj(struct vol *v, struct dehead *de)
 		exfat_update_entry(v, de);
 	else
 		fat_update_entry(v, de);
+	di_updated(v, de);
 }
 
 /* supprime l'entrée et libère son allocation */
 static void vol_effacer(struct vol *v, struct dehead *de)
 {
+	di_erased(v, de);
 	if (v->type == 2) {
 		exfat_erase(v, de);
 		return;
@@ -572,6 +759,7 @@ static void vol_effacer(struct vol *v, struct dehead *de)
 /* supprime l'entrée seulement (fichier encore ouvert) */
 static void vol_effacer_entree(struct vol *v, struct dehead *de)
 {
+	di_erased(v, de);
 	if (v->type == 2)
 		exfat_erase_entries(v, de);
 	else
@@ -591,7 +779,7 @@ static void vol_liberer(struct vol *v, struct no *n)
  * données sur la carte */
 static long vol_rw(struct fo *f, u8 *buf, u64 len, int write)
 {
-	cc_skip = f->size > CC_FILE_MAX; /* un très gros fichier : hors du cache */
+	tc->cc_skip = f->size > CC_FILE_MAX; /* un très gros fichier : hors du cache */
 	int ex = f->it.vol->type == 2;
 	if (!write)
 		return ex ? exfat_rw(f, buf, len, 0) : fo_rw(f, buf, len, 0);
@@ -633,6 +821,22 @@ static struct fo *fo_de(u64 num)
 	return &ouverts[num];
 }
 
+/* (lecteur) le fichier ouvert f est tenu jusqu'à la fin de l'op : une autre op sur lui attend
+ * -> 0, ou E_INVAL s'il a été fermé pendant l'attente */
+static long fo_tenir(struct fo *f)
+{
+	if (tc->mode != MODE_R)
+		return 0;
+	while (f->busy) {
+		ft_cond_wait();
+		if (!f->type)
+			return E_INVAL;
+	}
+	f->busy = 1;
+	tc->held = f;
+	return 0;
+}
+
 /* -> objet ouvert (numéro en a) si l'appelant y a droit ; *err : E_INVAL
  * (numéro libre) ou E_BADF (pas un de ses propriétaires) */
 static struct fo *fo_acces(struct msg *m, long *err)
@@ -643,6 +847,13 @@ static struct fo *fo_acces(struct msg *m, long *err)
 		return 0;
 	}
 	*err = fo_access(m, m->a);
+	if (*err)
+		return 0;
+	*err = fo_tenir(f); /* (fils : une op à la fois sur un fichier ouvert) */
+	if (!*err && !f->type)
+		*err = E_INVAL;
+	if (!*err && tc->held == f) /* (attendu : fermé puis rouvert entre-temps ?) */
+		*err = fo_access(m, m->a);
 	return *err ? 0 : f;
 }
 
@@ -763,6 +974,18 @@ static long op_sync(struct msg *m)
 	return c;
 }
 
+/* (fin d'un process) num, qui va être fermé : doit-il écrire, ou une op s'en sert-elle ? */
+static long fin_ecrit(long num)
+{
+	struct fo *f = fo_de(num);
+	if (!f)
+		return 0;
+	if (f->busy)
+		return 1;
+	struct no *n = f->node;
+	return n && (n->efface ? n->refs == 1 : n->dirty != 0);
+}
+
 static void fin_pid(long pid)
 {
 	fo_own_end(pid, fo_fermer_num);
@@ -828,13 +1051,15 @@ static long parent_de(char *path, const char *last, struct de *pde, u64 *cluster
 
 /* ---- opérations (message -> résultat) */
 
-static struct de de_op; /* (l'asm : sur la pile de chaque op) */
+#define de_op (tc->de_op) /* (l'asm : sur la pile de chaque op) */
+#define E_RETRY_W (-1000) /* (lecteur) l'op doit écrire : refaite en écrivain */
+
 
 /* 1 ouvrir(a drapeaux, chemin) -> b numéro, c attributs, d taille */
 static long op_ouvrir(struct msg *m)
 {
 	struct de *de = &de_op;
-	open_extras_take(m);
+	long extras = m->c; /* (gardés ici : le verrou peut être relâché pendant la recherche) */
 	u64 fl = m->a;
 	if ((fl & (O_WRITE | O_CREATE | O_TRUNC | O_APPEND)) && lecture_seule)
 		return E_PERM;
@@ -888,6 +1113,8 @@ static long op_ouvrir(struct msg *m)
 		fo_fermer(f);
 		return E_MFILE;
 	}
+	m->c = extras;
+	open_extras_take(m);
 	m->c = f->attr;
 	m->d = f->size;
 	open_extras_put(m); /* a : notre canal (vfs transmet) */
@@ -1122,6 +1349,14 @@ static long op_fermer(struct msg *m)
 	struct fo *f = fo_acces(m, &err);
 	if (!f)
 		return err;
+	if (tc->mode == MODE_R) { /* la dernière fermeture d'un fichier qui doit écrire : en écrivain */
+		u32 pid = m->pid;
+		long left = fo_own_count(m->a);
+		int last = !pid || pid == SVC_PID_KERNEL || left - (fo_own_find(m->a, pid) != 0) <= 0;
+		struct no *n = f->node;
+		if (last && n && (n->efface ? n->refs == 1 : n->dirty != 0))
+			return E_RETRY_W;
+	}
 	if (!fo_own_close(m, m->a))
 		return 0;
 	fo_fermer(f);
@@ -1239,14 +1474,14 @@ static long op_lire_d(struct msg *m)
 		return E_INVAL;
 	if ((u64)m->c > FS_DIRECT_MAX)
 		return E_INVAL;
-	long va = korin_sys4(SYS_SVC_MAP_CALLER, req_cour, m->d, m->c, MC_WRITE);
+	long va = korin_sys4(SYS_SVC_MAP_CALLER, tc->req, m->d, m->c, MC_WRITE);
 	if (va < 0)
 		return va;
 	fo_position(f, m);
 	fo_pos_req(f, m);
-	direct = 1;
+	tc->direct = 1;
 	long r = vol_rw(f, (u8 *)va, m->c, 0);
-	direct = 0;
+	tc->direct = 0;
 	fo_ranger(f);
 	fo_pos_apres(f, m);
 	return r;
@@ -1330,17 +1565,172 @@ label:
 	return 0;
 }
 
+/* les ops : mode lecteur (MODE_R, en parallèle) ou écrivain (MODE_W, seul) */
 static const struct {
 	long op;
 	long (*fn)(struct msg *);
+	int mode;
 } ops[] = {
-	{FS_OPEN, op_ouvrir},      {FS_STAT, op_stat},       {FS_MKDIR, op_mkdir},
-	{FS_UNLINK, op_unlink},    {FS_READ, op_lire},       {FS_WRITE, op_ecrire},
-	{FS_READDIR, op_lire_rep}, {FS_BUFFER, op_tampon},   {FS_READ_BUF, op_lire_t},
-	{FS_WRITE_BUF, op_ecrire_t}, {FS_UTIME, op_utime},   {FS_RENAME, op_rename},
-	{FS_READ_DIRECT, op_lire_d}, {FS_CACHE, op_cache},   {FS_INFO, op_info},
-	{FS_SYNC, op_sync},        {FS_SEEK, op_position},   {0, 0},
+	{FS_OPEN, op_ouvrir, MODE_R},      {FS_STAT, op_stat, MODE_R},        {FS_MKDIR, op_mkdir, MODE_W},
+	{FS_UNLINK, op_unlink, MODE_W},    {FS_READ, op_lire, MODE_R},        {FS_WRITE, op_ecrire, MODE_W},
+	{FS_READDIR, op_lire_rep, MODE_R}, {FS_BUFFER, op_tampon, MODE_R},    {FS_READ_BUF, op_lire_t, MODE_R},
+	{FS_WRITE_BUF, op_ecrire_t, MODE_W}, {FS_UTIME, op_utime, MODE_W},    {FS_RENAME, op_rename, MODE_W},
+	{FS_READ_DIRECT, op_lire_d, MODE_R}, {FS_CACHE, op_cache, MODE_W},    {FS_INFO, op_info, MODE_R},
+	{FS_SYNC, op_sync, MODE_W},        {FS_SEEK, op_position, MODE_R},    {FS_CLOSE, op_fermer, MODE_R},
+	{0, 0, 0},
 };
+
+static u8 *pile_neuve(void)
+{
+	u8 *p = malloc(2 * FT_STACK);
+	if (!p)
+		return 0;
+	p = (u8 *)(((u64)p + FT_STACK - 1) & ~(u64)(FT_STACK - 1));
+	memset(p, 0, sizeof(struct tctx));
+	return p;
+}
+
+/* (recv tenu) la requête req de tc->msg : son mode pris, recv rendu, traitée, répondue */
+static void traiter(long req)
+{
+	struct msg *m = &tc->msg;
+	u64 op = m->op;
+	if (op == SVC_OP_BIRTH) { /* (avis sans réponse, rien à faire) */
+		mutex_unlock(&recv);
+		return;
+	}
+	if (op == SVC_OP_FORK) { /* fork : le fils tient les fichiers du père (sans écriture : en
+				    lecteur, mais pris avant les requêtes qui suivent, sous recv) */
+		reader_begin();
+		mutex_unlock(&recv);
+		fo_own_fork(m->a, m->b);
+		op_end();
+		return;
+	}
+	if (op == SVC_OP_END) { /* fin d'un process : ses fichiers ; en écrivain seulement si l'un
+				   d'eux doit écrire ou sert encore à une op */
+		reader_begin();
+		mutex_unlock(&recv);
+		if (fo_own_any_last(m->a, fin_ecrit)) {
+			op_end();
+			writer_begin();
+			fin_pid(m->a);
+			fat_fsinfo_flush(&volume);
+		} else {
+			fin_pid(m->a);
+		}
+		op_end();
+		return;
+	}
+	if (op == SVC_OP_SIGNAL) { /* le noyau manque de pages */
+		writer_begin();
+		mutex_unlock(&recv);
+		cc_give_back();
+		op_end();
+		return;
+	}
+	int k = -1;
+	for (int i = 0; ops[i].op; i++)
+		if ((u64)ops[i].op == op) {
+			k = i;
+			break;
+		}
+	int mode = k < 0 ? MODE_W : ops[k].mode;
+	if (op == FS_OPEN && (m->a & (O_WRITE | O_CREATE | O_TRUNC | O_APPEND)))
+		mode = MODE_W;
+	struct msg save __attribute__((aligned(16)));
+	if (mode == MODE_R && op == FS_CLOSE)
+		memcpy(&save, m, sizeof save); /* (refaite en écrivain au besoin) */
+	if (mode == MODE_R)
+		reader_begin();
+	else
+		writer_begin();
+	mutex_unlock(&recv);
+	tc->req = req;
+	long r = k < 0 ? E_INVAL : ops[k].fn(m);
+	if (r == E_RETRY_W) { /* (une fermeture qui écrit) */
+		op_end();
+		memcpy(m, &save, sizeof save);
+		writer_begin();
+		tc->req = req;
+		r = ops[k].fn(m);
+	}
+	if (tc->mode == MODE_W)
+		fat_fsinfo_flush(&volume); /* FSInfo réécrit si les clusters libres ont changé */
+	op_end();
+	if (op == FS_CLOSE && !m->pid) /* avis du noyau (pid 0) : sans réponse */
+		return;
+	m->op = r;
+	korin_sys2(SYS_SVC_REPLY, req, m);
+}
+
+/* un fil : prend la requête suivante (seul, sous recv), puis la traite */
+static THREAD_ENTRY void servir(void *arg)
+{
+	(void)arg;
+	for (;;) {
+		mutex_lock(&recv);
+		long req = korin_sys3(SYS_SVC_NEXT, fs_canal, &tc->msg, 60000);
+		if (req < 0)
+			SVC_QUIT();
+		if (!req) {
+			mutex_unlock(&recv);
+			writer_begin();
+			cc_pressure(); /* (au repos aussi : mémoire libre) */
+			op_end();
+			continue;
+		}
+		traiter(req);
+	}
+}
+
+static int ft_count;
+
+/* le premier fil : le périphérique, le volume, l'inscription, les autres fils, puis il sert */
+static THREAD_ENTRY void demarrer(void *arg)
+{
+	(void)arg;
+	tc->idx = 0;
+	tc->mode = MODE_W; /* (seul pour l'instant) */
+	struct msg *mb = &tc->msg_blk;
+	canal_blk = korin_sys2(SYS_SVC_OPEN, nom_blk, 3000);
+	if (canal_blk < 0)
+		SVC_QUIT();
+	if (blk_request(BLK_INFO, 0, 0, 0) < 0) /* lecture seule ? son pid */
+		SVC_QUIT();
+	cc_disk = mb->b; /* (secteurs : fin du cache) */
+	if (mb->a)
+		lecture_seule = 1;
+	long blk_pid = mb->d;
+	long num = korin_sys1(SYS_BUF_CREATE, PARTAGE); /* le tampon partagé */
+	if (num < 0)
+		SVC_QUIT();
+	cache = (u8 *)(BUF_VA_BASE + (u64)num * BUF_SLOT);
+	korin_sys2(SYS_BUF_GRANT, num, blk_pid);
+	mb->op = BLK_ATTACH; /* attacher */
+	mb->a = num;
+	mb->b = PARTAGE;
+	if (korin_sys2(SYS_SVC_CALL, canal_blk, mb) < 0)
+		SVC_QUIT();
+	cc_init();
+	if (!vol_monter(&volume, 0)) /* le système de fichiers */
+		SVC_QUIT();
+	/* prévenu des fins de process, des fork, mémoire rare */
+	fs_canal = korin_sys2(SYS_SVC_REGISTER, nom_svc, SVF_ENDS | SVF_BIRTHS | SVF_MEMORY);
+	if (fs_canal < 0)
+		SVC_QUIT();
+	tc->mode = 0;
+	for (int i = 1; i < FT_N; i++) {
+		u8 *st = pile_neuve();
+		if (!st)
+			break;
+		((struct tctx *)st)->idx = i;
+		if (korin_sys3(SYS_THREAD_CREATE, servir, st + FT_STACK, 0) < 0)
+			break;
+		ft_count++;
+	}
+	servir(0);
+}
 
 int main(int argc, char **argv)
 {
@@ -1370,72 +1760,13 @@ int main(int argc, char **argv)
 	*o = 0;
 	if (c && *p == 'r') /* « ro » */
 		lecture_seule = 1;
-	canal_blk = korin_sys2(SYS_SVC_OPEN, nom_blk, 3000);
-	if (canal_blk < 0)
+	u8 *st = pile_neuve(); /* tout fatfs tourne sur des piles à contexte (tc) */
+	if (!st)
 		SVC_QUIT();
-	if (blk_request(BLK_INFO, 0, 0, 0) < 0) /* lecture seule ? son pid */
+	long t = korin_sys3(SYS_THREAD_CREATE, demarrer, st + FT_STACK, 0);
+	if (t < 0)
 		SVC_QUIT();
-	cc_disk = msg_blk.b; /* (secteurs : fin du cache) */
-	if (msg_blk.a)
-		lecture_seule = 1;
-	long blk_pid = msg_blk.d;
-	long num = korin_sys1(SYS_BUF_CREATE, PARTAGE); /* le tampon partagé */
-	if (num < 0)
-		SVC_QUIT();
-	cache = (u8 *)(BUF_VA_BASE + (u64)num * BUF_SLOT);
-	korin_sys2(SYS_BUF_GRANT, num, blk_pid);
-	msg_blk.op = BLK_ATTACH; /* attacher */
-	msg_blk.a = num;
-	msg_blk.b = PARTAGE;
-	if (korin_sys2(SYS_SVC_CALL, canal_blk, &msg_blk) < 0)
-		SVC_QUIT();
-	cc_init();
-	if (!vol_monter(&volume, 0)) /* le système de fichiers */
-		SVC_QUIT();
-	/* prévenu des fins de process, des fork, mémoire rare */
-	fs_canal = korin_sys2(SYS_SVC_REGISTER, nom_svc, SVF_ENDS | SVF_BIRTHS | SVF_MEMORY);
-	if (fs_canal < 0)
-		SVC_QUIT();
-	for (;;) {
-		long req = korin_sys3(SYS_SVC_NEXT, fs_canal, &msg, 60000);
-		if (req < 0)
-			SVC_QUIT();
-		if (!req) {
-			cc_pressure(); /* (au repos aussi : mémoire libre) */
-			continue;
-		}
-		u64 op = msg.op;
-		if (op == SVC_OP_END) { /* fin d'un process : ses fichiers */
-			fin_pid(msg.a);
-			fat_fsinfo_flush(&volume);
-			continue;
-		}
-		if (op == SVC_OP_SIGNAL) { /* le noyau manque de pages */
-			cc_give_back();
-			continue;
-		}
-		if (op == SVC_OP_FORK) { /* fork : le fils tient les fichiers du père */
-			fo_own_fork(msg.a, msg.b);
-			continue;
-		}
-		if (op == SVC_OP_BIRTH) /* (avis sans réponse : rien à faire) */
-			continue;
-		long r = E_INVAL;
-		if (op == FS_CLOSE) {
-			r = op_fermer(&msg);
-			fat_fsinfo_flush(&volume); /* FSInfo réécrit si les clusters libres ont changé */
-			if (!msg.pid) /* avis du noyau (pid 0) : sans réponse */
-				continue;
-		} else {
-			for (int i = 0; ops[i].op; i++)
-				if ((u64)ops[i].op == op) {
-					req_cour = req;
-					r = ops[i].fn(&msg);
-					fat_fsinfo_flush(&volume);
-					break;
-				}
-		}
-		msg.op = r;
-		korin_sys2(SYS_SVC_REPLY, req, &msg);
-	}
+	for (;;)
+		if (korin_sys1(SYS_THREAD_JOIN, t) < 0)
+			korin_sys1(SYS_SLEEP, 60000);
 }

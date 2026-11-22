@@ -81,6 +81,7 @@ struct fo {
 	u64 rang;   /* répertoire : rang de la prochaine entrée */
 	i64 posp;   /* position de l'objet (FS_POS_CUR, FS_SEEK) */
 	struct no *node; /* fichier : son nœud (0 : répertoire) */
+	u64 busy;        /* (fils) une op s'en sert : les autres attendent (fatfs.c, fo_tenir) */
 };
 #define FO_START(f) ((f)->it.start)
 #define FO_CCLUS(f) ((f)->it.cluster)
@@ -116,6 +117,8 @@ void utf16_to_utf8(char *dst, const u8 *src, u64 max);
 long utf8_to_utf16(const char *s, u16 *dst, u64 max);
 long fo_rw(struct fo *f, u8 *buf, u64 len, int write);
 
+long fat_name_equal(const char *a, const char *b);
+
 /* ---- exfat.c */
 long exfat_mount(struct vol *v, u64 first);
 u8 *ex_entry_at(struct vol *v, u64 dir, u64 index, u64 *sector);
@@ -127,5 +130,21 @@ void exfat_update_entry(struct vol *v, struct dehead *de);
 void exfat_erase(struct vol *v, struct dehead *de);
 void exfat_erase_entries(struct vol *v, struct dehead *de);
 long exfat_create(struct vol *v, u64 parent, const char *name, u64 attr, struct de *de);
+long exfat_name_equal(struct vol *v, const char *a, const char *b);
+
+/* ---- fatfs.c : fils (lectures en parallèle) */
+long vol_lire_rep(struct it *it, struct de *de);
+void ft_cond_wait(void);      /* (verrou tenu) relâché jusqu'au prochain ft_cond_broadcast */
+void ft_cond_broadcast(void);
+
+/* ---- dirindex.c : un index par répertoire */
+long di_lookup(struct vol *v, u64 dir, const char *name, struct de *de); /* 1, 0 absent, -1 pas d'index */
+void di_created(struct vol *v, u64 parent, const char *name, const struct de *de);
+void di_updated(struct vol *v, const struct dehead *h);
+void di_erased(struct vol *v, const struct dehead *h);
+void di_drop(u64 dir);
+void di_drop_all(void);
+void di_stats(u64 *bytes, u64 *dirs);
+extern u64 di_hits, di_builds, di_drops;
 
 #endif

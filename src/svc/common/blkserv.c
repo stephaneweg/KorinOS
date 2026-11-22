@@ -34,7 +34,11 @@
  *    chargeur du PC donne au noyau l'identité de la partition d'où il a démarré
  *    (module texte « bootpart » : GUID unique en GPT, « SSSSSSSS-NN » en MBR) ;
  *    la partition de ce disque qui l'a est servie aussi en « blk.boot »
- *    (init.txt monte / dessus), quel que soit son numéro, son nom, son bus. */
+ *    (init.txt monte / dessus), quel que soit son numéro, son nom, son bus ;
+ *  * plusieurs requêtes en vol (22/11/2026, docs/agents/FICHIERS-PERF.md, point 5) : un pilote
+ *    BLK_DRIVER_V3 qui déclare concurrency > 1 (nvme) est servi par autant de fils par
+ *    périphérique, qui prennent la requête suivante l'un après l'autre (recv) ; ses lectures
+ *    vont au pilote sans le verrou de la couche, les écritures et le reste toujours une à la fois. */
 #include "blkserv.h"
 
 #define LOG_MAX 8 /* partitions logiques (p5 à p12) */
@@ -63,6 +67,7 @@ struct dev {
 	long chan;
 	char name[32];
 	struct client cl[CL_MAX];
+	volatile u32 recv; /* (plusieurs fils) un seul attend la requête suivante */
 };
 
 static struct blk_driver *drv;
@@ -79,6 +84,8 @@ static char bootpart[48];      /* module « bootpart » du noyau ("" : aucun, ou
 static u64 disk_size; /* (pendant la lecture de la table) */
 static long disk_ro;
 static int plan_open; /* BLK_PLAN accepté : le disque entier écrivable (la garde du pilote décide) */
+static int par = 1;   /* fils par périphérique (concurrency du pilote, BLK_DRIVER_V3) */
+static u32 cl_lock;   /* (plusieurs fils) la table des clients */
 
 /* ---- verrou : un appel au pilote à la fois */
 
@@ -98,6 +105,39 @@ static void unlock(void)
 	__atomic_store_n(&blk_lock, 0, __ATOMIC_RELEASE);
 }
 
+static void cl_take(void)
+{
+	while (__atomic_exchange_n(&cl_lock, 1, __ATOMIC_ACQUIRE))
+		korin_sys0(SYS_YIELD);
+}
+
+static void cl_give(void)
+{
+	__atomic_store_n(&cl_lock, 0, __ATOMIC_RELEASE);
+}
+
+/* (plusieurs fils) mutex par futex : 0 libre, 1 pris, 2 pris et attendu */
+static void mutex_lock(volatile u32 *m)
+{
+	u32 c = 0;
+	if (__atomic_compare_exchange_n(m, &c, 1, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
+		return;
+	if (c != 2)
+		c = __atomic_exchange_n(m, 2, __ATOMIC_ACQUIRE);
+	while (c) {
+		korin_sys3(SYS_FUTEX_WAIT, (long)m, 2, 0);
+		c = __atomic_exchange_n(m, 2, __ATOMIC_ACQUIRE);
+	}
+}
+
+static void mutex_unlock(volatile u32 *m)
+{
+	if (__atomic_fetch_sub(m, 1, __ATOMIC_RELEASE) != 1) {
+		__atomic_store_n(m, 0, __ATOMIC_RELEASE);
+		korin_sys2(SYS_FUTEX_WAKE, (long)m, 1);
+	}
+}
+
 static void blog(const char *fmt, ...)
 {
 	if (!drv->log)
@@ -112,6 +152,8 @@ static void blog(const char *fmt, ...)
 
 static long call_rw(int write, u64 lba, u64 n, void *buf, u64 phys)
 {
+	if (!write && par > 1) /* (le pilote accepte plusieurs lectures à la fois) */
+		return drv->read(drv->ctx, lba, n, buf, phys);
 	lock();
 	long r = write ? drv->write(drv->ctx, lba, n, buf, phys) : drv->read(drv->ctx, lba, n, buf, phys);
 	unlock();
@@ -395,12 +437,18 @@ static long dev_start(struct dev *d, int thread)
 		return d->chan;
 	}
 	d->used = 1;
-	if (!thread)
-		return 0;
-	u8 *stack = ak_malloc(STACK_THREAD);
-	long t = stack ? korin_sys3(SYS_THREAD_CREATE, dev_thread, stack + STACK_THREAD, d) : E_NOMEM;
-	if (t < 0)
-		blog("%s : pas de thread (%ld)\n", d->name, t);
+	/* ses fils : par (le thread principal en est un pour un support fixe : thread = 0) */
+	long t = 0;
+	for (int k = thread ? 0 : 1; k < par; k++) {
+		u8 *stack = ak_malloc(STACK_THREAD);
+		long r = stack ? korin_sys3(SYS_THREAD_CREATE, dev_thread, stack + STACK_THREAD, d) : E_NOMEM;
+		if (r < 0) {
+			blog("%s : pas de thread (%ld)\n", d->name, r);
+			if (!k)
+				t = r;
+			break;
+		}
+	}
 	return t < 0 ? t : 0;
 }
 
@@ -545,6 +593,8 @@ static long op_attach(struct dev *d, struct msg *m)
 	u64 info[BI_SIZE / 8];
 	u64 phys = korin_sys2(SYS_BUF_INFO, m->a, info) == 0 ? info[0] : 0; /* (pour le DMA) */
 	u32 pid = m->pid;
+	cl_take();
+	long r = 0;
 	/* les places des clients terminés (fatfs démonté, mkfs) sont rendues, leur
 	   tampon démappé s'il n'est plus tenu ailleurs */
 	for (int i = 0; i < CL_MAX; i++) {
@@ -560,24 +610,35 @@ static long op_attach(struct dev *d, struct msg *m)
 	struct client *c = client_of(d, pid); /* une place (la sienne, ou libre) */
 	if (!c)
 		c = client_of(d, 0);
-	if (!c)
-		return E_NOMEM;
-	u64 size = (u64)m->b > BUF_SLOT ? BUF_SLOT : (u64)m->b; /* une fenêtre au plus */
-	c->start = (u64)va;
-	c->end = (u64)va + size;
-	c->phys = phys;
-	c->buf = m->a;
-	c->pid = pid;
-	return 0;
+	if (!c) {
+		r = E_NOMEM;
+	} else {
+		u64 size = (u64)m->b > BUF_SLOT ? BUF_SLOT : (u64)m->b; /* une fenêtre au plus */
+		c->start = (u64)va;
+		c->end = (u64)va + size;
+		c->phys = phys;
+		c->buf = m->a;
+		c->pid = pid;
+	}
+	cl_give();
+	return r;
 }
 
 static long op_rw(struct dev *d, struct msg *m)
 {
 	if (!d->size)
 		return E_IO; /* (support retiré, partition disparue) */
-	struct client *c = client_of(d, m->pid); /* le tampon de ce client */
-	if (!c || !m->pid)
+	if (!m->pid)
 		return E_PERM;
+	cl_take();
+	struct client *cp = client_of(d, m->pid); /* le tampon de ce client (copié : un autre fil peut l'attacher) */
+	struct client c0;
+	if (cp)
+		c0 = *cp;
+	cl_give();
+	if (!cp)
+		return E_PERM;
+	struct client *c = &c0;
 	u64 sec = m->a, n = m->b, addr = m->c;
 	if (addr < c->start || n > (c->end - c->start) >> 9 || addr + (n << 9) > c->end || sec + n > d->size ||
 	    sec + n < sec)
@@ -615,6 +676,8 @@ static long op_read_direct(struct dev *d, long req, struct msg *m)
 	long r = korin_sys3(SYS_SVC_CALLER_PHYS, va, phys, BLK_SG_PAGES);
 	if (r < 0)
 		return r;
+	if (par > 1)
+		return drv->read_sg(drv->ctx, d->base + sec, n, (void *)va, phys);
 	lock();
 	r = drv->read_sg(drv->ctx, d->base + sec, n, (void *)va, phys);
 	unlock();
@@ -641,7 +704,11 @@ static THREAD_ENTRY void dev_thread(struct dev *d)
 	for (;;) {
 		if (d->chan < 0)
 			break;
+		if (par > 1)
+			mutex_lock(&d->recv);
 		long req = korin_sys3(SYS_SVC_NEXT, d->chan, &m, 60000);
+		if (par > 1)
+			mutex_unlock(&d->recv);
 		if (req < 0)
 			break;
 		if (!req)
@@ -715,12 +782,14 @@ static THREAD_ENTRY void dev_thread(struct dev *d)
 NORETURN void blk_serve(struct blk_driver *d)
 {
 	drv = d;
-	if (d->version < 1 || d->version > BLK_DRIVER_V2 || (d->sector_size && d->sector_size != 512) ||
+	if (d->version < 1 || d->version > BLK_DRIVER_V3 || (d->sector_size && d->sector_size != 512) ||
 	    !d->read || !d->name || (d->present && !d->capacity)) {
 		blog("pilote refusé (version %u, secteurs de %u octets)\n", d->version, d->sector_size);
 		exit(1);
 	}
 	snprintf(disk_name, sizeof disk_name, "%s", d->name);
+	if (d->version >= BLK_DRIVER_V3 && d->concurrency > 1)
+		par = d->concurrency > BLK_PAR_MAX ? BLK_PAR_MAX : (int)d->concurrency;
 	bootpart_load();
 	apply_table();
 	if (!drv->present)

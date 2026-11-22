@@ -128,6 +128,18 @@ void fo_own_end(long pid, void (*close_num)(long num))
 	}
 }
 
+long fo_own_any_last(long pid, long (*fn)(long num))
+{
+	if (!pid)
+		return 0;
+	for (int i = 0; i < FOW_MAX; i++) {
+		u32 n = proprios[i][0];
+		if (n && proprios[i][1] == (u32)pid && fo_own_count(n - 1) == 1 && fn(n - 1))
+			return 1;
+	}
+	return 0;
+}
+
 long fo_own_fork(long child, long parent)
 {
 	long refused = 0;

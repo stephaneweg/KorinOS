@@ -473,12 +473,40 @@ static long vers_volume(long op, const char *path, long d, int fwd)
 	msg.len = (u32)n;
 	msg.op = op;
 	msg.d = d;
+	/* le cache des noms (ncache.c) : un absent connu est répondu ici ; un open en lecture d'un
+	   inconnu est fait par un appel au nom du programme, pour en apprendre le résultat */
+	int lecture = op == FS_OPEN && !(msg.a & (O_WRITE | O_CREATE | O_TRUNC | O_APPEND));
+	int apprendre = 0, garder_a = 0;
+	if (op == FS_STAT || lecture) {
+		long st = nc_lookup(v, (char *)msg.data);
+		if (st < 0) {
+			msg.op = st;
+			msg.len = 0;
+			return st;
+		}
+		if (!st) {
+			apprendre = 1;
+			if (fwd && lecture) { /* (le service voit vfs : d = le programme, propriétaire) */
+				fwd = 0;
+				msg.d = msg.pid;
+				garder_a = 1; /* a : le canal que le service rend, comme transmise */
+			}
+		}
+	} else if (op == FS_OPEN || op == FS_MKDIR || op == FS_UNLINK) {
+		nc_forget(v, (char *)msg.data); /* (le chemin va être créé ou effacé) */
+	}
 	if (fwd)
 		return transmettre(v);
+	char cle[NC_KEY_MAX];
+	u64 seq = nc_seq();
+	if (apprendre)
+		memcpy(cle, msg.data, n);
 	long ch = v->chan;
 	long r = vol_appel_libre(v, &msg); /* (verrou global relâché : un service lent ne bloque pas vfs) */
 	msg.op = r;
-	if (r >= 0 && op == FS_OPEN)
+	if (apprendre && v->chan == ch && v->name[0]) /* (démonté entre-temps : nc_seq a bougé) */
+		nc_learn(v, cle, r, seq);
+	if (r >= 0 && op == FS_OPEN && !garder_a)
 		msg.a = ch;
 	return r;
 }
@@ -578,6 +606,7 @@ static long chemin_renommer(long pid)
 		return r; /* (règles d'accès, access.c) */
 	forget_resolu();
 	forget_chemin(nom_exec);
+	nc_flush(); /* (un dossier renommé : tout ce qu'il contient change de nom) */
 	const char *target, *old;
 	struct volume *v = volume_de(nom_exec + 1, &target);
 	if (!v)

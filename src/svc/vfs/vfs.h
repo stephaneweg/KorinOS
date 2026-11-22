@@ -87,6 +87,15 @@ struct volume *vol_index(struct volume *v);
 long vol_lire(struct volume *v, const char *rel, void *buf, u64 max);
 void vol_publier(struct volume *v, int remove);
 
+/* ---- ncache.c : le cache des noms (présents et absents) */
+#define NC_KEY_MAX 464 /* (FS_DATA_MAX) */
+long nc_lookup(const struct volume *v, const char *svcpath);
+u64 nc_seq(void);
+void nc_learn(const struct volume *v, const char *svcpath, long r, u64 seq);
+void nc_forget(const struct volume *v, const char *svcpath);
+void nc_flush(void);
+void nc_stats(u64 *hits, u64 *neg, u64 *learned);
+
 /* ---- path.c */
 extern const char dossier_defaut[];
 extern const char chemin_sys[], sp_bin[], sp_sbin[], sp_apps[], sp_main[];

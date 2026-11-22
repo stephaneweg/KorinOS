@@ -286,6 +286,12 @@ static long ex_name_equal(struct vol *v, const char *a, const char *b)
 	}
 }
 
+/* (dirindex.c) nom demandé (fin : 0 ou « / »), nom d'une entrée -> 1 si égaux pour exFAT */
+long exfat_name_equal(struct vol *v, const char *a, const char *b)
+{
+	return ex_name_equal(v, a, b);
+}
+
 long exfat_lookup(struct vol *v, const char *p, struct de *de)
 {
 	u64 cur = v->root;

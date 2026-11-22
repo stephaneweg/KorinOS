@@ -433,7 +433,7 @@ long dir_read(struct it *it, struct de *de)
 }
 
 /* chaîne 1 (fin : 0 ou « / »), chaîne 2 -> 1 si égales (ASCII insensible à la casse) */
-static long name_equal(const char *a, const char *b)
+long fat_name_equal(const char *a, const char *b)
 {
 	for (;;) {
 		u8 c1 = (u8)*a++, c2 = (u8)*b++;
@@ -455,7 +455,7 @@ static long dir_find(struct vol *v, u64 dir, const char *name, struct de *de)
 	struct it it;
 	dir_open(&it, v, dir);
 	while (dir_read(&it, de))
-		if (name_equal(name, de->name))
+		if (fat_name_equal(name, de->name))
 			return 1;
 	return 0;
 }

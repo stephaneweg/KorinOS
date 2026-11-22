@@ -99,6 +99,7 @@ static long vol_ecrire_fichier(struct volume *v, const char *rel, const void *bu
 {
 	msg2_op(FS_OPEN, O_WRITE | O_CREATE | O_TRUNC, 0, 0);
 	msg2_chemin(v, rel);
+	nc_forget(v, (char *)msg2.data); /* (le cache des noms) */
 	long r = appel2(v);
 	if (r < 0)
 		return r;

@@ -1,9 +1,18 @@
 /* nvme - un disque NVMe en service, en C (docs/etude/PC-PILOTES.md, « NVMe »).
  * D'après les spécifications publiques « NVM Express Base Specification » 1.4
  * et « NVM Command Set » : registres de BAR0, file d'administration, IDENTIFY
- * (contrôleur, liste des espaces de noms actifs, espace de noms), une paire de
- * files d'E/S, lecture et écriture par PRP (listes PRP pour plus de deux pages),
- * FLUSH, arrêt (CC.SHN). Rien de propre au PC ici : la fonction PCIe, BAR0 et
+ * (contrôleur, liste des espaces de noms actifs, espace de noms), plusieurs paires
+ * de files d'E/S, lecture et écriture par PRP (listes PRP pour plus de deux pages),
+ * FLUSH, arrêt (CC.SHN).
+ *
+ * Plusieurs requêtes en vol (22/11/2026, docs/agents/FICHIERS-PERF.md, point 5) :
+ * NQ_MAX paires de files d'E/S au plus (ce que le contrôleur accorde), chacune avec
+ * ses places de commande, ses listes PRP, son tampon et son verrou ; une requête
+ * prend une file libre et la garde jusqu'à sa fin : autant de requêtes de clients
+ * différents en vol que de files (blkserv : BLK_DRIVER_V3, concurrency = files).
+ * Toutes les files d'achèvement sur le vecteur 0 (une MSI réveille tous les fils
+ * qui attendent). Les écritures restent une à la fois (le verrou de blkserv) et
+ * revérifiées par policy_write_ok avant d'aller au contrôleur. Rien de propre au PC ici : la fonction PCIe, BAR0 et
  * les interruptions viennent de plat_<arch>.c.
  *
  *	nvme [-r] [-v] [-d] [-p] [-n NOM] [-N NSID] [-c FICHIER] [-w RÈGLE]... [SSSS:BB:DD.F]
@@ -61,6 +70,8 @@
 #define AQ_SIZE 32
 #define IOQ_MAX 64
 #define QD_MAX 16
+#define NQ_MAX 8                /* paires de files d'E/S au plus */
+#define QBOUNCE (256u << 10)    /* tampon d'une file (adresse physique inconnue ou mal alignée) */
 #define XFER_MAX (1u << 20) /* octets par commande au plus (liste PRP d'une page) */
 #define BOUNCE (1u << 20)
 #define ADMIN_MS 5000
@@ -99,26 +110,36 @@ struct slot {
 	u32 result;
 };
 
+/* une paire de files d'E/S et ce qu'il faut à une requête */
+struct ioqueue {
+	struct queue q;
+	volatile u32 lock;   /* tenu par la requête qui s'en sert */
+	u16 next_cid;
+	struct slot slots[QD_MAX];
+	u64 *prp_lists[QD_MAX];
+	u64 prp_lists_pa[QD_MAX];
+	u8 *bounce;
+	u64 bounce_pa;
+};
+
 int nv_verbose;
 u64 nv_sectors;
 
 static struct nvme_plat plat;
-static struct queue aq, ioq;
-static struct slot slots[QD_MAX];
-static u8 *dma;          /* la zone DMA : files, IDENTIFY, listes PRP, tampon */
+static struct queue aq;
+static struct ioqueue ioqs[NQ_MAX];
+static int nq;           /* files d'E/S créées */
+static volatile u32 q_hand; /* (choix d'une file : tourniquet) */
+static u8 *dma;          /* la zone DMA d'administration : files, IDENTIFY */
 static u64 dma_pa;
 static u8 *ident;        /* 4 Ko : réponses d'IDENTIFY */
 static u64 ident_pa;
-static u64 *prp_lists[QD_MAX];
-static u64 prp_lists_pa[QD_MAX];
-static u8 *bounce;
-static u64 bounce_pa;
 static u32 dstrd, timeout_ms, nsid, qd;
 static u32 max_sect;     /* secteurs de 512 par commande */
-static u16 next_cid = 1;
+static u16 next_cid = 1; /* (file d'administration) */
 static int vwc, dead, force_poll;
 static long irq = -1;
-static u32 nv_lock;
+static u32 nv_lock;      /* la file d'administration */
 static volatile int dirty;
 static volatile long last_write_ms;
 static u64 n_cmds, n_sleeps, n_errors, n_sectors_rd, n_sectors_wr;
@@ -180,6 +201,35 @@ static void unlock(void)
 	__atomic_store_n(&nv_lock, 0, __ATOMIC_RELEASE);
 }
 
+/* -> une file d'E/S libre, prise (on attend s'il n'y en a pas) */
+static struct ioqueue *q_take(void)
+{
+	for (int spin = 0;; spin++) {
+		u32 h = __atomic_fetch_add(&q_hand, 1, __ATOMIC_RELAXED);
+		for (int k = 0; k < nq; k++) {
+			struct ioqueue *q = &ioqs[(h + k) % nq];
+			if (!q->lock && !__atomic_exchange_n(&q->lock, 1, __ATOMIC_ACQUIRE))
+				return q;
+		}
+		korin_sys0(SYS_YIELD);
+	}
+}
+
+static void q_give(struct ioqueue *q)
+{
+	__atomic_store_n(&q->lock, 0, __ATOMIC_RELEASE);
+}
+
+/* toutes les files prises (arrêt) */
+static void q_take_all(void)
+{
+	for (int i = 0; i < nq; i++)
+		while (__atomic_exchange_n(&ioqs[i].lock, 1, __ATOMIC_ACQUIRE))
+			korin_sys0(SYS_YIELD);
+}
+
+#define STAT_ADD(x, v) __atomic_fetch_add(&(x), (v), __ATOMIC_RELAXED)
+
 /* ---- registres (32 bits ; les 64 bits en deux moitiés, la basse d'abord) */
 
 static inline u32 rd32(unsigned r)
@@ -236,12 +286,17 @@ static void queue_init(struct queue *q, int qid, u16 size, u8 *sq, u64 sq_pa, u8
 	memset(cq, 0, size * sizeof(struct cqe));
 }
 
+static u16 cid_next(u16 *n)
+{
+	u16 c = (*n)++;
+	if (*n == 0xFFFF)
+		*n = 1;
+	return c;
+}
+
 static u16 new_cid(void)
 {
-	u16 c = next_cid++;
-	if (next_cid == 0xFFFF)
-		next_cid = 1;
-	return c;
+	return cid_next(&next_cid);
 }
 
 /* une commande dans la file (sans attendre) ; le cid est mis dans cdw0 */
@@ -256,7 +311,7 @@ static void submit(struct queue *q, struct sqe *e, u16 cid)
 	q->tail = (u16)((q->tail + 1) % q->size);
 	nv_wmb();
 	*q->sq_db = q->tail;
-	n_cmds++;
+	STAT_ADD(n_cmds, 1);
 }
 
 /* les achèvements arrivés : rangés dans les places (n) -> nombre lus */
@@ -322,12 +377,12 @@ static int wait_slots(struct queue *q, struct slot *sl, int n, long ms)
 			return E_TIMEDOUT;
 		}
 		if (irq >= 0) {
-			n_sleeps++;
+			STAT_ADD(n_sleeps, 1);
 			korin_sys2(SYS_IRQ_WAIT, irq, 5); /* (court : une MSI arrivée avant l'attente est rendue au délai) */
 		} else if (spin < SPIN_FREE + 4000)
 			korin_sys0(SYS_YIELD);
 		else {
-			n_sleeps++;
+			STAT_ADD(n_sleeps, 1);
 			korin_sys1(SYS_SLEEP, 1);
 		}
 	}
@@ -404,8 +459,8 @@ static u64 xs_phys(const struct xsrc *x, u64 off)
 	return x->base + off;
 }
 
-/* PRP1, PRP2 d'un morceau (len octets à off) ; liste dans prp_lists[k] si besoin */
-static void build_prp(struct sqe *e, const struct xsrc *x, u64 off, u32 len, int k)
+/* PRP1, PRP2 d'un morceau (len octets à off) ; liste dans la k-ième de la file si besoin */
+static void build_prp(struct ioqueue *q, struct sqe *e, const struct xsrc *x, u64 off, u32 len, int k)
 {
 	u64 p1 = xs_phys(x, off);
 	e->prp1 = p1;
@@ -418,18 +473,19 @@ static void build_prp(struct sqe *e, const struct xsrc *x, u64 off, u32 len, int
 		e->prp2 = xs_phys(x, off + first);
 		return;
 	}
-	u64 *l = prp_lists[k];
+	u64 *l = q->prp_lists[k];
 	u32 n = (rest + PAGE - 1) / PAGE;
 	for (u32 i = 0; i < n; i++)
 		l[i] = xs_phys(x, off + first + (u64)i * PAGE);
 	nv_wmb();
-	e->prp2 = prp_lists_pa[k];
+	e->prp2 = q->prp_lists_pa[k];
 }
 
-/* lecture ou écriture de n secteurs à lba, données décrites par x -> 0, < 0
+/* (file q prise) lecture ou écriture de n secteurs à lba, données décrites par x -> 0, < 0
  * (morceaux de max_sect secteurs, qd en vol à la fois) */
-static int io(int write, u64 lba, u64 n, const struct xsrc *x)
+static int io(struct ioqueue *q, int write, u64 lba, u64 n, const struct xsrc *x)
 {
+	struct slot *slots = q->slots;
 	u64 done = 0;
 	while (done < n) {
 		int k = 0;
@@ -439,51 +495,52 @@ static int io(int write, u64 lba, u64 n, const struct xsrc *x)
 			struct sqe e = {0};
 			e.cdw0 = write ? N_WRITE : N_READ;
 			e.nsid = nsid;
-			build_prp(&e, x, done * 512, c * 512, k);
+			build_prp(q, &e, x, done * 512, c * 512, k);
 			e.cdw10 = (u32)(lba + done);
 			e.cdw11 = (u32)((lba + done) >> 32);
 			e.cdw12 = c - 1;
-			slots[k].cid = new_cid();
+			slots[k].cid = cid_next(&q->next_cid);
 			slots[k].busy = 1;
 			slots[k].done = 0;
 			slots[k].status = 0;
 			nv_dbg("%s %lu +%u (PRP %lx %lx)\n", write ? "écriture" : "lecture", (unsigned long)(lba + done), c,
 			       (unsigned long)e.prp1, (unsigned long)e.prp2);
-			submit(&ioq, &e, slots[k].cid);
+			submit(&q->q, &e, slots[k].cid);
 			done += c;
 		}
-		int r = wait_slots(&ioq, slots, k, IO_MS);
+		int r = wait_slots(&q->q, slots, k, IO_MS);
 		for (int i = 0; i < k; i++)
 			slots[i].busy = 0;
 		if (r < 0) {
-			n_errors++;
+			STAT_ADD(n_errors, 1);
 			return E_IO;
 		}
 		for (int i = 0; i < k; i++)
 			if (slots[i].status & 0x7FF) {
-				n_errors++;
+				STAT_ADD(n_errors, 1);
 				nv_log("%s à %lu : état %03x %s\n", write ? "écriture" : "lecture",
 				       (unsigned long)(lba + start), slots[i].status & 0x7FF, status_text(slots[i].status));
 				return E_IO;
 			}
 	}
 	if (write)
-		n_sectors_wr += n;
+		STAT_ADD(n_sectors_wr, n);
 	else
-		n_sectors_rd += n;
+		STAT_ADD(n_sectors_rd, n);
 	return 0;
 }
 
-static int flush_locked(void)
+/* (file q prise) FLUSH : tout ce qui a été écrit et achevé, sur toutes les files, est sur le support */
+static int flush_locked(struct ioqueue *q)
 {
 	struct slot s = {0};
 	struct sqe e = {0};
 	e.cdw0 = N_FLUSH;
 	e.nsid = nsid;
-	s.cid = new_cid();
+	s.cid = cid_next(&q->next_cid);
 	s.busy = 1;
-	submit(&ioq, &e, s.cid);
-	int r = wait_slots(&ioq, &s, 1, IO_MS);
+	submit(&q->q, &e, s.cid);
+	int r = wait_slots(&q->q, &s, 1, IO_MS);
 	if (r == 0 && (s.status & 0x7FF)) {
 		nv_log("FLUSH : état %03x %s\n", s.status & 0x7FF, status_text(s.status));
 		r = E_IO;
@@ -495,18 +552,18 @@ static int flush_locked(void)
 
 /* lecture ou écriture par le tampon (adresse physique inconnue, mal alignée, ou
  * machine sans DMA cohérent) */
-static int io_bounce(int write, u64 lba, u64 n, u8 *buf)
+static int io_bounce(struct ioqueue *q, int write, u64 lba, u64 n, u8 *buf)
 {
-	struct xsrc x = {bounce_pa, 0, 0};
+	struct xsrc x = {q->bounce_pa, 0, 0};
 	for (u64 i = 0; i < n;) {
-		u64 k = n - i < BOUNCE / 512 ? n - i : BOUNCE / 512;
+		u64 k = n - i < QBOUNCE / 512 ? n - i : QBOUNCE / 512;
 		if (write)
-			memcpy(bounce, buf + i * 512, k * 512);
-		int r = io(write, lba + i, k, &x);
+			memcpy(q->bounce, buf + i * 512, k * 512);
+		int r = io(q, write, lba + i, k, &x);
 		if (r < 0)
 			return r;
 		if (!write)
-			memcpy(buf + i * 512, bounce, k * 512);
+			memcpy(buf + i * 512, q->bounce, k * 512);
 		i += k;
 	}
 	return 0;
@@ -524,20 +581,20 @@ static long do_rw(int write, u64 lba, u64 n, void *addr, u64 phys)
 		       (unsigned long)lba, (unsigned long)(lba + n - 1));
 		return E_PERM;
 	}
-	lock();
+	struct ioqueue *q = q_take();
 	long r;
 	if (dead)
 		r = E_IO;
 	else if (phys && !(phys & 3) && !plat.bounce_only) {
 		struct xsrc x = {phys, 0, 0};
-		r = io(write, lba, n, &x);
+		r = io(q, write, lba, n, &x);
 	} else
-		r = io_bounce(write, lba, n, addr);
+		r = io_bounce(q, write, lba, n, addr);
 	if (write && r == 0) {
 		dirty = 1;
 		last_write_ms = now_ms();
 	}
-	unlock();
+	q_give(q);
 	return r;
 }
 
@@ -545,9 +602,9 @@ long nv_read_raw(u64 lba, u64 n, void *buf)
 {
 	if (lba + n > nv_sectors)
 		return E_INVAL;
-	lock();
-	long r = dead ? E_IO : io_bounce(0, lba, n, buf);
-	unlock();
+	struct ioqueue *q = q_take();
+	long r = dead ? E_IO : io_bounce(q, 0, lba, n, buf);
+	q_give(q);
 	return r;
 }
 
@@ -571,17 +628,17 @@ static long b_read_sg(void *ctx, u64 sector, u64 count, void *addr, const u64 *p
 	(void)ctx;
 	if (sector + count > nv_sectors)
 		return E_INVAL;
-	lock();
+	struct ioqueue *q = q_take();
 	long r;
 	if (dead)
 		r = E_IO;
 	else if (((u64)addr & 3) || plat.bounce_only)
-		r = io_bounce(0, sector, count, addr);
+		r = io_bounce(q, 0, sector, count, addr);
 	else {
 		struct xsrc x = {0, phys, (u64)addr & (PAGE - 1)};
-		r = io(0, sector, count, &x);
+		r = io(q, 0, sector, count, &x);
 	}
-	unlock();
+	q_give(q);
 	return r;
 }
 
@@ -590,29 +647,33 @@ static long b_stats(void *ctx, long busy_us, struct msg *m)
 {
 	(void)ctx;
 	(void)busy_us;
-	long sleeps = (long)n_sleeps;
-	m->a = (i64)n_cmds;
-	m->b = (i64)n_sectors_rd;
-	m->c = (i64)n_sectors_wr;
-	m->d = (i64)n_errors;
-	n_cmds = n_sleeps = n_sectors_rd = n_sectors_wr = n_errors = 0;
+	long sleeps = (long)__atomic_exchange_n(&n_sleeps, 0, __ATOMIC_RELAXED);
+	m->a = (i64)__atomic_exchange_n(&n_cmds, 0, __ATOMIC_RELAXED);
+	m->b = (i64)__atomic_exchange_n(&n_sectors_rd, 0, __ATOMIC_RELAXED);
+	m->c = (i64)__atomic_exchange_n(&n_sectors_wr, 0, __ATOMIC_RELAXED);
+	m->d = (i64)__atomic_exchange_n(&n_errors, 0, __ATOMIC_RELAXED);
 	return sleeps;
 }
 
-/* arrêt propre : cache vidé, files d'E/S rendues, CC.SHN, attente de SHST */
+/* (toutes les files prises) arrêt propre : cache vidé, files d'E/S rendues, CC.SHN, attente de SHST */
 static void shutdown_locked(void)
 {
 	if (dead)
 		return;
-	int f = flush_locked();
+	int f = flush_locked(&ioqs[0]);
 	struct sqe e = {0};
-	e.cdw0 = A_DELETE_SQ;
-	e.cdw10 = 1;
-	admin(&e, 0);
-	memset(&e, 0, sizeof e);
-	e.cdw0 = A_DELETE_CQ;
-	e.cdw10 = 1;
-	admin(&e, 0);
+	for (int i = nq; i >= 1; i--) { /* les SQ, puis les CQ */
+		memset(&e, 0, sizeof e);
+		e.cdw0 = A_DELETE_SQ;
+		e.cdw10 = (u32)i;
+		admin(&e, 0);
+	}
+	for (int i = nq; i >= 1; i--) {
+		memset(&e, 0, sizeof e);
+		e.cdw0 = A_DELETE_CQ;
+		e.cdw10 = (u32)i;
+		admin(&e, 0);
+	}
 	wr32(R_CC, (rd32(R_CC) & ~CC_SHN_MASK) | CC_SHN_NORMAL);
 	long t = now_ms();
 	int ok = wait_csts(CSTS_SHST_MASK, CSTS_SHST_DONE, 10000);
@@ -626,6 +687,7 @@ static long b_stop(void *ctx)
 {
 	(void)ctx;
 	nv_log("arrêt demandé\n");
+	q_take_all(); /* (gardées : plus rien ne va au contrôleur arrêté) */
 	lock();
 	shutdown_locked();
 	unlock();
@@ -636,9 +698,9 @@ static long b_stop(void *ctx)
 static long b_flush(void *ctx)
 {
 	(void)ctx;
-	lock();
-	int r = dead ? E_IO : flush_locked();
-	unlock();
+	struct ioqueue *q = q_take();
+	int r = dead ? E_IO : flush_locked(q);
+	q_give(q);
 	nv_log("cache vidé à la demande (%d)\n", r);
 	return r;
 }
@@ -670,13 +732,13 @@ static THREAD_ENTRY void flusher(long arg)
 		korin_sys1(SYS_SLEEP, 250);
 		if (!dirty || now_ms() - last_write_ms < 1000)
 			continue;
-		lock();
+		struct ioqueue *q = q_take();
 		if (dirty && !dead) {
-			int r = flush_locked();
+			int r = flush_locked(q);
 			if (r < 0)
 				nv_log("vidage du cache : %d\n", r);
 		}
-		unlock();
+		q_give(q);
 	}
 }
 
@@ -732,15 +794,11 @@ static int controller_start(void)
 	}
 	u16 iosz = mqes < IOQ_MAX ? (u16)mqes : IOQ_MAX;
 	u16 asz = mqes < AQ_SIZE ? (u16)mqes : AQ_SIZE;
-	/* zone DMA : 0 file d'admin. (SQ), 1 (CQ), 2 SQ d'E/S, 3 CQ d'E/S, 4 IDENTIFY,
-	 * 5.. listes PRP, puis le tampon */
+	/* zone DMA d'administration : 0 file d'admin. (SQ), 1 (CQ), 2 IDENTIFY ; chaque file
+	 * d'E/S a la sienne (io_queues_alloc) */
 	queue_init(&aq, 0, asz, dma, dma_pa, dma + PAGE, dma_pa + PAGE);
-	ident = dma + 4 * PAGE;
-	ident_pa = dma_pa + 4 * PAGE;
-	for (int i = 0; i < QD_MAX; i++) {
-		prp_lists[i] = (u64 *)(dma + (5 + i) * PAGE);
-		prp_lists_pa[i] = dma_pa + (5 + i) * PAGE;
-	}
+	ident = dma + 2 * PAGE;
+	ident_pa = dma_pa + 2 * PAGE;
 	wr32(R_AQA, (u32)(asz - 1) << 16 | (asz - 1));
 	wr64(R_ASQ, aq.sq_pa);
 	wr64(R_ACQ, aq.cq_pa);
@@ -766,33 +824,81 @@ static int controller_start(void)
 	max_sect = (u32)(mx / 512);
 	nv_log("« %s », série « %s », micrologiciel « %s », %u espace(s) de noms, transfert de %lu Ko au plus%s\n",
 	       ctrl_model, ctrl_serial, ctrl_fw, nn, (unsigned long)(mx >> 10), vwc ? ", cache d'écriture" : "");
-	/* une file d'E/S (une par cœur : plus tard) */
+	/* les files d'E/S : NQ_MAX paires demandées, ce que le contrôleur accorde (et ce que la mémoire
+	 * DMA permet) ; toutes sur le vecteur 0 */
+	int want = NQ_MAX;
 	struct sqe e = {0};
 	u32 res = 0;
 	e.cdw0 = A_SET_FEATURES;
 	e.cdw10 = FEAT_NUM_QUEUES;
-	e.cdw11 = 0; /* 1 SQ, 1 CQ */
-	if (admin(&e, &res) < 0)
-		return E_IO;
+	e.cdw11 = (u32)(want - 1) << 16 | (u32)(want - 1); /* (comptés depuis 0) */
+	if (admin(&e, &res) < 0) {
+		want = 1; /* (un contrôleur qui refuse : une file, comme avant) */
+		memset(&e, 0, sizeof e);
+		e.cdw0 = A_SET_FEATURES;
+		e.cdw10 = FEAT_NUM_QUEUES;
+		if (admin(&e, &res) < 0)
+			return E_IO;
+	}
+	u32 nsqa = (res & 0xFFFF) + 1, ncqa = (res >> 16) + 1;
+	if ((u32)want > nsqa)
+		want = (int)nsqa;
+	if ((u32)want > ncqa)
+		want = (int)ncqa;
 	irq = force_poll ? -1 : nvme_plat_irq(&plat);
-	queue_init(&ioq, 1, iosz, dma + 2 * PAGE, dma_pa + 2 * PAGE, dma + 3 * PAGE, dma_pa + 3 * PAGE);
-	memset(&e, 0, sizeof e);
-	e.cdw0 = A_CREATE_CQ;
-	e.prp1 = ioq.cq_pa;
-	e.cdw10 = (u32)(iosz - 1) << 16 | 1;
-	e.cdw11 = (irq >= 0 ? 2u : 0u) | 1u; /* vecteur 0, interruption si MSI, contiguë */
-	if (admin(&e, 0) < 0)
-		return E_IO;
-	memset(&e, 0, sizeof e);
-	e.cdw0 = A_CREATE_SQ;
-	e.prp1 = ioq.sq_pa;
-	e.cdw10 = (u32)(iosz - 1) << 16 | 1;
-	e.cdw11 = 1u << 16 | 1u; /* CQ 1, contiguë */
-	if (admin(&e, 0) < 0)
-		return E_IO;
+	nq = 0;
+	for (int i = 0; i < want; i++) {
+		struct ioqueue *q = &ioqs[i];
+		long ph = 0; /* SQ, CQ, listes PRP, tampon */
+		long va = korin_sys2(SYS_DMA_ALLOC, (2 + QD_MAX) * PAGE + QBOUNCE, &ph);
+		if (va < 0) {
+			if (!i) {
+				nv_log("pas de mémoire DMA pour la file d'E/S (%ld)\n", va);
+				return E_IO;
+			}
+			break;
+		}
+		u8 *z = (u8 *)va;
+		u64 zp = (u64)ph;
+		u16 qid = (u16)(i + 1);
+		queue_init(&q->q, qid, iosz, z, zp, z + PAGE, zp + PAGE);
+		for (int k = 0; k < QD_MAX; k++) {
+			q->prp_lists[k] = (u64 *)(z + (2 + k) * PAGE);
+			q->prp_lists_pa[k] = zp + (2 + k) * PAGE;
+		}
+		q->bounce = z + (2 + QD_MAX) * PAGE;
+		q->bounce_pa = zp + (2 + QD_MAX) * PAGE;
+		q->next_cid = 1;
+		q->lock = 0;
+		memset(&e, 0, sizeof e);
+		e.cdw0 = A_CREATE_CQ;
+		e.prp1 = q->q.cq_pa;
+		e.cdw10 = (u32)(iosz - 1) << 16 | qid;
+		e.cdw11 = (irq >= 0 ? 2u : 0u) | 1u; /* vecteur 0, interruption si MSI, contiguë */
+		if (admin(&e, 0) < 0) {
+			if (!i)
+				return E_IO;
+			break;
+		}
+		memset(&e, 0, sizeof e);
+		e.cdw0 = A_CREATE_SQ;
+		e.prp1 = q->q.sq_pa;
+		e.cdw10 = (u32)(iosz - 1) << 16 | qid;
+		e.cdw11 = (u32)qid << 16 | 1u; /* sa CQ, contiguë */
+		if (admin(&e, 0) < 0) {
+			memset(&e, 0, sizeof e); /* (sa CQ rendue) */
+			e.cdw0 = A_DELETE_CQ;
+			e.cdw10 = qid;
+			admin(&e, 0);
+			if (!i)
+				return E_IO;
+			break;
+		}
+		nq = i + 1;
+	}
 	qd = iosz - 2 < QD_MAX ? iosz - 2u : QD_MAX;
-	nv_log("file d'E/S : %u entrées, %u commandes en vol, %s\n", iosz, qd,
-	       irq >= 0 ? "interruption" : "sondage");
+	nv_log("%d file(s) d'E/S (%u accordées) : %u entrées, %u commandes en vol chacune, %s\n", nq,
+	       nsqa < ncqa ? nsqa : ncqa, iosz, qd, irq >= 0 ? "interruption" : "sondage");
 	return (int)nn;
 }
 
@@ -941,15 +1047,13 @@ int main(int argc, char **argv)
 	if (r < 0)
 		return 1;
 	long ph = 0;
-	long va = korin_sys2(SYS_DMA_ALLOC, (5 + QD_MAX) * PAGE + BOUNCE, &ph);
+	long va = korin_sys2(SYS_DMA_ALLOC, 3 * PAGE, &ph);
 	if (va < 0) {
 		nv_log("pas de mémoire DMA (%ld)\n", va);
 		return 1;
 	}
 	dma = (u8 *)va;
 	dma_pa = (u64)ph;
-	bounce = dma + (5 + QD_MAX) * PAGE;
-	bounce_pa = dma_pa + (5 + QD_MAX) * PAGE;
 	int nn = controller_start();
 	if (nn < 0)
 		return 1;
@@ -975,8 +1079,9 @@ int main(int argc, char **argv)
 	for (int i = 0; i < ncli; i++)
 		policy_line(cli_rules[i], "-w");
 	static struct blk_driver d; /* le pilote (src/svc/common/blkserv.h) */
-	d.version = BLK_DRIVER_V2;
+	d.version = BLK_DRIVER_V3;
 	d.plan = b_plan;
+	d.concurrency = (u32)nq; /* (une requête par file à la fois) */
 	d.name = nm;
 	d.sectors = nv_sectors;
 	d.read_only = 1; /* (le disque entier ; les partitions : policy_table) */

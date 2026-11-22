@@ -82,3 +82,47 @@ ensemble.
 - Ces services sont dans `/sys` et `vfs` sert tout le système : construire et essayer sous QEMU d'abord, garder
   l'ancien binaire, et **demander à l'utilisateur avant d'installer** sur le ZBook (CLAUDE.md, « Le système
   lui-même »).
+
+## Fait (session du cloud, 22-23/11/2026) : points 1, 2, 4 et 5
+
+Branche `claude/serene-newton-051kkg`. Essayé sous QEMU seulement (q35, 4 cœurs, **sans KVM**, NVMe de QEMU, machine
+chargée par la construction de WebKit) : **à essayer sur le ZBook**, en gardant les anciens `vfs`, `fatfs`, `nvme`.
+
+| Point | Ce qui est fait | Fichiers |
+|---|---|---|
+| 1. cache des noms dans `vfs` | Chemin du service (rootpath compris, minuscules pour `fatfs`) → présent, ou absent avec son erreur. Un `open` en lecture ou un `stat` d'un absent connu est répondu par `vfs` ; un `open` d'un présent connu est transmis comme avant (`SVC_FORWARD`) ; un `open` d'un inconnu est fait par un appel (au nom du programme, `d` = son pid) pour en apprendre le résultat. Seulement `fatfs`, `ext4fs`, `ramfs` (pas `gdrivefs` ni `smbfs`). Création, `mkdir`, effacement : l'entrée du chemin retirée ; renommage, montage, démontage, fin d'un service : tout oublié (génération). Un résultat appris pendant qu'un changement passait n'est pas gardé (compteur). 2048 × 4 entrées. | `src/svc/vfs/ncache.c`, `path.c` (`vers_volume`), `vfs.c`, `exec.c` |
+| 2. index par dossier dans `fatfs` | Table de hachage des noms (minuscules ASCII) de chaque répertoire lu, construite à la première recherche, tenue à jour par les créations, réécritures (`vol_maj`) et effacements de `fatfs` (FAT32 : en place ; exFAT : l'index du dossier changé est jeté et relu). 1024 dossiers, 96 Mo au plus sur le PC (le plus ancien rendu). `vol_chercher` descend le chemin par les index (`fat_lookup`/`exfat_lookup` ne servent plus). | `src/svc/fatfs/dirindex.c`, `fatfs.c` |
+| 4. lectures en parallèle dans `fatfs` | 8 fils sur le PC (1 sur le Pi). Lecteurs (open sans écriture, read, stat, readdir, seek, info, close sans écriture) en parallèle, le verrou relâché pendant leurs lectures du périphérique, chacun dans sa zone du tampon partagé ; écrivains seuls (ils attendent la fin des lecteurs). Une op tient son fichier ouvert (`fo->busy`) ; une fermeture qui doit écrire repasse en écrivain ; les avis de fork et de fin de process passent dans l'ordre (`recv`), la fin en écrivain seulement si un de ses fichiers doit écrire. | `src/svc/fatfs/fatfs.c`, `src/svc/common/fsowner.c` |
+| 5. plusieurs requêtes en vol (`blkserv`, `nvme`) | `struct blk_driver` : champ `concurrency` ajouté à la fin (`BLK_DRIVER_V3`) ; `blkserv` sert alors chaque périphérique par autant de fils et appelle `read`/`read_sg` sans son verrou (écritures et le reste : une à la fois, comme avant ; les autres pilotes ne changent pas). `nvme` : jusqu'à 8 paires de files d'E/S (ce que le contrôleur accorde), chacune avec ses places, ses listes PRP, son tampon et son verrou ; une requête prend une file libre ; toutes sur le vecteur 0. La garde `policy_write_ok` est inchangée. | `src/svc/common/blkserv.[ch]`, `src/svc/nvme/nvme.c` |
+
+Le point 3 (caches proportionnés) n'est pas fait.
+
+### Mesures (`fsbench`, nouvelle commande `src/bin/fsbench`)
+
+Dossier de 3 000 fichiers vides (`Present_header_file_N.h`) sur le FAT32 de `/`, chaque process fait 50 % d'`open`
+et 50 % de `stat`, moitié présents, moitié absents, pendant 5 s :
+
+| Process | Avant (main) | Après | |
+|---|---|---|---|
+| 1 | 200 op/s | 947 op/s | × 4,7 |
+| 4 | 4 × 51 = 204 op/s | ≈ 4 130 op/s | × 20 |
+| 8 | 8 × 25 = 200 op/s | ≈ 4 810 op/s | × 24 |
+
+Aucun résultat faux. Avant, le total reste à 200/s quel que soit le nombre de process (tout passe par un fil de
+`fatfs` qui relit le dossier) ; après, il monte avec eux (sous QEMU sans KVM, le coût des messages domine).
+Écritures en parallèle : 4 process créent chacun 400 fichiers dans 4 dossiers, puis tous sont retrouvés par
+l'index (`fsbench run /w1 400 4`, 0 faux), un effacement est vu aussitôt.
+
+Lectures de 4 Ko à des positions au hasard dans un fichier de 64 Mo : dans le cache de `fatfs`, rien ne change
+(≈ 200/s, limité ailleurs : `FS_READ_DIRECT` et la projection des pages de l'appelant ?) ; cache coupé (`fscache
+off`) : 8 process finissent ensemble en 5,7 s au lieu de 20,8 s (l'ancien `nvme` les sert l'un après l'autre),
+mais une lecture prend ≈ 250 ms sous QEMU dans les deux cas : **à regarder** (la marche de la chaîne FAT d'un gros
+fichier sans le cache ?). Un vrai banc NVMe (IOPS de blocs dispersés sur le ZBook) reste à faire.
+
+### À essayer sur le ZBook (par l'utilisateur)
+
+1. Garder les anciens `/sys/svc/vfs`, `fatfs`, `nvme` (et l'initrd : `vfs`, `fatfs`, `nvme` y sont).
+2. Installer `pc` construit depuis cette branche (noyau du 22/11 avec le compteur des pages, 917b76a, compris).
+3. `fsbench mk /fsb 3000`, `fsbench run /fsb 3000 8 5000` avant et après ; puis `tools/webkit/local/rebuild-sdk.py
+   10 "…"` avec le SDK sur le FAT32 : le rythme ne doit plus s'effondrer.
+4. Le journal : `nvme : N file(s) d'E/S`, et pour `fatfs` `fscache` (succès, défauts).

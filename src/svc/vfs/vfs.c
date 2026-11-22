@@ -460,6 +460,7 @@ static long monter(const char *vol, const char *src, const char *svc, const char
 	char in[24];
 	str_cat(str_cat(in, "/"), nom_vol);
 	point_ajouter(point, in);
+	nc_flush(); /* (le cache des noms : un dossier caché par le montage) */
 	vol_publier(v, 0); /* sur le bus */
 	return 0;
 }
@@ -607,6 +608,7 @@ static void montage_ligne(char *vol, char *val)
  * d'abord, et le volume quitte la table tout de suite) */
 static void demonter(struct volume *v, int sync)
 {
+	nc_flush();
 	int shared = 0;
 	for (int i = 0; i < VOL_MAX; i++)
 		if (&volumes[i] != v && volumes[i].name[0] && volumes[i].pid == v->pid)
@@ -854,6 +856,7 @@ static void oublier_pid(long pid)
 		struct volume *v = &volumes[i];
 		if (!v->name[0] || v->pid != pid)
 			continue;
+		nc_flush();
 		points_retirer(v->name); /* plus dans l'arbre */
 		vol_publier(v, 1); /* retiré du bus */
 		v->idxok = 0; /* (son index sera relu : tampon gardé) */
