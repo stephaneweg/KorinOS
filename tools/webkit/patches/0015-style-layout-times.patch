@@ -1,0 +1,188 @@
+diff -ru -U2 a/Source/WebCore/dom/Document.cpp b/Source/WebCore/dom/Document.cpp
+--- a/Source/WebCore/dom/Document.cpp	2026-11-22 17:47:05.504111186 +0000
++++ b/Source/WebCore/dom/Document.cpp	2026-11-22 17:49:33.606658169 +0000
+@@ -489,6 +489,13 @@
+ 
+ namespace WebCore {
+ 
++namespace KorinTimes {
++bool enabled();
++extern double styleMs;
++extern unsigned styleRecalcs, styleRebuilds;
++extern unsigned long styleElements;
++}
++
+ WTF_MAKE_TZONE_ALLOCATED_IMPL(Document);
+ WTF_MAKE_TZONE_ALLOCATED_IMPL(DocumentParserYieldToken);
+ 
+@@ -2828,6 +2835,18 @@
+ 
+     TraceScope tracingScope(StyleRecalcStart, StyleRecalcEnd);
+ 
++    // Korin (patch 0015) : le temps du style
++    struct KorinStyleTimer {
++        MonotonicTime start { KorinTimes::enabled() ? MonotonicTime::now() : MonotonicTime() };
++        ~KorinStyleTimer()
++        {
++            if (start) {
++                KorinTimes::styleMs += (MonotonicTime::now() - start).milliseconds();
++                ++KorinTimes::styleRecalcs;
++            }
++        }
++    } korinStyleTimer;
++
+     RenderView::RepaintRegionAccumulator repaintRegionAccumulator(renderView());
+ 
+     // FIXME: We should update style on our ancestor chain before proceeding, however doing so at
+@@ -2853,6 +2872,7 @@
+             type = ResolveStyleType::Rebuild;
+ 
+         if (type == ResolveStyleType::Rebuild) {
++            ++KorinTimes::styleRebuilds;
+             // This may get set again during style resolve.
+             m_hasNodesWithMissingStyle = false;
+ 
+@@ -2890,6 +2910,7 @@
+             }
+ 
+             m_lastStyleUpdateSizeForTesting = styleUpdate ? styleUpdate->size() : 0;
++            KorinTimes::styleElements += m_lastStyleUpdateSizeForTesting;
+ 
+             setHasValidStyle();
+             clearChildNeedsStyleRecalc();
+diff -ru -U2 a/Source/WebCore/page/LocalFrameViewLayoutContext.cpp b/Source/WebCore/page/LocalFrameViewLayoutContext.cpp
+--- a/Source/WebCore/page/LocalFrameViewLayoutContext.cpp	2026-11-22 17:47:05.502572272 +0000
++++ b/Source/WebCore/page/LocalFrameViewLayoutContext.cpp	2026-11-22 17:49:33.604949468 +0000
+@@ -68,6 +68,12 @@
+ 
+ namespace WebCore {
+ 
++namespace KorinTimes {
++bool enabled();
++extern double treeLayoutMs, postLayoutMs;
++extern unsigned fullLayouts, subtreeLayouts;
++}
++
+ WTF_MAKE_TZONE_ALLOCATED_IMPL(LocalFrameViewLayoutContext);
+ 
+ UpdateScrollInfoAfterLayoutTransaction::UpdateScrollInfoAfterLayoutTransaction() = default;
+@@ -264,6 +270,11 @@
+     }
+ 
+     Vector<FloatQuad> layoutAreas;
++    // Korin (patch 0015) : la mise en page de l'arbre, puis l'après (positions des couches, composition, repeinture)
++    bool korinTimes = KorinTimes::enabled();
++    auto korinTree = korinTimes ? MonotonicTime::now() : MonotonicTime();
++    if (korinTimes)
++        ++(is<RenderView>(layoutRoot) ? KorinTimes::fullLayouts : KorinTimes::subtreeLayouts);
+     {
+         TraceScope tracingScope(RenderTreeLayoutStart, RenderTreeLayoutEnd);
+         SetForScope layoutPhase(m_layoutPhase, LayoutPhase::InRenderTreeLayout);
+@@ -311,6 +322,9 @@
+             showRenderTree(renderView());
+ #endif
+     }
++    auto korinPost = korinTimes ? MonotonicTime::now() : MonotonicTime();
++    if (korinTimes)
++        KorinTimes::treeLayoutMs += (korinPost - korinTree).milliseconds();
+     {
+         SetForScope layoutPhase(m_layoutPhase, LayoutPhase::InViewSizeAdjust);
+         ScriptDisallowedScope::InMainThread scriptDisallowedScope;
+@@ -332,6 +346,8 @@
+         protect(view())->didLayout(layoutRoot, canDeferUpdateLayerPositions);
+         runOrScheduleAsynchronousTasks(canDeferUpdateLayerPositions);
+     }
++    if (korinTimes)
++        KorinTimes::postLayoutMs += (MonotonicTime::now() - korinPost).milliseconds();
+     InspectorInstrumentation::didLayout(frame, *layoutRoot, layoutAreas);
+     DebugPageOverlays::didLayout(frame);
+ }
+diff -ru -U2 a/Source/WebCore/page/Page.cpp b/Source/WebCore/page/Page.cpp
+--- a/Source/WebCore/page/Page.cpp	2026-11-22 17:47:05.502487461 +0000
++++ b/Source/WebCore/page/Page.cpp	2026-11-22 17:49:33.604733254 +0000
+@@ -2387,8 +2387,11 @@
+ // Korin (22/11/2026, docs/agents/JET-TF1-DEFILEMENT.md) : le temps de chaque étape de la mise à jour de l'affichage,
+ // avec ONYX_WEB_GPU_DEBUG ou /etc/web-gpu-debug : une ligne « web: gpu: steps: » toutes les 2 s (TF1+ : ≈ 500 ms par
+ // image en défilant le haut de la page, sans savoir quelle étape).
+-namespace KorinRenderTimes {
+-static bool enabled()
++// 0015 (docs/agents/JET-TF1-ETAPES-RESULTATS.md : « other » ≈ 400 ms) : la mise en page du milieu (après les
++// requestAnimationFrame) et les frises de défilement chronométrées ; le style (Document::resolveStyle) et la mise en
++// page (LocalFrameViewLayoutContext::performLayout) comptés partout, aussi hors de la mise à jour (forcés par le JS).
++namespace KorinTimes {
++bool enabled()
+ {
+     static int on = -1;
+     if (on < 0) {
+@@ -2397,8 +2400,14 @@
+     }
+     return on;
+ }
++double styleMs, treeLayoutMs, postLayoutMs;
++unsigned styleRecalcs, styleRebuilds, fullLayouts, subtreeLayouts;
++unsigned long styleElements;
++}
++namespace KorinRenderTimes {
++static bool enabled() { return KorinTimes::enabled(); }
+ static double stepMs[32];
+-static double layoutMs, compositingLayoutMs, afterMs, flushMs, totalMs, maxMs;
++static double layoutMs, compositingLayoutMs, afterMs, flushMs, totalMs, maxMs, middleLayoutMs, timelinesMs;
+ static unsigned updates;
+ static MonotonicTime since;
+ static void add(RenderingUpdateStep step, Seconds s)
+@@ -2424,7 +2433,8 @@
+             String::number(static_cast<int>(maxMs)), " ms); layout "_s, String::number(static_cast<int>(layoutMs)), ", compositing layout "_s,
+             String::number(static_cast<int>(compositingLayoutMs)), ", after "_s, String::number(static_cast<int>(afterMs)), ", layer flush "_s,
+             String::number(static_cast<int>(flushMs)));
+-        double accounted = layoutMs + compositingLayoutMs + afterMs;
++        line.append(", middle layout "_s, String::number(static_cast<int>(middleLayoutMs)), ", timelines "_s, String::number(static_cast<int>(timelinesMs)));
++        double accounted = layoutMs + compositingLayoutMs + afterMs + middleLayoutMs + timelinesMs;
+         for (double ms : stepMs)
+             accounted += ms;
+         line.append(", other "_s, String::number(static_cast<int>(totalMs - accounted)));
+@@ -2433,13 +2443,21 @@
+             ts << static_cast<RenderingUpdateStep>(1u << order[k].second);
+             line.append(", "_s, ts.release(), ' ', String::number(static_cast<int>(order[k].first)));
+         }
++        line.append("; style "_s, String::number(static_cast<int>(KorinTimes::styleMs)), " ms ("_s, String::number(KorinTimes::styleRecalcs),
++            " recalcs, "_s, String::number(KorinTimes::styleElements), " elements, "_s, String::number(KorinTimes::styleRebuilds),
++            " rebuilds), tree layout "_s, String::number(static_cast<int>(KorinTimes::treeLayoutMs)), " ms, post layout "_s,
++            String::number(static_cast<int>(KorinTimes::postLayoutMs)), " ms ("_s, String::number(KorinTimes::fullLayouts), " full, "_s,
++            String::number(KorinTimes::subtreeLayouts), " subtree)"_s);
+         line.append('\n');
+         auto utf8 = line.toString().utf8();
+         (void)!write(STDERR_FILENO, utf8.data(), utf8.length());
+     }
+     since = now;
+     std::fill(std::begin(stepMs), std::end(stepMs), 0);
+-    layoutMs = compositingLayoutMs = afterMs = flushMs = totalMs = maxMs = 0;
++    layoutMs = compositingLayoutMs = afterMs = flushMs = totalMs = maxMs = middleLayoutMs = timelinesMs = 0;
++    KorinTimes::styleMs = KorinTimes::treeLayoutMs = KorinTimes::postLayoutMs = 0;
++    KorinTimes::styleRecalcs = KorinTimes::styleRebuilds = KorinTimes::fullLayouts = KorinTimes::subtreeLayouts = 0;
++    KorinTimes::styleElements = 0;
+     updates = 0;
+ }
+ }
+@@ -2556,16 +2574,22 @@
+         document.serviceCaretAnimation();
+     });
+ 
++    auto korinMiddle = MonotonicTime::now();
+     layoutIfNeeded();
++    if (korinTimes)
++        KorinRenderTimes::middleLayoutMs += (MonotonicTime::now() - korinMiddle).milliseconds();
+ 
+     runProcessingStep(RenderingUpdateStep::ResizeObservations, [&] (Document& document) {
+         document.updateResizeObservations(*this);
+     });
+ 
+     // https://drafts.csswg.org/scroll-animations-1/#event-loop
++    auto korinTimelines = MonotonicTime::now();
+     forEachDocument([] (Document& document) {
+         document.updateStaleScrollTimelines();
+     });
++    if (korinTimes)
++        KorinRenderTimes::timelinesMs += (MonotonicTime::now() - korinTimelines).milliseconds();
+ 
+     runProcessingStep(RenderingUpdateStep::FocusFixup, [&] (Document& document) {
+         if (RefPtr focusedElement = document.focusedElement()) {

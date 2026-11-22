@@ -59,3 +59,12 @@ sur une copie) : toute réponse avec Sec-WebSocket-Extensions échouait. Vérifi
 1.4.4 en échec). jet 1.4.5 construit dans le cloud, pas publié (accord de l'utilisateur). Détails :
 docs/agents/JET-WEBSOCKET-DISNEY.md. Apps web 1.0.1 (fenêtre normale) et claude-code 2.1.330.6 (volet, terminal,
 cloud, file) publiés.
+**22/11 : SDK de Jet publié** (docs/agents/JET-SDK.md) : jet-sdk-1.4.6-{1,2,3}.zip dans la Release « packages »
+(workflow release-upload.yml étendu aux .zip). Installé par tools/webkit/jet-sdk-get.sh dans /devtools/jet-sdk ;
+jetbuild (un lot unifié) et jetlink (-> /tmp/jet-main) avec le GCC de Korin. Pièges de sa construction : en-têtes de
+libposix retirés (le GCC de Korin a les siens), liens symboliques -> en-têtes d'une ligne, cmake_pch.hxx et
+onyx-cc.specs réécrits. Lier sous QEMU vers le disque : délai dépassé du service de fichiers (170 Mo) -> /tmp.
+**22/11 : TF1+, résultats de l'agent local** (docs/agents/JET-TF1-ETAPES-RESULTATS.md) : « other » ≈ 400 ms par
+mise à jour lourde ; compositing layout, layer flush, observateurs innocents. « other » = surtout le layoutIfNeeded()
+du milieu de Page::updateRendering (après les requestAnimationFrame), non chronométré dans 0014. Patch 0015
+(style/mise en page séparés, partout) construit dans le cloud.
