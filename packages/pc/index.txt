@@ -2462,3 +2462,18 @@ needs = abi >= 629
 required = 0
 restart = 0
 content = bf351998d9addc6c1155d17ae8118a8d22b2d4ac91576faef5c1c530164a0745
+
+[nghttp2-dev]
+title = nghttp2 (développement)
+version = 1.70.0
+category = Développement
+author = Korin OS
+summary = nghttp2 1.70.0 (HTTP/2) : libnghttp2.a, nghttp2/ (licence MIT)
+size = 154564
+installed = 652531
+sha256 = e180b5bbcd81f393ce4098b1edd466e488978f7d390d251cb809a282bfcbfd32
+file = pkgs/nghttp2-dev-1.70.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+content = 925fce25743162733e25ec147e35fb00b469aa675cb500315b70abaeed5757ca
