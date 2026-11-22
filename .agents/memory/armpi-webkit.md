@@ -35,3 +35,10 @@ pc .88, patch 0012, ligne `web: gpu: gl:` avec ONYX_WEB_GPU_DEBUG ou /etc/web-gp
 (tarfile ustar), `pub.py pc --tree <dossier> --boot <dossier avec korin/initrd.tar> --only …` (sans --boot, pub
 prend build/pc/esp, périmé ici). Rust : cargo ne relie pas après un libposix neuf (toucher main.rs). En attente :
 mesures du ZBook (lignes gl:, intelgpu status avant/après un défilement de Netflix).
+**22/11 : mesure du ZBook avec pc .89** : `intelgpu status` après Netflix : attentes des clients 26 ms en moyenne,
+50,7 au pire ; « moteur » 7,7 / 50,7 ms ; fin -> repos 0 (le repos suit tout de suite). Cause : le fil du moteur
+dormait 50 ms (délai décidé avant le lot) et une fin de lot arrivée pendant le traitement de la précédente est perdue :
+**le noyau du PC (src/kernel/core/hw.c) remet `raised` à zéro dans sys_irq_wait et sys_irq_ack** — un défaut qui
+peut toucher tous les pilotes (nvme, usbd, hda, iwl…) ; pas corrigé dans le noyau (autre session, risque). Contourné
+dans intelgpu (d57ee0f) : 1 s après une activité, sommeil de 1 ms ; publié pc 2026.11.91. À mesurer de nouveau.
+Pour recueillir les messages d'une app lancée au Terminal : `2>&1 | cat > fichier` (grep peut garder sa sortie).
