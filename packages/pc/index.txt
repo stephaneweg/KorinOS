@@ -2522,3 +2522,18 @@ needs = freetype-dev, icu-dev, abi >= 629
 required = 0
 restart = 0
 content = b4dab0a21f0d439ab234327acdc81c80b681ef4d77eaf426a1765aee4b256511
+
+[skia-dev]
+title = Skia (développement)
+version = 154.0.0
+category = Développement
+author = Korin OS
+summary = Skia m154 (celui de Jet) : libskia.a, skia/include, skia/modules (licence BSD)
+size = 4929564
+installed = 18739188
+sha256 = b68b5e4ccb1cf1752a59b4f68eae3da33670d9dcc51655f8d4bf8fc13277852c
+file = pkgs/skia-dev-154.0.0.opk
+needs = freetype-dev, harfbuzz-dev, libpng-dev, libwebp-dev, zlib-dev, abi >= 629
+required = 0
+restart = 0
+content = 418a715764c9ad3c4b05cb05742e4825b71ba8b241835e5e81def7245f3d657a
