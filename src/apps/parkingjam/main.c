@@ -12,6 +12,10 @@
  *
  * Le paquet ne marque pas le modèle exécutable (/apps/godot.app/templates n'est pas dans /etc/exec.txt) : si
  * execv refuse (EACCES), on le marque (chmod +x, l'index /.exec) et on réessaie. Sans le modèle, on le dit.
+ *
+ * Le rendu : le project.binary du PCK n'a pas rendering_method (project.godot demande gl_compatibility), Godot
+ * prenait Forward+ (Vulkan) et la fenêtre restait blanche (22/11/2026, PC). On le donne ici, avant les arguments
+ * reçus (un --rendering-method de l'utilisateur, plus loin, l'emporte).
  */
 #include <errno.h>
 #include <sys/stat.h>
@@ -28,6 +32,8 @@ int main (int argc, char **argv)
 	char *av[40];
 	int n = 0;
 	av[n++] = (char *) SELF;		/* le chemin où Godot cherche main.pck */
+	av[n++] = (char *) "--rendering-method";
+	av[n++] = (char *) "gl_compatibility";
 	for (int i = 1; i < argc && n < 39; i++)
 		av[n++] = argv[i];
 	av[n] = 0;
