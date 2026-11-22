@@ -1093,7 +1093,8 @@ static void t_send_signal(const struct jv *a, struct result *r)
 	}
 	info[24 + 31] = 0;
 	char name[33];
-	snprintf(name, sizeof name, "%s", (char *)info + 24);
+	memcpy(name, info + 24, 32);
+	name[32] = 0;
 	if (pid == getpid()) {
 		fail(r, "c'est korin-mcp lui-même");
 		return;

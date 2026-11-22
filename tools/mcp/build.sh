@@ -52,7 +52,7 @@ if [ "${1:-}" = --host ]; then # les essais sur la machine de construction : JSO
 fi
 
 [ -f "$POSIX/lib/posix.specs" ] || { echo "mcp : d'abord ARCH=$ARCH sh tools/posix/build.sh" >&2; exit 1; }
-CFLAGS="-specs=$POSIX/lib/posix.specs -O2 -g0 -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter -I$GEN -I$SRC"
+CFLAGS="-specs=$POSIX/lib/posix.specs -O2 -g0 -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-format-truncation -I$GEN -I$SRC"  # (troncatures voulues : noms de volume, de process)
 for f in main json png tools files; do
 	${TC}gcc $CFLAGS -c "$SRC/$f.c" -o "$OUT/obj/$f.o"
 done
