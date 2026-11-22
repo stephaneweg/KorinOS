@@ -211,6 +211,143 @@ pub fn parse_usage(r: &Value) -> Usage {
     u
 }
 
+/// Une part du contexte (`get_context_usage`) : son nom en français, ses jetons, sa sorte.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Part {
+    pub id: String,
+    pub name: String,
+    pub tokens: u64,
+    /// "used", "deferred" (chargé à la demande : ne compte pas), "buffer" (réservé à la compaction), "free"
+    pub kind: String,
+}
+
+/// L'occupation du contexte d'une conversation.
+#[derive(Clone, Debug, Default)]
+pub struct Context {
+    pub parts: Vec<Part>,
+    pub total: u64,
+    pub max: u64,
+    pub pct: f64,
+    pub model: String,
+    pub auto_compact: bool,
+}
+
+/// Le nom français d'une part du contexte (celui de l'app Claude).
+fn part_name(id: &str, name: &str) -> String {
+    let (base, deferred) = match id.strip_suffix("_deferred") {
+        Some(b) => (b, true),
+        None => (id, name.contains("(deferred)")),
+    };
+    let fr = match base {
+        "system_prompt" => "Invite système",
+        "system_tools" => "Outils système",
+        "mcp_tools" => "Outils MCP",
+        "mcp_instructions" => "Instructions du serveur MCP",
+        "custom_agents" | "agents" => "Agents",
+        "memory_files" => "Fichiers mémoire",
+        "skills" => "Skills",
+        "slash_commands" => "Commandes",
+        "messages" => "Messages",
+        "autocompact_buffer" => "Tampon de compaction auto",
+        "free_space" => "Espace libre",
+        _ => "",
+    };
+    let fr = if fr.is_empty() { name.trim_end_matches(" (deferred)").to_owned() } else { fr.to_owned() };
+    if deferred { format!("{fr} (différés)") } else { fr }
+}
+
+/// `get_context_usage` -> Context.
+pub fn parse_context(r: &Value) -> Context {
+    let n = |v: &Value, k: &str| v.get(k).and_then(Value::as_u64).unwrap_or(0);
+    let mut c = Context {
+        parts: Vec::new(),
+        total: n(r, "totalTokens"),
+        max: n(r, "maxTokens"),
+        pct: r.get("percentage").and_then(Value::as_f64).unwrap_or(0.0),
+        model: r.get("model").and_then(Value::as_str).unwrap_or("").to_owned(),
+        auto_compact: r.get("isAutoCompactEnabled").and_then(Value::as_bool).unwrap_or(false),
+    };
+    for p in r.get("categories").and_then(Value::as_array).into_iter().flatten() {
+        let id = p.get("id").and_then(Value::as_str).unwrap_or("").to_owned();
+        let name = p.get("name").and_then(Value::as_str).unwrap_or("");
+        let deferred = p.get("isDeferred").and_then(Value::as_bool) == Some(true);
+        let kind = p.get("kind").and_then(Value::as_str).unwrap_or(if deferred { "deferred" } else { "used" }).to_owned();
+        let tokens = n(p, "tokens");
+        if tokens == 0 && kind != "free" {
+            continue;
+        }
+        c.parts.push(Part { name: part_name(&id, name), id, tokens, kind });
+    }
+    if c.max > 0 && c.pct == 0.0 {
+        c.pct = c.total as f64 * 100.0 / c.max as f64;
+    }
+    c
+}
+
+/// 887 600 -> « 887,6 k », 1 000 000 -> « 1 M », 950 -> « 950 ».
+pub fn tokens(n: u64) -> String {
+    let f = |x: f64, u: &str| {
+        let s = if (x - x.round()).abs() < 0.05 { format!("{:.0}", x) } else { format!("{:.1}", x).replace('.', ",") };
+        format!("{s} {u}")
+    };
+    if n >= 1_000_000 {
+        f(n as f64 / 1e6, "M")
+    } else if n >= 1000 {
+        f(n as f64 / 1e3, "k")
+    } else {
+        n.to_string()
+    }
+}
+
+/// Une commande (ou un skill) de Claude Code, d'après la réponse à `initialize`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SlashCommand {
+    pub name: String,
+    pub description: String,
+    /// les arguments attendus, « [what to design] »
+    pub hint: String,
+    pub aliases: Vec<String>,
+}
+
+/// `initialize` -> les commandes que la CLI accepte (sans terminal : celles de stream-json).
+pub fn parse_commands(r: &Value) -> Vec<SlashCommand> {
+    let s = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).unwrap_or("").trim().to_owned();
+    r.get("commands")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|c| !s(c, "name").is_empty())
+        .map(|c| SlashCommand {
+            name: s(c, "name"),
+            description: s(c, "description"),
+            hint: s(c, "argumentHint"),
+            aliases: c.get("aliases").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect(),
+        })
+        .collect()
+}
+
+/// Les commandes qui vont à « /<q> » : celles qui commencent par q (nom ou alias), puis celles qui le contiennent.
+pub fn match_commands<'a>(all: &'a [SlashCommand], q: &str) -> Vec<&'a SlashCommand> {
+    let q = q.to_lowercase();
+    let mut a: Vec<(u8, &SlashCommand)> = all
+        .iter()
+        .filter_map(|c| {
+            let n = c.name.to_lowercase();
+            if n.starts_with(&q) {
+                Some((0, c))
+            } else if c.aliases.iter().any(|x| x.to_lowercase().starts_with(&q)) {
+                Some((1, c))
+            } else if n.contains(&q) {
+                Some((2, c))
+            } else {
+                None
+            }
+        })
+        .collect();
+    a.sort_by_key(|(r, _)| *r);
+    a.into_iter().map(|(_, c)| c).collect()
+}
+
 /// « 2026-11-22T18:40:00Z », « …+01:00 », « ….123Z » -> secondes UNIX.
 pub fn iso_secs(s: &str) -> Option<i64> {
     let b = s.as_bytes();
@@ -305,6 +442,35 @@ pub fn cloud_status(s: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn commands() {
+        let r: Value = serde_json::from_str(r#"{"commands":[{"name":"compact","description":"Clear history","argumentHint":"<instructions>"},{"name":"context","description":"Show context"},{"name":"code-review","description":"Review","aliases":["review"]},{"name":"clear","description":"New","aliases":["reset","new"]}]}"#).unwrap();
+        let all = parse_commands(&r);
+        assert_eq!(all.len(), 4);
+        assert_eq!(all[0].hint, "<instructions>");
+        let names = |q: &str| match_commands(&all, q).iter().map(|c| c.name.as_str()).collect::<Vec<_>>();
+        assert_eq!(names("co"), ["compact", "context", "code-review"]);
+        assert_eq!(names("rev"), ["code-review"]);
+        assert_eq!(names("ear"), ["clear"]);
+        assert_eq!(names("").len(), 4);
+    }
+
+    #[test]
+    fn context() {
+        let r: Value = serde_json::from_str(r#"{"categories":[{"id":"system_prompt","name":"System prompt","tokens":2809,"kind":"used"},{"id":"system_tools_deferred","name":"System tools (deferred)","tokens":25319,"isDeferred":true,"kind":"deferred"},{"id":"mcp_tools","name":"MCP tools","tokens":0,"kind":"used"},{"id":"autocompact_buffer","name":"Autocompact buffer","tokens":33000,"kind":"buffer"},{"id":"free_space","name":"Free space","tokens":939172,"kind":"free"}],"totalTokens":27828,"maxTokens":1000000,"percentage":3,"model":"claude-haiku-5-5","isAutoCompactEnabled":true}"#).unwrap();
+        let c = parse_context(&r);
+        assert_eq!(c.parts.len(), 4);
+        assert_eq!(c.parts[0].name, "Invite système");
+        assert_eq!(c.parts[1].name, "Outils système (différés)");
+        assert_eq!(c.parts[1].kind, "deferred");
+        assert_eq!(c.parts[3].name, "Espace libre");
+        assert_eq!((c.total, c.max, c.pct), (27828, 1_000_000, 3.0));
+        assert_eq!(tokens(887_600), "887,6 k");
+        assert_eq!(tokens(1_000_000), "1 M");
+        assert_eq!(tokens(27_828), "27,8 k");
+        assert_eq!(tokens(950), "950");
+    }
     use serde_json::json;
 
     #[test]

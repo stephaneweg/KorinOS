@@ -33,6 +33,10 @@ struct Open {
     /// Une session du cloud (Claude Code sur le web) : lue, pas de champ de demande ; ses entrées, page après page.
     cloud: Option<String>,
     cloud_entries: Vec<serde_json::Value>,
+    /// L'occupation du contexte (`get_context_usage`), demandée à sa CLI quand le volet la montre.
+    context: Option<env::Context>,
+    context_err: Option<String>,
+    context_asked: Option<Instant>,
 }
 
 impl Open {
@@ -47,6 +51,9 @@ impl Open {
             queue: Vec::new(),
             cloud: None,
             cloud_entries: Vec::new(),
+            context: None,
+            context_err: None,
+            context_asked: None,
         }
     }
 }
@@ -56,6 +63,8 @@ enum Req {
     Usage,
     Cloud,
     Transcript { key: String, pages: u32 },
+    Context { key: String },
+    Commands { cwd: String, exact: bool },
 }
 
 enum Dialog {
@@ -98,6 +107,13 @@ pub struct App {
     usage: Option<Usage>,
     usage_err: Option<String>,
     usage_asked: Option<Instant>,
+    /// Les commandes et skills de Claude Code, par dossier (true : dites par la CLI de ce dossier ; false : par une
+    /// autre, sans les commandes du projet), et quand on les a demandées.
+    commands: HashMap<String, (Vec<env::SlashCommand>, bool)>,
+    commands_asked: HashMap<String, Instant>,
+    /// La liste de « / » : l'entrée choisie, le texte pour lequel elle a été fermée (Échap).
+    slash_sel: usize,
+    slash_closed: Option<String>,
     /// les sessions du cloud
     cloud: Vec<CloudSession>,
     cloud_err: Option<String>,
@@ -142,6 +158,10 @@ impl App {
             usage: None,
             usage_err: None,
             usage_asked: None,
+            commands: HashMap::new(),
+            commands_asked: HashMap::new(),
+            slash_sel: 0,
+            slash_closed: None,
             cloud: Vec::new(),
             cloud_err: None,
             cloud_asked: None,
@@ -356,6 +376,13 @@ impl App {
                     self.current = Some(new.clone());
                 }
             }
+            for r in self.requests.values_mut() {
+                if let Req::Context { key } = r
+                    && *key == old
+                {
+                    *key = new.clone();
+                }
+            }
             for k in ended.iter_mut() {
                 if *k == old {
                     *k = new.clone();
@@ -369,6 +396,7 @@ impl App {
         for k in ended {
             if let Some(o) = self.open.get_mut(&k) {
                 let cwd = o.cwd.clone();
+                o.context_asked = None;
                 self.git.stale(&cwd);
                 if !o.queue.is_empty() && !o.thread.busy {
                     let next = o.queue.remove(0);
@@ -420,6 +448,17 @@ impl App {
         sent
     }
 
+    /// Une demande de contrôle à la CLI de la conversation `key` (celle qui tourne ; rien sinon).
+    fn ask_conv(&mut self, key: &str, subtype: &str, extra: serde_json::Value, req: Req) -> bool {
+        self.req_counter += 1;
+        let id = format!("korin-app-{}", self.req_counter);
+        let sent = self.open.get_mut(key).and_then(|o| o.cli.as_mut()).is_some_and(|c| c.request(&id, subtype, extra));
+        if sent {
+            self.requests.insert(id, req);
+        }
+        sent
+    }
+
     /// La réponse d'une demande de contrôle (err : son erreur).
     fn answered(&mut self, id: &str, r: serde_json::Value, err: Option<String>) {
         let Some(req) = self.requests.remove(id) else { return };
@@ -438,6 +477,21 @@ impl App {
                         self.cloud_err = None;
                     }
                     Err(e) => self.cloud_err = Some(e),
+                }
+            }
+            Req::Commands { cwd, exact } => {
+                if err.is_none() && !(self.commands.get(&cwd).is_some_and(|c| c.1) && !exact) {
+                    self.commands.insert(cwd, (env::parse_commands(&r), exact));
+                }
+            }
+            Req::Context { key } => {
+                let Some(o) = self.open.get_mut(&key) else { return };
+                match err {
+                    Some(e) => o.context_err = Some(e),
+                    None => {
+                        o.context = Some(env::parse_context(&r));
+                        o.context_err = None;
+                    }
                 }
             }
             Req::Transcript { key, pages } => {
@@ -685,6 +739,28 @@ impl App {
             self.usage_asked = Some(Instant::now());
             self.ask("get_usage", serde_json::json!({ "skip_behaviors": true }), Req::Usage);
         }
+        // le contexte de la conversation : à sa CLI, à la fin de chaque tour, toutes les 15 s pendant un tour
+        if let Some(key) = self.current.clone()
+            && let Some(o) = self.open.get(&key)
+            && o.cloud.is_none()
+            && o.cli.is_some()
+        {
+            let since = o.context_asked.map(|a| a.elapsed());
+            let every = Duration::from_secs(if o.thread.busy { 15 } else { 120 });
+            let pending = self.requests.values().any(|r| matches!(r, Req::Context { key: k } if *k == key));
+            // (une demande sans réponse depuis 30 s : la CLI a été relancée, on redemande)
+            if pending && since.is_some_and(|d| d > Duration::from_secs(30)) {
+                self.requests.retain(|_, r| !matches!(r, Req::Context { key: k } if *k == key));
+            }
+            let pending = self.requests.values().any(|r| matches!(r, Req::Context { key: k } if *k == key));
+            if !pending && since.is_none_or(|d| d > every) {
+                if let Some(o) = self.open.get_mut(&key) {
+                    o.context_asked = Some(Instant::now());
+                }
+                self.ask_conv(&key, "get_context_usage", serde_json::json!({}), Req::Context { key: key.clone() });
+            }
+        }
+        let mut compact: Option<String> = None;
         ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             // -- l'abonnement
             section(ui, &t, "UTILISATION");
@@ -740,6 +816,10 @@ impl App {
                     let _ = std::process::Command::new("xdg-open").arg(format!("https://claude.ai/code/{sid}")).spawn();
                 }
                 return;
+            }
+            section(ui, &t, "CONTEXTE");
+            if context_view(ui, &t, &self.open[&key]) {
+                compact = Some(key.clone());
             }
             let cwd = self.open[&key].cwd.clone();
             section(ui, &t, "DOSSIER");
@@ -821,6 +901,12 @@ impl App {
                 ui.add(Label::new(RichText::new(id).font(theme::mono(theme::CAPTION)).color(t.text_faint)).selectable(true).wrap());
             }
         });
+        if let Some(key) = compact {
+            self.send_text(&key, "/compact");
+            if let Some(o) = self.open.get_mut(&key) {
+                o.context_asked = None;
+            }
+        }
     }
 
     // ---- la barre de menus de Korin (main.rs la tient : egui_korin::menu) ----
@@ -1259,6 +1345,23 @@ impl App {
         let mut drop_idx: Option<usize> = None;
         let no_dialog = matches!(self.dialog, Dialog::None);
         let cloud = self.open[&key].cloud.clone();
+        // « / » au début de la demande : les commandes et skills de Claude Code (demandées une fois par dossier)
+        let slash_q = slash_query(&self.open[&key].draft).map(str::to_owned);
+        if slash_q.is_some() {
+            let (cwd, running) = (self.open[&key].cwd.clone(), self.open[&key].cli.is_some());
+            let known = self.commands.get(&cwd).map(|c| c.1);
+            let wanted = known.is_none() || (known == Some(false) && running);
+            if wanted && self.commands_asked.get(&cwd).is_none_or(|a| a.elapsed() > Duration::from_secs(20)) {
+                self.commands_asked.insert(cwd.clone(), Instant::now());
+                if !(running && self.ask_conv(&key, "initialize", serde_json::json!({}), Req::Commands { cwd: cwd.clone(), exact: true })) {
+                    self.ask("initialize", serde_json::json!({}), Req::Commands { cwd, exact: false });
+                }
+            }
+        }
+        if self.slash_closed.as_deref().is_some_and(|c| Some(c) != slash_q.as_deref()) {
+            self.slash_closed = None;
+        }
+        let slash_open = slash_q.is_some() && self.slash_closed.is_none() && no_dialog;
         if let Some(sid) = cloud {
             egui::Panel::bottom(("lecture", &key)).frame(Frame::new().fill(t.canvas).inner_margin(Margin { left: 20, right: 20, top: 8, bottom: 14 })).show(ui, |ui| {
                 ui.horizontal(|ui| {
@@ -1292,9 +1395,95 @@ impl App {
                 });
                 ui.add_space(4.0);
             }
+            // la liste de « / » (au-dessus du champ) : ↑ ↓ choisir, Tab ou Entrée compléter, Échap fermer
+            let mut complete: Option<String> = None;
+            if slash_open && let Some(q) = slash_q.as_deref() {
+                let cmds = self.commands.get(&o.cwd).map(|c| c.0.as_slice());
+                let found = cmds.map(|all| env::match_commands(all, q)).unwrap_or_default();
+                if cmds.is_none() || !found.is_empty() {
+                    let n = found.len();
+                    if self.slash_sel >= n {
+                        self.slash_sel = 0;
+                    }
+                    let (up, down, tab, enter, esc) = ui.input_mut(|i| {
+                        if n == 0 {
+                            return (false, false, false, false, i.consume_key(Modifiers::NONE, Key::Escape));
+                        }
+                        (
+                            i.consume_key(Modifiers::NONE, Key::ArrowUp),
+                            i.consume_key(Modifiers::NONE, Key::ArrowDown),
+                            i.consume_key(Modifiers::NONE, Key::Tab),
+                            i.consume_key(Modifiers::NONE, Key::Enter),
+                            i.consume_key(Modifiers::NONE, Key::Escape),
+                        )
+                    });
+                    if n > 0 {
+                        if up {
+                            self.slash_sel = (self.slash_sel + n - 1) % n;
+                        }
+                        if down {
+                            self.slash_sel = (self.slash_sel + 1) % n;
+                        }
+                        if tab || enter {
+                            complete = Some(found[self.slash_sel].name.clone());
+                        }
+                    }
+                    if esc {
+                        self.slash_closed = Some(q.to_owned());
+                    }
+                    Frame::new().fill(t.card).stroke(Stroke::new(1.0, t.card_border)).corner_radius(theme::R).inner_margin(Margin::same(4)).show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        if cmds.is_none() {
+                            ui.horizontal(|ui| {
+                                ui.spinner();
+                                ui.label(RichText::new("Les commandes de Claude Code…").color(t.text_faint));
+                            });
+                            return;
+                        }
+                        ScrollArea::vertical().max_height(230.0).auto_shrink([false, true]).show(ui, |ui| {
+                            for (i, c) in found.iter().enumerate() {
+                                let sel = i == self.slash_sel;
+                                let r = Frame::new()
+                                    .fill(if sel { t.accent_soft } else { Color32::TRANSPARENT })
+                                    .corner_radius(theme::R)
+                                    .inner_margin(Margin::symmetric(8, 4))
+                                    .show(ui, |ui| {
+                                        ui.set_width(ui.available_width());
+                                        ui.horizontal(|ui| {
+                                            ui.label(RichText::new(format!("/{}", c.name)).font(theme::mono(theme::SMALL)).color(t.text));
+                                            if !c.hint.is_empty() {
+                                                ui.add(Label::new(RichText::new(&c.hint).font(theme::mono(theme::CAPTION)).color(t.text_faint)).truncate());
+                                            }
+                                        });
+                                        if !c.description.is_empty() {
+                                            ui.add(Label::new(RichText::new(&c.description).font(egui::FontId::proportional(theme::CAPTION)).color(t.text_dim)).truncate());
+                                        }
+                                    })
+                                    .response
+                                    .interact(Sense::click());
+                                if sel && (up || down) {
+                                    r.scroll_to_me(None);
+                                }
+                                let r = if c.description.chars().count() > 60 { r.on_hover_text(&c.description) } else { r };
+                                if r.clicked() {
+                                    complete = Some(c.name.clone());
+                                }
+                            }
+                        });
+                    });
+                    ui.add_space(4.0);
+                }
+            }
             Frame::new().fill(t.field).stroke(Stroke::new(1.0, t.field_border)).corner_radius(theme::R_LG).inner_margin(Margin::same(10)).show(ui, |ui| {
+                if let Some(name) = complete.take() {
+                    o.draft = format!("/{name} ");
+                    self.slash_sel = 0;
+                    complete = Some(name);
+                }
                 let resp = ui.add(
                     TextEdit::multiline(&mut o.draft)
+                        // (un id fixe : la liste de « / » qui s'ouvre au-dessus ne lui fait pas perdre le clavier)
+                        .id(Id::unique(("composer", key.as_str())))
                         .hint_text(if busy { "Claude travaille… votre demande attendra la fin du tour" } else { "Demandez à Claude…" })
                         .desired_rows(2)
                         .desired_width(f32::INFINITY)
@@ -1304,6 +1493,15 @@ impl App {
                 // (le champ prend le clavier quand rien d'autre ne l'a : on tape sa demande sans cliquer)
                 if no_dialog && ui.memory(|m| m.focused().is_none()) {
                     resp.request_focus();
+                }
+                // (une commande complétée : le curseur après elle, le champ garde le clavier)
+                if complete.is_some() {
+                    resp.request_focus();
+                    if let Some(mut st) = TextEdit::load_state(ui.ctx(), resp.id) {
+                        let end = egui::text::CCursor::new(o.draft.chars().count());
+                        st.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
+                        st.store(ui.ctx(), resp.id);
+                    }
                 }
                 if resp.has_focus() && ui.input(|i| i.key_pressed(Key::Enter) && !i.modifiers.shift) {
                     send = true;
@@ -1690,6 +1888,101 @@ fn drop_target(ui: &mut Ui, t: &Tokens, rect: egui::Rect, salt: impl std::hash::
         ui.painter().rect_stroke(rect.expand(2.0), theme::R, Stroke::new(1.5, t.accent_ink), egui::StrokeKind::Outside);
     }
     r.dnd_release_payload::<String>().map(|p| (*p).clone())
+}
+
+/// La couleur d'une part du contexte (des jetons du thème).
+fn part_color(t: &Tokens, p: &env::Part) -> Color32 {
+    match (p.kind.as_str(), p.id.as_str()) {
+        ("free", _) => t.field_border,
+        ("buffer", _) => t.text_faint.gamma_multiply(0.5),
+        ("deferred", _) => Color32::TRANSPARENT,
+        (_, "messages") => t.accent,
+        (_, "system_tools") => t.success,
+        (_, "mcp_tools") => t.warning,
+        (_, "skills") => t.danger,
+        (_, "memory_files") => t.success.gamma_multiply(0.55),
+        (_, "mcp_instructions") => t.warning.gamma_multiply(0.6),
+        (_, "system_prompt") => t.text_dim,
+        _ => t.text_faint,
+    }
+}
+
+/// L'occupation du contexte d'une conversation, comme l'app Claude : la part utilisée, la barre, le détail ; rend true
+/// pour « Compacter la session ».
+fn context_view(ui: &mut Ui, t: &Tokens, o: &Open) -> bool {
+    let small = |s: String, c: Color32| RichText::new(s).font(egui::FontId::proportional(theme::LABEL)).color(c);
+    let Some(c) = &o.context else {
+        if let Some(e) = &o.context_err {
+            ui.label(small(format!("Indisponible : {e}"), t.text_faint));
+        } else if o.cli.is_none() {
+            ui.label(small("Connu quand Claude Code tourne pour cette conversation (dès la prochaine demande).".into(), t.text_faint));
+        } else {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label(RichText::new("Demandé à Claude Code…").color(t.text_faint));
+            });
+        }
+        return false;
+    };
+    let level = if c.pct >= 90.0 { t.danger } else if c.pct >= 75.0 { t.warning } else { t.text };
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(format!("{:.0} % utilisé", c.pct)).font(theme::medium(theme::LABEL)).color(level));
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            ui.label(small(format!("{} / {}", env::tokens(c.total), env::tokens(c.max)), t.text_dim));
+        });
+    });
+    // la barre : les parts utilisées dans l'ordre, puis le tampon de compaction, l'espace libre au fond
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 8.0), Sense::hover());
+    let p = ui.painter();
+    p.rect_filled(rect, 3.0, t.field);
+    if c.max > 0 {
+        let mut x = rect.left();
+        for part in c.parts.iter().filter(|p| p.kind == "used" || p.kind == "buffer") {
+            let w = rect.width() * part.tokens as f32 / c.max as f32;
+            if w <= 0.0 {
+                continue;
+            }
+            let r = egui::Rect::from_min_max(egui::pos2(x, rect.top()), egui::pos2((x + w).min(rect.right()), rect.bottom()));
+            p.rect_filled(r, 0.0, part_color(t, part));
+            x += w;
+        }
+    }
+    ui.add_space(4.0);
+    for part in &c.parts {
+        let dim = part.kind != "used";
+        ui.horizontal(|ui| {
+            let (sq, _) = ui.allocate_exact_size(egui::vec2(9.0, 9.0), Sense::hover());
+            let col = part_color(t, part);
+            if col == Color32::TRANSPARENT {
+                ui.painter().rect_stroke(sq, 2.0, Stroke::new(1.0, t.text_faint), egui::StrokeKind::Inside);
+            } else {
+                ui.painter().rect_filled(sq, 2.0, col);
+            }
+            ui.label(small(part.name.clone(), if dim { t.text_faint } else { t.text }));
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                let pct = if c.max > 0 { part.tokens as f64 * 100.0 / c.max as f64 } else { 0.0 };
+                let pct = if pct > 0.0 && pct < 0.1 { "< 0,1 %".to_owned() } else { format!("{:.1} %", pct).replace('.', ",") };
+                ui.label(small(format!("{}  {pct}", env::tokens(part.tokens)), if dim { t.text_faint } else { t.text_dim }));
+            });
+        });
+    }
+    if c.parts.iter().any(|p| p.kind == "deferred") {
+        ui.label(RichText::new("(différés : chargés à la demande, ils ne comptent pas)").font(egui::FontId::proportional(theme::CAPTION)).color(t.text_faint));
+    }
+    if !c.auto_compact {
+        ui.label(RichText::new("Compactage automatique désactivé").font(egui::FontId::proportional(theme::CAPTION)).color(t.warning));
+    }
+    ui.add_space(4.0);
+    ui.add_enabled(!o.thread.busy, egui::Button::new("Compacter la session"))
+        .on_hover_text("Résume la conversation pour libérer le contexte (/compact)")
+        .on_disabled_hover_text("Pendant un tour : attendez sa fin")
+        .clicked()
+}
+
+/// Le nom de commande en cours de frappe : « /co » -> « co » (rien après un blanc : la commande est tapée).
+fn slash_query(draft: &str) -> Option<&str> {
+    let q = draft.strip_prefix('/')?;
+    (!q.contains(char::is_whitespace)).then_some(q)
 }
 
 fn section(ui: &mut Ui, t: &Tokens, name: &str) {

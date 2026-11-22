@@ -56,6 +56,9 @@ impl Thread {
             match e.get("type").and_then(Value::as_str) {
                 Some("user") => th.add_user_message(e, true),
                 Some("assistant") => th.add_assistant_message(e),
+                Some("system") if e.get("subtype").and_then(Value::as_str) == Some("compact_boundary") => {
+                    th.items.push(Item::Note { text: compact_note(e), error: false });
+                }
                 _ => {}
             }
         }
@@ -64,7 +67,7 @@ impl Thread {
 
     /// Un message « user » : une demande (le texte), ou des résultats d'outils.
     fn add_user_message(&mut self, e: &Value, from_file: bool) {
-        if e.get("isMeta").and_then(Value::as_bool) == Some(true) {
+        if e.get("isMeta").and_then(Value::as_bool) == Some(true) || e.get("isCompactSummary").and_then(Value::as_bool) == Some(true) {
             return;
         }
         let content = e.get("message").and_then(|m| m.get("content"));
@@ -163,6 +166,9 @@ impl Thread {
                     if let Some(m) = v.get("model").and_then(Value::as_str) {
                         self.model = m.to_owned();
                     }
+                }
+                if v.get("subtype").and_then(Value::as_str) == Some("compact_boundary") {
+                    self.items.push(Item::Note { text: compact_note(v), error: false });
                 }
             }
             Some("stream_event") => {
@@ -507,7 +513,7 @@ struct Picks {
 /// l'attend.
 fn question_card(ui: &mut Ui, t: &Tokens, request_id: &str, input: &Value, state: &PermState, actions: &mut Vec<Action>) {
     let qs: Vec<&Value> = input.get("questions").and_then(Value::as_array).map(|a| a.iter().collect()).unwrap_or_default();
-    let id = egui::Id::new(("cc-question", request_id));
+    let id = egui::Id::unique(("cc-question", request_id));
     let mut p: Picks = ui.data_mut(|d| d.get_temp(id)).unwrap_or_default();
     p.picked.resize(qs.len(), Vec::new());
     p.other.resize(qs.len(), String::new());
@@ -684,6 +690,17 @@ fn floor_char(s: &str, mut i: usize) -> usize {
         i -= 1;
     }
     i
+}
+
+/// « Contexte compacté (manuellement) : 37,9 k -> 6,7 k jetons ».
+fn compact_note(v: &Value) -> String {
+    let m = &v["compact_metadata"];
+    let how = if m["trigger"].as_str() == Some("manual") { "" } else { " (automatiquement)" };
+    match (m["pre_tokens"].as_u64(), m["post_tokens"].as_u64()) {
+        (Some(a), Some(b)) => format!("Contexte compacté{how} : {} -> {} jetons", crate::env::tokens(a), crate::env::tokens(b)),
+        (Some(a), None) => format!("Contexte compacté{how} ({} jetons avant)", crate::env::tokens(a)),
+        _ => format!("Contexte compacté{how}"),
+    }
 }
 
 #[cfg(test)]
