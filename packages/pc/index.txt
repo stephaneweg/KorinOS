@@ -2432,3 +2432,18 @@ needs = abi >= 629
 required = 0
 restart = 0
 content = a3afc3af687fdab4a50641f8ab793395c8e7fc1ca3a1f1e15435b7459c9877dc
+
+[libxml2-dev]
+title = libxml2 (développement)
+version = 2.13.8
+category = Développement
+author = Korin OS
+summary = libxml2 2.13.8 : libxml2.a, libxml2/ (licence MIT)
+size = 961002
+installed = 3429623
+sha256 = fc406515f1caecf6bc6b9d0493a1b5400b75dbba7dc9dbbf6530ec6caa4ec5e7
+file = pkgs/libxml2-dev-2.13.8.opk
+needs = zlib-dev, icu-dev, abi >= 629
+required = 0
+restart = 0
+content = 98e6977c71cfc4b440bf6bb49d81294c21199c8accbc465a81972595ba285f14
