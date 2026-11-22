@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-22 03:05
+date = 2026-11-22 03:07
 abi = 629
 packages = 117
 board = pc
@@ -114,18 +114,18 @@ content = 5dbdcd50fcea186f20f494edb60ef2a5166a33fcc564f8c350daa4c3f8b9c766
 
 [jet]
 title = Jet
-version = 1.4.3
+version = 1.4.4
 category = Internet
 author = Korin OS
 summary = Le navigateur, sur WebKit
-size = 55662067
-installed = 139421087
-sha256 = d45b6ad5e129c1c363573cea29cbd5fd3f220f9e7f3588b21d3051c6af4d0fe1
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.3.opk
+size = 55662011
+installed = 139421119
+sha256 = 22e02950a1aa0f3b9ee5a64521dc8345609d4f69573c0beb6feefffc81b70b98
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.4.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = ff109aa3de384be9f2ac6ed6e7cb5dd0735530d96ce9edd23b30c3618bbf7276
+content = a0210fca395b9d180699220e88b070f559934948ae293db68db46e33e824c00c
 
 [spotify]
 title = Spotify
