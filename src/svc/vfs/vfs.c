@@ -1027,7 +1027,7 @@ static void traiter(long req)
 			stdio_exec(msg.a, msg.c, msg.d, *(i64 *)msg.data);
 			return;
 		}
-		if (op == V_PIPE_ROOM || op == V_PIPE_READ_BULK || op == V_PIPE_WRITE_BULK ||
+		if (op == V_PIPE_ROOM || op == V_PIPE_READ_BULK || op == V_PIPE_WRITE_BULK || op == V_PIPE_RING || op == V_PIPE_KICK ||
 		    (op >= V_PIPE && op <= V_STDIO)) { /* tubes, entrées / sorties */
 			current_req = req;
 			int deferred;

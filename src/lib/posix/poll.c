@@ -33,11 +33,15 @@
    subprocess s'y bloquait), POLLERR sans lecteur. vfs sans V_PIPE_ROOM : toujours pret. */
 static short pipe_w_ready (struct __posix_ofd *d)
 {
-	struct __armpi_msg m;
-	memset (&m, 0, 48);
-	m.op = V_PIPE_ROOM;
-	m.a = d->h;
-	long r = __armpi_vfs_call (&m);
+	long r = __posix_pipe_room (d->h);	/* (l'anneau partage : sans vfs) */
+	if (r == -1)
+	{
+		struct __armpi_msg m;
+		memset (&m, 0, 48);
+		m.op = V_PIPE_ROOM;
+		m.a = d->h;
+		r = __armpi_vfs_call (&m);
+	}
 	if (r >= PIPE_BUF)
 		return POLLOUT | POLLWRNORM;
 	if (r >= 0)

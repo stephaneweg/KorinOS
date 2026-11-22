@@ -1,7 +1,7 @@
 # Étude : réseau et tubes sans aller et retour (anneaux partagés)
 
 Demandée le 21/11/2026, après la lenteur de `git clone` sur le ZBook (500 Ko/s, puis 1,5 Mo/s, quand pkg
-télécharge à 16 Mo/s). § 3 (sockets) fait le 22/11 (pc 2026.11.83) : voir la fin. § 4 (tubes) pas fait.
+télécharge à 16 Mo/s). § 3 (sockets) fait le 22/11 (pc 2026.11.83) : § 6. § 4 (tubes) fait le 22/11 : § 7.
 
 ## 1. Où en est-on (21/11)
 
@@ -81,3 +81,34 @@ Choix de l'utilisateur : les sockets d'abord, réveils par futex partagés. Le n
   sonnette ; les sockets en écoute n'ont pas d'anneau ; dans le fils d'un fork, les messages.
 - **Mesures (QEMU PC)** : `wget` de 30 Mo 7,2 → 5,6 s ; netd pendant un clone HTTPS 96 000 → 40 000 appels/s ;
   `ringfork` (fork après une lecture) : les 99 990 octets, dans l'ordre.
+
+## 7. Fait le 22/11 : les tubes (§ 4)
+
+- **Un tampon par tube, à la demande** (pas un tampon pour tous : chaque process verrait tous les tubes, et ce qui y
+  passe, `secret get | …` compris). `V_PIPE_RING` (56) : vfs crée le tampon du tube (`SYS_BUF_CREATE`, 4 Ko
+  d'en-tête + 64 Ko), y verse ce qu'il contient déjà, l'autorise au process qui le demande s'il tient un bout du tube
+  (`SYS_BUF_GRANT` : un seul pid à la fois, le client redemande si un autre l'a pris entre-temps). Au plus 24 anneaux
+  (`PIPE_RINGS`) : le noyau n'a que 128 tampons pour tout le système. libposix ne le demande qu'après 64 Ko passés
+  par messages sur la poignée : les petits tubes (`$(…)` de bash) n'en prennent pas. Le Pi : `PIPE_RINGS` 0 (pas de
+  futex partagés), `E_INVAL`, les messages.
+- **En-tête** (`struct pipe_ring`, `src/svc/common/fssvc.h` ; le même dans `src/lib/posix/armpi.h`) : `head`,
+  `tail`, `wseq` / `rseq` (futex : données écrites, place rendue, et tout changement des bouts) avec leurs dormeurs,
+  `wlock` / `rlock` (pid + 1 de qui copie : bash et ses fils tiennent souvent un même bout), `readers`, `writers`
+  (vfs seul les écrit : la fin, `EPIPE`), `vfs_wait` (des lecteurs par messages attendent dans vfs : l'écrivain de
+  l'anneau lui envoie `V_PIPE_KICK`, 57).
+- **vfs** garde les compteurs de bouts et sert toujours les clients par messages (commandes en asm, AppKit, ancienne
+  libposix) sur le même anneau, sous les mêmes verrous (pris sans jamais dormir ; occupé : `E_AGAIN`, le client
+  redemande) ; il rend les verrous d'un process mort ; le tampon part avec le dernier process qui l'a mappé (le fils
+  d'un `fork` le garde, à la même adresse).
+- **libposix** : lecture et écriture sans message ; attente sur le futex (100 ms au plus par tour) ; une écriture de
+  `PIPE_BUF` octets au plus ne se coupe pas (par messages aussi : vfs coupait une écriture de 4 Ko quand la place
+  manquait, deux écrivains se mêlaient) ; `poll` regarde l'anneau sans vfs.
+- **Entrées / sorties standard** : quand vfs dit que 0, 1, 2 sont des tubes (et pas des fichiers), libposix en fait des
+  bouts de tube à lui (64 Ko par message, puis l'anneau) au lieu de passer par AppKit (464 octets par message, un
+  somme de 2 ms quand le tube est plein) : `git fetch-pack` → `index-pack`, les sorties des commandes lues par Claude
+  Code. Une poignée tenue par deux descriptions (celles de tty.c remplacées par celles passées par l'exec) n'est
+  rendue à vfs qu'avec la dernière.
+- **Mesures (QEMU PC)** : `ringtest gen 64 | ringtest check 64` 24,4 → 84,6 Mo/s ; deux process d'un `fork` : 94 Mo/s ;
+  `ringtest` (`src/lib/posix/test/ringtest.c`) : flux vérifié, deux écrivains, fin, EPIPE, poll, O_NONBLOCK ; posixtest
+  mêmes 15 échecs, pipetest 31/31. Les commandes en asm restent lentes (`ringtest gen 16 | wc -c` : 27 → 16 s) :
+  AppKit et ses 464 octets par message, à reprendre à part.

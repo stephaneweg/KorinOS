@@ -180,8 +180,11 @@ void __posix_tty_release (struct __posix_ofd *d)
 
 /* ---- demarrage : les entrees / sorties standard ---- */
 static long s_std[3];
+static long s_pip[3];			/* un tube de vfs (pas un fichier) : sa poignee */
 
-/* fd.c : la description de l'entree / sortie standard i (TTY si c'est un bout de vterm) */
+/* fd.c : la description de l'entree / sortie standard i (TTY si c'est un bout de vterm ; PIPE si c'est un tube de
+ * vfs : 64 Ko par message et l'anneau partage, au lieu des 464 octets d'AppKit et de ses sommes de 2 ms quand le
+ * tube est plein, 22/11/2026 ; une redirection vers un fichier reste a AppKit, qui l'ouvre) */
 struct __posix_ofd *__posix_std_ofd (int i)
 {
 	static int done;
@@ -200,11 +203,28 @@ struct __posix_ofd *__posix_std_ofd (int i)
 				for (int k = 0; k < 3; k++)
 					if (v[k] > 0 && (v[k] & VT_TAG))
 						s_std[k] = v[k];
+					else if (v[k] > 0 && !((m.d >> k) & 1))
+						s_pip[k] = v[k];
 			}
 		}
 	}
 	if (i >= 0 && i < 3 && s_std[i])
 		return tty_new (s_std[i], O_RDWR, 0);
+	if (i >= 0 && i < 3 && s_pip[i])
+	{
+		static struct __posix_ofd *made[3];
+		for (int j = 0; j < i; j++)	/* (2>&1 : une seule description, fermer l'un ne ferme pas l'autre) */
+			if (made[j] && s_pip[j] == s_pip[i] && (j > 0) == (i > 0))
+			{
+				__atomic_add_fetch (&made[j]->refs, 1, __ATOMIC_ACQ_REL);
+				return made[i] = made[j];
+			}
+		struct __posix_ofd *d = __posix_ofd_new (i == 0 ? POSIX_FD_PIPE_R : POSIX_FD_PIPE_W,
+							 i == 0 ? O_RDONLY : O_WRONLY);
+		if (d)
+			d->h = s_pip[i];
+		return made[i] = d;
+	}
 	return 0;
 }
 
