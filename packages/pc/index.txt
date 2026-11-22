@@ -1803,19 +1803,19 @@ restart = 0
 content = fdf6f712e48a7b10ac48a1487f56bc7a7153e3682a7afaff8bb440fd36bf26ba
 
 [primevideo]
-title = Prime Video
-version = 1.0.0
-category = Multimédia
+title = primevideo
+version = 1.0.1
+category = Autres
 author = Korin OS
 summary = Prime Video : le site de Prime Video dans sa fenêtre (Widevine), avec votre compte Amazon
-size = 125660
-installed = 263951
-sha256 = 5b77e28e55404cb68db4d5003cbe8d8006142f851a2502c5eac535bd44fd1fc8
-file = pkgs/primevideo-1.0.0.opk
+size = 125730
+installed = 264057
+sha256 = bacc4173894cb76897c347355c6589de14f180457d62952bb36abc2d2fcecf91
+file = pkgs/primevideo-1.0.1.opk
 needs = jet >= 1.4.2, abi >= 626
 required = 0
 restart = 0
-content = 24141fc6644c58b165bbfc15644cb0021086ec0893fb8aff96f3bab533411ac5
+content = 22ec0a52dcefa9cc6c7973a098751d5fa34bf50f86fce4ab725709874a9c1a90
 
 [craft]
 title = Suite ArtCraft
