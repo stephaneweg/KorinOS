@@ -53,3 +53,9 @@ seulement s'il y a un dormeur (waiters). NetKit : net_recv lit l'anneau, net_pol
 attend sur la sonnette ; net_listen exclut les sockets en écoute ; net_fork_child : le fils passe aux messages. Banc
 ringfork (scratchpad). QEMU : wget 7,2 -> 5,6 s, netd 96 000 -> 40 000 appels/s pendant un clone HTTPS. Publié : pc
 2026.11.83. Les tubes en anneau : pas faits (étape suivante possible). ZBook : à mesurer.
+
+**22/11, mesure sur le ZBook (pc .83, linuxhost 1.0.6, git 2.51.4, bash 1.0.8)** : git clone lancé par Claude Code
+(bash -> script -> git) **5,8 à 6 Mo/s** (0,5 au départ, 1,8 puis 3, puis 3,8-4 avant les anneaux) ; depuis le Terminal
+sans Claude Code : 11 Mo/s (avant les anneaux). Restent : la charge de vfs et ramfs pendant que Claude Code suit une
+commande (fichiers de /tmp ?), les tubes en anneau (ANNEAUX.md § 4), les programmes pas encore reliés à la nouvelle
+libposix (claudecode, python, Jet et ses apps web : Netflix ouvert = 28 000 appels/s), nvme.
