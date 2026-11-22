@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-22 00:46
+date = 2026-11-22 01:22
 abi = 629
 packages = 117
 board = pc
@@ -2089,18 +2089,18 @@ content = 47fef4aa7f6e0bf29968834088c098c4cd0d80d8362ebcc40e894bffe41643f6
 
 [linuxhost]
 title = Hôte Linux
-version = 1.0.6
+version = 1.0.7
 category = Développement
 author = Korin OS
 summary = Lance des programmes de Linux x86-64 sur Korin, sans les modifier (linuxhost run PROGRAMME) : ce qui fait tourner Claude Code
-size = 296740
-installed = 622276
-sha256 = a6e38b9aabbeae75c03662ba447cbdc4ec60e1feaccc9a9e1c9e7d41ecfe65e2
-file = pkgs/linuxhost-1.0.6.opk
+size = 298370
+installed = 626372
+sha256 = cfcfb9ad04451e9dc2982f9e5f79d3560efc13d38f63b3fc6a641639e84eaf7d
+file = pkgs/linuxhost-1.0.7.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 866101425d00729b666a3bc7593ec8c8198906475b9aa1f26dd1c279c6897d8a
+content = 6a96ae0fc9cbc851b81fcad1e64b9b0ac99a393442e1d37fab0716ab444a173f
 
 [claude-code]
 title = Claude Code
