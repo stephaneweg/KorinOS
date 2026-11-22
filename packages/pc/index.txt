@@ -2237,3 +2237,18 @@ needs = abi >= 629
 required = 0
 restart = 0
 content = ed7e2a771b567595044f60459e2d02523dd995a89fd814b9007a727ede107f04
+
+[bison]
+title = GNU Bison
+version = 3.8.2
+category = Développement
+author = Korin OS
+summary = Le générateur d'analyseurs GNU Bison 3.8.2 (/devtools/gcc/bin/bison, ses squelettes dans /devtools/gcc/share/bison) : C, C++, Java, D
+size = 624652
+installed = 1637315
+sha256 = bd48ffcb74b4b0fc9beed3712dd1741f86ae611cd70e9008a879e5213394e9b5
+file = pkgs/bison-3.8.2.opk
+needs = m4, abi >= 629
+required = 0
+restart = 0
+content = 4a8361d7c3d74bc555b5f01d137296ce1a8d404aa28fe4b32632c8f5246f315c
