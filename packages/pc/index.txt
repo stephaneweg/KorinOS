@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-22 23:27
+date = 2026-11-22 23:28
 abi = 629
 packages = 117
 board = pc
@@ -2282,3 +2282,18 @@ needs = abi >= 629
 required = 0
 restart = 0
 content = db42ddab9f6ff2ec803d2b5dae47eb0719065de845b86f246bf3f0fdabfe5ae6
+
+[pkgconf]
+title = pkgconf
+version = 2.3.0
+category = Développement
+author = Korin OS
+summary = pkgconf 2.3.0, pkg-config (/devtools/gcc/bin/pkg-config, pkgconf) : les drapeaux des bibliothèques -dev (/devtools/gcc/lib/pkgconfig)
+size = 280057
+installed = 561616
+sha256 = c5ae2952e1111f87d4e1a2ebdec1a242247307c2d01c0a99f65c06ce6d936e3e
+file = pkgs/pkgconf-2.3.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+content = 10a445ae6a3d1d6f05443a97391fa643e4d1f4dbaf01a66c2e8f5a3ad13b0ff3
