@@ -1,6 +1,7 @@
 /*
  * stdlib.h -- newlib's, plus the pseudo-terminal calls of libposix (tty.c, docs/VTERM.md):
- * posix_openpt, grantpt, unlockpt, ptsname, ptsname_r.
+ * posix_openpt, grantpt, unlockpt, ptsname, ptsname_r ; getprogname, setprogname (env.c : les outils de
+ * gnulib, m4 et bison, les attendent déclarées).
  *
  * Copyright (c) 2026 Stéphane Wegener. MIT licence: Permission is hereby granted, free of
  * charge, to any person obtaining a copy of this software and associated documentation files
@@ -24,6 +25,8 @@ int grantpt (int __fd);
 int unlockpt (int __fd);
 char *ptsname (int __fd);
 int ptsname_r (int __fd, char *__buf, size_t __len);
+const char *getprogname (void);
+void setprogname (const char *__name);
 #ifdef __cplusplus
 }
 #endif

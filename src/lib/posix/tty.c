@@ -446,6 +446,15 @@ char *ttyname (int fd)
 	return b;
 }
 
+/* le terminal de contrôle : /dev/tty (Perl, son module POSIX) */
+char *ctermid (char *s)
+{
+	static char b[16];
+	char *d = s ? s : b;
+	memcpy (d, "/dev/tty", 9);
+	return d;
+}
+
 int grantpt (int fd) { return _isatty (fd) ? 0 : -1; }
 int unlockpt (int fd) { return _isatty (fd) ? 0 : -1; }
 
