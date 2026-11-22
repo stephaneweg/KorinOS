@@ -36,6 +36,12 @@ bash /devtools/jet-sdk/jetlink
 - Pour que le changement dure : un patch dans `tools/webkit/patches` (format de 0014 ou 0015 : `diff -ru -U2 a b`
   sur `Source/…`), puis la session du cloud reconstruit et republie Jet. `/devtools/jet-sdk` n'est qu'un banc d'essai.
 
+## Essais (22/11/2026)
+
+- Un lot de WebCore compilé par le GCC de Korin sous QEMU (≈ 11 min sans accélération).
+- `jetlink` dans Korin sous QEMU : liaison réussie en ≈ 8,5 min (8 Go de mémoire), et le Jet obtenu démarre. Sur le
+  ZBook, compter quelques minutes.
+
 ## Pièges
 
 - Prévoir ≈ 2 Go de mémoire pour un lot de WebCore, et plusieurs Go pour la liaison : Jet fait 133 Mo, 170 Mo avant

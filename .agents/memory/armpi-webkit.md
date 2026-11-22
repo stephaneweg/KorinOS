@@ -68,3 +68,5 @@ onyx-cc.specs réécrits. Lier sous QEMU vers le disque : délai dépassé du se
 mise à jour lourde ; compositing layout, layer flush, observateurs innocents. « other » = surtout le layoutIfNeeded()
 du milieu de Page::updateRendering (après les requestAnimationFrame), non chronométré dans 0014. Patch 0015
 (style/mise en page séparés, partout) construit dans le cloud.
+**22/11 : jetlink vérifié dans Korin** (QEMU, 8 Go, sortie dans /tmp) : ld code 0 en ≈ 8,5 min, le Jet obtenu
+démarre. jet 1.4.7 publié (0015) ; note pour l'agent local : docs/agents/JET-TF1-ETAPES-2.md.
