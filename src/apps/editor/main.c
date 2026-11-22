@@ -3,7 +3,7 @@
  *
  * Le texte est un widget de UIKit (ui_textarea : numeros de ligne dans une marge, barres de defilement
  * verticale et horizontale, couleurs du code pour les sources .asm / .inc, annuler / retablir,
- * presse-papiers). En haut, le chemin du fichier (ui_textbox en lecture seule : on le lit et le copie).
+ * presse-papiers). En haut, le chemin du fichier (un simple ui_label).
  * Menus Fichier et Edition dans la barre de menus globale : Nouveau (Ctrl+N), Ouvrir... (Ctrl+O, le
  * dialogue), Enregistrer (Ctrl+S ; un texte jamais enregistre passe par Enregistrer sous...), Enregistrer
  * sous... (Ctrl+Maj+S), Construire (Ctrl+B : PiBuild, /apps/builder.app, sur le dossier du fichier),
@@ -553,7 +553,7 @@ int main (int argc, char **argv)
 	tokens = (const unsigned *) ui_tokens ();
 	ui_min_size (WIN_MIN_W, WIN_MIN_H);
 	ui_on_resize ((long) on_resize, 0);
-	w_path = ui_textbox (PATH_X, 6, PATH_W, 28, UTF_READONLY);	/* le chemin : lu, copié, pas tapé */
+	w_path = ui_label (PATH_X, 6, PATH_W, 28, (long) "", 0);	/* le chemin : un simple texte */
 	w_area = ui_textarea (4, TB_H + 2, WIN_W - 8, WIN_H - TB_H - SB_H - 6, AREA_FLAGS);	/* le texte */
 	ui_textarea_font (w_area, FONT_PX);
 	ui_w_focus (w_area);
@@ -592,8 +592,6 @@ int main (int argc, char **argv)
 		long code, taken;
 		long w = uikit_w_event (&code, &taken);
 		if (!taken)
-			continue;
-		if (w == w_path)		/* (lecture seule : sélection, copie) */
 			continue;
 		if (code == UN_CHANGE)
 		{				/* le texte change : modifie */
