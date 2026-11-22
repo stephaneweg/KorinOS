@@ -893,8 +893,8 @@ long op_ring(u8 *m)
 		owners += sk_owners[i][0] == (u32)sd + 1;
 	if (s->ring_cli)
 		r = s->ring_cli == c ? (long)s->ring_slot : E_INVAL;
-	else if (c && c->rings && s->used && s->type == SOCK_TCP && s->state < TCP_ESTAB && s->state != TCP_LISTEN)
-		r = E_AGAIN; /* (pas encore connectée : redemander) */
+	else if (c && c->rings && s->used && s->type == SOCK_TCP && (s->state == TCP_SYN_SENT || s->state == TCP_SYN_RCVD))
+		r = E_AGAIN; /* (connexion en cours : redemander ; fermée, coupée : jamais d'anneau) */
 	else if (c && c->rings && s->used && s->type == SOCK_TCP && s->state >= TCP_ESTAB && owners == 1) {
 		for (u64 j = 0; j < c->rings; j++) {
 			if (c->ring_sk[j])
