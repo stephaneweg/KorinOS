@@ -34,6 +34,14 @@ x86_64) CPU="--arch=x86_64 --disable-asm"; CF="-mno-red-zone"; SPECS=$ROOT/build
 aarch64) CPU="--arch=aarch64 --cpu=cortex-a72"; CF="-mcpu=cortex-a72 -mno-outline-atomics"; SPECS=$ROOT/build/posix/lib/posix.specs ;;
 *) echo "ffmpeg : ARCH=aarch64 ou x86_64"; exit 1 ;;
 esac
+# Jet sur le PC (22/11/2026, docs/agents/JET-LOCAL-BUILD.md) : l'assembleur x86 de FFmpeg (nasm : SSE, AVX2 des
+# décodeurs H.264, HEVC, VP9...) et le processeur de Korin PC (Tiger Lake, sans AVX-512 : le noyau ne l'autorise
+# pas) ; le kit du système (FLAVOR=kit) reste en x86-64 de base, sans assembleur
+if [ "$FLAVOR-$ARCH" = jet-x86_64 ]; then
+	command -v nasm >/dev/null || { echo "ffmpeg : nasm manque (apt install nasm)"; exit 1; }
+	CPU="--arch=x86_64 --cpu=tigerlake --x86asmexe=nasm --disable-avx512 --disable-avx512icl"
+	CF="-mno-red-zone -march=tigerlake -mno-avx512f -mtune=tigerlake"
+fi
 # (libposix : seulement pour les essais de configure, qui lient des programmes ; le kit, lui, n'a pas de
 # libc : mk_libc.c et mk_math.c donnent ce que FFmpeg appelle)
 # Jet : la libposix de son sysroot, pour compiler aussi (ses en-têtes) ; ni hidden.h ni inc/ (errno par thread : il

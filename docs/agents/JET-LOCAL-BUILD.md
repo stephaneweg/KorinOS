@@ -164,3 +164,55 @@ d'heure : les compilateurs attendaient le disque à 97 %. Ce qui a été appris 
   `ThreadedCompositor`), mais le compositeur d'Onyx (`LayerTreeHostOnyx`, `GraphicsLayerOnyx`) compose sur le fil
   principal et ses couches ne sont pas des `CoordinatedPlatformLayer` : il faut un fil de composition et des nœuds
   d'arbre de défilement pour ses couches. Un plan d'abord.
+
+## Étape 3 (session du cloud, 22-23/11/2026) : ce qui est fait
+
+Branche `claude/serene-newton-051kkg` (pas encore dans `main`).
+
+### 0. Le volume système rapide sous charge
+
+Fait : points 1, 2, 4 et 5 de `FICHIERS-PERF.md` (cache des noms de `vfs`, index par dossier et 8 fils de `fatfs`,
+plusieurs requêtes en vol dans `blkserv` et 8 files dans `nvme`). Mesures et marche à suivre sur le ZBook :
+`FICHIERS-PERF.md`, « Fait ». **Pas encore essayé sur le ZBook.**
+
+### 1. WebKit reconstruit de zéro pour le PC
+
+- **Les drapeaux du processeur ne servaient pas** : `ONYX_CPU_FLAGS` (env.sh) ne vaut que pour les scripts qui le
+  lisent ; tout ce qui passe par CMake (WebKit, ANGLE, libjpeg-turbo, freetype, harfbuzz, ICU, curl...) prend ses
+  drapeaux de `tools/webkit/armpi-toolchain.cmake`, qui n'en mettait aucun sur le PC. Corrigé :
+  `-march=tigerlake -mno-avx512f -mtune=tigerlake` (ou `ONYX_CPU_FLAGS` de l'environnement), et `-O2`
+  (`build-webcore.sh` : `CMAKE_*_FLAGS_RELEASE`).
+- **libjpeg-turbo avec son SIMD x86-64** (`tools/webkit/ports/libjpeg-turbo/build.sh`) : la source officielle 3.1.4
+  (SHA-256 fixé, `~/.cache/korin-src`), `simd/x86_64` par nasm (SSE2 et AVX2, choisis au lancement).
+- **FFmpeg de Jet avec son assembleur x86** (`tools/mediakit/ffmpeg.sh`, `FLAVOR=jet` sur le PC) : jusqu'ici
+  `--disable-asm` ; maintenant nasm, `--cpu=tigerlake`, sans AVX-512 (H.264, HEVC, AAC : les chemins SSE/AVX2).
+  Nouveau correctif `ffmpeg-patches/0003-tx-x86-max-8192.patch` : les FFT x86 s'arrêtent à 8192 points comme les
+  tables du C (0001). Le MediaKit du système reste sans assembleur. **libvpx (VP8/VP9) et dav1d (AV1) restent en C
+  seul sur le PC** (`codecs.mk`, `AV_ARCH=generic`) : leur assembleur x86 serait le prochain gain pour YouTube.
+- Le correctif **0012** ne s'appliquait plus à l'arbre de base (son dernier morceau avait le contexte de l'arbre
+  WebGL, que `enable-webgl.py` fait ensuite) : corrigé.
+- Patchs 0001 à **0016** compris ; sources de Jet de `src/extra/onyxports/jet` (user.css, défilement animé).
+- GlKit : `libglkit.a` (le relais du kit, 280 Ko) repris du SDK 1.4.6 ; Mesa n'est pas reconstruit (le kit
+  `glkit.so` du système ne change pas).
+
+### 2. Le SDK
+
+`tools/webkit/jet-sdk.py` : les liens de `PrivateHeaders` deviennent des **copies** (plus des renvois d'une ligne) ;
+les `cmake_pch.hxx.cxx` sont joints. `jet-sdk-get.sh VERSION [DOSSIER]` : téléchargement par Python (le `wget` de
+`/bin` n'a pas HTTPS), installation ailleurs que `/devtools/jet-sdk` (sur `/home`, en ext4) avec
+`relocate-sdk.py` (joint au SDK) ; puis `JETSDK=DOSSIER`.
+
+### 4 et 5. Les outils et les bibliothèques en paquets
+
+`tools/devtools/` (voir son `build.sh`) : **cmake 3.31.6, perl 5.40.0, ruby 3.3.6, m4 1.4.19, bison 3.8.2,
+gperf 3.1, unifdef 2.12, pkgconf 2.3.0**, chacun en paquet dans `/devtools/gcc`, et **13 paquets `-dev`**
+(`stage-dev.sh`) : zlib, libpng, libwebp, freetype, harfbuzz, icu, skia, sqlite, libxml2, brotli, nghttp2,
+openssl, curl, construits comme WebKit (Tiger Lake), avec leurs `.pc` et leur licence. Essayés dans Korin sous
+QEMU (perl : File::Spec, JSON::PP, List::Util, POSIX ; ruby : digest, json, pathname, date ; cmake -P avec
+execute_process ; m4, bison, unifdef, pkgconf). **flex 2.6.4** se construit mais **se bloque à l'exécution** (sa
+chaîne de filtres : fork, tubes, dup2 vers m4 ; la fin de fichier n'arrive jamais : à examiner côté tubes de
+`vfs` et libposix) : pas en paquet. WebKit n'en a pas besoin (bison oui : XPathGrammar).
+
+Ces paquets sont **publiés sur la branche** (`pub.py --new --base HEAD --no-push`) : la fusion dans `main` les
+rend disponibles. Ensuite, dans Korin : `pkg add cmake perl ruby gperf bison unifdef pkgconf` (et ninja, nasm,
+python, gcc) pour essayer CMake + Ninja sur WebKit.

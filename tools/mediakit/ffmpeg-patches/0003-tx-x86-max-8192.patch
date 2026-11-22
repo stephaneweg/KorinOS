@@ -1,0 +1,63 @@
+Korin (Jet sur le PC) : les transformees x86 de libavutil (nasm) s'arretent aussi a 8192 points, comme les
+tables du C (0001) : sans cela elles visent les tables de 16384 a 2097152 points, retirees.
+
+diff -ru -U3 a/libavutil/x86/tx_float.asm b/libavutil/x86/tx_float.asm
+--- a/libavutil/x86/tx_float.asm	2026-11-22 23:24:41.168718940 +0000
++++ b/libavutil/x86/tx_float.asm	2026-11-22 23:24:41.190342372 +0000
+@@ -1381,15 +1381,7 @@
+ ; 2048 to 131072-point transforms ==============================================
+ FFT_SPLIT_RADIX_DEF 2048,  .4096pt
+ FFT_SPLIT_RADIX_DEF 4096,  .8192pt
+-FFT_SPLIT_RADIX_DEF 8192,  .16384pt
+-FFT_SPLIT_RADIX_DEF 16384, .32768pt
+-FFT_SPLIT_RADIX_DEF 32768, .65536pt
+-FFT_SPLIT_RADIX_DEF 65536, .131072pt
+-FFT_SPLIT_RADIX_DEF 131072, .262144pt
+-FFT_SPLIT_RADIX_DEF 262144, .524288pt
+-FFT_SPLIT_RADIX_DEF 524288, .1048576pt
+-FFT_SPLIT_RADIX_DEF 1048576, .2097152pt
+-FFT_SPLIT_RADIX_DEF 2097152
++FFT_SPLIT_RADIX_DEF 8192
+ 
+ ;===============================================================================
+ ; Final synthesis + deinterleaving code
+diff -ru -U3 a/libavutil/x86/tx_float_init.c b/libavutil/x86/tx_float_init.c
+--- a/libavutil/x86/tx_float_init.c	2026-11-22 23:24:41.168764554 +0000
++++ b/libavutil/x86/tx_float_init.c	2026-11-22 23:24:41.190570410 +0000
+@@ -271,15 +271,15 @@
+            AV_TX_INPLACE | FF_TX_PRESHUFFLE | FF_TX_ASM_CALL, AV_CPU_FLAG_AVXSLOW),
+     TX_DEF(fft32_ns, FFT, 32, 32, 2, 0, 352, b8_i2, fma3, FMA3, AV_TX_INPLACE | FF_TX_PRESHUFFLE,
+            AV_CPU_FLAG_AVXSLOW),
+-    TX_DEF(fft_sr,    FFT, 64, 2097152, 2, 0, 256, b8_i2, avx, AVX,  0, AV_CPU_FLAG_AVXSLOW),
+-    TX_DEF(fft_sr_asm, FFT, 64, 2097152, 2, 0, 320, b8_i2, avx, AVX,
++    TX_DEF(fft_sr,    FFT, 64, 8192, 2, 0, 256, b8_i2, avx, AVX,  0, AV_CPU_FLAG_AVXSLOW),
++    TX_DEF(fft_sr_asm, FFT, 64, 8192, 2, 0, 320, b8_i2, avx, AVX,
+            AV_TX_INPLACE | FF_TX_PRESHUFFLE | FF_TX_ASM_CALL, AV_CPU_FLAG_AVXSLOW),
+-    TX_DEF(fft_sr_ns, FFT, 64, 2097152, 2, 0, 320, b8_i2, avx, AVX,  AV_TX_INPLACE | FF_TX_PRESHUFFLE,
++    TX_DEF(fft_sr_ns, FFT, 64, 8192, 2, 0, 320, b8_i2, avx, AVX,  AV_TX_INPLACE | FF_TX_PRESHUFFLE,
+            AV_CPU_FLAG_AVXSLOW),
+-    TX_DEF(fft_sr,    FFT, 64, 2097152, 2, 0, 288, b8_i2, fma3,  FMA3,  0, AV_CPU_FLAG_AVXSLOW),
+-    TX_DEF(fft_sr_asm, FFT, 64, 2097152, 2, 0, 352, b8_i2, fma3,  FMA3,
++    TX_DEF(fft_sr,    FFT, 64, 8192, 2, 0, 288, b8_i2, fma3,  FMA3,  0, AV_CPU_FLAG_AVXSLOW),
++    TX_DEF(fft_sr_asm, FFT, 64, 8192, 2, 0, 352, b8_i2, fma3,  FMA3,
+            AV_TX_INPLACE | FF_TX_PRESHUFFLE | FF_TX_ASM_CALL, AV_CPU_FLAG_AVXSLOW),
+-    TX_DEF(fft_sr_ns, FFT, 64, 2097152, 2, 0, 352, b8_i2, fma3,  FMA3,  AV_TX_INPLACE | FF_TX_PRESHUFFLE,
++    TX_DEF(fft_sr_ns, FFT, 64, 8192, 2, 0, 352, b8_i2, fma3,  FMA3,  AV_TX_INPLACE | FF_TX_PRESHUFFLE,
+            AV_CPU_FLAG_AVXSLOW),
+ 
+ #if HAVE_AVX2_EXTERNAL
+@@ -288,11 +288,11 @@
+     TX_DEF(fft15_ns, FFT, 15, 15, 15, 0, 384, factor_init, avx2, AVX2,
+            AV_TX_INPLACE | FF_TX_PRESHUFFLE, AV_CPU_FLAG_AVXSLOW),
+ 
+-    TX_DEF(fft_sr,    FFT, 64, 2097152, 2, 0, 320, b8_i2, avx2, AVX2, 0,
++    TX_DEF(fft_sr,    FFT, 64, 8192, 2, 0, 320, b8_i2, avx2, AVX2, 0,
+            AV_CPU_FLAG_AVXSLOW | AV_CPU_FLAG_SLOW_GATHER),
+-    TX_DEF(fft_sr_asm, FFT, 64, 2097152, 2, 0, 384, b8_i2, avx2, AVX2,
++    TX_DEF(fft_sr_asm, FFT, 64, 8192, 2, 0, 384, b8_i2, avx2, AVX2,
+            AV_TX_INPLACE | FF_TX_PRESHUFFLE | FF_TX_ASM_CALL, AV_CPU_FLAG_AVXSLOW | AV_CPU_FLAG_SLOW_GATHER),
+-    TX_DEF(fft_sr_ns, FFT, 64, 2097152, 2, 0, 384, b8_i2, avx2, AVX2, AV_TX_INPLACE | FF_TX_PRESHUFFLE,
++    TX_DEF(fft_sr_ns, FFT, 64, 8192, 2, 0, 384, b8_i2, avx2, AVX2, AV_TX_INPLACE | FF_TX_PRESHUFFLE,
+            AV_CPU_FLAG_AVXSLOW | AV_CPU_FLAG_SLOW_GATHER),
+ 
+     TX_DEF(fft_pfa_15xM, FFT, 60, TX_LEN_UNLIMITED, 15, 2, 320, fft_pfa_init, avx2, AVX2,

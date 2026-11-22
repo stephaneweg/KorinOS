@@ -81,7 +81,7 @@ diff -ru -U2 a/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/LayerTreeHos
  unsigned onyxCompositingTriggers()
  {
      static unsigned triggers;
-@@ -1415,17 +1415,17 @@
+@@ -1415,15 +1415,15 @@
          // (No trigger at all would switch compositing off -- RenderLayerCompositor::
          // cacheAcceleratedCompositingFlags --: the plugins' is given, there are no plugins.)
          triggers = ChromeClient::PluginTrigger;
@@ -89,8 +89,6 @@ diff -ru -U2 a/Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/LayerTreeHos
 +        if (testSwitch("ONYX_WEB_GPU_STAGE1", "/etc/web-gpu-stage1"))
              return;
          triggers |= ChromeClient::AnimationTrigger | ChromeClient::AnimatedOpacityTrigger;
-         // A WebGL canvas is a layer too: the GPU copies it into a texture of the compositor.
-         triggers |= ChromeClient::CanvasTrigger;
          // A video is a layer whose pictures the compositor draws from a texture (GraphicsLayerOnyx-
          // Contents): painted into the page's tiles, a picture cost ~190 ms of the main thread on a
 -        // Pi 4 and five in six were dropped. SD:/etc/web-gpu-novideo: as before.

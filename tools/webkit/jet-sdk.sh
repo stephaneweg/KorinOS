@@ -27,7 +27,8 @@ T=$OUT/tree
 rm -rf "$OUT"
 mkdir -p "$T"
 python3 -I "$ROOT/tools/webkit/jet-sdk.py" "$K" "$T" "$PREFIX" "$ROOT"
-cp "$ROOT/tools/webkit/jet-sdk/jetbuild" "$ROOT/tools/webkit/jet-sdk/jetlink" "$ROOT/tools/webkit/jet-sdk/README.md" "$T/"
+cp "$ROOT/tools/webkit/jet-sdk/jetbuild" "$ROOT/tools/webkit/jet-sdk/jetlink" "$ROOT/tools/webkit/jet-sdk/README.md" \
+	"$ROOT/tools/webkit/local/relocate-sdk.py" "$T/"
 echo "$VER" > "$T/VERSION"
 python3 -I - "$T" "$OUT" "$VER" <<'EOF'
 import os, sys, zipfile

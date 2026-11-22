@@ -3,7 +3,8 @@
 # the Modified BSD licence + zlib's, LICENSE.md): libjpeg.a (the libjpeg API, version 6b ABI, with
 # libjpeg-turbo's extensions -- jpeg_skip_scanlines, jpeg_crop_scanline, JCS_EXT_*: what Skia's JPEG codec
 # and WebKit's JPEG decoder use; the in-tree jpeg-9f has none of them) + its headers + libjpeg.pc into the
-# sysroot. libjpeg-turbo's CMake, with the NEON SIMD (simd/arm, intrinsics: GCC 14 builds them); no
+# sysroot. libjpeg-turbo's CMake, with the NEON SIMD (simd/arm, intrinsics: GCC 14 builds them) on the Pi and
+# the x86-64 SIMD (simd/x86_64, NASM: SSE2 + AVX2) on Korin PC; no
 # TurboJPEG API, no tools, no tests, no shared library.
 #
 # Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence (this script).
@@ -14,8 +15,24 @@ B=$PORTS_OUT/build/libjpeg-turbo
 mkdir -p "$B"
 
 SIMD="-DWITH_SIMD=ON -DREQUIRE_SIMD=ON"
-# (Korin PC : la copie de src/extra n'a que simd/arm ; le C seul, sans l'assembleur x86 de nasm)
-[ "$ONYX_ARCH" = x86_64 ] && SIMD="-DWITH_SIMD=OFF -DREQUIRE_SIMD=OFF"
+if [ "$ONYX_ARCH" = x86_64 ]; then
+	# Korin PC (22/11/2026, docs/agents/JET-LOCAL-BUILD.md) : le SIMD x86-64 (SSE2 et AVX2, choisis au
+	# lancement), assemblé par nasm. La copie de src/extra n'a que simd/arm : la source officielle 3.1.4
+	# (même version, SHA-256 fixé), dans ~/.cache/korin-src
+	command -v nasm >/dev/null || { echo "libjpeg-turbo: nasm manque (apt install nasm)" >&2; exit 1; }
+	JT=libjpeg-turbo-3.1.4.tar.gz
+	JSUM=e23d3ebb2c6ee4d0e2a5823dbb55b614845df5ea3435c956fed5cf04041a87ad
+	JD=${KORIN_SRC_CACHE:-$HOME/.cache/korin-src}
+	mkdir -p "$JD"
+	[ -f "$JD/$JT" ] && [ "$(sha256sum "$JD/$JT" | cut -d' ' -f1)" = "$JSUM" ] ||
+		curl -fsSL --retry 3 -o "$JD/$JT" "https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/3.1.4/$JT"
+	[ "$(sha256sum "$JD/$JT" | cut -d' ' -f1)" = "$JSUM" ] || { echo "libjpeg-turbo: sha256 faux : $JD/$JT" >&2; exit 1; }
+	SRC=$PORTS_OUT/build/libjpeg-turbo-3.1.4-src
+	[ -d "$SRC/simd/x86_64" ] || { rm -rf "$SRC"; mkdir -p "$SRC"; tar -C "$SRC" --strip-components=1 -xzf "$JD/$JT"; }
+	rm -rf "$B"
+	mkdir -p "$B"
+	SIMD="$SIMD -DCMAKE_ASM_NASM_COMPILER=$(command -v nasm)"
+fi
 echo "libjpeg-turbo: configure (CMake, the Onyx toolchain file)"
 onyx_cmake -S "$SRC" -B "$B" -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -DWITH_TURBOJPEG=OFF -DWITH_TOOLS=OFF \
 	-DWITH_TESTS=OFF -DWITH_JAVA=OFF -DWITH_FUZZ=OFF $SIMD -DWITH_ARITH_DEC=ON \

@@ -4,7 +4,9 @@
 # (tools/pkg/packages-pc.ini ; docs/agents/JET-LOCAL-BUILD.md, point 4 : reconstruire WebKit dans Korin avec
 # CMake et Ninja, sans le SDK préparé dans le cloud). nasm et ninja : tools/webkit/local.
 #
-#     sh tools/devtools/build.sh                tous : unifdef m4 bison flex gperf pkgconf perl ruby cmake
+#     sh tools/devtools/build.sh                tous : unifdef m4 bison gperf pkgconf perl ruby cmake
+#     sh tools/devtools/build.sh flex           flex 2.6.4 : se construit, mais se bloque dans Korin (sa chaîne de
+#                                               filtres vers m4 : fork, tubes ; la fin de fichier n'arrive pas) ; pas en paquet
 #     sh tools/devtools/build.sh gperf flex     seulement ceux-ci
 #
 # Avant : ARCH=x86_64 sh tools/posix/build.sh (build/pc/posix). Sorties : build/pc/devtools/<outil>/, un arbre
@@ -150,7 +152,7 @@ b_flex () {
 	fetch flex-2.6.4.tar.gz https://github.com/westes/flex/releases/download/v2.6.4/flex-2.6.4.tar.gz \
 		e87aae032bf07c26f85ac0ed3250998c37621d95f8bd748b31f15b33c45ee995
 	unpack flex-2.6.4.tar.gz flex-2.6.4
-	gnu flex-2.6.4 M4=$PREFIX/bin/m4 ac_cv_path_M4=$PREFIX/bin/m4 || true
+	gnu flex-2.6.4 M4=$PREFIX/bin/m4 ac_cv_path_M4=$PREFIX/bin/m4
 	tree flex
 	install_bin src/flex
 	mkdir -p "$T$PREFIX/lib" "$T$PREFIX/include"
@@ -182,7 +184,7 @@ b_pkgconf () {
 	cp "$T$PREFIX/bin/pkgconf" "$T$PREFIX/bin/pkg-config"
 }
 
-NAMES=${*:-unifdef m4 bison flex gperf pkgconf perl ruby cmake}
+NAMES=${*:-unifdef m4 bison gperf pkgconf perl ruby cmake}
 for n in $NAMES; do
 	case $n in
 	perl | ruby | cmake) . "$ROOT/tools/devtools/$n.sh" ;;
