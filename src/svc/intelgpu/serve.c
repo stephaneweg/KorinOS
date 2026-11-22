@@ -35,6 +35,7 @@ struct defer {
 	u32 seq;
 	int ctx;
 	long deadline;
+	u64 t0;         /* (µs) la demande (eng_status : l'attente d'un client) */
 };
 
 static struct client clients[CLIENT_MAX];
@@ -108,7 +109,7 @@ static int defer_add(int kind, long req, u32 seq, int ctx, long ms)
 {
 	for (int i = 0; i < DEFER_MAX; i++)
 		if (!defers[i].used) {
-			defers[i] = (struct defer){1, kind, req, seq, ctx, now_ms() + ms};
+			defers[i] = (struct defer){1, kind, req, seq, ctx, now_ms() + ms, eng_us()};
 			return 0;
 		}
 	return -1;
@@ -125,6 +126,7 @@ static void defers_run(void)
 		if (d->kind == 1) {
 			if (seq_done(d->seq) || S.dead) {
 				int lost = (int32_t)(S.status[IGS_LOST] - d->seq) >= 0 && S.status[IGS_LOST];
+				eng_stat(ST_WAIT, eng_us() - d->t0);
 				reply(d->req, 0, 0, 0, lost);
 				d->used = 0;
 			} else if (now > d->deadline) {
@@ -368,7 +370,12 @@ static long handle(long req, u64 *m)
 	}
 	case IG_OP_WAIT: {
 		u32 seq = (u32)a;
+		/* le moteur a peut-être fini sans que son fil soit déjà réveillé : la réponse tout de suite (et le
+		 * lot suivant part) plutôt qu'au prochain passage du fil */
+		if (!seq_done(seq) && !S.dead)
+			eng_poll();
 		if (seq_done(seq) || S.dead) {
+			eng_waits_now++;
 			m[3] = (int32_t)(S.status[IGS_LOST] - seq) >= 0 && S.status[IGS_LOST];
 			return 0;
 		}
@@ -379,6 +386,7 @@ static long handle(long req, u64 *m)
 			ms = 20000;
 		if (defer_add(1, req, seq, 0, ms))
 			return E_NOMEM;
+		eng_waits_later++;
 		return 1;
 	}
 	case IG_OP_TIMESTAMP:
@@ -391,6 +399,12 @@ static long handle(long req, u64 *m)
 	case IG_OP_STATUS: {
 		char *t = (char *)m + 48;
 		eng_status(t, 464);
+		M32(m, 40) = (u32)strlen(t);
+		return 0;
+	}
+	case IG_OP_TIMES: {
+		char *t = (char *)m + 48;
+		eng_times(t, 464);
 		M32(m, 40) = (u32)strlen(t);
 		return 0;
 	}

@@ -309,6 +309,7 @@ extern struct svstate S;
 struct sub {
 	int ctx;
 	u32 seq, tail;
+	u64 t_queued;        /* (µs) mise en file : l'attente avant le moteur (eng_status) */
 };
 #define SUB_MAX 1024
 
@@ -331,6 +332,12 @@ int eng_ctx_idle(int c);
 u64 eng_timestamp(void);
 int eng_selftest(void);       /* lots faits à la main : SDI en PPGTT, PIPE_CONTROL -> 0 */
 void eng_status(char *buf, int max);
+void eng_times(char *buf, int max); /* le temps des lots depuis le dernier appel (puis remis à zéro) */
+/* le temps des lots, pour `intelgpu status` (22/11/2026 : Jet attendait 15 à 45 ms par image) */
+u64 eng_us(void);             /* µs depuis le démarrage (compteur du processeur) */
+enum { ST_QUEUE, ST_RUN, ST_IDLE, ST_WAIT, ST_N };
+void eng_stat(int kind, u64 us); /* une mesure : file, moteur, fin -> repos, attente d'un client */
+extern u64 eng_waits_now, eng_waits_later, eng_idle_late, eng_merged;
 
 /* serve.c */
 int serve(void);
