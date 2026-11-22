@@ -632,6 +632,14 @@ journal | grep "web: gpu" > ~/jet-b.txt
 Lire une ligne `2.0 s: N frames … paint X ms, upload Y ms, composite Z ms` : N / 2 = images/s ; si N est bas alors
 que X + Y + Z est loin de 2000 ms, c'est le JavaScript ou la mise en page du site qui tient le fil principal.
 
+**Mesures du ZBook (22/11, Jet 1.4.3, par Claude Code sous Korin : docs/agents/JET-MESURES.md)** : sur Netflix, la
+composition par le GPU coûte 15 à 45 ms par image, le processeur (`ONYX_WEB_GPU_CPU=1`) la fait en 0,6 à 5 ms
+(17 à 52 images/s au lieu de 9 à 26) ; sans les fils de tracé (`ONYX_WEB_GPU_NOCORES=1`), 1 à 8 ms. Le fil principal
+n'est pas saturé par le JavaScript ; les redessins viennent des mises en page de Netflix (`repaintAfterLayoutIfNeeded`,
+traduit avec les symboles de `webcore/bin/jet`, identique au paquet 1.4.3). Les couches 3D ne gagnent rien. Piste :
+l'attente du GPU (`intelgpu` n'envoie un lot qu'après le « repos » du moteur, jusqu'à 50 ms sans lui). Disney+ : deux
+attentes de 25 s du cadre `login.disney.com`, sans réseau ni calcul (compatibilité, pas performance).
+
 Chantiers possibles, du moins cher au plus cher : les couches 3D par défaut sur le PC (si l'essai B est meilleur) ;
 la composition directement dans la surface (plus de `glReadPixels` ni d'attente du GPU sur le fil principal, comme
 `armgl_window`) ; le compositeur sur son propre fil avec le défilement asynchrone (le défilement et les animations ne

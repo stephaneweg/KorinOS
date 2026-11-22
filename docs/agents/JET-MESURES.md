@@ -80,3 +80,32 @@ enregistrement par image, mise à jour de la page, part du fil principal dans le
 une conclusion en trois lignes : où part le temps. Joindre les lignes brutes en annexe. Des adresses de
 `ONYX_WEB_GPU_TRACE` : les laisser brutes (les symboles de Jet ne sont pas sur la machine ; ils se traduisent dans le
 cloud).
+
+---
+
+# Deuxième série (22/11) : où attend la composition par le GPU
+
+Résultat de la première série (`~/jet-mesures/RAPPORT.md`) : sur Netflix, la composition par le GPU coûte 15 à 45 ms
+par image, le processeur fait la même en ≈ 1 ms ; sans les fils de tracé, 1 à 8 ms. Le travail du GPU n'explique
+pas ces temps : le fil de Jet attend. Piste (lue dans `src/svc/intelgpu/serve.c` et `engine.c`) : le service
+`intelgpu` n'envoie un lot au GPU que quand le précédent est fini **et** que le moteur a dit « repos » (le CSB, une
+interruption de changement de contexte) ; s'il ne le dit pas, le lot suivant attend jusqu'à **50 ms**. Une image de
+Jet fait plusieurs lots (tuiles envoyées, dessin, relecture) : quelques retards par image suffisent.
+
+Mêmes règles que plus haut. Dossier : `~/jet-mesures/2/`.
+
+1. **Les messages du service** : `journal`, puis
+   `grep -a "intelgpu\|CSB\|tempête\|sondage\|ANOMALIE\|blocage" /journal.txt > ~/jet-mesures/2/journal-gpu.txt`.
+   Une ligne « CSB sans « repos » 50 ms après la fin » ou « tempête d'interruptions … : sondage » confirme la piste.
+2. **Le compte des lots** : `/sys/svc/intelgpu status > ~/jet-mesures/2/avant.txt`, puis l'essai 1 de la première
+   série (Netflix, `ONYX_WEB_GPU_DEBUG=1`, défiler 10 s), puis `/sys/svc/intelgpu status > ~/jet-mesures/2/apres.txt`
+   aussitôt l'app fermée. La différence des « soumissions », « interruptions » et « changements de contexte »,
+   divisée par le nombre d'images (`frames (` de l'essai), donne les lots par image et s'il y a une interruption par
+   lot.
+3. **Au repos pour comparer** : la même chose pendant 20 s d'une bande-annonce, sans toucher à rien
+   (`avant-repos.txt`, `apres-repos.txt`) : là, la composition coûtait ≈ 2 ms par image.
+4. **Le délai de 50 ms** : si `intelgpu status` dit « interruptions par sondage » au lieu de « MSI », le noter en tête
+   du rapport : tout le service tourne alors au rythme de son sondage.
+
+Rapport : `~/jet-mesures/2/RAPPORT.md`, les trois relevés de `status` en entier, les lots et interruptions par image
+au défilement et au repos, et les lignes du journal trouvées.
