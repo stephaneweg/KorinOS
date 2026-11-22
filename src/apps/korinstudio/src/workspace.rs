@@ -429,6 +429,7 @@ pub struct Settings {
     pub copilot_open: bool,
     pub sidebar_width: f32,
     pub copilot_width: f32,
+    pub panel_height: f32,
 }
 
 impl Default for Settings {
@@ -446,6 +447,7 @@ impl Default for Settings {
             copilot_open: true,
             sidebar_width: 260.0,
             copilot_width: 380.0,
+            panel_height: 240.0,
         }
     }
 }

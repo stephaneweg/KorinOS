@@ -24,8 +24,23 @@ pub enum Item {
     Tool { id: String, title: String, kind: String, status: ToolStatus, detail: String, output: String, diff: Option<(String, String, String)>, open: bool },
     Plan(Vec<(String, String)>),
     Permission { src: Option<PermSource>, title: String, detail: String, options: Vec<(String, String, String)>, answer: Option<String> },
+    /// Les questions de l'agent (AskUserQuestion de Claude Code) : des choix, pas une autorisation
+    Question { reply: Option<Sender<ToolResult>>, input: serde_json::Value, questions: Vec<Question>, answer: Option<String> },
+    /// Le plan que l'agent propose avant d'agir (ExitPlanMode de Claude Code)
+    PlanApproval { reply: Option<Sender<ToolResult>>, input: serde_json::Value, plan: String, answer: Option<String> },
     Notice(String, bool), // texte, erreur ?
     TurnInfo(String),
+}
+
+/// Une question de l'agent : son texte, son titre court, ses options (libellé, description), choix multiple ou non ;
+/// ce que l'utilisateur a coché, et sa réponse libre (« Autre »).
+pub struct Question {
+    pub question: String,
+    pub header: String,
+    pub options: Vec<(String, String)>,
+    pub multi: bool,
+    pub picked: Vec<bool>,
+    pub other: String,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -115,6 +130,14 @@ impl Copilot {
         }
         // les demandes d'accord en attente sont refusées
         for it in &mut self.items {
+            if let Item::Question { reply, answer, .. } | Item::PlanApproval { reply, answer, .. } = it {
+                if answer.is_none() {
+                    if let Some(r) = reply.take() {
+                        let _ = r.send(ToolResult::text(deny_json("interrompu par l'utilisateur")));
+                    }
+                    *answer = Some("annulée".into());
+                }
+            }
             if let Item::Permission { src, answer, .. } = it {
                 if answer.is_none() {
                     if let Some(PermSource::Mcp { reply, .. }) = src.take() {
@@ -209,6 +232,14 @@ impl Copilot {
         }
         self.queued.clear();
         for it in &mut self.items {
+            if let Item::Question { reply, answer, .. } | Item::PlanApproval { reply, answer, .. } = it {
+                if answer.is_none() {
+                    if let Some(r) = reply.take() {
+                        let _ = r.send(ToolResult::text(deny_json("interrompu par l'utilisateur")));
+                    }
+                    *answer = Some("annulée".into());
+                }
+            }
             if let Item::Permission { src, answer, .. } = it {
                 if answer.is_none() {
                     if let Some(PermSource::Mcp { reply, .. }) = src.take() {
@@ -237,6 +268,49 @@ impl Copilot {
 
     /// Une demande d'accord venue du serveur MCP (l'outil « approve » de Claude Code).
     pub fn mcp_permission(&mut self, tool: String, input: serde_json::Value, reply: Sender<ToolResult>) {
+        // une question à choix (pas une autorisation) : ses options, une réponse libre
+        if tool == "AskUserQuestion" {
+            let questions: Vec<Question> = input
+                .get("questions")
+                .and_then(|q| q.as_array())
+                .map(|qs| {
+                    qs.iter()
+                        .map(|q| {
+                            let options: Vec<(String, String)> = q
+                                .get("options")
+                                .and_then(|o| o.as_array())
+                                .map(|os| {
+                                    os.iter()
+                                        .map(|o| {
+                                            let g = |k: &str| o.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                            (g("label"), g("description"))
+                                        })
+                                        .collect()
+                                })
+                                .unwrap_or_default();
+                            Question {
+                                question: q.get("question").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                                header: q.get("header").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                                picked: vec![false; options.len()],
+                                options,
+                                multi: q.get("multiSelect").and_then(|v| v.as_bool()).unwrap_or(false),
+                                other: String::new(),
+                            }
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            self.items.push(Item::Question { reply: Some(reply), input, questions, answer: None });
+            self.scroll_bottom = true;
+            return;
+        }
+        // le plan proposé avant d'agir : l'approuver ou continuer à planifier
+        if tool == "ExitPlanMode" {
+            let plan = input.get("plan").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            self.items.push(Item::PlanApproval { reply: Some(reply), input, plan, answer: None });
+            self.scroll_bottom = true;
+            return;
+        }
         let base = tool.split("__").last().unwrap_or(&tool).to_string();
         if self.allow_always.contains(&tool) || self.current_mode.as_deref() == Some("bypassPermissions") {
             let _ = reply.send(ToolResult::text(allow_json(&input)));
@@ -258,7 +332,7 @@ impl Copilot {
     }
 
     pub fn pending_permission(&self) -> bool {
-        self.items.iter().any(|i| matches!(i, Item::Permission { answer: None, .. }))
+        self.items.iter().any(|i| matches!(i, Item::Permission { answer: None, .. } | Item::Question { answer: None, .. } | Item::PlanApproval { answer: None, .. }))
     }
 
     /// Les évènements de l'agent ; rend les chemins que l'agent a touchés (pour recharger les éditeurs).
@@ -562,7 +636,13 @@ pub fn show(ui: &mut Ui, cp: &mut Copilot, cu: &CopilotUi) -> Vec<CopilotAction>
     ui.painter().hline(ui.max_rect().x_range(), sep, Stroke::new(1.0, pal.border));
 
     // la saisie, en bas
-    let input_h = 118.0;
+    // la zone de saisie grandit avec le texte (jusqu'à 8 lignes environ), puis défile
+    let line_h = ui.fonts_mut(|f| f.row_height(&FontId::proportional(13.0)));
+    let width_chars = ((ui.available_width() - 40.0) / 7.0).max(10.0) as usize;
+    let lines: usize = cp.input.split('\n').map(|l| 1 + l.chars().count() / width_chars).sum::<usize>().max(2);
+    let text_h = (lines.min(8) as f32) * line_h + 4.0;
+    let chip = cu.context_label.is_some() && cp.include_context;
+    let input_h = text_h + 66.0 + if chip { 22.0 } else { 0.0 };
     let avail = ui.available_rect_before_wrap();
     let list_rect = egui::Rect::from_min_max(avail.min, egui::pos2(avail.max.x, avail.max.y - input_h));
     let input_rect = egui::Rect::from_min_max(egui::pos2(avail.min.x, avail.max.y - input_h), avail.max);
@@ -666,6 +746,146 @@ pub fn show(ui: &mut Ui, cp: &mut Copilot, cu: &CopilotUi) -> Vec<CopilotAction>
                                     }
                                 });
                         }
+                        Item::Question { reply, input, questions, answer } => {
+                            let pending = answer.is_none();
+                            let mut submit = false;
+                            egui::Frame::new()
+                                .stroke(Stroke::new(1.0, if pending { pal.accent } else { pal.border }))
+                                .corner_radius(6.0)
+                                .inner_margin(10)
+                                .show(ui, |ui| {
+                                    ui.set_width(w - 22.0);
+                                    ui.horizontal(|ui| {
+                                        icons::inline(ui, Icon::Info, 14.0, pal.accent);
+                                        ui.label(RichText::new(if questions.len() > 1 { "Questions de l'agent" } else { "Question de l'agent" }).font(crate::theme::bold(12.5)));
+                                    });
+                                    for (qi, q) in questions.iter_mut().enumerate() {
+                                        ui.add_space(6.0);
+                                        if !q.header.is_empty() {
+                                            egui::Frame::new().fill(pal.chat_user_bg).corner_radius(3.0).inner_margin(egui::Margin::symmetric(5, 1)).show(ui, |ui| {
+                                                ui.label(RichText::new(q.header.as_str()).size(11.0).color(pal.fg_dim));
+                                            });
+                                        }
+                                        ui.add(egui::Label::new(RichText::new(q.question.as_str()).size(13.0)).wrap());
+                                        if q.multi {
+                                            ui.label(RichText::new("Plusieurs choix possibles").size(11.0).color(pal.fg_faint));
+                                        }
+                                        for (oi, (label, desc)) in q.options.iter().enumerate() {
+                                            let on = q.picked[oi];
+                                            let text = RichText::new(label.as_str()).size(12.5);
+                                            let r = if q.multi {
+                                                let mut v = on;
+                                                ui.add_enabled(pending, egui::Checkbox::new(&mut v, text))
+                                            } else {
+                                                ui.add_enabled(pending, egui::RadioButton::new(on, text))
+                                            };
+                                            if !desc.is_empty() {
+                                                ui.horizontal(|ui| {
+                                                    ui.add_space(24.0);
+                                                    ui.add(egui::Label::new(RichText::new(desc.as_str()).size(11.0).color(pal.fg_dim)).wrap());
+                                                });
+                                            }
+                                            if r.clicked() {
+                                                if q.multi {
+                                                    q.picked[oi] = !on;
+                                                } else {
+                                                    q.picked.iter_mut().for_each(|p| *p = false);
+                                                    q.picked[oi] = true;
+                                                    q.other.clear();
+                                                }
+                                            }
+                                        }
+                                        if pending {
+                                            ui.horizontal(|ui| {
+                                                ui.label(RichText::new("Autre :").size(12.0).color(pal.fg_dim));
+                                                let te = ui.add(egui::TextEdit::singleline(&mut q.other).id_salt(("ks-q-other", qi)).hint_text("votre réponse").desired_width(f32::INFINITY));
+                                                if te.changed() && !q.other.is_empty() && !q.multi {
+                                                    q.picked.iter_mut().for_each(|p| *p = false);
+                                                }
+                                            });
+                                        }
+                                    }
+                                    ui.add_space(6.0);
+                                    match answer {
+                                        None => {
+                                            let ready = questions.iter().all(|q| q.picked.iter().any(|p| *p) || !q.other.trim().is_empty());
+                                            ui.horizontal(|ui| {
+                                                let b = egui::Button::new(RichText::new("Répondre").color(pal.accent_fg)).fill(pal.accent);
+                                                if ui.add_enabled(ready, b).clicked() {
+                                                    submit = true;
+                                                }
+                                                if ui.button("Refuser de répondre").clicked() {
+                                                    if let Some(r) = reply.take() {
+                                                        let _ = r.send(ToolResult::text(deny_json("l'utilisateur n'a pas voulu répondre")));
+                                                    }
+                                                    *answer = Some("pas de réponse".into());
+                                                }
+                                            });
+                                        }
+                                        Some(a) => {
+                                            ui.label(RichText::new(format!("→ {a}")).color(pal.fg_dim));
+                                        }
+                                    }
+                                });
+                            if submit {
+                                // les réponses, comme le SDK d'agents les attend : { question : libellé(s) choisi(s) }
+                                let mut answers = serde_json::Map::new();
+                                let mut shown = Vec::new();
+                                for q in questions.iter() {
+                                    let mut chosen: Vec<String> = q.options.iter().zip(&q.picked).filter(|(_, p)| **p).map(|((l, _), _)| l.clone()).collect();
+                                    if !q.other.trim().is_empty() {
+                                        chosen.push(q.other.trim().to_string());
+                                    }
+                                    let v = chosen.join(", ");
+                                    shown.push(v.clone());
+                                    answers.insert(q.question.clone(), serde_json::Value::String(v));
+                                }
+                                let mut updated = input.clone();
+                                if let Some(o) = updated.as_object_mut() {
+                                    o.insert("answers".into(), serde_json::Value::Object(answers));
+                                }
+                                if let Some(r) = reply.take() {
+                                    let _ = r.send(ToolResult::text(allow_json(&updated)));
+                                }
+                                *answer = Some(shown.join(" · "));
+                            }
+                        }
+                        Item::PlanApproval { reply, input, plan, answer } => {
+                            egui::Frame::new()
+                                .stroke(Stroke::new(1.0, if answer.is_none() { pal.accent } else { pal.border }))
+                                .corner_radius(6.0)
+                                .inner_margin(10)
+                                .show(ui, |ui| {
+                                    ui.set_width(w - 22.0);
+                                    ui.horizontal(|ui| {
+                                        icons::inline(ui, Icon::Check, 14.0, pal.accent);
+                                        ui.label(RichText::new("Le plan proposé").font(crate::theme::bold(12.5)));
+                                    });
+                                    markdown(ui, plan, pal, cu.code_size, &mut acts);
+                                    match answer {
+                                        None => {
+                                            ui.horizontal(|ui| {
+                                                let b = egui::Button::new(RichText::new("Approuver le plan").color(pal.accent_fg)).fill(pal.accent);
+                                                if ui.add(b).clicked() {
+                                                    if let Some(r) = reply.take() {
+                                                        let _ = r.send(ToolResult::text(allow_json(input)));
+                                                    }
+                                                    *answer = Some("approuvé".into());
+                                                }
+                                                if ui.button("Continuer à planifier").clicked() {
+                                                    if let Some(r) = reply.take() {
+                                                        let _ = r.send(ToolResult::text(deny_json("l'utilisateur veut continuer à planifier")));
+                                                    }
+                                                    *answer = Some("continuer à planifier".into());
+                                                }
+                                            });
+                                        }
+                                        Some(a) => {
+                                            ui.label(RichText::new(format!("→ {a}")).color(pal.fg_dim));
+                                        }
+                                    }
+                                });
+                        }
                         Item::Notice(t, err) => {
                             let col = if *err { pal.error } else { pal.fg_dim };
                             ui.horizontal_wrapped(|ui| {
@@ -714,13 +934,20 @@ pub fn show(ui: &mut Ui, cp: &mut Copilot, cu: &CopilotUi) -> Vec<CopilotAction>
             }
         }
         let id = egui::Id::new("ks-chat-input");
-        let te = egui::TextEdit::multiline(&mut cp.input)
-            .id(id)
-            .hint_text(format!("Demandez à {}… (Entrée : envoyer, Maj+Entrée : à la ligne)", cp.kind.label()))
-            .frame(egui::Frame::NONE)
-            .desired_rows(2)
-            .desired_width(w);
-        let r = ui.add(te);
+        let r = egui::ScrollArea::vertical()
+            .id_salt("ks-chat-input-scroll")
+            .max_height(text_h)
+            .auto_shrink([false, true])
+            .show(ui, |ui| {
+                let te = egui::TextEdit::multiline(&mut cp.input)
+                    .id(id)
+                    .hint_text(format!("Demandez à {}… (Entrée : envoyer, Maj+Entrée : à la ligne)", cp.kind.label()))
+                    .frame(egui::Frame::NONE)
+                    .desired_rows(2)
+                    .desired_width(w - 12.0);
+                ui.add(te)
+            })
+            .inner;
         if cp.focus_input {
             r.request_focus();
             cp.focus_input = false;
