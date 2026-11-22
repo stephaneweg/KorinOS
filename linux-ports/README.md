@@ -35,6 +35,17 @@ même graine, même `.mid`.
 
 `make` génère d'abord les en-têtes C des kits depuis leurs `.abi` (`tools/kits/abi2c.py`, comme pour Korin).
 
+## Paquets rpm
+
+    cargo install cargo-generate-rpm --locked      # une fois (écrit le rpm sans rpmbuild ni sudo)
+    python3 -I packaging/make-rpms.py              # -> rpm/korin-koton-<v>-1.x86_64.rpm, rpm/korin-arabesque-<v>-1.x86_64.rpm
+    sudo dnf install --nogpgcheck rpm/*.rpm        # paquets non signés
+
+Version : celle du paquet PC de Korin (`tools/pkg/versions.ini`, section `[pc]`). Les binaires cherchent leurs données
+en remontant de leur dossier : les paquets gardent l'arborescence du dépôt sous `/opt/korin` (`linux-ports/bin`,
+`src/apps/<app>/data`, les démos ou préréglages, `src/apps/fmtracker/ins`, `skel/sd0/res/lang`), avec un lanceur
+`/usr/bin/<app>`, une entrée `org.korin.<app>.desktop` et l'icône de Korin en PNG (`tools/icons/rendered/<app>.rgba`).
+
 ## Lancer
 
     bin/arabesque [fichier.arb | .ifs | .stl | .sca | .mid | .png | .bmp]
