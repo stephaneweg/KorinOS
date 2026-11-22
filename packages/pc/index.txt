@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-22 14:56
+date = 2026-11-22 15:21
 abi = 629
 packages = 117
 board = pc
@@ -2104,18 +2104,18 @@ content = af2f547cc615197d129148483c0b24bdd7752b305b011ace6ee5ff4ce89e9b7b
 
 [claude-code]
 title = Claude Code
-version = 2.1.330.7
+version = 2.1.330.8
 category = Développement
 author = Korin OS
 summary = Claude Code, l'agent de code d'Anthropic, par votre abonnement Claude (Pro, Max, Team) : la commande claude au Terminal, et Craft Anything s'en sert (téléchargé chez Anthropic à l'installation, 380 Mo)
-size = 3830183
-installed = 389576049
-sha256 = 1596f85f74448f03b28bfde78d49fddf2798d7fcac80a0bd77d9c513b2ced544
-file = pkgs/claude-code-2.1.330.7.opk
+size = 3879978
+installed = 389707697
+sha256 = 108d46832af7d9fe751ef92ba3e23ffef40f6d3bd0583b78451d265dd1b57bd4
+file = pkgs/claude-code-2.1.330.8.opk
 needs = linuxhost, bash, git, rg, python, pkgman >= 1.0.21, abi >= 627
 required = 0
 restart = 0
-content = 61323436f03a6608097371097b60868e51f749616a1b7550111f16242f8a82a9
+content = d2f4d56727cb033bdfe98e88e20c90a60d4a30f4a69014bac029232a44249254
 
 [rust-data-1]
 title = Rust (1/1)
