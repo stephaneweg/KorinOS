@@ -1,8 +1,7 @@
 # vfs et fatfs : rendre le volume système rapide sous charge (à faire avant la reconstruction de WebKit)
 
-Note de l'agent local (ZBook, 22/11/2026), pour la session du cloud. Décision de l'utilisateur : les points **1, 2 et
-4** ci-dessous sont à faire **avant** la reconstruction de WebKit de `docs/agents/JET-LOCAL-BUILD.md` (le point 3 est
-facultatif).
+Note de l'agent local (ZBook, 22/11/2026), pour la session du cloud. Décision de l'utilisateur : les points **1, 2, 4 et 5** ci-dessous sont à faire **avant** la reconstruction de WebKit
+de `docs/agents/JET-LOCAL-BUILD.md` (le point 3 est facultatif ; 4 et 5 vont ensemble).
 
 ## Ce qui a été vu
 
@@ -26,7 +25,15 @@ le même ZBook, Windows (même disque, FAT32) ne s'effondre pas ainsi.
    en correspondance directe (`fatfs.c:27`) ; un dossier de 3 000 noms longs (≈ 300 Ko) n'y tient pas et se relit à
    chaque parcours. Celui des données (`cc_*`) est plafonné à 256 Mo pour `fs.root` (`CC_BLOCKS_MAX`, `fatfs.c:34`),
    64 Mo pour les autres volumes, même sur 32 Go.
-4. **Le coût des services en espace utilisateur** (programme → `vfs` → `fatfs` → `nvme`, des allers-retours de
+4. **Le pilote NVMe sérialise tout.** `blkserv` (la couche commune des périphériques de blocs) a « un thread par
+   périphérique, un appel au pilote à la fois » (`src/svc/common/blkserv.c:9`) ; `nvme` prend un verrou global pour
+   toute une requête (`lock()` … `unlock()` autour de `io()`, `src/svc/nvme/nvme.c`) ; **une seule paire de files
+   d'E/S**, au plus `QD_MAX` = 16 commandes en vol, et seulement les morceaux d'**une même** requête : deux requêtes
+   de clients différents ne sont jamais en vol ensemble. Et chaque requête attend sa fin en tournant (`wait_slots` :
+   boucle active puis `SYS_IRQ_WAIT`) : le fil `nvme` était à 91 % d'un cœur pendant la copie du SDK. Pour de petites
+   lectures dispersées (entrées de dossier, en-têtes), le débit est plafonné par la latence d'une commande à la fois,
+   alors que le SSD en traiterait des dizaines en parallèle sur plusieurs files.
+5. **Le coût des services en espace utilisateur** (programme → `vfs` → `fatfs` → `nvme`, des allers-retours de
    messages) est réel mais fixe par opération : il devient grave parce que 1 et 2 multiplient les opérations et les
    mettent en file. Avec un cache des noms, la plupart des `open` / `stat` n'atteindraient plus `fatfs`.
 
@@ -53,10 +60,23 @@ requêtes servies en parallèle sous des verrous fins.
    `stat`, `readdir`), un verrou pour les écritures et la FAT ; le cache et l'index protégés. Penser au tampon partagé
    avec le périphérique bloc (`PARTAGE`, `fatfs.c:30`) : un par fil.
 
+5. **Plusieurs requêtes en vol dans `blkserv` et `nvme`** (sans quoi 4 ne sert qu'aux lectures servies par le
+   cache) : accepter les requêtes de plusieurs clients en même temps (plusieurs fils dans `blkserv` pour un même
+   disque, ou une file de requêtes asynchrone) ; dans `nvme`, remplacer le verrou global par des emplacements de
+   commande pris dans un ensemble commun (plus de 16), les fins de commande rendues à leur demandeur par leur `cid` ;
+   idéalement **une paire de files NVMe par fil** (comme Linux, une par cœur : pas de verrou à l'envoi) ; l'attente par
+   interruption plutôt qu'en tournant quand plusieurs commandes sont en vol. Les écritures restent revérifiées par
+   `policy_write_ok` au plus bas, une par une (la garde des partitions ne doit pas faiblir). Les autres pilotes de
+   `blkserv` (`sdhci`, `rtsx`, `usbstorage`, `imgblk`) gardent un appel à la fois tant qu'ils ne le déclarent pas.
+
+Ordre conseillé : 1 et 2 d'abord (ils retirent la plupart des accès au disque, quel que soit le pilote), puis 4 et 5
+ensemble.
+
 ## Comment vérifier
 
 - Un banc : N process qui ouvrent / `stat` des fichiers d'un dossier de 3 000 noms (présents et absents), mesurer
-  les opérations par seconde avant et après (`tools/…`, à écrire), et la charge de `fatfs` (`mcp__korin__cpu`).
+  les opérations par seconde avant et après (`tools/…`, à écrire), et la charge de `fatfs` et de `nvme`
+  (`mcp__korin__cpu`). Pour `nvme` : N process qui lisent des blocs de 4 Ko dispersés (IOPS), avant et après.
 - Puis, sur le ZBook : `tools/webkit/local/rebuild-sdk.py 10 "…"` avec le SDK dans `/devtools` (FAT32) : le rythme ne
   doit plus s'effondrer ; et la copie d'un dossier de milliers de fichiers.
 - Ces services sont dans `/sys` et `vfs` sert tout le système : construire et essayer sous QEMU d'abord, garder
