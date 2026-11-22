@@ -136,6 +136,14 @@ d'heure : les compilateurs attendaient le disque à 97 %. Ce qui a été appris 
    `ninja` (déjà publiés), avec son script dans `tools/webkit/local/`. But : reconstruire WebKit entièrement dans
    Korin (CMake + Ninja), sans le SDK préparé dans le cloud.
 
+5. **Les bibliothèques du SDK en paquets de développement** (demande de l'utilisateur du 22/11/2026) : chaque
+   bibliothèque de `sysroot/lib` du SDK (les `.a` et leurs en-têtes) en paquet `<nom>-dev` à part, comme `occt-dev`
+   et `planegcs-dev`, dans `/devtools/gcc/lib` et `/devtools/gcc/include` : `zlib-dev`, `libpng-dev`, `libwebp-dev`,
+   `freetype-dev`, `harfbuzz-dev`, `icu-dev`, `skia-dev`, `sqlite-dev`, `libxml2-dev`, `brotli-dev`, `nghttp2-dev`,
+   `openssl-dev`, `curl-dev`… (`libjpeg-turbo` est déjà publié de cette façon : 3.1.4, avec son SIMD). Les mêmes
+   drapeaux que WebKit (`ONYX_CPU_FLAGS`), avec leurs besoins entre eux (`needs`) et leur licence. Elles serviront à
+   tout portage (pas seulement Jet), et le SDK n'aura plus qu'à les demander au lieu de les embarquer.
+
 ## État du ZBook (nettoyé le 22/11 au soir)
 
 - `/apps/jet.app/main` : l'original de jet 1.4.7, remis ; `/apps/tf1plus.app/user.css` ôté (Jet 1.4.7 l'ignorerait).
