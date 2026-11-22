@@ -38,6 +38,16 @@ var bushes: Array = []             # [position, rayon] des buissons du décor
 var pressed_car := -1
 var press_pos := Vector2.ZERO
 
+# Le tutoriel du niveau 1 : une main et une flèche montrent quelle voiture toucher, et de quel côté.
+# Étape 0 : le premier coup ; 1 : la marche arrière ; 2 : le dernier conseil ; -1 : rien (autres niveaux).
+var tuto_step := -1
+var tuto_car := -1                 # la voiture montrée (-1 : aucune)
+var tuto_dir := 0                  # le sens qui la fait sortir
+var tuto_time := 0.0
+var tuto_node: Node2D              # au-dessus des voitures, pour la main et la flèche
+var tuto_panel: PanelContainer
+var tuto_label: Label
+
 # Interface
 var lbl_level: Label
 var lbl_moves: Label
@@ -53,6 +63,10 @@ var win_next: Button
 func _ready() -> void:
 	_load_progress()
 	_build_ui()
+	tuto_node = Node2D.new()
+	tuto_node.z_index = 10
+	add_child(tuto_node)
+	tuto_node.draw.connect(_draw_tuto)
 	get_viewport().size_changed.connect(_relayout)
 	start_level(level_num)
 
@@ -87,6 +101,8 @@ func _reset_state() -> void:
 	_rebuild_cars()
 	_relayout()
 	_update_hud()
+	tuto_step = 0 if level_num == 1 else -1
+	_update_tuto()
 
 
 func _snapshot() -> Dictionary:
@@ -116,6 +132,7 @@ func undo() -> void:
 	_rebuild_cars()
 	_relayout()
 	_update_hud()
+	_update_tuto()
 
 
 # --- Les voitures ----------------------------------------------------------------------------------------------
@@ -191,6 +208,9 @@ func move_car(i: int, dir: int) -> void:
 		tw.tween_callback(func(): nd.z_index = 0)
 		tw.tween_callback(_bump.bind(nd, dv, int(res["blocker"])))
 	_update_hud()
+	if tuto_step >= 0 and tuto_step < 2:
+		tuto_step += 1
+	_update_tuto()
 	_check_end()
 
 
@@ -256,6 +276,8 @@ func _check_end() -> void:
 			left += 1
 	if left == 0:
 		won = true
+		tuto_step = -1
+		_update_tuto()
 		unlocked = maxi(unlocked, level_num + 1)
 		_save_progress()
 		_update_hud()
@@ -309,6 +331,8 @@ func _relayout() -> void:
 			nd.queue_free()
 	_place_bushes(view)
 	queue_redraw()
+	if tuto_node != null:
+		tuto_node.queue_redraw()
 
 
 # Des buissons dans l'herbe, hors des routes et du parking (toujours les mêmes pour un niveau).
@@ -388,6 +412,88 @@ func _draw() -> void:
 		draw_circle(p + Vector2(r * 0.15, r * 0.25), r, Color(0, 0, 0, 0.18))
 		draw_circle(p, r, Color("3f7f3a"))
 		draw_circle(p - Vector2(r * 0.3, r * 0.3), r * 0.55, Color("579c4f"))
+
+
+# --- Tutoriel (niveau 1) -----------------------------------------------------------------------------------------
+
+const TUTO_TEXT := [
+	"Touchez une voiture du côté où elle doit partir : elle roule tout droit jusqu'à la route.",
+	"Phares jaunes : l'avant. Feux rouges : l'arrière. Touchez l'arrière pour reculer (ou glissez le doigt dans le sens voulu).",
+	"Videz le parking ! Une voiture bloquée tressaute ; « Annuler » défait le dernier coup.",
+]
+
+
+# Choisit la voiture à montrer : une qui sort tout de suite, en marche arrière de préférence à l'étape 1 et en
+# marche avant à l'étape 0 ; à défaut, une qui peut au moins rouler.
+func _pick_tuto_car() -> void:
+	tuto_car = -1
+	tuto_dir = 0
+	var cars: Array = lvl["cars"]
+	var want_back := tuto_step == 1
+	var best := -1
+	for i in cars.size():
+		if gone[i]:
+			continue
+		for d in [-1, 1]:
+			var r := LevelGen.probe(occ, lvl["w"], lvl["h"], cars[i], d)
+			var score := 0
+			if r["exit"]:
+				score = 4 + (2 if (d != int(cars[i]["facing"])) == want_back else 0)
+			elif int(r["steps"]) > 0:
+				score = 1
+			if score > best:
+				best = score
+				tuto_car = i
+				tuto_dir = d
+	if best <= 0:
+		tuto_car = -1
+
+
+func _update_tuto() -> void:
+	if tuto_panel == null:
+		return
+	var on := tuto_step >= 0 and not won and not lvl.is_empty()
+	tuto_panel.visible = on
+	tuto_car = -1
+	if on:
+		tuto_label.text = TUTO_TEXT[tuto_step]
+		if tuto_step < 2:
+			_pick_tuto_car()
+	set_process(on)
+	if tuto_node != null:
+		tuto_node.queue_redraw()
+
+
+func _process(delta: float) -> void:
+	tuto_time += delta
+	if tuto_car >= 0 and tuto_node != null:
+		tuto_node.queue_redraw()
+
+
+# La main qui pulse sur le bout de la voiture à toucher, et la flèche qui montre où elle partira.
+func _draw_tuto() -> void:
+	if tuto_car < 0 or tuto_car >= car_nodes.size() or gone[tuto_car] or car_nodes[tuto_car] == null:
+		return
+	if tweens.has(car_nodes[tuto_car]) and tweens[car_nodes[tuto_car]].is_valid() and tweens[car_nodes[tuto_car]].is_running():
+		return
+	var car: Dictionary = lvl["cars"][tuto_car]
+	var ax := Vector2(1, 0) if car["horiz"] else Vector2(0, 1)
+	var dv := ax * float(tuto_dir)
+	var end := _car_center(car) + dv * (float(car["len"]) * 0.5 - 0.5) * cell
+	var pulse := 0.5 + 0.5 * sin(tuto_time * 5.0)
+	var col := Color("f5b83d")
+	# Le point à toucher : un anneau qui pulse.
+	tuto_node.draw_arc(end, cell * (0.30 + 0.10 * pulse), 0, TAU, 32, Color(col, 0.95), maxf(3.0, cell * 0.07))
+	tuto_node.draw_circle(end, cell * 0.12, Color(1, 1, 1, 0.9))
+	# La flèche : du bout de la voiture vers l'extérieur.
+	var a := _car_center(car) + dv * (float(car["len"]) * 0.5 + 0.15) * cell
+	var b := a + dv * cell * (0.75 + 0.20 * pulse)
+	var lw := maxf(4.0, cell * 0.10)
+	var n := Vector2(-dv.y, dv.x)
+	tuto_node.draw_line(a, b - dv * cell * 0.2, Color(0, 0, 0, 0.35), lw + 4)
+	tuto_node.draw_line(a, b - dv * cell * 0.2, col, lw)
+	tuto_node.draw_colored_polygon(PackedVector2Array([b, b - dv * cell * 0.32 + n * cell * 0.22,
+		b - dv * cell * 0.32 - n * cell * 0.22]), col)
 
 
 # --- Entrées -------------------------------------------------------------------------------------------------------
@@ -505,6 +611,26 @@ func _build_ui() -> void:
 	lbl_msg.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	lbl_msg.add_theme_constant_override("outline_size", 6)
 	root.add_child(lbl_msg)
+
+	# Le bandeau du tutoriel, sous la barre.
+	tuto_panel = PanelContainer.new()
+	var ts := StyleBoxFlat.new()
+	ts.bg_color = Color(0.10, 0.12, 0.14, 0.86)
+	ts.set_corner_radius_all(10)
+	ts.set_content_margin_all(10)
+	tuto_panel.add_theme_stylebox_override("panel", ts)
+	tuto_panel.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	tuto_panel.offset_top = HUD_H + 8
+	tuto_panel.offset_left = 12
+	tuto_panel.offset_right = -12
+	tuto_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tuto_panel.visible = false
+	root.add_child(tuto_panel)
+	tuto_label = _label(18)
+	tuto_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tuto_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tuto_label.add_theme_color_override("font_color", Color("f5b83d"))
+	tuto_panel.add_child(tuto_label)
 
 	# Le panneau de victoire.
 	win_layer = ColorRect.new()
