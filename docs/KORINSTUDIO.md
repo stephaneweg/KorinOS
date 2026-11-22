@@ -71,6 +71,11 @@ outils :
 | `get_diagnostics` | les problèmes de la dernière construction |
 | `approve` | l'accord demandé par Claude Code, posé à l'utilisateur dans le copilote |
 
+**Conversations** : « + » en commence une nouvelle ; l'horloge de l'en-tête du copilote liste les conversations
+précédentes de Claude Code dans ce dossier (celles qu'il garde lui-même : `~/.claude/projects/<dossier>/<séance>.jsonl`,
+`history.rs`), avec leur premier message et leur date ; en choisir une la rejoue dans le panneau, et le message suivant la
+reprend (`--resume` : l'agent garde son contexte). Pas encore pour Vibe et MAI.
+
 **Questions et plans** : les questions à choix de Claude Code (`AskUserQuestion`, qui passent par l'outil `approve`
 comme les accords) ont leur carte : les options (choix simple ou multiple, avec leur description), une réponse libre
 (« Autre »), Répondre ; la réponse revient à Claude Code dans `updatedInput.answers` (question -> libellé(s)), comme le SDK

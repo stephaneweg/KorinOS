@@ -2,6 +2,7 @@
 // d'activité, barre latérale (explorateur, recherche, Git, exécuter), onglets et éditeur, panneau du bas
 // (problèmes, sortie, terminal), copilote à droite, barre d'état, palette de commandes, dialogues.
 
+use crate::agent::AgentKind;
 use crate::app::*;
 use crate::copilot::{self, CopilotAction, CopilotUi};
 use crate::editor::{self, EditorStyle};
@@ -1348,7 +1349,7 @@ impl Studio {
 
     fn copilot_panel(&mut self, ui: &mut Ui, pal: &Palette) {
         let ctx = ui.ctx().clone();
-        let cu = CopilotUi { pal, code_size: self.settings.code_size, context_label: self.context_label() };
+        let cu = CopilotUi { pal, code_size: self.settings.code_size, context_label: self.context_label(), cwd: Some(self.launch().cwd) };
         let acts = copilot::show(ui, &mut self.copilot, &cu);
         for a in acts {
             match a {
@@ -1367,6 +1368,11 @@ impl Studio {
                     }
                 }
                 CopilotAction::NewChat => self.copilot.reset(),
+                CopilotAction::OpenPast(id, path) => {
+                    self.copilot.open_past(&id, &path);
+                    self.settings.agent = AgentKind::ClaudeCode;
+                    self.settings.save();
+                }
                 CopilotAction::ChangeKind(k) => self.set_agent(k),
                 CopilotAction::ShowLog => {
                     self.panel_open = true;

@@ -12,6 +12,7 @@ mod app;
 mod copilot;
 mod editor;
 mod highlight;
+mod history;
 mod icons;
 mod mcp;
 mod tasks;

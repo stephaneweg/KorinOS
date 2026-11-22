@@ -71,6 +71,8 @@ pub struct Copilot {
     pub focus_input: bool,
     pub wanted_mode: Option<String>,
     pub last_cwd: Option<PathBuf>,
+    /// les conversations précédentes, lues à l'ouverture du menu
+    pub history: Vec<crate::history::PastSession>,
 }
 
 /// Ce que l'app donne au copilote pour lancer un agent.
@@ -104,6 +106,7 @@ impl Copilot {
             focus_input: false,
             wanted_mode: None,
             last_cwd: None,
+            history: Vec::new(),
         }
     }
 
@@ -122,6 +125,24 @@ impl Copilot {
         self.session_id = None;
         self.allow_always.clear();
         self.queued.clear();
+    }
+
+    /// Rouvre une conversation de Claude Code : elle est rejouée dans le panneau, et le prochain message la reprend
+    /// (--resume : l'agent garde tout son contexte).
+    pub fn open_past(&mut self, id: &str, path: &std::path::Path) {
+        self.reset();
+        self.kind = AgentKind::ClaudeCode;
+        for (role, text) in crate::history::replay(path) {
+            self.items.push(match role.as_str() {
+                "user" => Item::User(text),
+                "assistant" => Item::Assistant(text),
+                _ => Item::Tool { id: String::new(), title: text, kind: String::new(), status: ToolStatus::Done, detail: String::new(), output: String::new(), diff: None, open: false },
+            });
+        }
+        self.items.push(Item::Notice("Conversation rouverte : le prochain message la reprend, avec tout son contexte.".into(), false));
+        self.session_id = Some(id.to_string());
+        self.scroll_bottom = true;
+        self.focus_input = true;
     }
 
     pub fn stop_agent(&mut self) {
@@ -585,12 +606,15 @@ fn describe_tool(tool: &str, input: &serde_json::Value) -> (String, String) {
 
 pub struct CopilotUi<'a> {
     pub pal: &'a Palette,
+    /// le dossier de travail de l'agent (pour les conversations précédentes)
+    pub cwd: Option<PathBuf>,
     pub code_size: f32,
     pub context_label: Option<String>,
 }
 
 pub enum CopilotAction {
     Send(String),
+    OpenPast(String, PathBuf),
     OpenFile(String, usize),
     Insert(String),
     NewChat,
@@ -618,6 +642,41 @@ pub fn show(ui: &mut Ui, cp: &mut Copilot, cu: &CopilotUi) -> Vec<CopilotAction>
             icons::paint(ui.painter(), egui::Rect::from_center_size(mb.0.rect.center(), vec2(16.0, 16.0)), Icon::Ellipsis, pal.fg);
             if icons::button(ui, Icon::Plus, 24.0, "Nouvelle conversation").clicked() {
                 acts.push(CopilotAction::NewChat);
+            }
+            // les conversations précédentes (celles de Claude Code dans ce dossier)
+            let mb = egui::containers::menu::MenuButton::from_button(egui::Button::new("").frame(false).min_size(vec2(24.0, 24.0))).ui(ui, |ui| {
+                ui.set_min_width(320.0);
+                ui.set_max_width(420.0);
+                if cp.kind != AgentKind::ClaudeCode {
+                    ui.label(RichText::new(format!("{} ne garde pas encore ses conversations ici : seules celles de Claude Code se rouvrent.", cp.kind.label())).size(12.0).color(pal.fg_dim));
+                    ui.separator();
+                }
+                if cp.history.is_empty() {
+                    ui.label(RichText::new("Aucune conversation précédente dans ce dossier.").color(pal.fg_dim));
+                }
+                egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
+                    for h in &cp.history {
+                        let current = cp.session_id.as_deref() == Some(h.id.as_str());
+                        let title: String = h.title.lines().next().unwrap_or("").chars().take(70).collect();
+                        let r = ui.add(
+                            egui::Button::new(RichText::new(if title.is_empty() { "(sans titre)".to_string() } else { title }).size(12.5))
+                                .right_text(RichText::new(format!("{} · {} msg", crate::history::ago(h.when), h.messages)).size(11.0).color(pal.fg_faint))
+                                .selected(current)
+                                .min_size(vec2(ui.available_width(), 26.0)),
+                        );
+                        if r.on_hover_text(h.title.chars().take(400).collect::<String>()).clicked() {
+                            acts.push(CopilotAction::OpenPast(h.id.clone(), h.path.clone()));
+                            ui.close();
+                        }
+                    }
+                });
+            });
+            icons::paint(ui.painter(), egui::Rect::from_center_size(mb.0.rect.center(), vec2(16.0, 16.0)), Icon::History, pal.fg);
+            let opened = mb.1.is_some();
+            if mb.0.on_hover_text("Conversations précédentes").clicked() || (opened && cp.history.is_empty()) {
+                if let Some(cwd) = &cu.cwd {
+                    cp.history = crate::history::list(cwd);
+                }
             }
             let mut k = cp.kind;
             egui::ComboBox::from_id_salt("ks-agent-kind").selected_text(k.label()).width(140.0).show_ui(ui, |ui| {

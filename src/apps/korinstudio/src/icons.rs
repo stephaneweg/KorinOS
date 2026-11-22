@@ -42,6 +42,7 @@ pub enum Icon {
     Ellipsis,
     Clear,
     Layout,
+    History,
     Spinner(u8),
 }
 
@@ -217,6 +218,18 @@ pub fn paint(p: &Painter, r: Rect, icon: Icon, col: Color32) {
         Icon::Clear => {
             poly(p, vec![q(2.0, 12.5), q(8.0, 3.0), q(14.0, 3.0), q(8.0, 12.5), q(2.0, 12.5)], st);
             p.line_segment([q(1.5, 14.5), q(14.5, 14.5)], st);
+        }
+        Icon::History => {
+            // une horloge dont la flèche revient en arrière
+            let c0 = q(8.0, 8.5);
+            let pts: Vec<Pos2> = (0..=24).map(|i| {
+                let a = 2.4 + i as f32 / 24.0 * (TAU * 0.8);
+                c0 + vec2(a.cos(), a.sin()) * 5.8 * k
+            }).collect();
+            let start = pts[0];
+            poly(p, pts, st);
+            poly(p, vec![start + vec2(-0.5 * k, -3.0 * k), start, start + vec2(3.0 * k, 0.5 * k)], st);
+            poly(p, vec![q(8.0, 5.0), q(8.0, 8.5), q(10.5, 10.0)], st);
         }
         Icon::Spinner(phase) => {
             let c0 = q(8.0, 8.0);
