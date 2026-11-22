@@ -274,6 +274,7 @@ pub struct Studio {
     pub menu_sent: String,
     pub focus_editor: bool,
     pub agent_activity: Option<(String, f64)>,
+    pub settings_dirty: bool,
 }
 
 impl Studio {
@@ -325,6 +326,7 @@ impl Studio {
             menu_sent: String::new(),
             focus_editor: false,
             agent_activity: None,
+            settings_dirty: false,
         };
         // l'adresse et le jeton du serveur MCP, pour un agent lancé ailleurs (Claude Code au terminal :
         // claude mcp add --transport http korinstudio <url> --header "Authorization: Bearer <jeton>")

@@ -112,35 +112,56 @@ impl Studio {
         egui::Panel::bottom("ks-status").exact_size(22.0).frame(Frame::new().fill(pal.status_bg)).show(root_ui, |ui| self.status_bar(ui, &pal));
         // barre d'activité
         egui::Panel::left("ks-activity").exact_size(48.0).resizable(false).frame(Frame::new().fill(pal.activity_bg).stroke(Stroke::new(1.0, pal.border))).show(root_ui, |ui| self.activity_bar(ui, &pal));
-        // barre latérale
+        // barre latérale, copilote, panneau du bas : une taille à nous (les réglages) et notre poignée ; la poignée
+        // d'egui 0.37 perd la taille au relâché (la position du pointeur n'y est plus : le panneau reprenait sa taille)
+        let mut splits: Vec<(&str, Edge, Which, f32, f32)> = Vec::new();
         if self.sidebar_open {
-            egui::Panel::left("ks-sidebar")
-                .default_size(self.settings.sidebar_width)
-                .size_range(170.0..=600.0)
-                .resizable(true)
+            let r = egui::Panel::left("ks-sidebar")
+                .exact_size(self.settings.sidebar_width)
+                .resizable(false)
                 .frame(Frame::new().fill(pal.sidebar_bg).stroke(Stroke::new(1.0, pal.border)))
-                .show(root_ui, |ui| self.sidebar(ui, &pal));
+                .show(root_ui, |ui| self.sidebar(ui, &pal))
+                .response
+                .rect;
+            splits.push(("ks-split-side", Edge::Right(r), Which::Side, 170.0, 600.0));
         }
-        // copilote
         if self.settings.copilot_open {
-            egui::Panel::right("ks-copilot")
-                .default_size(self.settings.copilot_width)
-                .size_range(280.0..=900.0)
-                .resizable(true)
+            let r = egui::Panel::right("ks-copilot")
+                .exact_size(self.settings.copilot_width)
+                .resizable(false)
                 .frame(Frame::new().fill(pal.sidebar_bg).stroke(Stroke::new(1.0, pal.border)))
-                .show(root_ui, |ui| self.copilot_panel(ui, &pal));
+                .show(root_ui, |ui| self.copilot_panel(ui, &pal))
+                .response
+                .rect;
+            splits.push(("ks-split-copilot", Edge::Left(r), Which::Copilot, 280.0, 900.0));
         }
-        // panneau du bas
         if self.panel_open {
-            egui::Panel::bottom("ks-panel")
-                .default_size(240.0)
-                .size_range(90.0..=900.0)
-                .resizable(true)
+            let max_h = (root_ui.available_rect_before_wrap().height() - 120.0).max(100.0);
+            self.settings.panel_height = self.settings.panel_height.clamp(90.0, max_h);
+            let r = egui::Panel::bottom("ks-panel")
+                .exact_size(self.settings.panel_height)
+                .resizable(false)
                 .frame(Frame::new().fill(pal.panel_bg).stroke(Stroke::new(1.0, pal.border)))
-                .show(root_ui, |ui| self.bottom_panel(ui, &pal));
+                .show(root_ui, |ui| self.bottom_panel(ui, &pal))
+                .response
+                .rect;
+            splits.push(("ks-split-panel", Edge::Top(r), Which::Panel, 90.0, max_h));
         }
         // l'éditeur
         egui::CentralPanel::default().frame(Frame::new().fill(pal.editor_bg)).show(root_ui, |ui| self.editor_area(ui, &pal));
+        // les poignées des panneaux, après l'éditeur : dessus, elles ne laissent pas la sélection du texte prendre le clic
+        for (id, edge, which, lo, hi) in splits {
+            let v = match which {
+                Which::Side => &mut self.settings.sidebar_width,
+                Which::Copilot => &mut self.settings.copilot_width,
+                Which::Panel => &mut self.settings.panel_height,
+            };
+            splitter(root_ui, id, edge, v, lo, hi, &pal, &mut self.settings_dirty);
+        }
+        if self.settings_dirty && !ctx.input(|i| i.pointer.any_down()) {
+            self.settings_dirty = false;
+            self.settings.save();
+        }
 
         self.palette_ui(&ctx, &pal);
         self.dialogs(&ctx, &pal);
@@ -399,7 +420,6 @@ impl Studio {
     // La barre latérale
 
     fn sidebar(&mut self, ui: &mut Ui, pal: &Palette) {
-        self.settings.sidebar_width = ui.max_rect().width();
         let title = match self.side {
             SideView::Explorer => "EXPLORATEUR",
             SideView::Search => "RECHERCHE",
@@ -1327,7 +1347,6 @@ impl Studio {
     // Le copilote
 
     fn copilot_panel(&mut self, ui: &mut Ui, pal: &Palette) {
-        self.settings.copilot_width = ui.max_rect().width();
         let ctx = ui.ctx().clone();
         let cu = CopilotUi { pal, code_size: self.settings.code_size, context_label: self.context_label() };
         let acts = copilot::show(ui, &mut self.copilot, &cu);
@@ -1999,6 +2018,61 @@ impl Studio {
                 ui.add_space(6.0);
             }
         });
+    }
+}
+
+/// Quelle taille une poignée règle.
+enum Which {
+    Side,
+    Copilot,
+    Panel,
+}
+
+/// Le bord d'un panneau que l'on tire : celui qui touche l'éditeur.
+enum Edge {
+    Right(Rect),
+    Left(Rect),
+    Top(Rect),
+}
+
+/// Une poignée de redimensionnement sur le bord d'un panneau (6 px, le curseur de redimensionnement, un trait accentué
+/// pendant le glisser) ; `size` suit le pointeur, entre `min` et `max`.
+#[allow(clippy::too_many_arguments)]
+fn splitter(ui: &mut Ui, id: &str, edge: Edge, size: &mut f32, min: f32, max: f32, pal: &Palette, dirty: &mut bool) {
+    let (rect, horizontal) = match &edge {
+        Edge::Right(r) => (Rect::from_min_max(pos2(r.max.x - 3.0, r.min.y), pos2(r.max.x + 3.0, r.max.y)), true),
+        Edge::Left(r) => (Rect::from_min_max(pos2(r.min.x - 3.0, r.min.y), pos2(r.min.x + 3.0, r.max.y)), true),
+        Edge::Top(r) => (Rect::from_min_max(pos2(r.min.x, r.min.y - 3.0), pos2(r.max.x, r.min.y + 3.0)), false),
+    };
+    let resp = ui.interact(rect, Id::new(id), Sense::drag());
+    if resp.hovered() || resp.dragged() {
+        ui.ctx().set_cursor_icon(if horizontal { egui::CursorIcon::ResizeHorizontal } else { egui::CursorIcon::ResizeVertical });
+    }
+    if resp.dragged() {
+        let d = resp.drag_delta();
+        let delta = match edge {
+            Edge::Right(_) => d.x,
+            Edge::Left(_) => -d.x,
+            Edge::Top(_) => -d.y,
+        };
+        let new = (*size + delta).clamp(min, max.max(min));
+        if new != *size {
+            *size = new;
+            *dirty = true;
+        }
+        let line = if horizontal {
+            [pos2(rect.center().x, rect.min.y), pos2(rect.center().x, rect.max.y)]
+        } else {
+            [pos2(rect.min.x, rect.center().y), pos2(rect.max.x, rect.center().y)]
+        };
+        ui.painter().line_segment(line, Stroke::new(2.0, pal.accent));
+    } else if resp.hovered() {
+        let line = if horizontal {
+            [pos2(rect.center().x, rect.min.y), pos2(rect.center().x, rect.max.y)]
+        } else {
+            [pos2(rect.min.x, rect.center().y), pos2(rect.max.x, rect.center().y)]
+        };
+        ui.painter().line_segment(line, Stroke::new(2.0, pal.accent.gamma_multiply(0.6)));
     }
 }
 

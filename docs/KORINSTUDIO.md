@@ -19,7 +19,7 @@ Celle de VS Code, aux couleurs « Dark Modern » / « Light Modern » (le thème
 | barre d'activité | Explorateur, Recherche, Gestion de versions (Git), Exécuter et construire, Copilote |
 | barre latérale | l'arbre du projet (créer, renommer, supprimer, état Git), la recherche dans les fichiers (casse, mot, regex), Git (modifications, valider), construire / lancer / nettoyer, arguments, tâches |
 | éditeur | onglets, fil d'Ariane, numéros de ligne, ligne courante, coloration (Rust, C, C++, C#, assembleur GNU et FASM, FreeBASIC, Python, TOML, JSON, Markdown, Shell, Makefile, XML, INI), soulignés des erreurs, rechercher / remplacer (Ctrl+F, Ctrl+H), commenter (Ctrl+/), indentation automatique |
-| panneau du bas | Problèmes (cliquables), Sortie (construction, exécution), Terminal (commandes, entrée du programme), Journal de l'agent |
+| panneau du bas (sa hauteur, comme la largeur des panneaux, se règle à la poignée et reste dans les réglages) | Problèmes (cliquables), Sortie (construction, exécution), Terminal (commandes, entrée du programme), Journal de l'agent |
 | copilote (à droite) | la conversation, les outils de l'agent (titre, état, sortie, diff), le plan, les demandes d'accord, le mode et le modèle |
 | barre d'état | branche Git, erreurs et avertissements, tâche en cours, activité du copilote, ligne et colonne, indentation, langage, port MCP |
 
@@ -70,6 +70,12 @@ outils :
 | `build`, `run`, `run_command` | construit / lance / exécute dans le panneau du bas ; la réponse attend la fin (ou le délai) |
 | `get_diagnostics` | les problèmes de la dernière construction |
 | `approve` | l'accord demandé par Claude Code, posé à l'utilisateur dans le copilote |
+
+**Questions et plans** : les questions à choix de Claude Code (`AskUserQuestion`, qui passent par l'outil `approve`
+comme les accords) ont leur carte : les options (choix simple ou multiple, avec leur description), une réponse libre
+(« Autre »), Répondre ; la réponse revient à Claude Code dans `updatedInput.answers` (question -> libellé(s)), comme le SDK
+d'agents l'attend (essayé le 22/11 avec le vrai Claude Code). Le plan proposé en mode Planifier (`ExitPlanMode`) se lit en
+Markdown, avec Approuver le plan / Continuer à planifier.
 
 Un fichier ouvert que l'agent change par ses propres outils (Edit de Claude Code, `write_file` de claude-acp) est relu
 par l'éditeur (vérification chaque seconde) ; s'il était modifié, une barre propose de recharger.
