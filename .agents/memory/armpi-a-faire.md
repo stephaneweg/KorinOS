@@ -52,3 +52,10 @@ formulaires et leur concepteur ; Cardfile reste la base simple d'une table) ; ca
 fichiers joints, URL ouvertes dans Jet). Une étude DESIGN-<NOM>.md chacune avant le code ; rien de commencé.
 La base de données passe par un **kit** (19/11) : le SqlKit déjà prévu le 29/10 (FEUILLE-DE-ROUTE 8 bis), en C, SQLite
 d'abord puis SQL Server, MySQL, PostgreSQL ; identifiants dans le coffre ; nom SqlKit ou DBKit à confirmer.
+
+**22/11 : raccourcis en AZERTY (en attente du « go » de l'utilisateur, après la session netd/libposix/smbd)** :
+UIKit (shortcut_match, src/kits/uikit/uk_misc.c) compare le raccourci au code HID en position US, et hidmanager
+(key_slot, src/svc/hidmanager/hidmanager.c) ne donne aucun caractère avec Ctrl : en AZERTY, Ctrl+A = Ctrl+Q, Ctrl+Z
+= la touche W, partout (egui-korin aussi). Correctif prévu : avec Ctrl, hidmanager envoie le code HID US de la lettre
+imprimée sur la touche (comme les codes virtuels de Windows). Paquet pc. Contournement déjà fait : l'app Claude Code
+n'a plus Ctrl+Q (claude-code 2.1.330.5, a5c90e5, pas publié).
