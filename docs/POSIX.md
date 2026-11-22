@@ -95,7 +95,7 @@ le volume système, les autres volumes sont montés dans des dossiers, et vfs r�
 | Descripteurs du fils (v76) | `spawn_ex2`, `get_handles` | noyau : `HANDLE_INHERIT` (le père, juste avant le lancement), `HANDLE_LIST` (le fils, au démarrage) |
 | Process | `spawn_ex2`, `proc_wait`, `kill_pid` | vfs `V_EXEC` + AppKit `f_spawn_file` (→ `SYS_SPAWN_IMAGE`), `SYS_WAIT`, `SYS_PROCLIST`, `SYS_KILL`, `SYS_GETPID` |
 | Mémoire | `sbrk`, `vm_map`... | `SYS_SBRK` (malloc de newlib) ; `mmap`, `munmap`, `mprotect`, `madvise`, `mincore` : `SYS_VM_MAP`, `VM_UNMAP`, `VM_PROTECT`, `VM_ADVISE`, `VM_PAGEINFO` (pagination à la demande) ; `MAP_PRIVATE` d'un memfd : `SHM_MAP` + `VM_COW` ; d'un fichier : plus bas (Mémoire, `file_pin`) |
-| `epoll` | | `epoll.c`, sur `poll` : tranches de 5 ms, `EPOLLET` rappelé toutes les 50 ms ; fermer un descripteur le retire des tables ; assez pour les sockets de .NET |
+| `epoll` | | `epoll.c`, sur `poll` : un canal de réveil quand un autre thread change la table, `EPOLLET` rappelé toutes les 50 ms, `EPOLLONESHOT` (mis de côté jusqu'au `EPOLL_CTL_MOD`) ; fermer un descripteur le retire des tables ; assez pour les sockets de .NET et Bun |
 | Temps | `clock_info`, `sleep_us` | compteur `CNTPCT_EL0` (lisible en EL0), `SYS_TIME_MS`, horloge du noyau (`SYS_CLOCK_GET` : UTC et fuseau), `SYS_SLEEP` |
 | Aléa | `random` | `SYS_GETRANDOM` (`getrandom`, `/dev/urandom`) |
 | Réseau | `sock_*`, `net_resolve` | NetKit : `net_socket`, `net_connect`, `net_bind`, `net_listen`, `net_accept`, `net_send`, `net_recv`, `net_sendto`, `net_recvfrom`, `net_close`, `net_resolve`, `net_info` |

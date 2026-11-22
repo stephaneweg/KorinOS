@@ -59,3 +59,11 @@ ringfork (scratchpad). QEMU : wget 7,2 -> 5,6 s, netd 96 000 -> 40 000 appels/s 
 sans Claude Code : 11 Mo/s (avant les anneaux). Restent : la charge de vfs et ramfs pendant que Claude Code suit une
 commande (fichiers de /tmp ?), les tubes en anneau (ANNEAUX.md § 4), les programmes pas encore reliés à la nouvelle
 libposix (claudecode, python, Jet et ses apps web : Netflix ouvert = 28 000 appels/s), nvme.
+
+**22/11, trace de Claude Code (LINUX_TRACE_SYS, démarrage)** : presque tout est clock_gettime (TSC de libposix : pas
+d'appel au noyau, hors sysstat). Trouvé : **EPOLLONESHOT ignoré** par l'epoll de libposix (stderr inscrit
+EPOLLOUT|ONESHOT par Bun -> epoll_wait rendait aussitôt, sans fin, pendant les commandes : suspect n° 1 de vfs/netd à
+170 000 appels/s pendant un clone lancé par Claude Code). Corrigé (entrée mise de côté jusqu'au EPOLL_CTL_MOD ; banc
+oneshottest du scratchpad). Ajouté LINUX_COUNT_SYS=fichier (compteurs par appel et par chemin, réécrits toutes les 5 s :
+l'utilisateur trouvait LINUX_TRACE_SYS trop lent). linuxhost 1.0.7 ; netd (anneau refusé aux sockets fermées) dans pc
+.84. À mesurer sur le ZBook : sysstat pendant un clone lancé par Claude Code.

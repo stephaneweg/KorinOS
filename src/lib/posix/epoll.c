@@ -14,6 +14,10 @@
  * remplacees entre deux tranches ne seraient jamais signalees. Le code ecrit pour EPOLLET relit
  * jusqu'a EAGAIN : un rappel de trop ne lui coute qu'un essai.
  *
+ * EPOLLONESHOT (22/11/2026) : un descripteur signale est mis de cote jusqu'au EPOLL_CTL_MOD suivant, comme
+ * sous Linux. Ignore jusque-la : la sortie d'erreur de Claude Code (Bun), inscrite pour EPOLLOUT|ONESHOT,
+ * faisait rendre epoll_wait aussitot, sans fin, pendant chaque commande (vfs et netd a 170 000 appels/s).
+ *
  * Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is
  * hereby granted, free of charge, to any person obtaining a copy of this software and associated
  * documentation files (the "Software"), to deal in the Software without restriction, including
@@ -44,6 +48,7 @@ struct ep_entry
 	struct epoll_event ev;
 	unsigned seen;				/* EPOLLET : deja signale */
 	long long at;				/* ms du dernier signalement */
+	int off;				/* EPOLLONESHOT : deja signale, en attente d'un EPOLL_CTL_MOD */
 };
 
 struct ep
@@ -148,6 +153,7 @@ int epoll_ctl (int epfd, int op, int fd, struct epoll_event *ev)
 	{
 		p->e[i].ev = *ev;
 		p->e[i].seen = 0;
+		p->e[i].off = 0;
 	}
 	else if (op == EPOLL_CTL_DEL)
 		p->e[i] = p->e[--p->n];
@@ -184,7 +190,7 @@ int epoll_wait (int epfd, struct epoll_event *out, int max, int timeout)
 		for (int i = 0; i < n; i++)
 		{
 			struct ep_entry *e = &p->e[i];
-			t_pfd[i].fd = e->fd;
+			t_pfd[i].fd = e->off ? -1 : e->fd;	/* (EPOLLONESHOT deja dit : poll l'ignore) */
 			t_pfd[i].events = 0;
 			if (e->ev.events & EPOLLIN)
 				t_pfd[i].events |= POLLIN;
@@ -251,6 +257,8 @@ int epoll_wait (int epfd, struct epoll_event *out, int max, int timeout)
 			if (j == p->n)
 				continue;
 			struct ep_entry *e = &p->e[j];
+			if (e->off)
+				continue;
 			unsigned ev = 0;
 			if (t_pfd[i].revents & POLLIN)
 				ev |= EPOLLIN;
@@ -270,6 +278,8 @@ int epoll_wait (int epfd, struct epoll_event *out, int max, int timeout)
 				e->seen = ev;
 				e->at = now;
 			}
+			if (e->ev.events & EPOLLONESHOT)
+				e->off = 1;
 			out[got].events = ev;
 			out[got].data = e->ev.data;
 			got++;

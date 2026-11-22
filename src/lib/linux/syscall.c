@@ -16,6 +16,7 @@
  */
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <sched.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -435,10 +436,136 @@ static void not_served (long nr)
 
 static long linux_syscall_ (long nr, long a, long b, long c, long d, long e, long f);
 
+/* ---- LINUX_COUNT_SYS=fichier : sans ralentir le programme (au contraire de LINUX_TRACE_SYS, une ligne par appel), un
+ * compteur par appel et par chemin ; un thread réécrit le fichier toutes les 5 s : les appels de ces 5 s, triés, avec
+ * leur nom, et les chemins les plus demandés (open, stat, access…) (22/11/2026 : Claude Code à 83 000 appels/s) */
+static const char *lx_name (long nr)
+{
+	switch (nr)
+	{
+	case 0: return "read"; case 1: return "write"; case 2: return "open"; case 3: return "close"; case 4: return "stat";
+	case 5: return "fstat"; case 6: return "lstat"; case 7: return "poll"; case 8: return "lseek"; case 9: return "mmap";
+	case 10: return "mprotect"; case 11: return "munmap"; case 12: return "brk"; case 13: return "rt_sigaction";
+	case 14: return "rt_sigprocmask"; case 16: return "ioctl"; case 17: return "pread64"; case 18: return "pwrite64";
+	case 19: return "readv"; case 20: return "writev"; case 21: return "access"; case 22: return "pipe";
+	case 23: return "select"; case 24: return "sched_yield"; case 28: return "madvise"; case 32: return "dup";
+	case 33: return "dup2"; case 35: return "nanosleep"; case 39: return "getpid"; case 41: return "socket";
+	case 42: return "connect"; case 44: return "sendto"; case 45: return "recvfrom"; case 46: return "sendmsg";
+	case 47: return "recvmsg"; case 56: return "clone"; case 57: return "fork"; case 59: return "execve";
+	case 61: return "wait4"; case 62: return "kill"; case 72: return "fcntl"; case 79: return "getcwd";
+	case 89: return "readlink"; case 96: return "gettimeofday"; case 102: return "getuid"; case 158: return "arch_prctl";
+	case 186: return "gettid"; case 200: return "tkill"; case 201: return "time"; case 202: return "futex";
+	case 217: return "getdents64"; case 228: return "clock_gettime"; case 230: return "clock_nanosleep";
+	case 232: return "epoll_wait"; case 233: return "epoll_ctl"; case 257: return "openat"; case 262: return "newfstatat";
+	case 270: return "pselect6"; case 271: return "ppoll"; case 281: return "epoll_pwait"; case 284: return "eventfd";
+	case 290: return "eventfd2"; case 291: return "epoll_create1"; case 293: return "pipe2"; case 318: return "getrandom";
+	case 332: return "statx"; case 435: return "clone3"; case 441: return "epoll_pwait2";
+	}
+	return "?";
+}
+
+#define CNT_PATHS 128
+static struct { unsigned long h, n, n0; char p[96]; } cnt_path[CNT_PATHS];
+static unsigned long cnt_prev[512];
+static const char *cnt_file;
+
+static void cnt_path_add (const char *s)
+{
+	if (!s)
+		return;
+	unsigned long h = 5381;
+	for (const char *q = s; *q && q - s < 200; q++)
+		h = h * 33 + (unsigned char) *q;
+	unsigned k = (unsigned) (h % CNT_PATHS);
+	if (cnt_path[k].h != h)
+	{
+		if (cnt_path[k].n > 4 && cnt_path[(k + 1) % CNT_PATHS].h == 0)
+			k = (k + 1) % CNT_PATHS;	/* (une deuxième chance, sans plus) */
+		if (cnt_path[k].h != h)
+		{
+			cnt_path[k].h = h;
+			cnt_path[k].n = cnt_path[k].n0 = 0;
+			snprintf (cnt_path[k].p, sizeof cnt_path[k].p, "%s", s);
+		}
+	}
+	cnt_path[k].n++;
+}
+
+static void *cnt_thread (void *arg)
+{
+	(void) arg;
+	for (int tick = 1;; tick++)
+	{
+		struct timespec ts = { 5, 0 };
+		nanosleep (&ts, 0);
+		static char out[16384];
+		int o = snprintf (out, sizeof out, "linuxhost pid %d, après %d s : appels de Linux des 5 dernières secondes\n",
+				  (int) getpid (), tick * 5);
+		unsigned long d[512], total = 0;
+		for (int i = 0; i < 512; i++)
+		{
+			d[i] = linux_syscall_count[i] - cnt_prev[i];
+			cnt_prev[i] = linux_syscall_count[i];
+			total += d[i];
+		}
+		o += snprintf (out + o, sizeof out - o, "  total : %lu (%lu par seconde)\n", total, total / 5);
+		for (int k = 0; k < 20; k++)
+		{
+			int best = -1;
+			for (int i = 0; i < 512; i++)
+				if (d[i] && (best < 0 || d[i] > d[best]))
+					best = i;
+			if (best < 0)
+				break;
+			o += snprintf (out + o, sizeof out - o, "  %8lu  %3d %s\n", d[best], best, lx_name (best));
+			d[best] = 0;
+		}
+		o += snprintf (out + o, sizeof out - o, "chemins les plus demandés (ces 5 s) :\n");
+		unsigned long pd[CNT_PATHS];
+		for (int i = 0; i < CNT_PATHS; i++)
+		{
+			pd[i] = cnt_path[i].n - cnt_path[i].n0;
+			cnt_path[i].n0 = cnt_path[i].n;
+		}
+		for (int k = 0; k < 12; k++)
+		{
+			int best = -1;
+			for (int i = 0; i < CNT_PATHS; i++)
+				if (pd[i] && (best < 0 || pd[i] > pd[best]))
+					best = i;
+			if (best < 0)
+				break;
+			o += snprintf (out + o, sizeof out - o, "  %8lu  %s\n", pd[best], cnt_path[best].p);
+			pd[best] = 0;
+		}
+		int fd = open (cnt_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+		if (fd >= 0)
+		{
+			(void) write (fd, out, (size_t) o);
+			close (fd);
+		}
+	}
+	return 0;
+}
+
 /* LINUX_TRACE_SYS=fichier : chaque appel de Linux (numéro, arguments, résultat) noté dans ce fichier */
 long linux_syscall (long nr, long a, long b, long c, long d, long e, long f)
 {
 	static int tfd = -2;
+	static int cnt = -1;
+	if (cnt < 0)
+	{
+		cnt_file = getenv ("LINUX_COUNT_SYS");
+		cnt = cnt_file != 0;
+		if (cnt)
+		{
+			pthread_t th;
+			if (pthread_create (&th, 0, cnt_thread, 0) == 0)
+				pthread_detach (th);
+		}
+	}
+	if (cnt && (nr == 2 || nr == 4 || nr == 6 || nr == 21 || nr == 89 || nr == 257 || nr == 262 || nr == 269 || nr == 332))
+		cnt_path_add ((const char *) (nr == 257 || nr == 262 || nr == 269 || nr == 332 ? b : a));
 	if (tfd == -2)
 	{
 		const char *p = getenv ("LINUX_TRACE_SYS");
