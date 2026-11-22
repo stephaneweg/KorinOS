@@ -709,18 +709,18 @@ content = ba59877b34d88744d65312e460c29e62634fcae9d0eb932a411c3517282a3055
 
 [smbd]
 title = Partage de fichiers (SMB)
-version = 1.0.6
+version = 1.0.7
 category = Internet
 author = Korin OS
 summary = Partage des dossiers de Korin avec Windows, macOS et Linux (SMB 2 et 3) : le serveur smbd et le volet Partages de Réglages
-size = 383901
-installed = 764680
-sha256 = 2a80ff2dd2836d0943f558240ed53ad07b5cd23fe168d7b0041281508abafb97
-file = pkgs/smbd-1.0.6.opk
+size = 389271
+installed = 781064
+sha256 = 0c618a9df1406a84204017e395cc0d79e55eb4fe530030f8121831e0cd6df0b7
+file = pkgs/smbd-1.0.7.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = f619c4b3e11f51b737aa037d2b337fc844d46f7e7dd7a4014fe39097c6151b65
+content = abbe00f72f244a9ded8a32ece9a30d41e4882fa84f05b9a081019e35c1ec0163
 
 [pc]
 title = Système Korin OS pour PC
