@@ -1,6 +1,9 @@
 # Disney+ : une app web sur le moteur de Jet (src/extra/onyxports/jet/webapp.cpp ; lanceur : src/lib/webapp/launcher.c)
 title    = Disney+
 url      = https://www.disneyplus.com/
+# (en français : la page d'accueil française directement ; sans elle, le site recharge vers /fr-fr/home, ≈ 5 s de plus.
+#  url.<langue> : lu par le lanceur, src/lib/webapp/launcher.c, d'après la langue des Réglages)
+url.fr   = https://www.disneyplus.com/fr-fr/home
 sites    = disneyplus.com
 # (fenêtre normale au départ, demande de l'utilisateur du 22/11 ; Agrandir ou F11 pour le plein écran)
 maximize = 0
