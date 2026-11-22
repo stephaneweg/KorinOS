@@ -398,11 +398,16 @@ fn tool_card(ui: &mut Ui, t: &Tokens, i: usize, name: &str, input: &Value, resul
                 Some((_, false)) => "●",
                 Some((_, true)) => "✕",
             };
-            let header = egui::CollapsingHeader::new(
-                RichText::new(format!("{dot} {name}  {}", tool_summary(name, input))).font(theme::mono(theme::CAPTION + 0.5)).color(if result.is_some() { t.text_dim } else { t.text }),
-            )
-            .id_salt(("tool", i))
-            .default_open(false);
+            // le titre d'un CollapsingHeader ne passe pas à la ligne : coupé à la largeur de la carte (la commande entière
+            // est au survol et dans la carte ouverte), sinon une longue commande élargit la carte hors de la conversation
+            let font = theme::mono(theme::CAPTION + 0.5);
+            let full = format!("{dot} {name}  {}", tool_summary(name, input));
+            let cw = ui.fonts_mut(|f| f.glyph_width(&font, '0')).max(1.0);
+            let room = (((ui.available_width() - 28.0) / cw) as usize).max(8);
+            let shown = if full.chars().count() > room { format!("{}…", full.chars().take(room - 1).collect::<String>()) } else { full.clone() };
+            let header = egui::CollapsingHeader::new(RichText::new(shown).font(font).color(if result.is_some() { t.text_dim } else { t.text }))
+                .id_salt(("tool", i))
+                .default_open(false);
             // (une commande de Claude : la reprendre dans l'onglet Terminal du volet, ou la copier)
             let command = if name == "Bash" { input.get("command").and_then(Value::as_str).map(str::to_owned) } else { None };
             if let Some(c) = &command {
@@ -415,7 +420,7 @@ fn tool_card(ui: &mut Ui, t: &Tokens, i: usize, name: &str, input: &Value, resul
                     }
                 });
             }
-            header.show(ui, |ui| {
+            let shown = header.show(ui, |ui| {
                 let pretty = serde_json::to_string_pretty(input).unwrap_or_default();
                 ui.label(RichText::new("Entrée").font(theme::medium(theme::CAPTION)).color(t.text_faint));
                 ui.add(Label::new(RichText::new(pretty).font(theme::mono(theme::CAPTION)).color(t.text_dim)).selectable(true).wrap());
@@ -425,6 +430,7 @@ fn tool_card(ui: &mut Ui, t: &Tokens, i: usize, name: &str, input: &Value, resul
                     ui.add(Label::new(RichText::new(shown).font(theme::mono(theme::CAPTION)).color(t.text_dim)).selectable(true).wrap());
                 }
             });
+            shown.header_response.on_hover_text(full);
         });
 }
 
@@ -439,6 +445,13 @@ fn permission_card(
     state: &PermState,
     actions: &mut Vec<Action>,
 ) {
+    // une question à choix (AskUserQuestion) ou le plan à approuver (ExitPlanMode) : pas une autorisation
+    if input.get("questions").is_some_and(Value::is_array) {
+        return question_card(ui, t, request_id, input, state, actions);
+    }
+    if input.get("plan").is_some_and(Value::is_string) && tool.to_lowercase().contains("plan") {
+        return plan_card(ui, t, request_id, input, state, actions);
+    }
     let border = if *state == PermState::Pending { t.warning } else { t.card_border };
     Frame::new()
         .fill(t.card)
@@ -477,6 +490,164 @@ fn permission_card(
                 }
                 PermState::Denied => {
                     ui.label(RichText::new("Refusé").font(theme::medium(theme::LABEL)).color(t.danger));
+                }
+            }
+        });
+}
+
+/// Les choix en cours d'une question (gardés dans la mémoire d'egui : le fil est dessiné sans être modifié).
+#[derive(Clone, Default)]
+struct Picks {
+    picked: Vec<Vec<bool>>,
+    other: Vec<String>,
+}
+
+/// Les questions de Claude (AskUserQuestion) : les options (choix simple ou multiple, avec leur description), une
+/// réponse libre ; la réponse va à la CLI dans `updatedInput.answers` (question -> libellé(s)), comme le SDK d'agents
+/// l'attend.
+fn question_card(ui: &mut Ui, t: &Tokens, request_id: &str, input: &Value, state: &PermState, actions: &mut Vec<Action>) {
+    let qs: Vec<&Value> = input.get("questions").and_then(Value::as_array).map(|a| a.iter().collect()).unwrap_or_default();
+    let id = egui::Id::new(("cc-question", request_id));
+    let mut p: Picks = ui.data_mut(|d| d.get_temp(id)).unwrap_or_default();
+    p.picked.resize(qs.len(), Vec::new());
+    p.other.resize(qs.len(), String::new());
+    let pending = *state == PermState::Pending;
+    let border = if pending { t.accent } else { t.card_border };
+    Frame::new()
+        .fill(t.card)
+        .stroke(Stroke::new(1.5, border))
+        .corner_radius(theme::R_LG)
+        .inner_margin(Margin::same(12))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.label(RichText::new(if qs.len() > 1 { "Claude vous pose des questions" } else { "Claude vous pose une question" }).font(theme::semibold(theme::BODY)).color(t.text));
+            for (qi, q) in qs.iter().enumerate() {
+                let opts: Vec<(&str, &str)> = q
+                    .get("options")
+                    .and_then(Value::as_array)
+                    .map(|a| a.iter().map(|o| (o.get("label").and_then(Value::as_str).unwrap_or(""), o.get("description").and_then(Value::as_str).unwrap_or(""))).collect())
+                    .unwrap_or_default();
+                let multi = q.get("multiSelect").and_then(Value::as_bool).unwrap_or(false);
+                p.picked[qi].resize(opts.len(), false);
+                ui.add_space(6.0);
+                if let Some(h) = q.get("header").and_then(Value::as_str).filter(|h| !h.is_empty()) {
+                    ui.label(RichText::new(h).font(theme::medium(theme::CAPTION)).color(t.text_faint));
+                }
+                ui.add(Label::new(RichText::new(q.get("question").and_then(Value::as_str).unwrap_or("")).color(t.text)).wrap());
+                if multi {
+                    ui.label(RichText::new("Plusieurs choix possibles").font(egui::FontId::proportional(theme::CAPTION)).color(t.text_faint));
+                }
+                for (oi, (label, desc)) in opts.iter().enumerate() {
+                    let on = p.picked[qi][oi];
+                    let r = if multi {
+                        let mut v = on;
+                        ui.add_enabled(pending, egui::Checkbox::new(&mut v, RichText::new(*label).color(t.text)))
+                    } else {
+                        ui.add_enabled(pending, egui::RadioButton::new(on, RichText::new(*label).color(t.text)))
+                    };
+                    if !desc.is_empty() {
+                        ui.horizontal(|ui| {
+                            ui.add_space(24.0);
+                            ui.add(Label::new(RichText::new(*desc).font(egui::FontId::proportional(theme::CAPTION)).color(t.text_dim)).wrap());
+                        });
+                    }
+                    if r.clicked() {
+                        if multi {
+                            p.picked[qi][oi] = !on;
+                        } else {
+                            p.picked[qi].iter_mut().for_each(|x| *x = false);
+                            p.picked[qi][oi] = true;
+                            p.other[qi].clear();
+                        }
+                    }
+                }
+                if pending {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Autre :").color(t.text_dim));
+                        let r = ui.add(egui::TextEdit::singleline(&mut p.other[qi]).id_salt(("cc-q-other", request_id, qi)).hint_text("votre réponse").desired_width(f32::INFINITY));
+                        if r.changed() && !p.other[qi].is_empty() && !multi {
+                            p.picked[qi].iter_mut().for_each(|x| *x = false);
+                        }
+                    });
+                }
+            }
+            ui.add_space(6.0);
+            match state {
+                PermState::Pending => {
+                    let ready = (0..qs.len()).all(|i| p.picked[i].iter().any(|x| *x) || !p.other[i].trim().is_empty());
+                    ui.horizontal(|ui| {
+                        let b = egui::Button::new(RichText::new("Répondre").color(t.on_accent).font(theme::medium(theme::SMALL))).fill(t.accent).corner_radius(theme::R);
+                        if ui.add_enabled(ready, b).clicked() {
+                            let mut answers = serde_json::Map::new();
+                            for (qi, q) in qs.iter().enumerate() {
+                                let opts: Vec<&str> = q.get("options").and_then(Value::as_array).map(|a| a.iter().map(|o| o.get("label").and_then(Value::as_str).unwrap_or("")).collect()).unwrap_or_default();
+                                let mut chosen: Vec<String> = opts.iter().zip(&p.picked[qi]).filter(|(_, x)| **x).map(|(l, _)| (*l).to_owned()).collect();
+                                if !p.other[qi].trim().is_empty() {
+                                    chosen.push(p.other[qi].trim().to_owned());
+                                }
+                                answers.insert(q.get("question").and_then(Value::as_str).unwrap_or("").to_owned(), Value::String(chosen.join(", ")));
+                            }
+                            let mut updated = input.clone();
+                            if let Some(o) = updated.as_object_mut() {
+                                o.insert("answers".into(), Value::Object(answers));
+                            }
+                            actions.push(Action::Allow { request_id: request_id.to_owned(), input: updated, remember: None });
+                        }
+                        if ui.button("Ne pas répondre").clicked() {
+                            actions.push(Action::Deny { request_id: request_id.to_owned() });
+                        }
+                    });
+                }
+                PermState::Allowed => {
+                    let shown: Vec<String> = (0..qs.len())
+                        .map(|qi| {
+                            let opts: Vec<&str> = qs[qi].get("options").and_then(Value::as_array).map(|a| a.iter().map(|o| o.get("label").and_then(Value::as_str).unwrap_or("")).collect()).unwrap_or_default();
+                            let mut c: Vec<String> = opts.iter().zip(&p.picked[qi]).filter(|(_, x)| **x).map(|(l, _)| (*l).to_owned()).collect();
+                            if !p.other[qi].trim().is_empty() {
+                                c.push(p.other[qi].trim().to_owned());
+                            }
+                            c.join(", ")
+                        })
+                        .collect();
+                    ui.label(RichText::new(format!("Répondu : {}", shown.join(" · "))).font(theme::medium(theme::LABEL)).color(t.success));
+                }
+                PermState::Denied => {
+                    ui.label(RichText::new("Pas de réponse").font(theme::medium(theme::LABEL)).color(t.text_dim));
+                }
+            }
+        });
+    ui.data_mut(|d| d.insert_temp(id, p));
+}
+
+/// Le plan que Claude propose avant d'agir (ExitPlanMode) : l'approuver, ou continuer à planifier.
+fn plan_card(ui: &mut Ui, t: &Tokens, request_id: &str, input: &Value, state: &PermState, actions: &mut Vec<Action>) {
+    let pending = *state == PermState::Pending;
+    Frame::new()
+        .fill(t.card)
+        .stroke(Stroke::new(1.5, if pending { t.accent } else { t.card_border }))
+        .corner_radius(theme::R_LG)
+        .inner_margin(Margin::same(12))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.label(RichText::new("Le plan proposé").font(theme::semibold(theme::BODY)).color(t.text));
+            md::show(ui, t, input.get("plan").and_then(Value::as_str).unwrap_or(""));
+            ui.add_space(4.0);
+            match state {
+                PermState::Pending => {
+                    ui.horizontal(|ui| {
+                        if accent_button(ui, t, "Approuver le plan").clicked() {
+                            actions.push(Action::Allow { request_id: request_id.to_owned(), input: input.clone(), remember: None });
+                        }
+                        if ui.button("Continuer à planifier").clicked() {
+                            actions.push(Action::Deny { request_id: request_id.to_owned() });
+                        }
+                    });
+                }
+                PermState::Allowed => {
+                    ui.label(RichText::new("Plan approuvé").font(theme::medium(theme::LABEL)).color(t.success));
+                }
+                PermState::Denied => {
+                    ui.label(RichText::new("Planification poursuivie").font(theme::medium(theme::LABEL)).color(t.text_dim));
                 }
             }
         });
