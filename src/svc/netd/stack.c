@@ -545,6 +545,7 @@ int sk_alloc_rings(struct sock *s, int tx)
 /* libère ses tampons et son emplacement (les autres champs restent, comme l'asm) */
 void sock_free(struct sock *s)
 {
+	ring_release(s, 0);
 	if (s->rxbuf)
 		pmm_free_n(s->rxbuf, SK_RING_PAGES);
 	if (s->txbuf)
@@ -1322,6 +1323,7 @@ int tcp_timers(void)
 /* fermeture par l'application (orphelin) */
 void sock_close_locked(struct sock *s)
 {
+	ring_release(s, 0);
 	s->owner = 0;
 	s->flags |= F(SKF_ORPHAN);
 	if (s->type != SOCK_TCP)
