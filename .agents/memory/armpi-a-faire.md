@@ -53,7 +53,7 @@ fichiers joints, URL ouvertes dans Jet). Une étude DESIGN-<NOM>.md chacune avan
 La base de données passe par un **kit** (19/11) : le SqlKit déjà prévu le 29/10 (FEUILLE-DE-ROUTE 8 bis), en C, SQLite
 d'abord puis SQL Server, MySQL, PostgreSQL ; identifiants dans le coffre ; nom SqlKit ou DBKit à confirmer.
 
-**22/11 : raccourcis en AZERTY (en attente du « go » de l'utilisateur, après la session netd/libposix/smbd)** :
+**22/11 : raccourcis en AZERTY — FAIT et publié (pc 2026.11.89, d0b0e0c)** :
 UIKit (shortcut_match, src/kits/uikit/uk_misc.c) compare le raccourci au code HID en position US, et hidmanager
 (key_slot, src/svc/hidmanager/hidmanager.c) ne donne aucun caractère avec Ctrl : en AZERTY, Ctrl+A = Ctrl+Q, Ctrl+Z
 = la touche W, partout (egui-korin aussi). Correctif prévu : avec Ctrl, hidmanager envoie le code HID US de la lettre
