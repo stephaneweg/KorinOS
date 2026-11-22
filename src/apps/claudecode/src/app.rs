@@ -328,10 +328,8 @@ impl App {
     // ---- la barre de menus de Korin (main.rs la tient : egui_korin::menu) ----
 
     /// Le texte des menus (le format de UIKit : M titre, I<id> entrée, - séparateur).
-    /// (Quitter sans raccourci : UIKit compare le raccourci à la touche physique, en position US ; en AZERTY, Ctrl+A
-    /// est la touche du Q américain et fermait l'app pendant la saisie.)
     pub fn menu_text(&self) -> &'static str {
-        "MFichier\nI1\tNouvelle conversation…\tCtrl+N\nI2\tNouveau dossier…\n-\nI3\tQuitter\n\
+        "MFichier\nI1\tNouvelle conversation…\tCtrl+N\nI2\tNouveau dossier…\n-\nI3\tQuitter\tCtrl+Q\n\
          MConversation\nI10\tRenommer…\tF2\nI11\tÉpingler\nI12\tCopier la conversation\nI13\tArrêter Claude\n-\nI14\tSupprimer…\n\
          MAffichage\nI20\tThème de Korin\nI21\tSombre\nI22\tClair\n-\nI23\tRelire les conversations\tF5\n"
     }
