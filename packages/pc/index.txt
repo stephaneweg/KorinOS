@@ -2252,3 +2252,18 @@ needs = m4, abi >= 629
 required = 0
 restart = 0
 content = 4a8361d7c3d74bc555b5f01d137296ce1a8d404aa28fe4b32632c8f5246f315c
+
+[gperf]
+title = GNU gperf
+version = 3.1.0
+category = Développement
+author = Korin OS
+summary = Le générateur de fonctions de hachage parfaites GNU gperf 3.1 (/devtools/gcc/bin/gperf) : les tables de mots-clés de WebCore
+size = 189583
+installed = 394168
+sha256 = 3f27287f0816fdf1a02e0819ab56119404908168addc626c4b927bbaaf56f4d6
+file = pkgs/gperf-3.1.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+content = 8f44df1058f4bbc19e373d6b8b62ea5c92cc81cd25e4c438a67150da65ed51b3
