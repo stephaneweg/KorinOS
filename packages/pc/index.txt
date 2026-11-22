@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-22 15:21
+date = 2026-11-22 16:38
 abi = 629
 packages = 117
 board = pc
@@ -1383,19 +1383,19 @@ restart = 0
 content = 045d2680c3e1b8bed7d499aed524724b373d2788a426beb331df7ca58ea14416
 
 [parkingjam]
-title = Parking Jam
-version = 1.0.0
-category = Jeux
+title = parkingjam
+version = 1.0.1
+category = Autres
 author = Korin OS
 summary = Vider le parking sans bloquer les voitures (un jeu fait avec Godot)
-size = 161134
-installed = 293209
-sha256 = fc65f4348794051ad75a8ca7f5cf45243e749e06d2da060ef6c5ac13fb650771
-file = pkgs/parkingjam-1.0.0.opk
+size = 173337
+installed = 329129
+sha256 = b1a79a581a964d88090d680144962bf8c2857a1b7d71de39b4f53f21a9a15529
+file = pkgs/parkingjam-1.0.1.opk
 needs = godot-templates, abi >= 626
 required = 0
 restart = 0
-content = e05d42ee2a97301f5a9a649f00e270beabdb247f6c036acf4503da8059e5ebc7
+content = 5d32a217f0dfbc834ff6ab8f3ba80d00fcf3f33d9f9ad0c82ea9235a3c493492
 
 [pdf]
 title = PDF Viewer
