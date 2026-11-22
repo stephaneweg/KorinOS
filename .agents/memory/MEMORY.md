@@ -143,3 +143,4 @@
 - [Compétences des apps](armpi-competences-apps.md) — 21/11 : clé skill = SKILL.md de app.txt, lue par claude-acp et Vibe (VIBE_SKILL_PATHS) ; Forge, TerraCube, Arabesque, Koton ; publiés le 21/11 (sauf mai et koton du Pi)
 - [KorinStudio](armpi-ide-rust.md) — 21/11 : l'IDE egui à la VS Code, v0.1 faite (src/apps/korinstudio, docs/KORINSTUDIO.md), copilote par MCP (Claude Code, claude-acp, Vibe) ; pas encore publié
 - [poll et tubes](armpi-poll-tubes.md) — 21/11 : git lent (poll de libposix, netd ancien de /sys/svc, tubes 464 o) corrigé : pc .82, git 2.51.4, bash 1.0.8, smbd 1.0.6, linuxhost 1.0.5 ; étude docs/etude/ANNEAUX.md (anneaux partagés) au plan
+- [Ports Linux](armpi-linux-ports.md) — 23/11 : Koton et Arabesque sous Linux (linux-ports/) : UIKit sur GTK 4, AudioKit sur FluidSynth, sources des apps inchangées, binaires dans linux-ports/bin
