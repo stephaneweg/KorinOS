@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-22 13:58
+date = 2026-11-22 14:22
 abi = 629
 packages = 117
 board = pc
@@ -1758,19 +1758,19 @@ restart = 0
 content = df1f1711272d2817a9389d1f70b8f0ac30c33009b39ead75e87b8270e7d4330c
 
 [netflix]
-title = Netflix
-version = 1.0.0
-category = Multimédia
+title = netflix
+version = 1.0.1
+category = Autres
 author = Korin OS
 summary = Netflix : le site de Netflix dans sa fenêtre (Widevine), avec votre compte
-size = 124254
-installed = 264013
-sha256 = c5b5288144d7ab5e247daedd01646c66c78ae20fea33caff5e246e7607b9a934
-file = pkgs/netflix-1.0.0.opk
+size = 124324
+installed = 264119
+sha256 = c1bcab48b81f4f915071bc2a007450193611e62a1da61a68bb9b618b5027c672
+file = pkgs/netflix-1.0.1.opk
 needs = jet >= 1.4.2, abi >= 626
 required = 0
 restart = 0
-content = 2495df31a3bafa931edcd27ddfa32b3ab9ef0794052f868051363b84de12fb65
+content = 9ca39788d3024382e5ddcb2d528eb799ac080650ad77845c4280466c00be1a0e
 
 [disneyplus]
 title = Disney+
