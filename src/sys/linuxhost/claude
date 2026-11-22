@@ -15,4 +15,10 @@ export DISABLE_AUTOUPDATER=1
 # les commandes de Linux avec leurs options (paquet unixtools, BusyBox : env, awk, xargs, sed -E, sort -k...) devant
 # celles de /bin, pour Claude seulement : il écrit ses commandes comme sous Linux
 [ ! -x /devtools/bin/busybox ] || case ":$PATH:" in *:/devtools/bin:*) ;; *) export PATH="/devtools/bin:$PATH" ;; esac
+# le serveur MCP de Korin (korin-mcp : process, journal, fichiers, paquets, services, écran ; docs/MCP-KORIN.md) pour
+# toutes les séances, EN PLUS des serveurs de l'utilisateur et des apps (claude mcp add, --mcp-config de KorinStudio) :
+# managed-mcp.json de /etc/claude-code prendrait le contrôle exclusif des serveurs MCP (vérifié avec 2.1.330). La forme
+# « --mcp-config=FICHIER » ne prend qu'une valeur (« --mcp-config FICHIER » avalerait l'invite qui suit) ; sans effet sur
+# les sous-commandes (mcp list, --version : vérifié)
+[ ! -f /etc/claude-code/mcp.json ] || set -- --mcp-config=/etc/claude-code/mcp.json "$@"
 exec /bin/linuxhost run "$B" "$@"

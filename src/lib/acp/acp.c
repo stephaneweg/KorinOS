@@ -464,6 +464,17 @@ static void on_new (acp_t *a, void *data, const json_t *result, const json_t *er
 	opened (a, result, 0);
 }
 
+/* les serveurs MCP de la séance : korin-mcp (le serveur de Korin : process, journal, fichiers, paquets, services,
+   écran ; docs/MCP-KORIN.md) s'il est installé, sauf KORIN_MCP=0 ; l'agent (vibe-acp) le lance sur stdio */
+static void mcp_servers (jbuf *p)
+{
+	const char *off = getenv ("KORIN_MCP");
+	if (access ("/bin/korin-mcp", X_OK) == 0 && !(off && !strcmp (off, "0")))
+		jb_puts (p, ",\"mcpServers\":[{\"name\":\"korin\",\"command\":\"/bin/korin-mcp\",\"args\":[],\"env\":[]}]");
+	else
+		jb_puts (p, ",\"mcpServers\":[]");
+}
+
 static void load_id (acp_t *a, const char *id)
 {
 	set (&a->session, id);
@@ -473,7 +484,8 @@ static void load_id (acp_t *a, const char *id)
 	jb_str (&p, id);
 	jb_puts (&p, ",\"cwd\":");
 	jb_str (&p, a->cwd);
-	jb_puts (&p, ",\"mcpServers\":[]}");
+	mcp_servers (&p);
+	jb_putc (&p, '}');
 	acp_rpc_request (a, "session/load", jb_cstr (&p), on_loaded, NULL);
 	jb_free (&p);
 }
@@ -514,7 +526,8 @@ static void open_session (acp_t *a)
 	{
 		jb_puts (&p, "{\"cwd\":");
 		jb_str (&p, a->cwd);
-		jb_puts (&p, ",\"mcpServers\":[]}");
+		mcp_servers (&p);
+		jb_putc (&p, '}');
 		acp_rpc_request (a, "session/new", jb_cstr (&p), on_new, NULL);
 	}
 	jb_free (&p);
