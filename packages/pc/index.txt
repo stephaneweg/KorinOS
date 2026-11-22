@@ -2372,3 +2372,18 @@ needs = zlib-dev, abi >= 629
 required = 0
 restart = 0
 content = e7de20f60a42e69b7ac9b51361ee93dfded51880df457a3e902bb661b1f35390
+
+[libwebp-dev]
+title = libwebp (développement)
+version = 1.4.0
+category = Développement
+author = Korin OS
+summary = libwebp 1.4.0 : libwebp, libwebpdemux, libwebpmux, libwebpdecoder, libsharpyuv (licence BSD)
+size = 800365
+installed = 2215568
+sha256 = 5b1493359527b74e3124839814f560969ad95aa1a6310e407894ff20644f502e
+file = pkgs/libwebp-dev-1.4.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+content = e394ef4402015523150403064fafbdfd03324ff0e69cc62c13c2e3fd201f02d7
