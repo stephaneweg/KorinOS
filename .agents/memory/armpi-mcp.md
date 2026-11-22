@@ -53,7 +53,7 @@ send_signal refuse /sys sans allow_system.
 - Claude Code 2.1.330 sonde `server/discover` (protocole 2026-07-28) avant `initialize` 2025-11-25 : répondre -32601.
 - Piège du cloud : la CLI `claude` du conteneur répond vraiment (le proxy authentifie) même avec `env -i` et un HOME
   vide : n'y lancer que `--version` et `mcp …` ; `claude config list` (pas une sous-commande) devient une invite.
-- Paquet : bin/korin-mcp dans **claude-code** (2.1.330.9) ; vibe 1.0.10 (libacp) ; rien de publié.
+- **Publiés le 22/11 (demande de l'utilisateur)** : claude-code 2.1.330.9 (bin/korin-mcp, mcp.json, /bin/claude, CLAUDE.md ; pub.py --only … --add-new) et vibe 1.0.10 (agent et vibe.app avec la libacp nouvelle, .vibe/AGENTS.md ; pub.py --manual-upload + branche release-upload/vibe-1.0.10 + workflow). Pour vérifier sur le ZBook : /mcp dans une séance (claude mcp list ne montre pas les serveurs de --mcp-config).
 - **Essayé le 22/11 sous QEMU PC** (`python3 -I tools/mcp/pctest.py`, bureau Elegant) : RÉUSSI, 39 vérifications ;
   Claude Code 2.1.330 sous linuxhost : `claude mcp list` → « korin-direct: /bin/korin-mcp - ✔ Connected ». Pièges du
   banc : pas de « | » dans les commandes (séparateur de ONLY) ; Claude Code avec `< /dev/null` (sinon il mange ce que
