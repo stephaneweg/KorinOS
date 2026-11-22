@@ -181,6 +181,7 @@ static void engine_thread(long arg)
 {
 	(void)arg;
 	long sec = now_ms();
+	long active = 0; /* (ms) la dernière fois qu'un lot était en vol ou qu'un client attendait */
 	u64 spur0 = 0;
 	for (;;) {
 		int hurry;
@@ -189,13 +190,24 @@ static void engine_thread(long arg)
 		for (int i = 0; i < DEFER_MAX && !hurry; i++)
 			hurry = defers[i].used;
 		mtx_unlock(&S.lock);
+		/* Le délai se décide avant le sommeil : un lot donné pendant un sommeil de 50 ms (le moteur était
+		 * libre) n'était vu fini qu'à son interruption, et certaines ne réveillent pas ce fil (ZBook, 22/11 :
+		 * attentes des clients de 26 ms en moyenne, 50 au pire, pour des lots de quelques ms). Une seconde
+		 * après la dernière activité, on regarde chaque milliseconde ; au repos, 50 ms comme avant. */
+		long now = now_ms();
+		if (hurry)
+			active = now;
+		int quick = hurry || now - active < 1000;
+		long w = 0;
 		if (S.irq >= 0)
-			korin_sys2(SYS_IRQ_WAIT, S.irq, hurry ? 2 : 50);
+			w = korin_sys2(SYS_IRQ_WAIT, S.irq, quick ? 1 : 50);
 		else
-			korin_sys1(SYS_SLEEP, hurry ? 1 : 20);
+			korin_sys1(SYS_SLEEP, quick ? 1 : 20);
 		mtx_lock(&S.lock);
 		if (S.irq >= 0) {
 			u32 bits = gt_irq_ack();
+			if (!bits && w != 1)
+				S.spurious--; /* (un délai écoulé, pas une interruption sans objet) */
 			if (bits) {
 				S.irqs++;
 				if (bits & GT_CS_MASTER_ERROR)

@@ -7,9 +7,11 @@
 mod app;
 mod chat;
 mod cli;
+mod env;
 mod md;
 mod organize;
 mod store;
+mod term;
 mod theme;
 
 #[cfg(target_os = "korin")]

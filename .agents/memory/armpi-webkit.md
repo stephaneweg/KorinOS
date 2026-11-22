@@ -35,3 +35,27 @@ pc .88, patch 0012, ligne `web: gpu: gl:` avec ONYX_WEB_GPU_DEBUG ou /etc/web-gp
 (tarfile ustar), `pub.py pc --tree <dossier> --boot <dossier avec korin/initrd.tar> --only …` (sans --boot, pub
 prend build/pc/esp, périmé ici). Rust : cargo ne relie pas après un libposix neuf (toucher main.rs). En attente :
 mesures du ZBook (lignes gl:, intelgpu status avant/après un défilement de Netflix).
+**22/11 : mesure du ZBook avec pc .89** : `intelgpu status` après Netflix : attentes des clients 26 ms en moyenne,
+50,7 au pire ; « moteur » 7,7 / 50,7 ms ; fin -> repos 0 (le repos suit tout de suite). Cause : le fil du moteur
+dormait 50 ms (délai décidé avant le lot) et une fin de lot arrivée pendant le traitement de la précédente est perdue :
+**le noyau du PC (src/kernel/core/hw.c) remet `raised` à zéro dans sys_irq_wait et sys_irq_ack** — un défaut qui
+peut toucher tous les pilotes (nvme, usbd, hda, iwl…) ; pas corrigé dans le noyau (autre session, risque). Contourné
+dans intelgpu (d57ee0f) : 1 s après une activité, sommeil de 1 ms ; publié pc 2026.11.91. À mesurer de nouveau.
+Pour recueillir les messages d'une app lancée au Terminal : `2>&1 | cat > fichier` (grep peut garder sa sortie).
+**22/11 : pc .91 mesuré sur le ZBook (Netflix)** : attente des clients 0,22 ms en moyenne (3,7 au pire), moteur
+0,27 ms (au lieu de 26 / 50 ms et 7,7 ms) : le contournement d'intelgpu marche. Restent des 50 ms pour le premier lot
+après plus d'une seconde de repos (le défaut de sys_irq_wait, noyau).
+**Régression libposix trouvée (pour la session des tubes, d552ab2)** : après un `execv` (app web Netflix -> Jet), la
+sortie d'erreur des process lancés ensuite par posix_spawn (le process web de Jet) ne passe plus par le tube hérité du
+Terminal (`/apps/netflix.app/main 2>&1 | cat > f` : seules les lignes du process UI) ; Jet lancé directement : bon.
+Reproduit sous QEMU (jet 1.4.4, libposix de pc .88). Avec jet 1.4.3 (libposix d'avant), ça passait.
+**22/11 : Disney+ (investigation de l'utilisateur, autre session)** : les 2 × 25 s = le WebSocket du SDK de Disney
+dans Jet ; le SDK attend deux fois 15 s avant de se rabattre (puis recommence sur /fr-fr/home). La même poignée de
+main en Python reçoit 101 Switching Protocols : suspect, la vérification de la réponse par le client WebSocket du port
+curl (Connection: Upgrade en TLS avec ALPN h2) — WebCore/platform/network/curl. Écartés : OneID, worker Datadog,
+workers de blob, cookies tiers, en-têtes du navigateur.
+**22/11 : Disney+ corrigé (patch 0013)** : WebSocketExtensionParser::consumeToken n'avançait pas m_data (consumeSpan
+sur une copie) : toute réponse avec Sec-WebSocket-Extensions échouait. Vérifié sous QEMU (serveur local, contre-essai
+1.4.4 en échec). jet 1.4.5 construit dans le cloud, pas publié (accord de l'utilisateur). Détails :
+docs/agents/JET-WEBSOCKET-DISNEY.md. Apps web 1.0.1 (fenêtre normale) et claude-code 2.1.330.6 (volet, terminal,
+cloud, file) publiés.

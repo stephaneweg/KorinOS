@@ -31,6 +31,8 @@ pub enum Action {
     Allow { request_id: String, input: Value, remember: Option<Value> },
     Deny { request_id: String },
     Login,
+    /// Une commande de Claude (outil Bash) à reprendre dans l'onglet Terminal.
+    ToTerminal(String),
 }
 
 #[derive(Default)]
@@ -326,7 +328,7 @@ impl Thread {
                                 ui.add(Label::new(RichText::new(text).italics().color(t.text_dim)).selectable(true).wrap());
                             });
                     }
-                    Item::Tool { name, input, result, .. } => tool_card(ui, t, i, name, input, result.as_ref()),
+                    Item::Tool { name, input, result, .. } => tool_card(ui, t, i, name, input, result.as_ref(), &mut actions),
                     Item::Permission { request_id, tool, input, suggestions, state } => {
                         permission_card(ui, t, request_id, tool, input, suggestions.as_ref(), state, &mut actions)
                     }
@@ -383,7 +385,7 @@ pub fn tool_summary(name: &str, input: &Value) -> String {
     }
 }
 
-fn tool_card(ui: &mut Ui, t: &Tokens, i: usize, name: &str, input: &Value, result: Option<&(String, bool)>) {
+fn tool_card(ui: &mut Ui, t: &Tokens, i: usize, name: &str, input: &Value, result: Option<&(String, bool)>, actions: &mut Vec<Action>) {
     Frame::new()
         .fill(t.card)
         .stroke(Stroke::new(1.0, t.card_border))
@@ -401,6 +403,18 @@ fn tool_card(ui: &mut Ui, t: &Tokens, i: usize, name: &str, input: &Value, resul
             )
             .id_salt(("tool", i))
             .default_open(false);
+            // (une commande de Claude : la reprendre dans l'onglet Terminal du volet, ou la copier)
+            let command = if name == "Bash" { input.get("command").and_then(Value::as_str).map(str::to_owned) } else { None };
+            if let Some(c) = &command {
+                ui.horizontal(|ui| {
+                    if ui.link(RichText::new("▶ Terminal").font(egui::FontId::proportional(theme::CAPTION))).on_hover_text("Mettre cette commande dans l'onglet Terminal du volet de droite").clicked() {
+                        actions.push(Action::ToTerminal(c.clone()));
+                    }
+                    if ui.link(RichText::new("Copier").font(egui::FontId::proportional(theme::CAPTION))).clicked() {
+                        ui.ctx().copy_text(c.clone());
+                    }
+                });
+            }
             header.show(ui, |ui| {
                 let pretty = serde_json::to_string_pretty(input).unwrap_or_default();
                 ui.label(RichText::new("Entrée").font(theme::medium(theme::CAPTION)).color(t.text_faint));

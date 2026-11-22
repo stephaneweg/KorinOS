@@ -1,7 +1,9 @@
 //! La fenêtre : à gauche les conversations (recherche, épinglées, dossiers, puis les autres par date ; un clic les
 //! ouvre, le clic droit les renomme, épingle, range ou supprime ; on les glisse sur un dossier), à droite le fil de la
 //! conversation ouverte, et en bas le champ de la demande. Plusieurs conversations peuvent travailler en même temps :
-//! chacune a son process de la CLI.
+//! chacune a son process de la CLI. Une demande tapée pendant que Claude travaille attend son tour sous le champ
+//! (« Envoyer maintenant » arrête le tour et la fait partir). À droite, le volet « Environnement » (env.rs) ; dans la
+//! liste, les sessions de Claude Code sur le web, en lecture.
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -11,6 +13,8 @@ use egui::{Align, Color32, Frame, Id, Key, KeyboardShortcut, Label, Layout, Marg
 
 use crate::chat::{self, Action, PermState, Thread};
 use crate::cli::{Cli, Event, Launch};
+use crate::env::{self, CloudSession, Git, Usage};
+use crate::term::{Line, Term};
 use crate::organize::Organize;
 use crate::store::{self, SessionInfo};
 use crate::theme::{self, Tokens};
@@ -24,12 +28,34 @@ struct Open {
     /// les dernières lignes d'erreur de la CLI (montrées si elle s'arrête en plein tour)
     stderr: Vec<String>,
     stick: bool,
+    /// Les demandes tapées pendant un tour : la première part à la fin du tour.
+    queue: Vec<String>,
+    /// Une session du cloud (Claude Code sur le web) : lue, pas de champ de demande ; ses entrées, page après page.
+    cloud: Option<String>,
+    cloud_entries: Vec<serde_json::Value>,
 }
 
 impl Open {
     fn new(cwd: String) -> Open {
-        Open { thread: Thread::default(), cli: None, cwd, draft: String::new(), stderr: Vec::new(), stick: true }
+        Open {
+            thread: Thread::default(),
+            cli: None,
+            cwd,
+            draft: String::new(),
+            stderr: Vec::new(),
+            stick: true,
+            queue: Vec::new(),
+            cloud: None,
+            cloud_entries: Vec::new(),
+        }
     }
+}
+
+/// Une demande de contrôle en cours (son numéro -> ce qu'on attend).
+enum Req {
+    Usage,
+    Cloud,
+    Transcript { key: String, pages: u32 },
 }
 
 enum Dialog {
@@ -67,6 +93,24 @@ pub struct App {
     status: Option<(String, bool)>,
     /// le thème du système (Korin : demandé à l'hôte)
     pub system_dark: Box<dyn Fn() -> bool>,
+    /// le volet « Environnement » : git, l'utilisation de l'abonnement
+    git: Git,
+    usage: Option<Usage>,
+    usage_err: Option<String>,
+    usage_asked: Option<Instant>,
+    /// les sessions du cloud
+    cloud: Vec<CloudSession>,
+    cloud_err: Option<String>,
+    cloud_asked: Option<Instant>,
+    /// Les demandes de contrôle en cours (numéro -> quoi), et la CLI de service : celle qui répond quand aucune
+    /// conversation n'a la sienne (arrêtée après deux minutes sans demande).
+    requests: HashMap<String, Req>,
+    req_counter: u64,
+    aux: Option<Cli>,
+    aux_used: Instant,
+    /// L'onglet Terminal : un bash par dossier.
+    terms: HashMap<String, Term>,
+    term_focus: bool,
 }
 
 const MODELS: [(&str, &str); 4] = [("", "Modèle par défaut"), ("opus", "Opus"), ("sonnet", "Sonnet"), ("haiku", "Haiku")];
@@ -94,6 +138,19 @@ impl App {
             counter: 0,
             status: None,
             system_dark,
+            git: Git::default(),
+            usage: None,
+            usage_err: None,
+            usage_asked: None,
+            cloud: Vec::new(),
+            cloud_err: None,
+            cloud_asked: None,
+            requests: HashMap::new(),
+            req_counter: 0,
+            aux: None,
+            aux_used: Instant::now(),
+            terms: HashMap::new(),
+            term_focus: false,
         };
         app.rescan();
         app
@@ -151,14 +208,26 @@ impl App {
         self.current = Some(key);
     }
 
-    /// Envoie la demande tapée dans la conversation `key` (lance la CLI s'il le faut).
+    /// Envoie la demande tapée dans la conversation `key` ; pendant un tour, elle attend dans la file.
     fn send(&mut self, key: &str) {
-        let (model, mode) = (self.org.model.clone(), self.org.permission_mode.clone());
         let Some(o) = self.open.get_mut(key) else { return };
         let text = o.draft.trim().to_owned();
-        if text.is_empty() || o.thread.busy {
+        if text.is_empty() || o.cloud.is_some() {
             return;
         }
+        o.draft.clear();
+        if o.thread.busy || !o.queue.is_empty() {
+            o.queue.push(text);
+            return;
+        }
+        self.send_text(key, &text);
+    }
+
+    /// Envoie une demande à la CLI de la conversation `key` (lancée s'il le faut).
+    fn send_text(&mut self, key: &str, text: &str) {
+        let (model, mode) = (self.org.model.clone(), self.org.permission_mode.clone());
+        let Some(o) = self.open.get_mut(key) else { return };
+        let text = text.to_owned();
         if o.cli.is_none() {
             let launch = Launch { resume: o.thread.session_id.clone(), cwd: o.cwd.clone().into(), model, permission_mode: mode };
             match Cli::start(&launch) {
@@ -170,7 +239,6 @@ impl App {
             }
         }
         o.thread.push_user(&text);
-        o.draft.clear();
         o.stick = true;
         if let Some(c) = o.cli.as_mut()
             && !c.send_user(&text)
@@ -186,6 +254,8 @@ impl App {
         let mut active = false;
         let mut rekey: Vec<(String, String)> = Vec::new();
         let mut finished = false;
+        let mut ended: Vec<String> = Vec::new();
+        let mut answers: Vec<(String, serde_json::Value, Option<String>)> = Vec::new();
         for (key, o) in self.open.iter_mut() {
             let Some(c) = o.cli.as_mut() else { continue };
             active = true;
@@ -194,6 +264,11 @@ impl App {
                 match ev {
                     Event::Json(v) => {
                         let was_busy = o.thread.busy;
+                        // (la réponse à une demande de l'app : get_usage, les sessions du cloud…)
+                        if let Some(a) = answer_of(&v, &self.requests) {
+                            answers.push(a);
+                            continue;
+                        }
                         if v.get("type").and_then(|x| x.as_str()) == Some("control_response")
                             && v["response"]["subtype"].as_str() == Some("error")
                         {
@@ -213,6 +288,7 @@ impl App {
                         o.thread.apply(&v);
                         if was_busy && !o.thread.busy {
                             finished = true;
+                            ended.push(key.clone());
                         }
                         if let Some(id) = &o.thread.session_id
                             && key.starts_with("nouvelle-")
@@ -233,6 +309,7 @@ impl App {
                 let code = c.exited().flatten();
                 if o.thread.busy {
                     o.thread.busy = false;
+                    ended.push(key.clone());
                     let tail = o.stderr.iter().rev().take(6).rev().cloned().collect::<Vec<_>>().join("\n");
                     o.thread.note(format!("Claude Code s'est arrêté pendant le tour (code {}).\n{tail}", code.map_or("?".into(), |c| c.to_string())), true);
                 }
@@ -240,12 +317,72 @@ impl App {
                 finished = true;
             }
         }
+        // la CLI de service (sans conversation) : seulement ses réponses
+        if let Some(c) = self.aux.as_mut() {
+            active = true;
+            let mut gone = false;
+            for ev in c.poll() {
+                match ev {
+                    Event::Json(v) => {
+                        if let Some(a) = answer_of(&v, &self.requests) {
+                            answers.push(a);
+                        } else if v.get("type").and_then(|x| x.as_str()) == Some("control_request") {
+                            let rid = v["request_id"].as_str().unwrap_or("").to_owned();
+                            let sub = v["request"]["subtype"].as_str().unwrap_or("").to_owned();
+                            c.refuse_request(&rid, &sub);
+                        }
+                    }
+                    Event::Text(_) => {}
+                    Event::Closed => gone = true,
+                }
+            }
+            let idle = self.requests.is_empty() && self.aux_used.elapsed() > Duration::from_secs(120);
+            if gone || idle || c.exited().is_some() {
+                self.aux = None;
+                if gone && !self.requests.is_empty() {
+                    // (ses demandes n'auront pas de réponse ; pas de relance avant le délai suivant : une CLI qui s'arrête
+                    // aussitôt serait relancée à chaque image)
+                    self.requests.retain(|_, r| matches!(r, Req::Transcript { .. }));
+                    let why = "Claude Code s'est arrêté avant de répondre".to_owned();
+                    self.usage_err = Some(why.clone());
+                    self.cloud_err = Some(why);
+                }
+            }
+        }
         for (old, new) in rekey {
             if let Some(o) = self.open.remove(&old) {
                 self.open.insert(new.clone(), o);
                 if self.current.as_deref() == Some(old.as_str()) {
-                    self.current = Some(new);
+                    self.current = Some(new.clone());
                 }
+            }
+            for k in ended.iter_mut() {
+                if *k == old {
+                    *k = new.clone();
+                }
+            }
+        }
+        for (id, r, err) in answers {
+            self.answered(&id, r, err);
+        }
+        // fin d'un tour : la demande suivante de la file part ; le volet relit le dépôt et l'utilisation
+        for k in ended {
+            if let Some(o) = self.open.get_mut(&k) {
+                let cwd = o.cwd.clone();
+                self.git.stale(&cwd);
+                if !o.queue.is_empty() && !o.thread.busy {
+                    let next = o.queue.remove(0);
+                    self.send_text(&k, &next);
+                }
+            }
+            self.usage_asked = self.usage_asked.filter(|t| t.elapsed() < Duration::from_secs(20));
+        }
+        if self.git.poll() {
+            active = true;
+        }
+        for term in self.terms.values_mut() {
+            if term.poll() || term.running {
+                active = true;
             }
         }
         if finished || self.last_scan.elapsed() > Duration::from_secs(8) {
@@ -254,7 +391,99 @@ impl App {
         active
     }
 
+    /// Une demande de contrôle (`get_usage`…) : à la CLI d'une conversation ouverte, sinon à la CLI de service (lancée
+    /// dans le dossier personnel, sans conversation).
+    fn ask(&mut self, subtype: &str, extra: serde_json::Value, req: Req) -> bool {
+        self.req_counter += 1;
+        let id = format!("korin-app-{}", self.req_counter);
+        let mut sent = false;
+        if let Some(c) = self.open.values_mut().filter_map(|o| o.cli.as_mut()).next() {
+            sent = c.request(&id, subtype, extra.clone());
+        }
+        if !sent {
+            if self.aux.is_none() {
+                let launch = Launch { cwd: store::home(), ..Default::default() };
+                match Cli::start(&launch) {
+                    Ok(c) => self.aux = Some(c),
+                    Err(e) => {
+                        self.usage_err = Some(format!("Claude Code ne démarre pas : {e}"));
+                        return false;
+                    }
+                }
+            }
+            self.aux_used = Instant::now();
+            sent = self.aux.as_mut().is_some_and(|c| c.request(&id, subtype, extra));
+        }
+        if sent {
+            self.requests.insert(id, req);
+        }
+        sent
+    }
+
+    /// La réponse d'une demande de contrôle (err : son erreur).
+    fn answered(&mut self, id: &str, r: serde_json::Value, err: Option<String>) {
+        let Some(req) = self.requests.remove(id) else { return };
+        match req {
+            Req::Usage => match err {
+                Some(e) => self.usage_err = Some(e),
+                None => {
+                    self.usage = Some(env::parse_usage(&r));
+                    self.usage_err = None;
+                }
+            },
+            Req::Cloud => {
+                match err.map(Err).unwrap_or_else(|| env::parse_cloud(&r)) {
+                    Ok(v) => {
+                        self.cloud = v;
+                        self.cloud_err = None;
+                    }
+                    Err(e) => self.cloud_err = Some(e),
+                }
+            }
+            Req::Transcript { key, pages } => {
+                let Some(o) = self.open.get_mut(&key) else { return };
+                if let Some(e) = err.or_else(|| (r.get("status").and_then(|s| s.as_str()) != Some("ok")).then(|| r["status"].as_str().unwrap_or("?").to_owned())) {
+                    o.thread.note(format!("La session du cloud ne se lit pas : {e}"), true);
+                    return;
+                }
+                o.cloud_entries.extend(r.get("entries").and_then(|e| e.as_array()).cloned().unwrap_or_default());
+                o.thread = Thread::from_entries(&o.cloud_entries);
+                let next = r.get("next_cursor").and_then(|c| c.as_str()).filter(|c| !c.is_empty()).map(str::to_owned);
+                let sid = o.cloud.clone().unwrap_or_default();
+                if let Some(cur) = next
+                    && pages < 40
+                {
+                    self.ask("get_cloud_session_transcript", serde_json::json!({ "session_id": sid, "cursor": cur }), Req::Transcript { key, pages: pages + 1 });
+                }
+            }
+        }
+    }
+
+    /// Ouvre une session du cloud, en lecture.
+    fn open_cloud(&mut self, s: &CloudSession) {
+        let key = format!("cloud:{}", s.id);
+        if !self.open.contains_key(&key) {
+            let mut o = Open::new("Claude Code sur le web".into());
+            o.cloud = Some(s.id.clone());
+            o.thread.note(format!("« {} » — session de Claude Code sur le web ({}), en lecture.", s.title, env::cloud_status(&s.status)), false);
+            self.open.insert(key.clone(), o);
+            self.ask("get_cloud_session_transcript", serde_json::json!({ "session_id": s.id }), Req::Transcript { key: key.clone(), pages: 1 });
+        }
+        self.current = Some(key);
+    }
+
     fn do_action(&mut self, key: &str, a: Action) {
+        if let Action::ToTerminal(cmd) = &a {
+            // (la commande dans le champ de l'onglet Terminal, à relire puis lancer par Entrée)
+            let cwd = self.open.get(key).map(|o| o.cwd.clone()).unwrap_or_else(|| store::home().to_string_lossy().into_owned());
+            self.org.env_panel = true;
+            self.org.env_tab = "term".into();
+            self.org.save();
+            let term = self.terms.entry(cwd.clone()).or_insert_with(|| Term::new(&cwd));
+            term.input = cmd.clone();
+            self.term_focus = true;
+            return;
+        }
         let Some(o) = self.open.get_mut(key) else { return };
         match a {
             Action::Allow { request_id, input, remember } => {
@@ -270,6 +499,7 @@ impl App {
                 o.thread.set_permission(&request_id, PermState::Denied);
             }
             Action::Login => self.start_login(),
+            Action::ToTerminal(_) => {}
         }
     }
 
@@ -321,8 +551,276 @@ impl App {
             .size_range(220.0..=480.0)
             .frame(Frame::new().fill(t.chrome).inner_margin(Margin::same(10)).stroke(Stroke::new(1.0, t.separator)))
             .show(ui, |ui| self.sidebar(ui));
+        if self.org.env_panel {
+            egui::Panel::right("environnement")
+                .resizable(true)
+                .default_size(300.0)
+                .size_range(240.0..=520.0)
+                .frame(Frame::new().fill(t.chrome).inner_margin(Margin::same(12)).stroke(Stroke::new(1.0, t.separator)))
+                .show(ui, |ui| self.env_panel(ui));
+        }
         egui::CentralPanel::default().frame(Frame::new().fill(t.canvas)).show(ui, |ui| self.main(ui));
         self.dialogs(&ctx);
+    }
+
+    /// L'onglet Terminal : un bash dans le dossier de la conversation (term.rs).
+    fn term_panel(&mut self, ui: &mut Ui) {
+        let t = self.t;
+        let cwd = self
+            .current
+            .as_ref()
+            .and_then(|k| self.open.get(k))
+            .filter(|o| o.cloud.is_none())
+            .map(|o| o.cwd.clone())
+            .unwrap_or_else(|| store::home().to_string_lossy().into_owned());
+        let focus = std::mem::take(&mut self.term_focus);
+        // (sans conversation ouverte, pas de champ de demande : le clavier va au terminal)
+        let no_conv = self.current.as_ref().is_none_or(|k| !self.open.contains_key(k));
+        let term = self.terms.entry(cwd.clone()).or_insert_with(|| Term::new(&cwd));
+        ui.horizontal(|ui| {
+            ui.add(Label::new(RichText::new(format!("🗀 {}", store::short_dir(&cwd))).font(theme::mono(theme::CAPTION)).color(t.text_dim)).truncate());
+        });
+        ui.horizontal_wrapped(|ui| {
+            if term.running && ui.small_button("■ Arrêter").clicked() {
+                term.stop();
+            }
+            if ui.small_button("Effacer").clicked() {
+                term.lines.clear();
+            }
+            if ui.small_button("Tout copier").clicked() {
+                ui.ctx().copy_text(term.text());
+            }
+            if ui.small_button("Terminal de Korin").on_hover_text("Le Terminal complet, dans ce dossier (programmes plein écran)").clicked() {
+                let _ = std::process::Command::new("/apps/terminal.app/main").current_dir(&cwd).spawn();
+            }
+        });
+        let out_h = (ui.available_height() - 74.0).max(80.0);
+        ScrollArea::vertical().id_salt(("terminal", &cwd)).max_height(out_h).auto_shrink([false, false]).stick_to_bottom(true).show(ui, |ui| {
+            Frame::new().fill(t.code_bg).corner_radius(theme::R).inner_margin(Margin::same(8)).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                if term.lines.is_empty() {
+                    ui.label(RichText::new("Tapez une commande en bas, ou « ▶ Terminal » sous une commande de Claude.").font(egui::FontId::proportional(theme::CAPTION)).color(t.text_faint));
+                }
+                for l in &term.lines {
+                    let (text, color) = match l {
+                        Line::Cmd(c) => (format!("$ {c}"), t.accent_ink),
+                        Line::Out(o) => (o.clone(), t.text),
+                        Line::Err(e) => (e.clone(), t.warning),
+                        Line::End(0) => continue,
+                        Line::End(c) => (format!("(code {c})"), t.danger),
+                        Line::Note(n) => (n.clone(), t.text_faint),
+                    };
+                    ui.add(Label::new(RichText::new(text).font(theme::mono(theme::CAPTION)).color(color)).selectable(true).wrap());
+                }
+                if term.running {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(RichText::new("en cours…").font(egui::FontId::proportional(theme::CAPTION)).color(t.text_faint));
+                    });
+                }
+            });
+        });
+        ui.add_space(6.0);
+        let mut run = false;
+        ui.horizontal(|ui| {
+            let w = ui.available_width() - 34.0;
+            // (comme le champ de la demande : Entrée lance, Maj+Entrée va à la ligne ; un champ d'une ligne d'egui avale
+            // l'Entrée)
+            let r = ui.add(
+                TextEdit::multiline(&mut term.input)
+                    .font(theme::mono(theme::CODE))
+                    .hint_text("Commande bash")
+                    .desired_rows(1)
+                    .desired_width(w)
+                    .return_key(Some(KeyboardShortcut::new(Modifiers::SHIFT, Key::Enter))),
+            );
+            if focus || (no_conv && ui.memory(|m| m.focused().is_none())) {
+                r.request_focus();
+            }
+            if r.has_focus() && !term.input.contains('\n') {
+                let (up, down) = ui.input(|i| (i.key_pressed(Key::ArrowUp), i.key_pressed(Key::ArrowDown)));
+                if up {
+                    term.recall(true);
+                } else if down {
+                    term.recall(false);
+                }
+            }
+            if r.has_focus() && ui.input(|i| i.key_pressed(Key::Enter) && !i.modifiers.shift) {
+                run = true;
+            }
+            if ui.button("▶").on_hover_text("Lancer (Entrée)").clicked() {
+                run = true;
+            }
+            if run {
+                let c = std::mem::take(&mut term.input);
+                term.run(&c);
+                r.request_focus();
+            }
+        });
+        ui.label(RichText::new("bash sans terminal : copier-coller (Ctrl+C, Ctrl+V), ↑ ↓ l'historique ; pas de programmes plein écran.").font(egui::FontId::proportional(theme::CAPTION)).color(t.text_faint));
+    }
+
+    /// Le volet « Environnement » : utilisation de l'abonnement, dossier et dépôt de la conversation, session.
+    fn env_panel(&mut self, ui: &mut Ui) {
+        let t = self.t;
+        let term_tab = self.org.env_tab == "term";
+        ui.horizontal(|ui| {
+            for (k, l) in [("env", "Environnement"), ("term", "Terminal")] {
+                let on = (k == "term") == term_tab;
+                if ui.selectable_label(on, RichText::new(l).font(theme::semibold(theme::SMALL))).clicked() && !on {
+                    self.org.env_tab = if k == "term" { "term".into() } else { String::new() };
+                    self.org.save();
+                }
+            }
+            // (à droite : les boutons de la fenêtre de Korin ; le volet se ferme par ◧ ou F6)
+        });
+        ui.add_space(4.0);
+        if term_tab {
+            self.term_panel(ui);
+            return;
+        }
+        // l'utilisation : relue chaque minute tant que l'onglet est ouvert
+        let waiting = self.requests.values().any(|r| matches!(r, Req::Usage));
+        if !waiting && self.usage_asked.is_none_or(|a| a.elapsed() > Duration::from_secs(60)) {
+            self.usage_asked = Some(Instant::now());
+            self.ask("get_usage", serde_json::json!({ "skip_behaviors": true }), Req::Usage);
+        }
+        ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+            // -- l'abonnement
+            section(ui, &t, "UTILISATION");
+            match (&self.usage, &self.usage_err) {
+                (_, Some(e)) => {
+                    ui.label(RichText::new(format!("Indisponible : {e}")).font(egui::FontId::proportional(theme::LABEL)).color(t.text_faint));
+                }
+                (None, None) => {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(RichText::new("Demandée à Claude Code…").color(t.text_faint));
+                    });
+                }
+                (Some(u), None) => {
+                    if !u.plan.is_empty() {
+                        ui.label(RichText::new(format!("Abonnement : {}", plan_name(&u.plan))).font(egui::FontId::proportional(theme::LABEL)).color(t.text_dim));
+                    }
+                    if !u.available || u.windows.is_empty() {
+                        ui.label(RichText::new("Pas de limites d'abonnement (clé d'API, ou pas encore connu).").font(egui::FontId::proportional(theme::LABEL)).color(t.text_faint));
+                    }
+                    let now = env::now_secs();
+                    for w in &u.windows {
+                        ui.add_space(4.0);
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(&w.name).font(theme::medium(theme::LABEL)).color(t.text));
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                ui.label(RichText::new(format!("{:.0} %", w.pct)).font(theme::medium(theme::LABEL)).color(if w.pct >= 90.0 { t.danger } else if w.pct >= 75.0 { t.warning } else { t.text }));
+                            });
+                        });
+                        let bar = egui::ProgressBar::new((w.pct / 100.0).clamp(0.0, 1.0) as f32).desired_height(6.0).fill(if w.pct >= 90.0 { t.danger } else if w.pct >= 75.0 { t.warning } else { t.accent });
+                        ui.add(bar);
+                        if let Some(r) = w.resets {
+                            ui.label(RichText::new(format!("repart à zéro {}", env::until(r, now))).font(egui::FontId::proportional(theme::CAPTION)).color(t.text_faint));
+                        }
+                    }
+                }
+            }
+            if ui.small_button("Actualiser").clicked() {
+                self.usage_asked = None;
+                self.usage_err = None;
+            }
+
+            // -- la conversation
+            let Some(key) = self.current.clone().filter(|k| self.open.contains_key(k)) else {
+                section(ui, &t, "CONVERSATION");
+                ui.label(RichText::new("Ouvrez une conversation pour voir son dossier et son dépôt.").font(egui::FontId::proportional(theme::LABEL)).color(t.text_faint));
+                return;
+            };
+            if let Some(sid) = self.open[&key].cloud.clone() {
+                section(ui, &t, "SESSION DU CLOUD");
+                ui.add(Label::new(RichText::new(&sid).font(theme::mono(theme::CAPTION)).color(t.text_dim)).selectable(true).wrap());
+                if ui.link("Ouvrir dans Jet (claude.ai)").clicked() {
+                    let _ = std::process::Command::new("xdg-open").arg(format!("https://claude.ai/code/{sid}")).spawn();
+                }
+                return;
+            }
+            let cwd = self.open[&key].cwd.clone();
+            section(ui, &t, "DOSSIER");
+            ui.add(Label::new(RichText::new(&cwd).font(theme::mono(theme::CAPTION)).color(t.text)).selectable(true).wrap());
+            self.git.want(&cwd, Duration::from_secs(20));
+            section(ui, &t, "DÉPÔT");
+            match self.git.get(&cwd).cloned() {
+                None => {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(RichText::new("git…").color(t.text_faint));
+                    });
+                }
+                Some(g) if !g.repo => {
+                    let why = g.error.unwrap_or_else(|| "Pas un dépôt git.".into());
+                    ui.label(RichText::new(why).font(egui::FontId::proportional(theme::LABEL)).color(t.text_faint));
+                }
+                Some(g) => {
+                    let line = |ui: &mut Ui, k: &str, v: &str| {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(RichText::new(k).font(egui::FontId::proportional(theme::LABEL)).color(t.text_faint));
+                            ui.add(Label::new(RichText::new(v).font(theme::mono(theme::CAPTION)).color(t.text)).selectable(true));
+                        });
+                    };
+                    if !g.remote_name.is_empty() {
+                        line(ui, "Dépôt", &g.remote_name);
+                    } else {
+                        line(ui, "Dépôt", &store::short_dir(&g.root));
+                    }
+                    let mut b = format!("⎇ {}", g.branch);
+                    if g.ahead > 0 {
+                        b.push_str(&format!("  ↑{}", g.ahead));
+                    }
+                    if g.behind > 0 {
+                        b.push_str(&format!("  ↓{}", g.behind));
+                    }
+                    line(ui, "Branche", &b);
+                    if !g.upstream.is_empty() {
+                        line(ui, "Suit", &g.upstream);
+                    }
+                    if !g.last_commit.is_empty() {
+                        ui.add(Label::new(RichText::new(&g.last_commit).font(egui::FontId::proportional(theme::CAPTION)).color(t.text_dim)).wrap());
+                    }
+                    ui.add_space(4.0);
+                    if g.changed.is_empty() {
+                        ui.label(RichText::new("✓ Rien à commiter").font(egui::FontId::proportional(theme::LABEL)).color(t.success));
+                    } else {
+                        ui.label(RichText::new(format!("{} fichier{} changé{}", g.changed.len(), if g.changed.len() > 1 { "s" } else { "" }, if g.changed.len() > 1 { "s" } else { "" })).font(theme::medium(theme::LABEL)).color(t.text));
+                        for (st, f) in g.changed.iter().take(15) {
+                            ui.horizontal(|ui| {
+                                let c = match st.trim() {
+                                    "??" => t.text_faint,
+                                    s if s.contains('D') => t.danger,
+                                    s if s.contains('A') => t.success,
+                                    _ => t.warning,
+                                };
+                                ui.label(RichText::new(st.trim()).font(theme::mono(theme::CAPTION)).color(c));
+                                ui.add(Label::new(RichText::new(f).font(theme::mono(theme::CAPTION)).color(t.text_dim)).truncate());
+                            });
+                        }
+                        if g.changed.len() > 15 {
+                            ui.label(RichText::new(format!("… et {} autres", g.changed.len() - 15)).font(egui::FontId::proportional(theme::CAPTION)).color(t.text_faint));
+                        }
+                    }
+                    if ui.small_button("Relire").clicked() {
+                        self.git.stale(&cwd);
+                    }
+                }
+            }
+            // -- la session
+            section(ui, &t, "SESSION");
+            let o = &self.open[&key];
+            let model = if o.thread.model.is_empty() { MODELS.iter().find(|(k, _)| *k == self.org.model).map_or("", |(_, l)| *l).to_owned() } else { o.thread.model.clone() };
+            ui.label(RichText::new(format!("Modèle : {model}")).font(egui::FontId::proportional(theme::LABEL)).color(t.text_dim));
+            let mode = MODES.iter().find(|(k, _)| *k == self.org.permission_mode || (self.org.permission_mode.is_empty() && *k == "default")).map_or("", |(_, l)| *l);
+            ui.label(RichText::new(format!("Autorisations : {mode}")).font(egui::FontId::proportional(theme::LABEL)).color(t.text_dim));
+            ui.label(RichText::new(if o.cli.is_some() { "Claude Code tourne pour cette conversation" } else { "Claude Code ne tourne pas (il démarre à la prochaine demande)" }).font(egui::FontId::proportional(theme::CAPTION)).color(t.text_faint));
+            if let Some(id) = &o.thread.session_id {
+                ui.add(Label::new(RichText::new(id).font(theme::mono(theme::CAPTION)).color(t.text_faint)).selectable(true).wrap());
+            }
+        });
     }
 
     // ---- la barre de menus de Korin (main.rs la tient : egui_korin::menu) ----
@@ -331,7 +829,7 @@ impl App {
     pub fn menu_text(&self) -> &'static str {
         "MFichier\nI1\tNouvelle conversation…\tCtrl+N\nI2\tNouveau dossier…\n-\nI3\tQuitter\tCtrl+Q\n\
          MConversation\nI10\tRenommer…\tF2\nI11\tÉpingler\nI12\tCopier la conversation\nI13\tArrêter Claude\n-\nI14\tSupprimer…\n\
-         MAffichage\nI20\tThème de Korin\nI21\tSombre\nI22\tClair\n-\nI23\tRelire les conversations\tF5\n"
+         MAffichage\nI20\tThème de Korin\nI21\tSombre\nI22\tClair\n-\nI24\tVolet Environnement\tF6\nI23\tRelire les conversations\tF5\n"
     }
 
     /// Les états des entrées : (id, 0 normale | 1 grisée | 2 cochée).
@@ -350,6 +848,7 @@ impl App {
             (20, if theme == "system" { 2 } else { 0 }),
             (21, if theme == "dark" { 2 } else { 0 }),
             (22, if theme == "light" { 2 } else { 0 }),
+            (24, if self.org.env_panel { 2 } else { 0 }),
         ]
     }
 
@@ -405,23 +904,29 @@ impl App {
                 self.dark = None;
             }
             23 => self.rescan(),
+            24 => {
+                self.org.env_panel = !self.org.env_panel;
+                self.org.save();
+            }
             _ => {}
         }
         false
     }
 
-    /// Les raccourcis des menus quand la fenêtre a le clavier (Ctrl+N, F2, F5).
+    /// Les raccourcis des menus quand la fenêtre a le clavier (Ctrl+N, F2, F5, F6).
     fn shortcuts(&mut self, ctx: &egui::Context) {
         if !matches!(self.dialog, Dialog::None) {
             return;
         }
-        let (n, f2, f5) = ctx.input(|i| (i.modifiers.command && i.key_pressed(Key::N), i.key_pressed(Key::F2), i.key_pressed(Key::F5)));
+        let (n, f2, f5, f6) = ctx.input(|i| (i.modifiers.command && i.key_pressed(Key::N), i.key_pressed(Key::F2), i.key_pressed(Key::F5), i.key_pressed(Key::F6)));
         if n {
             self.menu_command(ctx, 1);
         } else if f2 {
             self.menu_command(ctx, 10);
         } else if f5 {
             self.menu_command(ctx, 23);
+        } else if f6 {
+            self.menu_command(ctx, 24);
         }
     }
 
@@ -450,6 +955,7 @@ impl App {
         let visible: Vec<SessionInfo> =
             self.sessions.iter().filter(|s| q.is_empty() || s.title.to_lowercase().contains(&q) || s.cwd.to_lowercase().contains(&q)).cloned().collect();
         let mut moved: Option<(String, Option<usize>)> = None;
+        let mut cloud_click: Option<CloudSession> = None;
         ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             // les conversations neuves, pas encore enregistrées par la CLI
             let fresh: Vec<String> = self.open.keys().filter(|k| k.starts_with("nouvelle-")).cloned().collect();
@@ -545,7 +1051,58 @@ impl App {
             if let Some(id) = drop_target(ui, &t, rest_block.response.rect, "hors-dossier") {
                 moved = Some((id, None));
             }
+            // les sessions de Claude Code sur le web (list_cloud_sessions de la CLI), en lecture
+            let open_cloud = self.org.cloud_open;
+            let r = ui.add(
+                Label::new(RichText::new(format!("{}  ☁  Claude Code sur le web", if open_cloud { "▾" } else { "▸" })).font(theme::medium(theme::LABEL)).color(t.text_dim))
+                    .sense(Sense::click()),
+            );
+            if r.clicked() {
+                self.org.cloud_open = !open_cloud;
+                self.org.save();
+                self.cloud_asked = None;
+            }
+            if open_cloud {
+                let waiting = self.requests.values().any(|r| matches!(r, Req::Cloud));
+                if !waiting && self.cloud_asked.is_none_or(|a| a.elapsed() > Duration::from_secs(120)) {
+                    self.cloud_asked = Some(Instant::now());
+                    self.ask("list_cloud_sessions", serde_json::json!({ "user_initiated": true }), Req::Cloud);
+                }
+                if let Some(e) = &self.cloud_err {
+                    ui.label(RichText::new(format!("Indisponible : {e}")).font(egui::FontId::proportional(theme::CAPTION)).color(t.text_faint));
+                } else if self.cloud.is_empty() {
+                    ui.label(RichText::new(if waiting { "Demandées à Claude Code…" } else { "Aucune session sur le web." }).font(egui::FontId::proportional(theme::CAPTION)).color(t.text_faint));
+                }
+                let list = self.cloud.clone();
+                for c in &list {
+                    let key = format!("cloud:{}", c.id);
+                    let sel = self.current.as_deref() == Some(key.as_str());
+                    let sub = format!("{} · {}", env::cloud_status(&c.status), iso_ago(&c.updated));
+                    let r = row(ui, &t, &c.title, &sub, sel, c.status == "running");
+                    if r.clicked() {
+                        cloud_click = Some(c.clone());
+                    }
+                    r.context_menu(|ui| {
+                        if ui.button("Ouvrir dans Jet (claude.ai)").clicked() {
+                            let _ = std::process::Command::new("xdg-open").arg(format!("https://claude.ai/code/{}", c.id)).spawn();
+                            ui.close();
+                        }
+                        if ui.button("Copier l'identifiant").clicked() {
+                            ui.ctx().copy_text(c.id.clone());
+                            ui.close();
+                        }
+                    });
+                }
+                if ui.small_button("Actualiser").clicked() {
+                    self.cloud_asked = None;
+                    self.cloud_err = None;
+                }
+            }
+            ui.add_space(30.0);
         });
+        if let Some(c) = cloud_click {
+            self.open_cloud(&c);
+        }
         if let Some((id, f)) = moved {
             self.org.move_to(&id, f);
             self.org.save();
@@ -629,13 +1186,19 @@ impl App {
         let title = self.title_of(&key);
         let saved = self.info(&key).is_some();
         // (à droite, la place des boutons de la fenêtre de Korin : réduire, agrandir, fermer)
-        Frame::new().fill(t.canvas).inner_margin(Margin { left: 20, right: 120, top: 12, bottom: 10 }).show(ui, |ui| {
+        // (le volet ouvert porte les boutons de la fenêtre : l'en-tête n'a plus à leur laisser la place)
+        let right = if self.org.env_panel { 16 } else { 120 };
+        Frame::new().fill(t.canvas).inner_margin(Margin { left: 20, right, top: 12, bottom: 10 }).show(ui, |ui| {
             ui.horizontal(|ui| {
                 let r = ui.add(Label::new(RichText::new(&title).font(theme::semibold(theme::SECTION)).color(t.text)).sense(Sense::click()).truncate());
                 if saved && r.on_hover_text("Renommer").clicked() {
                     self.dialog = Dialog::Rename { id: key.clone(), text: title.clone() };
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if ui.selectable_label(self.org.env_panel, "◧").on_hover_text("Volet Environnement (F6)").clicked() {
+                        self.org.env_panel = !self.org.env_panel;
+                        self.org.save();
+                    }
                     ui.menu_button("⋯", |ui| {
                         if ui.button("Copier la conversation").clicked() {
                             ui.ctx().copy_text(self.open[&key].thread.as_text());
@@ -689,17 +1252,50 @@ impl App {
         });
         ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, t.separator));
 
-        // le champ de la demande, en bas
+        // le champ de la demande, en bas (une session du cloud : en lecture, pas de champ)
         let mut send = false;
         let mut stop = false;
+        let mut now_idx: Option<usize> = None;
+        let mut drop_idx: Option<usize> = None;
         let no_dialog = matches!(self.dialog, Dialog::None);
+        let cloud = self.open[&key].cloud.clone();
+        if let Some(sid) = cloud {
+            egui::Panel::bottom(("lecture", &key)).frame(Frame::new().fill(t.canvas).inner_margin(Margin { left: 20, right: 20, top: 8, bottom: 14 })).show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("☁  Session de Claude Code sur le web, en lecture.").color(t.text_dim));
+                    if ui.link("La continuer dans Jet (claude.ai)").clicked() {
+                        let _ = std::process::Command::new("xdg-open").arg(format!("https://claude.ai/code/{sid}")).spawn();
+                    }
+                });
+            });
+        } else {
         egui::Panel::bottom(("composer", &key)).frame(Frame::new().fill(t.canvas).inner_margin(Margin { left: 20, right: 20, top: 8, bottom: 14 })).show(ui, |ui| {
             let o = self.open.get_mut(&key).expect("ouverte");
             let busy = o.thread.busy;
+            // les demandes en attente : la première part à la fin du tour ; « Envoyer maintenant » arrête le tour
+            for (i, q) in o.queue.iter().enumerate() {
+                Frame::new().fill(t.card).stroke(Stroke::new(1.0, t.card_border)).corner_radius(theme::R).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("⏳").color(t.text_faint));
+                        ui.add(Label::new(RichText::new(store::one_line(q, 90)).font(egui::FontId::proportional(theme::SMALL)).color(t.text)).truncate());
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(if i == 0 { "En attente : part à la fin du tour" } else { "En attente" }).font(egui::FontId::proportional(theme::CAPTION)).color(t.text_faint));
+                        if ui.link(RichText::new("Envoyer maintenant").font(egui::FontId::proportional(theme::CAPTION))).on_hover_text("Arrête le tour en cours et envoie cette demande").clicked() {
+                            now_idx = Some(i);
+                        }
+                        if ui.link(RichText::new("Retirer").font(egui::FontId::proportional(theme::CAPTION))).clicked() {
+                            drop_idx = Some(i);
+                        }
+                    });
+                });
+                ui.add_space(4.0);
+            }
             Frame::new().fill(t.field).stroke(Stroke::new(1.0, t.field_border)).corner_radius(theme::R_LG).inner_margin(Margin::same(10)).show(ui, |ui| {
                 let resp = ui.add(
                     TextEdit::multiline(&mut o.draft)
-                        .hint_text(if busy { "Claude travaille… (votre prochaine demande peut attendre ici)" } else { "Demandez à Claude…" })
+                        .hint_text(if busy { "Claude travaille… votre demande attendra la fin du tour" } else { "Demandez à Claude…" })
                         .desired_rows(2)
                         .desired_width(f32::INFINITY)
                         .frame(Frame::NONE)
@@ -719,6 +1315,9 @@ impl App {
                             if ui.add(egui::Button::new(RichText::new("■  Arrêter").color(t.text)).corner_radius(theme::R)).clicked() {
                                 stop = true;
                             }
+                            if !o.draft.trim().is_empty() && ui.button("Mettre en attente").clicked() {
+                                send = true;
+                            }
                             ui.spinner();
                         } else if chat::accent_button(ui, &t, "Envoyer").clicked() {
                             send = true;
@@ -727,6 +1326,29 @@ impl App {
                 });
             });
         });
+        }
+        if let Some(i) = drop_idx
+            && let Some(o) = self.open.get_mut(&key)
+            && i < o.queue.len()
+        {
+            o.queue.remove(i);
+        }
+        if let Some(i) = now_idx
+            && let Some(o) = self.open.get_mut(&key)
+            && i < o.queue.len()
+        {
+            let q = o.queue.remove(i);
+            o.queue.insert(0, q);
+            if o.thread.busy {
+                // (le tour s'arrête ; sa fin fait partir la première demande de la file : pump)
+                if let Some(c) = o.cli.as_mut() {
+                    c.interrupt();
+                }
+            } else {
+                let q = o.queue.remove(0);
+                self.send_text(&key, &q);
+            }
+        }
         if stop
             && let Some(o) = self.open.get_mut(&key)
             && let Some(c) = o.cli.as_mut()
@@ -1002,6 +1624,41 @@ impl App {
                 });
             });
         }
+    }
+}
+
+/// Une ligne de la CLI qui répond à une demande de l'app : (numéro, réponse, erreur).
+fn answer_of(v: &serde_json::Value, requests: &HashMap<String, Req>) -> Option<(String, serde_json::Value, Option<String>)> {
+    if v.get("type").and_then(|x| x.as_str()) != Some("control_response") {
+        return None;
+    }
+    let r = &v["response"];
+    let id = r["request_id"].as_str()?;
+    if !requests.contains_key(id) {
+        return None;
+    }
+    if r["subtype"].as_str() == Some("success") {
+        Some((id.to_owned(), r["response"].clone(), None))
+    } else {
+        Some((id.to_owned(), serde_json::Value::Null, Some(r["error"].as_str().unwrap_or("refusé par Claude Code").to_owned())))
+    }
+}
+
+fn plan_name(p: &str) -> String {
+    match p {
+        "pro" => "Pro".into(),
+        "max" => "Max".into(),
+        "team" => "Team".into(),
+        "enterprise" => "Enterprise".into(),
+        o => o.to_owned(),
+    }
+}
+
+/// « il y a 3 h » d'une date ISO du service.
+fn iso_ago(s: &str) -> String {
+    match env::iso_secs(s) {
+        Some(t) if t > 0 => store::ago(std::time::UNIX_EPOCH + Duration::from_secs(t as u64)),
+        _ => String::new(),
     }
 }
 

@@ -1,0 +1,19 @@
+diff -ru -U2 a/Source/WebCore/Modules/websockets/WebSocketExtensionParser.cpp b/Source/WebCore/Modules/websockets/WebSocketExtensionParser.cpp
+--- a/Source/WebCore/Modules/websockets/WebSocketExtensionParser.cpp	2026-11-22 14:24:00.668048725 +0000
++++ b/Source/WebCore/Modules/websockets/WebSocketExtensionParser.cpp	2026-11-22 14:24:00.680677390 +0000
+@@ -67,12 +67,13 @@
+ bool WebSocketExtensionParser::consumeToken()
+ {
+     skipSpaces();
+-    auto start = m_data;
+     size_t tokenLength = 0;
+     while (tokenLength < m_data.size() && isASCIIPrintable(m_data[tokenLength]) && !isSeparator(m_data[tokenLength]))
+         ++tokenLength;
+     if (tokenLength) {
+-        m_currentToken = String(consumeSpan(start, tokenLength));
++        // Korin (22/11/2026) : le jeton est pris de m_data même (consumeSpan l'avance) ; pris d'une copie, m_data restait
++        // au début du jeton et toute réponse avec Sec-WebSocket-Extensions échouait (« header is invalid ») : Disney+.
++        m_currentToken = String(consumeSpan(m_data, tokenLength));
+         return true;
+     }
+     return false;

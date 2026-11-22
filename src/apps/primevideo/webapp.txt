@@ -2,4 +2,5 @@
 title    = Prime Video
 url      = https://www.primevideo.com/
 sites    = primevideo.com amazon.com amazon.fr
-maximize = 1
+# (fenêtre normale au départ, demande de l'utilisateur du 22/11 ; Agrandir ou F11 pour le plein écran)
+maximize = 0

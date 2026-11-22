@@ -2,4 +2,5 @@
 title    = Netflix
 url      = https://www.netflix.com/
 sites    = netflix.com
-maximize = 1
+# (fenêtre normale au départ, demande de l'utilisateur du 22/11 ; Agrandir ou F11 pour le plein écran)
+maximize = 0
