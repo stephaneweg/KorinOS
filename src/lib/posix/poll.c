@@ -325,7 +325,21 @@ int poll (struct pollfd *fds, nfds_t n, int timeout)
 			}
 		}
 		else
-			__posix_sleep_ns ((unsigned long long) w * 1000000ULL);
+		{
+			/* un tube a anneau partage dans l'ensemble : on dort sur son futex (reveil des que l'autre bout
+			 * ecrit ou lit), les autres sont regardes au reveil ; sinon un somme */
+			int slept = 0;
+			for (nfds_t i = 0; i < n && !slept; i++)
+				if (d[i] && (d[i]->type == POSIX_FD_PIPE_R || d[i]->type == POSIX_FD_PIPE_W))
+				{
+					int wr = d[i]->type == POSIX_FD_PIPE_W;
+					if ((fds[i].events & (wr ? (POLLOUT | POLLWRNORM) : (POLLIN | POLLRDNORM))) &&
+					    __posix_pipe_ring_sleep (d[i]->h, wr, (unsigned) w) == 0)
+						slept = 1;
+				}
+			if (!slept)
+				__posix_sleep_ns ((unsigned long long) w * 1000000ULL);
+		}
 		if (bk < 16)
 			bk *= 2;
 	}

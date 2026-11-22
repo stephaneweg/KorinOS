@@ -230,6 +230,9 @@ static u64 pipe_put(struct pipe *p, u64 num, const u8 *src, u64 len)
 	u8 *d = r ? p->ring + PIPE_RING_HDR : pipe_data[num];
 	u64 h = pipe_head(p), room = (PIPE_CAP - 1) - pipe_avail(p); /* (l'anneau garde un octet vide) */
 	u64 n = len < room ? len : room;
+	if (len <= PIPE_ATOMIC && room < len) /* (d'un seul morceau : la place relue sous le verrou, un écrivain de
+					       * l'anneau a pu en prendre depuis la vérification de l'appelant) */
+		n = 0;
 	u64 a = PIPE_CAP - h < n ? PIPE_CAP - h : n;
 	memcpy(d + h, src, a);
 	memcpy(d, src + a, n - a);

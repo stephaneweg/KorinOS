@@ -262,13 +262,14 @@ static void ring_wake (volatile unsigned *seq, volatile unsigned *waiters)
 }
 
 /* dort jusqu'a un changement de seq (RING_WAIT_MS au plus), si cond est encore vraie apres s'etre compte */
-#define RING_SLEEP(seq, waiters, cond) do { \
+#define RING_SLEEP_MS(seq, waiters, cond, ms) do { \
 	unsigned s_ = __atomic_load_n (&(seq), __ATOMIC_ACQUIRE); \
 	__atomic_add_fetch (&(waiters), 1, __ATOMIC_ACQ_REL); \
 	if (cond) \
-		__armpi_sys3 (SYS_FUTEX_WAIT, &(seq), s_, RING_WAIT_MS); \
+		__armpi_sys3 (SYS_FUTEX_WAIT, &(seq), s_, (ms)); \
 	__atomic_sub_fetch (&(waiters), 1, __ATOMIC_ACQ_REL); \
 } while (0)
+#define RING_SLEEP(seq, waiters, cond) RING_SLEEP_MS (seq, waiters, cond, RING_WAIT_MS)
 
 static inline unsigned ring_avail (struct __armpi_pipe_ring *r)
 {
@@ -379,6 +380,35 @@ long __posix_pipe_room (long h)
 	return (long) ((ARMPI_RING_CAP - 1) - ring_avail (r));
 }
 
+/* poll d'un bout de lecture sur l'anneau, sans lire -> 1 donnees, 2 fin, 0 rien ; -1 : pas d'anneau */
+int __posix_pipe_rready (long h)
+{
+	struct __armpi_pipe_ring *r = ring_of (h, 0);
+	if (!r)
+		return -1;
+	if (ring_avail (r))
+		return 1;
+	if (!__atomic_load_n (&r->writers, __ATOMIC_ACQUIRE))
+		return ring_avail (r) ? 1 : 2;
+	return 0;
+}
+
+/* poll : dort jusqu'a un changement de l'anneau (donnees, place, fin), ms au plus -> 0 ; -1 : pas d'anneau */
+int __posix_pipe_ring_sleep (long h, int wr, unsigned ms)
+{
+	struct __armpi_pipe_ring *r = ring_of (h, 0);
+	if (!r)
+		return -1;
+	if (ms == 0)
+		ms = 1;
+	if (wr)
+		RING_SLEEP_MS (r->rseq, r->wwait, (ARMPI_RING_CAP - 1) - ring_avail (r) < PIPE_BUF &&
+			       __atomic_load_n (&r->readers, __ATOMIC_ACQUIRE), ms);
+	else
+		RING_SLEEP_MS (r->wseq, r->rwait, !ring_avail (r) && __atomic_load_n (&r->writers, __ATOMIC_ACQUIRE), ms);
+	return 0;
+}
+
 /* la poignee est rendue : son anneau aussi */
 static void ring_forget (long h)
 {
@@ -454,7 +484,15 @@ static ssize_t pipe_read (struct __posix_ofd *d, void *buf, size_t n)
 	size_t got = __posix_carry_take (d, buf, n, 0);
 	__posix_ofd_unlock (d);
 	if (got)
+	{
+		if (got < n && !d->eof && ring_of (d->h, 0))	/* (la suite deja dans l'anneau, sans attendre) */
+		{
+			long k = __posix_pipe_read (d->h, (char *) buf + got, n - got, 1);
+			if (k > 0)
+				got += (size_t) k;
+		}
 		return (ssize_t) got;
+	}
 	if (d->eof)
 		return 0;
 	long r = __posix_pipe_read (d->h, buf, n, (d->flags & O_NONBLOCK) != 0);

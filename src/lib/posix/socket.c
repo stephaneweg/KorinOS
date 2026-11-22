@@ -335,6 +335,13 @@ int __posix_carry_fill (struct __posix_ofd *d)
 		r = 1;
 	else if (d->eof)
 		r = -1;
+	else if (d->type == POSIX_FD_PIPE_R && (r = __posix_pipe_rready (d->h)) >= 0)
+	{
+		/* (l'anneau partage : regarde sans lire ; avant, 464 octets lus d'avance a chaque poll, et le read suivant
+		 * ne rendait qu'eux : subprocess.communicate de Python a 0,5 Mo/s) */
+		if (r == 2)
+			r = -1;
+	}
 	else if (d->type == POSIX_FD_PIPE_R)
 	{
 		unsigned char tmp[ARMPI_PIPE_CHUNK];
