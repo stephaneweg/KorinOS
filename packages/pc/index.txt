@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-22 18:07
+date = 2026-11-22 20:47
 abi = 629
 packages = 117
 board = pc
@@ -2177,3 +2177,18 @@ needs = abi >= 628
 required = 0
 restart = 0
 content = 866977e3bf2b971f33fc2f6dd4ed3d02550f52f4649cd579151927ce429ac6b5
+
+[nasm]
+title = NASM
+version = 2.16.3
+category = Développement
+author = Korin OS
+summary = L'assembleur Netwide Assembler 2.16.03 pour x86 et x86-64 (/devtools/gcc/bin/nasm) : la syntaxe Intel de NASM, les formats elf64, bin, win64... (libjpeg-turbo, x264, FFmpeg l'utilisent)
+size = 445594
+installed = 1717448
+sha256 = 1fc86fc81a3198ece31e90ab2113e265a31a18db9c724f7800b7aa8b139782d4
+file = pkgs/nasm-2.16.3.opk
+needs = abi >= 629
+required = 0
+restart = 0
+content = 0f45064840d45808804219f6cbd56fa86b3dbcefa1db99da379e971a3ece4723
