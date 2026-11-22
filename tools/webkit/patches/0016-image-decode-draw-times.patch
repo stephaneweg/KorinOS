@@ -1,0 +1,102 @@
+--- a/Source/WebCore/platform/graphics/BitmapImageSource.cpp
++++ b/Source/WebCore/platform/graphics/BitmapImageSource.cpp
+@@ -35,7 +35,66 @@
+ #include "ImageObserver.h"
+ #include "Logging.h"
++#include <atomic>
++#include <unistd.h>
++#include <wtf/MainThread.h>
+ 
+ namespace WebCore {
+ 
++// Korin (22/11/2026, docs/agents/JET-TF1-ETAPES-RESULTATS.md) : le temps du décodage synchrone des images (sur le fil
++// principal ou non) et des dessins d'images dans le contexte Skia (GraphicsContextSkia::drawNativeImage), avec
++// ONYX_WEB_GPU_DEBUG ou /etc/web-gpu-debug : une ligne « web: gpu: images: » toutes les 2 s.
++namespace KorinImageTimes {
++static std::atomic<uint64_t> decodeMainUs, decodeOtherUs, decodeMainCount, decodeOtherCount, decodeMainPixels, drawUs, drawCount, drawMaxUs;
++static std::atomic<int64_t> since;
++bool enabled()
++{
++    static int on = -1;
++    if (on < 0) {
++        const char* v = getenv("ONYX_WEB_GPU_DEBUG");
++        on = (v && *v && *v != '0') || !access("/etc/web-gpu-debug", F_OK);
++    }
++    return on;
++}
++static void reportIfDue()
++{
++    int64_t now = static_cast<int64_t>(MonotonicTime::now().secondsSinceEpoch().milliseconds());
++    int64_t s = since.load();
++    if (!s) {
++        since.compare_exchange_strong(s, now);
++        return;
++    }
++    if (now - s < 2000 || !since.compare_exchange_strong(s, now))
++        return;
++    char line[400];
++    int n = snprintf(line, sizeof line, "web: gpu: images: %.1f s: decoded on the main thread %llu (%.1f ms, %.1f Mpx), elsewhere %llu (%.1f ms); drawn %llu (%.1f ms, worst %.1f ms)\n",
++        (now - s) / 1000.0, static_cast<unsigned long long>(decodeMainCount.exchange(0)), decodeMainUs.exchange(0) / 1000.0, decodeMainPixels.exchange(0) / 1e6,
++        static_cast<unsigned long long>(decodeOtherCount.exchange(0)), decodeOtherUs.exchange(0) / 1000.0,
++        static_cast<unsigned long long>(drawCount.exchange(0)), drawUs.exchange(0) / 1000.0, drawMaxUs.exchange(0) / 1000.0);
++    if (n > 0)
++        (void)!write(STDERR_FILENO, line, std::min<size_t>(n, sizeof line - 1));
++}
++void addDecode(Seconds s, uint64_t pixels)
++{
++    if (isMainThread()) {
++        decodeMainUs += static_cast<uint64_t>(s.microseconds());
++        ++decodeMainCount;
++        decodeMainPixels += pixels;
++    } else {
++        decodeOtherUs += static_cast<uint64_t>(s.microseconds());
++        ++decodeOtherCount;
++    }
++    reportIfDue();
++}
++void addDraw(Seconds s)
++{
++    uint64_t us = static_cast<uint64_t>(s.microseconds());
++    drawUs += us;
++    ++drawCount;
++    uint64_t m = drawMaxUs.load();
++    while (us > m && !drawMaxUs.compare_exchange_weak(m, us)) { }
++    reportIfDue();
++}
++}
++
+ Ref<BitmapImageSource> BitmapImageSource::create(BitmapImage& bitmapImage, AlphaOption alphaOption, GammaAndColorProfileOption gammaAndColorProfileOption)
+ {
+@@ -624,5 +683,11 @@
+         auto decodingOptions = DecodingOptions { DecodingMode::Synchronous, decodingDestination };
+ 
++        bool korinTimes = KorinImageTimes::enabled();
++        auto korinStart = korinTimes ? MonotonicTime::now() : MonotonicTime();
+         auto result = protect(m_decoder)->createNativeImageAtIndex(index, subsamplingLevel, decodingOptions);
++        if (korinTimes) {
++            auto s = size(ImageOrientation::Orientation::None);
++            KorinImageTimes::addDecode(MonotonicTime::now() - korinStart, static_cast<uint64_t>(s.width()) * s.height());
++        }
+         if (!result)
+             return makeUnexpected(DecodingStatus::Invalid);
+--- a/Source/WebCore/platform/graphics/skia/GraphicsContextSkia.cpp
++++ b/Source/WebCore/platform/graphics/skia/GraphicsContextSkia.cpp
+@@ -283,6 +283,18 @@
+ }
+ 
++// Korin : le temps des dessins d'images (BitmapImageSource.cpp, KorinImageTimes)
++namespace KorinImageTimes {
++bool enabled();
++void addDraw(Seconds);
++struct DrawTimer {
++    bool on { enabled() };
++    MonotonicTime start { on ? MonotonicTime::now() : MonotonicTime() };
++    ~DrawTimer() { if (on) addDraw(MonotonicTime::now() - start); }
++};
++}
++
+ void GraphicsContextSkia::drawNativeImage(const NativeImage& nativeImage, const FloatRect& destRect, const FloatRect& srcRect, ImagePaintingOptions options)
+ {
++    KorinImageTimes::DrawTimer korinDrawTimer;
+     auto image = nativeImage.platformImage();
+     if (!image)

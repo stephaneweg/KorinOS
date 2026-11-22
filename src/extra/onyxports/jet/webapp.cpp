@@ -699,6 +699,26 @@ int webapp_main (const char *name, const char *title, const char *url, bool gpu)
 	snprintf (m, sizeof m, "%s (%s), data in HOME/%s, %s", g_title.c_str (), g_url.c_str (), name, gpu ? "GPU" : "software");
 	say (m);
 	engine_set_data_name (name);
+	// la feuille de style de l'app, s'il y en a une (/apps/<nom>.app/user.css) : ajoutée au cadre principal de chaque page,
+	// avant celles du site (TF1+ : la bascule de pointer-events sur <body> rendue sans effet, engine.h)
+	{
+		std::string p = std::string ("/apps/") + name + ".app/user.css";
+		if (FILE *f = fopen (p.c_str (), "rb"))
+		{
+			std::string css;
+			char b[4096];
+			size_t n;
+			while ((n = fread (b, 1, sizeof b, f)) > 0 && css.size () < 65536)
+				css.append (b, n);
+			fclose (f);
+			if (!css.empty ())
+			{
+				engine_set_user_css (css.c_str ());
+				snprintf (m, sizeof m, "user.css (%u bytes) in every page", (unsigned) css.size ());
+				say (m);
+			}
+		}
+	}
 	// (les process de WebKit lancés par le lanceur de l'app, qui redevient Jet sous le nom de l'app : main.c)
 	std::string launcher = std::string ("/apps/") + name + ".app/main";
 	if (access (launcher.c_str (), X_OK) == 0) engine_set_helper_path (launcher.c_str ());

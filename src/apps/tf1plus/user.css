@@ -1,0 +1,9 @@
+/* user.css -- TF1+ : la feuille de style de l'app, ajoutée par Jet à chaque page avant celles du site
+ * (src/extra/onyxports/jet/webapp.cpp, engine_set_user_css).
+ *
+ * Pendant le défilement, le site met « pointer-events: none » sur <body> puis l'ôte (≈ 1 fois par seconde), pour
+ * couper les effets de survol. La propriété est héritée : chaque bascule fait recalculer le style des ≈ 13 000
+ * éléments de la page, ≈ 350 ms dans Jet, et le défilement tombe à 1 image/s. Cette règle l'emporte sur le style en
+ * ligne du site : la valeur calculée ne change plus, rien n'est recalculé (54 à 57 images/s mesurées), et le survol
+ * des cartes marche comme avant. docs/agents/JET-TF1-ETAPES-RESULTATS.md. */
+body { pointer-events: auto !important; }

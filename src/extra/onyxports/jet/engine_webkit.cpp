@@ -829,6 +829,35 @@ int engine_spawn_self (const char *role, int *toChild, int *fromChild)
 // What every tab's page gets (engine_init reads the files once).
 static bool s_console;				// /etc/web-console
 static std::string s_probe;			// /etc/web-probe.js
+static std::string s_userCss;			// (engine_set_user_css : a web app's user.css)
+
+void engine_set_user_css (const char *css) { s_userCss = css ? css : ""; }
+
+// The script that adds the user style sheet: at the document's start (no <head> yet: on the root element), the CSS
+// in a JavaScript string with every character other than a letter or a digit escaped (\uXXXX, UTF-16 from UTF-8).
+static std::string user_css_script (const std::string &css)
+{
+	std::string js = "(function(){var s=document.createElement('style');s.setAttribute('data-korin','user.css');s.textContent='";
+	char b[16];
+	for (size_t i = 0; i < css.size ();) {
+		unsigned char c = (unsigned char) css[i];
+		unsigned cp = c;
+		size_t n = 1;
+		if (c >= 0xF0 && i + 3 < css.size ()) { cp = ((c & 7u) << 18) | ((css[i + 1] & 0x3Fu) << 12) | ((css[i + 2] & 0x3Fu) << 6) | (css[i + 3] & 0x3Fu); n = 4; }
+		else if (c >= 0xE0 && i + 2 < css.size ()) { cp = ((c & 15u) << 12) | ((css[i + 1] & 0x3Fu) << 6) | (css[i + 2] & 0x3Fu); n = 3; }
+		else if (c >= 0xC0 && i + 1 < css.size ()) { cp = ((c & 31u) << 6) | (css[i + 1] & 0x3Fu); n = 2; }
+		i += n;
+		if ((cp >= '0' && cp <= '9') || (cp >= 'A' && cp <= 'Z') || (cp >= 'a' && cp <= 'z')) { js += (char) cp; continue; }
+		if (cp >= 0x10000) {
+			cp -= 0x10000;
+			snprintf (b, sizeof b, "\\u%04x\\u%04x", 0xD800 + (cp >> 10), 0xDC00 + (cp & 0x3FF));
+		} else
+			snprintf (b, sizeof b, "\\u%04x", cp);
+		js += b;
+	}
+	js += "';(document.head||document.documentElement).appendChild(s);})();";
+	return js;
+}
 
 // The sites' data, kept between runs and shared by every tab: one data store (one network process, one
 // cookie jar). Its places are rooted paths without a volume name (WebKit's path code takes only those for
@@ -985,8 +1014,21 @@ int engine_tab_new (const char *typed)
 	WKPageConfigurationSetContext (pc, t->context);
 	// The data (cookies, local storage, the caches): the one data store of every tab (make_data_store).
 	WKPageConfigurationSetWebsiteDataStore (pc, s_store ? s_store : WKWebsiteDataStoreGetDefaultDataStore ());
-	if (!s_scripts || s_compositing || s_console) {
+	// Korin: the wheel's steps animated (WebCore's scroll animator, as GTK and WPE have it; off by default for this
+	// port): a notch glides over ≈ 100 ms instead of jumping. JET_SMOOTH_SCROLL=0 or /etc/web-no-smooth-scroll: off.
+	static int smooth = -1;
+	if (smooth < 0) {
+		const char *v = getenv ("JET_SMOOTH_SCROLL");
+		smooth = v ? (*v && *v != '0') : access ("/etc/web-no-smooth-scroll", F_OK) != 0;
+		say ("smooth scrolling %s", smooth ? "on" : "off");
+	}
+	if (!s_scripts || s_compositing || s_console || smooth) {
 		WKPreferencesRef prefs = WKPreferencesCreate ();
+		if (smooth) {
+			WKStringRef key = WKStringCreateWithUTF8CString ("ScrollAnimatorEnabled");
+			WKPreferencesSetBoolValueForKeyForTesting (prefs, true, key);
+			WKRelease (key);
+		}
 		if (s_console)
 			WKPreferencesSetLogsPageMessagesToSystemConsoleEnabled (prefs, true);
 		if (!s_scripts)					// (the embedded view, for a mail's HTML)
@@ -996,13 +1038,21 @@ int engine_tab_new (const char *typed)
 		WKPageConfigurationSetPreferences (pc, prefs);
 		WKRelease (prefs);
 	}
-	if (!s_probe.empty ()) {
+	if (!s_probe.empty () || !s_userCss.empty ()) {
 		WKUserContentControllerRef ucc = WKUserContentControllerCreate ();
-		WKStringRef text = WKStringCreateWithUTF8CString (s_probe.c_str ());
-		WKUserScriptRef script = WKUserScriptCreateWithSource (text, kWKInjectAtDocumentStart, false);
-		WKUserContentControllerAddUserScript (ucc, script);
+		// (the embedder's style sheet first, main frame only ; then the probe, every frame)
+		auto add = [&] (const std::string &src, bool mainFrameOnly) {
+			WKStringRef text = WKStringCreateWithUTF8CString (src.c_str ());
+			WKUserScriptRef script = WKUserScriptCreateWithSource (text, kWKInjectAtDocumentStart, mainFrameOnly);
+			WKUserContentControllerAddUserScript (ucc, script);
+			WKRelease (script); WKRelease (text);
+		};
+		if (!s_userCss.empty ())
+			add (user_css_script (s_userCss), true);
+		if (!s_probe.empty ())
+			add (s_probe, false);
 		WKPageConfigurationSetUserContentController (pc, ucc);
-		WKRelease (script); WKRelease (text); WKRelease (ucc);
+		WKRelease (ucc);
 	}
 
 	t->view = WKViewCreate (pc);

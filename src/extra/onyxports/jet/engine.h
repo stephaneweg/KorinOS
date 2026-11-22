@@ -128,6 +128,11 @@ void engine_set_data_name (const char *name);
 // app gives its launcher (/apps/<name>.app/main), which becomes this program again under the app's name: the panel
 // counts those processes as the app's, not as Jet's.
 void engine_set_helper_path (const char *path);
+// Korin: before engine_tab_new, a style sheet of the embedder added to the main frame of every page, before the page's
+// own (a web app's /apps/<name>.app/user.css, webapp.cpp). TF1+: « body { pointer-events: auto !important } » -- the
+// site sets pointer-events: none on <body> while scrolling, and each switch restyles its 13 000 elements (≈ 350 ms,
+// docs/agents/JET-TF1-ETAPES-RESULTATS.md).
+void engine_set_user_css (const char *css);
 // A script run in the shown tab's main frame; done (ctx, its value when it is a string, else "") is called later,
 // from engine_cycle (never when there is no tab).
 void engine_run_script (const char *js, void (*done) (void *ctx, const char *result), void *ctx);

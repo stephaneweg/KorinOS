@@ -2,7 +2,7 @@
 # jetbuild FICHIER... : recompile, dans Korin, l'objet de WebKit qui contient FICHIER (un .cpp de webkit-gl/Source,
 # chemin depuis Source/ ou complet ; ou un objet de commands.txt). WebKit compile ses .cpp par lots (UnifiedSource-*.cpp) :
 # c'est le lot qui est recompilé. L'objet est écrit à sa place : les archives minces de webcore/lib le prennent ;
-# ensuite : jetlink.
+# ensuite : jetlink. JETFLAGS : des drapeaux en plus (Korin PC, le ZBook : -march=tigerlake -mno-avx512f).
 SDK=${JETSDK:-/devtools/jet-sdk}
 cd "$SDK/webcore" || exit 1
 [ $# -gt 0 ] || { echo "jetbuild FICHIER.cpp... (ex. : jetbuild WebCore/Modules/websockets/WebSocketExtensionParser.cpp)"; exit 2; }
@@ -20,7 +20,7 @@ for f in "$@"; do
 		bundle=$(grep -l -F "#include \"$rest\"" "$SDK"/webcore/*/DerivedSources/unified-sources/*.cpp 2>/dev/null | head -1)
 		if [ -n "$bundle" ]; then
 			key=$(basename "$bundle")
-			line=$(grep -m1 -F "/unified-sources/$key " "$SDK/commands.txt")
+			line=$(grep -m1 -F "/unified-sources/$key" "$SDK/commands.txt")	# (le chemin du lot finit la ligne : pas d'espace après)
 			echo "jetbuild : $f est dans le lot $key"
 		else
 			line=$(grep -m1 -F "/$f " "$SDK/commands.txt")
@@ -35,6 +35,9 @@ for f in "$@"; do
 	cmd=${line#*	}
 	echo "jetbuild : $obj"
 	t0=$(date +%s)
+	# (les en-têtes de WebCore/PrivateHeaders/WebCore sont des renvois d'une ligne : un #include "X.h" du vrai fichier
+	# n'y serait pas trouvé, FontPlatformData.h -> HbUniquePtr.h ; leur dossier en dernier recours)
+	cmd="$cmd -idirafter $SDK/webcore/WebCore/PrivateHeaders/WebCore $JETFLAGS"
 	if eval "$cmd"; then
 		echo "jetbuild : fait en $(( $(date +%s) - t0 )) s"
 	else

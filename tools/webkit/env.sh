@@ -39,7 +39,10 @@ ONYX_CPU_FLAGS=-mcpu=cortex-a72
 if [ "$ARCH" = x86_64 ]; then
 	ONYX_TOOLCHAIN_PREFIX=x86_64-onyx-elf-
 	TC_BIN=${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2/bin
-	ONYX_CPU_FLAGS=				# (x86-64 de base, comme le noyau, libposix et les apps du PC)
+	# (le processeur de Korin PC : le ZBook, i7-11800H, Tiger Lake ; décision de l'utilisateur du 22/11/2026. Pas
+	# d'AVX-512 : le noyau ne l'autorise pas, XCR0 = 0x7. Le noyau, libposix et les apps du PC restent en x86-64 de
+	# base. docs/agents/JET-LOCAL-BUILD.md)
+	ONYX_CPU_FLAGS="-march=tigerlake -mno-avx512f -mtune=tigerlake"
 fi
 ONYX_ARCH=$ARCH
 case ":$PATH:" in *":$TC_BIN:"*) ;; *) PATH=$TC_BIN:$PATH ;; esac

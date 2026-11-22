@@ -403,6 +403,7 @@ build_one () { # nom
 	cp app.txt "$D/"
 	[ ! -f SKILL.md ] || cp SKILL.md "$D/"	# (la compétence des agents : clé skill de app.txt, docs/ABI.md)
 	[ ! -f webapp.txt ] || cp webapp.txt "$D/"	# (une app web sur le moteur de Jet : src/extra/onyxports/jet/webapp.cpp)
+	[ ! -f user.css ] || cp user.css "$D/"	# (sa feuille de style, ajoutée par Jet à chaque page : engine_set_user_css)
 	[ ! -d data ] || cp -r data/. "$D/"
 	# (l'aide de l'app et ses images, comme build.ps1 sur le Pi : le menu Aide de menubar, help.app)
 	for f in help_*.md; do [ ! -f "$f" ] || cp "$f" "$D/"; done

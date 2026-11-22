@@ -313,3 +313,88 @@ pendant `updateRendering` (couches à repeindre, invalidations par couche, `Rend
 
 (Colonnes de `cpuwatch` : process, thread, une colonne non interprétée ici, temps de processeur cumulé en ms, nom ;
 le thread 4934, le plus chargé, est le fil principal du process web : + 5937 ms en 6 s.)
+
+## Suite (agent local, 22/11 au soir) : la cause trouvée, un correctif dans Jet
+
+### Ce qu'est « other »
+
+Dans `Page::updateRendering` (révision `b8a7a626`), le patch 0014 chronomètre le premier `layoutIfNeeded()`, les
+étapes `runProcessingStep` et la fin, mais **pas le second `layoutIfNeeded()`** (juste après
+`AnimationFrameCallbacks`) : c'est lui, « other ». Il fait le style et la mise en page rendus nécessaires par les
+événements de défilement (étape `Scroll`) et les `requestAnimationFrame` du site. Mesuré par la sonde dans un
+`requestAnimationFrame` (`void document.body.offsetHeight`) : **≈ 350 ms par image** pendant le défilement lent.
+
+### Qui le déclenche
+
+- Le site **met `pointer-events: none` en ligne sur `<body>` pendant le défilement, puis l'ôte** (≈ 1 s plus tard),
+  pour couper les effets de survol (valeurs relevées : `« » -> « pointer-events: none; »` et retour, 4 à 8 fois par
+  fenêtre de 2 s).
+- Avec `html, html * { pointer-events: none !important }` (survol neutralisé), le site ne bascule presque plus et le
+  défilement du haut de la page passe à **43-56 images/s** ; survol rétabli : 1 image/s.
+
+### Ce que coûte un changement sur `<body>` (TF1+, au repos, 5 essais, style + layout forcés)
+
+| Changement | Coût |
+|---|---|
+| `pointer-events` sur `<body>` (none ↔ auto) | 267 à 335 ms |
+| `visibility` sur `<body>` (propriété du raccourci `fast-path-inherited`) | 218 à 290 ms |
+| `cursor` sur `<body>` (héritée) | 285 à 443 ms |
+| variable CSS (`--x`) sur `<body>` | 286 à 380 ms |
+| la même sur `<html>` | 0 à 2 ms |
+| la même sur un `div` isolé | 0 à 1 ms |
+| `padding-right` sur `<body>` | 4 à 8 ms |
+| `overflow` sur `<body>` | 1 à 2 ms |
+| `style` vide ↔ `color: inherit` sur `<body>` | 181 à 211 ms |
+| `pointer-events` en ligne sur `<body>`, **annulé par `body { pointer-events: auto !important }`** | **0 à 1 ms** |
+
+Toute propriété **héritée** changée sur `<body>` fait recalculer le style des ≈ 13 000 éléments (≈ 20 µs par
+élément). Ajouter `pointer-events` au raccourci de WebKit (`"fast-path-inherited": true` dans `CSSProperties.json`,
+et le drapeau dans `ComputedStyle::fastPathInheritFrom` / `fastPathInheritedEqual` / `nonFastPathInheritedEqual` de
+`StyleComputedStyle.cpp`, où `pointer-events` est rangé comme `visibility` dans `m_inheritedFlags`) **ne suffirait
+pas** : `visibility`, qui a ce raccourci, coûte presque autant. Écartés aussi : le `malloc` (WebKit est en
+`USE_SYSTEM_MALLOC` sur newlib/libposix : 35 ns par `malloc` + `free`, sans contention), la compilation (Release
+`-O2`, `NDEBUG`). Le coût par élément du recalcul de style de WebCore reste une piste générale (pour d'autres
+sites).
+
+### Le correctif (dans Jet, pas dans WebKit)
+
+Une feuille de style propre à une app web, ajoutée par Jet au cadre principal de chaque page avant celles du site :
+
+- `src/extra/onyxports/jet/engine.h`, `engine_webkit.cpp` : `engine_set_user_css (css)` ; la feuille passe par un
+  `WKUserScript` au début du document (`kWKInjectAtDocumentStart`, cadre principal seulement) qui ajoute un
+  `<style data-korin="user.css">` (le CSS en chaîne JavaScript, tout caractère autre qu'une lettre ou un chiffre en
+  `\uXXXX`) ; la sonde `/etc/web-probe.js` reste à côté (tous les cadres) ;
+- `src/extra/onyxports/jet/webapp.cpp` : lit `/apps/<nom>.app/user.css` s'il existe (64 Ko au plus) ;
+- `src/apps/tf1plus/user.css` : `body { pointer-events: auto !important; }` ;
+- `tools/pc/apps.sh` : copie `user.css` avec `webapp.txt`.
+
+**Vérifié sans reconstruire Jet** : le script que produit `user_css_script` (la fonction compilée seule,
+`~/jet-mesures/9/correctif/t.cpp`) injecté par `/etc/web-probe.js` : défilement automatique de tout TF1+ à **36-58
+images/s** jusqu'en bas (`scrollY` 12 947), 59 au repos ; les bascules du site continuent mais ne coûtent plus rien.
+Reste ouvert : après un saut brutal de 6000 px vers le haut (`scrollTo`, pas un geste réel), la page redevient lente
+quelques secondes, avec des bascules du site mais sans coût mesuré de leur côté — non expliqué.
+
+**À faire** : construire `engine_webkit.o`, `webapp.o` et le lien de Jet avec le `jet-sdk` (pas encore publié au
+moment de cette note), puis vérifier sur le ZBook et publier jet et tf1plus.
+
+### Construit et essayé avec le SDK (22/11, 19 h)
+
+SDK 1.4.6 (`/devtools/jet-sdk`), GCC 14.2 de Korin, sur le ZBook (16 cœurs, 32 Go) :
+
+- `engine_webkit.cpp` et `webapp.cpp` recompilés avec la commande de `WKRunLoop.cpp` (comme `build-jet.sh`), 16 et
+  17 s chacun ; `jetlink` : 38 s, 133 Mo.
+- **Deux pièges du SDK** (à corriger dans `tools/webkit/jet-sdk*`) :
+  - les en-têtes de `webcore/WebCore/PrivateHeaders/WebCore` sont des renvois d'une ligne
+    (`#include "/devtools/jet-sdk/webkit-gl/…/harfbuzz/HbUniquePtr.h"`) : un `#include "HbUniquePtr.h"` du vrai
+    fichier n'est plus trouvé, et **toute** commande de WebKit (même `WKRunLoop.cpp` telle quelle) échoue sur
+    `FontPlatformData.h:53: fatal error: HbUniquePtr.h: No such file or directory`. Contournement :
+    `-idirafter /devtools/jet-sdk/webcore/WebCore/PrivateHeaders/WebCore` ajouté à la commande ;
+  - `jetlink` écrit par défaut dans `/tmp`, qui ne fait que 256 Mo en mémoire sur le ZBook (170 + 133 Mo n'y tiennent
+    pas) : sortie donnée en argument (un disque en mémoire `mount /tmp2 ram:3072M ramfs`, ou `/home`, ext4).
+  - `jet-sdk-get.sh` : le `wget` de `/bin` n'a pas HTTPS ; les parts se téléchargent par Python (`urllib`), puis
+    `unzip` ; `/devtools` est inscriptible sans `sudo`.
+- Essai : ce Jet à la place de `/apps/jet.app/main` (l'original gardé), `user.css` dans `/apps/tf1plus.app/` :
+  `webapp: user.css (773 bytes) in every page`, la feuille présente dans la page, `pointer-events` de `<body>`
+  calculé `auto` malgré les bascules du site ; défilement automatique de tout TF1+ à 41-58 images/s, 59 au repos ;
+  style après défilement 10 à 118 ms par fenêtre (≈ 2000 ms sans le correctif). Un passage sur deux a ralenti près
+  du bas de la page (`scrollY` ≈ 11 800, 1,5 image/s) sans que la cause soit relevée : à surveiller.
