@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-22 16:40
+date = 2026-11-22 17:35
 abi = 629
 packages = 117
 board = pc
@@ -1384,18 +1384,18 @@ content = 045d2680c3e1b8bed7d499aed524724b373d2788a426beb331df7ca58ea14416
 
 [parkingjam]
 title = parkingjam
-version = 1.0.1
+version = 1.0.2
 category = Autres
 author = Korin OS
 summary = Vider le parking sans bloquer les voitures (un jeu fait avec Godot)
-size = 173337
-installed = 329129
-sha256 = b1a79a581a964d88090d680144962bf8c2857a1b7d71de39b4f53f21a9a15529
-file = pkgs/parkingjam-1.0.1.opk
+size = 177049
+installed = 332825
+sha256 = b9c73f3003004b28482fca0ab57f173dca72388376b0917fb5374a78c72bc00b
+file = pkgs/parkingjam-1.0.2.opk
 needs = godot-templates, abi >= 626
 required = 0
 restart = 0
-content = 5d32a217f0dfbc834ff6ab8f3ba80d00fcf3f33d9f9ad0c82ea9235a3c493492
+content = 7bc65be07a91189ef394cedd24b9192fb71c69ce13379d8e19f111c1ca0adfaf
 
 [pdf]
 title = PDF Viewer
@@ -1774,33 +1774,33 @@ content = 9ca39788d3024382e5ddcb2d528eb799ac080650ad77845c4280466c00be1a0e
 
 [disneyplus]
 title = Disney+
-version = 1.0.2
+version = 1.0.3
 category = Multimédia
 author = Korin OS
 summary = Disney+ : le site de Disney+ dans sa fenêtre (Widevine), avec votre compte
-size = 127827
+size = 128034
 installed = 272402
-sha256 = 3e4f8f7f878445d2502b1fde554f460857273c077705f2baadb6355ae381e78d
-file = pkgs/disneyplus-1.0.2.opk
+sha256 = 25da1f8e1f08ac21ed89e6d253e041329cdd6239b1ffcbcdde238176ebcdc7c8
+file = pkgs/disneyplus-1.0.3.opk
 needs = jet >= 1.4.5, abi >= 626
 required = 0
 restart = 0
-content = 1967278f6920e926d75b27c3ce3a4529c1854ed46073699910ddd07eba54c24c
+content = 06ef9c3108f787b8f653e000892fd1351830691d590a7a4f8c9e9c9151c75d53
 
 [tf1plus]
-title = tf1plus
-version = 1.0.1
-category = Autres
+title = TF1+
+version = 1.0.2
+category = Multimédia
 author = Korin OS
 summary = TF1+ : le site de TF1+ (direct et replay) dans sa fenêtre (Widevine), avec votre compte
-size = 126260
-installed = 263923
-sha256 = 0484b0b66ade3f30c07f4326cff56123d3114ee30c29bd5fd6d88269c2e81ec1
-file = pkgs/tf1plus-1.0.1.opk
+size = 129527
+installed = 272372
+sha256 = 522680febbcc3895ee52bb384735b21569c7d8ad202fda515be6814336a05572
+file = pkgs/tf1plus-1.0.2.opk
 needs = jet >= 1.4.2, abi >= 626
 required = 0
 restart = 0
-content = 6b6738a8bdb37075129594e5a34bbde3bd1f18d35fcf1db46051e193db7d87de
+content = 7e62bc9e9d7dbf11d87f5827bc5bd78907b90201abc438d4996b2a6806b7c009
 
 [primevideo]
 title = primevideo
