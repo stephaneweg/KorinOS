@@ -55,6 +55,8 @@ Pièges déjà rencontrés :
 * **`korin-game`** : un jeu d'arcade en C comme ceux du système (Tetris, Invaders, Arkanoid) : le cadre des
   jeux (en-têtes joints), plein écran, pause, manette, sons, record ; et comment concevoir le jeu.
 * **`korin-diag`** : diagnostiquer : process, charge, journal du noyau, fautes, mémoire, carte, réseau, son, GPU.
+  Si les outils MCP **`korin`** sont là (`/bin/korin-mcp` : `processes`, `cpu`, `kernel_log`, `volumes`,
+  `packages`, `services`, `network`, `screenshot`, `launch`…), préfère-les aux commandes : ils rendent du JSON.
 * **`korin-forge`** (avec Forge, sur le PC) : modéliser une pièce 3D en pilotant Forge, la CAO, par ses outils
   MCP `forge_*` ; à charger pour toute demande de pièce, de modèle 3D ou de CAO.
 * **`korin-terracube`** (avec TerraCube, sur le PC) : piloter le jeu de blocs par ses outils MCP `terracube_*` ou en

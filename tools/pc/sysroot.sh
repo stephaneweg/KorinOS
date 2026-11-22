@@ -77,7 +77,12 @@ if [ -f build/pc/linux/linuxhost ]; then
 	python3 -I tools/claude/home.py "$OUT" etc/claude-code/.claude >/dev/null
 	cat src/sys/linuxhost/CLAUDE-korin.md "$OUT/etc/claude-code/.claude/AGENTS.md" >"$OUT/etc/claude-code/CLAUDE.md"
 	rm "$OUT/etc/claude-code/.claude/AGENTS.md"
+	# le serveur MCP de Korin pour Claude Code (sh tools/mcp/build.sh ; docs/MCP-KORIN.md) : /bin/claude passe
+	# /etc/claude-code/mcp.json (pas managed-mcp.json, qui exclurait les serveurs de l'utilisateur et des apps)
+	[ ! -f src/sys/mcp/mcp.json ] || cp src/sys/mcp/mcp.json "$OUT/etc/claude-code/mcp.json"
 fi
+# korin-mcp (le serveur MCP de Korin : sh tools/mcp/build.sh), s'il est construit
+[ -f build/pc/mcp/korin-mcp ] && cp build/pc/mcp/korin-mcp "$OUT/bin/korin-mcp"
 # les unixtools (BusyBox : sh tools/busybox/build.sh ; paquet unixtools) : /devtools/bin
 if [ -x build/pc/busybox/devtools/bin/busybox ]; then
 	rm -rf "$OUT/devtools/bin"

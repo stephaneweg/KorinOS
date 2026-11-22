@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "korin": {
+      "type": "stdio",
+      "command": "/bin/korin-mcp",
+      "args": []
+    }
+  }
+}
