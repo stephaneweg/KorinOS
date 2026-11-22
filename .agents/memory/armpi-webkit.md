@@ -54,3 +54,8 @@ dans Jet ; le SDK attend deux fois 15 s avant de se rabattre (puis recommence su
 main en Python reçoit 101 Switching Protocols : suspect, la vérification de la réponse par le client WebSocket du port
 curl (Connection: Upgrade en TLS avec ALPN h2) — WebCore/platform/network/curl. Écartés : OneID, worker Datadog,
 workers de blob, cookies tiers, en-têtes du navigateur.
+**22/11 : Disney+ corrigé (patch 0013)** : WebSocketExtensionParser::consumeToken n'avançait pas m_data (consumeSpan
+sur une copie) : toute réponse avec Sec-WebSocket-Extensions échouait. Vérifié sous QEMU (serveur local, contre-essai
+1.4.4 en échec). jet 1.4.5 construit dans le cloud, pas publié (accord de l'utilisateur). Détails :
+docs/agents/JET-WEBSOCKET-DISNEY.md. Apps web 1.0.1 (fenêtre normale) et claude-code 2.1.330.6 (volet, terminal,
+cloud, file) publiés.

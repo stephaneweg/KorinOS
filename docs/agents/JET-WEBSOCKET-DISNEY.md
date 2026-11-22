@@ -163,3 +163,20 @@ En attendant (sans reconstruire) : `url = https://www.disneyplus.com/fr-fr/home`
   pas), un message du serveur juste après le `101` (il n'envoie rien).
 - Le réseau HTTP (≈ 300 requêtes rapides), la composition GPU (lente, mais pas la cause de l'attente), les cookies
   tiers (enregistrés), l'en-tête User-Agent.
+
+## Corrigé (22/11/2026, dans le cloud) : patch `0013-websocket-extension-token.patch`
+
+La cause : `WebSocketExtensionParser::consumeToken` lisait le jeton dans une **copie** du tampon
+(`auto start = m_data; … consumeSpan(start, tokenLength)`) : `consumeSpan` avançait la copie, `m_data` restait au
+début du jeton ; après `x-webkit-deflate-frame`, le parseur attendait `,` ou `;` sur la lettre `x` et échouait. Toute
+réponse avec `Sec-WebSocket-Extensions` était donc refusée, quelle que soit l'extension. Le patch prend le jeton dans
+`m_data` même. Appliqué à `webkit-gl` et `webkit` (noté dans leur `.armpi-patches`).
+
+Vérifié sous QEMU PC avec le serveur minimal ci-dessus (lancé sur la machine de construction, Jet sur
+`http://10.0.2.2:8770/`) : Jet corrigé `OUVERT x-webkit-deflate-frame` (l'extension acceptée) ; Jet 1.4.4 publié,
+même serveur : « Sec-WebSocket-Extensions header is invalid », `FERME 1006`. Jet 1.4.5 (versions.ini) attend
+l'accord de l'utilisateur pour être publié ; à vérifier ensuite sur le ZBook : Disney+ en quelques secondes.
+
+Piège de construction : les en-têtes de libposix recopiés dans `~/korin-webkit-x86_64/sysroot/include` (`limits.h`…,
+seulement des macros ajoutées) plus récents que les objets faisaient tout reconstruire (1610 objets) ; leur date
+ramenée au 15/11 (`touch -d`), seul le fichier corrigé est recompilé.
