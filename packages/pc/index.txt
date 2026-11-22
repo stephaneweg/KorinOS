@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-22 20:47
+date = 2026-11-22 20:48
 abi = 629
 packages = 117
 board = pc
@@ -2192,3 +2192,18 @@ needs = abi >= 629
 required = 0
 restart = 0
 content = 0f45064840d45808804219f6cbd56fa86b3dbcefa1db99da379e971a3ece4723
+
+[ninja]
+title = Ninja
+version = 1.12.1
+category = Développement
+author = Korin OS
+summary = Le système de construction Ninja 1.12.1 (/devtools/gcc/bin/ninja), celui de CMake -G Ninja
+size = 478159
+installed = 1093080
+sha256 = 17b26043318fd733876e9b86575e86fda94fd0e0d670396a107130f45c8d0539
+file = pkgs/ninja-1.12.1.opk
+needs = abi >= 629
+required = 0
+restart = 0
+content = 29f730bbccaba2e228237aeb4c7e079699b323ef0329a84c66d5f56c879f393d
