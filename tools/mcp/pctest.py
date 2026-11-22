@@ -248,8 +248,11 @@ def main():
             "@60 cat /tmp/mcpout.jsonl",
             "@60 cat /tmp/korin-mcp/*.log; echo rc=$?",
             # launch, process, send_signal : le pid du lancement d'abord
-            "@60 P=$(" + M + " --call launch '{\"program\":\"sleep\",\"args\":[\"60\"],\"wait_ms\":200}' | " + sed_pid + "); echo pid=$P; "
+            # (pas de « | » : c'est le séparateur de ONLY ; le pid lu par sed dans un fichier)
+            "@60 " + M + " --call launch '{\"program\":\"sleep\",\"args\":[\"60\"],\"wait_ms\":200}' > /tmp/l.json; P=$(" + sed_pid + " /tmp/l.json); echo pid=$P; "
             + M + " --call process \"{\\\"pid\\\":$P,\\\"sample_ms\\\":200}\"; " + M + " --call send_signal \"{\\\"pid\\\":$P}\"; echo rc=$?",
+            # un signal à un service (vfs) : refusé sans allow_system
+            "@60 " + M + " --call process '{\"name\":\"vfs\",\"sample_ms\":0}' > /tmp/v.json; V=$(" + sed_pid + " /tmp/v.json); " + M + " --call send_signal \"{\\\"pid\\\":$V}\"; echo rc=$?",
             "@60 " + M + " --call screenshot '{\"max_width\":640}'; echo rc=$?",
         ]
         if claude:
@@ -281,6 +284,8 @@ def main():
             fails.append("--call send_signal : pas de \"sent\":true")
         if '"command":"sleep 60"' not in text:
             fails.append("--call process : la commande lancée n'apparaît pas")
+    if "programme de /sys (service, pilote) : refusé sans allow_system" not in text:
+        fails.append("--call send_signal vfs : pas refusé")
     if "bonjour de korin-mcp" not in text:
         fails.append("launch echo : la sortie n'est pas dans le journal de /tmp/korin-mcp")
     if not a.no_claude and "korin-direct" in text:
