@@ -1788,19 +1788,19 @@ restart = 0
 content = eb269df6f1984a74a7e4c4d20d40d475213a5b1bcbc179dfe7dbd9245415beab
 
 [tf1plus]
-title = TF1+
-version = 1.0.0
-category = Multimédia
+title = tf1plus
+version = 1.0.1
+category = Autres
 author = Korin OS
 summary = TF1+ : le site de TF1+ (direct et replay) dans sa fenêtre (Widevine), avec votre compte
-size = 126192
-installed = 263817
-sha256 = b5576b34990f35684c51d743f4fb538c4dabf1245f81941d088d748cbabe3894
-file = pkgs/tf1plus-1.0.0.opk
+size = 126260
+installed = 263923
+sha256 = 0484b0b66ade3f30c07f4326cff56123d3114ee30c29bd5fd6d88269c2e81ec1
+file = pkgs/tf1plus-1.0.1.opk
 needs = jet >= 1.4.2, abi >= 626
 required = 0
 restart = 0
-content = fdf6f712e48a7b10ac48a1487f56bc7a7153e3682a7afaff8bb440fd36bf26ba
+content = 6b6738a8bdb37075129594e5a34bbde3bd1f18d35fcf1db46051e193db7d87de
 
 [primevideo]
 title = primevideo
