@@ -113,3 +113,28 @@ des couches).
 - Les fonctions de la sonde (minuteries, `requestAnimationFrame`, écouteurs) passent par les originaux gardés avant
   l'enveloppe, sinon elles se comptent dans le JavaScript du site.
 - `cpuwatch` : ne pas tronquer sa sortie (`head`) : les threads du process web sont en fin de liste.
+
+## La mesure par étapes (jet 1.4.6, patch `0014-rendering-update-times.patch`)
+
+`Page::updateRendering` est chronométré étape par étape (dans le cloud, 22/11) : avec `ONYX_WEB_GPU_DEBUG=1` ou
+`/etc/web-gpu-debug`, une ligne toutes les 2 s :
+
+```
+web: gpu: steps: 97 updates, 349 ms (worst 5 ms); layout 3, compositing layout 23, after 8, layer flush 1, other 32,
+  AnimationFrameCallbacks 169, Scroll 5, …
+```
+
+- `updates` : mises à jour de l'affichage dans la fenêtre ; `ms` leur total, `worst` la plus longue ;
+- `layout` : la mise en page du début ; `compositing layout` : la mise en page finale **avec la mise à jour des
+  couches composées** (`RenderLayerCompositor::updateCompositingLayers`, la carte de recouvrement) ; `after` : les
+  étapes d'après (curseur, minutage de la peinture, sélection, surlignages) ; `layer flush` : le vidage des couches
+  (`flushCompositingStateIncludingSubframes`, avec le GPU seulement) ; `other` : le reste (sous QEMU, surtout le coût
+  des mesures : chaque lecture de l'horloge est un appel au noyau) ;
+- puis les étapes de plus d'1 ms, de la plus chère à la moins chère (`AnimationFrameCallbacks` = les
+  `requestAnimationFrame` du site, `IntersectionObservations`, `ResizeObservations`, `UpdateContentRelevancy`,
+  `Images` (les images lazy)…).
+
+À faire sur le ZBook avec jet 1.4.6 : le défilement automatique de `~/jet-mesures/8/sondes/` (passage `gpu2`),
+sortie par un tube, puis `grep "steps:\|times:\|frames (" fichier`. L'étape qui prend ≈ 500 ms par image dans le haut
+de la page est le coupable (si c'est `compositing layout` : la mise à jour des couches ; si c'est `other` sur le
+ZBook : à découper encore). Sous QEMU, TF1+ n'est pas joignable depuis le cloud (politique réseau) : pas mesuré ici.

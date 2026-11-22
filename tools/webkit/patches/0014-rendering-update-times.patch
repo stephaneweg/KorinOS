@@ -1,0 +1,132 @@
+diff -ru -U2 a/Source/WebCore/page/Page.cpp b/Source/WebCore/page/Page.cpp
+--- a/Source/WebCore/page/Page.cpp	2026-11-22 15:28:00.190756765 +0000
++++ b/Source/WebCore/page/Page.cpp	2026-11-22 15:43:19.342944024 +0000
+@@ -19,6 +19,8 @@
+ 
+ #include "config.h"
+ #include "Page.h"
++#include <bit>
++#include <unistd.h>
+ 
+ #include "AXIsolatedTree.h"
+ #include "AXLogger.h"
+@@ -2382,6 +2384,66 @@
+ }
+ 
+ // https://html.spec.whatwg.org/multipage/webappapis.html#update-the-rendering
++// Korin (22/11/2026, docs/agents/JET-TF1-DEFILEMENT.md) : le temps de chaque étape de la mise à jour de l'affichage,
++// avec ONYX_WEB_GPU_DEBUG ou /etc/web-gpu-debug : une ligne « web: gpu: steps: » toutes les 2 s (TF1+ : ≈ 500 ms par
++// image en défilant le haut de la page, sans savoir quelle étape).
++namespace KorinRenderTimes {
++static bool enabled()
++{
++    static int on = -1;
++    if (on < 0) {
++        const char* v = getenv("ONYX_WEB_GPU_DEBUG");
++        on = (v && *v && *v != '0') || !access("/etc/web-gpu-debug", F_OK);
++    }
++    return on;
++}
++static double stepMs[32];
++static double layoutMs, compositingLayoutMs, afterMs, flushMs, totalMs, maxMs;
++static unsigned updates;
++static MonotonicTime since;
++static void add(RenderingUpdateStep step, Seconds s)
++{
++    stepMs[std::countr_zero(static_cast<uint32_t>(step)) & 31] += s.milliseconds();
++}
++static void report()
++{
++    auto now = MonotonicTime::now();
++    if (!since)
++        since = now;
++    if (now - since < 2_s)
++        return;
++    if (updates) {
++        Vector<std::pair<double, unsigned>> order;
++        for (unsigned i = 0; i < 32; ++i) {
++            if (stepMs[i] >= 1)
++                order.append({ stepMs[i], i });
++        }
++        std::sort(order.begin(), order.end(), [](auto& a, auto& b) { return a.first > b.first; });
++        StringBuilder line;
++        line.append("web: gpu: steps: "_s, String::number(updates), " updates, "_s, String::number(static_cast<int>(totalMs)), " ms (worst "_s,
++            String::number(static_cast<int>(maxMs)), " ms); layout "_s, String::number(static_cast<int>(layoutMs)), ", compositing layout "_s,
++            String::number(static_cast<int>(compositingLayoutMs)), ", after "_s, String::number(static_cast<int>(afterMs)), ", layer flush "_s,
++            String::number(static_cast<int>(flushMs)));
++        double accounted = layoutMs + compositingLayoutMs + afterMs;
++        for (double ms : stepMs)
++            accounted += ms;
++        line.append(", other "_s, String::number(static_cast<int>(totalMs - accounted)));
++        for (size_t k = 0; k < order.size() && k < 8; ++k) {
++            TextStream ts;
++            ts << static_cast<RenderingUpdateStep>(1u << order[k].second);
++            line.append(", "_s, ts.release(), ' ', String::number(static_cast<int>(order[k].first)));
++        }
++        line.append('\n');
++        auto utf8 = line.toString().utf8();
++        (void)!write(STDERR_FILENO, utf8.data(), utf8.length());
++    }
++    since = now;
++    std::fill(std::begin(stepMs), std::end(stepMs), 0);
++    layoutMs = compositingLayoutMs = afterMs = flushMs = totalMs = maxMs = 0;
++    updates = 0;
++}
++}
++
+ void Page::updateRendering()
+ {
+     LOG(EventLoop, "Page %p updateRendering() - re-entering %d", this, !m_renderingUpdateRemainingSteps.isEmpty());
+@@ -2406,11 +2468,18 @@
+     if (!isSVGImagePage)
+         tracePoint(RenderingUpdateStart);
+ 
++    bool korinTimes = KorinRenderTimes::enabled();
++    auto korinStart = MonotonicTime::now();
+     layoutIfNeeded();
++    if (korinTimes)
++        KorinRenderTimes::layoutMs += (MonotonicTime::now() - korinStart).milliseconds();
+ 
+     auto runProcessingStep = [&](RenderingUpdateStep step, NOESCAPE const Function<void(Document&)>& perDocumentFunction) {
+         m_renderingUpdateRemainingSteps.last().remove(step);
++        auto korinStep = korinTimes ? MonotonicTime::now() : MonotonicTime();
+         forEachRenderableDocument(perDocumentFunction);
++        if (korinTimes)
++            KorinRenderTimes::add(step, MonotonicTime::now() - korinStep);
+     };
+ 
+     runProcessingStep(RenderingUpdateStep::RestoreScrollPositionAndViewState, [] (Document& document) {
+@@ -2553,8 +2622,20 @@
+     if (m_isTrackingRenderingUpdates)
+         ++m_renderingUpdateCount;
+ 
++    auto korinLayout = MonotonicTime::now();
+     layoutIfNeeded(LayoutOptions::UpdateCompositingLayers);
++    auto korinAfter = MonotonicTime::now();
+     doAfterUpdateRendering();
++    if (korinTimes) {
++        auto end = MonotonicTime::now();
++        KorinRenderTimes::compositingLayoutMs += (korinAfter - korinLayout).milliseconds();
++        KorinRenderTimes::afterMs += (end - korinAfter).milliseconds();
++        double total = (end - korinStart).milliseconds();
++        KorinRenderTimes::totalMs += total;
++        KorinRenderTimes::maxMs = std::max(KorinRenderTimes::maxMs, total);
++        ++KorinRenderTimes::updates;
++        KorinRenderTimes::report();
++    }
+ 
+     if (!isSVGImagePage)
+         tracePoint(RenderingUpdateEnd);
+@@ -2719,7 +2800,12 @@
+ 
+     m_renderingUpdateRemainingSteps.last().remove(RenderingUpdateStep::LayerFlush);
+ 
++    auto korinFlush = MonotonicTime::now();
+     view->flushCompositingStateIncludingSubframes();
++    if (KorinRenderTimes::enabled()) {
++        KorinRenderTimes::flushMs += (MonotonicTime::now() - korinFlush).milliseconds();
++        KorinRenderTimes::report();
++    }
+ 
+ #if ENABLE(ASYNC_SCROLLING)
+     m_renderingUpdateRemainingSteps.last().remove(RenderingUpdateStep::ScrollingTreeUpdate);
