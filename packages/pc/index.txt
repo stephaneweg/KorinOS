@@ -2477,3 +2477,18 @@ needs = abi >= 629
 required = 0
 restart = 0
 content = 925fce25743162733e25ec147e35fb00b469aa675cb500315b70abaeed5757ca
+
+[openssl-dev]
+title = OpenSSL (développement)
+version = 3.5.9
+category = Développement
+author = Korin OS
+summary = OpenSSL 3.5.9 : libssl.a, libcrypto.a, openssl/ (licence Apache 2.0)
+size = 4580882
+installed = 19861584
+sha256 = 6ad97ff740c2cf813332818a8b5d4d47a3e4128d6c26fdc0fc920d8a1b04c1c9
+file = pkgs/openssl-dev-3.5.9.opk
+needs = abi >= 629
+required = 0
+restart = 0
+content = 0dc19615cb143500fb1139704e7b36f8dd26c4d5fc673c1c7971755aafb70eb3
