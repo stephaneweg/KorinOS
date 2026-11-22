@@ -46,6 +46,16 @@ u64 arch_counter(void)
 #endif
 }
 
+/* une courte attente sur place, sans appel au noyau */
+static inline void cpu_relax(void)
+{
+#if defined(__aarch64__)
+	__asm__ volatile("yield" ::: "memory");
+#else
+	__asm__ volatile("pause" ::: "memory");
+#endif
+}
+
 /* fréquence du compteur des temps des pilotes (NST_FREQ) ; PC : pas de pilote, 0 */
 u64 arch_counter_freq(void)
 {
@@ -307,7 +317,12 @@ NORETURN static void stack_thread(void)
 		 * sans attendre (le débit) ; NET_BUSY_MS était de 50 ms : une trame toutes les 50 ms (le Wi-Fi d'une maison,
 		 * ses diffusions) et netd ne dormait jamais, un cœur entier ; 5 ms suffisent à un transfert (21/11/2026) */
 		if (now - net_busy_t < NET_BUSY_MS) {
-			korin_sys0(SYS_YIELD);
+			/* (d'abord sur place, sans appel au noyau : 22/11/2026, netd à 1 100 000 appels/s sur le ZBook pendant
+			 * un git clone, SYS_YIELD et deux SYS_TIME_MS entre deux trames) */
+			for (int k = 0; k < NET_SPIN && !net_rx_ready(); k++)
+				cpu_relax();
+			if (!net_rx_ready())
+				korin_sys0(SYS_YIELD);
 			continue;
 		}
 		net_sleep(0);

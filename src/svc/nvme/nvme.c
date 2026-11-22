@@ -159,6 +159,16 @@ static long now_ms(void)
 	return korin_sys0(SYS_TIME_MS);
 }
 
+/* une courte attente sur place, sans appel au noyau */
+static inline void cpu_relax(void)
+{
+#if defined(__aarch64__)
+	__asm__ volatile("yield" ::: "memory");
+#else
+	__asm__ volatile("pause" ::: "memory");
+#endif
+}
+
 static void lock(void)
 {
 	while (__atomic_exchange_n(&nv_lock, 1, __ATOMIC_ACQUIRE))
@@ -282,10 +292,13 @@ static int reap(struct queue *q, struct slot *sl, int n)
 	return got;
 }
 
-/* attend que les n places soient finies -> 0, E_TIMEDOUT */
+/* attend que les n places soient finies -> 0, E_TIMEDOUT. D'abord sur place, sans appel au noyau (la plupart des
+ * commandes finissent en quelques dizaines de µs) ; l'heure n'est lue que tous les 16 tours ensuite (22/11/2026 :
+ * nvme à 1 500 000 appels/s sur le ZBook pendant un git clone, SYS_TIME_MS à chaque tour) */
+#define SPIN_FREE 256 /* tours sur place, 16 pauses chacun */
 static int wait_slots(struct queue *q, struct slot *sl, int n, long ms)
 {
-	long end = now_ms() + ms;
+	long end = 0;
 	for (int spin = 0;; spin++) {
 		reap(q, sl, n);
 		int left = 0;
@@ -293,7 +306,14 @@ static int wait_slots(struct queue *q, struct slot *sl, int n, long ms)
 			left += sl[i].busy && !sl[i].done;
 		if (!left)
 			return 0;
-		if (now_ms() > end) {
+		if (spin < SPIN_FREE) {
+			for (int k = 0; k < 16; k++)
+				cpu_relax();
+			continue;
+		}
+		if (spin == SPIN_FREE)
+			end = now_ms() + ms;
+		else if ((spin & 15) == 0 && now_ms() > end) {
 			u32 csts = rd32(R_CSTS);
 			nv_log("commande sans achèvement après %ld ms (CSTS %08x%s)\n", ms, csts,
 			       csts & CSTS_CFS ? " : ERREUR FATALE du contrôleur" : "");
@@ -301,12 +321,10 @@ static int wait_slots(struct queue *q, struct slot *sl, int n, long ms)
 				dead = 1;
 			return E_TIMEDOUT;
 		}
-		if (spin < 64)
-			continue;
 		if (irq >= 0) {
 			n_sleeps++;
 			korin_sys2(SYS_IRQ_WAIT, irq, 5); /* (court : une MSI arrivée avant l'attente est rendue au délai) */
-		} else if (spin < 4000)
+		} else if (spin < SPIN_FREE + 4000)
 			korin_sys0(SYS_YIELD);
 		else {
 			n_sleeps++;
