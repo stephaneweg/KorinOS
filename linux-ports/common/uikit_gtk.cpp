@@ -12,7 +12,9 @@
 //                GtkListBox, GtkLevelBar... ; une vue (ui_view) est un KSurf a pixels, dessine par l'app
 //   evenements   les signaux de GTK vont dans une file ; ui_event la rend un evenement a la fois (ui.ev), ui_w_event
 //                dit quel widget a change (UN_*) et appelle les fonctions des vues (dessin, souris, touches, molette)
-//   dialogues    GtkAlertDialog, GtkFileDialog, GtkColorDialog, rendus synchrones par une boucle imbriquee
+//   dialogues    GtkAlertDialog, GtkFileDialog, GtkColorDialog, rendus synchrones par une boucle imbriquee ; ceux de
+//                l'app (ui_dialog_begin, ui_dialog_button, ui_dialog_run...) : une fenetre modale de plus, comme sous
+//                Korin, et la boucle de ui_dialog_run (src/kits/uikit/uk_dialog.c)
 //
 #include "korin_port.h"
 #include <gtk/gtk.h>
@@ -115,6 +117,10 @@ struct Win
 	int minw = 0, minh = 0, reqw = 0, reqh = 0;
 	int pendW = -1, pendH = -1;
 	long prevCurrent = 0;		// (le dialogue : la fenetre courante avant lui)
+	// un dialogue de l'app (ui_dialog_button, ui_dialog_run) : ses boutons et leurs reponses, Entree, Echap, la fin
+	long dlgBtn[3] = { 0, 0, 0 }, dlgResp[3] = { 0, 0, 0 }, dlgDef = 0, dlgCancel = 0, dlgRes = 0;
+	bool dlgDone = false;
+	long dlgTick = 0, dlgTickMs = 0;
 	std::vector<long> wids;
 	// les menus
 	std::vector<std::string> menuTitles;
@@ -142,6 +148,7 @@ unsigned g_tok[32];
 bool g_dark;
 std::string g_filter;
 std::unordered_map<std::string, std::string> g_tr;
+std::vector<std::pair<std::string, std::string>> g_trPort;	// (kport_tr_add : les mots du port, devant ceux des fichiers)
 std::string g_dropData; int g_dropKind;
 int g_keyMods;					// les modificateurs tenus (UI_MOD_* de gauche)
 long g_focusView;
@@ -170,6 +177,26 @@ const char *TRs (const char *s)
 	if (!s) return "";
 	auto i = g_tr.find (s);
 	return i == g_tr.end () ? s : i->second.c_str ();
+}
+
+// un fichier de mots « texte = traduction » (# : commentaire) -> g_tr
+bool tr_load_file (const char *fp)
+{
+	FILE *f = fp ? fopen (fp, "r") : 0;
+	if (!f) return false;
+	char line[4096];
+	while (fgets (line, sizeof line, f))
+	{
+		line[strcspn (line, "\r\n")] = 0;
+		if (!line[0] || line[0] == '#') continue;
+		char *eq = strstr (line, " = ");
+		if (!eq) continue;
+		*eq = 0;
+		g_tr[line] = eq + 3;
+	}
+	fclose (f);
+	for (auto &x : g_trPort) g_tr[x.first] = x.second;
+	return true;
 }
 
 // ---- le theme : les jetons de Givre et d'Onyx Noir (src/kits/uikit/uikit_theme.inc) -------------------------------
@@ -1473,25 +1500,9 @@ long ui_init (long v)
 			snprintf (app, sizeof app, "%s/src/apps/%s/lang/fr.txt", kport_rootdir (), kport_app ());
 			// (les mots du systeme, /res/lang/fr.txt, puis ceux de l'app)
 			const char *files[2] = { kport_path ("/res/lang/fr.txt", tb, sizeof tb), app };
-			for (const char *fp : files)
-			{
-			FILE *f = kport_rootdir ()[0] ? fopen (fp, "r") : 0;
-			if (f)
-			{
-				char line[4096];
-				while (fgets (line, sizeof line, f))
-				{
-					line[strcspn (line, "\r\n")] = 0;
-					if (!line[0] || line[0] == '#') continue;
-					char *eq = strstr (line, " = ");
-					if (!eq) continue;
-					*eq = 0;
-					g_tr[line] = eq + 3;
-				}
-				fclose (f);
-			}
-			}
+			if (kport_rootdir ()[0]) for (const char *fp : files) tr_load_file (fp);
 		}
+		for (auto &x : g_trPort) g_tr[x.first] = x.second;
 	}
 	if (g_vars)
 	{
@@ -1594,10 +1605,48 @@ long ui_update_all (void) { Win *w = cur (); if (w) redraw (&w->buf, w->surf); r
 static gboolean timeout_cb (gpointer d) { *(bool *) d = true; return G_SOURCE_REMOVE; }
 
 // ---- l'essai sans les mains : KORIN_SCRIPT="1500:menu:11;4000:shot:/tmp/a.png;6000:close" -------------------------
-// (ms depuis le premier ui_event : menu:<id>, key:<hid>[:mods], shot:<fichier.png> (la fenetre principale, ou
-// shot2:... la derniere ouverte), close)
+// (ms depuis le premier ui_event : menu:<id>, key:<hid>[:mods], click:x,y[,n[,3]], shot:<fichier.png> (la fenetre
+// principale) ; key2:, chars2:<texte>, click2:, shot2:, press2:<texte d'un bouton> : la derniere fenetre ouverte (un
+// dialogue) ; dump:, dump2: l'etat des widgets ; wset:<widget>:<v>, wact:<widget> ; close, exit)
 static Win *main_win () { return g_wins.empty () ? 0 : g_wins.begin ()->second; }
 static Win *last_win () { return g_wins.empty () ? 0 : g_wins.rbegin ()->second; }
+// la vue qui a le clavier dans cette fenetre (0 : aucune)
+static long focused_view (Win *w)
+{
+	if (!w) return 0;
+	GtkWidget *f = gtk_root_get_focus (GTK_ROOT (w->gw));
+	for (auto &p : g_wids) if (p.second->kind == K_VIEW && p.second->win == w && p.second->gw && p.second->gw == f) return p.second->id;
+	return 0;
+}
+static void script_key (Win *w, int hid, int mods, int ch, bool toView)
+{
+	Ev e; e.type = WEV_KEY; e.kind = 1; e.code = hid; e.win = (int) w->id; e.mods = mods; e.ch = ch;
+	if (toView) e.wid = focused_view (w);
+	push (e); e.kind = 0; push (e);
+}
+static int script_ch (int hid)
+{
+	if (hid == 0x2C) return ' ';
+	if (hid >= 0x04 && hid <= 0x1D) return 'a' + hid - 0x04;
+	if (hid == 0x28) return 13;
+	return 0;
+}
+static void script_click (Win *w, const char *a)
+{
+	// (un clic au point x,y de la fenetre, sur la vue qui est la, ou sur son fond ; ,2 : double ; ,1,3 : bouton droit)
+	int x = 0, y = 0, n = 1, b = 1;
+	sscanf (a, "%d,%d,%d,%d", &x, &y, &n, &b);
+	int held = b == 3 ? 2 : 1;
+	GtkWidget *p = gtk_widget_pick (w->surf, x, y, GTK_PICK_DEFAULT);
+	KSurf *s = p && G_TYPE_CHECK_INSTANCE_TYPE (p, ksurf_get_type ()) ? (KSurf *) p : (KSurf *) w->surf;
+	double lx = x, ly = y;
+	if (s->view)
+	{
+		lx -= s->view->x; ly -= s->view->y;
+		if (s->view->flags & UVW_FOCUS) { gtk_widget_grab_focus (GTK_WIDGET (s)); g_focusView = s->view->id; }
+	}
+	for (int i = 1; i <= n; i++) { mouse_ev (s, 1, lx, ly, held, 0, i); mouse_ev (s, 2, lx, ly, 0, 0, 0); }
+}
 static void shot (Win *w, const char *path)
 {
 	if (!w) return;
@@ -1626,12 +1675,28 @@ static gboolean script_step (gpointer data)
 	if (!strncmp (a, "menu:", 5) && w) { Ev e; e.type = WEV_MENU; e.code = atoi (a + 5); e.win = (int) w->id; push (e); }
 	else if (!strncmp (a, "key:", 4) && w)
 	{
-		Ev e; e.type = WEV_KEY; e.kind = 1; e.code = (int) strtol (a + 4, 0, 0); e.win = (int) w->id;
-		const char *m = strchr (a + 4, ':'); if (m) e.mods = atoi (m + 1);
-		if (e.code == 0x2C) e.ch = ' ';
-		else if (e.code >= 0x04 && e.code <= 0x1D) e.ch = 'a' + e.code - 0x04;
-		else if (e.code == 0x28) e.ch = 13;
-		push (e); e.kind = 0; push (e);
+		int hid = (int) strtol (a + 4, 0, 0);
+		const char *m = strchr (a + 4, ':');
+		script_key (w, hid, m ? atoi (m + 1) : 0, script_ch (hid), false);
+	}
+	// key2:<hid>[:mods] : a la derniere fenetre ouverte (un dialogue), a sa vue qui a le clavier
+	else if (!strncmp (a, "key2:", 5) && last_win ())
+	{
+		int hid = (int) strtol (a + 5, 0, 0);
+		const char *m = strchr (a + 5, ':');
+		script_key (last_win (), hid, m ? atoi (m + 1) : 0, script_ch (hid), true);
+	}
+	// chars2:<texte> : des caracteres tapes dans la vue qui a le clavier de la derniere fenetre
+	else if (!strncmp (a, "chars2:", 7) && last_win ())
+	{
+		for (const char *c = a + 7; *c; c++)
+		{
+			int ch = (unsigned char) *c, hid = 0;
+			if (ch >= 'a' && ch <= 'z') hid = 0x04 + ch - 'a';
+			else if (ch >= 'A' && ch <= 'Z') hid = 0x04 + ch - 'A';
+			else if (ch == ' ') hid = 0x2C;
+			script_key (last_win (), hid, 0, ch, true);
+		}
 	}
 	else if (!strncmp (a, "shot:", 5)) shot (w, a + 5);
 	else if (!strncmp (a, "shot2:", 6)) shot (last_win (), a + 6);
@@ -1644,17 +1709,30 @@ static gboolean script_step (gpointer data)
 		if (d && v) { ui_w_set_value (id, atol (v + 1)); notify (d, UN_CHANGE); }
 	}
 	else if (!strncmp (a, "wact:", 5)) { Wid *d = wid (atol (a + 5)); if (d) notify (d, UN_ACTIVATE); }
-	else if (!strncmp (a, "click:", 6) && w)
+	// dump:, dump2: l'etat reel des widgets de la fenetre principale, de la derniere (les captures peuvent etre en retard)
+	else if (!strncmp (a, "dump", 4) && (a[4] == ':' || a[4] == '2'))
 	{
-		// (un clic gauche au point x,y de la fenetre principale, sur la vue qui est la, ou sur son fond ; ,2 : double)
-		int x = 0, y = 0, n = 1;
-		sscanf (a + 6, "%d,%d,%d", &x, &y, &n);
-		GtkWidget *p = gtk_widget_pick (w->surf, x, y, GTK_PICK_DEFAULT);
-		KSurf *s = p && G_TYPE_CHECK_INSTANCE_TYPE (p, ksurf_get_type ()) ? (KSurf *) p : (KSurf *) w->surf;
-		double lx = x, ly = y;
-		if (s->view) { lx -= s->view->x; ly -= s->view->y; }
-		for (int i = 1; i <= n; i++) { mouse_ev (s, 1, lx, ly, 1, 0, i); mouse_ev (s, 2, lx, ly, 0, 0, 0); }
+		Win *d = a[4] == '2' ? last_win () : w;
+		if (d)
+		{
+			fprintf (stderr, "uikit: fenetre %ld \xC2\xAB %s \xC2\xBB, focus %ld\n", d->id, d->title.c_str (), focused_view (d));
+			for (long id : d->wids)
+			{
+				Wid *x = wid (id);
+				if (!x) continue;
+				std::string t = x->kind == K_TEXTBOX ? std::string (gtk_editable_get_text (GTK_EDITABLE (x->gw))) : x->text;
+				fprintf (stderr, "uikit:   %ld sorte %d %s%s (%d,%d %dx%d) %s\n", id, (int) x->kind, x->gw && gtk_widget_get_visible (x->gw) ? "visible" : "cache",
+					x->gw && !gtk_widget_is_sensitive (x->gw) ? " grise" : "", x->x, x->y, x->w, x->h, t.substr (0, 60).c_str ());
+			}
+		}
 	}
+	// press2:<texte> : le bouton de ce texte dans la derniere fenetre ouverte (un dialogue)
+	else if (!strncmp (a, "press2:", 7) && last_win ())
+	{
+		for (long id : last_win ()->wids) { Wid *d = wid (id); if (d && d->kind == K_BUTTON && d->text == a + 7) { notify (d, UN_ACTIVATE); break; } }
+	}
+	else if (!strncmp (a, "click:", 6) && w) script_click (w, a + 6);
+	else if (!strncmp (a, "click2:", 7) && last_win ()) script_click (last_win (), a + 7);	// (la derniere fenetre)
 	else if (!strcmp (a, "exit")) { fflush (0); _exit (0); }
 	delete st;
 	return G_SOURCE_REMOVE;
@@ -2708,6 +2786,136 @@ long ui_dialog_end (long d)
 	return 0;
 }
 
+// ---- les dialogues de l'app (uk_dialog.c) ----
+// -> le bord droit du bouton suivant ; le bouton : en bas a droite, sa largeur selon le texte (comme ui_pushbutton)
+long ui_dialog_button (long dlg, long n, long text, long resp, long style, long right)
+{
+	Win *w = win (dlg);
+	if (!w || n < 0 || n > 2) return right;
+	long keep = g_cur;
+	g_cur = w->id; use_vars (w);
+	long ctl = ui_metric (UMT_CTL);
+	const char *t = TRs ((const char *) text);
+	long bw = ui_text_width ((long) t, ui_metric (UMT_PX), (long) g_fonts[UFN_SANS]) + 28;
+	if (bw < 80) bw = 80;
+	long b = ui_pushbutton (right - bw, w->reqh - ctl - 12, bw, ctl, (long) t, style);
+	g_cur = keep; use_vars (cur ());
+	w->dlgBtn[n] = b; w->dlgResp[n] = resp;
+	if (style & UB_DEFAULT) w->dlgDef = b;
+	return right - bw - 8;
+}
+long ui_dialog_close (long dlg, long res) { Win *w = win (dlg); if (w) { w->dlgRes = res; w->dlgDone = true; } return dlg; }
+long ui_dialog_cancel (long dlg, long res) { Win *w = win (dlg); if (w) w->dlgCancel = res; return dlg; }
+long ui_dialog_timer (long dlg, long fn, long ms) { Win *w = win (dlg); if (w) { w->dlgTick = fn; w->dlgTickMs = ms; } return dlg; }
+static void dlg_buttons (Win *w, long wd, long code)
+{
+	if (code != UN_ACTIVATE || !wd) return;
+	for (int i = 0; i < 3; i++) if (w->dlgBtn[i] == wd) { w->dlgRes = w->dlgResp[i]; w->dlgDone = true; return; }
+}
+// la boucle du dialogue : ses evenements seuls (la fenetre d'avant attend, GTK la bloque) ; un bouton donne sa reponse,
+// Echap ou la case de fermeture celle de ui_dialog_cancel, Entree non prise le bouton par defaut
+long ui_dialog_run (long dlg, long fn, long)
+{
+	Win *w = win (dlg);
+	if (!w) return 0;
+	w->dlgDone = false;
+	ui_w_draw (0);
+	for (;;)
+	{
+		if (!win (dlg)) return 0;
+		if (w->dlgDone) break;
+		long ms = 30000;
+		if (w->dlgTick)
+		{
+			((long (*) (long)) w->dlgTick) (dlg);
+			if (w->dlgDone) break;
+			ms = w->dlgTickMs > 0 ? w->dlgTickMs : 30000;
+		}
+		long type = ui_event (ms);
+		if (!type) continue;
+		if (g_ev.win != (int) w->id)
+		{
+			if (type == WEV_RESIZE) ui_w_event (0);
+			continue;
+		}
+		if (type == WEV_CLOSE) { w->dlgRes = w->dlgCancel; break; }
+		long wd = ui_w_event (0), code = uikit__ret[1], taken = uikit__ret[2];
+		if (code)
+		{
+			dlg_buttons (w, wd, code);
+			if (fn) ((long (*) (long, long, long)) fn) (dlg, wd, code);
+			continue;
+		}
+		if (taken || type != WEV_KEY || !g_ev.kind) continue;
+		if (g_ev.code == 0x29) { w->dlgRes = w->dlgCancel; break; }
+		if ((g_ev.code == 0x28 || g_ev.code == 0x58) && w->dlgDef)
+		{
+			dlg_buttons (w, w->dlgDef, UN_ACTIVATE);
+			if (fn) ((long (*) (long, long, long)) fn) (dlg, w->dlgDef, UN_ACTIVATE);
+		}
+	}
+	return w->dlgRes;
+}
+
+// ---- ce que Budget demande de plus ----
+// les metriques de l'echelle « petite » de UIKit (uk_widgets.c : px, petite, ligne, controle, barre, en-tete, menu)
+long ui_metric (long i)
+{
+	static const long MT[7] = { 13, 12, 26, 28, 10, 22, 24 };
+	if (i == UMT_TOUCH) return 0;
+	return i >= 0 && i < 7 ? MT[i] : -1;
+}
+long ui_text_prefix (long s, long n, long px, long font)
+{
+	const char *t = (const char *) s;
+	if (!t) return 0;
+	size_t len = strlen (t);
+	if (n >= 0 && (size_t) n < len) len = (size_t) n;
+	if (!len) return 0;
+	std::string part (t, len);
+	return lay_text (part.c_str (), (int) px, font, 0, 0);
+}
+long ui_textbox_select (long w, long a, long b)
+{
+	Wid *d = wid (w);
+	if (d && d->kind == K_TEXTBOX) gtk_editable_select_region (GTK_EDITABLE (d->gw), (int) a, (int) b);
+	return 0;
+}
+// le widget de la fenetre courante qui a le clavier (0 : aucun)
+long ui_w_get_focus (void)
+{
+	Win *w = cur ();
+	if (!w) return 0;
+	GtkWidget *f = gtk_root_get_focus (GTK_ROOT (w->gw));
+	for (GtkWidget *x = f; x; x = gtk_widget_get_parent (x))
+	{
+		Wid *d = (Wid *) g_object_get_data (G_OBJECT (x), "kw");
+		if (d && wid (d->id) == d && d->win == w) return d->id;
+	}
+	return 0;
+}
+long ui_lang (void)
+{
+	const char *l = getenv ("LANGUAGE");
+	if (!l || !*l) l = getenv ("LC_ALL");
+	if (!l || !*l) l = getenv ("LC_MESSAGES");
+	if (!l || !*l) l = getenv ("LANG");
+	return (long) (l && *l && strncmp (l, "fr", 2) && strncmp (l, "C", 1) ? "en" : "fr");
+}
+long ui_tr_load (long path)
+{
+	char tb[PATH_MAX];
+	return tr_load_file (kport_path ((const char *) path, tb, sizeof tb)) ? 0 : -2;
+}
+// ouvrir un fichier ou un dossier avec l'app du systeme (Fichier > Dossier des donnees de Budget)
+long ui_assoc_open (long path) { return kport_open_external ((const char *) path) ? 0 : -2; }
+void kport_tr_add (const char *from, const char *to)
+{
+	if (!from || !to) return;
+	g_trPort.push_back ({ from, to });
+	g_tr[from] = to;
+}
+
 struct PopState { bool done; int r; GtkWidget *pop; };
 static void pop_closed (GtkPopover *, gpointer d) { ((PopState *) d)->done = true; }
 static void pop_item (GtkButton *b, gpointer d)
@@ -2732,9 +2940,10 @@ long ui_popup_local (long x, long y, long labels, long width)
 	for (int i = 0; *p; i++, p += strlen (p) + 1)
 	{
 		if (!strcmp (p, "-")) { gtk_box_append (GTK_BOX (box), gtk_separator_new (GTK_ORIENTATION_HORIZONTAL)); continue; }
-		bool dis = (unsigned char) p[0] == 1;
+		bool dis = (unsigned char) p[0] == 1, on = (unsigned char) p[0] == 2;	// (0x01 : grisee, 0x02 : cochee)
 		GtkWidget *b = gtk_button_new ();
-		gtk_button_set_child (GTK_BUTTON (b), elabel (TRs (dis ? p + 1 : p), 0));
+		std::string lb = on ? std::string ("\xE2\x9C\x93 ") + TRs (p + 1) : std::string (TRs (dis ? p + 1 : p));
+		gtk_button_set_child (GTK_BUTTON (b), elabel (lb.c_str (), 0));
 		gtk_widget_add_css_class (b, "flat");
 		gtk_widget_set_sensitive (b, !dis);
 		g_object_set_data (G_OBJECT (b), "idx", GINT_TO_POINTER (i));

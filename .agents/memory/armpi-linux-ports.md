@@ -1,6 +1,6 @@
 ---
 name: armpi-linux-ports
-description: "23/11/2026 : Koton et Arabesque portés sous Linux (Fedora 45) dans linux-ports/ : UIKit refait sur GTK 4, AudioKit sur FluidSynth, sources des apps compilées telles quelles ; binaires dans linux-ports/bin"
+description: "23/11/2026 : Koton, Arabesque et Budget (banque comprise) portés sous Linux (Fedora 45) dans linux-ports/ : UIKit sur GTK 4, AudioKit sur FluidSynth, coffre sur libsecret, sources des apps compilées telles quelles ; binaires dans linux-ports/bin ; Budget sur la branche claude/linux-budget"
 metadata:
   type: project
 ---
@@ -28,4 +28,19 @@ armpi.inc) définit O_TRUNC 8, O_APPEND 16, O_NONBLOCK 32 de Korin, inclus avant
 Linux. Le tube de llm restait bloquant (read dans LlmRun::drain) et O_TRUNC ne tronquait pas (fichiers réécrits plus
 courts : fin de l'ancien contenu gardée). Le Makefile retire ces trois blocs après abi2c. Les captures shot2 de
 KORIN_SCRIPT peuvent être périmées (le bouton masqué y restait visible) : vérifier l'état par gtk_widget_get_visible.
-Rpm : RELEASE dans packaging/make-rpms.py (2 depuis ce correctif).
+Rpm : RELEASE dans packaging/make-rpms.py (2 depuis ce correctif, 3 depuis Budget).
+
+Budget (23/11, branche claude/linux-budget, pas poussée) : bin/budget, budget/linux_main.cpp, paquet korin-budget
+(version [pc]). Ajouts à common/ : korin_sys.cpp (armpi_syscall -> kport_syscall : SYS_TIME_MS, SYS_CLOCK_GET ;
+avant, -ENOSYS pour tout : l'horloge de Budget aurait été fausse), korin_vault.cpp (KV_SVC_OPEN/CALL de keyvault.h
+sur libsecret, schéma org.korin.KeyVault, attributs app/name/home ; installé par Budget seul, Koton inchangé),
+korin_paths : Jet (/apps/jet.app/main, SD0:...) -> xdg-open / gio open / $KORIN_BROWSER (stat et posix_spawn),
+kport_open_external (ui_assoc_open) ; uikit_gtk : ui_dialog_button/run/close/cancel/timer (boucle de uk_dialog.c),
+ui_metric (échelle « petite »), ui_text_prefix, ui_textbox_select, ui_w_get_focus, ui_lang, ui_tr_load,
+kport_tr_add (mots dits autrement sous Linux), popup 0x02 coché ; script : key2, chars2, click2 (,3 droit), press2,
+dump/dump2 (état réel des widgets). Budget ne lie pas audiokit (kport_audio_reload_soundfont factice dans son main).
+Pièges : libsecret-devel absent ici -> en-têtes pris par « dnf download libsecret-devel » dans build/libsecret-devel,
+.pc réécrit (prefix, -l:libsecret-1.so.0, sans Requires.private gnutls), PKG_CONFIG_PATH=build/libsecret-devel/pc
+make ; sans cela le Makefile construit sans coffre. Les clics de script sont en coordonnées du contenu (sans la barre
+de titre de la capture). Essais : faux serveur Enable Banking et faux navigateur (curl -L) dans build/fakebank (non
+commités), KORIN_HOME d'essai ; secrets d'essai retirés par « budget --vault-forget ».

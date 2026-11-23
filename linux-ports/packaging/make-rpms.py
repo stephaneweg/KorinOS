@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# make-rpms.py -- fait les paquets rpm de Koton et d'Arabesque (Fedora) sans rpmbuild : cargo-generate-rpm écrit le
+# make-rpms.py -- fait les paquets rpm de Koton, d'Arabesque et de Budget mensuel (Fedora) sans rpmbuild : cargo-generate-rpm écrit le
 # fichier rpm lui-même, comme le fait Tauri.
 #
 #   python3 -I linux-ports/packaging/make-rpms.py      (après « make » dans linux-ports)
-#   -> linux-ports/rpm/korin-koton-<v>-<RELEASE>.x86_64.rpm, linux-ports/rpm/korin-arabesque-<v>-<RELEASE>.x86_64.rpm
+#   -> linux-ports/rpm/korin-<app>-<v>-<RELEASE>.x86_64.rpm (koton, arabesque, budget ; ou ceux nommés en arguments)
 #
 # Prérequis : cargo install cargo-generate-rpm --locked
 #
@@ -11,6 +11,7 @@
 # donc l'arborescence du dépôt sous /opt/korin :
 #   /opt/korin/linux-ports/bin/...              programmes et greffons
 #   /opt/korin/src/apps/<app>/{data,demos,presets}, /opt/korin/src/apps/fmtracker/ins, /opt/korin/skel/sd0/res/lang
+#   (Budget : src/apps/budget/app.txt seul, pour que le binaire reconnaisse la racine)
 #   /usr/bin/<app>                              un lanceur (exec du vrai binaire)
 #   /usr/share/applications, /usr/share/icons   l'entrée du menu et l'icône
 import os
@@ -26,9 +27,10 @@ ROOT = os.path.dirname(PORTS)
 WORK = os.path.join(PORTS, 'build', 'rpm')
 OUT = os.path.join(PORTS, 'rpm')
 OPT = '/opt/korin'
-RELEASE = '2'			# à augmenter quand les binaires changent sans changer de version
+RELEASE = '3'			# à augmenter quand les binaires changent sans changer de version
 
-COMMON_REQ = {'gtk4': '*', 'fluidsynth-libs': '*', 'fluid-soundfont-gm': '*'}
+COMMON_REQ = {'gtk4': '*'}
+SOUND_REQ = {'fluidsynth-libs': '*', 'fluid-soundfont-gm': '*'}
 
 APPS = {
     'koton': {
@@ -39,7 +41,8 @@ APPS = {
         'bins': ['linux-ports/bin/koton', 'linux-ports/bin/llm'],
         'trees': ['linux-ports/bin/koton-plugins', 'src/apps/koton/data', 'src/apps/koton/demos',
                   'src/apps/koton/lang', 'skel/sd0/res/lang'],
-        'req': {'openssl-libs': '*'},
+        'req': dict(SOUND_REQ, **{'openssl-libs': '*'}), 'recommends': {'lame-libs': '*'},
+        'categories': 'AudioVideo;Audio;Music;', 'exec': 'koton %f',
     },
     'arabesque': {
         'summary': 'Arabesque : composition algorithmique par fractales, de Korin OS (GTK 4, FluidSynth)',
@@ -49,7 +52,19 @@ APPS = {
         'bins': ['linux-ports/bin/arabesque'],
         'trees': ['src/apps/arabesque/data', 'src/apps/arabesque/presets', 'src/apps/fmtracker/ins',
                   'skel/sd0/res/lang'],
-        'req': {},
+        'req': dict(SOUND_REQ), 'recommends': {'lame-libs': '*'},
+        'categories': 'AudioVideo;Audio;Music;', 'exec': 'arabesque %f',
+    },
+    'budget': {
+        'summary': 'Budget mensuel : le budget du mois de paie, de Korin OS (GTK 4, banque par Enable Banking)',
+        'desc': "Budget mensuel suit le mois de paie : charges fixes, paiements en plusieurs fois, chèques repas, "
+                "dépenses courantes et ce qu'il reste à dépenser par jour ; la banque se synchronise par Enable Banking.",
+        'name': 'Budget mensuel', 'mime': '',
+        'bins': ['linux-ports/bin/budget'],
+        'files': ['src/apps/budget/app.txt'],
+        'trees': ['skel/sd0/res/lang'],
+        'req': {'openssl-libs': '*', 'libsecret': '*'}, 'recommends': {'xdg-utils': '*'},
+        'categories': 'Office;Finance;', 'exec': 'budget',
     },
 }
 
@@ -115,6 +130,8 @@ def build(app, info):
 
     for b in info['bins']:
         add(os.path.join(ROOT, b), f'{OPT}/{b}', '755')
+    for f in info.get('files', []):
+        add(os.path.join(ROOT, f), f'{OPT}/{f}', '644')
     for t in info['trees']:
         top = os.path.join(ROOT, t)
         for dp, _, fs in os.walk(top):
@@ -130,7 +147,7 @@ def build(app, info):
     with open(desktop, 'w', encoding='utf-8') as f:
         f.write('[Desktop Entry]\nType=Application\n'
                 f'Name={info["name"]}\nComment={info["summary"].split(" : ", 1)[1].split(" (")[0]}\n'
-                f'Exec={app} %f\nIcon=korin-{app}\nTerminal=false\nCategories=AudioVideo;Audio;Music;\n'
+                f'Exec={info["exec"]}\nIcon=korin-{app}\nTerminal=false\nCategories={info["categories"]}\n'
                 + (f'MimeType={info["mime"]}\n' if info['mime'] else ''))
     add(desktop, f'/usr/share/applications/org.korin.{app}.desktop', '644')
     for z in (48, 64):
@@ -149,7 +166,9 @@ def build(app, info):
         lines.append(f'  {{ source = {toml_str(src)}, dest = {toml_str(dest)}, mode = "{mode}" }},')
     lines += [']', '', '[package.metadata.generate-rpm.requires]']
     lines += [f'{k} = {toml_str(v)}' for k, v in req.items()]
-    lines += ['', '[package.metadata.generate-rpm.recommends]', 'lame-libs = "*"', '', '[workspace]', '']
+    lines += ['', '[package.metadata.generate-rpm.recommends]']
+    lines += [f'{k} = {toml_str(v)}' for k, v in info.get('recommends', {}).items()]
+    lines += ['', '[workspace]', '']
     with open(os.path.join(w, 'Cargo.toml'), 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines))
     os.makedirs(OUT, exist_ok=True)

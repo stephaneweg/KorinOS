@@ -1,19 +1,23 @@
-# Koton et Arabesque sous Linux
+# Koton, Arabesque et Budget mensuel sous Linux
 
-Deux applications de Korin portées sous Linux (essayées sur Fedora 45, x86_64) : **Koton** (« KotonStudio », le
-studio de composition, `src/apps/koton`) et **Arabesque** (la composition algorithmique par fractales,
-`src/apps/arabesque`). L'interface est en **GTK 4**, le son en **FluidSynth** (sortie PipeWire, PulseAudio ou ALSA).
+Trois applications de Korin portées sous Linux (essayées sur Fedora 45, x86_64) : **Koton** (« KotonStudio », le
+studio de composition, `src/apps/koton`), **Arabesque** (la composition algorithmique par fractales,
+`src/apps/arabesque`) et **Budget mensuel** (`src/apps/budget`, avec la liaison bancaire par Enable Banking).
+L'interface est en **GTK 4**, le son en **FluidSynth** (sortie PipeWire, PulseAudio ou ALSA), le réseau sur
+**OpenSSL**, le coffre à secrets sur **libsecret** (le trousseau du bureau).
 
-Les sources des deux apps ne sont **pas copiées** : `make` compile celles de `src/apps/<app>` telles quelles. Ce qui
-change, ce sont les deux kits de Korin qu'elles appellent, refaits pour Linux :
+Les sources des apps ne sont **pas copiées** : `make` compile celles de `src/apps/<app>` telles quelles. Ce qui
+change, ce sont les kits de Korin qu'elles appellent, refaits pour Linux :
 
 | Dossier | Contenu |
 |---|---|
 | `common/uikit_gtk.cpp` | UIKit (le kit de l'interface de Korin) sur GTK 4 : les ~100 fonctions `ui_*` dont les deux apps se servent, même sémantique (`src/apps/help/data/api/uikit_fr.md`) |
 | `common/audiokit_fluid.cpp` | AudioKit (le son) sur FluidSynth : SoundFont, synthés, flux de sortie, export WAV (et MP3 si `libmp3lame.so.0` est là) |
-| `common/korin_paths.cpp` | les chemins de Korin (`HOME:/`, `/apps/<app>.app/`...) traduits pour Linux |
+| `common/korin_paths.cpp` | les chemins de Korin (`HOME:/`, `/apps/<app>.app/`...) traduits pour Linux ; Jet (le navigateur de Korin) remplacé par celui du système (`xdg-open`, sinon `gio open`) |
 | `common/korin_thread.cpp` | les fils de haute priorité (SCHED_FIFO refusé sans droit temps réel : le fil part quand même) |
-| `arabesque/linux_main.cpp`, `koton/linux_main.cpp` | l'entrée de chaque programme : les chemins, puis le `main` de Korin, ou un mode sans fenêtre |
+| `common/korin_sys.cpp` | les appels système de Korin que les apps font elles-mêmes (`armpi_syscall`) : l'horloge (`SYS_TIME_MS`, `SYS_CLOCK_GET`), le coffre à secrets |
+| `common/korin_vault.cpp` | le coffre à secrets de Korin (`src/lib/keyvault/keyvault.h` : `kv_set`, `kv_get`...) sur le Secret Service, par libsecret ; seulement pour Budget |
+| `arabesque/linux_main.cpp`, `koton/linux_main.cpp`, `budget/linux_main.cpp` | l'entrée de chaque programme : les chemins, puis le `main` de Korin, ou un mode sans fenêtre |
 | `bin/` | les binaires construits (x86_64, Fedora 45) |
 
 Le moteur musical (composition, formats `.kson`, `.sq`, `.arb`, `.ifs`, `.stl`, exports MIDI, FM Song, WAV) est celui
@@ -22,15 +26,19 @@ même graine, même `.mid`.
 
 ## Dépendances (Fedora)
 
-    sudo dnf install gcc-c++ make pkgconf python3 gtk4-devel fluidsynth-devel openssl-devel fluid-soundfont-gm
+    sudo dnf install gcc-c++ make pkgconf python3 gtk4-devel fluidsynth-devel openssl-devel libsecret-devel fluid-soundfont-gm
 
-À l'exécution : `gtk4`, `fluidsynth-libs`, `openssl-libs`, une SoundFont General MIDI (`fluid-soundfont-gm` pose
-`/usr/share/soundfonts/FluidR3_GM.sf2`, prise par défaut). Pour l'export MP3 d'Arabesque : `lame-libs`.
+Sans `libsecret-devel`, Budget se construit sans coffre à secrets (la session bancaire va alors dans `banque.json` et
+la clé reste dans son `.pem`, comme sur un Korin sans coffre ; `bin/budget --vault-status` dit lequel des deux).
+
+À l'exécution : `gtk4`, `openssl-libs` ; pour Koton et Arabesque `fluidsynth-libs` et une SoundFont General MIDI
+(`fluid-soundfont-gm` pose `/usr/share/soundfonts/FluidR3_GM.sf2`, prise par défaut), pour l'export MP3 d'Arabesque
+`lame-libs` ; pour Budget `libsecret` et un trousseau (GNOME : déjà là), `xdg-utils` pour le navigateur.
 
 ## Construire
 
     cd linux-ports
-    make -j8          # -> bin/arabesque, bin/koton, bin/koton-plugins/<id>/, bin/llm
+    make -j8          # -> bin/arabesque, bin/koton, bin/koton-plugins/<id>/, bin/llm, bin/budget
     make clean        # (efface build/ ; les binaires de bin/ restent)
 
 `make` génère d'abord les en-têtes C des kits depuis leurs `.abi` (`tools/kits/abi2c.py`, comme pour Korin).
@@ -38,7 +46,7 @@ même graine, même `.mid`.
 ## Paquets rpm
 
     cargo install cargo-generate-rpm --locked      # une fois (écrit le rpm sans rpmbuild ni sudo)
-    python3 -I packaging/make-rpms.py              # -> rpm/korin-koton-<v>-<r>.x86_64.rpm, rpm/korin-arabesque-<v>-<r>.x86_64.rpm (r : RELEASE du script)
+    python3 -I packaging/make-rpms.py              # -> rpm/korin-{koton,arabesque,budget}-<v>-<r>.x86_64.rpm (r : RELEASE du script)
     sudo dnf install --nogpgcheck rpm/*.rpm        # paquets non signés
 
 Version : celle du paquet PC de Korin (`tools/pkg/versions.ini`, section `[pc]`). Les binaires cherchent leurs données
@@ -50,6 +58,7 @@ en remontant de leur dossier : les paquets gardent l'arborescence du dépôt sou
 
     bin/arabesque [fichier.arb | .ifs | .stl | .sca | .mid | .png | .bmp]
     bin/koton [chanson.kson | .sq]
+    bin/budget [--today AAAA-MM-JJ] [--month Novembre]
 
 Les binaires trouvent les fichiers livrés avec les apps dans le dépôt (`src/apps/<app>/data`, les préréglages
 d'Arabesque, les démos de Koton) : laissez `bin/` dans `linux-ports/`, ou donnez la racine du dépôt par `KORIN_ROOT`.
@@ -62,17 +71,21 @@ Sans fenêtre :
 `--render` recompose le morceau d'un préréglage (même chemin que Morceau > Ouvrir un préréglage) et l'exporte ;
 `--export-wav` est Fichier > Exporter en WAV de Koton. Les deux acceptent `--soundfont fichier.sf2`.
 
+Budget, sans fenêtre : `bin/budget --vault-status` (où vont la clé de la banque et la session), `bin/budget
+--vault-forget` (les retire du trousseau ; `banque.json` et le `.pem` restent).
+
 ### Les chemins de Korin
 
 | Korin | Linux |
 |---|---|
-| `HOME:/` (les chansons, les préréglages, `settings.json`) | `~/Korin/` (ou `$KORIN_HOME`) |
+| `HOME:/` (les chansons, les préréglages, `settings.json`, `budget/budget.json`) | `~/Korin/` (ou `$KORIN_HOME`) |
 | `/apps/<app>.app/` | `src/apps/<app>/data/` du dépôt |
 | `/apps/koton.app/plugins` | `bin/koton-plugins/` |
 | `/home/public/arabesque`, `/home/public/koton` | `src/apps/arabesque/presets`, `src/apps/koton/demos` |
 | `/res/soundfonts` | `/usr/share/soundfonts` (la SoundFont « GeneralUser-GS » de Koton : la SoundFont par défaut) |
 | `/res/lang/fr.txt` | `skel/sd0/res/lang/fr.txt` (+ `src/apps/<app>/lang/fr.txt`) : Koton est en français si `LANG=fr...` |
 | `/bin/llm` | `bin/llm` |
+| `/apps/jet.app/main` (Jet, le navigateur) | le navigateur du système : `xdg-open <adresse>` (ou `gio open`, ou `$KORIN_BROWSER`) |
 
 ### La SoundFont
 
@@ -92,7 +105,8 @@ dans `~/.config/korin-ports/settings.ini`). Pour un lancement : `--soundfont x.s
 | `KORIN_AUDIO_DRIVER` | le pilote de FluidSynth essayé d'abord (`pipewire`, puis `pulseaudio`, `alsa`) |
 | `KORIN_FLUID_GAIN` | le gain des synthés (0,5) |
 | `KORIN_FLUID_VERBOSE` | les messages de FluidSynth et l'état de la sortie |
-| `KORIN_SCRIPT` | essai sans les mains : `1500:menu:11;4000:shot:/tmp/a.png;5000:exit` (`menu:<id>`, `key:<hid>[:mods]`, `wset:<widget>:<valeur>`, `shot:` / `shot2:` une capture PNG, `close`, `exit`) ; `KORIN_DEBUG_WIDGETS=1` liste les widgets |
+| `KORIN_BROWSER` | la commande qui ouvre une adresse ou un dossier (à la place de `xdg-open`) |
+| `KORIN_SCRIPT` | essai sans les mains : `1500:menu:11;4000:shot:/tmp/a.png;5000:exit` (`menu:<id>`, `key:<hid>[:mods]`, `click:x,y[,clics[,3 : bouton droit]]`, `wset:<widget>:<valeur>`, `wact:<widget>`, `shot:` une capture PNG ; pour la dernière fenêtre ouverte, un dialogue : `key2:`, `chars2:<texte>`, `click2:`, `press2:<texte d'un bouton>`, `shot2:` ; `dump:` / `dump2:` l'état réel des widgets, les captures pouvant être en retard ; `close`, `exit`) ; `KORIN_DEBUG_WIDGETS=1` liste les widgets |
 
 ## Ce qui est porté
 
@@ -102,7 +116,16 @@ dans `~/.config/korin-ports/settings.ini`). Pour un lancement : `--soundfont x.s
 - **Koton** : tout le studio (arrangement, éditeurs, mixage, chaîne sonore, générateurs, dialogues), la lecture sur
   FluidSynth (un synthé par piste, comme sous Korin), l'export WAV, les **11 greffons** (des process à part, comme
   sous Korin : `bin/koton-plugins/`), **« Composer avec l'IA »** (`bin/llm`, OpenSSL, certificats du système ; clés
-  d'API dans `~/Korin/koton/settings.json`, pas de coffre à secrets sous Linux).
+  d'API dans `~/Korin/koton/settings.json`, pas de coffre à secrets pour Koton sous Linux).
+- **Budget mensuel** : toute la fenêtre (les trois onglets, les grilles, le modèle, les dialogues), le même
+  `budget.json` que sous Korin et Windows (`~/Korin/budget/`, copies du jour dans `sauvegardes/`), et **la banque** :
+  Enable Banking en HTTPS (OpenSSL, certificat vérifié contre les racines du système), la page d'autorisation de la
+  banque ouverte dans le **navigateur du système** (bouton « Ouvrir dans le navigateur »), le retour sur
+  `http://localhost:…` reçu par Budget comme sous Korin (la fenêtre se ferme toute seule), la synchronisation, la
+  fenêtre des opérations à classer avec sa liste déroulante. La clé privée et la session vont dans le **trousseau du
+  bureau** (Secret Service, par libsecret : schéma `org.korin.KeyVault`, attributs `app=budget`, `name=bank-key` ou
+  `bank-session`, `home=` le dossier de `HOME:/`), comme dans le coffre de Korin ; sans trousseau, comme avant
+  (`banque.json` et le `.pem`). Un `banque.json` de l'app Windows ou de Korin sert tel quel (copier aussi le `.pem`).
 
 ## Différences et limites
 
@@ -112,7 +135,10 @@ dans `~/.config/korin-ports/settings.ini`). Pour un lancement : `--soundfont x.s
 - Pas de menu au nom de l'app ni de menu Aide automatiques (la barre de Korin les ajoute) ; Quitter : la case de
   fermeture, Ctrl+Q.
 - Les dialogues sont ceux de GTK (fichiers, couleurs, messages) : boutons en français.
-- Les fonctions de UIKit et d'AudioKit dont ces deux apps ne se servent pas ne sont pas refaites (arbres, barres
+- Budget : la barre d'état et les réglages de la banque disent le chemin de Linux (`~/Korin/budget`) ; quelques
+  messages rares (un `banque.json` illisible) écrivent encore « HOME:/budget ». Fichier > Dossier des données ouvre
+  `~/Korin/budget` dans le gestionnaire de fichiers.
+- Les fonctions de UIKit et d'AudioKit dont ces apps ne se servent pas ne sont pas refaites (arbres, barres
   d'onglets, surfaces partagées, capture audio, Opus/FLAC...).
 - Comme sous Korin : pas d'entrée MIDI matérielle, « Obtenir une SoundFont » de Koton ne télécharge rien.
 - Un dossier se lit trié par nom (sous Korin, l'ordre de la carte) : les listes de styles et de tracés gardent leur ordre.
@@ -130,3 +156,12 @@ dans `~/.config/korin-ports/settings.ini`). Pour un lancement : `--soundfont x.s
   fenêtres de plus, lecture d'une démo de Koton, ses dialogues ; la sortie PipeWire joue (crête non nulle).
 - Pas essayé à la main : la souris (glisser, molette), le glisser-déposer de fichiers, les dialogues de fichiers et
   l'IA avec une vraie clé.
+- Budget (23/11), contre un faux serveur d'Enable Banking (aucune donnée réelle) et avec un `KORIN_HOME` d'essai :
+  la fenêtre et les chiffres d'un mois ; Réglages de la banque > Relier mon compte (le « navigateur » : un faux, par
+  `KORIN_BROWSER`, qui suit l'adresse jusqu'au retour local) -> relié, la session dans le trousseau et pas dans
+  `banque.json` ; Synchroniser (F5) -> solde, deux pages d'opérations, la fenêtre de classement, la liste déroulante
+  (clic, clic droit, Alt+Bas, F4, flèches, Début / Fin, Entrée, Échap, clic sur un choix), la saisie avec complétion
+  (« me » -> Médical), Appliquer -> paiements des postes fixes, dépenses courantes, règles retenues ; sans Secret
+  Service (`DBUS_SESSION_BUS_ADDRESS` faux) : la session dans `banque.json`, comme avant. TLS : certificat vérifié
+  contre api.enablebanking.com (401 sans jeton, comme attendu), refusé pour un nom faux. Pas essayé : la vraie
+  banque, le vrai navigateur (seulement trouvé : `xdg-open`).

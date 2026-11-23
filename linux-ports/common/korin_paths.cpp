@@ -12,6 +12,8 @@
 //   /res/soundfonts              -> /usr/share/soundfonts
 //   /res/lang/fr.txt             -> <racine>/src/apps/koton/lang/fr.txt  (Koton : ses mots en francais)
 //   /bin/llm                     -> <bin>/llm
+//   /apps/jet.app/main, SD0:/apps/jet.app/main   le navigateur de Korin -> celui du systeme (stat : xdg-open est la ;
+//                                posix_spawn : xdg-open <adresse>, sinon « gio open », ou $KORIN_BROWSER)
 //
 // <bin> : le dossier de l'executable ; <racine> : $KORIN_ROOT, sinon <bin>/../.. (linux-ports/bin dans le depot).
 //
@@ -28,8 +30,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <algorithm>
+#include <string>
 #include <vector>
 
 static char s_app[32], s_bin[PATH_MAX], s_root[PATH_MAX], s_home[PATH_MAX], s_sf[PATH_MAX], s_cfg[PATH_MAX];
@@ -199,6 +203,71 @@ extern "C" const char *kport_path (const char *p, char *buf, size_t cap)
 	return p;
 }
 
+// ---- le navigateur du systeme, a la place de Jet ----------------------------------------------------------------------
+static bool is_jet (const char *p)
+{
+	return p && (!strcmp (p, "/apps/jet.app/main") || !strcmp (p, "SD0:/apps/jet.app/main"));
+}
+// une commande trouvee dans PATH -> son chemin
+static bool which (const char *cmd, char *out, size_t cap)
+{
+	if (strchr (cmd, '/')) { snprintf (out, cap, "%s", cmd); return __real_access (cmd, X_OK) == 0; }
+	const char *path = getenv ("PATH");
+	std::string all = path && *path ? path : "/usr/local/bin:/usr/bin:/bin";
+	size_t a = 0;
+	while (a <= all.size ())
+	{
+		size_t e = all.find (':', a);
+		std::string d = all.substr (a, e == std::string::npos ? std::string::npos : e - a);
+		if (!d.empty ())
+		{
+			snprintf (out, cap, "%s/%s", d.c_str (), cmd);
+			if (__real_access (out, X_OK) == 0) return true;
+		}
+		if (e == std::string::npos) break;
+		a = e + 1;
+	}
+	return false;
+}
+// la commande qui ouvre une adresse : $KORIN_BROWSER, xdg-open, sinon gio (avec « open » devant l'adresse)
+static bool opener (char *exe, size_t cap, bool *gio)
+{
+	*gio = false;
+	const char *b = getenv ("KORIN_BROWSER");
+	if (b && *b && which (b, exe, cap)) return true;
+	if (which ("xdg-open", exe, cap)) return true;
+	if (which ("gio", exe, cap)) { *gio = true; return true; }
+	return false;
+}
+static void *reap (void *p) { int st; waitpid ((pid_t) (long) p, &st, 0); return 0; }
+static int spawn_opener (pid_t *pid, const char *what)
+{
+	char exe[PATH_MAX];
+	bool gio;
+	if (!opener (exe, sizeof exe, &gio)) return ENOENT;
+	char *argv[4]; int n = 0;
+	argv[n++] = exe;
+	if (gio) argv[n++] = (char *) "open";
+	argv[n++] = (char *) what;
+	argv[n] = 0;
+	pid_t p;
+	extern char **environ;
+	int r = __real_posix_spawn (&p, exe, 0, 0, argv, environ);
+	if (r) return r;
+	if (pid) *pid = p;
+	// (l'ouvreur rend la main tout de suite : un fil l'attend, pour qu'il ne reste pas en zombie)
+	pthread_t t;
+	if (pthread_create (&t, 0, reap, (void *) (long) p) == 0) pthread_detach (t);
+	return 0;
+}
+extern "C" int kport_browser_available (void) { char exe[PATH_MAX]; bool gio; return opener (exe, sizeof exe, &gio); }
+extern "C" int kport_open_external (const char *what)
+{
+	if (!what || !*what) return 0;
+	char tb[PATH_MAX];
+	return spawn_opener (0, kport_path (what, tb, sizeof tb)) == 0;
+}
+
 // ---- les appels enveloppes --------------------------------------------------------------------------------------------
 #define TP(p) char tb_[PATH_MAX]; const char *tp_ = kport_path ((p), tb_, sizeof tb_)
 
@@ -239,7 +308,18 @@ int __wrap_closedir (DIR *d)
 	delete k;
 	return r;
 }
-int __wrap_stat (const char *p, struct stat *st) { TP (p); return __real_stat (tp_, st); }
+int __wrap_stat (const char *p, struct stat *st)
+{
+	if (is_jet (p))
+	{
+		char exe[PATH_MAX]; bool gio;
+		if (opener (exe, sizeof exe, &gio)) return __real_stat (exe, st);
+		errno = ENOENT;
+		return -1;
+	}
+	TP (p);
+	return __real_stat (tp_, st);
+}
 int __wrap_access (const char *p, int m) { TP (p); return __real_access (tp_, m); }
 int __wrap_unlink (const char *p) { TP (p); return __real_unlink (tp_); }
 int __wrap_remove (const char *p) { TP (p); return __real_remove (tp_); }
@@ -250,6 +330,8 @@ int __wrap_rename (const char *a, const char *b)
 }
 int __wrap_posix_spawn (pid_t *pid, const char *p, const posix_spawn_file_actions_t *fa, const posix_spawnattr_t *at, char *const argv[], char *const envp[])
 {
+	// Jet <adresse> : le navigateur du systeme (les autres arguments de Jet ne servent pas ici)
+	if (is_jet (p)) return spawn_opener (pid, argv && argv[0] && argv[1] ? argv[1] : "about:blank");
 	TP (p);
 	return __real_posix_spawn (pid, tp_, fa, at, argv, envp);
 }

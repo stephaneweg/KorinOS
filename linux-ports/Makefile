@@ -1,11 +1,13 @@
-# linux-ports/Makefile -- Koton et Arabesque pour Linux (Fedora) : l'interface sur GTK 4, le son sur FluidSynth.
+# linux-ports/Makefile -- Koton, Arabesque et Budget mensuel pour Linux (Fedora) : l'interface sur GTK 4, le son sur
+# FluidSynth, le reseau sur OpenSSL, le coffre a secrets sur libsecret.
 # Les sources des apps restent dans src/apps/<app> (compilees telles quelles) ; ici, les couches qui remplacent les
 # kits de Korin (common/) et l'entree de chaque programme (<app>/linux_main.cpp).
 #
-#   make            -> bin/arabesque, bin/koton, bin/koton-plugins/<id>/, bin/llm
+#   make            -> bin/arabesque, bin/koton, bin/koton-plugins/<id>/, bin/llm, bin/budget
 #   make clean
 #
-# Dependances (Fedora) : gcc-c++ make pkgconf gtk4-devel fluidsynth-devel openssl-devel python3 fluid-soundfont-gm
+# Dependances (Fedora) : gcc-c++ make pkgconf gtk4-devel fluidsynth-devel openssl-devel libsecret-devel python3
+# fluid-soundfont-gm (sans libsecret-devel, Budget se construit sans coffre a secrets : banque.json et le .pem)
 
 ROOT  := ..
 SRC   := $(ROOT)/src
@@ -26,7 +28,7 @@ SHIMF    := -std=gnu++17 $(WARN) $(PKGCF)
 WRAP     := -Wl,--wrap=open,--wrap=fopen,--wrap=opendir,--wrap=readdir,--wrap=closedir,--wrap=mkdir,--wrap=stat,--wrap=access,--wrap=unlink,--wrap=remove,--wrap=rename,--wrap=posix_spawn,--wrap=pthread_create
 LIBS     := $(PKGLB) -lpthread -ldl -lm
 
-SHIM_OBJ := $(B)/common/uikit_gtk.o $(B)/common/audiokit_fluid.o $(B)/common/korin_paths.o $(B)/common/korin_thread.o
+SHIM_OBJ := $(B)/common/uikit_gtk.o $(B)/common/audiokit_fluid.o $(B)/common/korin_paths.o $(B)/common/korin_thread.o $(B)/common/korin_sys.o
 
 # ---- Arabesque (src/apps/arabesque) : le moteur se compile sans FMA, memes bits partout (tools/office/build.sh) ----
 AR      := $(SRC)/apps/arabesque
@@ -42,7 +44,21 @@ KT_HDR  := $(wildcard $(KT)/*.h $(KT)/ui/*.h $(KT)/ui/*.hpp $(KT)/engine/*.h $(K
 PLUGINS := $(notdir $(wildcard $(KT)/plugins/*))
 PLUG_BIN := $(foreach p,$(PLUGINS),bin/koton-plugins/$(p)/main bin/koton-plugins/$(p)/plugin.json)
 
-all: bin/arabesque bin/koton $(PLUG_BIN) bin/llm
+# ---- Budget mensuel (src/apps/budget) : UIKit sans le son, OpenSSL (la banque), libsecret (le coffre) s'il est la ----
+BG      := $(SRC)/apps/budget
+SSLCF   := $(shell pkg-config --cflags openssl)
+SSLLB   := $(shell pkg-config --libs openssl)
+SECRET  := $(shell pkg-config --exists libsecret-1 && echo 1)
+ifeq ($(SECRET),1)
+SECRETCF := $(shell pkg-config --cflags libsecret-1) -DKPORT_LIBSECRET
+SECRETLB := $(shell pkg-config --libs libsecret-1)
+endif
+BG_F    := $(COMMON) $(APPF) -I$(BG) $(SSLCF)
+BG_OBJ  := $(B)/budget/main.o $(B)/budget/linux_main.o $(B)/common/uikit_gtk.o $(B)/common/korin_paths.o \
+	$(B)/common/korin_thread.o $(B)/common/korin_sys.o $(B)/common/korin_vault.o
+BG_LIBS := $(shell pkg-config --libs gtk4 gdk-pixbuf-2.0) $(SSLLB) $(SECRETLB) -lpthread -ldl -lm
+
+all: bin/arabesque bin/koton $(PLUG_BIN) bin/llm bin/budget
 
 # les interfaces C des kits, generees de leurs .abi (comme sur Korin : tools/kits/abi2c.py)
 $(GEN)/uikit_abi.h: $(SRC)/kits/uikit/uikit.abi $(ROOT)/tools/kits/abi2c.py
@@ -55,11 +71,20 @@ $(GEN)/uikit_abi.h: $(SRC)/kits/uikit/uikit.abi $(ROOT)/tools/kits/abi2c.py
 $(GEN)/audiokit_abi.h: $(SRC)/kits/audiokit/audiokit.abi $(ROOT)/tools/kits/abi2c.py
 	@mkdir -p $(GEN)
 	python3 -I $(ROOT)/tools/kits/abi2c.py $< $(GEN) --arch x86_64 --const $(SRC)/kits/audiokit/audiokit.inc
-HDRS := $(GEN)/uikit_abi.h $(GEN)/audiokit_abi.h common/korin_port.h
+HDRS := $(GEN)/uikit_abi.h $(GEN)/audiokit_abi.h common/korin_port.h common/include/armpi/syscall.h
 
 $(B)/common/%.o: common/%.cpp $(HDRS)
 	@mkdir -p $(dir $@)
 	$(CXX) $(COMMON) $(SHIMF) -c $< -o $@
+
+# (le coffre : avec libsecret si libsecret-devel est la ; le .o se refait quand ce choix change)
+$(B)/common/korin_vault.o: common/korin_vault.cpp $(HDRS) $(B)/common/.secret-$(or $(SECRET),0)
+	@mkdir -p $(dir $@)
+	$(CXX) $(COMMON) $(SHIMF) $(SECRETCF) -c $< -o $@
+$(B)/common/.secret-%:
+	@mkdir -p $(dir $@)
+	@rm -f $(B)/common/.secret-*
+	@touch $@
 
 $(B)/arabesque/main.o: $(AR)/main.cpp $(wildcard $(AR)/*.h) $(HDRS)
 	@mkdir -p $(dir $@)
@@ -84,6 +109,17 @@ $(B)/koton/%.o: $(KT)/%.cpp $(KT_HDR) $(HDRS)
 bin/koton: $(KT_OBJ) $(SHIM_OBJ)
 	@mkdir -p bin
 	$(CXX) $(OPT) -pthread $^ $(WRAP) $(LIBS) -o $@
+	strip $@
+
+$(B)/budget/main.o: $(BG)/main.cpp $(wildcard $(BG)/*.h) $(SRC)/apps/pocketqi/http.h $(SRC)/lib/keyvault/keyvault.h $(HDRS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(BG_F) -Dmain=kport_app_main -c $< -o $@
+$(B)/budget/linux_main.o: budget/linux_main.cpp $(SRC)/lib/keyvault/keyvault.h $(HDRS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(BG_F) -c $< -o $@
+bin/budget: $(BG_OBJ)
+	@mkdir -p bin
+	$(CXX) $(OPT) -pthread $^ $(WRAP) $(BG_LIBS) -o $@
 	strip $@
 
 # les greffons de Koton : un programme chacun, POSIX seul (plug/kplug.h), dans bin/koton-plugins/<id>/ (le dossier
