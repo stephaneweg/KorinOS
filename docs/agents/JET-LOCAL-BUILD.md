@@ -216,3 +216,30 @@ chaîne de filtres : fork, tubes, dup2 vers m4 ; la fin de fichier n'arrive jama
 Ces paquets sont **publiés sur la branche** (`pub.py --new --base HEAD --no-push`) : la fusion dans `main` les
 rend disponibles. Ensuite, dans Korin : `pkg add cmake perl ruby gperf bison unifdef pkgconf` (et ninja, nasm,
 python, gcc) pour essayer CMake + Ninja sur WebKit.
+
+### 3. Jet 1.4.8 : construit, essayé sous QEMU, PAS publié
+
+- WebKit de zéro : 7746 cibles en 1 h 43 (4 cœurs), sans erreur ; Jet relié (133 Mo). Les seules instructions
+  AVX-512 du binaire sont dans les chemins choisis au lancement d'OpenSSL (AES-GCM, ChaCha, Poly1305) et de simdutf
+  (icelake), qui lisent XCR0 : comme avant ; `-mno-avx512f` tient pour le reste.
+- Sous QEMU (q35, sans KVM, `-cpu max`, sur les nouveaux `vfs` / `fatfs` / `nvme`) : la page d'accueil, une page de
+  JavaScript (JIT, WebCrypto par OpenSSL, user agent) et 12 JPEG 1920 × 1080 (libjpeg-turbo et son SIMD) s'affichent.
+  Une page WebGL arrête son process web : le kit GlKit n'était pas dans l'arbre d'essai (Mesa n'est pas construit
+  dans cette session) ; sur le ZBook il y est.
+- `pub.py jet --api --dry-run` passe (seul `apps/jet.app/main` change ; `cdmhost` et `cdmupdate` gardés) ; à publier
+  avec `--abi 629` (le système publié est à 629, les relais de UIKit de ce Jet viennent des sources d'aujourd'hui).
+- **Non publié** : jet est un paquet de la Release (`release = 1`) et le SDK aussi ; l'envoi passe par une branche
+  `release-upload/…` et le workflow « Release upload » (docs/PAQUETS.md), que cette session n'avait pas le droit de
+  pousser. Les fichiers sont dans le conteneur du cloud : `~/korin-webkit-x86_64/out/jet.app/main`,
+  `build/pc/jet-sdk/jet-sdk-1.4.8-{1,2,3}.zip` ; perdus s'il est rendu (tout se refait : `build-deps.sh`,
+  `fetch-angle.sh`, `build-webkit.sh`, `build-ui.sh`, `build-media.sh`, `build-jet.sh`, `jet-sdk.sh`, ≈ 2 h 30 sur 4
+  cœurs ; `build/pc/mesa/lib/libglkit.a` repris d'un SDK publié).
+- Puis **tf1plus 1.0.3** (`user.css`, `needs = jet >= 1.4.8`) : après jet.
+
+### Le paquet système `pc` : prêt, PAS publié
+
+`pub.py pc --dry-run` : 2026.11.92 → .93 (noyau avec le compteur des pages, 917b76a ; initrd ; `vfs`, `fatfs`,
+`nvme`, `fsbench`...). Pas publié exprès : `pkgd` l'installerait tout seul sur le ZBook dès la fusion dans `main`,
+alors que les nouveaux services de fichiers ne sont essayés que sous QEMU (FICHIERS-PERF.md : les essayer d'abord à
+la main, en gardant les anciens). Un `pc` publié depuis le cloud remplace aussi tous les programmes que le GCC du
+cloud compile autrement (78 fichiers) : `--only` pour s'en tenir au noyau, à l'initrd et aux trois services.
