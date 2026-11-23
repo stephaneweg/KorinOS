@@ -1294,24 +1294,64 @@ static int configured(struct account *a)
 
 /* ---- les opérations */
 
+/* la configuration a-t-elle la clé key (« key = ... » en début de ligne) ? -> sa valeur (fin de ligne exclue), 0 */
+static const char *conf_key(const char *conf, const char *key, size_t *len)
+{
+	size_t kl = strlen(key);
+	for (const char *l = conf; *l;) {
+		const char *e = l + strcspn(l, "\n");
+		const char *s = l;
+		while (s < e && (*s == ' ' || *s == '\t'))
+			s++;
+		if ((size_t)(e - s) > kl && !strncmp(s, key, kl)) {
+			const char *q = s + kl;
+			while (q < e && (*q == ' ' || *q == '\t'))
+				q++;
+			if (q < e && *q == '=') {
+				q++;
+				while (q < e && (*q == ' ' || *q == '\t'))
+					q++;
+				const char *qe = e;
+				while (qe > q && (qe[-1] == ' ' || qe[-1] == '\t' || qe[-1] == '\r'))
+					qe--;
+				*len = (size_t)(qe - q);
+				return q;
+			}
+		}
+		l = *e ? e + 1 : e;
+	}
+	return 0;
+}
+
+/* conf : toute la configuration du compte, qui remplace l'ancienne ; avec « merge = yes » (23/11/2026, Réglages ›
+ * Comptes en ligne › Modifier…), seulement les clés qu'elle donne (une clé vide : effacée) ; le client_secret, s'il
+ * n'est pas donné, est gardé, sauf si le client_id du compte change (il irait avec l'ancien client) */
 static long op_setup(struct account *a, const char *conf)
 {
-	char old_client[TEXT], old_token[TEXT];
+	char old_client[TEXT], old_token[TEXT], old_own[TEXT];
 	scpy(old_client, cfg(a)->client_id, sizeof old_client);
+	scpy(old_own, a->client_id, sizeof old_own);
 	struct endpoints e;
 	endpoints_of(a, &e);
 	scpy(old_token, e.token, sizeof old_token);
-	for (int k = 0; KEYS[k]; k++) {
-		size_t cap;
-		char *f = field(a, KEYS[k], &cap);
-		f[0] = 0;
-	}
+	size_t ml = 0;
+	const char *mv = conf_key(conf, "merge", &ml);
+	int merge = mv && ml == 3 && !strncmp(mv, "yes", 3);
+	if (!merge)
+		for (int k = 0; KEYS[k]; k++) {
+			size_t cap;
+			char *f = field(a, KEYS[k], &cap);
+			f[0] = 0;
+		}
 	char *t = strdup(conf);
 	if (!t)
 		return E_NOMEM;
 	parse_conf(t, a, 0);
 	OPENSSL_cleanse(t, strlen(t));
 	free(t);
+	size_t sl;
+	if (merge && !conf_key(conf, "client_secret", &sl) && strcmp(old_own, a->client_id))
+		OPENSSL_cleanse(a->client_secret, sizeof a->client_secret);
 	if (!a->provider[0])
 		scpy(a->provider, "custom", sizeof a->provider);
 	if (!configured(a))
