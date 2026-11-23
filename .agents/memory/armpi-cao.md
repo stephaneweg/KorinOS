@@ -101,3 +101,16 @@ une forme jointe à un corps disparu devient un nouveau corps) ; Fichier Nouveau
 .forge = l'historique en JSON (docfile.cpp), rejoué à l'ouverture. Pas essayé sur le ZBook ni le Pi.
 
 - 23/11 : porté sous Linux (linux-ports/, bin/forge ; voir [[armpi-linux-ports]]).
+
+**23/11, forge 1.3.8 (pas publié, branche claude/forge-perspective)** : demande de l'utilisateur : vue en
+**perspective par défaut** (render.cpp : struct Proj, FOV 35° vertical, cam.scale reste px/mm au point visé dans les
+deux modes -> dist = focal / scale ; profondeur z en mm le long de la vue, interpolée en 1/z ; découpage au plan proche
+(nearZ = dist/100) des triangles (triClip), arêtes, grille, esquisse ; zoomAt = homothétie de toute la caméra autour du
+point sous le pointeur (zb du dernier rendu si sameAsRendered, sinon le plan du point visé) ; panFrom/pan à la
+profondeur du point pris ; fit = sphère de la boîte dans 78 % du petit côté). Puis, 2e demande : un **clic sur une face
+du cube passe en orthographique** pour un temps (g_orthoFace, comme « Perspective avec faces orthographiques » de
+Fusion ; aussi Alt+1/2/3 et MCP set_view front/top...) ; tourner la vue ou Maison/Alt+0 rend la perspective. Choix
+gardé (g_perspPref) dans HOME:/forge/forge.ini (« projection = perspective|orthographic ») : Affichage > Perspective
+Alt+5 / Orthographique Alt+6 (ids 27, 28), clic droit sur le cube (menu : les deux cochés selon le choix, Vue
+isométrique, Ajuster), MCP set_view/screenshot `projection`. Selftest 36/36 sous Linux (8 essais ajoutés) ; Korin pas
+essayé (ni QEMU ni le Pi).

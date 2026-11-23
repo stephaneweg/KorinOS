@@ -210,7 +210,14 @@ un corps sont grisés ; la frise annonce ce qu'elle contiendra.
 * **Cube de vue** : un clic sur une face, une arête ou un coin oriente la vue ; *Maison* revient à la vue de départ.
   Sous le cube : maison, ajuster (F6), style (ombré, ombré avec arêtes, fil de fer), regarder la face choisie (N),
   coupe. Vues : Alt+1 avant, Alt+2 dessus, Alt+3 droite, Alt+0 isométrique.
-* **Orthographique par défaut** (les cotes se lisent juste) ; perspective dans *Affichage*.
+* **Perspective par défaut** (23/11/2026, demande de l'utilisateur ; avant : orthographique), angle de champ vertical
+  35°, comme « Perspective avec faces orthographiques » de Fusion : une vue de face (une face du cube, Alt+1/2/3) passe
+  en orthographique le temps de cette vue, tourner la vue ou revenir à l'isométrique (Maison, Alt+0) rend la
+  perspective. Le choix (Affichage > Perspective Alt+5 / Orthographique Alt+6, ou clic droit sur le cube) est gardé
+  dans `HOME:/forge/forge.ini` ; le cube de vue reste orthographique. En perspective, la molette rapproche l'œil du
+  point sous le pointeur (la pièce, sinon le plan du point visé), qui reste en place ; déplacer garde sous le pointeur
+  le point pris ; Ajuster met la sphère autour de la pièce dans l'angle de champ. Le passage d'une projection à
+  l'autre garde la taille au point visé.
 
 ## 7. Unités, champs, paramètres, mesures
 
@@ -648,7 +655,7 @@ forge` contre l'OCCT et le PlaneGCS de `~/korin-cao/x86_64` (sautée et notée s
   pièce d'exemple est l'équerre de 3DForge, faite par OpenCASCADE en huit étapes : plaque, congé R 8 sur deux arêtes,
   paroi jointe, congé R 12, raccord R 6, trou Ø 22, deux lamages Ø 9 / Ø 14, oblong. Elle fait 63,99 cm³ (3DForge
   donnait 63,5), avec 24 faces, 60 arêtes et 1 188 triangles.
-* `render.cpp` : **la vue rendue par le processeur** dans une surface d'UIKit (orthographique, tampon de profondeur,
+* `render.cpp` : **la vue rendue par le processeur** dans une surface d'UIKit (perspective ou orthographique depuis forge 1.3.8, tampon de profondeur,
   ombrage par sommet, arêtes cachées par la profondeur, grille du plan XY, axes, trièdre, cube de vue), et le choix
   sous le pointeur (une arête à moins de 5 pixels, sinon la face, par un tampon des faces). Sans UIKit : le même code
   se compile pour Linux. **Pas encore le GPU** : la GlKit du PC ne se reconstruit pas sur cette machine et QEMU n'a pas

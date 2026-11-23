@@ -1923,6 +1923,20 @@ void skPanel ()
 // ---- la souris sur la vue ---------------------------------------------------------------------------------------
 
 int g_mx, g_my, g_downX, g_downY, g_btn;
+bool g_cubeMenu;	// (un clic droit sur le cube de vue : son menu, cubeMenu, après l'événement)
+
+// La projection, comme « Perspective avec faces orthographiques » de Fusion : g_perspPref est le choix de
+// l'utilisateur (gardé dans forge.ini) ; une vue de face (une face du cube, Alt+1/2/3) passe en orthographique pour
+// un temps (g_orthoFace), et tourner la vue ou revenir à l'isométrique (Maison, Alt+0) rend la perspective.
+bool g_perspPref = true, g_orthoFace;
+
+void viewFace (int k)	// 0..5 : une face du cube ; 6 : l'isométrique de départ
+{
+	g_view.standard (k);
+	g_orthoFace = k != 6 && g_perspPref;
+	g_view.persp = g_perspPref && !g_orthoFace;
+	if (g_orthoFace) status (TR ("Vue de face, orthographique : tourner la vue rend la perspective"));
+}
 bool g_dragged, g_overView;
 
 // genre : 0 déplacement, 1 appui, 2 relâché, 3 sortie ; x, y dans la vue ; boutons : 1 gauche, 2 droit, 4 milieu
@@ -1933,12 +1947,14 @@ void viewMouse (int kind, int x, int y, int buttons, bool shift)
 	if (kind == 1) {
 		g_downX = x, g_downY = y, g_btn = buttons, g_dragged = false;
 		g_mx = x, g_my = y;
+		if (buttons & 4) g_view.panFrom (x, y);	// (le point pris reste sous le pointeur)
 	}
 	if (kind == 0) {
 		int dx = x - g_mx, dy = y - g_my;
 		g_mx = x, g_my = y;
 		if (buttons & 2) {	// droit : tourner
 			if (std::abs (x - g_downX) + std::abs (y - g_downY) > 3) g_dragged = true;
+			if (g_orthoFace && g_dragged) g_orthoFace = false, g_view.persp = g_perspPref;	// (hors de la vue de face : la perspective revient)
 			g_view.orbit (-dx * 0.25, dy * 0.25);
 			g_camDirty = true;
 			return;
@@ -1950,7 +1966,10 @@ void viewMouse (int kind, int x, int y, int buttons, bool shift)
 		}
 	}
 	// les boutons, le cube, les corps restent à eux pendant une commande
-	bool overUi = (x >= BP_X && x < BP_X + BP_W && y >= BP_Y && y < BP_Y + bodiesH ()) || g_view.cubeFaceAt (x, y) >= 0;
+	int cbx, cby, cbw, cbh;
+	g_view.cubeRect (cbx, cby, cbw, cbh);
+	bool inCube = x >= cbx && x < cbx + cbw && y >= cby && y < cby + cbh;
+	bool overUi = (x >= BP_X && x < BP_X + BP_W && y >= BP_Y && y < BP_Y + bodiesH ()) || g_view.cubeFaceAt (x, y) >= 0 || inCube;
 	for (int i = 0; i < VB_N && !overUi; i++) {
 		int bx, by;
 		vbtnRect (i, bx, by);
@@ -1979,6 +1998,10 @@ void viewMouse (int kind, int x, int y, int buttons, bool shift)
 		return;
 	}
 	if (kind == 2) {
+		if ((g_btn & 2) && !g_dragged && inCube) {	// clic droit sur le cube : son menu (ouvert après l'événement)
+			g_cubeMenu = true;
+			return;
+		}
 		if (!(g_btn & 1) || g_dragged) return;
 		if (x >= BP_X && x < BP_X + BP_W && y >= BP_Y && y < BP_Y + bodiesH ()) {
 			int row = (y - BP_Y - 36) / BP_ROW, r = 0;
@@ -2000,7 +2023,7 @@ void viewMouse (int kind, int x, int y, int buttons, bool shift)
 			int bx, by;
 			vbtnRect (i, bx, by);
 			if (x >= bx && x < bx + VB_W && y >= by && y < by + VB_H) {
-				if (i == 0) g_view.standard (6), g_view.fit (g_doc);
+				if (i == 0) viewFace (6), g_view.fit (g_doc);
 				else if (i == 1) g_view.fit (g_doc);
 				else if (i == 2) g_view.edges = !g_view.edges, ui_menu_state (25, g_view.edges ? UMS_CHECKED : 0);
 				else g_view.grid = !g_view.grid, ui_menu_state (26, g_view.grid ? UMS_CHECKED : 0);
@@ -2010,7 +2033,7 @@ void viewMouse (int kind, int x, int y, int buttons, bool shift)
 		}
 		int f = g_view.cubeFaceAt (x, y);
 		if (f >= 0) {
-			g_view.standard (f);
+			viewFace (f);
 			cameraChanged ();
 			return;
 		}
@@ -2723,7 +2746,7 @@ const char MENUS[] =
 	"I13c\tPiloter par un agent (MCP)…\n" "-\n" "I9\tQuitter\tCtrl+Q\n"
 	"MÉdition\n" "I10\tAnnuler l'étape\tCtrl+Z\n" "I11\tRétablir l'étape\tCtrl+Y\n" "-\n" "I12\tSupprimer l'étape\n"
 	"MAffichage\n" "I20\tVue de face\tAlt+1\n" "I21\tVue de dessus\tAlt+2\n" "I22\tVue de droite\tAlt+3\n"
-	"I23\tVue isométrique\tAlt+0\n" "-\n" "I24\tAjuster\tF6\n" "-\n" "I25c\tArêtes\n" "I26c\tGrille\n" "-\n" "I45c\tAccrochage 1 mm\n" "I46c\tAccrochage 5 mm\n" "I47c\tAccrochage 10 mm\n"
+	"I23\tVue isométrique\tAlt+0\n" "-\n" "I24\tAjuster\tF6\n" "-\n" "I25c\tArêtes\n" "I26c\tGrille\n" "-\n" "I27c\tPerspective\tAlt+5\n" "I28c\tOrthographique\tAlt+6\n" "-\n" "I45c\tAccrochage 1 mm\n" "I46c\tAccrochage 5 mm\n" "I47c\tAccrochage 10 mm\n"
 	"MCréer\n" "I37\tEsquisse (S)\n" "I38\tExtrusion (E)\n" "I39\tRévolution\n" "I41\tPerçage (H)\n" "-\n" "I30\tBoîte (B)\n" "I31\tCylindre\n" "-\n" "I32\tPousser/tirer (Q)\n"
 	"MModifier\n" "I33\tCongé (F ; double-clic : la chaîne)\n" "I34\tChanfrein (Maj+F)\n" "-\n" "I35\tCombiner\n" "-\n" "I42\tCoque\n" "I43\tRéseau\n" "I44\tSymétrie\n"
 	"MAide\n" "I40\tNaviguer dans la vue\n";
@@ -2734,6 +2757,87 @@ void setSnap (double v)
 	for (int i = 0; i < 3; i++) ui_menu_state (45 + i, (i == 0 ? 1 : i == 1 ? 5 : 10) == v ? UMS_CHECKED : 0);
 	renderView ();
 	status ((std::string (TR ("Accrochage : ")) + fmtNum (v) + " mm").c_str ());
+}
+
+// les réglages de Forge, gardés d'une fois sur l'autre : HOME:/forge/forge.ini (« clé = valeur ») ; pour l'instant la
+// projection de la vue (« projection = perspective » par défaut, ou « orthographic »)
+const char *const SETTINGS = "HOME:/forge/forge.ini";
+
+std::vector<std::pair<std::string, std::string>> readSettings ()
+{
+	std::vector<std::pair<std::string, std::string>> kv;
+	FILE *f = fopen (SETTINGS, "r");
+	if (!f) return kv;
+	char line[512];
+	while (fgets (line, sizeof line, f)) {
+		std::string l = line;
+		while (!l.empty () && (l.back () == '\n' || l.back () == '\r')) l.pop_back ();
+		size_t e = l.find ('=');
+		if (l.empty () || l[0] == '#' || e == std::string::npos) continue;
+		std::string k = l.substr (0, e), v = l.substr (e + 1);
+		while (!k.empty () && k.back () == ' ') k.pop_back ();
+		while (!v.empty () && v[0] == ' ') v.erase (0, 1);
+		kv.push_back ({ k, v });
+	}
+	fclose (f);
+	return kv;
+}
+
+void writeSetting (const std::string &key, const std::string &val)
+{
+	auto kv = readSettings ();
+	bool found = false;
+	for (auto &e : kv)
+		if (e.first == key) e.second = val, found = true;
+	if (!found) kv.push_back ({ key, val });
+	mkdir ("HOME:", 0755);
+	mkdir ("HOME:/forge", 0755);
+	FILE *f = fopen (SETTINGS, "w");
+	if (!f) return;
+	fprintf (f, "# Forge : les réglages (gardés d'une fois sur l'autre)\n");
+	for (auto &e : kv) fprintf (f, "%s = %s\n", e.first.c_str (), e.second.c_str ());
+	fclose (f);
+}
+
+void loadSettings ()
+{
+	for (auto &e : readSettings ())
+		if (e.first == "projection") g_view.persp = g_perspPref = e.second != "orthographic";
+}
+
+// la projection de la vue : perspective ou orthographique ; save : la garder pour la prochaine fois
+void setProjection (bool persp, bool save)
+{
+	g_view.persp = g_perspPref = persp;
+	g_orthoFace = false;
+	ui_menu_state (27, persp ? UMS_CHECKED : 0);
+	ui_menu_state (28, persp ? 0 : UMS_CHECKED);
+	if (save) writeSetting ("projection", persp ? "perspective" : "orthographic");
+	cameraChanged ();
+	status (persp ? TR ("Vue en perspective") : TR ("Vue orthographique"));
+}
+
+// le clic droit sur le cube de vue : la projection (le choix gardé : coché même pendant une vue de face, qui est
+// orthographique pour un temps), la vue de départ, cadrer
+void cubeMenu ()
+{
+	g_cubeMenu = false;
+	std::string t;
+	auto add = [&] (const char *l, bool on) {
+		if (on) t += '\x02';
+		t += strcmp (l, "-") ? TR (l) : l;
+		t += '\0';
+	};
+	add ("Perspective", g_perspPref);
+	add ("Orthographique", !g_perspPref);
+	add ("-", false);
+	add ("Vue isométrique", false);
+	add ("Ajuster", false);
+	t += '\0';
+	long r = ui_popup_local (ui_ev_field (&ui, EV_X), ui_ev_field (&ui, EV_Y), (long) t.c_str (), 220);
+	if (r == 0 || r == 1) setProjection (r == 0, true);
+	else if (r == 3) viewFace (6), g_view.fit (g_doc), cameraChanged ();
+	else if (r == 4) g_view.fit (g_doc), cameraChanged ();
 }
 
 void mcpMenu ();
@@ -2750,13 +2854,15 @@ void command (int id)
 	case 10: undo (false); break;
 	case 11: undo (true); break;
 	case 12: stepDelete (); break;
-	case 20: g_view.standard (3); cameraChanged (); break;
-	case 21: g_view.standard (4); cameraChanged (); break;
-	case 22: g_view.standard (0); cameraChanged (); break;
-	case 23: g_view.standard (6); cameraChanged (); break;
+	case 20: viewFace (3); cameraChanged (); break;
+	case 21: viewFace (4); cameraChanged (); break;
+	case 22: viewFace (0); cameraChanged (); break;
+	case 23: viewFace (6); cameraChanged (); break;
 	case 24: g_view.fit (g_doc); cameraChanged (); break;
 	case 25: g_view.edges = !g_view.edges; ui_menu_state (25, g_view.edges ? UMS_CHECKED : 0); cameraChanged (); break;
 	case 26: g_view.grid = !g_view.grid; ui_menu_state (26, g_view.grid ? UMS_CHECKED : 0); cameraChanged (); break;
+	case 27: setProjection (true, true); break;
+	case 28: setProjection (false, true); break;
 	case 30: cmdStart (T_BOX); break;
 	case 31: cmdStart (T_CYL); break;
 	case 32: cmdStart (T_PUSH); break;
@@ -2947,6 +3053,7 @@ void buildWindow ()
 	ui_menu_state (25, UMS_CHECKED);
 	ui_menu_state (26, UMS_CHECKED);
 	ui_menu_state (46, UMS_CHECKED);	// (accrochage 5 mm)
+	ui_menu_state (g_perspPref ? 27 : 28, UMS_CHECKED);	// (la projection gardée : loadSettings)
 	showCmdWidgets (false);
 	showEditWidgets (0, false);
 }
@@ -3151,6 +3258,7 @@ void loop (double untilMs)
 			int kind = ui_ev_field (&ui, EV_KIND), b = ui_ev_field (&ui, EV_CODE) & 0xFF;
 			viewMouse (kind, ex, ey, b, shift);
 			if (kind == 2) g_btn = 0;
+			if (g_cubeMenu) cubeMenu ();
 		} else if (t == WEV_MOUSE && !inView && (!g_hot.none () || g_view.hotCube >= 0))
 			viewMouse (3, ex, ey, 0, false);
 		if (t == WEV_WHEEL && !w && g_overView) viewWheel (ui_ev_field (&ui, EV_Y));
@@ -3537,6 +3645,186 @@ int selftest (double buildMs)
 		check ("supprimer une étape et ce qui en dépend", plan.erased.size () == 2 && plan.renewed.size () == 1 && d.feats.size () == 1 && d.feats[0].op == OP_NEW
 		       && d.bodies.size () == 1 && std::fabs (bodyVolume (d.bodies[0]) - 20 * 20 * 5) < 0.5, s);
 	}
+	// la perspective (une vue à part, 400 × 300) : projection, rayon, plan, découpage au plan proche, cadrage, choix
+	{
+		View v;
+		v.resize (400, 300);
+		v.grid = false;
+		v.persp = true;
+		v.cam.tx = v.cam.ty = v.cam.tz = 0, v.cam.scale = 4;
+		v.standard (6);
+		double r[3], u[3], f[3], e[3], D = v.dist (), F = v.focal ();
+		v.cam.basis (r, u, f);
+		v.eye (e);
+		double sx, sy, sx2, sy2, p1[3], p2[3];
+		for (int i = 0; i < 3; i++) p1[i] = 10 * r[i], p2[i] = 10 * r[i] - f[i] * D / 2;	// (10 mm à droite, au point visé puis à mi-chemin de l'œil)
+		v.toScreen (p1, sx, sy);
+		v.toScreen (p2, sx2, sy2);
+		snprintf (s, sizeof s, "œil à %.1f mm ; (%.2f, %.2f) et (%.2f, %.2f), attendus (240, 150) et (280, 150)", D, sx, sy, sx2, sy2);
+		check ("perspective : projection d'un point connu (la même échelle au point visé, double à mi-chemin)",
+		       std::fabs (sx - 240) < 1e-6 && std::fabs (sy - 150) < 1e-6 && std::fabs (sx2 - 280) < 1e-6 && std::fabs (sy2 - 150) < 1e-6 && std::fabs (D * 4 - F) < 1e-6, s);
+		// aller-retour : le rayon du pixel où tombe un point repasse par lui (à un pixel près à sa profondeur)
+		double worst = 0, wo = 0;
+		bool behind = true;
+		static const double PTS[4][3] = { { 12, -7, 5 }, { -30, 25, -10 }, { 3, 3, 40 }, { 0, 0, 0 } };
+		for (auto &q : PTS) {
+			v.toScreen (q, sx, sy);
+			double o[3], dir[3], w[3];
+			v.ray ((int) floor (sx), (int) floor (sy), o, dir);
+			for (int i = 0; i < 3; i++) w[i] = q[i] - o[i];
+			double t = w[0] * dir[0] + w[1] * dir[1] + w[2] * dir[2], d2 = 0;
+			for (int i = 0; i < 3; i++) d2 += (w[i] - dir[i] * t) * (w[i] - dir[i] * t);
+			worst = std::max (worst, sqrt (d2) / (t / F));	// (en pixels à cette profondeur)
+			wo = std::max (wo, std::fabs (o[0] - e[0]) + std::fabs (o[1] - e[1]) + std::fabs (o[2] - e[2]));
+			behind = behind && t > 0;
+		}
+		snprintf (s, sizeof s, "écart %.2f px, origine à %.1e mm de l'œil", worst, wo);
+		check ("perspective : toScreen puis ray repasse par le point", worst < 0.75 && wo < 1e-9 && behind, s);
+		// le sol sous un pixel ; un plan derrière l'œil n'est pas trouvé
+		double g[3] = { 12, -7, 0 }, z0[3] = { 0, 0, 0 }, nz[3] = { 0, 0, 1 }, out[3], back[3], nf[3] = { f[0], f[1], f[2] };
+		for (int i = 0; i < 3; i++) back[i] = e[i] - f[i] * 10;
+		v.toScreen (g, sx, sy);
+		bool okp = v.onPlane ((int) floor (sx), (int) floor (sy), z0, nz, out);
+		double dg = std::hypot (out[0] - g[0], out[1] - g[1]) * F / D;
+		bool behindNone = !v.onPlane (200, 150, back, nf, out);
+		snprintf (s, sizeof s, "écart %.2f px ; plan derrière l'œil : %s", dg, behindNone ? "refusé" : "trouvé !");
+		check ("perspective : onPlane (le sol sous le pointeur)", okp && dg < 1.5 && behindNone, s);
+		// un triangle à cheval sur le plan proche (un sommet derrière l'œil) : dessiné devant seulement ; un triangle tout
+		// derrière : rien (une division sans découpage le montrerait à l'envers)
+		Doc none;
+		std::vector<unsigned> base ((size_t) 400 * 300), img ((size_t) 400 * 300);
+		v.render (base.data (), 400, none, g_pal, {}, Pick ());
+		auto ghostPixels = [&] (const double tri[3][3], bool &allFront) {
+			Mesh m;
+			for (int k = 0; k < 3; k++)
+				for (int i = 0; i < 3; i++) m.pts.push_back ((float) tri[k][i]), m.nrm.push_back (0);
+			m.tris = { 0, 1, 2 };
+			m.edgeFirst = { 0 };
+			v.ghost = &m, v.ghostCut = true;
+			v.render (img.data (), 400, none, g_pal, {}, Pick ());
+			v.ghost = nullptr;
+			double n[3], a[3], b[3];
+			for (int i = 0; i < 3; i++) a[i] = tri[1][i] - tri[0][i], b[i] = tri[2][i] - tri[0][i];
+			n[0] = a[1] * b[2] - a[2] * b[1], n[1] = a[2] * b[0] - a[0] * b[2], n[2] = a[0] * b[1] - a[1] * b[0];
+			int cnt = 0;
+			allFront = true;
+			for (int y = 0; y < 300; y++)
+				for (int x = 0; x < 400; x++)
+					if (img[(size_t) y * 400 + x] != base[(size_t) y * 400 + x]) {
+						cnt++;
+						double o[3], dir[3];
+						v.ray (x, y, o, dir);
+						double dn = dir[0] * n[0] + dir[1] * n[1] + dir[2] * n[2];
+						double t = dn ? ((tri[0][0] - o[0]) * n[0] + (tri[0][1] - o[1]) * n[1] + (tri[0][2] - o[2]) * n[2]) / dn : -1;
+						if (t <= 0) allFront = false;
+					}
+			return cnt;
+		};
+		double cross[3][3], hidden[3][3];
+		for (int i = 0; i < 3; i++) {
+			cross[0][i] = e[i] - f[i] * 20 + u[i] * 40;	// (20 mm derrière l'œil, plus haut)
+			cross[1][i] = 30 * r[i] - 10 * u[i];
+			cross[2][i] = -30 * r[i] - 10 * u[i];
+			hidden[0][i] = e[i] - f[i] * 50 + r[i] * 30;
+			hidden[1][i] = e[i] - f[i] * 50 - r[i] * 30 + u[i] * 20;
+			hidden[2][i] = e[i] - f[i] * 80 - u[i] * 30;
+		}
+		bool front1, front2;
+		int n1 = ghostPixels (cross, front1), n2 = ghostPixels (hidden, front2);
+		snprintf (s, sizeof s, "à cheval : %d pixels, %s ; derrière : %d pixels", n1, front1 ? "tous devant l'œil" : "certains derrière !", n2);
+		check ("perspective : triangle à cheval sur le plan proche découpé, rien de ce qui est derrière l'œil", n1 > 1000 && front1 && n2 == 0, s);
+		// une boîte 40 × 30 × 20 : cadrée entière dans les vues types, dans les deux projections ; puis le choix sous le
+		// pointeur (le centre des faces vues, le milieu des arêtes vues)
+		Doc d;
+		Feature bx;
+		bx.kind = ST_BOX, bx.name = "Boîte 1", bx.op = OP_NEW, bx.a = 40, bx.b = 30, bx.c = 20;
+		d.feats.push_back (bx);
+		d.bar = 1;
+		replay (d, 0.2);
+		int outside = 0, views = 0;
+		for (int mode = 0; mode < 2; mode++)
+			for (int k : { 6, 3, 4, 0 }) {
+				v.persp = mode == 0;
+				v.standard (k);
+				v.fit (d);
+				views++;
+				for (int c = 0; c < 8; c++) {
+					double q[3] = { c & 1 ? 20.0 : -20.0, c & 2 ? 15.0 : -15.0, c & 4 ? 20.0 : 0.0 };
+					v.toScreen (q, sx, sy);
+					outside += sx < 0 || sy < 0 || sx > 400 || sy > 300;
+				}
+			}
+		snprintf (s, sizeof s, "%d coins hors de l'image sur %d", outside, views * 8);
+		check ("cadrer (fit) : la boîte entière dans l'image, perspective et orthographique", !d.bodies.empty () && outside == 0, s);
+		v.persp = true;
+		v.standard (6);
+		v.fit (d);
+		v.render (img.data (), 400, d, g_pal, {}, Pick ());
+		int facesOk = 0, facesSeen = 0, edgesOk = 0;
+		if (!d.bodies.empty ()) {
+			const Body &B = d.bodies[0];
+			v.eye (e);
+			for (int i = 0; i < B.mesh.nfaces; i++) {
+				FaceRef fr;
+				if (!faceRef (B, i, fr)) continue;
+				double vd = (fr.pt[0] - e[0]) * fr.n[0] + (fr.pt[1] - e[1]) * fr.n[1] + (fr.pt[2] - e[2]) * fr.n[2];
+				if (vd >= 0) continue;	// (de dos)
+				facesSeen++;
+				v.toScreen (fr.pt, sx, sy);
+				Pick k = v.pick (d, (int) sx, (int) sy);
+				facesOk += k.body == 0 && k.face == i;
+			}
+			for (int i = 0; i < B.mesh.nedges; i++) {
+				EdgeRef er = edgeRef (B, i);
+				v.toScreen (er.mid, sx, sy);
+				Pick k = v.pick (d, (int) sx, (int) sy);
+				edgesOk += k.edge == i;	// (les 3 cachées : la face devant, ou une arête vue tout près)
+			}
+		}
+		snprintf (s, sizeof s, "faces vues %d/%d, arêtes prises à leur milieu %d/12 (attendu : les 9 vues)", facesOk, facesSeen, edgesOk);
+		check ("perspective : la face et l'arête sous le pointeur", facesSeen == 3 && facesOk == 3 && edgesOk == 9, s);
+		// zoomer vers le pointeur et déplacer : le point sous le pointeur (au plan du point visé) y reste
+		Doc empty;
+		v.render (img.data (), 400, empty, g_pal, {}, Pick ());	// (rien sous le pointeur : le plan du point visé)
+		v.cam.basis (r, u, f);
+		double T[3] = { v.cam.tx, v.cam.ty, v.cam.tz }, P1[3], P2[3];
+		v.onPlane (300, 80, T, f, P1);
+		v.zoomAt (300, 80, 1.18 * 1.18);
+		v.toScreen (P1, sx, sy);
+		v.cam.basis (r, u, f);
+		double T2[3] = { v.cam.tx, v.cam.ty, v.cam.tz };
+		v.onPlane (100, 200, T2, f, P2);
+		v.panFrom (100, 200);
+		v.pan (25, -15);
+		v.toScreen (P2, sx2, sy2);
+		snprintf (s, sizeof s, "zoom : (%.2f, %.2f) pour (300,5, 80,5) ; déplacement : (%.2f, %.2f) pour (125,5, 185,5)", sx, sy, sx2, sy2);
+		check ("perspective : zoom vers le pointeur, déplacement", std::fabs (sx - 300.5) < 0.05 && std::fabs (sy - 80.5) < 0.05 && std::fabs (sx2 - 125.5) < 0.05 && std::fabs (sy2 - 185.5) < 0.05, s);
+	}
+	// une face du cube cliquée : orthographique pour un temps ; tourner la vue rend la perspective ; Maison aussi
+	{
+		g_view.standard (6);
+		cameraChanged ();
+		int lx[6], ly[6];
+		bool vis[6];
+		g_view.cubeLabels (lx, ly, vis);
+		int fc = vis[3] ? 3 : 0;	// (AVANT, vue dans l'isométrique)
+		viewMouse (1, lx[fc], ly[fc], 1, false);
+		viewMouse (2, lx[fc], ly[fc], 0, false);
+		g_btn = 0;
+		bool face = !g_view.persp && g_orthoFace && g_perspPref;
+		viewMouse (1, 400, 300, 2, false);
+		viewMouse (0, 440, 300, 2, false);
+		viewMouse (2, 440, 300, 0, false);
+		g_btn = 0;
+		bool orbit = g_view.persp && !g_orthoFace;
+		command (22);	// (Alt+3, vue de droite)
+		bool alt3 = !g_view.persp;
+		command (23);	// (Alt+0, l'isométrique)
+		bool iso = g_view.persp;
+		snprintf (s, sizeof s, "face %s, après rotation %s, Alt+3 %s, Alt+0 %s", face ? "ortho" : "persp", orbit ? "persp" : "ortho", alt3 ? "ortho" : "persp", iso ? "persp" : "ortho");
+		check ("cube de vue : une face en orthographique, tourner ou Maison rend la perspective", face && orbit && alt3 && iso, s);
+		g_view.fit (g_doc);
+	}
 	select (Pick ());
 	g_snap = 5;	// (le réglage d'origine)
 	printf ("forge : %s\n", fails ? "FAIL" : "PASS");
@@ -3578,6 +3866,7 @@ int main (int argc, char **argv)
 	if (ui_window_ex (8, scr[3] + 4, ww, wh, (long) "Forge", WF_RESIZABLE) <= 0) return 1;
 	ui_min_size (800, 560);
 	ui_on_resize ((long) onResize, 0);
+	if (!test) loadSettings ();	// (l'essai part des réglages d'origine : perspective)
 	buildWindow ();
 	relayout ();
 	g_view.fit (g_doc);

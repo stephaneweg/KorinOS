@@ -1028,7 +1028,9 @@ std::string t_delete_parameter (const Args &a)
 }
 
 // -- la vue
-std::string t_set_view (const Args &a)
+// la direction (view, iso par défaut) et le cadrage (fit) demandés ; une face : orthographique pour un temps si la
+// perspective est le choix (viewFace), sauf projection imposée (persp : 1 perspective, 0 orthographique)
+std::string viewDirection (const Args &a, int persp = -1)
 {
 	std::string v = a.str ("view", "iso");
 	static const char *const V[7] = { "right", "left", "back", "front", "top", "bottom", "iso" };
@@ -1037,10 +1039,37 @@ std::string t_set_view (const Args &a)
 		if (v == V[i]) k = i;
 	if (k < 0) fail ("view must be front, back, left, right, top, bottom or iso");
 	if (g_sm.on) fail ("the user is editing a sketch in Forge");
-	g_view.standard (k);
+	viewFace (k);
+	if (persp >= 0) g_view.persp = persp != 0;
 	if (a.boolean ("fit", true)) g_view.fit (g_doc);
+	return v;
+}
+
+// projection : "perspective" -> vrai, "orthographic" -> faux
+bool projectionArg (const Args &a)
+{
+	std::string p = a.str ("projection");
+	if (p != "perspective" && p != "orthographic") fail ("projection must be perspective or orthographic");
+	return p == "perspective";
+}
+
+const char *projectionName () { return g_view.persp ? "perspective" : "orthographic"; }
+
+// la projection (gardée, comme si l'utilisateur la choisissait) ; seule, elle laisse la direction de la vue
+std::string t_set_view (const Args &a)
+{
+	std::string v;
+	int forced = -1;
+	if (a.has ("projection")) {
+		bool p = projectionArg (a);
+		forced = p;
+		if (p != g_perspPref || p != g_view.persp) setProjection (p, true);
+	}
+	if (a.has ("view") || !a.has ("projection")) v = viewDirection (a, forced);
 	cameraChanged ();
-	return JO ().str ("view", v).end ();
+	JO o;
+	if (!v.empty ()) o.str ("view", v);
+	return o.str ("projection", projectionName ()).end ();
 }
 
 std::string t_highlight (const Args &a)
@@ -1093,8 +1122,19 @@ std::string pngOf (const std::vector<uint32_t> &px, int w, int h)
 std::string g_image;		// (la capture : rendue à part, dans le contenu de la réponse)
 std::string t_screenshot (const Args &a)
 {
-	if (a.has ("view")) t_set_view (a);
+	// (une projection demandée pour la capture seulement : la vue reprend ensuite la sienne)
+	int forced = a.has ("projection") ? (int) projectionArg (a) : -1;
+	if (a.has ("view")) viewDirection (a, forced);
+	else if (forced >= 0) g_view.persp = forced != 0;
 	renderView ();
+	struct Back {
+		bool on;
+		~Back ()
+		{
+			bool p = g_perspPref && !g_orthoFace;
+			if (on && g_view.persp != p) g_view.persp = p, cameraChanged ();
+		}
+	} back { forced >= 0 };
 	int mw = std::max (64, std::min (2048, a.integer ("max_width", 1024)));
 	int w = VW, h = VH;
 	if ((int) g_back.size () < w * h) fail ("the view is not rendered yet");
@@ -1304,17 +1344,21 @@ const ToolDef TOOLS[] = {
 	  t_set_parameter, false },
 	{ "delete_parameter", "Delete a named parameter (values that use it go into error).",
 	  S ({ "type" : "object", "properties" : { "name" : { "type" : "string" } }, "required" : ["name"] }), t_delete_parameter, false },
-	{ "set_view", "Turn the 3D view to a standard direction (front, back, left, right, top, bottom, iso) and fit the part.",
+	{ "set_view",
+	  "Turn the 3D view to a standard direction (front, back, left, right, top, bottom, iso) and fit the part; and/or set the projection "
+	  "(perspective, the default, or orthographic; kept for the next sessions). With only projection, the direction stays.",
 	  S ({ "type" : "object", "properties" : { "view" : { "type" : "string", "enum" : ["front", "back", "left", "right", "top", "bottom", "iso"] },
-		  "fit" : { "type" : "boolean" } } }),
+		  "fit" : { "type" : "boolean" }, "projection" : { "type" : "string", "enum" : ["perspective", "orthographic"] } } }),
 	  t_set_view, true },
 	{ "highlight", "Select a body, or faces/edges of it, in Forge so that the user sees them (no arguments: clear the selection).",
 	  S ({ "type" : "object", "properties" : { "body" : { "type" : "integer" }, "faces" : { "type" : "array", "items" : { "type" : "integer" } },
 		  "edges" : { "type" : "array", "items" : { "type" : "integer" } } } }),
 	  t_highlight, true },
-	{ "screenshot", "Return a PNG image of the 3D view (optionally after set_view). Use it to check the result visually.",
+	{ "screenshot",
+	  "Return a PNG image of the 3D view (optionally after set_view; projection: for this image only). Use it to check the result visually.",
 	  S ({ "type" : "object", "properties" : { "view" : { "type" : "string", "enum" : ["front", "back", "left", "right", "top", "bottom", "iso"] },
-		  "fit" : { "type" : "boolean" }, "max_width" : { "type" : "integer" } } }),
+		  "fit" : { "type" : "boolean" }, "projection" : { "type" : "string", "enum" : ["perspective", "orthographic"] },
+		  "max_width" : { "type" : "integer" } } }),
 	  t_screenshot, true },
 	{ "export",
 	  "Export bodies (default: all visible) to STEP, IGES, STL (binary) or BREP. A relative path goes to HOME:/forge/; Korin paths "
