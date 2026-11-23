@@ -8,7 +8,7 @@ de départ : ce que Blender demande, ce que Korin a déjà, le chemin par jalons
 
 | Jalon | Quoi | État |
 |---|---|---|
-| 0 | Source, versions, chaîne CMake de Korin, scripts `tools/blender` | à faire |
+| 0 | Source, versions, chaîne CMake de Korin, scripts `tools/blender` | **fait (23/11)** : `env.sh`, `korin.cmake`, `versions.py`, `fetch.sh` (Blender 5.2.4 et les sources de classe A) |
 | 1 | Les dépendances indispensables, croisées pour Korin PC (Python 3.13, OIIO, OCIO, OpenEXR, TBB, shaderc…) | à faire |
 | 2 | **Blender sans écran** (`WITH_HEADLESS`) : `blender -b` charge un .blend, exécute du Python, rend par Cycles sur le processeur | à faire |
 | 3 | **GHOST de Korin** : fenêtres UIKit, entrées, presse-papier ; rendu par Vulkan (VkKit, WSI de Korin) | à faire |
@@ -151,11 +151,16 @@ choses sur l'hôte (Python, meson, `ldd`).
 
 ## 4. Le chemin
 
-### Jalon 0 : la base (1 jour)
+### Jalon 0 : la base (fait le 23/11)
 
-* `tools/blender/env.sh`, `fetch.sh` (archive de la version choisie, sommes), le fichier de chaîne
-  (`tools/blender/korin.cmake`, repris de la CAO).
-* `korin.patch` vide au départ ; les retouches de Blender iront là (comme Godot).
+* `tools/blender/env.sh` : version (5.2.4), dossiers sous `~/korin-blender` (WSL), `JOBS` au plus 4, liste
+  `DEPS_A`, fonction `cmake_korin` (configure, construit et installe une dépendance dans `x86_64/deps`).
+* `tools/blender/korin.cmake` : fichier de chaîne, repris de la CAO, avec `-g0` et `--gc-sections`.
+* `tools/blender/versions.py` : lit les URL et les sommes dans `versions.cmake` de Blender, qui fait foi (rien n'est
+  recopié chez nous).
+* `tools/blender/fetch.sh` : la source de Blender (somme du `.sha256` publié) et les archives de `DEPS_A`
+  (`sh tools/blender/fetch.sh [NOM…]`).
+* Les retouches de Blender iront dans `tools/blender/korin.patch` (comme Godot), créé au premier besoin.
 
 ### Jalon 1 : les dépendances A (quelques jours)
 
@@ -206,9 +211,10 @@ savent déjà faire.
 | GHOST : souris capturée, curseur déplacé par le programme | moyen | à ajouter à UIKit et Elegant s'ils manquent |
 | Licence | faible | Blender est GPL-3 ; paquet séparé avec ses sources citées, comme les autres ports GPL |
 
-## 6. Questions pour l'utilisateur
+## 6. Décisions de l'utilisateur (23/11)
 
-1. **La version** : 5.2 LTS (proposé) ou 5.3 ?
-2. **Vulkan seul** (proposé), ou ajouter aussi OpenGL de bureau à Mesa iris (`-Dopengl=true`, plus un contexte GL
-   de bureau dans GlKit) pour avoir le moteur OpenGL de Blender en repli ?
-3. **lavapipe** pour essayer l'interface sous QEMU (proposé au jalon 3), ou les essais sur le ZBook seulement ?
+| Question | Réponse |
+|---|---|
+| La version | **Blender 5.2 LTS** (5.2.4 aujourd'hui) |
+| Le moteur GPU | **Vulkan seul** ; OpenGL de bureau peut-être un jour, pas maintenant |
+| Les essais de l'interface sous QEMU | **lavapipe** : Vulkan sur le processeur, construit pour Korin |
