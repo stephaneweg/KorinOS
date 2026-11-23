@@ -20,5 +20,11 @@ Demande de l'utilisateur du 23/11 : porter Blender dans Korin. Étude et état :
 
 **Why:** demande de l'utilisateur ; suite de Godot, Vulkan, Python, outils de construction.
 
-**How to apply:** questions ouvertes au § 6 de l'étude (version, GL de bureau en repli, lavapipe pour QEMU) ; JOBS=4
-dans WSL (9 Go). Voir [[armpi-godot]], [[armpi-cpython]], [[armpi-devtools]], [[armpi-cao]].
+**Décisions de l'utilisateur (23/11)** : Blender **5.2 LTS** ; **Vulkan seul** (GL de bureau peut-être un jour) ;
+**lavapipe** construit pour essayer l'interface sous QEMU.
+**Jalon 0 fait (23/11, main 8a082cfe)** : tools/blender (env.sh, korin.cmake, versions.py qui lit versions.cmake de
+Blender, fetch.sh) ; sources de 5.2.4 + 26 archives de classe A dans WSL ~/korin-blender/src (somme de Blender : .md5sum,
+pas de .sha256). Suite : jalon 1 (dépendances A, ordre dans l'étude § 4).
+
+**How to apply:** JOBS=4 dans WSL (9 Go). Lancer les scripts par `wsl -- sh tools/blender/…` (pas `wsl bash -c '…$X…'` :
+les $ sont développés avant ; Git Bash : MSYS_NO_PATHCONV=1 pour les chemins /home). Voir [[armpi-godot]], [[armpi-cpython]], [[armpi-devtools]], [[armpi-cao]].
