@@ -147,3 +147,4 @@
 - [Fichiers en parallèle](armpi-fichiers-paralleles.md) — 22-23/11 : cache des noms de vfs, index par dossier et 8 fils de fatfs, 8 files NVMe ; dans main et pc 2026.11.93 (23/11), QEMU seulement ; jet 1.4.8 et SDK 1.4.8 publiés
 - [Outils de construction](armpi-devtools.md) — 22-23/11 : cmake, perl, ruby, m4, bison, gperf, unifdef, pkgconf, 13 <lib>-dev (tools/devtools) ; flex bloqué ; publiés dans main (23/11)
 - [Ports Linux](armpi-linux-ports.md) — 23/11 : Koton, Arabesque, Budget, TerraCube (GLES 3 par EGL, souris prise Wayland) et Forge (OCCT 7.9 de Fedora, PlaneGCS) sous Linux (linux-ports/) : UIKit sur GTK 4, AudioKit sur FluidSynth, codes de touche physiques, binaires dans linux-ports/bin
+- [ClaudeCodeUI dans l'app Claude Code](armpi-claudecode-ui.md) — 23/11 : interface et moteur de ClaudeCodeUI (MIT) en egui sans Tauri, crates/{shared,core}, hôte dev Linux (--shot), QEMU PC ; branche claude/claudecode-ui
