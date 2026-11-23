@@ -81,29 +81,33 @@ pub fn show(e: &mut Extensions, ui: &mut Ui, cx: &mut Cx) {
         |_| {},
     );
 
-    // ---- l'inspecteur, à droite
+    // ---- l'inspecteur, à droite (sa largeur est retirée du corps)
+    let mut side_w = 0.0;
     if cx.ui.inspector_open {
         if e.tab == "mcp"
             && live.is_some()
             && let Some(sel) = e.selected.as_ref().and_then(|n| all.iter().find(|s| s.name == *n)).cloned()
         {
-            side(ui, &t, |ui| mcp_inspector(e, ui, cx, &sel, &mut acts));
+            side_w = side(ui, &t, |ui| mcp_inspector(e, ui, cx, &sel, &mut acts));
         } else if (e.tab == "plugins" || live.is_none())
             && e.options.is_some()
             && let Some(cid) = e.configuring.clone()
         {
-            side(ui, &t, |ui| options_inspector(e, ui, cx, &cid, &mut acts));
+            side_w = side(ui, &t, |ui| options_inspector(e, ui, cx, &cid, &mut acts));
         }
     }
 
     // ---- le corps
-    ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        Frame::new().inner_margin(Margin { left: 28, right: 28, top: 18, bottom: 32 }).show(ui, |ui| {
-            ui.set_max_width(1000.0);
-            match &live {
-                None => no_live(e, ui, cx, &mut acts),
-                Some(id) => live_body(e, ui, cx, id, &heavy, &all, &mut acts),
-            }
+    let body_w = (ui.max_rect().width() - side_w).max(200.0);
+    ui.scope_builder(UiBuilder::new().max_rect(egui::Rect::from_min_size(ui.cursor().min, Vec2::new(body_w, ui.available_height()))), |ui| {
+        ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+            Frame::new().inner_margin(Margin { left: 28, right: 28, top: 18, bottom: 32 }).show(ui, |ui| {
+                ui.set_max_width((body_w - 56.0).min(1000.0));
+                match &live {
+                    None => no_live(e, ui, cx, &mut acts),
+                    Some(id) => live_body(e, ui, cx, id, &heavy, &all, &mut acts),
+                }
+            });
         });
     });
 
@@ -140,7 +144,7 @@ fn apply(e: &mut Extensions, cx: &mut Cx, a: A, all: &[Srv]) {
 // ============================================================================================ pièces
 
 /// Un panneau à droite (l'inspecteur de la page).
-fn side(ui: &mut Ui, t: &Tokens, add: impl FnOnce(&mut Ui)) {
+fn side(ui: &mut Ui, t: &Tokens, add: impl FnOnce(&mut Ui)) -> f32 {
     egui::Panel::right("ext-inspector")
         .resizable(true)
         .default_size(380.0)
@@ -150,7 +154,10 @@ fn side(ui: &mut Ui, t: &Tokens, add: impl FnOnce(&mut Ui)) {
             ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 Frame::new().inner_margin(Margin::same(16)).show(ui, add);
             });
-        });
+        })
+        .response
+        .rect
+        .width()
 }
 
 fn h2(ui: &mut Ui, t: &Tokens, text: &str) {
@@ -347,7 +354,7 @@ fn live_body(e: &mut Extensions, ui: &mut Ui, cx: &mut Cx, id: &str, heavy: &Ses
         ("permissions", t!("Ext.Tab.Permissions"), perms_n),
     ];
     ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 4.0;
+        ui.spacing_mut().item_spacing.x = 14.0;
         for (key, label, n) in tabs {
             let on = e.tab == key;
             let text = RichText::new(format!("{label}  {}", n.map_or_else(|| "—".to_string(), |n| n.to_string())))
