@@ -9,9 +9,12 @@
 param(
     [Parameter(Position = 0)][ValidateSet('list', 'write')][string]$Action = 'list',
     [int]$Disk = -1,
-    [string]$Image = (Join-Path $PSScriptRoot '..\..\build\pc\installkey.img')
+    [string]$Image = ''
 )
 $ErrorActionPreference = 'Stop'
+# (pas dans param() : Windows PowerShell 5.1 y laisse $PSScriptRoot vide quand le script est lancé par -File)
+$here = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+if (-not $Image) { $Image = Join-Path $here '..\..\build\pc\installkey.img' }
 
 function Get-UsbDisks {
     Get-Disk | Where-Object { $_.BusType -eq 'USB' -and -not $_.IsBoot -and -not $_.IsSystem }
