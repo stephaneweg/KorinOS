@@ -304,9 +304,16 @@ Fenêtre `WF_FRAMELESS | WF_TOP | WF_NOFOCUS | WF_RESERVE`, **plus `WF_ALPHA`**,
   * le volume de la sortie principale : haut-parleur (muet), curseur, valeur, flèche « › » vers le
     volet des sorties (soundmenu) ;
   * deux tuiles en pilule (56 px, pleines de l'accent quand actives) : **Réseau** (Wi-Fi et son
-    réseau, ou « Filaire » et l'adresse ; un clic : le menu Wi-Fi, sinon l'applet Wi-Fi des
-    réglages) et **Ne pas déranger** (`korin.notify.dnd`, gardé, le même que le volet rapide du mode
-    poche), qu'un clic bascule.
+    réseau, ou « Filaire » et l'adresse) et **Ne pas déranger** (`korin.notify.dnd`, gardé, le même que
+    le volet rapide du mode poche), qu'un clic bascule ;
+  * avec le Wi-Fi, un clic sur la tuile Réseau (un chevron à droite) **déplie la liste des réseaux dans le
+    volet**, comme GNOME (23/11/2026, demande de l'utilisateur) : une carte sous les tuiles (fond un peu
+    plus marqué, rayon 16), son en-tête (un disque d'accent et ses barres, « Wi-Fi », l'état), les réseaux
+    du plus fort au plus faible (cadenas, coche sur le réseau courant), la clé masquée et « Se connecter »
+    pour un réseau sécurisé inconnu, « Paramètres Wi-Fi… » en bas ; le volet grandit avec elle (ui_resize),
+    un second clic la replie, elle se replie une fois connecté. La liste est celle du menu Wi-Fi, sortie
+    dans `src/sys/common/wifilist.c` (partagée par `wifimenu` et `quickmenu`). Sans Wi-Fi : l'applet Wi-Fi
+    des réglages.
 * Le mode poche garde ses clics d'avant (compteur, heure, icônes une à une).
 
 ### 6.1 Contenu du menu ARMPI

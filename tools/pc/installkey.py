@@ -131,6 +131,12 @@ def build(a):
     try:
         tree = os.path.join(work, "key")
         shutil.copytree(sysroot, tree, ignore=shutil.ignore_patterns("home"))
+        if not os.path.isfile(os.path.join(tree, "etc", "pkg", "abi")):
+            # un arbre fait depuis les sources (tools/pc/sysroot.sh), pas des paquets publiés : le niveau des tables des
+            # kits (etc/pkg/abi : sans lui, pkg lit 0 et refuse tout paquet qui « demande un système plus récent », Jet
+            # compris) et la base des paquets installés (var/pkg/db), comme build.ps1 le fait pour la carte du Pi
+            subprocess.check_call([sys.executable, "-I", os.path.join(ROOT, "tools", "pkg", "mkrepo.py"), "--db-only",
+                                   "--sd", tree], env=dict(os.environ, ARCH="x86_64"), stdout=subprocess.DEVNULL)
         if a.repo:  # le dépôt hors ligne (tools/pc/keyroot.py) : /packages/pc de la clé
             shutil.copytree(os.path.abspath(a.repo), os.path.join(tree, "packages", "pc"))
         if a.installer and not os.path.isfile(os.path.join(tree, "apps", "installer.app", "main")):

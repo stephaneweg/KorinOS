@@ -16,6 +16,7 @@
 #include "sys_consts.h"
 #include "sounddraw.h"
 #include "wifidraw.h"
+#include "wifilist.h"
 #include "uikit_import.h"
 #include "netkit_import.h"
 #include "audiokit_import.h"
@@ -40,6 +41,9 @@
 #define TILE_GAP 10
 #define TILE_W ((QW - 2 * PADX - TILE_GAP) / 2)
 #define QH (TILE_Y + TILE_H + 20)
+#define WF_HEAD 48   /* la carte Wi-Fi dépliée : son en-tête, */
+#define WF_FOOT 40   /* son pied (Paramètres Wi-Fi…) */
+#define WF_GAP 12    /* entre les tuiles et la carte */
 
 enum { H_NONE, H_GEAR, H_POWER, H_SPEAKER, H_CHEVRON, H_NET, H_DND };
 
@@ -60,7 +64,6 @@ static const char t_net[] = "korin.net.*";
 static const char t_bat[] = "korin.power.battery";
 static const char p_control[] = "/apps/control.app/main";
 static const char p_shutdown[] = "/sys/shutdown";
-static const char p_wifimenu[] = "/sys/wifimenu";
 static const char p_soundmenu[] = "/sys/soundmenu";
 
 static struct krt_ui ui;
@@ -78,6 +81,9 @@ static u8 netinfo[32], wst[64], nact[16];
 static char line[96];
 static long bat_pct = -1;
 static char bat_state = 'n';
+static long wifi_open;      /* la liste des réseaux dépliée sous les tuiles (common/wifilist.c) */
+static long wl_started;     /* (wl_start : une fois) */
+static const char s_wf_param[] = "Paramètres Wi-Fi…";
 
 static u32 tj(long off) { return *(const u32 *)((const u8 *)ui_tokens() + off); }
 static const char *tr(const char *s) { return lang_tr(s); }
@@ -156,6 +162,40 @@ static void bat_read(void)
 	bat_state = *p ? *p : 'n';
 	if (bat_state != 'd' && bat_state != 'c' && bat_state != 'f' && bat_state != 'i')
 		bat_state = 'n'; /* (pas de batterie, ou une valeur qu'on ne comprend pas) */
+}
+
+/* ---- la carte Wi-Fi */
+
+/* -> la hauteur du volet : les tuiles, puis la carte Wi-Fi si elle est dépliée */
+static long qh(void)
+{
+	return QH + (wifi_open ? WF_GAP + WF_HEAD + wl_height () + 8 + WF_FOOT : 0);
+}
+
+/* la carte : un fond un peu plus marqué que le volet, son en-tête (un disque d'accent et ses barres, « Wi-Fi », l'état),
+ * les réseaux (wifilist), Paramètres Wi-Fi… */
+static void wifi_card(void)
+{
+	long y = QH - 20 + WF_GAP, h = WF_HEAD + wl_height () + 8 + WF_FOOT;
+	u32 face = (u32)ui_mix(tj(TJ_MENU), tj(TJ_DARK) ? 0x00FFFFFF : 0, tj(TJ_DARK) ? 18 : 10);
+	ui_rbox(PADX, y, QW - 2 * PADX, h, 16, face, face);
+	u32 acc = tj(TJ_ACCENT);
+	ui_rbox(PADX + 12, y + 10, 30, 30, 15, acc, acc);
+	u32 ink = (u32)ui_ink(acc);
+	wd_bars(PADX + 19, y + 18, *(u32 *)wst == WIFI_ST_CONNECTED ? wd_level(*(i32 *)(wst + 4)) : 4, ink, (u32)ui_mix(ink, acc, 140));
+	ui_text((long)"Wi-Fi", PADX + 52, y + 31, tj(TJ_TEXT1), 16, (long)ui.font_b, 0);
+	ui_text((long)wl_state_text(), PADX + 112, y + 30, tj(TJ_TEXT3), 12, (long)ui.font, QW - 2 * PADX - 124);
+	long ly = wl_draw(y + WF_HEAD) + 4;
+	ui_fill(PADX + 12, ly, QW - 2 * PADX - 24, 1, tj(TJ_LINE));
+	wl_hit_add(PADX, ly + 2, QW - 2 * PADX, WF_FOOT - 6, 3, 0);
+	ui_text((long)tr(s_wf_param), PADX + 16, ly + 24, tj(TJ_TEXT1), 13, (long)ui.font, 0);
+}
+
+/* la taille du volet suit la carte */
+static void fit(void)
+{
+	if (ui.h != qh())
+		ui_resize(QW, qh());
 }
 
 /* ---- dessin */
@@ -251,6 +291,8 @@ static void net_texts(const char **t, const char **sub)
 
 static void draw(void)
 {
+	fit();
+	wl_nhits_reset();
 	ui_shadow(ui.w, ui.h);
 	u32 bg = tj(TJ_MENU);
 	ui_rbox(M, M, ui.w - 2 * M, ui.h - 2 * M, 14, bg, bg);
@@ -289,8 +331,14 @@ static void draw(void)
 	/* les tuiles */
 	const char *t, *sub;
 	net_texts(&t, &sub);
-	tile(PADX, TILE_Y, *(u32 *)netinfo != 0, H_NET, t, sub, icon_net);
+	tile(PADX, TILE_Y, *(u32 *)netinfo != 0 || wifi_open, H_NET, t, sub, icon_net);
+	if (*(u32 *)wst >= WIFI_ST_READY) { /* (le Wi-Fi : un chevron, la liste se déplie) */
+		u32 c = *(u32 *)netinfo != 0 || wifi_open ? (u32)ui_ink(tj(TJ_ACCENT)) : tj(TJ_TEXT2);
+		ui_text((long)(wifi_open ? "\xE2\x8C\x84" : "\xE2\x80\xBA"), PADX + TILE_W - 22, TILE_Y + 35, c, 18, (long)ui.font_b, 0);
+	}
 	tile(PADX + TILE_W + TILE_GAP, TILE_Y, dnd, H_DND, tr(s_dnd), tr(dnd ? s_on : s_off), icon_dnd);
+	if (wifi_open)
+		wifi_card();
 	ui_update_all();
 }
 
@@ -354,17 +402,38 @@ static long click(long x, long y)
 		spawn(p_soundmenu, arg);
 		return 1;
 	case H_NET:
-		if (*(u32 *)wst >= WIFI_ST_READY) {
-			*fmt_dec((u64)(win_x + PADX + TILE_W), arg) = 0;
-			spawn(p_wifimenu, arg);
-		} else {
-			spawn(p_control, "wifi");
+		if (*(u32 *)wst >= WIFI_ST_READY) { /* le Wi-Fi : la liste se déplie dans le volet (ou se replie) */
+			wifi_open = !wifi_open;
+			if (wifi_open) {
+				wl_ui = &ui;
+				wl_x = PADX - 4;
+				wl_w = QW - 2 * PADX + 8;
+				wl_selrow = -1;
+				wl_msgp = 0;
+				if (!wl_started)
+					wl_started = 1, wl_start(1); /* (l'état, un balayage, le thread des travaux) */
+				else
+					wl_launch(1);
+			}
+			draw();
+			return 0;
 		}
+		spawn(p_control, "wifi");
 		return 1;
 	case H_DND:
 		dnd = !dnd;
 		bus_publish((long)t_dnd, (long)(dnd ? "1" : "0"), -1, BUS_RETAIN);
 		draw();
+		return 0;
+	}
+	if (wifi_open && y >= QH - 20) { /* la carte Wi-Fi : un réseau, Se connecter, Paramètres Wi-Fi… */
+		long a, r = wl_click(x, y, &a);
+		if (r == 3) {
+			spawn(p_control, "wifi");
+			return 1;
+		}
+		if (r)
+			draw();
 		return 0;
 	}
 	if (st && y >= VOL_Y - 6 && y < VOL_Y + SD_SLIDER_H + 4 && x >= SL_X - 6 && x < SL_X + SL_W + 6) {
@@ -426,8 +495,12 @@ int main(int argc, char **argv)
 		} else if (t == WEV_KEY) {
 			if (kind && *(u32 *)(ui.ev + EV_CODE) == KEY_ESC)
 				return 0;
+			if (kind && wifi_open && wl_key()) /* (la clé d'un réseau) */
+				draw();
 		} else if (t == WEV_BUS) {
 			u32 sub = *(u32 *)(ui.ev + BEV_SUB);
+			if (wifi_open)
+				wl_bus(sub); /* (korin.net.wifi : la liste relit l'état au prochain tour) */
 			if (sub == (u32)net_sub)
 				net_read();
 			else if (sub == (u32)dnd_sub)
@@ -451,9 +524,20 @@ int main(int argc, char **argv)
 					draw();
 				}
 			}
-		} else if (!t) {
-			if (snd_changed())
-				draw();
 		}
+		long redraw = 0;
+		if (!t && snd_changed())
+			redraw = 1;
+		if (wifi_open) { /* l'état du Wi-Fi, le balayage, la connexion */
+			long r = wl_tick();
+			if (r == 2) { /* connecté : la carte se replie */
+				net_read();
+				wifi_open = 0;
+			}
+			if (r)
+				redraw = 1;
+		}
+		if (redraw)
+			draw();
 	}
 }
