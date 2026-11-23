@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-23 21:28
+date = 2026-11-23 21:30
 abi = 629
 packages = 117
 board = pc
@@ -829,18 +829,18 @@ content = ba2e800410de12765a9d2b50e701da00489707fc7c2c53436b38a621fef7464d
 
 [budget]
 title = Budget mensuel
-version = 1.0.7
+version = 1.0.8
 category = Bureautique
 author = Korin OS
 summary = Le budget du mois : charges, paiements, chèques repas, dépenses courantes, reste par jour et synchronisation bancaire Enable Banking (les fichiers de l'app Windows)
-size = 2395099
-installed = 6094504
-sha256 = 2f122b8d5a34b8dd2ba660876dd67e8ad7aa16fabe3ed7e802a5186bf5b272e1
-file = pkgs/budget-1.0.7.opk
+size = 2406319
+installed = 6111208
+sha256 = 796f0ed2352e9bd073e48a668d45084239aaf8c965453d46d016d4c180cc24d7
+file = pkgs/budget-1.0.8.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 2fa87abd17f50ec4b0ab112ea2de2f93a9d301b97d91aaf66c3bab757e6ea398
+content = 095e8ef7ff4294482116527146a5ed8a34e273ba5115de841bff1285c7407514
 
 [builder]
 title = PiBuild
