@@ -6,5 +6,6 @@ pub mod extensions_tabs;
 pub mod form;
 pub mod new_session;
 pub mod overview;
+pub mod parts;
 pub mod settings;
 pub mod worktrees;
