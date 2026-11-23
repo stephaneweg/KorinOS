@@ -72,6 +72,9 @@ long la_grid;
 static long la_tx[LA_MAXTABS], la_tw[LA_MAXTABS]; /* (la_grid) les pilules : x, largeur */
 static long la_ty;           /* (la_grid) haut des pilules */
 #define LA_PILL_H 32
+#define LA_DOTS_H 34 /* (la_grid) sous la grille : les points des pages */
+#define LA_ARROW_W 44 /* (la_grid) les flèches des pages, sur les côtés */
+static u64 la_wheel_t;      /* (la_grid) dernière page tournée à la molette (ms) */
 #define LA_GRID_MAXC 8
 static u8 la_res[AP_MAX];
 static char la_q[LA_NORM];
@@ -172,7 +175,7 @@ static void la_grid_metrics(void)
 	long s = ui_scale(); /* la grille : grandes cases, 8 colonnes au plus */
 	long cw = s == 2 ? 118 : 136, ch = s == 2 ? 104 : 120;
 	la_icon = s == 2 ? 48 : 60;
-	long cols = (W - 80) / cw;
+	long cols = (W - 2 * (LA_ARROW_W + 20)) / cw; /* (la place des flèches des pages) */
 	if (cols > LA_GRID_MAXC)
 		cols = LA_GRID_MAXC;
 	if (cols < 1)
@@ -182,7 +185,7 @@ static void la_grid_metrics(void)
 	la_cellh = ch;
 	long gx = (W - cols * cw) / 2;
 	la_gy = la_ty + LA_PILL_H + 22;
-	long rows = (la_ch - la_gy - 8) / ch;
+	long rows = (la_ch - la_gy - LA_DOTS_H) / ch; /* (sous la grille : les points des pages) */
 	la_rows = rows < 1 ? 1 : rows;
 	/* (la_gx et la_gw servent à la recherche : la grille garde son x dans la_grid_x) */
 	la_grid_x = gx;
@@ -321,9 +324,13 @@ static long la_total(void)
 /* rangée du haut voulue : bornée, redessine si elle change */
 static void la_scroll_to(long r)
 {
+	if (la_grid) /* (pages entières) */
+		r = r < 0 ? 0 : r / la_rows * la_rows;
 	long low = la_total() - la_rows; /* le plus bas */
 	if (low < 0)
 		low = 0;
+	if (la_grid) /* (la dernière page commence à un multiple de la_rows) */
+		low = la_total() ? (la_total() - 1) / la_rows * la_rows : 0;
 	if (r > low)
 		r = low;
 	if (r < 0)
@@ -333,6 +340,69 @@ static void la_scroll_to(long r)
 	la_scroll = r;
 	la_hover = -1; /* (la case survolée a changé) */
 	la_draw();
+}
+
+static u32 la_grid_ink(void);
+static void la_soft_box(long x, long y, long w, long h, long r, u32 t);
+
+/* (la_grid) -> pages de la_res, page montrée */
+static long la_pages(void)
+{
+	long r = la_total();
+	return r ? (r + la_rows - 1) / la_rows : 1;
+}
+
+/* (la_grid) x du premier point des pages, y de leur centre */
+static void la_dots_at(long *x, long *y)
+{
+	long n = la_pages();
+	*x = (la_geom[1] - (n * 16 - 8)) / 2;
+	*y = la_gy + la_rows * la_cellh + LA_DOTS_H / 2;
+}
+
+/* (la_grid) point -> page de ce point (-1 : aucun), flèches : -2 précédente, -3 suivante */
+static long la_page_at(long x, long y)
+{
+	long n = la_pages();
+	if (n < 2)
+		return -1;
+	long cur = la_scroll / la_rows;
+	long gy = la_gy, gh = la_rows * la_cellh;
+	if (y >= gy && y < gy + gh) {
+		if (cur > 0 && x < LA_ARROW_W + 8)
+			return -2;
+		if (cur < n - 1 && x >= la_geom[1] - LA_ARROW_W - 8)
+			return -3;
+	}
+	long dx, dy;
+	la_dots_at(&dx, &dy);
+	if (y < dy - 10 || y > dy + 10 || x < dx - 4)
+		return -1;
+	long p = (x - dx + 4) / 16;
+	return p < n ? p : -1;
+}
+
+/* (la_grid) les points des pages (la page montrée pleine) et les flèches, s'il y a plusieurs pages */
+static void la_pages_draw(void)
+{
+	long n = la_pages();
+	if (n < 2)
+		return;
+	long cur = la_scroll / la_rows, x, y;
+	la_dots_at(&x, &y);
+	for (long p = 0; p < n; p++, x += 16)
+		la_soft_box(x, y - 4, 8, 8, 4, p == cur ? 0x10 : 0xA0);
+	long gy = la_gy + la_rows * la_cellh / 2;
+	u32 ink = la_grid_ink();
+	if (cur > 0) { /* ‹ */
+		la_soft_box(8, gy - 22, LA_ARROW_W, 44, 22, 0xD8);
+		ui_text((long)"\xE2\x80\xB9", 8 + LA_ARROW_W / 2 - 5, gy + 9, ink, 26, (long)ui.font_b, 0);
+	}
+	if (cur < n - 1) { /* › */
+		long ax = la_geom[1] - 8 - LA_ARROW_W;
+		la_soft_box(ax, gy - 22, LA_ARROW_W, 44, 22, 0xD8);
+		ui_text((long)"\xE2\x80\xBA", ax + LA_ARROW_W / 2 - 5, gy + 9, ink, 26, (long)ui.font_b, 0);
+	}
 }
 
 /* (la_grid) l'encre sur le fond de la vue d'ensemble (sombre : le fond d'écran assombri par Elegant) */
@@ -396,6 +466,11 @@ static void la_sel_set(long s)
 	la_sel = s;
 	if (s >= 0) {
 		long r = (long)((u64)s / (u64)la_cols); /* sa rangée */
+		if (la_grid && (r < la_scroll || r >= la_scroll + la_rows)) { /* (la page de la case) */
+			la_scroll = r / la_rows * la_rows;
+			la_draw();
+			return;
+		}
 		if (r < la_scroll) {
 			la_scroll = r;
 			la_draw();
@@ -611,6 +686,7 @@ static void la_draw(void)
 			long tw = ui_text_width((long)s, 14, (long)ui.font);
 			ui_text((long)s, (la_geom[1] - tw) / 2, la_gy + 40, la_grid_ink(), 14, (long)ui.font, 0);
 		}
+		la_pages_draw();
 		la_clip_field();
 		ui_w_draw(0);
 		la_clip_off();
@@ -818,6 +894,17 @@ static int la_mouse(long *pick)
 		u64 dx = (u64)(x - la_cx), dy = (u64)(y - la_cy);
 		if (dx >= (u64)la_cw || dy >= (u64)la_ch) /* hors de la feuille : ferme */
 			return 1;
+		if (la_grid) { /* une flèche, un point : la page */
+			long pg = la_page_at(x, y);
+			if (pg == -2 || pg == -3) {
+				la_scroll_to(la_scroll + (pg == -2 ? -la_rows : la_rows));
+				return 0;
+			}
+			if (pg >= 0) {
+				la_scroll_to(pg * la_rows);
+				return 0;
+			}
+		}
 		if (la_grid) { /* ni la recherche, ni une pilule, ni une icône : retour aux bureaux */
 			long in_box = x >= la_gx && x < la_gx + la_gw && y >= la_by && y < la_by + LA_BOX_H;
 			if (!in_box && la_tab_at(x, y) < 0 && la_cell_at(x, y) < 0)
@@ -898,7 +985,18 @@ void launcher(void)
 			if (la_mouse(&pick))
 				break;
 		} else if (t == WEV_WHEEL) { /* (un cran vers le haut : positif) */
-			la_scroll_to(la_scroll - *(i32 *)(ui.ev + EV_Y));
+			long n = *(i32 *)(ui.ev + EV_Y);
+			if (la_grid) { /* une page par geste (les crans rapprochés d'un pavé tactile n'en tournent qu'une) */
+				u64 now = (u64)korin_sys0(SYS_TIME_MS);
+				if (n && now - la_wheel_t > 350) {
+					la_wheel_t = now;
+					la_scroll_to(la_scroll + (n > 0 ? -la_rows : la_rows));
+				} else if (n) {
+					la_wheel_t = now;
+				}
+			} else {
+				la_scroll_to(la_scroll - n);
+			}
 		} else if (t == WEV_KEY && *(u32 *)(ui.ev + EV_KIND)) {
 			if (la_key(*(u32 *)(ui.ev + EV_CODE), &pick))
 				break;

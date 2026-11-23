@@ -1131,8 +1131,12 @@ panel (`launcher.c`, `la_grid`) ouvre une fenêtre `WF_APPGRID` (0x20000 : `WF_F
 WF_NOLIST | WF_ALPHA`, ni rideau ni capture) **transparente**, posée sur le fond gris de la vue : la
 recherche centrée en haut, les catégories en **pilules** sur une ligne (« Récentes », « Toutes », puis
 les catégories qui ont des applications ; la choisie dans un voile clair), une grande grille d'icônes
-(cases de 136 × 120, icônes de 60 ; 118 × 104 et 48 en petite échelle ; 8 colonnes au plus, centrée ;
-la molette la fait défiler). Tant qu'une telle fenêtre existe, Elegant passe en mode « applications »
+(cases de 136 × 120, icônes de 60 ; 118 × 104 et 48 en petite échelle ; 8 colonnes au plus, centrée),
+**en pages** comme GNOME : autant de rangées qu'il en tient, puis des points sous la grille (la page
+montrée pleine ; un clic va à sa page) et des flèches ‹ › de 44 px sur les côtés quand il y a une page
+avant ou après ; la molette (ou deux doigts sur le pavé) tourne une page par geste (350 ms sans cran
+entre deux gestes), Pg.Préc et Pg.Suiv aussi, et les flèches du clavier vont à la page de la case
+choisie. Tant qu'une telle fenêtre existe, Elegant passe en mode « applications »
 (`ov_q`, 300 ms, « ease out ») : **les bureaux se réduisent et montent en une rangée en haut** (13 % de
 la hauteur de l'écran chacun, centrés ; le bureau courant cerclé) pendant que **la grille monte du bas** ;
 elle fermée, l'inverse. Un clic sur un bureau de la rangée l'active (retour à la vue normale) ; sur le
