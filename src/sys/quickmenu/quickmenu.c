@@ -317,7 +317,12 @@ static void draw(void)
 {
 	fit();
 	wl_nhits_reset();
-	ui_shadow(ui.w, ui.h);
+	/* l'ombre au rayon de la carte (celle de ui_shadow, rayons 12 à 9 et le contour clair du thème, dépassait aux
+	   quatre coins de la carte sombre de rayon 14) : trois anneaux translucides, un contour sombre, puis la carte */
+	static const u32 sh[4] = {0xF4000000, 0xEC000000, 0xE0000000, 0x00242527};
+	ui_fill(0, 0, ui.w, ui.h, 0xFF000000);
+	for (long i = 0; i < 4; i++)
+		ui_rbox(i, i, ui.w - 2 * i, ui.h - 2 * i, 14 + M - i, sh[i], sh[i]);
 	u32 bg = tj(TJ_MENU);
 	ui_rbox(M, M, ui.w - 2 * M, ui.h - 2 * M, 14, bg, bg);
 	/* la rangée du haut : la batterie, puis Réglages et Éteindre */
