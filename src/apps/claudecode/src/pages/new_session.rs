@@ -216,6 +216,12 @@ impl NewSession {
             let first = merge_recents(&cx.org.recent_dirs, &self.roots).into_iter().next().unwrap_or(default);
             self.set_cwd(cx, &first);
         }
+        // « Nouvelle session dans … » de la palette et des worktrees (le `?cwd=` de ClaudeCodeUI), après le départ
+        if self.boot.is_none()
+            && let Some(d) = cx.ui.new_session_cwd.take()
+        {
+            self.set_cwd(cx, &d);
+        }
         if let Some((n, ok, b, names)) = self.probe.as_ref().and_then(Task::take) {
             self.probe = None;
             if n == self.probe_n {
