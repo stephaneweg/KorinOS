@@ -50,3 +50,6 @@ Se déconnecter = Disconnect
 Retirer = Remove
 Actualiser = Refresh
 Valider l'adresse = Use this address
+Code secret = Client secret
+aucun pour ce fournisseur = none for this provider
+celui de votre Client ID = the one of your Client ID

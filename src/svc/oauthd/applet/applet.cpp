@@ -5,7 +5,8 @@
  *   * la liste des comptes OAuth d'oauthd (oauth_list : ceux de ce volet, de Fichiers « gdrive/NOM », de git
  *     « github »…) : nom, fournisseur, état ;
  *   * Ajouter… : un fournisseur connu (Google, Microsoft, GitHub), le nom du compte, le Client ID (celui de Korin,
- *     /etc/oauth/providers.ini, s'il y en a un ; pour GitHub, l'OAuth App de l'utilisateur, à créer dans Jet) et les
+ *     /etc/oauth/providers.ini, s'il y en a un ; pour GitHub, l'OAuth App de l'utilisateur, à créer dans Jet), son
+ *     code secret (Google seulement : une « application de bureau » en a un ; vide : celui de Korin) et les
  *     permissions, puis la connexion ;
  *   * Se connecter : par le code d'appareil (Microsoft, GitHub : un code à taper sur un téléphone ou dans Jet) ou
  *     par le navigateur (Google : Jet s'ouvre sur la page d'accord ; adresse de retour collée pour un autre
@@ -416,7 +417,7 @@ static void connect_acc (const char *acc, const char *prov)
 
 /* ---- ajouter un compte ---- */
 
-static struct { long prov, name, cid, scope, note, newapp; int last; } dl;
+static struct { long prov, name, cid, secret, scope, note, newapp; int last; } dl;
 
 static void dl_prov (int fill)
 {
@@ -429,9 +430,16 @@ static void dl_prov (int fill)
 		ui_w_set_text (dl.name, (long) p->account);
 		ui_w_set_text (dl.scope, (long) p->scope);
 		ui_w_set_text (dl.cid, (long) "");
+		ui_w_set_text (dl.secret, (long) "");
 	}
 	dl.last = k;
 	ui_textbox_hint (dl.cid, (long) TR (korin ? "celui de Korin" : "à donner"));
+	/* (le code secret : Google seulement, son « application de bureau » en a un ; Microsoft et GitHub : clients
+	   publics, sans secret) */
+	int google = !strcmp (p->id, "google");
+	ui_textbox_hint (dl.secret, (long) TR (!google ? "aucun pour ce fournisseur" : korin ? "celui de Korin"
+								  : "celui de votre Client ID"));
+	ui_w_enable (dl.secret, google);
 	static char note[700];
 	if (!korin && !strcmp (p->id, "github"))
 		snprintf (note, sizeof note, "%s", TR ("Il faut une « OAuth App » à votre nom, une seule fois : sur GitHub, nom "
@@ -450,7 +458,7 @@ static long dl_fn (long d, long w, long code)
 		dl_prov (0);
 	else if (w == dl.newapp && code == UN_ACTIVATE)
 		open_jet (GH_NEW_APP);
-	else if ((w == dl.name || w == dl.cid) && code == UN_ACTIVATE)
+	else if ((w == dl.name || w == dl.cid || w == dl.secret) && code == UN_ACTIVATE)
 		ui_dialog_close (d, 1);
 	return 0;
 }
@@ -468,8 +476,8 @@ static int name_ok (const char *s)
 
 static void on_add (long, long)
 {
-	enum { DW = 560, DH = 330, M = 16, LW = 120, CH = 30 };
-	static char name[64], cid[200], scope[300];
+	enum { DW = 560, DH = 372, M = 16, LW = 120, CH = 30 };
+	static char name[64], cid[200], secret[200], scope[300];
 	int k = 0;
 	for (;;) {
 		long d = ui_dialog_begin (DW, DH, (long) TR ("Ajouter un compte"));
@@ -492,6 +500,9 @@ static void on_add (long, long)
 		dl.newapp = ui_pushbutton (DW - M - 140, y, 140, CH, (long) TR ("Créer sur GitHub…"), 0);
 		ui_w_enable (dl.newapp, 0);
 		y += 42;
+		ui_label (M, y + 6, LW, 20, (long) TR ("Code secret"), 0);
+		dl.secret = ui_textbox (M + LW, y, fw, CH, 0);
+		y += 42;
 		ui_label (M, y + 6, LW, 20, (long) TR ("Permissions"), 0);
 		dl.scope = ui_textbox (M + LW, y, fw, CH, 0);
 		y += 42;
@@ -504,6 +515,7 @@ static void on_add (long, long)
 		if (name[0]) {			/* (un nouvel essai : les valeurs d'avant) */
 			ui_w_set_text (dl.name, (long) name);
 			ui_w_set_text (dl.cid, (long) cid);
+			ui_w_set_text (dl.secret, (long) secret);
 			ui_w_set_text (dl.scope, (long) scope);
 		}
 		ui_w_focus (dl.name);
@@ -513,16 +525,22 @@ static void on_add (long, long)
 			k = 0;
 		snprintf (name, sizeof name, "%s", (const char *) ui_w_get_text (dl.name));
 		snprintf (cid, sizeof cid, "%s", (const char *) ui_w_get_text (dl.cid));
+		snprintf (secret, sizeof secret, "%s", (const char *) ui_w_get_text (dl.secret));
 		snprintf (scope, sizeof scope, "%s", (const char *) ui_w_get_text (dl.scope));
 		ui_dialog_end (d);
 		ui_w_draw (0);
 		if (r != 1) {
-			name[0] = 0;
+			name[0] = secret[0] = 0;
 			return;
 		}
 		for (char *c = cid; *c; c++)	/* (un Client ID collé avec des blancs) */
 			if (*c == ' ' || *c == '\t')
 				memmove (c, c + 1, strlen (c)), c--;
+		for (char *c = secret; *c; c++)	/* (de même pour le code secret) */
+			if (*c == ' ' || *c == '\t')
+				memmove (c, c + 1, strlen (c)), c--;
+		if (strcmp (provs[k].id, "google"))
+			secret[0] = 0;
 		if (!name_ok (name)) {
 			ui_message ((long) TR ("Comptes en ligne"), (long) TR ("Le nom : 63 lettres, chiffres ou « . _ - / @ » au "
 				"plus, par exemple github ou gdrive/perso."), UM_OK);
@@ -531,9 +549,10 @@ static void on_add (long, long)
 		if (oauth_status ((long) name) != E_NOENT_ &&
 		    !ui_message ((long) TR ("Comptes en ligne"), (long) TR ("Ce compte existe déjà : le remplacer ?"), UM_YESNO))
 			continue;
-		char conf[700];
-		snprintf (conf, sizeof conf, "provider = %s\n%s%s%s%s%s%s", provs[k].id, cid[0] ? "client_id = " : "", cid,
-			  cid[0] ? "\n" : "", scope[0] ? "scope = " : "", scope, scope[0] ? "\n" : "");
+		char conf[1000];
+		snprintf (conf, sizeof conf, "provider = %s\n%s%s%s%s%s%s%s%s%s", provs[k].id, cid[0] ? "client_id = " : "", cid,
+			  cid[0] ? "\n" : "", secret[0] ? "client_secret = " : "", secret, secret[0] ? "\n" : "",
+			  scope[0] ? "scope = " : "", scope, scope[0] ? "\n" : "");
 		long sr = oauth_setup ((long) name, (long) conf);
 		if (sr < 0) {
 			fail (cid[0] || korin_client (provs[k].id) ? "Ce compte ne peut pas être ajouté"
@@ -544,7 +563,7 @@ static void on_add (long, long)
 	}
 	char acc[64];
 	snprintf (acc, sizeof acc, "%s", name);
-	name[0] = 0;
+	name[0] = secret[0] = 0;
 	load (acc);
 	connect_acc (acc, provs[k].id);
 }
