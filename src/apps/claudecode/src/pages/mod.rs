@@ -2,6 +2,8 @@
 
 pub mod background;
 pub mod extensions;
+pub mod extensions_tabs;
+pub mod form;
 pub mod new_session;
 pub mod overview;
 pub mod settings;

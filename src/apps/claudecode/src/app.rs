@@ -181,6 +181,10 @@ impl App {
         if r == self.route {
             return;
         }
+        // (la page Extensions rend la session qu'elle regardait)
+        if self.route == Route::Extensions {
+            self.extensions.leave(&self.be, &mut self.store);
+        }
         if let Some(old) = self.held.take() {
             self.store.release(&self.be, &old);
         }
