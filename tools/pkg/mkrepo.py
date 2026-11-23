@@ -204,8 +204,21 @@ def manifest_text (p, version, abi):
 	if merge: lines.append ("merge = " + " ".join (merge))
 	return "\n".join (lines) + "\n", needs, cfgfiles
 
+# les fichiers dont tools/secrets.py remplit les marques @NOM@ (docs/OAUTH.md) : une archive ne part jamais avec une
+# marque non remplie (23/11/2026 : pc 2026.11.94, construit sans ../korin-secrets.ini, avait perdu le client Google)
+SECRET_FILES = { "etc/oauth/providers.ini" }
+SECRET_MARK = re.compile (rb"@[A-Z][A-Z0-9_]*@")
+
 def write_opk (path, p, manifest):
 	"""Un ZIP deterministe : memes fichiers, memes octets."""
+	for f in p["files"]:
+		if f in SECRET_FILES:
+			with open (os.path.join (p["src"][f], f), "rb") as fh:
+				m = SECRET_MARK.findall (fh.read ())
+			if m:
+				raise SystemExit ("mkrepo : %s a des marques non remplies (%s) : ../korin-secrets.ini (ou KORIN_SECRETS) manque "
+					"a cette construction ; reprendre le fichier de l'archive publiee (pub.py : ne pas le mettre dans --only), "
+					"jamais celui de skel/ (docs/OAUTH.md)" % (f, ", ".join (sorted (set (x.decode () for x in m)))))
 	tmp = path + ".part"
 	with zipfile.ZipFile (tmp, "w", zipfile.ZIP_DEFLATED, compresslevel = 9, allowZip64 = True) as z:
 		def add (name, data):
