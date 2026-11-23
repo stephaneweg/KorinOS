@@ -79,6 +79,7 @@ long screen_switch(long width, long height)
 {
 	long ow = scr_w, oh = scr_h; /* taille d'avant */
 	present_wait(); /* le transfert en cours fini */
+	ov_reset(); /* (la vue d'ensemble se ferme, ses images sont rendues) */
 	long r = korin_sys3(SYS_WS_MODE, width, height, info);
 	if (r < 0 && r != E_IO)
 		return r;

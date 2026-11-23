@@ -108,6 +108,8 @@ int main(int argc, char **argv)
 		/* -> attente : 8 ms au plus pour la première requête (ou un signal), puis toutes
 		   celles en file */
 		long wait = frames_post();
+		if (ov_busy()) /* (une animation de la vue d'ensemble : l'image suivante tout de suite) */
+			wait = 1;
 		for (;;) {
 			long n = korin_sys2(SYS_WS_NEXT, msg, wait);
 			if (!n)

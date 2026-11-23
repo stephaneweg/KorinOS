@@ -1,0 +1,32 @@
+---
+name: armpi-vue-ensemble
+description: "Vue d'ensemble à la GNOME (23/11/2026) : Elegant overview.c, panel devenu dash WF_OVERVIEW, Korin OS bascule la vue, zone d'état -> /sys/quickmenu, molette horizontale du pavé"
+metadata:
+  type: project
+---
+
+Demande de l'utilisateur (23/11/2026, capture de GNOME/Fedora Workstation) : « retravailler le shell graphique comme
+GNOME ». Vue normale = barre de menus + fenêtres ; vue d'ensemble = bureaux en carrousel horizontal (~80 % de
+l'écran chacun, marge autour), molette pour passer d'un bureau à l'autre (défilement animé), clic pour activer ;
+le panel n'est plus pleine largeur et ne montre que épinglées + ouvertes + « Applications » (plus de sélecteur de
+bureaux, corbeille, réglages, éteindre). « Korin OS » bascule la vue ; clic sur la zone d'état (heure, batterie…)
+= popup de réglages rapides (réseau, son, éteindre). Puis : deux doigts de gauche à droite sur le pavé = défiler.
+
+Puis (même jour) : dash « flat » à coins plus petits ; « Applications » = grille à la GNOME avec catégories
+(WF_APPGRID 0x20000 : les bureaux montent en rangée en haut, la grille monte du bas, sur le fond gris de la vue ;
+launcher.c la_grid). L'utilisateur demande si « le tout animé grâce au GPU » est possible : tout est animé sur le
+processeur ; le GPU (GpuKit) reste l'étape suivante sur le Pi.
+
+Fait (branche claude/fervent-maxwell-aqm4e7) : `src/sys/elegant/overview.c` (WS_OP_OVERVIEW 42, WF_OVERVIEW
+0x10000, MINI_OVERVIEW 32, korin.shell.overview publié, Super seul dans desktop.c) ; `src/sys/panel/panel.c` réécrit
+en dash ; `src/sys/menubar/menubar.c` ; nouveau `src/sys/quickmenu` ; `EV_HWHEEL` = 5 (i2chid gesture.c, banc
+test/run.sh). Spécification : docs/DESIGN-ELEGANT.md § 6.0, 8.9 (encadré), 19.
+
+**Why:** l'utilisateur pensait qu'il faudrait le GPU pour composer la vue ; choix fait : processeur avec vignettes
+gardées (à l'arrêt et en défilement : des copies), mise à l'échelle au plus proche seulement pendant le zoom ;
+GpuKit = étape suivante si le zoom est lent sur le Pi (rien n'a été mesuré sur le vrai Pi).
+
+**How to apply:** essayé sous QEMU q35 (Korin PC, disque NVMe d'essai) seulement : build.ps1 du Pi est cassé sur
+main par l'asm (uikit.asm sans ui_menu_states/ui_frame_glyphs, WS_MENU_MAX ; svc/vfs)  ; reste à mesurer sur le Pi
+(1920x1080) et sur le ZBook (pavé tactile, deux doigts). Le menu Korin d'avant ne sert plus qu'en repli. L'asm
+d'Elegant/panel/menubar (selfhost) n'a pas la vue d'ensemble.

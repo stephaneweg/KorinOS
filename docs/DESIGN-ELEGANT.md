@@ -291,6 +291,24 @@ Fenêtre `WF_FRAMELESS | WF_TOP | WF_NOFOCUS | WF_RESERVE`, **plus `WF_ALPHA`**,
   * Survol d'un élément de la zone d'état : `boîte` rayon 5, `TJ_SUNKEN`, 4 px de marge.
 * **Clavier** : la touche Super seule (ou F10) ouvre le menu ARMPI ; flèches, Entrée, Échap.
 
+### 6.0 Depuis le 23/11/2026 : vue d'ensemble et réglages rapides
+
+* « Korin OS » ne déroule plus le menu Korin : il **bascule la vue d'ensemble** d'Elegant (§ 19),
+  avec la boîte `TJ_ACCENT_LIGHT` tant qu'elle est ouverte (`korin.shell.overview`). Le menu Korin
+  (6.1) ne sert plus qu'avec un Elegant qui n'a pas `WS_OP_OVERVIEW`.
+* **La zone d'état** (son, réseau, batterie, heure) est un seul bouton : au survol, une pilule de
+  verre (`glass_hover`) sur toute la zone ; un clic n'importe où dessus ouvre les **réglages
+  rapides** (`/sys/quickmenu`, 360 px, sous la barre, à droite ; un second clic les ferme) :
+  * en haut, la batterie (PC) ; deux boutons ronds de 38 px, Réglages (roue) et Éteindre (le
+    dialogue de fin de session ; glyphe au rouge du thème au survol) ;
+  * le volume de la sortie principale : haut-parleur (muet), curseur, valeur, flèche « › » vers le
+    volet des sorties (soundmenu) ;
+  * deux tuiles en pilule (56 px, pleines de l'accent quand actives) : **Réseau** (Wi-Fi et son
+    réseau, ou « Filaire » et l'adresse ; un clic : le menu Wi-Fi, sinon l'applet Wi-Fi des
+    réglages) et **Ne pas déranger** (`korin.notify.dnd`, gardé, le même que le volet rapide du mode
+    poche), qu'un clic bascule.
+* Le mode poche garde ses clics d'avant (compteur, heure, icônes une à une).
+
 ### 6.1 Contenu du menu ARMPI
 
 ```
@@ -550,6 +568,17 @@ Emulators (et Réglages, Paramètres, Émulateurs) : une catégorie que le fichi
 du fichier : les catégories par nom, terminal et files, 4 espaces.
 
 ### 8.9 Le panel (`sys/panel`, en verre depuis le 17/11/2026)
+
+> **Depuis le 23/11/2026, le panel est le dash de la vue d'ensemble** (§ 19), comme celui de GNOME :
+> rôle `WF_OVERVIEW` (caché dans la vue normale), sans `WF_RESERVE` ni `WF_BLUR` ; un bandeau
+> **flat** (demande de l'utilisateur : la teinte `TJ_DOCK` unie, translucide `0x30` en Givre, `0x28`
+> en Onyx Noir, sans dégradé, reflet ni ombre ; coins de 14/13/12 lissés), centré, à 14 px du bas,
+> de la largeur de son contenu (hauteur 68/62/56, emplacements de 60/54/48, icônes de 46/42/36 selon
+> l'échelle). Survol : la même teinte un peu plus marquée, boîte unie. Dedans : les raccourcis, les
+> applications ouvertes (un point sous chacune), un séparateur, « Applications » (la grille des
+> applications de la vue d'ensemble, § 19 ; allumé tant qu'elle est ouverte). Plus de bureaux (le carrousel), ni corbeille, presse-papiers, réglages ou éteindre (les
+> réglages rapides de la barre de menus, § 6.0). Le bouton d'alimentation du PC ouvre toujours le
+> dialogue d'extinction. Ce qui suit décrit la barre d'avant.
 
 Le panel (`src/sys/panel/panel.c`, commun au Pi et au PC ; `panel.asm` n'est plus copié sur la carte)
 remplace le dock depuis le 31/10. Revue du 17/11 (« fait encore un peu rétro ») : ce qui datait la
@@ -1022,3 +1051,100 @@ cartes de 240 × 190 (vignette 240 × 150 en proportion, icône 20, nom 14, ×),
 la plus récente d'abord, la choisie = l'app d'avant (la première si l'accueil est devant), anneau
 d'accent de 2 px. Tab et flèches : suivante ; Entrée, toucher : passer ; Suppr, × : fermer
 (`WS_OP_WIN_CLOSE`) ; Échap, toucher ailleurs : annuler ; glisser horizontal : défiler.
+
+## 19. Vue d'ensemble (`elegant/overview.c`, 23/11/2026)
+
+Demande de l'utilisateur : un bureau « comme GNOME » (Fedora Workstation récente). Deux vues :
+
+* **la vue normale** : la barre de menus globale (§ 6) et les fenêtres des applications ; plus de
+  barre en bas (le panel ne réserve plus le bas de l'écran : une fenêtre agrandie va jusqu'en bas) ;
+* **la vue d'ensemble** (« exposé ») : sur le fond d'écran flouté et assombri, les **bureaux en
+  carrousel horizontal** (environ 80 % de l'écran chacun, une marge autour, les voisins à moitié
+  visibles), les fenêtres de chaque bureau **en exposé** (côte à côte, sans se couvrir), et en bas
+  le **dash** (le panel, § 8.9 : les applications épinglées, celles qui tournent, « Applications »).
+
+**Ouvrir, fermer.** Le bouton « Korin OS » de la barre de menus (`WS_OP_OVERVIEW`, 42 : a -1
+basculer, 0 fermer, 1 ouvrir, 2 lire → 1 ouverte, 0 fermée), Super seul (`dk_key` du mode
+desktop). Elle se ferme sur Échap, Entrée, un clic sur le fond, un second clic sur « Korin OS »,
+Super, et dès qu'une application ouvre une fenêtre normale ou qu'une fenêtre est ramenée
+(`WS_OP_RAISE` : un clic dans le dash). L'état est publié sur le bus, `korin.shell.overview` = 1 / 0
+(gardé) : la barre de menus allume « Korin OS » tant qu'elle est ouverte. Pas en mode poche
+(`E_INVAL`).
+
+**Dans la vue.** La molette fait défiler le carrousel d'un bureau (animé, 260 ms) ; sur le pavé
+tactile, **deux doigts de gauche à droite** aussi (molette horizontale, ci-dessous). Flèches gauche
+et droite : de même. Un clic sur le bureau du milieu l'active (retour à la vue normale sur lui) ;
+sur un voisin, le centre ; sur une fenêtre, active son bureau et la ramène devant (réduite
+comprise : la vue montre aussi les fenêtres réduites). Une fenêtre **glissée** sur un autre
+bureau y passe. Survol : un anneau clair autour de la fenêtre (ou du bureau). Les barres, le dash,
+les menus et les volets sans cadre (`ov_top` : couches 2 et 4, sans cadre, pas en plein écran)
+restent au-dessus et répondent normalement ; le clavier va à un menu ou à un volet qui a le focus
+(les réglages rapides), sinon la vue le prend (Échap, flèches, Entrée).
+
+**Animation.** À l'ouverture (280 ms, « ease out » cubique), le bureau courant se réduit de tout
+l'écran à sa place dans le carrousel, chaque fenêtre glisse de sa place réelle à sa place dans
+l'exposé, les voisins entrent par les côtés, le dash monte du bas ; la fermeture (240 ms) fait
+l'inverse vers le bureau choisi (une fenêtre réduite part du bas de l'écran). La boucle
+d'Elegant n'attend plus que 1 ms entre deux images pendant une animation (`ov_busy`).
+
+**Fenêtres concernées.** Le carrousel montre les fenêtres de la couche normale (et les
+« toujours au-dessus » à cadre, sur le bureau courant) ; la couche du fond (voronoy, applets) fait
+le fond de chaque bureau ; une fenêtre plein écran (jeu) n'y est pas (le dash la ramène).
+`WF_OVERVIEW` (0x10000) : une fenêtre montrée **seulement** pendant la vue (le dash) ; hors de la
+vue elle a `MINI_OVERVIEW` (32), comme `WF_APPGRID`.
+
+**Exposé.** Par bureau, les fenêtres triées par leur centre (de haut en bas), réparties en 1 à n
+rangées (autant par rangée), chaque essai donnant l'échelle qui tient dans le bureau (marge 5 %,
+écart 1/40 de sa largeur) ; la meilleure est gardée, plafonnée à l'échelle du bureau (une fenêtre
+n'est jamais plus grande que dans la miniature). Rangées centrées, fenêtres triées de gauche à
+droite dans leur rangée. Refait quand une fenêtre s'ouvre, se ferme, bouge, change de taille ou de
+bureau (empreinte à chaque tour).
+
+**Rendu (processeur).** Le coût est payé à l'ouverture, pas à chaque image :
+
+* le fond (couche du fond) composé une fois en pleine taille ; on en tire le fond de la vue (réduit
+  au seizième, flou de boîte, assombri à 112/256, agrandi en bilinéaire) et la vignette d'un bureau
+  (réduite par moyenne de blocs, coins de 16 px lissés). Fond et fond flouté sont gardés d'une
+  ouverture à l'autre tant que la couche du fond ne change pas (empreinte des générations) ;
+* chaque fenêtre est composée hors écran par le chemin ordinaire (`draw_framed` : contenu, surface
+  attachée — Jet, vidéo, GL —, widgets par-dessus, boutons du cadre ; le tampon arrière et le clip
+  redirigés, comme `surf_read_over`), coins arrondis, puis réduite par moyenne de blocs (couleurs
+  pondérées par l'opacité) à sa taille dans l'exposé ; refaite quand son contenu change
+  (générations `gen`, `cgen`), au plus toutes les 120 ms, une par tour ;
+* à l'arrêt et pendant le défilement du carrousel, une image n'est que des copies de ces vignettes
+  (et le fond flouté) ; ombres (10 px sous les fenêtres, 14 sous les bureaux) et anneaux de survol
+  sont calculés au pixel près, seulement dans leur bande ;
+* pendant le zoom, les bureaux et les fenêtres sont mis à l'échelle au plus proche depuis les images
+  pleine taille (gardées pour le bureau animé, 128 Mo au plus ; sinon la vignette agrandie) ;
+* tout ce qui ne sert qu'à la vue (images des fenêtres, vignettes) est rendu à sa fermeture ; un
+  changement de résolution la ferme sans animation (`ov_reset`).
+
+**Le GPU.** Pas nécessaire à ce régime : à l'arrêt et en défilement, ce ne sont que des copies que
+le Pi fait déjà pour composer l'écran. La mise à l'échelle des animations (au plus proche, sur le
+processeur) est la place d'un chemin GpuKit à venir sur le Pi (une texture par fenêtre, mise à jour
+par `gk_texture_rect` aux changements, des quads filtrés en bilinéaire) ; le PC n'a pas encore de
+chemin GPU pour Elegant. À mesurer sur le Pi d'abord (`OV_OPEN_MS` sur un écran 1920 × 1080).
+
+**La grille des applications** (« Applications » du dash, comme GNOME ; 23/11/2026). Le lanceur du
+panel (`launcher.c`, `la_grid`) ouvre une fenêtre `WF_APPGRID` (0x20000 : `WF_FRAMELESS | WF_TOP |
+WF_NOLIST | WF_ALPHA`, ni rideau ni capture) **transparente**, posée sur le fond gris de la vue : la
+recherche centrée en haut, les catégories en **pilules** sur une ligne (« Récentes », « Toutes », puis
+les catégories qui ont des applications ; la choisie dans un voile clair), une grande grille d'icônes
+(cases de 136 × 120, icônes de 60 ; 118 × 104 et 48 en petite échelle ; 8 colonnes au plus, centrée ;
+la molette la fait défiler). Tant qu'une telle fenêtre existe, Elegant passe en mode « applications »
+(`ov_q`, 300 ms, « ease out ») : **les bureaux se réduisent et montent en une rangée en haut** (13 % de
+la hauteur de l'écran chacun, centrés ; le bureau courant cerclé) pendant que **la grille monte du bas** ;
+elle fermée, l'inverse. Un clic sur un bureau de la rangée l'active (retour à la vue normale) ; sur le
+vide de la grille, Échap, ou un second clic sur « Applications » : retour au carrousel ; une
+application choisie s'ouvre et referme la vue. Pendant la grille, le dash répond toujours (le panel
+relaie ses événements : `la_other`). Une fenêtre `WF_APPGRID` créée hors de la vue l'ouvre.
+
+**Molette horizontale.** Nouvel événement des pilotes, `EV_HWHEEL` (5 ; +8 crans, vers la gauche
+> 0, comme la molette vers le haut) : i2chid (le pavé tactile du PC) le donne pour deux doigts qui
+glissent de gauche à droite — le sens du geste (vertical ou horizontal) est décidé au début, après
+la moitié d'un cran, puis ne change plus ; « natural » s'applique comme à la verticale.
+hidmanager le passe tel quel. Elegant ne s'en sert que dans la vue d'ensemble (`ov_hwheel`) : un
+bureau après 4 crans d'un même geste (≈ 12 mm), puis un de plus tous les 10 (≈ 30 mm) ; un geste
+finit après 250 ms sans cran. Hors de la vue, l'événement est ignoré (pas encore de `WEV` pour les
+applications). Essai sans matériel : `src/svc/i2chid/test/run.sh` (« deux doigts vers la gauche »).
+Les souris USB à molette inclinable (Consumer AC Pan) ne le donnent pas encore.
