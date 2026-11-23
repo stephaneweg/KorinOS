@@ -31,7 +31,7 @@ mod dev;
 fn main() {
     let ctx = egui::Context::default();
     let mut app = app::App::new(&ctx, Box::new(|| egui_korin::system_theme() == egui::Theme::Dark));
-    let mut options = egui_korin::Options::new("Claude Code").size(1280, 820);
+    let mut options = egui_korin::Options::new("Claude Code").size(1180, 760);
     options.min_size = Some([860, 540]);
     let trace = std::env::var_os("CLAUDECODE_TRACE").is_some();
     let mut n = 0u32;

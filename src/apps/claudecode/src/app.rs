@@ -120,7 +120,8 @@ impl App {
         if trace {
             eprintln!("claudecode : prêt");
         }
-        let t = Tokens::for_dark(system_dark());
+        // (pas de thème du système ici : sous Korin, UIKit n'est ouvert qu'avec la fenêtre ; un appel avant = saut à 0)
+        let t = Tokens::for_dark(true);
         App {
             store,
             ui: UiState::default(),
