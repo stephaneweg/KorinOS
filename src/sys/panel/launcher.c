@@ -47,6 +47,7 @@ static long la_w_box;
 static long la_geom[3];      /* y, largeur, hauteur de la fenêtre */
 static long la_cx, la_cy, la_cw, la_ch; /* la feuille */
 static long la_gx, la_gw;    /* recherche et grille : x, largeur, */
+static long la_grid_x;       /* (la_grid) x de la grille (la recherche a le sien) */
 static long la_by;           /* haut de la recherche */
 static long la_row = LA_ROW_H; /* pas du rail */
 static long la_cols = 1, la_rows = 1; /* grille : colonnes, rangées, */
@@ -64,6 +65,14 @@ static long la_tab_hover = -1;
 static long la_press = -1;   /* case de l'appui */
 static long la_bar_drag;
 static u8 la_tab[LA_MAXTABS];
+/* style « grille de la vue d'ensemble » (la_grid, 23/11/2026) : la fenêtre WF_APPGRID est transparente
+ * sur le fond gris de la vue d'Elegant ; la recherche centrée en haut, les catégories en pilules sur une
+ * ligne, une grande grille d'icônes ; un clic ailleurs, Échap : retour aux bureaux */
+long la_grid;
+static long la_tx[LA_MAXTABS], la_tw[LA_MAXTABS]; /* (la_grid) les pilules : x, largeur */
+static long la_ty;           /* (la_grid) haut des pilules */
+#define LA_PILL_H 32
+#define LA_GRID_MAXC 8
 static u8 la_res[AP_MAX];
 static char la_q[LA_NORM];
 static char la_t[LA_NORM];
@@ -127,13 +136,69 @@ static void la_cats(void)
 	la_ntab = n;
 }
 
+static const char *la_cat_name(long c);
+
+/* (la_grid) la disposition : la fenêtre entre la rangée des bureaux d'Elegant (13 % de l'écran, en haut,
+ * overview.c) et le dash ; la recherche, les pilules, la grille, centrées */
+static void la_grid_metrics(void)
+{
+	long W = scr[SCR_W], H = scr[SCR_H];
+	long y0 = scr[SCR_TOP] + H * 2 / 100 + 6 + H * 13 / 100 + 14;
+	la_geom[0] = y0;
+	la_geom[1] = W;
+	la_geom[2] = H - la_bottom - y0;
+	la_cx = 0;
+	la_cy = 0;
+	la_cw = W;
+	la_ch = la_geom[2];
+	long bw = W - 80 < 460 ? W - 80 : 460; /* la recherche */
+	la_gx = (W - bw) / 2;
+	la_gw = bw;
+	la_by = 4;
+	la_ty = la_by + LA_BOX_H + 14; /* les pilules, centrées */
+	long total = 0;
+	for (long t = 0; t < la_ntab; t++) {
+		la_tw[t] = ui_text_width((long)la_cat_name(la_tab[t]), LA_TAB_PX, (long)ui.font_b) + 28;
+		total += la_tw[t] + 8;
+	}
+	total -= 8;
+	long x = (W - total) / 2;
+	if (x < 8)
+		x = 8;
+	for (long t = 0; t < la_ntab; t++) {
+		la_tx[t] = x;
+		x += la_tw[t] + 8;
+	}
+	long s = ui_scale(); /* la grille : grandes cases, 8 colonnes au plus */
+	long cw = s == 2 ? 118 : 136, ch = s == 2 ? 104 : 120;
+	la_icon = s == 2 ? 48 : 60;
+	long cols = (W - 80) / cw;
+	if (cols > LA_GRID_MAXC)
+		cols = LA_GRID_MAXC;
+	if (cols < 1)
+		cols = 1;
+	la_cols = cols;
+	la_cellw = cw;
+	la_cellh = ch;
+	long gx = (W - cols * cw) / 2;
+	la_gy = la_ty + LA_PILL_H + 22;
+	long rows = (la_ch - la_gy - 8) / ch;
+	la_rows = rows < 1 ? 1 : rows;
+	/* (la_gx et la_gw servent à la recherche : la grille garde son x dans la_grid_x) */
+	la_grid_x = gx;
+}
+
 /* la disposition : fenêtre, feuille, rail, recherche, grille (calculs non signés, comme
  * l'asm) */
 static void la_metrics(void)
 {
 	ui_screen((long)scr); /* (la barre du haut a pu venir après nous) */
+	if (la_grid) {
+		la_grid_metrics();
+		return;
+	}
 	u64 w = (u64)scr[SCR_W];
-	u64 h = (u64)(scr[SCR_H] - scr[SCR_TOP] - scr[SCR_BOTTOM]);
+	u64 h = (u64)(scr[SCR_H] - scr[SCR_TOP] - scr[SCR_BOTTOM] - la_bottom);
 	la_geom[0] = scr[SCR_TOP]; /* y, largeur, hauteur de la fenêtre */
 	la_geom[1] = (long)w;
 	la_geom[2] = (long)h;
@@ -270,6 +335,18 @@ static void la_scroll_to(long r)
 	la_draw();
 }
 
+/* (la_grid) l'encre sur le fond de la vue d'ensemble (sombre : le fond d'écran assombri par Elegant) */
+static u32 la_grid_ink(void)
+{
+	return (u32)ui_ink(0x00303236);
+}
+
+/* (la_grid) boîte arrondie d'un voile clair (l'encre, transparence t) sur le fond transparent */
+static void la_soft_box(long x, long y, long w, long h, long r, u32 t)
+{
+	ui_rbox(x, y, w, h, r, (la_grid_ink() & 0xFFFFFF) | t << 24, (la_grid_ink() & 0xFFFFFF) | t << 24);
+}
+
 /* x0, x1 = numéro dans la_res, 1 : montrer tout de suite */
 static void la_cell_draw(long i, long show)
 {
@@ -282,12 +359,19 @@ static void la_cell_draw(long i, long show)
 		return;
 	long cw = la_cellw, ch = la_cellh;
 	long y = r * ch + la_gy;
-	long x = c * cw + la_gx;
+	long x = c * cw + (la_grid ? la_grid_x : la_gx);
 	long app = la_res[i];
-	ui_fill(x, y, cw, ch, tok(TJ_FACE));
-	if (la_hover == i || la_sel == i) { /* survol, sélection */
-		u32 hi = (u32)ui_mix(tok(TJ_FACE), tok(TJ_LINE), 128);
-		ui_rbox(x + LA_HI_X, y + LA_HI_Y, cw - 2 * LA_HI_X, ch - 2 * LA_HI_Y, LA_HI_R, hi, hi);
+	u32 ink = la_grid ? la_grid_ink() : tok(TJ_TEXT1);
+	if (la_grid) { /* sur le fond de la vue : transparent, survol d'un voile clair */
+		ui_fill(x, y, cw, ch, 0xFF000000);
+		if (la_hover == i || la_sel == i)
+			la_soft_box(x + LA_HI_X, y + LA_HI_Y, cw - 2 * LA_HI_X, ch - 2 * LA_HI_Y, 14, 0xD8);
+	} else {
+		ui_fill(x, y, cw, ch, tok(TJ_FACE));
+		if (la_hover == i || la_sel == i) { /* survol, sélection */
+			u32 hi = (u32)ui_mix(tok(TJ_FACE), tok(TJ_LINE), 128);
+			ui_rbox(x + LA_HI_X, y + LA_HI_Y, cw - 2 * LA_HI_X, ch - 2 * LA_HI_Y, LA_HI_R, hi, hi);
+		}
 	}
 	long ic = la_icon;
 	ui_icon((long)ap_nom[app], x + (long)((u64)(cw - ic) >> 1), y + LA_ICON_Y, ic);
@@ -296,7 +380,7 @@ static void la_cell_draw(long i, long show)
 	u64 maxw = (u64)(cw - (2 * LA_HI_X + 4));
 	if (tw > maxw)
 		tw = maxw;
-	ui_text_fit((long)label, x + (long)((u64)(cw - (long)tw) >> 1), y + ic + LA_ICON_Y + 16, tok(TJ_TEXT1),
+	ui_text_fit((long)label, x + (long)((u64)(cw - (long)tw) >> 1), y + ic + LA_ICON_Y + 16, ink,
 		    LA_LBL_PX, (long)ui.font, (long)maxw);
 	if (show)
 		ui_update(x, y, cw, ch);
@@ -395,6 +479,14 @@ static void la_bar_set(long y)
 /* point -> onglet (-1 : aucun) */
 static long la_tab_at(long x, long y)
 {
+	if (la_grid) {
+		if (y < la_ty || y >= la_ty + LA_PILL_H)
+			return -1;
+		for (long t = 0; t < la_ntab; t++)
+			if (x >= la_tx[t] && x < la_tx[t] + la_tw[t])
+				return t;
+		return -1;
+	}
 	if ((u64)(x - (la_cx + LA_RAIL_M)) >= LA_RAIL_W)
 		return -1;
 	u64 t = (u64)(y - (la_cy + LA_RAIL_M + LA_RAIL_IN)) / (u64)la_row;
@@ -406,7 +498,7 @@ static long la_tab_at(long x, long y)
 /* point -> application dessous, numéro dans la_res (-1 : aucune) */
 static long la_cell_at(long x, long y)
 {
-	long dx = x - la_gx;
+	long dx = x - (la_grid ? la_grid_x : la_gx);
 	if (dx < 0)
 		return -1;
 	long dy = y - la_gy;
@@ -427,6 +519,20 @@ static long la_cell_at(long x, long y)
 /* onglet, 1 : montrer tout de suite */
 static void la_tab_draw(long t, long show)
 {
+	if (la_grid) { /* une pilule : la choisie pleine du voile clair, les autres au survol */
+		long x = la_tx[t], y = la_ty, w = la_tw[t], h = LA_PILL_H;
+		ui_fill(x, y, w, h, 0xFF000000);
+		if (la_cur == t)
+			la_soft_box(x, y, w, h, h / 2, la_zone == 2 ? 0x70 : 0xA0);
+		else if (la_tab_hover == t)
+			la_soft_box(x, y, w, h, h / 2, 0xD0);
+		long sel = la_cur == t;
+		ui_text_fit((long)la_cat_name(la_tab[t]), x + 14, y + h / 2 + 5, la_grid_ink(), LA_TAB_PX,
+			    (long)(sel ? ui.font_b : ui.font), w - 20);
+		if (show)
+			ui_update(x, y, w, h);
+		return;
+	}
 	long x = la_cx + LA_RAIL_M + LA_ROW_X;
 	long y = la_cy + LA_RAIL_M + LA_RAIL_IN + t * la_row;
 	long h = la_row - 4; /* hauteur de la boîte */
@@ -494,6 +600,23 @@ static long la_w_event(void)
 static void la_draw(void)
 {
 	ui_fill(0, 0, la_geom[1], la_geom[2], 0xFF000000); /* hors de la feuille : transparent */
+	if (la_grid) { /* (la grille de la vue d'ensemble : sans feuille, sur le fond de la vue) */
+		la_box_at(la_gx, la_by, la_gw);
+		for (long t = 0; t < la_ntab; t++)
+			la_tab_draw(t, 0);
+		for (long i = 0; i < la_n; i++)
+			la_cell_draw(i, 0);
+		if (!la_n) {
+			const char *s = lang_tr("Aucune application");
+			long tw = ui_text_width((long)s, 14, (long)ui.font);
+			ui_text((long)s, (la_geom[1] - tw) / 2, la_gy + 40, la_grid_ink(), 14, (long)ui.font, 0);
+		}
+		la_clip_field();
+		ui_w_draw(0);
+		la_clip_off();
+		ui_update_all();
+		return;
+	}
 	long x = la_cx, y = la_cy, w = la_cw, h = la_ch;
 	u32 c = tok(TJ_LINE_STRONG); /* la feuille : contour, face */
 	ui_rbox(x, y, w, h, LA_SHEET_R, c, c);
@@ -695,7 +818,12 @@ static int la_mouse(long *pick)
 		u64 dx = (u64)(x - la_cx), dy = (u64)(y - la_cy);
 		if (dx >= (u64)la_cw || dy >= (u64)la_ch) /* hors de la feuille : ferme */
 			return 1;
-		if (dx >= (u64)(la_cw - LA_PAD) && y >= la_gy) { /* barre de défilement */
+		if (la_grid) { /* ni la recherche, ni une pilule, ni une icône : retour aux bureaux */
+			long in_box = x >= la_gx && x < la_gx + la_gw && y >= la_by && y < la_by + LA_BOX_H;
+			if (!in_box && la_tab_at(x, y) < 0 && la_cell_at(x, y) < 0)
+				return 1;
+		}
+		if (!la_grid && dx >= (u64)(la_cw - LA_PAD) && y >= la_gy) { /* barre de défilement */
 			la_bar_drag = 1;
 			la_bar_set(y);
 		} else {
@@ -729,7 +857,8 @@ void launcher(void)
 	la_cats();
 	la_metrics();
 	la_prev = ui.win; /* (la fenêtre d'avant, rendue à la fin) */
-	la_win = ui_window_ex(0, la_geom[0], la_geom[1], la_geom[2], (long)lang_tr("Applications"), LA_WFLAGS);
+	la_win = ui_window_ex(0, la_geom[0], la_geom[1], la_geom[2], (long)lang_tr("Applications"),
+			      la_grid ? LA_GRID_WFLAGS : LA_WFLAGS);
 	if (la_win < 0)
 		return;
 	/* la recherche, le clavier dessus */
@@ -751,8 +880,20 @@ void launcher(void)
 			screen_todo = 1;
 			break;
 		}
-		if ((long)*(u32 *)(ui.ev + EV_WIN) != la_win)
-			continue; /* (le panel attend) */
+		if ((long)*(u32 *)(ui.ev + EV_WIN) != la_win) {
+			if (!la_grid)
+				continue; /* (le panel attend) */
+			/* (la grille de la vue d'ensemble n'a pas la souris pour elle seule : le dash répond ;
+			   la vue fermée par Elegant, la grille aussi) */
+			ui_window_use(la_prev);
+			long close = la_other();
+			ui_window_use(la_win);
+			if (close)
+				break;
+			continue;
+		}
+		if (la_grid && t == WEV_FOCUS && !*(u32 *)(ui.ev + EV_KIND))
+			break; /* (une application a pris le clavier) */
 		if (t == WEV_MOUSE) {
 			if (la_mouse(&pick))
 				break;

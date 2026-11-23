@@ -436,6 +436,10 @@ void compose(void)
  * vers l'avant), barres et menus, curseur */
 void compose_clip(void)
 {
+	if (ov_on) { /* la vue d'ensemble (overview.c) : la sienne, puis le curseur */
+		ov_compose_clip();
+		goto cursor;
+	}
 	struct win *cover = surf_cover(); /* une surface couvre la zone : rien dessous */
 	if (!cover)
 		policy->back();
@@ -466,6 +470,7 @@ void compose_clip(void)
 		}
 	}
 	policy->front();
+cursor:;
 	long cx, cy, cw, ch; /* le curseur (et l'image d'un glisser), s'il touche la zone */
 	cursor_box(&cx, &cy, &cw, &ch);
 	if (cx >= clip_r.x1 || cy >= clip_r.y1 || cx + cw <= clip_r.x0 || cy + ch <= clip_r.y0)
@@ -672,6 +677,8 @@ void in_event(const u8 *in)
 		cur_mods = (long)IN64(in, 24); /* (modificateurs : aussi pour la souris) */
 		if (policy->key(in)) /* touches du mode (poche : Super, Alt+Tab, F11...), avant l'app */
 			return;
+		if (ov_on && ov_key(in)) /* la vue d'ensemble : Échap, flèches (le reste avalé) */
+			return;
 		u64 code = IN64(in, 8); /* F10 : tout recomposer ; F11 : état d'Elegant (diagnostic) */
 		if (code == 0x43) {
 			if (IN64(in, 16))
@@ -698,6 +705,8 @@ void in_event(const u8 *in)
 		return;
 	}
 	if (type == IN_WHEEL) { /* molette : comme le clavier */
+		if (ov_on && !find_grab() && ov_wheel((long)IN64(in, 8))) /* (la vue d'ensemble : le carrousel) */
+			return;
 		struct win *t = key_target();
 		if (!t)
 			return;
@@ -705,6 +714,11 @@ void in_event(const u8 *in)
 		M32(evbuf, EV_TYPE) = WEV_WHEEL;
 		M32(evbuf, 12) = (u32)IN64(in, 8);
 		win_push(t, evbuf);
+		return;
+	}
+	if (type == IN_HWHEEL) { /* molette horizontale : seulement le carrousel de la vue d'ensemble */
+		if (ov_on && !find_grab())
+			ov_hwheel((long)IN64(in, 8));
 		return;
 	}
 	if (type == 17) { /* EV_PAD (inc/pad.inc) : manette, comme le clavier */
@@ -898,6 +912,9 @@ void mouse(long x, long y, long buttons)
 		drag_drop(x, y); /* glisser-déposer : la fenêtre dessous */
 		return;
 	}
+	/* --- la vue d'ensemble : ce qui n'est ni une barre, ni le dash, ni un menu */
+	if (ov_on && ov_mouse(x, y, down, up))
+		return;
 	if (!down) { /* survol : le mode, puis le contenu sous le pointeur (fenêtre active, ou sans
 			focus : dock, barre de menus) */
 		if (policy->hover(x, y))
@@ -994,6 +1011,8 @@ struct win *win_hit(long x, long y, long *zone)
 		for (long i = win_count; i;) {
 			struct win *w = win_z[--i];
 			if (w->mini || win_layer(w) != layer)
+				continue;
+			if (ov_on && !ov_top(w)) /* (la vue d'ensemble : les bureaux sont à elle) */
 				continue;
 			long ox, oy, ow, oh;
 			win_outer(w, &ox, &oy, &ow, &oh);
@@ -1155,6 +1174,7 @@ void win_unlink(struct win *w)
 void win_destroy(struct win *w)
 {
 	policy->gone(w); /* (le mode : avant qu'elle parte) */
+	ov_gone(w); /* (sa vignette dans la vue d'ensemble) */
 	if (lock_win == w)
 		pointer_unlock();
 	win_unlink(w);
@@ -1305,6 +1325,7 @@ void req_handle(long n)
 	case WS_OP_WIN_DRAG: r = req_win_drag(); break;
 	case WS_OP_MINIMIZE: r = req_minimize(); break;
 	case WS_OP_WIN_THUMB: r = req_win_thumb(); break; /* vignette (snapshot.c) */
+	case WS_OP_OVERVIEW: r = req_overview(); break; /* vue d'ensemble (overview.c) */
 	case WS_OP_EXIT: /* fin d'un process : ses fenêtres (le noyau n'attend pas de réponse) */
 		req_exit((long)M64(msg, WM_A));
 		return;
@@ -1369,7 +1390,8 @@ long req_create(void)
 	w->dmg = (u64 *)(va + ((content + 2 * frame + 7) & ~7ULL));
 	w->framep = 0;
 	w->flags = role;
-	w->mini = 0;
+	w->mini = ((role & (WF_OVERVIEW | WF_APPGRID)) && !ov_on) ? MINI_OVERVIEW : 0; /* (le dash, la grille :
+										   seulement dans la vue) */
 	w->desk = role & (WF_BACK | WF_TOP) ? 0 : (u64)desk_cur + 1; /* sur l'espace courant ; fond et
 									  dessus : sur tous */
 	w->mlen = 0; /* pas de menu */
@@ -1422,6 +1444,10 @@ long req_create(void)
 	if ((role & WF_CURTAIN) || curtain_on) /* rideau ouvert : la nouvelle dessous */
 		curtain_apply();
 	policy->place(w); /* le mode la place (poche : plein écran) */
+	if (ov_on && win_layer(w) == 1) /* une application s'ouvre : retour à la vue normale */
+		ov_close(desk_cur, w);
+	if ((role & WF_APPGRID) && !ov_on) /* la grille des applications : dans la vue d'ensemble */
+		ov_open();
 	M64(msg, WM_A) = (u64)buf;
 	M64(msg, WM_B) = frame ? content : 0;
 	M64(msg, WM_C) = frame ? content + frame : 0;
@@ -1508,9 +1534,13 @@ long req_raise(void)
 	struct win *w = win_by_id(M64(msg, WM_A), -1);
 	if (!w)
 		return E_BADF;
+	if (ov_on) { /* (la vue d'ensemble : on revient, sur son bureau, elle devant) */
+		ov_close(w->desk ? (long)w->desk - 1 : -1, w);
+		return 0;
+	}
 	if (w->mini & MINI_OFFDESK) /* sur un autre espace : on y va */
 		desk_show((long)w->desk - 1);
-	w->mini = 0;
+	w->mini &= (u64)MINI_OVERVIEW; /* (le dash reste caché hors de la vue) */
 	struct win *b = win_blocker(w); /* (bloquée : son dialogue vient devant) */
 	win_raise(b ? b : w);
 	policy->raise(w); /* (le mode : poche, l'accueil s'efface) */

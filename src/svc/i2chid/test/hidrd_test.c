@@ -273,6 +273,21 @@ static void gestures(const char *name)
 	printf("  %s : deux doigts vers le bas -> molette %+ld, pointeur %ld\n", name, w,
 	       sum_type(GEV_MOUSE_REL, 0) + sum_type(GEV_MOUSE_REL, 1));
 	CHECK(w > 0 && clicks(0) + clicks(1) == 0, "défilement : %ld", w);
+	CHECK(sum_type(GEV_HWHEEL, 0) == 0, "défilement vertical : molette horizontale %ld", sum_type(GEV_HWHEEL, 0));
+
+	/* deux doigts vers la gauche de 40 % : molette horizontale (naturel : vers la droite, < 0), pas de
+	   molette verticale (le sens est décidé au début du geste) */
+	nev = 0;
+	t += 500;
+	for (int k = 0; k <= 20; k++, t += 10) {
+		int c[2][3] = {{7, cx + xr / 4 - xr * k / 50, cy + k}, {8, cx + xr / 4 + xr / 8 - xr * k / 50, cy - yr / 8 + k}};
+		feed(c, 2, 0, t);
+	}
+	feed(0, 0, 0, t += 10);
+	long hw = sum_type(GEV_HWHEEL, 0);
+	printf("  %s : deux doigts vers la gauche -> molette horizontale %+ld, verticale %+ld\n", name, hw,
+	       sum_type(GEV_WHEEL, 0));
+	CHECK(hw < 0 && sum_type(GEV_WHEEL, 0) == 0 && clicks(0) + clicks(1) == 0, "défilement horizontal : %ld", hw);
 
 	/* double toucher : un toucher, puis le doigt reposé aussitôt et glissé : glisser bouton appuyé */
 	nev = 0;
