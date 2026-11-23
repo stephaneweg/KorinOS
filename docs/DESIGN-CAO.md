@@ -63,7 +63,7 @@ de la chaîne `tools/icons`.
 | Historique | Frise en bas, barre de reconstruction, rouge et jaune | Historique optionnel | **La frise de 3DForge et de Fusion**, barre glissée, étapes en erreur, clic droit | Validée par l'utilisateur ; Fusion montre que ça marche |
 | Esquisse | Contraintes, bleu/noir, glyphes | Contraintes déduites, peu de glyphes | **Contraintes visibles (Fusion) + déduites pendant le tracé (Shapr3D)**, degrés de liberté toujours dits, conflit désigné | PlaneGCS donne les DDL et la liste des contraintes en conflit : on les montre |
 | Congé | Flèche, chaîne tangente, variable | Flèche, très direct | **Flèche + chaîne tangente au double-clic**, rayon variable plus tard (flèche faite le 23/11, forge 1.3.9 : §15.11) | OCCT le permet sur toute arête |
-| Pousser/tirer | Commande Q à part | Le geste principal | **Q, et l'action en tête du panneau** quand une face est choisie ; opération auto | Le geste le plus rapide pour modifier une pièce |
+| Pousser/tirer | Commande Q à part | Le geste principal | **Q, et l'action en tête du panneau** quand une face est choisie ; opération auto ; une poignée à tirer (23/11, forge 1.3.10 : §15.11) | Le geste le plus rapide pour modifier une pièce |
 | Erreurs | Étape en rouge, message dans une fenêtre | Message court | **Champ rouge + arêtes rouges + bandeau avec la valeur possible** ; étape rouge et cause en clair dans le panneau | Dire quoi faire, pas seulement que ça a échoué |
 | Petits écrans | — | iPad : panneaux qui se replient | **Un volet à la fois** à 800 × 600 : panneau en tiroir, barre sans légendes | Le Pi doit rester utilisable |
 | Fabrication | Très complet, très dense | Aucune | **Celle de 3DForge** (brut, 27 origines, ébauche, contour, G-code vérifié), plus le procédé (fraisage, résine, filament) | Validée et déjà écrite (`fcam.h`, `fprint.h`, `ffdm.h`) |
@@ -816,6 +816,22 @@ pose la cote et ouvre sa saisie. Pas essayé sur le ZBook ni sur le Pi.
   barre d'état dit « Glisser la poignée pour le rayon ». Un congé ou un chanfrein dont OCCT rend une forme non valide
   (trop grand : faces retournées) est maintenant refusé au rejeu (`BRepCheck_Analyzer`, comme `filletMax`). La
   modification d'une étape depuis la frise passe par les champs du panneau, sans poignée.
+* **Les poignées de Pousser/tirer, de l'extrusion, de la hauteur de Boîte et Cylindre** (23/11/2026, forge 1.3.10,
+  demande de l'utilisateur : « on doit glisser la poignée », plus de valeur qui suit le pointeur). La même poignée que
+  le congé (même dessin, survol, rouge, liseré, pas selon le zoom borné par l'accrochage, aperçu par lot, code commun
+  dans main.cpp : `handlePlace` pose l'axe selon la commande, `handleChip` est la puce réglée), posée :
+  * Pousser/tirer : au centre de la face (centre de masse de ses triangles ; s'il tombe dans un trou, le centre du
+    triangle de la face le plus proche : `pushAnchor`), le long de sa normale ; valeur positive : tirer, négative :
+    pousser (la flèche suit le sens) ;
+  * extrusion : au centre de l'esquisse, le long de la normale de son plan, dans les deux sens ;
+  * Boîte et Cylindre : à l'étape de la hauteur, au centre de la base, le long de la normale du plan de la base ; le
+    disque est au centre de la face du haut ; négative : on creuse (comme avant). La base se trace comme avant.
+
+  La valeur ne change **que** pendant qu'on tire la poignée (jamais zéro : un pas de part et d'autre) ; le pointeur
+  qui passe ne fait rien. La frappe déplace la poignée. **Un clic hors de la poignée ne valide plus** : Entrée ou OK
+  valide, Échap annule la commande (comme avant) ; la barre d'état le rappelle. Pousser/tirer : un clic sur une autre
+  face plane la prend (la distance est gardée). La révolution (l'angle tapé) garde son clic qui valide. Le MCP ne
+  passe pas par les gestes : inchangé.
 * **Perçage** (H, Créer > Perçage). Un clic sur une face plane pose le premier trou, au demi-mm. Maj+clic en
   ajoute. Les valeurs : le diamètre et la profondeur (0 : traversant). Le lamage reste dans le modèle (Ø et
   profondeur), modifiable depuis la frise.

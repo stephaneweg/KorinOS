@@ -1,6 +1,6 @@
 ---
 name: armpi-cao
-description: CAO native Forge (successeur de 3DForge) sur OCCT + PlaneGCS ; historique des étapes 0-4, MCP, perspective (1.3.8), poignée du congé (1.3.9, 23/11)
+description: CAO native Forge (successeur de 3DForge) sur OCCT + PlaneGCS ; historique des étapes 0-4, MCP, perspective (1.3.8), poignée du congé (1.3.9, 23/11), poignées de Pousser/Boîte/Cylindre (1.3.10)
 metadata:
   type: project
 ---
@@ -126,3 +126,14 @@ erreur (avant, R 13 sur la plaque de 8 mm passait, faces retournées). View::Dot
 une étape depuis la frise : pas de poignée (autre chemin : champs du panneau). Selftest 44/44 sous Linux (8 essais :
 axe, saillante/rentrante, glisser persp/ortho, trop grand, frappe, volumes) ; KORIN_SCRIPT : `wheel:x,y,0` = un
 survol. Korin pas construit ni essayé ici.
+
+**23/11, forge 1.3.10 (pas publié, branche claude/forge-handles)** : demande de l'utilisateur : une poignée à glisser
+(plus de valeur qui suit le pointeur) pour Pousser/tirer (dès la face choisie), l'extrusion (même chemin) et la
+hauteur de Boîte et Cylindre. Code de la poignée du congé rendu commun (main.cpp : handleStage/handleOn,
+handlePlace pose hAt/hDir par commande, handleChip = puce réglée, handleSigned = valeurs ± jamais 0, flèche dans le
+sens de la valeur ; pushAnchor : centre de masse des triangles de la face, sinon centre du triangle le plus proche ;
+Cmd::hFace). Un clic hors de la poignée ne valide plus (Entrée/OK ; Pousser : clic sur une autre face = changer de
+face, distance gardée) ; Échap inchangé ; révolution inchangée ; alongNormal retiré. Selftest 53/53 sous Linux
+(9 essais : pointeur seul sans effet, glisser persp/ortho, volumes exacts, frappe, changement de face, Échap).
+Piège d'essai KORIN_SCRIPT : le vrai pointeur sur la fenêtre envoie ses mouvements (survol juste avant chaque clic).
+Korin pas construit ni essayé ici.
