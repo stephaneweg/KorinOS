@@ -49,3 +49,4 @@ Icônes (23/11, sur main) : iconlib STYLE = 'adwaita' (plaque à épaisseur, apl
 @icon(free=True) pour les objets libres (files, control, calculator, clock, calendar, corbeille). Suite proposée :
 redessiner en objets ce qui s'y prête, icônes Adwaita de dossiers/types dans Fichiers. Écran de connexion façon
 Fedora (login.c plein écran, couche normale ; quickmenu « L… » sans Réglages).
+Clé live : `installkey.py build ... --pkg jet` installe un paquet publié (index du PC, SHA-256 vérifié, fiche var/pkg/db) ; cache build/pc/pkgcache.
