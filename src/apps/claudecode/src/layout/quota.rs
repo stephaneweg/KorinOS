@@ -16,6 +16,8 @@ pub struct Quota {
     loading: bool,
     task: Option<crate::backend::Task<Result<(), String>>>,
     error: Option<String>,
+    /// sans session vivante : le dernier relevé gardé par le moteur (relu au plus toutes les 30 s)
+    saved: Option<(std::time::Instant, Option<ccui_shared::api::SavedLimits>)>,
 }
 
 /// Une ligne : nom, barre, pourcentage.
@@ -45,7 +47,17 @@ impl Quota {
                 self.error = Some(t!("Quota.ReadFailed", e));
             }
         }
-        let Some(l) = cx.app.summary.limits.clone() else { return };
+        // les limites d'une session vivante ; sinon le dernier relevé, comme la vue d'ensemble
+        let (l, saved_at) = match cx.app.summary.limits.clone() {
+            Some(l) => (l, None),
+            None => {
+                if self.saved.as_ref().is_none_or(|(at, _)| at.elapsed() > std::time::Duration::from_secs(30)) {
+                    self.saved = Some((std::time::Instant::now(), ccui_core::session_manager::SessionManager::last_limits()));
+                }
+                let Some(s) = self.saved.as_ref().and_then(|(_, s)| s.clone()) else { return };
+                (s.limits, Some(s.at))
+            }
+        };
         let src = cx.app.summary.usage_source.clone();
         let u = src.as_ref().map(|s| s.usage.clone());
         let has_process = src.as_ref().is_some_and(|s| s.has_process);
@@ -60,6 +72,9 @@ impl Quota {
         .on_hover_text(&hint);
         bar_row(ui, &t, &t!("Quota.FiveHours"), l.five_hour);
         bar_row(ui, &t, &t!("Quota.SevenDays"), l.seven_day);
+        if let Some(at) = saved_at {
+            ui.label(RichText::new(t!("Ov.AsOf", fmt::age(at, chrono::Utc::now()))).font(theme::mono(theme::CAPTION)).color(t.text_faint));
+        }
         for m in u.as_ref().map(|u| u.models.clone()).unwrap_or_default() {
             bar_row(ui, &t, &m.name, m.pct);
         }

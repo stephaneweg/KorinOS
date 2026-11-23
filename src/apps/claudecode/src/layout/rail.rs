@@ -194,7 +194,9 @@ impl Rail {
             if self
                 .action(ui, &t, "branch", &t!("Nav.Worktrees"), None, on(&Route::Worktrees), false, |ui| {
                     if let Some(n) = wt {
-                        widgets::tag(ui, &t, &t!("Rail.ToClean", n)).on_hover_text(t!("Rail.ToCleanHelp"));
+                        // (le nombre seul, comme Arrière-plan et Extensions : la phrase entière ne tient pas dans le rail)
+                        widgets::pill(ui, &t, &n.to_string(), Tone::Neutral)
+                            .on_hover_text(format!("{}\n{}", t!("Rail.ToClean", n), t!("Rail.ToCleanHelp")));
                     }
                 })
                 .clicked()
