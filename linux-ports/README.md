@@ -222,6 +222,12 @@ dans `~/.config/korin-ports/settings.ini`). Pour un lancement : `--soundfont x.s
   poignée (Pousser 5 -> 25 mm, Boîte 10 -> 28,5 mm, Cylindre 10 -> 25,5 mm), Entrée (`dump:` : le corps ajouté).
   Le vrai pointeur posé sur la fenêtre envoie aussi ses mouvements pendant un script : un survol juste avant chaque
   clic (même instant) garde le geste voulu.
+- Forge 1.3.11 (23/11, l'esquisse visible dans la vue, le bouton Extrusion, les régions à extruder, le mode au
+  clavier) : le selftest passe (70 vérifications) ; scripts sur un `.forge` (un rectangle percé d'un cercle et une
+  boîte) : l'esquisse se voit à l'ouverture, `wact:<id>` sur le bouton Extrusion de la barre (un `click:` de script
+  ne touche pas les boutons GTK), survol et clic dans le disque puis dans le rectangle (« 1 sur 2 », l'aperçu suit),
+  Alt+E (`key:0x08:4`, aperçu rouge), Alt+I (ambre), Alt+N, Entrée : le cylindre seul, l'esquisse alors cachée ;
+  une esquisse posée sur une face se voit sur la face (cachée par ce qui est devant).
 
 - TerraCube (23/11) : `bin/terracube --selftest` passe (73 vérifications : protocole, MCP dont la capture, console,
   survie, fabrication, circuits, liquides, créatures, sauvegarde et relecture, image rendue) sur le GPU NVIDIA (EGL
