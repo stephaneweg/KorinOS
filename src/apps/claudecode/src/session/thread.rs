@@ -227,7 +227,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx, st: &mut ThreadState, id: &str) {
     // du nouveau pendant qu'on est remonté : le bouton pour redescendre
     let seen = (h.version, h.stream.len());
     if seen != st.seen_version {
-        if !st.at_bottom {
+        if !st.at_bottom && st.seen_version != (0, 0) {
             st.unseen = true;
         }
         st.seen_version = seen;
