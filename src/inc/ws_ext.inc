@@ -163,6 +163,7 @@ WS_OP_SESSION_END	= 41		; (init2 seul, uid 0) la session est fermee : l'ecran de
 WF_OVERVIEW		= 65536		; role : montree seulement dans la vue d'ensemble
 WF_APPGRID		= 131072	; role : la grille des applications de la vue d'ensemble (les bureaux
 					; montent en rangee en haut, elle monte du bas)
-WS_OP_OVERVIEW		= 42		; a -1 basculer, 0 fermer, 1 ouvrir, 2 lire -> 1 ouverte / 0 fermee
+WS_OP_OVERVIEW		= 42		; a -1 basculer, 0 fermer, 1 ouvrir, 2 lire -> 1 ouverte / 0 fermee ;
+					; 3 / 4 : le bureau passe en vue d'ensemble / au bureau classique -> 0
 WS_DRAG_IMG_W		= 256		; (Elegant coupe le rectangle a cette taille)
 WS_DRAG_IMG_H		= 160

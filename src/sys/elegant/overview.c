@@ -45,7 +45,7 @@
 #define OV_MAXW 4096
 
 long ov_on; /* non nul : la vue d'ensemble a l'écran (ouverture, ouverte, fermeture) */
-long ov_enabled; /* desktop=overview (system.ini) : la vue existe ; sinon le bureau classique */
+long ov_enabled; /* la vue existe (défaut) ; desktop=classic (system.ini) : le bureau classique */
 
 static long ov_state; /* 1 ouverture, 2 ouverte, 3 fermeture */
 static long ov_p = OV_ONE;     /* avancement du zoom (0 : vue normale, OV_ONE : vue d'ensemble) */
@@ -1251,9 +1251,19 @@ void ov_gone(struct win *w)
 		}
 }
 
-/* WS_OP_OVERVIEW : a -1 basculer, 0 fermer, 1 ouvrir, 2 lire -> 1 ouverte / 0 fermée */
+/* WS_OP_OVERVIEW : a -1 basculer, 0 fermer, 1 ouvrir, 2 lire -> 1 ouverte / 0 fermée ; 3 le bureau passe en vue
+ * d'ensemble, 4 au bureau classique (les Réglages, sans redémarrer ; system.ini est écrit par eux) -> 0 */
 long req_overview(void)
 {
+	long m = MS64(msg, WM_A);
+	if ((m == 3 || m == 4) && !(policy->flags & POLF_POCKET)) {
+		if (m == 4 && ov_on) /* (la vue ouverte : fermée tout de suite) */
+			ov_reset();
+		ov_enabled = m == 3;
+		wins_changed(); /* (la barre de menus relit le mode) */
+		dirty_all();
+		return 0;
+	}
 	if ((policy->flags & POLF_POCKET) || !ov_enabled) /* (le bureau classique : pas de vue d'ensemble) */
 		return E_INVAL;
 	long a = MS64(msg, WM_A);

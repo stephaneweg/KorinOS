@@ -31,7 +31,9 @@ extern long la_bottom;
 extern long la_grid;     /* 1 : le lanceur en grille de la vue d'ensemble */
 /* (la_grid) un événement pour une autre fenêtre du programme (le dash), la sienne courante -> 1 : fermer la
  * grille ; fourni par le programme */
-long la_other(void);   /* place laissée en bas de l'écran sous le lanceur (le dash), en plus du réservé */
+long la_other(void);
+/* (panel.c) le bureau a changé de genre : un panel neuf, celui-ci s'arrête */
+void panel_respawn(void);   /* place laissée en bas de l'écran sous le lanceur (le dash), en plus du réservé */
 
 /* le lanceur, jusqu'à ce qu'il se ferme ; une application choisie est lancée (ou sa fenêtre
  * ramenée) */

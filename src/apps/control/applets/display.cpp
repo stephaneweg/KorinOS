@@ -77,7 +77,9 @@ static const char ec_s_desktop_d[] = "Fen\xC3\xAAtres, panel en bas";
 static const char ec_s_overview_d[] = "Bureaux en carrousel, dash";
 static const char ec_s_pocket_d[] = "Plein \xC3\xA9" "cran, tactile";
 static const char ec_s_size[] = "Taille des contr\xC3\xB4les";
-static const char ec_s_warn[] = "Changer d'interface red\xC3\xA9marre. Les apps ouvertes sont ferm\xC3\xA9" "es.";
+static const char ec_s_warn[] = "Passer en Poche, ou en revenir, red\xC3\xA9marre : les apps ouvertes sont ferm\xC3\xA9" "es.";
+static const char ec_s_apply[] = "Appliquer";
+static const char ec_s_applied[] = "Le bureau a chang\xC3\xA9.";
 static const char ec_s_relaunch[] = "Appliquer et relancer";
 static const char ec_s_reboot[] = "Red\xC3\xA9marrage...";
 static const char ec_s_failed[] = "init2 ne r\xC3\xA9pond pas : red\xC3\xA9marrez \xC3\xA0 la main.";
@@ -101,6 +103,10 @@ static long ec_cx[3];				/* leurs x */
 static WsMsg ec_msg;
 
 /* op, a, b, c -> résultat (réponse dans ec_msg) */
+#ifndef WS_OP_OVERVIEW
+#define WS_OP_OVERVIEW 42	/* (ws_ext.inc) 3 : vue d'ensemble, 4 : bureau classique */
+#endif
+
 static long ec_call (long op, long a, long b, long c)
 {
 	ec_msg.op = op;
@@ -212,7 +218,7 @@ static void ec_ini_sys (char *key, char *val, void *)
 	if (!strcmp (key, "shell"))
 		ec_sys_pocket = !strcmp (val, "poche");
 	if (!strcmp (key, "desktop"))
-		ec_sys_ov = !strcmp (val, "overview");
+		ec_sys_ov = strcmp (val, "classic") != 0;	/* (la vue d'ensemble par défaut) */
 }
 
 /* (ini_read de theme.txt) */
@@ -346,7 +352,8 @@ static void ec_draw (void)
 	if (ec_w_seg)				/* (par-dessus le fond du volet) */
 		ui_w_draw (ec_w_seg);
 	ui_text ((long) TR (ec_s_warn), x + 2, EC_WARN_Y, tok (TJ_TEXT2), 13, F (), w);	/* l'avertissement, le bouton */
-	ui_button (x, EC_BTN_Y, EC_BTN_W, EC_BTN_H, (long) TR (ec_s_relaunch), ec_shell != ec_choice);	/* principal si
+	long live = ec_shell != 2 && ec_choice != 2;	/* (bureau classique <-> vue d'ensemble : sans redémarrer) */
+	ui_button (x, EC_BTN_Y, EC_BTN_W, EC_BTN_H, (long) TR (live ? ec_s_apply : ec_s_relaunch), ec_shell != ec_choice);	/* principal si
 												 * le mode change */
 }
 
@@ -357,6 +364,16 @@ static void ec_relaunch (void)
 	{
 		ec_dens_read = ui_w_get_value (ec_w_seg) == 1;
 		ec_dens_write ();
+	}
+	if (ec_shell != 2 && ec_choice != 2)	/* bureau classique <-> vue d'ensemble : tout de suite, sans redémarrer */
+	{
+		const char *v = ec_choice ? "overview" : "classic";
+		ini_set (P_SYSTEM, "desktop", v);
+		ec_call (WS_OP_OVERVIEW, ec_choice ? 3 : 4, 0, 0);	/* Elegant d'abord (synchrone), */
+		bus_publish ((long) "korin.shell.desktop", (long) v, -1, BUS_RETAIN);	/* puis le panel se relance */
+		ec_shell = ec_choice;
+		ap.msg = ec_s_applied;
+		return;
 	}
 	ini_set (P_SYSTEM, "shell", ec_choice == 2 ? "poche" : "desktop");	/* le mode */
 	if (ec_choice < 2)			/* le genre du bureau (Elegant, le panel, la barre de menus) */
@@ -410,7 +427,8 @@ static void ec_close (void)
 /* (ouverture) l'état des fichiers, la liste Normale | Tactile, le dessin et les clics de la section */
 static void ec_if_open (void)
 {
-	ec_sys_pocket = ec_sys_ov = 0;
+	ec_sys_pocket = 0;
+	ec_sys_ov = 1;				/* (sans clé : la vue d'ensemble) */
 	ini_read (P_SYSTEM, ec_ini_sys);	/* shell = poche ? desktop = overview ? */
 	ec_shell = ec_sys_pocket ? 2 : ec_sys_ov ? 1 : 0;
 	ec_dens_read = display_density_file ();	/* density = touch ? */

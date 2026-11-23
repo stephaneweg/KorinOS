@@ -1066,8 +1066,12 @@ Demande de l'utilisateur : un bureau « comme GNOME » (Fedora Workstation réce
 
 **Le choix du mode** (23/11/2026, demande de l'utilisateur) : `desktop = classic | overview` dans
 `/etc/system.ini` (avec `shell=desktop`), choisi dans Réglages > Écran > Interface (trois cartes : Bureau
-classique, Vue d'ensemble, Poche ; « Appliquer et relancer » redémarre). **Le bureau classique est le défaut** :
-le panel d'avant (`panel_classic.c` : barre pleine largeur, bureaux, corbeille, réglages, éteindre), le menu
+classique, Vue d'ensemble, Poche). **La vue d'ensemble est le défaut** (sans clé). Entre bureau classique et vue
+d'ensemble, « Appliquer » change tout de suite, sans redémarrer : les Réglages écrivent `desktop=`, préviennent
+Elegant (`WS_OP_OVERVIEW` a = 3 vue d'ensemble, 4 bureau classique ; synchrone), puis publient
+`korin.shell.desktop` (gardé) : le panel lance un `/sys/panel` neuf, qui prend l'autre forme, et s'arrête ; la
+barre de menus relit le mode au changement de la liste des fenêtres. Passer en Poche, ou en revenir, redémarre
+toujours. En bureau classique : le panel d'avant (`panel_classic.c` : barre pleine largeur, bureaux, corbeille, réglages, éteindre), le menu
 Korin, les clics icône par icône de la zone d'état, Super laissé aux applications ; `WS_OP_OVERVIEW` y répond
 `E_INVAL`, et c'est ainsi que le panel et la barre de menus savent le mode. La clé live peut fixer le sien
 (`installkey.py build --desktop overview`). Le glissement entre bureaux (Ctrl+Alt+flèches) vaut pour les deux.

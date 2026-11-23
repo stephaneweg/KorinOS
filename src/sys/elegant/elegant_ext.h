@@ -71,7 +71,7 @@ long pk_owns(const struct win *w);   /* mode poche : sa place est tenue par Eleg
 /* ---- overview.c : la vue d'ensemble (mode desktop) */
 
 extern long ov_on;        /* non nul : la vue a l'écran (ouverture, ouverte, fermeture) */
-extern long ov_enabled;   /* desktop=overview de /etc/system.ini (sinon le bureau classique : pas de vue) */
+extern long ov_enabled;   /* la vue d'ensemble existe (défaut) ; desktop=classic de /etc/system.ini : le bureau classique */
 void ov_open(void);
 void ov_close(long desk, struct win *w); /* bureau (-1 : celui du milieu), fenêtre à ramener */
 void ov_toggle(void);

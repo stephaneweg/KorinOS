@@ -1,4 +1,4 @@
-/* panel_classic.c : le panel du bureau classique (desktop=classic de /etc/system.ini, le défaut ;
+/* panel_classic.c : le panel du bureau classique (desktop=classic de /etc/system.ini ;
  * panel.c le lance quand Elegant n'a pas de vue d'ensemble), tel qu'il était avant le dash du
  * 23/11/2026. La barre du bureau Elegant (/sys/panel, lancé par la session), à la place du
  * dock (sys/dock, conservé, n'est plus lancé). Traduit de panel.asm.
@@ -627,6 +627,7 @@ int classic_main(void)
 	draw();
 	/* le bouton d'alimentation du PC (acpid, docs/etude/BATTERIE-PC.md) : le même dialogue que le nôtre */
 	long power_sub = bus_subscribe((long)"korin.power.button", 0);
+	long mode_sub = bus_subscribe((long)"korin.shell.desktop", 0); /* (les Réglages changent le bureau) */
 	say("panel : bureau prêt\n"); /* au journal, avec son heure : le repère du démarrage (docs/BOOT.md) */
 	for (;;) {
 		long t = ui_event(1000);
@@ -653,6 +654,8 @@ int classic_main(void)
 		if (t == WEV_BUS) {
 			if (power_sub > 0 && *(u32 *)(ui.ev + BEV_SUB) == (u32)power_sub)
 				ksys(SYS_SPAWN, (long)"/sys/shutdown", 0, 0, 0, 0, 0);
+			if (mode_sub > 0 && *(u32 *)(ui.ev + BEV_SUB) == (u32)mode_sub)
+				panel_respawn(); /* (panel.c) */
 			continue;
 		}
 		if (t != WEV_MOUSE)
