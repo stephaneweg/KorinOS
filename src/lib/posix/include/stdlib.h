@@ -17,6 +17,12 @@
 
 #include_next <stdlib.h>
 
+/* alloca : newlib ne la déclare pas en mode strict (-std=c++17, -std=c11) ; glibc, si, dès _GNU_SOURCE ou
+ * _DEFAULT_SOURCE (OpenColorIO, pour Blender, s'y attend). */
+#if defined(__STRICT_ANSI__) && (defined(_GNU_SOURCE) || defined(_DEFAULT_SOURCE) || defined(_BSD_SOURCE))
+#include <alloca.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

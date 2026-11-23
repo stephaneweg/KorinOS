@@ -24,6 +24,7 @@ TOOL=${KORIN_TOOLCHAINS:-/opt/toolchains}/$ARCH-onyx-elf-14.2
 TC=$TOOL/bin/$ARCH-onyx-elf-
 POSIX=${POSIX:-$ROOT/build/pc/posix}
 VKINC=${VKINC:-$ROOT/build/pc/mesa/include}	# en-têtes Vulkan de VkKit (vulkan_korin.h)
+JET=${KORIN_JET_SYSROOT:-$HOME/korin-webkit-x86_64/sysroot}	# zlib, png, jpeg, webp, freetype… de Jet
 n=$(nproc 2>/dev/null || echo 4)
 [ "$n" -le 4 ] || n=4
 JOBS=${JOBS:-$n}
@@ -37,8 +38,13 @@ JPEG"
 # cmake_korin <source> <obj> [options…] : configure, construit et installe dans $DEPS une dépendance CMake.
 cmake_korin() {
 	_s=$1; _o=$2; shift 2
-	ARCH=$ARCH KORIN_POSIX=$POSIX cmake -S "$_s" -B "$_o" -G Ninja \
-		-DCMAKE_TOOLCHAIN_FILE="$BL/korin.cmake" -DCMAKE_BUILD_TYPE=Release \
-		-DCMAKE_INSTALL_PREFIX="$DEPS" -DCMAKE_PREFIX_PATH="$DEPS" "$@" &&
-	ninja -C "$_o" -j "$JOBS" && ninja -C "$_o" install
+	KORIN_POSIX=$POSIX KORIN_BLENDER_DEPS=$DEPS cmake -S "$_s" -B "$_o" -G Ninja \
+		-DCMAKE_TOOLCHAIN_FILE="$BL/korin.cmake" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+		-DCMAKE_INSTALL_PREFIX="$DEPS" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_PREFIX_PATH="$DEPS" \
+		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -Wno-dev "$@" &&
+	if [ -n "$TARGETS" ]; then	# seulement ces cibles, sans « install » (l'appelant installe)
+		ninja -C "$_o" -j "$JOBS" $TARGETS
+	else
+		ninja -C "$_o" -j "$JOBS" && ninja -C "$_o" install
+	fi
 }
