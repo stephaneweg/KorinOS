@@ -27,3 +27,4 @@ Libre = Free
 Remonter = Remount
 Actualiser = Refresh
 Ouvrir = Open
+Réseau = Network
