@@ -64,6 +64,9 @@ static const char t_net[] = "korin.net.*";
 static const char t_bat[] = "korin.power.battery";
 static const char p_control[] = "/apps/control.app/main";
 static const char p_shutdown[] = "/sys/shutdown";
+/* (lancé par l'écran de connexion, argument « L… » : pas de Réglages ni de Paramètres Wi-Fi, root n'a pas de session ;
+ * Éteindre pose d'abord la marque de l'arrêt, pour qu'Elegant n'ouvre pas la session quand login tombe) */
+static int at_login;
 static const char p_soundmenu[] = "/sys/soundmenu";
 
 static struct krt_ui ui;
@@ -205,6 +208,8 @@ static void wifi_card(void)
 	ui_text((long)"Wi-Fi", PADX + 52, y + 31, tj(TJ_TEXT1), 16, (long)ui.font_b, 0);
 	ui_text((long)wl_state_text(), PADX + 112, y + 30, tj(TJ_TEXT3), 12, (long)ui.font, QW - 2 * PADX - 124);
 	long ly = wl_draw(y + WF_HEAD) + 4;
+	if (at_login) /* (pas de Réglages à l'écran de connexion) */
+		return;
 	ui_fill(PADX + 12, ly, QW - 2 * PADX - 24, 1, tj(TJ_LINE));
 	wl_hit_add(PADX, ly + 2, QW - 2 * PADX, WF_FOOT - 6, 3, 0);
 	ui_text((long)tr(s_wf_param), PADX + 16, ly + 24, tj(TJ_TEXT1), 13, (long)ui.font, 0);
@@ -327,7 +332,8 @@ static void draw(void)
 		}
 		ui_text((long)line, PADX + 4, TOP_Y + 24, tj(TJ_TEXT1), 13, (long)ui.font_b, 200);
 	}
-	round_btn(QW - PADX - 2 * RB - 10, TOP_Y, "glyph-gear", H_GEAR, 0);
+	if (!at_login)
+		round_btn(QW - PADX - 2 * RB - 10, TOP_Y, "glyph-gear", H_GEAR, 0);
 	round_btn(QW - PADX - RB, TOP_Y, "glyph-power", H_POWER, 1);
 	/* le volume */
 	const u8 *o = main_out();
@@ -366,7 +372,7 @@ static void draw(void)
 static long hit(long x, long y)
 {
 	if (y >= TOP_Y && y < TOP_Y + RB) {
-		if (x >= QW - PADX - 2 * RB - 10 && x < QW - PADX - RB - 10)
+		if (!at_login && x >= QW - PADX - 2 * RB - 10 && x < QW - PADX - RB - 10)
 			return H_GEAR;
 		if (x >= QW - PADX - RB && x < QW - PADX)
 			return H_POWER;
@@ -406,6 +412,11 @@ static long click(long x, long y)
 		spawn(p_control, 0);
 		return 1;
 	case H_POWER:
+		if (at_login) {
+			long fd = sys_open("/tmp/login.halt", O_WRITE | O_CREATE | O_TRUNC);
+			if (fd >= 0)
+				sys_close(fd);
+		}
 		spawn(p_shutdown, 0);
 		return 1;
 	case H_SPEAKER: {
@@ -437,6 +448,8 @@ static long click(long x, long y)
 			draw();
 			return 0;
 		}
+		if (at_login)
+			return 0;
 		spawn(p_control, "wifi");
 		return 1;
 	case H_DND:
@@ -448,6 +461,8 @@ static long click(long x, long y)
 	if (wifi_open && y >= QH - 20) { /* la carte Wi-Fi : un réseau, Se connecter, Paramètres Wi-Fi… */
 		long a, r = wl_click(x, y, &a);
 		if (r == 3) {
+			if (at_login)
+				return 0;
 			spawn(p_control, "wifi");
 			return 1;
 		}
@@ -479,6 +494,8 @@ int main(int argc, char **argv)
 	ui_init((long)&ui);
 	dash_palette();
 	ui_screen((long)scr);
+	if (arg && *arg == 'L')
+		at_login = 1, arg++;
 	long right = arg && *arg ? (long)parse_dec(arg) : scr[0];
 	long x = right - QW + 4;
 	if (x > scr[0] - QW - 2)
@@ -486,7 +503,7 @@ int main(int argc, char **argv)
 	if (x < 2)
 		x = 2;
 	win_x = x;
-	win_y = scr[3] + 2;
+	win_y = at_login ? 38 : scr[3] + 2; /* (l'écran de connexion : sous sa zone d'état, il n'y a pas de barre) */
 	st = (const u8 *)ak_state();
 	snd_changed();
 	net_read();

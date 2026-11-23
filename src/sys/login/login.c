@@ -1,18 +1,17 @@
-/* login : l'écran de connexion (docs/DESIGN-CONNEXION.md, variante A « la carte », sans barre de menus ; maquettes
- * docs/maquettes/connexion/a-fenetree.html A1, A2, A3, A4, A6 ; étape 6 de docs/etude/MULTI-UTILISATEUR.md).
- * Lancé par Elegant (uid 0) avant la session, sur le fond à facettes ; il écrit le compte ouvert dans
- * /tmp/session.ini (« uid = N ») puis se termine : Elegant lance alors la session sous ce compte.
+/* login : l'écran de connexion (docs/DESIGN-CONNEXION.md ; étape 6 de docs/etude/MULTI-UTILISATEUR.md). Lancé par
+ * Elegant (uid 0) avant la session ; il écrit le compte ouvert dans /tmp/session.ini (« uid = N ») puis se termine :
+ * Elegant lance alors la session sous ce compte.
  *
  *   - rien à demander, rien à montrer : « autologin = nom » (/etc/system.ini), ou un seul compte sans mot de passe ;
- *   - la carte (400 px, rayon 12, jeton RAISED) : en-tête « Ouvrir une session », le nom de la machine, l'heure et
- *     la date ; les comptes (disque d'initiale de 32 coloré par l'uid, nom affiché, « Administrateur », « Compte
- *     standard » ou « Sans mot de passe ») ; le compte choisi dans un bloc ACCENT_LIGHT avec son champ (32 px,
- *     l'œil tenu montre le mot de passe, la flèche ACCENT = Entrée), ou le bouton « Ouvrir la session » sans mot de
- *     passe ; le pied : clavier (code de keyb=), accessibilité (plus tard), réseau, alimentation (menu) ;
- *   - un seul compte (A4) : carte de 320, l'heure en grand, le disque de 64, le nom, le champ ;
- *   - clavier d'abord : le champ a le focus, ↑ ↓ changent de compte, Entrée ouvre, Échap vide le champ ;
- *   - mauvais mot de passe : « Mot de passe incorrect. Réessayez. » en DANGER, le champ vidé, la flèche grisée une
- *     seconde (authd attend aussi) ; pas de blocage du compte.
+ *   - depuis le 23/11/2026, comme celui de Fedora (GNOME) : tout l'écran, sans cadre, le fond sombre de la vue
+ *     d'ensemble ; la liste des comptes (disque d'initiale de 48 coloré par l'uid, nom) ; un clic, ou Entrée, montre
+ *     le compte en grand (disque de 96, nom, champ du mot de passe : l'œil tenu le montre, la flèche = Entrée ; un
+ *     compte sans mot de passe : « Ouvrir la session ») et, à gauche du champ, un bouton rond qui revient à la liste
+ *     (Échap aussi, champ vide) ; un seul compte : directement en grand ; en haut au milieu la date et l'heure, à
+ *     droite la zone d'état (réseau, son, alimentation) qui ouvre les réglages rapides sans Réglages (/sys/quickmenu
+ *     « L… ») ; en bas au milieu « Korin OS » ;
+ *   - mauvais mot de passe : « Mot de passe incorrect. Réessayez. » en rouge, le champ vidé (authd attend aussi) ;
+ *     pas de blocage du compte.
  * authd vérifie le mot de passe (AUTH_VERIFY) : login ne lit jamais /etc/shadow.ini. */
 #include "sys_consts.h"
 #include "uikit_import.h"
@@ -24,10 +23,6 @@
 #define M64(m, off) (*(u64 *)((u8 *)(m) + (off)))
 #define M32(m, off) (*(u32 *)((u8 *)(m) + (off)))
 #define TR(s) ((const char *)ui_tr((long)(s)))
-#define SH 4 /* l'ombre autour de la carte (ui_shadow) */
-#define PAD 20
-#define ROW 48
-#define FIELD 32
 #define HID_ENTER 0x28
 #define HID_ESC 0x29
 #define HID_BACK 0x2A
@@ -49,7 +44,7 @@ static int nacc, sel;
 static char autologin[32], machine[48] = "Korin OS", keyb[8] = "FR";
 static char pw[128];
 static int pwlen, show_pw, err, busy;
-static long cw, ch, scr[4], wx, wy; /* taille de la carte, l'écran, la place de la fenêtre */
+static long scr[4]; /* l'écran */
 static char buf[8192];
 
 static u32 tok(int off)
@@ -261,144 +256,185 @@ static void avatar(const struct acc *a, long x, long y, long d)
 	ui_text((long)ini, x + (d - tw) / 2, y + d / 2 + px * 3 / 8, 0x00FFFFFF, px, (long)ui.font_b, 0);
 }
 
-static const char *role(const struct acc *a)
+/* ---- l'écran (23/11/2026, demande de l'utilisateur : « comme le login de Fedora ») : plein écran, sans cadre, le
+ * fond gris sombre de la vue d'ensemble ; la liste des comptes au milieu, un clic sur l'un l'agrandit (disque de 96, le
+ * nom, le champ du mot de passe, à gauche un bouton rond pour revenir à la liste) ; en haut au milieu la date et
+ * l'heure, à droite la zone d'état (réseau, son, alimentation) qui ouvre les réglages rapides (/sys/quickmenu « L… » :
+ * sans Réglages, on n'est pas encore authentifié) ; en bas au milieu le nom du système. */
+#define BG 0x002A2B2D /* (le fond de la vue d'ensemble : le fond d'écran flouté et assombri, ≈ uni) */
+#define INK 0x00FFFFFF
+#define DIM 0x00B9BBBF
+#define BOX 0x003B3D40 /* (survol, champ, bouton retour : la teinte du dash) */
+#define BOX_HI 0x00484A4E
+#define ERR 0x00FF7B72
+#define TOP_H 34
+#define ROW_H 68
+#define LIST_W 340
+#define BIG 96
+#define FIELD_W 300
+#define FIELD_H 40
+#define BACK_D 40
+
+static int prompt;   /* 0 : la liste des comptes ; 1 : le compte choisi, son mot de passe */
+static int hov = -1; /* sous le pointeur : un compte (0..), ou HV_* */
+enum { HV_TRAY = 100, HV_BACK, HV_GO, HV_EYE, HV_OPEN };
+static long tray_x, list_y, fx, fy, back_x; /* (posés au dessin) */
+
+/* le haut : la date et l'heure au milieu, la zone d'état à droite */
+static void draw_top(void)
 {
-	if (!a->haspw)
-		return TR("Sans mot de passe");
-	return TR(a->admin ? "Administrateur" : "Compte standard");
+	long W = ui.w;
+	ui_fill(0, 0, W, TOP_H, BG);
+	char h[8], d[48];
+	d[0] = 0;
+	heure(h, d);
+	str_cat(str_cat(d + str_len(d), "  "), h); /* (str_cat écrit à l'adresse donnée et rend la fin) */
+	long tw = ui_text_width((long)d, 14, (long)ui.font_b);
+	ui_text((long)d, (W - tw) / 2, 22, INK, 14, (long)ui.font_b, 0);
+	/* la zone d'état : réseau, son, alimentation, dans une pilule au survol */
+	long tw2 = 3 * 26 + 12;
+	tray_x = W - 8 - tw2;
+	if (hov == HV_TRAY)
+		ui_rbox(tray_x, 4, tw2, TOP_H - 8, (TOP_H - 8) / 2, BOX_HI, BOX_HI);
+	long gx = tray_x + 8;
+	ui_glyph((long)"glyph-tb-network", gx, 9, 16, INK);
+	gx += 26; /* le haut-parleur : un corps, un pavillon, deux ondes */
+	ui_fill(gx + 1, 15, 4, 6, INK);
+	for (long i = 0; i < 5; i++)
+		ui_fill(gx + 5 + i, 15 - i, 1, 6 + 2 * i, INK);
+	ui_fill(gx + 12, 14, 2, 8, INK);
+	ui_fill(gx + 15, 12, 2, 12, INK);
+	gx += 26;
+	ui_glyph((long)"glyph-power", gx, 9, 16, INK);
 }
 
-static long field_y, go_x, eye_x, foot_y, pow_x, row0; /* (zones cliquables, posées au dessin) */
-
-/* le champ du mot de passe, ou le bouton « Ouvrir la session » d'un compte sans mot de passe */
-static int power_ask; /* 1 : Redémarrer et Éteindre à la place du champ (le bouton d'alimentation cliqué) */
-static long field_x, field_w;
-
-static void field(long x, long y, long w)
+/* le bas : le nom du système, un losange devant */
+static void draw_bottom(void)
 {
-	field_y = y;
-	field_x = x;
-	field_w = w;
-	if (power_ask) { /* deux boutons : Redémarrer, Éteindre (Échap ou le bouton d'alimentation : annuler) */
-		long bw = (w - 8) / 2;
-		const char *t[2] = {TR("Redémarrer"), TR("Éteindre")};
-		for (int i = 0; i < 2; i++) {
-			long bx = x + i * (bw + 8);
-			u32 c = tok(i ? TJ_DANGER : TJ_LINE_STRONG);
-			ui_rbox(bx, y, bw, FIELD, 8, c, c);
-			long tw = ui_text_width((long)t[i], 14, (long)ui.font_b);
-			ui_text((long)t[i], bx + (bw - tw) / 2, y + 21, tok(i ? TJ_ACCENT_INK : TJ_TEXT1), 14, (long)ui.font_b, 0);
-		}
-		go_x = eye_x = -1000;
-		return;
+	long W = ui.w, H = ui.h;
+	const char *n = "Korin OS";
+	long tw = ui_text_width((long)n, 18, (long)ui.font_b);
+	long x = (W - tw - 24) / 2, y = H - 44;
+	for (long j = 0; j < 14; j++) { /* le losange de 14 */
+		long half = j < 7 ? j + 1 : 14 - j;
+		ui_fill(x + 7 - half, y + j, 2 * half, 1, DIM);
 	}
-	if (!accs[sel].haspw) {
-		ui_rbox(x, y, w, FIELD, 8, tok(TJ_ACCENT), tok(TJ_ACCENT));
+	ui_text((long)n, x + 24, y + 13, DIM, 18, (long)ui.font_b, 0);
+}
+
+static const char *acc_name(const struct acc *a)
+{
+	return a->full[0] ? a->full : a->name;
+}
+
+/* la liste des comptes : disque de 48 et nom, au milieu de l'écran */
+static void draw_list(void)
+{
+	long W = ui.w, H = ui.h;
+	long x = (W - LIST_W) / 2;
+	list_y = (H - nacc * ROW_H) / 2 - 20;
+	for (int i = 0; i < nacc; i++) {
+		long y = list_y + i * ROW_H;
+		if (hov == i || (hov < 0 && sel == i))
+			ui_rbox(x, y, LIST_W, ROW_H - 4, 14, hov == i ? BOX_HI : BOX, hov == i ? BOX_HI : BOX);
+		avatar(&accs[i], x + 12, y + 8, 48);
+		ui_text((long)acc_name(&accs[i]), x + 76, y + 39, INK, 17, (long)ui.font_b, LIST_W - 90);
+	}
+}
+
+/* le compte choisi : grand disque, nom, champ (ou « Ouvrir la session »), le bouton retour à gauche du champ */
+static void draw_prompt(void)
+{
+	long W = ui.w, H = ui.h;
+	const struct acc *a = &accs[sel];
+	long y = H / 2 - 150;
+	avatar(a, (W - BIG) / 2, y, BIG);
+	y += BIG + 36;
+	long tw = ui_text_width((long)acc_name(a), 22, (long)ui.font_b);
+	ui_text((long)acc_name(a), (W - tw) / 2, y, INK, 22, (long)ui.font_b, 0);
+	fx = (W - FIELD_W) / 2;
+	fy = y + 24;
+	back_x = -1000;
+	if (nacc > 1) { /* à gauche : revenir à la liste */
+		back_x = fx - BACK_D - 12;
+		u32 c = hov == HV_BACK ? BOX_HI : BOX;
+		ui_rbox(back_x, fy, BACK_D, BACK_D, BACK_D / 2, c, c);
+		ui_glyph((long)"glyph-tb-left", back_x + 12, fy + 12, 16, INK);
+	}
+	if (!a->haspw) {
+		u32 c = hov == HV_OPEN ? (u32)ui_mix(tok(TJ_ACCENT), INK, 40) : tok(TJ_ACCENT);
+		ui_rbox(fx, fy, FIELD_W, FIELD_H, 10, c, c);
 		const char *t = TR("Ouvrir la session");
-		long tw = ui_text_width((long)t, 14, (long)ui.font_b);
-		ui_text((long)t, x + (w - tw - 22) / 2, y + 21, tok(TJ_ACCENT_INK), 14, (long)ui.font_b, 0);
-		ui_glyph((long)"glyph-tb-right", x + (w + tw - 22) / 2 + 6, y + 8, 16, tok(TJ_ACCENT_INK));
-		go_x = x;
-		eye_x = -1000;
+		tw = ui_text_width((long)t, 15, (long)ui.font_b);
+		ui_text((long)t, fx + (FIELD_W - tw) / 2, fy + 26, tok(TJ_ACCENT_INK), 15, (long)ui.font_b, 0);
 		return;
 	}
-	u32 edge = tok(err ? TJ_DANGER : TJ_ACCENT);
-	ui_rbox(x - 2, y - 2, w + 4, FIELD + 4, 10, edge, edge); /* anneau de focus */
-	ui_rbox(x, y, w, FIELD, 8, tok(TJ_SURFACE), tok(TJ_SURFACE));
+	u32 edge = err ? ERR : tok(TJ_ACCENT);
+	ui_rbox(fx - 2, fy - 2, FIELD_W + 4, FIELD_H + 4, 12, edge, edge); /* anneau de focus */
+	ui_rbox(fx, fy, FIELD_W, FIELD_H, 10, BOX, BOX);
 	if (!pwlen)
-		ui_text((long)TR("Mot de passe"), x + 10, y + 21, tok(TJ_TEXT3), 14, (long)ui.font, 0);
+		ui_text((long)TR("Mot de passe"), fx + 14, fy + 26, DIM, 15, (long)ui.font, 0);
 	else if (show_pw)
-		ui_text((long)pw, x + 10, y + 21, tok(TJ_TEXT1), 14, (long)ui.font, w - 80);
+		ui_text((long)pw, fx + 14, fy + 26, INK, 15, (long)ui.font, FIELD_W - 90);
 	else {
-		long n = pwlen > 24 ? 24 : pwlen;
+		long n = pwlen > 20 ? 20 : pwlen;
 		for (long i = 0; i < n; i++)
-			ui_rbox(x + 12 + i * 11, y + 13, 6, 6, 3, tok(TJ_TEXT1), tok(TJ_TEXT1));
+			ui_rbox(fx + 16 + i * 11, fy + 17, 7, 7, 4, INK, INK);
 	}
-	eye_x = x + w - 60;
-	ui_glyph((long)"glyph-tb-eye", eye_x + 4, y + 8, 16, tok(show_pw ? TJ_ACCENT : TJ_TEXT3));
-	go_x = x + w - 30;
-	u32 g = (pwlen && !busy) ? tok(TJ_ACCENT) : tok(TJ_LINE_STRONG);
-	ui_rbox(go_x, y + 3, 26, 26, 6, g, g);
-	ui_glyph((long)"glyph-tb-right", go_x + 5, y + 8, 16, tok(TJ_ACCENT_INK));
-}
-
-static void foot(long y)
-{
-	foot_y = y;
-	ui_fill(SH, y - 14, cw, 1, tok(TJ_LINE));
-	long x = SH + PAD - 6;
-	ui_glyph((long)"glyph-tb-keyboard", x + 6, y + 6, 16, tok(TJ_TEXT2));
-	ui_text((long)keyb, x + 26, y + 19, tok(TJ_TEXT2), 12, (long)ui.font_b, 0);
-	ui_glyph((long)"glyph-tb-access", x + 58, y + 6, 16, tok(TJ_TEXT3));
-	pow_x = SH + cw - PAD - 22;
-	ui_glyph((long)"glyph-tb-network", pow_x - 30, y + 6, 16, tok(TJ_TEXT2));
-	ui_glyph((long)"glyph-power", pow_x + 3, y + 6, 16, tok(TJ_TEXT2));
+	ui_glyph((long)"glyph-tb-eye", fx + FIELD_W - 66, fy + 12, 16, show_pw || hov == HV_EYE ? INK : DIM);
+	u32 g = (pwlen && !busy) ? tok(TJ_ACCENT) : BOX_HI;
+	ui_rbox(fx + FIELD_W - 36, fy + 6, 28, 28, 14, g, g);
+	ui_glyph((long)"glyph-tb-right", fx + FIELD_W - 30, fy + 12, 16, pwlen ? tok(TJ_ACCENT_INK) : DIM);
+	if (err) {
+		const char *t = TR("Mot de passe incorrect. Réessayez.");
+		tw = ui_text_width((long)t, 13, (long)ui.font);
+		ui_text((long)t, (W - tw) / 2, fy + FIELD_H + 30, ERR, 13, (long)ui.font, 0);
+	}
 }
 
 static void draw(void)
 {
-	ui_shadow(cw + 2 * SH, ch + 2 * SH);
-	ui_rbox(SH, SH, cw, ch, 12, tok(TJ_RAISED), tok(TJ_RAISED));
-	char h[8], d[40];
-	d[0] = 0;
-	heure(h, d);
-	long x = SH + PAD, w = cw - 2 * PAD, y = SH + PAD;
-	if (nacc == 1) { /* A4 : un seul compte */
-		long tw = ui_text_width((long)h, 28, (long)ui.font_b);
-		ui_text((long)h, SH + (cw - tw) / 2, y + 28, tok(TJ_TEXT1), 28, (long)ui.font_b, 0);
-		tw = ui_text_width((long)d, 12, (long)ui.font);
-		ui_text((long)d, SH + (cw - tw) / 2, y + 48, tok(TJ_TEXT2), 12, (long)ui.font, 0);
-		y += 66;
-		avatar(&accs[0], SH + (cw - 64) / 2, y, 64);
-		y += 72;
-		const char *n = accs[0].full[0] ? accs[0].full : accs[0].name;
-		tw = ui_text_width((long)n, 16, (long)ui.font_b);
-		ui_text((long)n, SH + (cw - tw) / 2, y + 16, tok(TJ_TEXT1), 16, (long)ui.font_b, 0);
-		y += 30;
-		field(x, y, w);
-		y += FIELD + 8;
-	} else { /* A1 : plusieurs comptes */
-		ui_text((long)TR("Ouvrir une session"), x, y + 16, tok(TJ_TEXT1), 16, (long)ui.font_b, 0);
-		ui_text((long)machine, x, y + 36, tok(TJ_TEXT2), 13, (long)ui.font, 0);
-		long tw = ui_text_width((long)h, 16, (long)ui.font_b);
-		ui_text((long)h, x + w - tw, y + 16, tok(TJ_TEXT1), 16, (long)ui.font_b, 0);
-		tw = ui_text_width((long)d, 12, (long)ui.font);
-		ui_text((long)d, x + w - tw, y + 36, tok(TJ_TEXT2), 12, (long)ui.font, 0);
-		y += 44 + 14;
-		ui_fill(SH, y, cw, 1, tok(TJ_LINE));
-		y += 14;
-		row0 = y;
-		for (int i = 0; i < nacc; i++) {
-			long bh = i == sel ? ROW + FIELD + 12 : ROW;
-			if (i == sel)
-				ui_rbox(x - 8, y, w + 16, bh, 6, tok(TJ_ACCENT_LIGHT), tok(TJ_ACCENT_LIGHT));
-			avatar(&accs[i], x, y + 8, 32);
-			const char *n = accs[i].full[0] ? accs[i].full : accs[i].name;
-			ui_text((long)n, x + 44, y + 22, tok(TJ_TEXT1), 14, (long)ui.font_b, 0);
-			ui_text((long)role(&accs[i]), x + 44, y + 38, tok(TJ_TEXT3), 12, (long)ui.font, 0);
-			if (i == sel)
-				field(x, y + ROW, w);
-			y += bh;
-		}
-		y += 4;
-	}
-	if (err)
-		ui_text((long)TR("Mot de passe incorrect. Réessayez."), x, y + 12, tok(TJ_DANGER), 12, (long)ui.font, 0);
-	y += 16 + 14;
-	foot(y);
+	ui_fill(0, 0, ui.w, ui.h, BG);
+	draw_top();
+	if (prompt)
+		draw_prompt();
+	else
+		draw_list();
+	draw_bottom();
 	ui_update_all();
 }
 
-/* la taille de la carte d'après le nombre de comptes */
-static void size(void)
+/* x, y -> ce qui est dessous (un compte, HV_*, -1) */
+static int hit(long x, long y)
 {
-	if (nacc == 1) {
-		cw = 320;
-		ch = PAD + 66 + 72 + 30 + FIELD + 8 + 30 + 34 + PAD - 10;
-	} else {
-		cw = 400;
-		ch = PAD + 58 + 14 + nacc * ROW + FIELD + 12 + 4 + 30 + 34 + PAD - 10;
+	if (y < TOP_H)
+		return x >= tray_x ? HV_TRAY : -1;
+	if (!prompt) {
+		long x0 = (ui.w - LIST_W) / 2;
+		if (x < x0 || x >= x0 + LIST_W || y < list_y)
+			return -1;
+		long i = (y - list_y) / ROW_H;
+		return i < nacc && (y - list_y) % ROW_H < ROW_H - 4 ? (int)i : -1;
 	}
+	if (y < fy || y >= fy + FIELD_H)
+		return -1;
+	if (x >= back_x && x < back_x + BACK_D)
+		return HV_BACK;
+	if (!accs[sel].haspw)
+		return x >= fx && x < fx + FIELD_W ? HV_OPEN : -1;
+	if (x >= fx + FIELD_W - 70 && x < fx + FIELD_W - 42)
+		return HV_EYE;
+	if (x >= fx + FIELD_W - 38 && x < fx + FIELD_W)
+		return HV_GO;
+	return -1;
+}
+
+static void clear_pw(void)
+{
+	memset(pw, 0, sizeof pw);
+	pwlen = 0;
+	err = 0;
+	show_pw = 0;
 }
 
 /* ---------------------------------------------------------------- actions */
@@ -421,23 +457,6 @@ static int submit(void)
 	err = 1;
 	draw();
 	return 0;
-}
-
-/* r : 0 Redémarrer, 1 Éteindre (les deux boutons que la carte montre à la place du champ : power_ask ; plus
-   de ui_popup ici, où login tombait sur une faute, -11) */
-static void power_do(long r)
-{
-	long chn = korin_sys2(SYS_SVC_OPEN, "init2", 1000);
-	if (chn < 0)
-		return;
-	/* la marque de l'arrêt : Elegant n'ouvre pas la session quand login tombe ensuite (session_poll) */
-	long fd = sys_open("/tmp/login.halt", O_WRITE | O_CREATE | O_TRUNC);
-	if (fd >= 0)
-		sys_close(fd);
-	memset(msg, 0, MSG_SIZE);
-	M64(msg, 0) = 3; /* INIT_OP_REBOOT : a bit 1 = arrêt */
-	M64(msg, 8) = r == 1 ? 2 : 0;
-	korin_sys2(SYS_SVC_CALL, chn, msg);
 }
 
 static void put_char(unsigned c)
@@ -480,18 +499,24 @@ int main(int argc, char **argv)
 	}
 	if (nacc == 1 && !accs[0].haspw && !manuel)
 		return ouvrir(&accs[0]);
+	prompt = nacc == 1; /* (un seul compte : il est déjà choisi) */
 	ui_init((long)&ui);
 	ui_screen((long)scr);
-	size();
-	wx = (scr[0] - cw) / 2 - SH;
-	wy = (scr[1] - ch) / 2 - SH;
-	if (ui_window_ex(wx, wy, cw + 2 * SH, ch + 2 * SH, (long)TR("Ouvrir une session"),
-			 WF_FRAMELESS | WF_TOP | WF_NOLIST | WF_ALPHA) < 0)
+	/* tout l'écran, couche normale (pas WF_TOP : les réglages rapides et le dialogue d'extinction passent devant ; pas
+	   WF_BACK : un fond opaque va sous le fond d'écran, et n'a pas le focus) */
+	if (ui_window_ex(0, 0, scr[0], scr[1], (long)TR("Ouvrir une session"), WF_FRAMELESS | WF_NOLIST) < 0)
 		return ouvrir(&accs[0]); /* (pas de fenêtre : la session du premier compte plutôt que rien) */
 	draw();
 	for (;;) {
 		long t = ui_event(1000);
 		if (t == 0) { /* toutes les secondes : l'heure */
+			draw_top();
+			ui_update(0, 0, ui.w, TOP_H);
+			continue;
+		}
+		if (t == WEV_SCREEN) { /* (une autre résolution) */
+			if (ui_screen((long)scr) >= 0 && (scr[0] != ui.w || scr[1] != ui.h))
+				ui_resize(scr[0], scr[1]);
 			draw();
 			continue;
 		}
@@ -499,71 +524,70 @@ int main(int argc, char **argv)
 			if (EVF(EV_KIND) == 0)
 				continue;
 			long code = EVF(EV_CODE);
-			if (power_ask && code != HID_ESC)
-				continue; /* (Redémarrer, Éteindre montrés : seul Échap compte) */
-			if (code == HID_ENTER || code == HID_KPENTER) {
+			if (!prompt) { /* la liste : ↑ ↓ choisissent, Entrée ouvre le compte */
+				if (code == HID_UP || code == HID_DOWN)
+					sel = (sel + (code == HID_DOWN ? 1 : nacc - 1)) % nacc;
+				else if (code == HID_ENTER || code == HID_KPENTER) {
+					prompt = 1;
+					clear_pw();
+				} else
+					continue;
+			} else if (code == HID_ENTER || code == HID_KPENTER) {
 				if (submit())
 					return ouvrir(&accs[sel]);
-			} else if (code == HID_ESC) {
-				power_ask = 0;
-				memset(pw, 0, sizeof pw);
-				pwlen = 0;
-				err = 0;
-			} else if (code == HID_UP || code == HID_DOWN) {
-				sel = (sel + (code == HID_DOWN ? 1 : nacc - 1)) % nacc;
-				memset(pw, 0, sizeof pw);
-				pwlen = 0;
-				err = 0;
+			} else if (code == HID_ESC) { /* vide le champ, puis revient à la liste */
+				if (pwlen || err)
+					clear_pw();
+				else if (nacc > 1)
+					prompt = 0;
 			} else if (code == HID_BACK) {
 				while (pwlen > 0 && ((unsigned char)pw[pwlen - 1] & 0xC0) == 0x80)
 					pwlen--;
 				if (pwlen > 0)
 					pwlen--;
 				pw[pwlen] = 0;
-			} else
+			} else if (accs[sel].haspw)
 				put_char((unsigned)EVF(EV_CHAR));
 			draw();
 		} else if (t == WEV_MOUSE) {
 			long kind = EVF(EV_KIND);
 			long mx = EVF(EV_X), my = EVF(EV_Y);
-			if (kind == 0 && show_pw) { /* l'œil relâché : le mot de passe se cache */
+			if (kind == 2 && show_pw) { /* l'œil relâché : le mot de passe se cache */
 				show_pw = 0;
 				draw();
 				continue;
 			}
-			if (kind != 1)
-				continue;
-			if (power_ask && my >= field_y && my < field_y + FIELD && mx >= field_x && mx < field_x + field_w) {
-				power_ask = 0;
-				draw();
-				power_do(mx >= field_x + field_w / 2); /* (à gauche Redémarrer, à droite Éteindre) */
-			} else if (power_ask && !(my >= foot_y && my < foot_y + 28 && mx >= pow_x)) {
-				continue;
-			} else if (my >= field_y && my < field_y + FIELD) {
-				if (mx >= go_x && (mx < go_x + 26 || !accs[sel].haspw)) {
-					if (submit())
-						return ouvrir(&accs[sel]);
-				} else if (mx >= eye_x && mx < eye_x + 26) {
-					show_pw = 1;
+			int h = hit(mx, my);
+			if (kind == 0) { /* survol (en (-1, -1) : le pointeur est parti) */
+				if (h != hov) {
+					hov = h;
 					draw();
 				}
-			} else if (my >= foot_y && my < foot_y + 28 && mx >= pow_x) {
-				power_ask = !power_ask;
+				continue;
+			}
+			if (kind != 1)
+				continue;
+			if (h == HV_TRAY) { /* les réglages rapides, sous la zone d'état (« L » : ceux de l'écran de connexion) */
+				char arg[24] = "L";
+				*fmt_dec((u64)(ui.w - 4), arg + 1) = 0;
+				ksys(SYS_SPAWN, (long)"/sys/quickmenu", (long)arg, 0, 0, 0, 0);
+			} else if (!prompt && h >= 0 && h < nacc) {
+				sel = h;
+				prompt = 1;
+				clear_pw();
+				hov = -1;
 				draw();
-			} else if (nacc > 1 && my >= row0) { /* une ligne de compte */
-				long yy = row0;
-				for (int i = 0; i < nacc; i++) {
-					long bh = i == sel ? ROW + FIELD + 12 : ROW;
-					if (my >= yy && my < yy + ROW && i != sel) {
-						sel = i;
-						memset(pw, 0, sizeof pw);
-						pwlen = 0;
-						err = 0;
-						draw();
-						break;
-					}
-					yy += bh;
-				}
+			} else if (h == HV_BACK) {
+				prompt = 0;
+				clear_pw();
+				hov = -1;
+				draw();
+			} else if (h == HV_GO || h == HV_OPEN) {
+				if (submit())
+					return ouvrir(&accs[sel]);
+			} else if (h == HV_EYE) {
+				show_pw = 1;
+				draw();
 			}
 		}
 	}
