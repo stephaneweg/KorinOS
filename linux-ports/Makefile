@@ -78,7 +78,24 @@ GLLB    := $(shell pkg-config --libs egl glesv2)
 ZLB     := $(shell pkg-config --libs zlib)
 KITS_OBJ := $(B)/common/glkit_egl.o $(B)/common/kits_misc.o
 
-all: bin/arabesque bin/koton $(PLUG_BIN) bin/llm bin/budget bin/terracube
+# ---- Forge (src/apps/forge) : OpenCASCADE du systeme (opencascade-devel : 7.9 sur Fedora 45, 8.0.1 sous Korin), PlaneGCS
+# construit ici (forge/build-planegcs.sh : les sources de FreeCAD de tools/cao/env.sh, l'Eigen du systeme) ; la vue rendue
+# par le processeur dans une surface d'UIKit ; le MCP (json.c de src/lib/acp), le coffre (le jeton du MCP)
+FG      := $(SRC)/apps/forge
+OCCI    := /usr/include/opencascade
+PGCS    := $(B)/cao/host/planegcs
+FG_F    := $(OPT) -g0 -pthread -std=gnu++20 $(WARN) -Wno-sign-compare -Wno-unused-result -Wno-class-memaccess -Wno-format-overflow \
+	-Wno-dangling-reference -Wno-overloaded-virtual -Icommon -Icommon/include -I$(SRC)/kits/uikit/include -I$(GEN) -I$(SRC)/lib/acp \
+	-I$(FG) -isystem $(OCCI) -I$(PGCS)/include -isystem /usr/include/eigen3
+FG_SRC  := $(wildcard $(FG)/*.cpp)
+FG_OBJ  := $(patsubst $(FG)/%.cpp,$(B)/forge/%.o,$(FG_SRC)) $(B)/forge/linux_main.o $(B)/forge/occt_paths.o $(B)/acp/json.o
+FG_HDR  := $(wildcard $(FG)/*.h $(FG)/*.inc)
+# (les toolkits d'OCCT de tools/pc/apps.sh, ceux de Fedora en .so)
+OCCT_TK := TKDESTEP TKDEIGES TKDESTL TKXCAF TKVCAF TKV3d TKService TKCAF TKLCAF TKCDF TKDE TKXSBase TKFillet TKOffset TKFeat \
+	TKBool TKBO TKPrim TKHLR TKMesh TKShHealing TKTopAlgo TKGeomAlgo TKBRep TKGeomBase TKG3d TKG2d TKMath TKernel
+FG_LIBS := $(addprefix -l,$(OCCT_TK)) $(PGCS)/lib/libplanegcs.a
+
+all: bin/arabesque bin/koton $(PLUG_BIN) bin/llm bin/budget bin/terracube bin/forge
 
 # les interfaces C des kits, generees de leurs .abi (comme sur Korin : tools/kits/abi2c.py)
 $(GEN)/uikit_abi.h: $(SRC)/kits/uikit/uikit.abi $(ROOT)/tools/kits/abi2c.py
@@ -193,6 +210,26 @@ $(B)/acp/json.o: $(SRC)/lib/acp/json.c $(SRC)/lib/acp/json.h
 bin/terracube: $(TC_OBJ) $(SHIM_OBJ) $(KITS_OBJ) $(B)/common/korin_vault.o
 	@mkdir -p bin
 	$(CXX) $(OPT) -pthread $^ $(WRAP) $(LIBS) $(SECRETLB) $(GLLB) $(ZLB) -o $@
+	strip $@
+
+# ---- Forge ----
+$(PGCS)/lib/libplanegcs.a: forge/build-planegcs.sh $(ROOT)/tools/cao/build-planegcs.sh $(ROOT)/tools/cao/env.sh
+	sh forge/build-planegcs.sh
+$(B)/forge/main.o: $(FG)/main.cpp $(FG_HDR) $(HDRS) $(PGCS)/lib/libplanegcs.a
+	@mkdir -p $(dir $@)
+	$(CXX) $(FG_F) -Dmain=kport_app_main -c $< -o $@
+$(B)/forge/linux_main.o: forge/linux_main.cpp $(HDRS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(FG_F) -c $< -o $@
+$(B)/forge/occt_paths.o: forge/occt_paths.cpp common/korin_port.h
+	@mkdir -p $(dir $@)
+	$(CXX) $(OPT) -g0 -Icommon -c $< -o $@
+$(B)/forge/%.o: $(FG)/%.cpp $(FG_HDR) $(HDRS) $(PGCS)/lib/libplanegcs.a
+	@mkdir -p $(dir $@)
+	$(CXX) $(FG_F) -c $< -o $@
+bin/forge: $(FG_OBJ) $(UI_OBJ) $(B)/common/korin_paths.o $(B)/common/korin_thread.o $(B)/common/korin_sys.o $(B)/common/kits_misc.o $(B)/common/korin_vault.o $(PGCS)/lib/libplanegcs.a
+	@mkdir -p bin
+	$(CXX) $(OPT) -pthread $(filter %.o,$^) $(WRAP) -Wl,--export-dynamic-symbol=fopen,--export-dynamic-symbol=fopen64,--export-dynamic-symbol=open,--export-dynamic-symbol=open64 $(FG_LIBS) $(shell pkg-config --libs gtk4 gdk-pixbuf-2.0 wayland-client) $(SECRETLB) $(ZLB) -lpthread -ldl -lm -o $@
 	strip $@
 
 clean:

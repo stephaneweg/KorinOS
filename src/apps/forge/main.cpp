@@ -47,6 +47,7 @@
 #include <archivekit_abi.h>
 #include <netkit_abi.h>
 #include <Standard_Failure.hxx>
+#include <Standard_Version.hxx>
 #include "json.h"
 #include "agent.h"
 #include "mcp.h"

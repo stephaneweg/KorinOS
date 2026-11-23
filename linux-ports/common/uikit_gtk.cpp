@@ -419,7 +419,8 @@ void fill_rect (Buf *b, long x, long y, long w, long h, unsigned c)
 	if (x1 > bx1) x1 = bx1;
 	if (y1 > by1) y1 = by1;
 	if (x1 <= x0 || y1 <= y0) return;
-	c &= 0xFFFFFF;
+	// (l'octet haut est garde, comme UIKit : la transparence d'une zone posee par-dessus une surface, 0 opaque, 255
+	// invisible ; ui_fill (..., 0xFF000000) efface la zone. Le fond de la fenetre l'ignore : B8G8R8X8)
 	for (long yy = y0; yy < y1; yy++)
 	{
 		uint32_t *p = b->px + yy * b->w + x0;
@@ -474,7 +475,14 @@ void snapshot_surfaces (Win *wn, GtkSnapshot *sn)
 		{
 			const uint32_t *s = b->px + (size_t) (y0 + y) * b->w + x0;
 			uint32_t *d = &px[(size_t) y * zw];
-			for (int x = 0; x < zw; x++) d[x] = (s[x] & 0xFFFFFF) | (uint32_t) (255 - (s[x] >> 24)) << 24;
+			for (int x = 0; x < zw; x++)
+			{
+				// (la transparence de Korin dans l'octet haut, 0 opaque ; Cairo ecrit 0xFF dans cet octet de ce qu'il
+				// dessine (RGB24) : 0xFF n'est transparent que sur le noir pose par ui_fill (..., 0xFF000000))
+				uint32_t p = s[x], hb = p >> 24;
+				uint32_t a = hb == 0xFF ? ((p & 0xFFFFFF) ? 255 : 0) : 255 - hb;
+				d[x] = (p & 0xFFFFFF) | a << 24;
+			}
 		}
 		GBytes *by = g_bytes_new (px.data (), px.size () * 4);
 		GdkTexture *t = gdk_memory_texture_new (zw, zh, GDK_MEMORY_B8G8R8A8, by, (size_t) zw * 4);
@@ -1720,6 +1728,14 @@ void set_filters (GtkFileDialog *d)
 }
 long file_dialog (int mode, long dir, long name, long buf, long cap)
 {
+	// (essai sans les mains : KORIN_FILE_ANSWER=<chemin> repond aux dialogues de fichiers sans les montrer)
+	const char *ans = getenv ("KORIN_FILE_ANSWER");
+	if (ans && *ans)
+	{
+		fprintf (stderr, "uikit: dialogue de fichiers (%s) -> %s\n", mode == 0 ? "ouvrir" : mode == 1 ? "enregistrer" : "dossier", ans);
+		snprintf ((char *) buf, (size_t) cap, "%s", ans);
+		return 1;
+	}
 	GtkFileDialog *d = gtk_file_dialog_new ();
 	gtk_file_dialog_set_modal (d, TRUE);
 	gtk_file_dialog_set_title (d, mode == 0 ? "Ouvrir" : mode == 1 ? "Enregistrer" : "Choisir un dossier");
@@ -1964,7 +1980,7 @@ static void shot (Win *w, const char *path)
 				for (int x = std::max (0, z[0]); x < std::min (all.w, z[0] + z[2]); x++)
 				{
 					uint32_t o = w->buf.px[(size_t) y * all.w + x], &d = all.px[(size_t) y * all.w + x];
-					unsigned a = 255 - (o >> 24);
+					unsigned hb = o >> 24, a = hb == 0xFF ? ((o & 0xFFFFFF) ? 255 : 0) : 255 - hb;
 					uint32_t m = 0;
 					for (int k = 0; k < 24; k += 8) m |= ((((o >> k) & 255) * a + ((d >> k) & 255) * (255 - a)) / 255) << k;
 					d = m;
@@ -2822,6 +2838,9 @@ long ui_w_move (long w, long x, long y, long ww, long hh)
 	{
 		d->buf.alloc ((int) ww, (int) hh, d->kind == K_VIEW ? tok (TJ_SURFACE) : 0xFFFFFF);
 		d->dirty = true;
+		// (une vue a une autre taille est redessinee tout de suite, comme UIKit la redessine avec la fenetre : sinon elle
+		// reste vide jusqu'a ce que l'app la marque ; la frise de Forge apres un agrandissement)
+		if (d->kind == K_VIEW && d->paint) view_paint (d);
 	}
 	gtk_widget_queue_allocate (d->win->surf);
 	return 0;
