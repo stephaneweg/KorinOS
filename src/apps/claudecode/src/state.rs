@@ -26,11 +26,14 @@ pub struct UiState {
     pub selected_phase: Option<String>,
     /// `/rewind` tapé : le fil ouvre la boîte sur ce message.
     pub rewind: Option<UserItem>,
+    /// Le dossier de la prochaine nouvelle session (`?cwd=` de ClaudeCodeUI : palette « Nouvelle session dans … »,
+    /// worktrees « Nouvelle session ») : la page Nouvelle session le prend (`take`) en arrivant.
+    pub new_session_cwd: Option<String>,
 }
 
 impl Default for UiState {
     fn default() -> Self {
-        UiState { inspector_open: true, palette_open: false, diff_open: false, selected_tool_id: None, selected_phase: None, rewind: None }
+        UiState { inspector_open: true, palette_open: false, diff_open: false, selected_tool_id: None, selected_phase: None, rewind: None, new_session_cwd: None }
     }
 }
 

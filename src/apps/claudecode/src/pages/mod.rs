@@ -4,5 +4,6 @@ pub mod background;
 pub mod extensions;
 pub mod new_session;
 pub mod overview;
+pub mod parts;
 pub mod settings;
 pub mod worktrees;
