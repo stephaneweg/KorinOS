@@ -97,7 +97,7 @@ Forge existe **sur le PC** (x86-64) seulement pour l'instant : pas sur le Pi. `l
 | `edit_feature`, `delete_feature`, `suppress_feature`, `set_rollback` | changer une étape existante (ses `fields`), l'enlever, la sauter, la barre de reconstruction |
 | `set_parameter`, `delete_parameter` | les paramètres nommés |
 | `undo` (`redo`, `steps`), `new_document` | annuler, rétablir, repartir de zéro |
-| `set_view`, `screenshot`, `highlight` | la vue, une image PNG, montrer une face ou une arête à l'utilisateur |
+| `set_view`, `screenshot`, `highlight` | la vue (`view`, et `projection` : `perspective`, le défaut, ou `orthographic`), une image PNG (`projection` pour elle seule), montrer une face ou une arête à l'utilisateur |
 | `export` | STEP, IGES, STL (binaire) ou BREP ; un chemin relatif va dans `/home/forge/` |
 
 ## 5. Les esquisses

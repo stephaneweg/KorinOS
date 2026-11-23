@@ -29,7 +29,7 @@ ROOT = os.path.dirname(PORTS)
 WORK = os.path.join(PORTS, 'build', 'rpm')
 OUT = os.path.join(PORTS, 'rpm')
 OPT = '/opt/korin'
-RELEASE = '4'			# à augmenter quand les binaires changent sans changer de version
+RELEASE = '5'			# à augmenter quand les binaires changent sans changer de version
 
 COMMON_REQ = {'gtk4': '*'}
 SOUND_REQ = {'fluidsynth-libs': '*', 'fluid-soundfont-gm': '*'}

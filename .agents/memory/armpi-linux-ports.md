@@ -69,3 +69,12 @@ fopen/fopen64/open/open64 dans le programme (exportés, dlsym RTLD_NEXT). PlaneG
 (KORIN_CAO=build/cao, FreeCAD 1.1.4 téléchargé et vérifié, Eigen du système 5.0.1, HOST=1 de tools/cao). Forge n'a
 pas d'icône dans tools/icons (rpm : logo armpi). Essais : selftests (TerraCube 73, Forge 28), NVIDIA/Mesa/llvmpipe,
 Python 4730, MCP 7312/7311, STEP relu par OCCT, .forge enregistré puis rouvert ; souris réelle pas essayée.
+
+23/11 (branche claude/forge-perspective) : **transparence des zones de ui_surface_overlay** (retour de l'utilisateur :
+liseré sombre aux étiquettes du cube de Forge, coins noirs aux boutons) : Cairo RGB24 écrit la couverture dans l'octet
+haut (pas la transparence de Korin) et mélange les bords avec le noir du trou 0xFF000000. cr_begin reçoit maintenant
+la zone du dessin ; sur le fond d'une fenêtre qui a des ui_surface (Forge seule parmi les ports) : zone opaque ->
+Cairo direct puis octet haut remis à 0 ; sinon calque ARGB32 composé « par-dessus » en gardant la transparence
+(comme rb_px de uk_theme.c sous Korin). Les autres fenêtres : inchangé. KORIN_SCRIPT : wheel:x,y,n, drag:x0,y0,x1,y1[,b]
+(b 2 milieu, 3 droit), pop:<n> (le menu ui_popup_local ouvert ; ses entrées écrites sur stderr). Piège : les
+coordonnées des scripts sont celles du contenu (sous la barre de menus : capture y - 65 sur ce bureau). RELEASE 5.
