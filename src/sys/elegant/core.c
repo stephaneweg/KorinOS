@@ -440,6 +440,10 @@ void compose_clip(void)
 		ov_compose_clip();
 		goto cursor;
 	}
+	if (sw_on) { /* un bureau qui glisse vers un autre (overview.c) */
+		sw_compose_clip();
+		goto cursor;
+	}
 	struct win *cover = surf_cover(); /* une surface couvre la zone : rien dessous */
 	if (!cover)
 		policy->back();

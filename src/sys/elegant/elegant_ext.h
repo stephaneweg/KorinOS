@@ -85,5 +85,11 @@ void ov_hwheel(long n);  /* crans horizontaux (vers la gauche > 0) */
 long ov_key(const u8 *in);
 void ov_gone(struct win *w);
 long req_overview(void);
+/* le glissement d'un bureau à l'autre dans la vue normale (overview.c) */
+extern long sw_dir;       /* sens voulu (1 : le nouveau vient de la droite ; 0 : d'après les numéros) */
+extern long sw_on;        /* un glissement en cours */
+long sw_prepare(void);    /* l'image du bureau d'avant -> 1 si le glissement peut se faire */
+void sw_start(long dir);  /* après le changement : l'image du nouveau, puis l'animation */
+void sw_compose_clip(void);
 
 #endif

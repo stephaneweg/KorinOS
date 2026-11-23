@@ -322,6 +322,41 @@ static long la_total(void)
 }
 
 /* rangée du haut voulue : bornée, redessine si elle change */
+static void la_cell_draw(long i, long show);
+
+/* (la_grid) d'une page à l'autre (rangées du haut) : l'ancienne sort d'un côté, la nouvelle entre de
+ * l'autre (LA_SLIDE_MS, « ease out ») ; seule la zone de la grille est redessinée à chaque image */
+#define LA_SLIDE_MS 240
+static long la_xoff; /* décalage des cases (le glissement) */
+static void la_page_slide(long from, long to)
+{
+	long dir = to > from ? 1 : -1, W = la_geom[1], gy = la_gy, gh = la_rows * la_cellh;
+	long per = la_rows * la_cols;
+	u64 t0 = (u64)korin_sys0(SYS_TIME_MS);
+	for (;;) {
+		long t = (long)(((u64)korin_sys0(SYS_TIME_MS) - t0) * 65536 / LA_SLIDE_MS);
+		if (t >= 65536)
+			break;
+		long u = 65536 - t; /* 1 - (1 - t)^3 */
+		long e = 65536 - (u * u / 65536) * u / 65536;
+		long dx = W * e / 65536;
+		ui_clip(0, gy, W, gh);
+		ui_fill(0, gy, W, gh, 0xFF000000);
+		la_xoff = -dir * dx;
+		la_scroll = from;
+		for (long i = from * la_cols; i < from * la_cols + per && i < la_n; i++)
+			la_cell_draw(i, 0);
+		la_xoff = dir * (W - dx);
+		la_scroll = to;
+		for (long i = to * la_cols; i < to * la_cols + per && i < la_n; i++)
+			la_cell_draw(i, 0);
+		ui_clip(0, 0, 0, 0);
+		ui_update(0, gy, W, gh);
+		korin_sys1(SYS_SLEEP, 10);
+	}
+	la_xoff = 0;
+}
+
 static void la_scroll_to(long r)
 {
 	if (la_grid) /* (pages entières) */
@@ -337,8 +372,10 @@ static void la_scroll_to(long r)
 		r = 0;
 	if (la_scroll == r)
 		return;
-	la_scroll = r;
 	la_hover = -1; /* (la case survolée a changé) */
+	if (la_grid && la_win > 0) /* (la grille : la page glisse vers la suivante) */
+		la_page_slide(la_scroll, r);
+	la_scroll = r;
 	la_draw();
 }
 
@@ -429,7 +466,7 @@ static void la_cell_draw(long i, long show)
 		return;
 	long cw = la_cellw, ch = la_cellh;
 	long y = r * ch + la_gy;
-	long x = c * cw + (la_grid ? la_grid_x : la_gx);
+	long x = c * cw + (la_grid ? la_grid_x : la_gx) + la_xoff;
 	long app = la_res[i];
 	u32 ink = la_grid ? la_grid_ink() : tok(TJ_TEXT1);
 	if (la_grid) { /* sur le fond de la vue : transparent, survol d'un voile clair */

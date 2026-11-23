@@ -1136,7 +1136,15 @@ les catégories qui ont des applications ; la choisie dans un voile clair), une 
 montrée pleine ; un clic va à sa page) et des flèches ‹ › de 44 px sur les côtés quand il y a une page
 avant ou après ; la molette (ou deux doigts sur le pavé) tourne une page par geste (350 ms sans cran
 entre deux gestes), Pg.Préc et Pg.Suiv aussi, et les flèches du clavier vont à la page de la case
-choisie. Tant qu'une telle fenêtre existe, Elegant passe en mode « applications »
+choisie. Le changement de page **glisse** (240 ms, « ease out ») : l'ancienne sort d'un côté pendant que
+la nouvelle entre de l'autre (le panel redessine la zone de la grille à chaque image, `la_page_slide`).
+
+**Glissement entre bureaux dans la vue normale** (`sw_*` d'`overview.c`) : Ctrl+Alt+Gauche / Droite, ou une
+fenêtre ramenée sur un autre bureau, font glisser le contenu du bureau (fond et fenêtres normales) d'un
+côté pendant que le nouveau entre de l'autre (260 ms ; le sens suit la touche, même en revenant au
+premier) ; la barre de menus, les volets et le curseur restent en place. Les deux images sont composées
+une fois hors écran (deux tampons de la taille de l'écran, rendus à la fin) : chaque image n'est que deux
+copies. Pas pendant la vue d'ensemble, ni en mode poche, ni sous un rideau. Tant qu'une telle fenêtre existe, Elegant passe en mode « applications »
 (`ov_q`, 300 ms, « ease out ») : **les bureaux se réduisent et montent en une rangée en haut** (13 % de
 la hauteur de l'écran chacun, centrés ; le bureau courant cerclé) pendant que **la grille monte du bas** ;
 elle fermée, l'inverse. Un clic sur un bureau de la rangée l'active (retour à la vue normale) ; sur le
