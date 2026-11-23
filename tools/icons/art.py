@@ -6,22 +6,40 @@
 # d'IRC, qui sont le sens meme de ces programmes.
 import math
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageChops
 from iconlib import Ic, Grad, Rad, tone, mix, light, dark, sub, add, inter, rgb, M
 
 ICONS = {}
 GLYPHS = {}
+FREE = set()    # les icônes dessinées en objet libre, à la manière d'Adwaita (sans plaque)
 
 WHITE = Grad(0xFFFFFF, 0xDDE4EE, 100)
 PAPER = Grad(0xFFFFFF, 0xE9EDF3, 100)
 INK = 0x2A3342
 
 
-def icon(name, top, bottom):
+def icon(name, top, bottom, free=False):
     def deco(f):
         ICONS[name] = (top, bottom, f)
+        if free:
+            FREE.add(name)
         return f
     return deco
+
+
+def obj(ic, m, face, side, depth=5.0, sh=.22):
+    """Un objet à la manière d'Adwaita : sa face, et dessous son épaisseur (la même forme, plus sombre, descendue de
+    depth), posé sur une ombre douce."""
+    if ic.small:
+        depth *= .7
+    n = max(1, int(ic.u(depth)))
+    step = max(1, n // 8)
+    body = add(*[ImageChops.offset(m, 0, k) for k in range(0, n + 1, step)] + [ImageChops.offset(m, 0, n)])
+    if not ic.small and sh:
+        ic.shadow(body, dy=1.2, blur=1.6, op=sh, dx=0)
+    ic.fill(body, side)
+    ic.fill(m, face)
+    return body
 
 
 # --- morceaux communs ---------------------------------------------------------------------------------------------
@@ -131,24 +149,25 @@ def diamond(ic, cx, cy, r, c):
 
 
 # --- systeme ------------------------------------------------------------------------------------------------------
-@icon('control', 0x7E8A9C, 0x434C5C)
+@icon('control', 0x7E8A9C, 0x434C5C, free=True)
 def control(ic):
-    g = sub(ic.gear(50, 50, 35, 26, 9), ic.circ(50, 50, 11.5))
-    ic.raised(g, Grad(0xFFFFFF, 0xC9D1DC, 110), rim=.5, dk=.2)
-    ic.fill(ic.ring(50, 50, 12.2, 1.6), 0x000000, .16)
+    """Un engrenage en objet (Adwaita) : gris clair, son épaisseur, le moyeu creusé."""
+    g = sub(ic.gear(50, 47, 38, 28, 9), ic.circ(50, 47, 12))
+    obj(ic, g, Grad(0xF6F5F4, 0xD8D6D3, 90), 0x8D8A86, 6)
+    ic.fill(ic.circ(50, 47, 12), 0x5E5C64)
+    ic.fill(ic.circ(50, 49.5, 9.5), 0x77767B)
 
 
-@icon('files', 0x3CC1F2, 0x0C79C8)
+@icon('files', 0x3CC1F2, 0x0C79C8, free=True)
 def files(ic):
-    """Un classeur a tiroirs fermes, chacun sa poignee et son etiquette."""
-    ic.raised(ic.rr(18, 14, 64, 72, 6), Grad(0xF5F7FB, 0xC3CDDA, 100), rim=.5)
-    drawer = Grad(0xFFCE5E, 0xF09A22, 100)
-    pull = Grad(0x9A5A12, 0x6E3D0A, 90)
-    for y in (19, 41, 63):
-        ic.raised(ic.rr(23, y, 54, 18.5, 3), drawer, rim=.6, dk=.22)
+    """Un classeur à tiroirs fermés, en objet (Adwaita) : le corps clair, les tiroirs ambre, poignées et étiquettes."""
+    obj(ic, ic.rr(14, 10, 72, 74, 8), Grad(0xFAFBFC, 0xDEE2E8, 90), 0xA9B1BD, 6)
+    drawer = Grad(0xFFC94A, 0xF6A623, 90)
+    for y in (16, 39, 62):
+        obj(ic, ic.rr(20, y, 60, 18.5, 4), drawer, 0xC77712, 2.4, sh=0)
         if not ic.small:
-            ic.fill(ic.rr(41, y + 3, 18, 5, 1), PAPER)
-        ic.fill(ic.rr(38, y + 10.5, 24, 4.5, 2.25), pull)
+            ic.fill(ic.rr(40, y + 3.4, 20, 5.2, 1.2), 0xFFFFFF, .9)
+        ic.fill(ic.rr(37, y + 10.8, 26, 4.6, 2.3), 0x7A4A0E)
 
 
 @icon('terminal', 0x3A404B, 0x14171D)
@@ -284,14 +303,15 @@ def mixer(ic):
         ic.fill(ic.rr(x - 6, y - .9, 12, 1.8, 0), c)
 
 
-@icon('corbeille', 0x8B97A6, 0x4C5766)
+@icon('corbeille', 0x8B97A6, 0x4C5766, free=True)
 def corbeille(ic):
-    body = ic.soften(ic.poly([(26, 34), (74, 34), (69, 84), (31, 84)]), 1.4)
-    ic.raised(body, Grad(0xFFFFFF, 0xCAD2DD, 100))
-    for x in (38.5, 50, 61.5):
-        ic.fill(ic.line([(x, 43), (50 + (x - 50) * .82, 75)], 3.6), 0x8592A3)
-    ic.raised(ic.rr(20, 24, 60, 8.5, 3.5), Grad(0xFFFFFF, 0xDBE1EA, 100))
-    ic.fill(sub(ic.rr(39, 15, 22, 13, 4), ic.rr(43.5, 19.5, 13, 12, 2)), 0xF2F5F9)
+    """La corbeille en objet (Adwaita) : un seau gris clair cannelé, son couvercle, leurs épaisseurs."""
+    body = ic.soften(ic.poly([(24, 32), (76, 32), (70, 86), (30, 86)]), 1.4)
+    obj(ic, body, Grad(0xDEDDDA, 0xC0BFBC, 0), 0x77767B, 4)
+    for x in (37, 50, 63):
+        ic.fill(ic.line([(x, 40), (50 + (x - 50) * .8, 78)], 3.6), 0x9A9996)
+    obj(ic, ic.rr(18, 20, 64, 10, 4), Grad(0xF6F5F4, 0xDEDDDA, 90), 0x77767B, 3, sh=.15)
+    obj(ic, sub(ic.rr(38, 11, 24, 12, 4), ic.rr(42.5, 15.5, 15, 10, 2)), 0xF6F5F4, 0x77767B, 2, sh=0)
 
 
 @icon('theme', 0xA176F0, 0x5A36C4)
@@ -449,33 +469,32 @@ def clipboard(ic):
 
 
 # --- accessoires --------------------------------------------------------------------------------------------------
-@icon('calculator', 0x566072, 0x282E3A)
+@icon('calculator', 0x566072, 0x282E3A, free=True)
 def calculator(ic):
-    ic.raised(ic.rr(21, 13, 58, 74, 8), Grad(0xF7F9FC, 0xCCD4DF, 100))
-    ic.fill(ic.rr(28, 20, 44, 16, 3), Grad(0x263340, 0x34495A, 100))
+    """La calculatrice en objet (Adwaita) : un corps gris foncé, l'écran clair, les touches avec leur épaisseur."""
+    obj(ic, ic.rr(20, 8, 60, 78, 9), Grad(0x5E5C64, 0x4A4850, 90), 0x2E2C33, 6)
+    ic.fill(ic.rr(26, 15, 48, 17, 3), Grad(0xDFF5E6, 0xC4E8CF, 90))
     if not ic.small:
-        ic.fill(ic.rr(51, 25.5, 16, 5.5, 1.4), 0x8FF0B8)
+        ic.fill(ic.rr(52, 20.5, 17, 6, 1.4), 0x2E7D4A)
     for r in range(3):
         for c in range(3):
-            k = 0xF28C28 if c == 2 and r == 2 else (0xF28C28 if c == 2 else 0x5B667A)
-            ic.fill(ic.rr(28 + c * 15.4, 42 + r * 13.6, 13, 10.4, 2.4), Grad(light(k, .12), dark(k, .08), 100))
+            k, kd = (0xFF8A3D, 0xC25B12) if c == 2 else (0xDEDDDA, 0x9A9996)
+            obj(ic, ic.rr(26 + c * 16.4, 38 + r * 14.4, 13.4, 10.2, 2.4), k, kd, 1.8, sh=0)
 
 
-@icon('clock', 0xFFA94E, 0xE0561E)
+@icon('clock', 0xFFA94E, 0xE0561E, free=True)
 def clock(ic):
-    m = ic.circ(50, 50, 37)
-    ic.raised(m, Grad(0xFFFFFF, 0xE6EAF0, 110))
-    ic.fill(ic.ring(50, 50, 35.6, 2.8), 0xC9D2DE, .9)
+    """L'horloge en objet (Adwaita) : un boîtier rond orangé, son épaisseur, le cadran blanc."""
+    obj(ic, ic.circ(50, 47, 40), Grad(0xFFA348, 0xF57C20, 90), 0xB4520C, 6)
+    ic.fill(ic.circ(50, 47, 32), Grad(0xFFFFFF, 0xEEEDEC, 90))
     if not ic.small:
         for i in range(12):
             a = math.radians(i * 30)
-            q = 5.4 if i % 3 == 0 else 3
-            ic.fill(ic.line([(50 + 30 * math.sin(a), 50 - 30 * math.cos(a)), (50 + (30 - q) * math.sin(a), 50 - (30 - q) * math.cos(a))], 2.0), INK)
-    ic.fill(ic.line([(50, 50), (36, 41)], 5.2), INK)
-    ic.fill(ic.line([(50, 50), (62, 26)], 3.8), INK)
-    if not ic.small:
-        ic.fill(ic.line([(44, 58), (61, 40)], 1.5), 0xE8452C)
-    ic.fill(ic.circ(50, 50, 3.8), 0xE8452C)
+            q = 5 if i % 3 == 0 else 2.6
+            ic.fill(ic.line([(50 + 27 * math.sin(a), 47 - 27 * math.cos(a)), (50 + (27 - q) * math.sin(a), 47 - (27 - q) * math.cos(a))], 2.2), 0x3D3846)
+    ic.fill(ic.line([(50, 47), (37, 39)], 5.2), 0x3D3846)
+    ic.fill(ic.line([(50, 47), (61, 25)], 3.8), 0x3D3846)
+    ic.fill(ic.circ(50, 47, 3.8), 0xE01B24)
 
 
 @icon('jamendo', 0x2BD4B0, 0x157A8E)
@@ -643,19 +662,20 @@ def archiver(ic):
     ic.fill(ic.rr(48, 69, 4, 7.4, 2), 0x6B7A8E)
 
 
-@icon('calendar', 0xFF6B5E, 0xCC2437)
+@icon('calendar', 0xFF6B5E, 0xCC2437, free=True)
 def calendar(ic):
-    m = ic.rr(16, 19, 68, 65, 8)
-    ic.raised(m, PAPER)
-    ic.fill(inter(m, ic.rr(14, 17, 72, 21, 0)), Grad(0xF7574D, 0xD92F3C, 100))
-    for x in (33, 67):
-        ic.raised(ic.rr(x - 3, 13, 6, 14, 3), Grad(0xFFFFFF, 0xD9DFE8, 100), sh=False)
+    """Le calendrier en objet (Adwaita) : une page blanche, sa bande rouge, ses anneaux, son épaisseur."""
+    m = ic.rr(14, 14, 72, 70, 9)
+    obj(ic, m, Grad(0xFFFFFF, 0xF1F0EF, 90), 0xB5B3AF, 6)
+    ic.fill(inter(m, ic.rr(10, 10, 80, 22, 0)), Grad(0xF0453A, 0xD92B2B, 90))
+    for x in (32, 68):
+        ic.fill(ic.rr(x - 3.5, 8, 7, 15, 3.5), 0x77767B)
     for r in range(3):
         for c in range(4):
             if r == 2 and c == 3:
                 continue
-            k = 0xE03A3E if (r, c) == (1, 2) else 0x8C99AC
-            ic.fill(ic.rr(24.5 + c * 13.6, 44 + r * 12.6, 9, 8.6, 2.2), k)
+            k = 0xE01B24 if (r, c) == (1, 2) else 0x9A9996
+            ic.fill(ic.rr(22.5 + c * 14.6, 41 + r * 13, 10, 9, 2.2), k)
 
 
 # --- bureautique --------------------------------------------------------------------------------------------------

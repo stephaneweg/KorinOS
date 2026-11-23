@@ -11,6 +11,13 @@ from PIL import Image, ImageDraw, ImageFilter, ImageChops
 M = 768                 # cote du maitre : 8 x la plus grande taille utile (96), 16 x 48
 
 SP = 5.0                # exposant de la superellipse de la tuile
+# Le style (23/11/2026, demande de l'utilisateur : « dans le même style qu'Adwaita ») : la tuile devient la plaque
+# des icônes d'applications de GNOME (aplat, coins de 12 %, une épaisseur plus sombre dessous, ni reflet ni liseré),
+# et les reliefs des symboles deviennent des aplats. STYLE = 'tile' redonne les tuiles d'avant.
+STYLE = 'adwaita'
+ADW_FACE = (8, 9, 92, 84)       # la face de la plaque : x0, y0, x1, y1 (repère 0..100)
+ADW_SIDE = 6                    # son épaisseur, sous la face
+ADW_R = 12
 INSET = 5.4             # marge de la tuile dans la case, en % de la case (ombre comprise)
 INSET_SMALL = 1.6
 
@@ -229,6 +236,15 @@ class Ic:
         """Un element en leger relief : ombre sur ce qui est dessous, peinture, arete claire en haut, sombre en bas."""
         if paint is None:
             paint = Grad(0xFFFFFF, 0xDCE3EE, 100)
+        if STYLE == 'adwaita':  # (des aplats : une ombre courte et nette, pas de liseré clair, un bas à peine marqué)
+            if sh:
+                s.shadow(m, dy=1.0, blur=.5, op=.18, dx=0)
+            s.fill(m, paint)
+            if not s.small and dk:
+                d = int(max(1, s.u(1.0)))
+                r = ImageChops.subtract(m, ImageChops.offset(m, 0, -d))
+                s.fill(ImageChops.multiply(r, m), 0x000000, .14)
+            return
         if sh:
             s.shadow(m)
         s.fill(m, paint)
@@ -254,6 +270,8 @@ class Ic:
         return p
 
     def tile(s, top, bottom):
+        if STYLE == 'adwaita':
+            return s.plate(top, bottom)
         t = s.poly(s.tile_pts())
         s.tile_mask = t
         if not s.small:     # ombre douce, comprise dans l'image : un contact serre et une nappe large
@@ -268,8 +286,27 @@ class Ic:
         foot = Image.fromarray(np.uint8(np.clip((s.yy / M - .6) / .4, 0, 1) ** 2 * 255))
         s.fill(foot, 0x000000, .08)
 
+    def plate(s, top, bottom):
+        """La plaque d'Adwaita : une face d'aplat (à peine plus claire en haut), dessous son épaisseur plus sombre."""
+        x0, y0, x1, y1 = ADW_FACE
+        side = ADW_SIDE
+        if s.small:     # (petites tailles : la plaque plus grande, l'épaisseur plus fine)
+            x0, y0, x1, y1, side = 3, 4, 97, 91, 5
+        face_c = mix(top, bottom, .35)
+        whole = s.rr(x0, y0, x1 - x0, y1 - y0 + side, ADW_R)
+        face = s.rr(x0, y0, x1 - x0, y1 - y0, ADW_R)
+        if not s.small:
+            s.shadow(whole, 1.0, 1.2, .18, dx=0)
+        s.fill(whole, dark(bottom, .28))
+        s.fill(face, Grad(light(face_c, .06), face_c, 90, (0, y0, 100, y1)))
+        s.tile_mask = whole
+        s.clip(whole)
+
     def rim(s):
         """Lisere de la tuile, a la fin : fonce tout autour, clair sur l'arete haute."""
+        if STYLE == 'adwaita':
+            s.clip(None)
+            return
         t = s.tile_mask
         s.clip(None)
         px = max(1, int(s.u(.9 if not s.small else 2.0)))
