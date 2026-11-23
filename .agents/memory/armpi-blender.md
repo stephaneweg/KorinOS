@@ -26,5 +26,11 @@ Demande de l'utilisateur du 23/11 : porter Blender dans Korin. Étude et état :
 Blender, fetch.sh) ; sources de 5.2.4 + 26 archives de classe A dans WSL ~/korin-blender/src (somme de Blender : .md5sum,
 pas de .sha256). Suite : jalon 1 (dépendances A, ordre dans l'étude § 4).
 
+**Jalon 1 fait (24/11)** : `tools/blender/deps.sh` (tout en statique dans ~/korin-blender/x86_64/deps, libs de Jet
+recopiées, retouches dans tools/blender/patches) et `python.sh` (CPython 3.13 par tools/python/build.sh avec PYVER,
+PYPATCH, STATIC_LIBPY) ; rien encore lancé dans Korin ; numpy reporté au jalon 4 (meson croisé). Suite : jalon 2
+(`blender -b`, WITH_HEADLESS). Pièges : jamais -I vers le sysroot de Jet (copies des en-têtes de libposix) ;
+build/pc/posix peut retarder sur src/lib/posix.
+
 **How to apply:** JOBS=4 dans WSL (9 Go). Lancer les scripts par `wsl -- sh tools/blender/…` (pas `wsl bash -c '…$X…'` :
 les $ sont développés avant ; Git Bash : MSYS_NO_PATHCONV=1 pour les chemins /home). Voir [[armpi-godot]], [[armpi-cpython]], [[armpi-devtools]], [[armpi-cao]].

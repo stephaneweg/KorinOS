@@ -37,10 +37,13 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 . "$ROOT/tools/python/arch.sh"
 JOBS=${JOBS:-$(nproc)}
 EXTRA=${EXTRA:-${ROOT%%/.claude/worktrees/*}/src/extra}
-BUILD_PYTHON=${BUILD_PYTHON:-/usr/bin/python3.14}
-
-VER=3.14.10
-SHA256=de414a57119abef52784d8993e341d53aed635fc2b05c2607d9f98a2c5b72032
+# PYVER, PYSHA256 : une autre version (Blender veut 3.13 : tools/blender/python.sh) ; STATIC_LIBPY=1 garde
+# libpython<ver>.a (Python embarque dans un programme)
+VER=${PYVER:-3.14.10}
+SHA256=${PYSHA256:-de414a57119abef52784d8993e341d53aed635fc2b05c2607d9f98a2c5b72032}
+SHORT=${VER%.*}
+NODOT=$(echo "$SHORT" | tr -d .)
+BUILD_PYTHON=${BUILD_PYTHON:-/usr/bin/python$SHORT}
 NAME=Python-$VER
 URL=https://www.python.org/ftp/python/$VER/$NAME.tar.xz
 FFI_VER=3.8.0
@@ -52,8 +55,8 @@ T=$ROOT/tools/python
 
 export PATH="$TOOL/bin:$PATH"
 [ -f "$SPECS" ] || { echo "libposix absente : sh tools/posix/build.sh" >&2; exit 1; }
-"$BUILD_PYTHON" -c 'import sys; assert sys.version_info[:2] == (3, 14)' ||
-	{ echo "il faut un Python 3.14 de construction (BUILD_PYTHON)" >&2; exit 1; }
+"$BUILD_PYTHON" -c "import sys; assert '%d.%d' % sys.version_info[:2] == '$SHORT'" ||
+	{ echo "il faut un Python $SHORT de construction (BUILD_PYTHON)" >&2; exit 1; }
 for d in "$ZLIB" "$SQLITE"; do [ -d "$d" ] || { echo "absent : $d (EXTRA=...)" >&2; exit 1; }; done
 
 CC="${TC}gcc -specs=$SPECS"
@@ -104,11 +107,12 @@ mkdir -p "$WORK/ffi"
 # ---- CPython : les sources, verifiees, puis les retouches de korin.patch ----
 fetch $NAME.tar.xz "$URL" "$SHA256"
 S=$WORK/src/$NAME
-STAMP=$(cat "$T/korin.patch" 2>/dev/null | sha256sum | cut -c1-16)
+PATCH=${PYPATCH:-$T/korin.patch}	# (PYPATCH : celle d une autre version, ex. tools/blender/patches/python-3.13.patch)
+STAMP=$(cat "$PATCH" 2>/dev/null | sha256sum | cut -c1-16)
 if [ "$(cat "$S/.korin-patched" 2>/dev/null)" != "$STAMP" ]; then
 	rm -rf "$S"
 	tar xJf "$WORK/dl/$NAME.tar.xz" -C "$WORK/src"
-	[ -f "$T/korin.patch" ] && patch -d "$S" -p1 < "$T/korin.patch"
+	if [ -f "$PATCH" ]; then patch -d "$S" -p1 < "$PATCH" || { echo "retouches refusees : $PATCH" >&2; exit 1; }; fi
 	echo "$STAMP" > "$S/.korin-patched"
 fi
 
@@ -131,7 +135,7 @@ PKG_CONFIG_LIBDIR=$DEPS/lib/pkgconfig PKG_CONFIG_PATH= \
 	"$S/configure" --host=$HOST_TRIPLE --build=x86_64-pc-linux-gnu \
 	--with-build-python="$BUILD_PYTHON" --prefix=/devtools/python \
 	--disable-shared --disable-ipv6 --without-ensurepip --enable-test-modules \
-	--without-readline --without-static-libpython --without-mimalloc \
+	--without-readline $([ -n "${STATIC_LIBPY:-}" ] || echo --without-static-libpython) --without-mimalloc \
 	--with-openssl="$SSL" --with-ssl-default-suites=openssl \
 	>"$B/configure.log" 2>&1 || { tail -30 "$B/configure.log"; exit 1; }
 # python3 exporte OpenSSL en entier (pas seulement les membres que _ssl et _hashlib tirent) : les
@@ -145,27 +149,27 @@ rm -rf "$OUT/stage"
 make DESTDIR="$OUT/stage" install >"$B/install.log" 2>&1 || { tail -30 "$B/install.log"; exit 1; }
 
 # ---- la carte ----
-L=$OUT/stage/devtools/python/lib/python3.14
+L=$OUT/stage/devtools/python/lib/python$SHORT
 SD=$OUT/sdroot
 rm -rf "$SD" "$OUT/tests"
-mkdir -p "$SD/bin" "$SD/python/lib/python3.14/lib-dynload" "$SD/python/lib/python3.14/site-packages" \
+mkdir -p "$SD/bin" "$SD/python/lib/python$SHORT/lib-dynload" "$SD/python/lib/python$SHORT/site-packages" \
 	"$SD/python/include" "$OUT/tests/lib-dynload"
-${TC}strip "$OUT/stage/devtools/python/bin/python3.14" -o "$SD/bin/python3"
+${TC}strip "$OUT/stage/devtools/python/bin/python$SHORT" -o "$SD/bin/python3"
 # le sysconfig de la carte : les modules s'y compilent par le gcc de /devtools/gcc (specs de Korin fondues
 # dans les siennes, docs/GCC.md), en -fPIC -shared ; celui de la construction reste dans
 # build/Makefile (les .so d'essai ci-dessus y ont ete faits), stage prend celui de la carte
-for f in $(cd "$L" && ls _sysconfigdata_*.py _sysconfig_vars_*.json); do
+for f in $(cd "$L" && ls _sysconfigdata_*.py _sysconfig_vars_*.json 2>/dev/null); do
 	sed -e "s|${TC}gcc -specs=$SPECS|gcc|g" -e "s|${TC}g++ -specs=$SPECS|g++|g" \
 	    -e "s|${TC}\(ar\|ranlib\|readelf\|strip\)|\1|g" -e "s|$DEPS|/devtools/python|g" -e "s|$SSL|/devtools/python|g" \
-	    -e "s|$B|/devtools/python/lib/python3.14/config-3.14|g" -e "s|$S|/devtools/python/lib/python3.14/config-3.14|g" \
+	    -e "s|$B|/devtools/python/lib/python$SHORT/config-$SHORT|g" -e "s|$S|/devtools/python/lib/python$SHORT/config-$SHORT|g" \
 		"$L/$f" > "$WORK/$f"
 	! grep -q "$WORK\|/mnt/" "$WORK/$f" || { echo "chemins de construction dans $f :" >&2;
 		grep -o "[^ '\"]*\(/mnt/\|$WORK\)[^ '\"]*" "$WORK/$f" | sort -u | head >&2; exit 1; }
 	cp "$WORK/$f" "$L/$f"
 done
-cp "$L"/_sysconfig_vars_*.json "$SD/python/lib/python3.14/"
-cp -r "$OUT/stage/devtools/python/include/python3.14" "$SD/python/include/"
-"$BUILD_PYTHON" -I "$T/mkzip.py" "$L" "$SD/python/lib/python314.zip" --deflate
+! ls "$L"/_sysconfig_vars_*.json >/dev/null 2>&1 || cp "$L"/_sysconfig_vars_*.json "$SD/python/lib/python$SHORT/"	# (3.14 et plus)
+cp -r "$OUT/stage/devtools/python/include/python$SHORT" "$SD/python/include/"
+"$BUILD_PYTHON" -I "$T/mkzip.py" "$L" "$SD/python/lib/python$NODOT.zip" --deflate
 # les essais : Lib/test et les modules d'essai (seulement sur la carte d'essai)
 cp -r "$L/test" "$OUT/tests/test"
 find "$OUT/tests/test" -name "*.opt-[12].pyc" -delete

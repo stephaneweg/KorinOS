@@ -29,7 +29,7 @@ fi
 
 echo "== CPython $VER pour Korin PC"
 mkdir -p "$K/python-work/dl"
-cp -n "$ARC" "$K/python-work/dl/"
+cp "$ARC" "$K/python-work/dl/"
 ARCH=x86_64 PYVER=$VER PYSHA256=$(sha256sum "$ARC" | cut -d' ' -f1) BUILD_PYTHON=$HOSTPY/bin/python$SHORT \
-	STATIC_LIBPY=1 WORK=$K/python-work OUT=$OUT/python JOBS=$JOBS sh "$ROOT/tools/python/build.sh"
+	PYPATCH=$BL/patches/python-$SHORT.patch STATIC_LIBPY=1 WORK=$K/python-work OUT=$OUT/python JOBS=$JOBS sh "$ROOT/tools/python/build.sh"
 ls -l "$OUT/python/stage/devtools/python/lib/libpython$SHORT.a"

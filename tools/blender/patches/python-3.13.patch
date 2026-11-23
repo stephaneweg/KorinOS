@@ -1,0 +1,101 @@
+diff -ru a/Lib/sysconfig/__init__.py b/Lib/sysconfig/__init__.py
+--- a/Lib/sysconfig/__init__.py	2026-11-24 00:04:50.262401822 +0100
++++ b/Lib/sysconfig/__init__.py	2026-11-24 00:04:50.246401827 +0100
+@@ -637,6 +637,9 @@
+     osname = osname.lower().replace('/', '')
+     machine = machine.replace(' ', '_')
+     machine = machine.replace('/', '-')
++    # Korin : le noyau dit ARMPI, mais sys.platform vaut "linux" ; les roues sont linux_x86_64
++    if osname == "armpi":
++        osname = "linux"
+ 
+     if osname[:5] == "linux":
+         if sys.platform == "android":
+diff -ru a/Modules/getpath.py b/Modules/getpath.py
+--- a/Modules/getpath.py	2026-11-24 00:04:50.270401820 +0100
++++ b/Modules/getpath.py	2026-11-24 00:04:50.226401832 +0100
+@@ -266,7 +266,12 @@
+ 
+ if not executable and SEP in program_name:
+     # Resolve partial path program_name against current directory
+-    executable = abspath(program_name)
++    # Korin : « /bin/python3 » (un script #! lance par vfs) est deja absolu ; abspath le collait au dossier
++    # courant (« //bin/python3 ») : realpath de libposix rend la forme POSIX (« /bin/python3 »)
++    if ':' in program_name.partition(SEP)[0]:
++        executable = realpath(program_name)
++    else:
++        executable = abspath(program_name)
+ 
+ if not executable:
+     # All platforms default to real_executable if known at this
+@@ -595,7 +600,9 @@
+ 
+     if PREFIX and not prefix:
+         prefix = PREFIX
+-        if not any(isfile(joinpath(prefix, f)) for f in STDLIB_LANDMARKS):
++        # Korin : python3 est dans /bin, la bibliotheque dans PREFIX/lib/python314.zip seule
++        if not any(isfile(joinpath(prefix, f)) for f in STDLIB_LANDMARKS) and not (
++                ZIP_LANDMARK and isfile(joinpath(prefix, ZIP_LANDMARK))):
+             warn('Could not find platform independent libraries <prefix>')
+ 
+     if not prefix:
+diff -ru a/Modules/timemodule.c b/Modules/timemodule.c
+--- a/Modules/timemodule.c	2026-11-24 00:04:50.278401817 +0100
++++ b/Modules/timemodule.c	2026-11-24 00:04:50.226401832 +0100
+@@ -187,7 +187,8 @@
+ {
+ #ifdef _AIX
+     long long clk_id = PyLong_AsLongLong(obj);
+-#elif defined(__DragonFly__)
++#elif defined(__DragonFly__) || defined(__NEWLIB__)
++    // Korin : le clockid_t de newlib est un unsigned long
+     long clk_id = PyLong_AsLong(obj);
+ #else
+     int clk_id = PyLong_AsInt(obj);
+diff -ru a/Python/initconfig.c b/Python/initconfig.c
+--- a/Python/initconfig.c	2026-11-24 00:04:50.286401815 +0100
++++ b/Python/initconfig.c	2026-11-24 00:04:50.226401832 +0100
+@@ -2878,6 +2878,23 @@
+ 
+ 
+ /* Get run_filename absolute path */
++#if defined(__armpi__)
++#include <armpi/syscall.h>
++/* Korin OS : le script que cet interprete execute, dit au noyau une fois (SYS_PROC_SET_SCRIPT 0x95), avant tout
++   code Python (site, .pth) : le coffre a secrets (docs/KEYVAULT.md) range ses secrets sous ce chemin, pas sous
++   celui de python3. Appele pendant la lecture de la configuration, sans interpreteur ni thread state :
++   l'allocateur brut seulement (Py_EncodeLocale passe par obmalloc, qui lit tstate->interp : faute) */
++static void
++korin_set_script(const wchar_t *w)
++{
++    char *b = _Py_EncodeLocaleRaw(w, NULL);
++    if (b != NULL) {
++        armpi_syscall(0x95, (long)b, 0, 0, 0, 0, 0);
++        PyMem_RawFree(b);
++    }
++}
++#endif
++
+ static PyStatus
+ config_run_filename_abspath(PyConfig *config)
+ {
+@@ -2888,6 +2905,9 @@
+ #ifndef MS_WINDOWS
+     if (_Py_isabs(config->run_filename)) {
+         /* path is already absolute */
++#if defined(__armpi__)
++        korin_set_script(config->run_filename);
++#endif
+         return _PyStatus_OK();
+     }
+ #endif
+@@ -2904,6 +2924,9 @@
+ 
+     PyMem_RawFree(config->run_filename);
+     config->run_filename = abs_filename;
++#if defined(__armpi__)
++    korin_set_script(config->run_filename);
++#endif
+     return _PyStatus_OK();
+ }
+ 
