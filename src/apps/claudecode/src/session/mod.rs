@@ -6,11 +6,15 @@
 //! l'autre (le brouillon tapé, les menus ouverts, l'onglet de l'inspecteur…). Chaque partie a le sien, défini dans son
 //! fichier.
 
+pub mod cards;
 pub mod composer;
 pub mod header;
 pub mod inspector;
 pub mod page;
+pub mod rewind;
 pub mod thread;
+pub mod tool_row;
+pub mod workflow;
 
 #[derive(Default)]
 pub struct SessionView {

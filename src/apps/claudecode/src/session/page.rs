@@ -1,5 +1,5 @@
-//! La page d'une session (`pages/session_page.rs`) : en cours de résolution, introuvable, ou l'en-tête, le fil et le
-//! composeur (l'inspecteur est un panneau de app.rs). Échap, quand rien d'autre ne le prend (popover, menu, palette),
+//! La page d'une session (`pages/session_page.rs`) : en cours de résolution, introuvable, ou l'en-tête, le fil, la
+//! liste des tâches et le composeur (l'inspecteur est un panneau de app.rs). Échap, quand rien d'autre ne le prend (popover, menu, palette),
 //! interrompt le tour en cours.
 
 use ccui_shared::{i18n, t};
@@ -63,6 +63,12 @@ pub fn show(ui: &mut Ui, cx: &mut Cx, view: &mut SessionView, id: &str) {
             egui::Panel::bottom("session-composer")
                 .frame(Frame::new().inner_margin(Margin { left: 24, right: 24, top: 6, bottom: 10 }))
                 .show_inside(ui, |ui| composer::show(ui, cx, &mut view.composer, id));
+            // la liste des tâches de l'agent, entre le fil et le composeur (`TodoPanel`)
+            if cx.app.session(id).is_some_and(|h| !ccui_shared::todo_list::from(&h.items).is_empty()) {
+                egui::Panel::bottom("session-todos")
+                    .frame(Frame::new().inner_margin(Margin { left: 24, right: 24, top: 6, bottom: 0 }))
+                    .show_inside(ui, |ui| thread::todos(ui, cx, &mut view.thread, id));
+            }
             egui::CentralPanel::default().frame(Frame::new()).show_inside(ui, |ui| thread::show(ui, cx, &mut view.thread, id));
         }
     }
