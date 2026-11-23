@@ -145,15 +145,6 @@ bool facePlane (const Body &b, int face, Frame &out);
 bool skSolve (Sketch &s);
 // les faces de ses contours fermés (les petits dans les grands font des trous) -> vide si aucun contour fermé
 TopoDS_Shape skFaces (const Sketch &s, std::string &err);
-// les régions (les « profils » d'une extrusion, comme Fusion) : chaque contour fermé moins les contours fermés
-// directement dedans ; depth 0 : à l'extérieur de tout, 1 : dans un autre (un trou), 2 : un îlot dans un trou...
-struct SkRegion { TopoDS_Shape face; int depth = 0; double area = 0; };
-bool skRegions (const Sketch &s, std::vector<SkRegion> &out, std::string &err);
-// la région qui contient le point (x, y) de l'esquisse (-1 : aucune)
-int skRegionAt (const Sketch &s, const std::vector<SkRegion> &r, double x, double y);
-// les faces à extruder : les régions désignées par des points (x, y à la suite, dans l'esquisse) ; sans point, les
-// régions de profondeur paire (skFaces) -> vide si aucune (err dit pourquoi)
-TopoDS_Shape skFacesPick (const Sketch &s, const std::vector<double> &picks, std::string &err);
 // un point de l'esquisse dans l'espace, et l'inverse (projeté sur le plan)
 void skWorld (const Sketch &s, double x, double y, double out[3]);
 void skLocal (const Sketch &s, const double p[3], double &x, double &y);

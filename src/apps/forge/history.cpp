@@ -283,7 +283,7 @@ static TopoDS_Shape sweepTool (const Doc &d, const Feature &f)
 	if (f.ref < 0 || f.ref >= (int) d.feats.size () || d.feats[f.ref].kind != ST_SKETCH) throw Fail { "l'esquisse n'existe plus" };
 	const Sketch &sk = d.feats[f.ref].sk;
 	std::string err;
-	TopoDS_Shape faces = skFacesPick (sk, f.pos, err);	// (pos : les contours choisis, des points de l'esquisse)
+	TopoDS_Shape faces = skFaces (sk, err);
 	if (faces.IsNull ()) throw Fail { "l'esquisse n'a " + err };
 	if (f.kind == ST_EXTRUDE) {
 		if (std::fabs (f.a) < 0.01) throw Fail { "la distance est nulle" };

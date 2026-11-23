@@ -137,17 +137,3 @@ face, distance gardée) ; Échap inchangé ; révolution inchangée ; alongNorma
 (9 essais : pointeur seul sans effet, glisser persp/ortho, volumes exacts, frappe, changement de face, Échap).
 Piège d'essai KORIN_SCRIPT : le vrai pointeur sur la fenêtre envoie ses mouvements (survol juste avant chaque clic).
 Korin pas construit ni essayé ici.
-
-**23/11, forge 1.3.11 (pas publié, main)** : demandes de l'utilisateur : (1) une esquisse gardée se voit dans la vue
-(skStrokesIdle : celles qu'aucune extrusion/révolution n'utilise, plus celle choisie dans la frise ou en cours
-d'extrusion, en accent ; une esquisse extrudée est cachée comme dans Fusion) ; (2) bouton **Extrusion** dans la barre
-d'outils (TB_EXTRUDE, après Esquisse ; id 38) ; (3) **choisir les contours** à extruder (profils de Fusion) :
-sketch.cpp skRegions (chaque contour fermé moins ses enfants directs, profondeur 0/1/2...), skRegionAt, skFacesPick ;
-Feature::pos d'une extrusion/révolution = un point (x, y de l'esquisse) par contour choisi, vide = tous ceux de
-profondeur paire (défaut, l'esquisse peut changer) ; dans la commande, les contours teintés (View::fills), survol,
-un clic prend ou laisse (regToggle, jamais aucun ; retour à « automatique » si le choix égale le défaut) ; un îlot dans
-un trou est maintenant extrudé par défaut (avant : perdu) ; (4) le mode de combinaison existait déjà (segmenté
-Nouveau|Joindre|Enlever|Inter. du panneau, OP_INTERSECT = BRepAlgoAPI_Common) : vérifié. Essais : la géométrie des
-régions avec OCCT 7.6 natif (11/11, un essai hors dépôt) ; 5 essais ajoutés au selftest (pas lancé : PlaneGCS
-introuvable ici, l'archive de FreeCAD sur github.com refusée par le proxy du cloud) ; main.cpp compile (-fsyntax-only).
-Ni Korin ni le port Linux construits dans cette session.

@@ -72,10 +72,6 @@ public:
 	struct Dot { double p[3]; unsigned col; int size; bool round = false; int hole = 0; unsigned holeCol = 0; };
 	std::vector<Stroke> strokes;
 	std::vector<Dot> dots;
-	// des surfaces teintées sous les traits, sans profondeur (les contours d'une esquisse : choisis, survolés) ;
-	// amount : 0..255, la part de la couleur mêlée à la scène
-	struct Fill { const Mesh *m; unsigned col; int amount; };
-	std::vector<Fill> fills;
 	bool dimBodies = false;		// (en esquisse : la pièce pâlie)
 	// regarder le long de -n (la face vers soi), x vers la droite autant que possible
 	void lookAlong (const double n[3]);
