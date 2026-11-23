@@ -70,7 +70,7 @@
 - [Process sans plafond](armpi-process-sans-plafond.md) — plus de MAX_PROCS, pids à génération, PROC_INFO/PROCLIST_FROM ; dans main (avec SVC_FORWARD) et sur le Pi (4/11)
 - [Manques d'Onyx](armpi-onyx-manques.md) — 5/11 : apps d'Onyx à porter ou écartées par l'utilisateur, fait dans main, études de design en attente
 - [Mode poche](armpi-mode-poche.md) — maquettes validées le 5/11, accueil A, fenêtres fixes en plein écran adaptatif ; dans main, poussé, paquets 2026.11.24 publiés le 6/11 (extinction, flèches du lanceur, thème à chaud, Réglages plein écran)
-- [Budget mensuel](armpi-budget.md) — port C++ de l'app Windows de budget, dans main, paquet budget 1.0.2 publié (onglet Soldes et résumé), marche sur Korin (8/11) ; changements dans les deux apps
+- [Budget mensuel](armpi-budget.md) — port C++ de l'app Windows de budget, dans main, paquet budget 1.0.2 publié (onglet Soldes et résumé), marche sur Korin (8/11) ; changements dans les deux apps ; 23/11 liste déroulante pour classer les opérations bancaires (claude/linux-budget)
 - [Korin sur PC x86-64](armpi-x86-pc.md) — branche claude/x86-64-pc, ZBook Fury G8, micronoyau, code commun en C ; jalons 1 à 3 (process, ordonnanceur, SMP) sous QEMU seulement
 - [Agent IA sur Korin](armpi-agent-ia-korin.md) — abonnement seulement ; Mistral Vibe avec façade native Korin préférée ; AGENTS.md + compétences
 - [dlopen](armpi-dlopen.md) — vrai dlopen dans libposix, hôte -rdynamic, modules -shared ; dans main depuis le 11/11 (06ef7995, 5fb03d1a), essayé sur le Pi
@@ -145,3 +145,4 @@
 - [poll et tubes](armpi-poll-tubes.md) — 21/11 : git lent (poll de libposix, netd ancien de /sys/svc, tubes 464 o) corrigé : pc .82, git 2.51.4, bash 1.0.8, smbd 1.0.6, linuxhost 1.0.5 ; étude docs/etude/ANNEAUX.md (anneaux partagés) au plan
 - [Fichiers en parallèle](armpi-fichiers-paralleles.md) — 22-23/11 : cache des noms de vfs, index par dossier et 8 fils de fatfs, 8 files NVMe ; branche claude/serene-newton-051kkg, QEMU seulement
 - [Outils de construction](armpi-devtools.md) — 22-23/11 : cmake, perl, ruby, m4, bison, gperf, unifdef, pkgconf, 13 <lib>-dev (tools/devtools) ; flex bloqué ; publiés sur la branche
+- [Ports Linux](armpi-linux-ports.md) — 23/11 : Koton, Arabesque et Budget (banque, trousseau libsecret) sous Linux (linux-ports/) : UIKit sur GTK 4, AudioKit sur FluidSynth, sources des apps inchangées, binaires dans linux-ports/bin

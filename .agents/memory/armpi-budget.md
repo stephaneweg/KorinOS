@@ -17,3 +17,12 @@ Demandes de l'utilisateur : 800x600 → deux onglets en capsule (Charges et suiv
 **Why:** il gérait son budget dans Excel puis dans l'app Windows ; il veut la même app sur Korin.
 
 **How to apply:** pièges : `ui_menu_key` ne lit que lettres/chiffres/F-keys (« Ctrl+PgUp » = Ctrl+P) ; `ui_label` avec "" puis `ui_w_show` peut fauter (texte nul) ; essais QEMU : vider etc/preload.txt (Jet bloque vfs), `--kernel build/kernel8_800.img --ecran 800x600`, chiffres en AZERTY par `key shift-N`, pavé numérique muet. Voir [[armpi-mode-poche]], [[armpi-paquets]].
+
+23/11 (branche claude/linux-budget, pas poussée, pas de paquet Korin publié ; versions.ini : budget 1.0.5, [pc] 1.0.8) :
+l'utilisateur ne voyait « pas de drop down » pour classer les opérations bancaires. La cellule « Classer dans »
+(et « … classer dans » des règles) est devenue une liste déroulante dessinée par grid.h (GridModel::has_choices /
+choices / choose, GChoice : groupes Postes fixes, Dépenses courantes, Autres choix) : clic, Alt+Bas, F4, Menu, clic
+droit ; la saisie avec complétion reste. ui_popup_local n'avait pas de bug d'affichage visible dans le code (couche 4
+d'Elegant, WF_NOFOCUS : pas bloqué par le dialogue modal) : la liste n'était qu'au clic droit / touche Menu, rien
+au doigt. Corrigé aussi : complétion d'un libellé accentué (« meddical »). Essayé sous Linux seulement (port
+linux-ports/, voir [[armpi-linux-ports]]), pas sous Korin ni QEMU.

@@ -11,7 +11,11 @@
 //   Espace                                          cocher une case ; Suppr : vider la cellule
 //   Inser : inserer une ligne au-dessus ; Ctrl+Suppr : supprimer la ligne ; Ctrl+C / Ctrl+V : copier, coller (Excel)
 //   Menu, Maj+F10 : le menu de la ligne
-// Souris : clic (case : cocher), double-clic : saisir, bouton droit : le menu, bord d'un en-tete : largeur, molette.
+//   Alt+Bas, F4 : la liste deroulante d'une cellule a choix (GridModel::has_choices) ; dans la liste : fleches, Page,
+//                 Debut, Fin, Entree ou Tab (choisir), Echap, Alt+Haut ou F4 (fermer) ; une lettre la ferme et commence
+//                 la saisie (avec la completion)
+// Souris : clic (case : cocher ; cellule a choix : sa liste), double-clic : saisir, bouton droit : le menu, bord d'un
+// en-tete : largeur, molette.
 //
 #ifndef BUDGET_GRID_H
 #define BUDGET_GRID_H
@@ -30,6 +34,7 @@ static inline unsigned mix (unsigned a, unsigned b, int n) { return (unsigned) u
 #define C_BG	jet (J_FACE)
 #define C_FIELD	jet (J_SURFACE)
 #define C_TEXT	jet (J_TEXTE1)
+#define C_TEXT2	jet (J_TEXTE2)
 #define C_DIM	jet (J_TEXTE3)
 #define C_LINE	jet (J_LIGNE)
 #define C_ACCENT jet (J_ACCENT)
@@ -46,7 +51,7 @@ static void rbox (int x, int y, int w, int h, int r, unsigned c) { ui_rbox (x, y
 static int ctl_h () { int h = (int) ui_metric (UMT_CTL); return h < 24 ? 24 : h; }
 
 // les touches (codes HID)
-enum { K_ENTER = 0x28, K_ESC = 0x29, K_BACK = 0x2A, K_TAB = 0x2B, K_SPACE = 0x2C, K_F2 = 0x3B, K_F10 = 0x43, K_INSERT = 0x49,
+enum { K_ENTER = 0x28, K_ESC = 0x29, K_BACK = 0x2A, K_TAB = 0x2B, K_SPACE = 0x2C, K_F2 = 0x3B, K_F4 = 0x3D, K_F10 = 0x43, K_INSERT = 0x49,
        K_HOME = 0x4A, K_PGUP = 0x4B, K_DELETE = 0x4C, K_END = 0x4D, K_PGDN = 0x4E, K_RIGHT = 0x4F, K_LEFT = 0x50, K_DOWN = 0x51,
        K_UP = 0x52, K_MENU = 0x65, K_C = 0x06, K_V = 0x19, K_A = 0x04, K_KPENTER = 0x58 };
 
@@ -88,6 +93,9 @@ struct GCol
 	const char *tip;
 };
 struct CellStyle { unsigned fg; bool bold; bool hasBg; unsigned bg; };
+// un element de la liste deroulante d'une cellule : un choix (value : ce que recoit GridModel::choose), ou le titre
+// d'un groupe (group : ni choisi ni surligne) ; on : le choix actuel de la cellule (coche)
+struct GChoice { std::string label, value; bool group = false, on = false; };
 
 struct Grid;
 struct GridModel
@@ -110,6 +118,10 @@ struct GridModel
 	virtual void delete_row (int r) { (void) r; }
 	virtual void context (Grid *g, int r, int c, int wx, int wy) { (void) g; (void) r; (void) c; (void) wx; (void) wy; }
 	virtual void complete (int c, std::vector<std::string> &out) { (void) c; (void) out; }	// libelles connus d'une colonne
+	// une colonne a liste deroulante (la fleche dans ses cellules) : ses choix pour une cellule, et le choix fait
+	virtual bool has_choices (int c) { (void) c; return false; }
+	virtual void choices (int r, int c, std::vector<GChoice> &out) { (void) r; (void) c; (void) out; }
+	virtual void choose (int r, int c, const std::string &value) { set (r, c, value); }
 	virtual void message (const char *s) { (void) s; }
 	virtual void widths_changed () {}
 	virtual void focus_out (int dir) { (void) dir; }	// Ctrl+Tab : au widget suivant
@@ -132,6 +144,10 @@ struct Grid
 	// la souris
 	int dragCol = -1, dragX0 = 0, dragW0 = 0, rightR = -2, rightC = -1, hoverCursor = 0;
 	bool dragBar = false; int dragSx0 = 0;		// la barre horizontale tiree
+	// la liste deroulante ouverte (dessinee par la grille, sous ou sur sa cellule)
+	bool dd = false;
+	int ddR = 0, ddC = 0, ddSel = -1, ddTop = 0, ddW = 0;
+	std::vector<GChoice> ddItems;
 
 	int rowh () const { int r = (int) ui_metric (UMT_ROW); return r < 22 ? 22 : r; }
 	int hdrh () const { int r = (int) ui_metric (UMT_HDR); return r < 22 ? 22 : r; }
@@ -192,12 +208,169 @@ struct Grid
 	}
 	void go (int r, int c)
 	{
+		dd = false;
 		if (editing && !commit ()) return;
 		curR = r; curC = c;
 		ensure_visible ();
 		dirty ();
 	}
-	void reset () { editing = false; ac.clear (); top = 0; sx = 0; curR = 0; curC = 0; bad = false; }
+	void reset () { editing = false; dd = false; ac.clear (); top = 0; sx = 0; curR = 0; curC = 0; bad = false; }
+	bool drop_cell (int r, int c) const { return !readOnly && c >= 0 && r < nrows () && !ro_at (r, c) && m->has_choices (c); }
+
+	// ---- la liste deroulante
+	int drop_ih () const { return rowh () - 2; }
+	// sa place dans la vue : sous la cellule s'il y a la place, sinon au-dessus (la plus grande des deux)
+	void drop_geom (int &lx, int &ly, int &lw, int &lh, int &vis) const
+	{
+		int ih = drop_ih (), n = (int) ddItems.size ();
+		int cy = hdrh () + (ddR - top) * rowh ();
+		int below = h - (cy + rowh ()) - 2, above = cy - 2;
+		int want = n * ih + 6;
+		bool down = want <= below || below >= above;
+		int room = down ? below : above;
+		vis = want <= room ? n : (room - 6) / ih;
+		if (vis < 1) vis = 1;
+		if (vis > n) vis = n;
+		lh = vis * ih + 6;
+		ly = down ? cy + rowh () : cy - lh;
+		lw = col_w (ddC) > ddW ? col_w (ddC) : ddW;
+		if (lw > w - 4) lw = w - 4;
+		lx = col_x (ddC);
+		if (lx + lw > w - 2) lx = w - 2 - lw;
+		if (lx < 2) lx = 2;
+	}
+	int drop_vis () const { int lx, ly, lw, lh, vis; drop_geom (lx, ly, lw, lh, vis); return vis; }
+	void drop_show_sel ()
+	{
+		int vis = drop_vis (), n = (int) ddItems.size ();
+		if (ddSel >= 0)
+		{
+			int first = ddSel > 0 && ddItems[(size_t) ddSel - 1].group ? ddSel - 1 : ddSel;	// (avec le titre de son groupe)
+			if (first < ddTop) ddTop = first;
+			if (ddSel >= ddTop + vis) ddTop = ddSel - vis + 1;
+		}
+		if (ddTop > n - vis) ddTop = n - vis;
+		if (ddTop < 0) ddTop = 0;
+	}
+	// le choix suivant (d > 0) ou precedent, de |d| pas, les titres sautes
+	void drop_move (int d)
+	{
+		int n = (int) ddItems.size (), i = ddSel, step = d > 0 ? 1 : -1, left = d > 0 ? d : -d, best = ddSel;
+		while (left > 0)
+		{
+			i += step;
+			if (i < 0 || i >= n) break;
+			if (ddItems[(size_t) i].group) continue;
+			best = i; left--;
+		}
+		ddSel = best;
+		drop_show_sel ();
+		dirty ();
+	}
+	// -> true : la liste de la cellule courante est ouverte (le texte en saisie choisit le premier qui lui ressemble)
+	bool open_drop ()
+	{
+		if (!drop_cell (curR, curC)) return false;
+		std::string want = editing && er == curR && ec == curC ? et.substr (0, (size_t) s0 ()) : std::string ();
+		std::vector<GChoice> items;
+		m->choices (curR, curC, items);
+		bool any = false;
+		for (auto &x : items) if (!x.group) any = true;
+		if (!any) return false;
+		if (editing) cancel_edit ();
+		ddItems = items; ddR = curR; ddC = curC; ddTop = 0; ddSel = -1;
+		std::string f = fold (want);
+		if (!f.empty ())
+			for (int i = 0; i < (int) ddItems.size () && ddSel < 0; i++)
+				if (!ddItems[(size_t) i].group && !fold (ddItems[(size_t) i].label).compare (0, f.size (), f)) ddSel = i;
+		for (int i = 0; i < (int) ddItems.size () && ddSel < 0; i++) if (!ddItems[(size_t) i].group && ddItems[(size_t) i].on) ddSel = i;
+		for (int i = 0; i < (int) ddItems.size () && ddSel < 0; i++) if (!ddItems[(size_t) i].group) ddSel = i;
+		ddW = 0;
+		for (auto &x : ddItems) { int tw = text_w (x.label.c_str (), 1) + (x.group ? 24 : 40); if (tw > ddW) ddW = tw; }
+		dd = true;
+		ensure_visible ();
+		drop_show_sel ();
+		m->message ("");
+		dirty ();
+		return true;
+	}
+	void close_drop () { if (dd) { dd = false; dirty (); } }
+	void drop_choose ()
+	{
+		if (!dd) return;
+		dd = false;
+		if (ddSel >= 0 && ddSel < (int) ddItems.size () && !ddItems[(size_t) ddSel].group)
+		{
+			std::string v = ddItems[(size_t) ddSel].value;
+			m->choose (ddR, ddC, v);
+			m->message ("");
+		}
+		clamp ();
+		dirty ();
+	}
+	// -> l'element sous le point de la vue, -1 : aucun, -2 : hors de la liste
+	int drop_hit (int mx, int my) const
+	{
+		int lx, ly, lw, lh, vis; drop_geom (lx, ly, lw, lh, vis);
+		if (mx < lx || mx >= lx + lw || my < ly || my >= ly + lh) return -2;
+		int i = ddTop + (my - ly - 3) / drop_ih ();
+		return my >= ly + 3 && i >= ddTop && i < ddTop + vis && i < (int) ddItems.size () ? i : -1;
+	}
+	void paint_drop ()
+	{
+		int lx, ly, lw, lh, vis; drop_geom (lx, ly, lw, lh, vis);
+		int ih = drop_ih (), n = (int) ddItems.size ();
+		ui_clip (0, 0, 0, 0);
+		rbox (lx, ly, lw, lh, 5, mix (C_FIELD, C_TEXT, 60));
+		rbox (lx + 1, ly + 1, lw - 2, lh - 2, 5, C_FIELD);
+		ui_clip (lx + 1, ly + 2, lw - 2, lh - 4);
+		for (int i = ddTop; i < ddTop + vis && i < n; i++)
+		{
+			const GChoice &x = ddItems[(size_t) i];
+			int iy = ly + 3 + (i - ddTop) * ih;
+			if (x.group)
+			{
+				if (i > ddTop) ui_fill (lx + 8, iy, lw - 16, 1, mix (C_FIELD, C_TEXT, 28));
+				text_fit (lx + 10, iy, lw - 20, ih, x.label.c_str (), C_DIM, 1);
+				continue;
+			}
+			if (i == ddSel) rbox (lx + 4, iy, lw - 8, ih, 4, mix (C_FIELD, C_ACCENT, 70));
+			if (x.on) text_at (lx + 10, iy, ih, "\xE2\x9C\x93", C_ACCENT, 1);
+			text_fit (lx + 26, iy, lw - 34, ih, x.label.c_str (), C_TEXT, x.on);
+		}
+		ui_clip (0, 0, 0, 0);
+		if (n > vis)
+		{
+			int track = lh - 8, th = track * vis / n; if (th < 12) th = 12;
+			int ty = ly + 4 + (track - th) * ddTop / (n - vis);
+			rbox (lx + lw - 6, ty, 3, th, 1, mix (C_FIELD, C_TEXT, 90));
+		}
+	}
+	long drop_key (long hid, long ch, bool shift, bool ctrl, bool alt)
+	{
+		switch (hid)
+		{
+		case K_DOWN: if (alt) break; drop_move (1); return 0;
+		case K_UP: if (alt) { close_drop (); return 0; } drop_move (-1); return 0;
+		case K_PGDN: drop_move (drop_vis ()); return 0;
+		case K_PGUP: drop_move (-drop_vis ()); return 0;
+		case K_HOME: ddSel = -1; drop_move (1); return 0;
+		case K_END: ddSel = (int) ddItems.size (); drop_move (-1); return 0;
+		case K_ENTER: drop_choose (); return 0;
+		case K_TAB: drop_choose (); tab (shift); return 0;
+		case K_ESC: case K_F4: close_drop (); return 0;
+		case K_BACK: close_drop (); begin_edit (true, ""); return 0;
+		}
+		if (!ctrl && !alt && ch > 32 && ch != 127)
+		{
+			// une lettre : la saisie au clavier reprend (avec la completion)
+			close_drop ();
+			char b[5]; int k = u8_enc ((unsigned) ch, b); b[k] = 0;
+			begin_edit (true, b);
+			return 0;
+		}
+		return 0;
+	}
 
 	// ---- la saisie
 	void begin_edit (bool typed_, const char *initial)
@@ -247,8 +420,13 @@ struct Grid
 		}
 		if (!ac.empty ())
 		{
+			// (la suite du libelle apres ce qui est tape, comptee en lettres repliees : « me » tape, « Médical » propose
+			// -> « dical » ; compter en octets couperait le « é » en deux)
 			int typedLen = (int) et.size ();
-			et = et + ac[0].substr ((size_t) typedLen);
+			const std::string &s = ac[0];
+			size_t at = 0;
+			for (size_t n = 0; at < s.size () && n < p.size (); n++) at += (unsigned char) s[at] == 0xC3 && at + 1 < s.size () ? 2 : 1;
+			et = et + s.substr (at);
 			anchor = typedLen; caret = (int) et.size ();
 		}
 	}
@@ -260,6 +438,7 @@ struct Grid
 		int rh = rowh (), hh = hdrh (), rw = rhw ();
 		unsigned head = mix (C_FIELD, C_TEXT, 16), grid = mix (C_FIELD, C_TEXT, 28), ro = mix (C_FIELD, C_TEXT, 7);
 		bool focus = ui_w_get_focus () == view;
+		if (dd && (!focus || editing || ddR >= nrows ())) dd = false;	// (la liste ne reste pas ouverte hors du clavier)
 		ui_fill (0, 0, w, h, C_FIELD);
 		int n = nrows (), nd = m->rows ();
 		int bodyBottom = hh + body_h ();
@@ -292,12 +471,19 @@ struct Grid
 					continue;
 				}
 				if (editing && r == er && c == ec) continue;
+				// une cellule a choix : la fleche de sa liste a droite (comme ui_dropdown), le texte a cote
+				int aw = 0;
+				if (drop_cell (r, c))
+				{
+					aw = 18;
+					text_at (cx + cw - 16, yy, rh, "\xE2\x96\xBE", dd && r == ddR && c == ddC ? C_ACCENT : C_TEXT2);
+				}
 				std::string t = m->text (r, c);
 				if (t.empty ()) continue;
 				bool right = k.kind == CK_MONEY, center = k.kind == CK_INT;
 				int tw = text_w (t.c_str (), st.bold);
-				int tx = right ? cx + cw - 6 - tw : center ? cx + (cw - tw) / 2 : cx + 6;
-				if (tw > cw - 12) text_fit (cx + 6, yy, cw - 12, rh, t.c_str (), st.fg, st.bold);
+				int tx = right ? cx + cw - 6 - aw - tw : center ? cx + (cw - tw) / 2 : cx + 6;
+				if (tw > cw - 12 - aw) text_fit (cx + 6, yy, cw - 12 - aw, rh, t.c_str (), st.fg, st.bold);
 				else text_at (tx, yy, rh, t.c_str (), st.fg, st.bold);
 				(void) cur;
 			}
@@ -418,6 +604,7 @@ struct Grid
 				text_fit (cx + 8, iy, lw - 14, ih, ac[(size_t) i].c_str (), C_TEXT);
 			}
 		}
+		if (dd) paint_drop ();
 	}
 
 	// ---- le clavier
@@ -427,6 +614,8 @@ struct Grid
 		if (hid >= 0xE0) return -1;
 		int n = nrows ();
 		if (hid == K_KPENTER) hid = K_ENTER;
+		if (dd) return drop_key (hid, ch, shift, ctrl, alt);
+		if (((alt && hid == K_DOWN) || (hid == K_F4 && !alt && !ctrl)) && drop_cell (curR, curC)) { open_drop (); return 0; }
 		if (editing)
 		{
 			if (ac.size () > 1 && (hid == K_DOWN || hid == K_UP))
@@ -612,6 +801,23 @@ struct Grid
 		int mx = (int) xl, my = (int) yl, clicks = (int) (info & 255), btn = (int) (info >> 8 & 255);
 		int hh = hdrh (), rh = rowh ();
 		if (kind == 3) { set_cursor (UC_ARROW); return 0; }
+		if (dd)
+		{
+			// la liste ouverte : survol, choix d'un appui ; un appui ailleurs la ferme (sur sa cellule : seulement)
+			int hit = drop_hit (mx, my);
+			if (kind == 0)
+			{
+				if (hit >= 0 && !ddItems[(size_t) hit].group && hit != ddSel) { ddSel = hit; dirty (); }
+				set_cursor (UC_ARROW);
+				return 0;
+			}
+			if (kind != 1) return 0;
+			if (hit >= 0) { if (!ddItems[(size_t) hit].group) { ddSel = hit; drop_choose (); } return 0; }
+			if (hit == -1) return 0;
+			int r0 = ddR, c0 = ddC;
+			close_drop ();
+			if (my >= hh && my < hh + body_h () && top + (my - hh) / rh == r0 && col_at (mx) == c0) return 0;
+		}
 		if (kind == 0)
 		{
 			if (dragBar)
@@ -670,10 +876,23 @@ struct Grid
 		go (r, c);
 		if (curR != r || curC != c) return 0;			// (la saisie d'avant est refusee)
 		if (cols[(size_t) c].kind == CK_CHECK) { toggle_cur (); return 0; }
+		if ((btn & 1) && drop_cell (r, c)) { open_drop (); return 0; }	// (une cellule a choix : sa liste)
 		if (clicks >= 2 || (same && !editing && false)) begin_edit (false, 0);
 		return 0;
 	}
-	long wheel (long n) { top -= (int) n * 3; clamp (); dirty (); return 0; }
+	long wheel (long n)
+	{
+		if (dd)
+		{
+			int vis = drop_vis ();
+			ddTop -= (int) n * 3;
+			if (ddTop > (int) ddItems.size () - vis) ddTop = (int) ddItems.size () - vis;
+			if (ddTop < 0) ddTop = 0;
+			dirty ();
+			return 0;
+		}
+		top -= (int) n * 3; clamp (); dirty (); return 0;
+	}
 };
 
 // les fonctions de la vue -> la grille
