@@ -103,7 +103,12 @@ impl Backend {
             ctx: Mutex::new(None),
             focused: AtomicBool::new(true),
         });
-        let locale = std::env::var("LC_ALL").ok().or_else(|| std::env::var("LANG").ok()).filter(|l| !l.is_empty() && l != "C");
+        // (la langue : celle enregistrée dans les réglages de l'app, sinon LC_ALL ou LANG s'ils disent fr ou en, sinon le
+        // français, la langue de Korin)
+        let locale = std::env::var("LC_ALL")
+            .ok()
+            .or_else(|| std::env::var("LANG").ok())
+            .filter(|l| l.starts_with("fr") || l.starts_with("en"));
         let core = {
             let _g = rt.enter();
             Core::new(sink.clone(), locale.or_else(|| Some("fr".into())))

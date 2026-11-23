@@ -11,7 +11,7 @@
       démarre QEMU (NVMe, l'image en snapshot : jamais écrite ; usb-net, réseau user de QEMU, telnet
       du PC sur 127.0.0.1:PORT), attend telnetd, lance chaque commande (bash) et l'affiche avec son code ;
       « @600 commande » : jusqu'à 600 s (60 sinon) ; « rips:N » : N relevés du RIP de chaque processeur, avec son CR3 (profil) ; puis arrête QEMU. --hostfwd tcp::P-:Q en plus
-      (plusieurs permis). « shot:NOM » : une capture de l'écran (build/pc/pytest/NOM.png) ; « sleep:S » : attendre ;
+      (plusieurs permis). « shot:NOM » : une capture de l'écran (build/pc/pytest/NOM.png) ; « sleep:S » : attendre ; « spawn:CMD » : lancer une app sans attendre sa fin (le shell reste pris) ;
       « click:X,Y » : un clic gauche (écran de 1280×800, avec --qemu "-device usb-tablet,bus=xhci.0") ;
       « dblclick:X,Y » : un double-clic ; « rclick:X,Y » : un clic droit ; « drag:X1,Y1,X2,Y2 » : glisser ;
       « wheel:X,Y,N » : N crans de molette (négatif : vers le haut) ; « key:ctrl-c tab ret » : des touches (noms de sendkey de QEMU) ;
@@ -194,6 +194,10 @@ def run(a):
                     rips, cr3s = re.findall(r"RIP=([0-9a-f]+)", r), re.findall(r"CR3=([0-9a-f]+)", r)
                     print("rips: " + " ".join("%s/%s" % rc for rc in zip(rips, cr3s)), flush=True)
                     time.sleep(0.02)
+                continue
+            if c.startswith("spawn:"):  # une commande qui ne rend pas la main (une app) : envoyée sans attendre sa fin
+                t.s.sendall(c[6:].encode("utf-8") + b"\r\n")
+                print("lancé :", c[6:], flush=True)
                 continue
             if c.startswith("key:") or c.startswith("type:"):  # des touches (sendkey), ou un texte en AZERTY
                 ks = c[4:].split() if c.startswith("key:") else qp.azerty_keys(c[5:])[:-1]

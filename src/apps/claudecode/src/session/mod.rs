@@ -6,17 +6,23 @@
 //! l'autre (le brouillon tapé, les menus ouverts, l'onglet de l'inspecteur…). Chaque partie a le sien, défini dans son
 //! fichier.
 
+pub mod agents;
 pub mod cards;
 pub mod composer;
+pub mod context;
 pub mod effort;
-pub mod menus;
-pub mod popovers;
-pub mod status_line;
+pub mod forms;
 pub mod header;
 pub mod inspector;
+pub mod menus;
 pub mod page;
+pub mod permission;
+pub mod popovers;
 pub mod rewind;
+pub mod status_line;
+pub mod tasks;
 pub mod thread;
+pub mod tool_detail;
 pub mod tool_row;
 pub mod workflow;
 

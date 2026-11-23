@@ -54,6 +54,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx, view: &mut SessionView, id: &str) {
             // Échap : interrompt un tour en cours (s'il n'a servi à rien d'autre pendant la passe)
             let busy = cx.app.session(id).is_some_and(|h| h.busy());
             if busy && !cx.ui.palette_open && ui.input(|i| i.key_pressed(egui::Key::Escape)) && !ui.ctx().any_popup_open()
+                && !ui.ctx().data(|d| d.get_temp::<bool>(egui::Id::new(composer::POPOVER_OPEN)).unwrap_or(false))
                 && let Ok(s) = cx.be.session(id)
             {
                 let what = format!("[{id}] {}", t!("Composer.Interrupt"));
