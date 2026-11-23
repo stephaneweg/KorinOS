@@ -42,6 +42,29 @@ def obj(ic, m, face, side, depth=5.0, sh=.22):
     return body
 
 
+# --- objets à la manière d'Adwaita (palette de GNOME) -------------------------------------------------------------
+def adw_doc(ic, x, y, w, h, fold=14, r=4, face=None, side=0xC0BFBC, depth=4):
+    """Une feuille en objet : son coin replié, son épaisseur."""
+    m = sub(ic.rr(x, y, w, h, r), ic.poly([(x + w - fold, y - 3), (x + w + 3, y - 3), (x + w + 3, y + fold)]))
+    obj(ic, m, face if face else Grad(0xFFFFFF, 0xF6F5F4, 90), side, depth)
+    ic.fill(ic.poly([(x + w - fold, y), (x + w, y + fold), (x + w - fold + 2, y + fold - 1)]), 0xDEDDDA)
+    return m
+
+
+def adw_screen(ic, x, y, w, h, face, body=0x3D3846, side=0x241F31, r=6, b=3.4):
+    """Un écran en objet : le cadre sombre et son épaisseur ; rend le masque de la surface."""
+    obj(ic, ic.rr(x, y, w, h, r), body, side, 4)
+    f = ic.rr(x + b, y + b, w - 2 * b, h - 2 * b, max(1, r - b * .7))
+    ic.fill(f, face)
+    return f
+
+
+def adw_stand(ic, y, w=30):
+    """Le pied d'un écran : le col, le socle et son épaisseur."""
+    ic.fill(ic.rr(44, y - 1, 12, 9, 0), Grad(0x9A9996, 0x77767B, 90))
+    obj(ic, ic.rr(50 - w / 2, y + 7, w, 5, 2.5), 0xDEDDDA, 0x9A9996, 2.5, sh=.15)
+
+
 # --- morceaux communs ---------------------------------------------------------------------------------------------
 def doc(ic, x, y, w, h, fold=13, r=2.6, paint=PAPER):
     """Une feuille au coin replie."""
@@ -207,64 +230,69 @@ def mai(ic):
     ic.fill(s, Grad(0xC8F6FF, 0x3CC8F0, 100))
 
 
-@icon('taskman', 0x25B089, 0x0B6657)
+@icon('taskman', 0x25B089, 0x0B6657, free=True)
 def taskman(ic):
-    f = screen(ic, 14, 21, 72, 58, tone(0x123B3A, .08, .1), Grad(0x0D2B2C, 0x0A2022, 90), 7, 2)
+    """Le gestionnaire de tâches : un écran en objet, une courbe d'activité."""
+    f = adw_screen(ic, 8, 14, 84, 66, Grad(0x1F3B3A, 0x14292A, 90))
     if not ic.small:
         for i in range(1, 4):
-            ic.fill(ic.rr(16, 23 + i * 13.5, 68, .9), 0x7FE6C0, .16)
+            ic.fill(ic.rr(11, 17 + i * 15, 78, .9), 0x8FF0A4, .16)
         for i in range(1, 5):
-            ic.fill(ic.rr(16 + i * 13.6, 23, .9, 54), 0x7FE6C0, .16)
-    p = [(16, 54), (34, 54), (41, 34), (50, 69), (58, 44), (63, 54), (84, 54)]
-    ic.fill(ic.line(p, 9), 0x53F0B0, .16)
-    ic.fill(ic.line(p, 4.6), Grad(0xC9FFE7, 0x66F2B8, 100))
+            ic.fill(ic.rr(11 + i * 15.6, 17, .9, 60), 0x8FF0A4, .16)
+    p = [(11, 50), (32, 50), (40, 30), (50, 68), (59, 40), (65, 50), (89, 50)]
+    ic.fill(ic.line(p, 9), 0x57E389, .16)
+    ic.fill(ic.line(p, 4.8), Grad(0xC8FFD8, 0x57E389, 90))
 
 
-@icon('disks', 0x66748A, 0x323A49)
+@icon('disks', 0x66748A, 0x323A49, free=True)
 def disks(ic):
-    ic.raised(ic.rr(16, 16, 68, 68, 8), tone(0xC8D0DB, .3, .1))
-    d = ic.circ(47, 47, 26)
-    ic.fill(d, Rad(0xF4F7FB, 0xA6B3C4, .36, .3, .95))
+    """Un disque dur ouvert, en objet : le boîtier, le plateau, le bras."""
+    obj(ic, ic.rr(14, 10, 72, 76, 8), Grad(0xDEDDDA, 0xC0BFBC, 90), 0x77767B, 6)
+    d = ic.circ(47, 44, 27)
+    ic.fill(d, Rad(0xFFFFFF, 0xB4B2AF, .38, .32, .95))
     if not ic.small:
-        for r in (11, 15, 19, 23):
-            ic.fill(ic.ring(47, 47, r, .5), 0x6B7A8E, .35)
-    ic.fill(ic.circ(47, 47, 6.5), Grad(0x6A7789, 0x3A4556, 100))
-    ic.raised(ic.line([(76, 72), (70, 74), (52, 56)], 4.2), Grad(0xF5B342, 0xD98A1B, 100), rim=.3)
-    ic.fill(ic.circ(75, 72, 5), Grad(0xFFD066, 0xD98A1B, 100))
+        for rr in (11, 15.5, 20, 24):
+            ic.fill(ic.ring(47, 44, rr, .5), 0x77767B, .3)
+    ic.fill(ic.circ(47, 44, 6.5), 0x5E5C64)
+    ic.fill(ic.line([(76, 72), (70, 74), (52, 54)], 4.4), 0xE5A50A)
+    ic.fill(ic.circ(75, 72, 5.2), 0xF5C211)
+    if not ic.small:
+        for x in (22, 78):
+            ic.fill(ic.circ(x, 16.5, 2), 0x9A9996)
 
 
-@icon('pkgman', 0x7A69F0, 0x3E2DB5)
+@icon('pkgman', 0x7A69F0, 0x3E2DB5, free=True)
 def pkgman(ic):
-    top = [(50, 16), (83, 32), (50, 48), (17, 32)]
-    left = [(17, 32), (50, 48), (50, 86), (17, 69)]
-    right = [(83, 32), (50, 48), (50, 86), (83, 69)]
-    ic.shadow(ic.poly([(17, 32), (50, 16), (83, 32), (83, 69), (50, 86), (17, 69)]))
-    ic.fill(ic.poly(left), Grad(0xF1C78B, 0xCF9150, 80))
-    ic.fill(ic.poly(right), Grad(0xD9A266, 0xA96C35, 100))
-    ic.fill(ic.poly(top), Grad(0xFFE3B3, 0xF2C98F, 90))
-    ic.fill(ic.poly([(31, 25), (64, 41), (64, 47), (72, 43.5), (72, 37), (39, 21)]), 0xFFF3DD, .95)
+    """Le colis, vu de trois quarts : déjà un objet, plus grand, la bande d'adhésif."""
+    top = [(50, 10), (88, 28), (50, 46), (12, 28)]
+    left = [(12, 28), (50, 46), (50, 90), (12, 72)]
+    right = [(88, 28), (50, 46), (50, 90), (88, 72)]
     if not ic.small:
-        ic.fill(ic.line([(50, 48), (50, 86)], .9), 0x7A4B20, .35)
+        ic.shadow(ic.poly([(12, 28), (50, 10), (88, 28), (88, 72), (50, 90), (12, 72)]), dy=1.2, blur=1.6, op=.22, dx=0)
+    ic.fill(ic.poly(left), Grad(0xCDAB8F, 0xB5835A, 90))
+    ic.fill(ic.poly(right), Grad(0xB5835A, 0x986A44, 90))
+    ic.fill(ic.poly(top), Grad(0xE9D2BC, 0xDCBFA2, 90))
+    ic.fill(ic.poly([(28, 20.5), (66, 38.5), (66, 46), (75, 41.5), (75, 34), (37, 16)]), 0xF6F5F4, .95)
+    if not ic.small:
+        ic.fill(ic.line([(50, 46), (50, 90)], .9), 0x63452C, .35)
 
 
-@icon('welcome', 0x6371F2, 0x3323A8)
+@icon('welcome', 0x6371F2, 0x3323A8, free=True)
 def welcome(ic):
-    # une pierre taillee, facettes en trois tons : le losange d'ARMPI
-    tl, tr, l, r = (34, 28), (66, 28), (17, 44), (83, 44)
-    b = (50, 82)
-    ic.shadow(ic.poly([tl, tr, r, b, l]), op=.4)
-    a, c = (37, 44), (63, 44)
-    t = (50, 28)
-    ic.fill(ic.poly([tl, t, a]), 0xE9F1FF)
-    ic.fill(ic.poly([t, tr, c]), 0xC9DBFF)
-    ic.fill(ic.poly([t, a, c]), 0xFFFFFF)
-    ic.fill(ic.poly([l, tl, a]), 0xB8CFFF)
-    ic.fill(ic.poly([r, tr, c]), 0x9EB9F9)
-    ic.fill(ic.poly([l, a, b]), Grad(0xCADBFF, 0x8FB0F7, 90))
-    ic.fill(ic.poly([a, c, b]), Grad(0xFFFFFF, 0xB6CCFD, 90))
-    ic.fill(ic.poly([c, r, b]), Grad(0xA9C2FB, 0x6E90EA, 90))
+    """Une pierre taillée (le losange de Korin), plus grande, posée sur son ombre."""
+    tl, tr, l, r = (30, 18), (70, 18), (8, 38), (92, 38)
+    b = (50, 90)
     if not ic.small:
-        ic.fill(ic.star(79, 22, 7, 1.3, 4), 0xFFFFFF, .95)
+        ic.shadow(ic.poly([tl, tr, r, b, l]), dy=1.2, blur=1.6, op=.22, dx=0)
+    a, c, t = (34, 38), (66, 38), (50, 18)
+    ic.fill(ic.poly([tl, t, a]), 0xDCE8FB)
+    ic.fill(ic.poly([t, tr, c]), 0xB9D2F6)
+    ic.fill(ic.poly([t, a, c]), 0xFFFFFF)
+    ic.fill(ic.poly([l, tl, a]), 0x99C1F1)
+    ic.fill(ic.poly([r, tr, c]), 0x62A0EA)
+    ic.fill(ic.poly([l, a, b]), Grad(0x99C1F1, 0x62A0EA, 90))
+    ic.fill(ic.poly([a, c, b]), Grad(0xDCE8FB, 0x99C1F1, 90))
+    ic.fill(ic.poly([c, r, b]), Grad(0x62A0EA, 0x1C71D8, 90))
 
 
 @icon('uidemo', 0xF06AA8, 0x9B2C8E)
@@ -327,29 +355,30 @@ def theme(ic):
     ic.fill(inter(inter(a, b), c), 0xFFFFFF)
 
 
-@icon('clavier', 0x4C5A73, 0x262E3F)
+@icon('clavier', 0x4C5A73, 0x262E3F, free=True)
 def clavier(ic):
-    ic.raised(ic.rr(12, 27, 76, 47, 7), Grad(0xFFFFFF, 0xD6DDE7, 100))
-    w = 9.4
-    k = 0x4C5A73
+    """Le clavier en objet : un socle clair, les touches avec leur épaisseur."""
+    obj(ic, ic.rr(8, 26, 84, 46, 8), Grad(0xF6F5F4, 0xDEDDDA, 90), 0x9A9996, 6)
+    k, kd = 0x5E5C64, 0x3D3846
     if ic.small:
         for r in range(3):
-            ic.fill(ic.rr(19, 34 + r * 12, 62, 6.5, 1.6), k)
-    else:
-        for i in range(6):
-            ic.fill(ic.rr(17.5 + i * 11.2, 33, w, 8, 1.8), k)
-        for i in range(5):
-            ic.fill(ic.rr(23 + i * 11.2, 44, w, 8, 1.8), k)
-        ic.fill(ic.rr(28.5, 55, 43, 8, 1.8), k)
+            ic.fill(ic.rr(15, 33 + r * 12, 70, 7, 1.6), k)
+        return
+    for i in range(7):
+        obj(ic, ic.rr(14 + i * 10.4, 32, 8.6, 8, 1.8), k, kd, 1.5, sh=0)
+    for i in range(6):
+        obj(ic, ic.rr(19 + i * 10.4, 43.5, 8.6, 8, 1.8), k, kd, 1.5, sh=0)
+    obj(ic, ic.rr(27, 55, 46, 8, 1.8), k, kd, 1.5, sh=0)
 
 
-@icon('ecran', 0x35A0F4, 0x1458C4)
+@icon('ecran', 0x35A0F4, 0x1458C4, free=True)
 def ecran(ic):
-    f = screen(ic, 13, 18, 74, 50, None, Grad(0x7E6BF0, 0xF0719A, 120), 5, 3.4)
-    ic.fill(inter(f, ic.poly([(13, 62), (34, 44), (47, 54), (64, 38), (90, 62), (90, 70), (13, 70)])), Grad(0x352C8E, 0x5A2C8E, 100), .75)
+    """L'écran en objet : le cadre, une image, le pied."""
+    f = adw_screen(ic, 8, 12, 84, 58, Grad(0x9141AC, 0xF66151, 120))
+    ic.fill(inter(f, ic.poly([(8, 64), (32, 44), (46, 55), (64, 38), (92, 64), (92, 70), (8, 70)])), Grad(0x613583, 0x813D9C, 90), .8)
     if not ic.small:
-        ic.fill(inter(f, ic.circ(66, 31, 6)), 0xFFE3A1)
-    stand(ic, 68, 7, 28)
+        ic.fill(inter(f, ic.circ(68, 29, 6.5)), 0xF9F06B)
+    adw_stand(ic, 74)
 
 
 def _panel_ic(ic):
@@ -386,12 +415,16 @@ def sound(ic):
     ic.raised(m, WHITE)
 
 
-@icon('padconf', 0x6A78F4, 0x3A2DBD)
+@icon('padconf', 0x6A78F4, 0x3A2DBD, free=True)
 def padconf(ic):
-    gamepad_body(ic, Grad(0xFFFFFF, 0xD3DBE7, 100))
-    cross_pad(ic, 33, 47, 15, 0x4D5A73)
-    ic.fill(ic.circ(62, 51, 4.8), 0x2CB67D)
-    ic.fill(ic.circ(72, 43, 4.8), 0xF0475C)
+    """La manette en objet : le corps clair, la croix, deux boutons."""
+    m = ic.soften(add(ic.rr(10, 28, 80, 36, 18),
+                      ic.poly([(13, 48), (7, 72), (11, 80), (20, 81), (30, 69), (36, 60)]),
+                      ic.poly([(87, 48), (93, 72), (89, 80), (80, 81), (70, 69), (64, 60)])), 1.6)
+    obj(ic, m, Grad(0xF6F5F4, 0xDEDDDA, 90), 0x9A9996, 5)
+    cross_pad(ic, 30, 45, 17, 0x5E5C64)
+    obj(ic, ic.circ(63, 50, 5.4), 0x33D17A, 0x26A269, 1.5, sh=0)
+    obj(ic, ic.circ(74, 41, 5.4), 0xE01B24, 0xA51D2D, 1.5, sh=0)
 
 
 @icon('preload', 0xFFB938, 0xE5721A)
@@ -414,14 +447,16 @@ def dotnet(ic):
     ic.raised(add(ic.line([(44, 39), (33, 50), (44, 61)], 6), ic.line([(56, 39), (67, 50), (56, 61)], 6)), Grad(0xFFE08A, 0xF6B73C, 100))
 
 
-@icon('printconf', 0x3DB0B4, 0x17707E)
+@icon('printconf', 0x3DB0B4, 0x17707E, free=True)
 def printconf(ic):
-    ic.raised(ic.rr(29, 15, 42, 30, 2.4), PAPER)
-    ic.raised(ic.rr(14, 36, 72, 34, 7), Grad(0xFFFFFF, 0xC6CFDB, 100))
-    ic.fill(ic.rr(22, 45, 9, 4.6, 2.3), 0x35C088)
-    ic.fill(ic.rr(24, 58, 52, 5, 2.4), 0x4A5668, .85)
-    ic.raised(ic.rr(29, 60, 42, 26, 2.4), PAPER, rim=0)
-    lines(ic, 36, 68, 28, 2, 7, 3, 0x9FB0C2)
+    """L'imprimante en objet : la feuille qui entre, le corps, la feuille imprimée qui sort."""
+    obj(ic, ic.rr(28, 10, 44, 30, 3), Grad(0xFFFFFF, 0xF6F5F4, 90), 0xC0BFBC, 2, sh=0)
+    obj(ic, ic.rr(10, 32, 80, 38, 9), Grad(0xDEDDDA, 0xC0BFBC, 90), 0x77767B, 6)
+    ic.fill(ic.rr(10, 32, 80, 6, 4), 0xF6F5F4, .7)
+    ic.fill(ic.rr(19, 43, 10, 5, 2.5), 0x33D17A)
+    ic.fill(ic.rr(22, 58, 56, 6, 3), 0x3D3846)
+    obj(ic, ic.rr(28, 61, 44, 27, 2.4), Grad(0xFFFFFF, 0xF6F5F4, 90), 0xC0BFBC, 2, sh=.12)
+    lines(ic, 35, 68, 30, 2, 7, 3, 0x9A9996)
 
 
 @icon('webstudio', 0x8A6DF2, 0x4B32C8)
@@ -460,12 +495,14 @@ def webd(ic):
         ic.fill(inter(g, ic.line([(49, 78), (85, 78)], w * .8)), 0xFFFFFF, .7)
 
 
-@icon('clipboard', 0x7D8EA8, 0x445269)
+@icon('clipboard', 0x7D8EA8, 0x445269, free=True)
 def clipboard(ic):
-    ic.raised(ic.rr(22, 19, 56, 67, 6.5), Grad(0xC59562, 0x93673B, 100))
-    ic.raised(ic.rr(29, 27, 42, 53, 2.6), PAPER, rim=0)
-    lines(ic, 36, 41, 28, 4, 8.5, 3.6)
-    ic.raised(ic.rr(36, 13, 28, 15, 4), Grad(0xEDF1F6, 0xA7B3C2, 100))
+    """Le presse-papiers en objet : la planchette, la feuille, la pince."""
+    obj(ic, ic.rr(18, 16, 64, 72, 7), Grad(0xB5835A, 0x986A44, 90), 0x63452C, 5)
+    ic.fill(ic.rr(25, 25, 50, 56, 3), Grad(0xFFFFFF, 0xF6F5F4, 90))
+    lines(ic, 33, 40, 34, 4, 9, 3.6, 0xC0BFBC)
+    obj(ic, ic.rr(35, 10, 30, 15, 4), Grad(0xDEDDDA, 0xC0BFBC, 90), 0x77767B, 3, sh=.15)
+    ic.fill(ic.rr(44, 13.5, 12, 4, 2), 0x77767B)
 
 
 # --- accessoires --------------------------------------------------------------------------------------------------
@@ -573,30 +610,33 @@ def primevideo(ic):
     ic.fill(ic.poly([(46, 38), (46, 52), (57, 45)]), 0xFFFFFF)
 
 
-@icon('weather', 0x63C0F7, 0x2A7BD8)
+@icon('weather', 0x63C0F7, 0x2A7BD8, free=True)
 def weather(ic):
-    # le soleil derriere un nuage
+    """Le soleil derrière un nuage, en objets (pas de plaque)."""
     if not ic.small:
         for i in range(8):
             a = math.radians(i * 45 + 22.5)
-            ic.fill(ic.line([(60 + 21 * math.sin(a), 38 - 21 * math.cos(a)), (60 + 27 * math.sin(a), 38 - 27 * math.cos(a))], 3.4), 0xFFD54A)
-    ic.fill(ic.circ(60, 38, 16), Grad(0xFFE680, 0xFFAA22, 100))
-    cl = ic.many([ic.ell_pts(36, 62, 13, 13), ic.ell_pts(53, 54, 17, 17), ic.ell_pts(69, 63, 12, 12),
-                  ic.rr_pts(23, 60, 58, 15, 7.5)])
-    ic.raised(cl, Grad(0xFFFFFF, 0xD6E2EE, 100))
+            ic.fill(ic.line([(62 + 24 * math.sin(a), 34 - 24 * math.cos(a)), (62 + 31 * math.sin(a), 34 - 31 * math.cos(a))], 3.8), 0xF6D32D)
+    obj(ic, ic.circ(62, 34, 19), Grad(0xF8E45C, 0xF6D32D, 90), 0xE5A50A, 3, sh=.12)
+    cl = ic.many([ic.ell_pts(31, 66, 16, 16), ic.ell_pts(52, 56, 21, 21), ic.ell_pts(72, 67, 15, 15),
+                  ic.rr_pts(15, 64, 72, 18, 9)])
+    obj(ic, cl, Grad(0xFFFFFF, 0xF6F5F4, 90), 0x9A9996, 5)
 
 
-@icon('editor', 0x8A6DF2, 0x4C2FC0)
+@icon('editor', 0x8A6DF2, 0x4C2FC0, free=True)
 def editor(ic):
-    doc(ic, 22, 14, 50, 70)
-    lines(ic, 31, 34, 32, 4, 9.4, 3.4, 0xB3BFD0)
-    ic.push(0, 0, 1, 45, (62, 62))
-    ic.shadow(ic.rr(56, 28, 12, 44, 2))
-    ic.fill(ic.rr(56, 38, 12, 34, 0), Grad(0xFFC64D, 0xE8922A, 0))
-    ic.fill(ic.rr(56, 28, 12, 8, 3), 0xF17C8B)
-    ic.fill(ic.rr(56, 34, 12, 4.5, 0), 0xC9D2DE)
-    ic.fill(ic.poly([(56, 72), (68, 72), (62, 85)]), 0xF5DCC0)
-    ic.fill(ic.poly([(59.8, 79.5), (64.2, 79.5), (62, 85)]), INK)
+    """L'éditeur de texte : une feuille en objet, un crayon posé dessus."""
+    adw_doc(ic, 16, 8, 60, 80)
+    lines(ic, 26, 30, 38, 5, 10, 3.6, 0xC0BFBC)
+    ic.push(0, 0, 1, 40, (66, 62))
+    pen = ic.rr(60, 24, 13, 50, 2)
+    ic.shadow(pen, dy=1.0, blur=.8, op=.25, dx=0)
+    ic.fill(ic.rr(60, 34, 13, 40, 0), Grad(0xF6D32D, 0xF5C211, 0))
+    ic.fill(ic.rr(66.5, 34, 6.5, 40, 0), 0xE5A50A)
+    ic.fill(ic.rr(60, 24, 13, 8, 3), 0xF66151)
+    ic.fill(ic.rr(60, 30, 13, 4.5, 0), 0xC0BFBC)
+    ic.fill(ic.poly([(60, 74), (73, 74), (66.5, 88)]), 0xF9DDB8)
+    ic.fill(ic.poly([(64.2, 82.5), (68.8, 82.5), (66.5, 88)]), 0x3D3846)
     ic.pop()
 
 
@@ -611,19 +651,17 @@ def viewer(ic):
     ic.fill(ic.circ(45, 44, 4.5), 0xFFFFFF)
 
 
-@icon('imageview', 0x86E0B4, 0x1F9C7A)
+@icon('imageview', 0x86E0B4, 0x1F9C7A, free=True)
 def imageview(ic):
-    # un tableau : un paysage dans son cadre, une loupe devant
-    ic.raised(ic.rr(13, 17, 66, 54, 4), WHITE)
-    f = ic.rr(18.5, 22.5, 55, 43, 1.5)
-    ic.fill(f, Grad(0x4FB2F2, 0xC4E9FA, 90))
-    ic.fill(ic.circ(60, 33, 5.5), 0xFFD65C)
-    ic.fill(inter(f, ic.poly([(18, 58), (32, 40), (43, 52), (51, 45), (74, 63), (74, 66), (18, 66)])), Grad(0x49B572, 0x1E7A4F, 90))
-    ic.raised(ic.line([(74, 74), (85, 85)], 8), Grad(0x4A5568, 0x262E3B, 100))
-    ic.fill(ic.circ(66, 66, 12.5), 0xFFFFFF, .45)
-    ic.raised(ic.ring(66, 66, 12.5, 4.4), Grad(0x5B6779, 0x2E3746, 100))
-    if not ic.small:
-        ic.fill(ic.arc(66, 66, 8.2, 200, 250, 2), 0xFFFFFF, .85)
+    """Un tableau en objet (un paysage dans son cadre) et une loupe devant."""
+    obj(ic, ic.rr(8, 12, 76, 62, 5), Grad(0xFFFFFF, 0xF6F5F4, 90), 0xC0BFBC, 4)
+    f = ic.rr(14, 18, 64, 50, 2)
+    ic.fill(f, Grad(0x62A0EA, 0x99C1F1, 90))
+    ic.fill(ic.circ(62, 30, 6), 0xF8E45C)
+    ic.fill(inter(f, ic.poly([(14, 60), (30, 40), (42, 53), (51, 45), (78, 64), (78, 68), (14, 68)])), Grad(0x33D17A, 0x26A269, 90))
+    ic.fill(ic.line([(76, 76), (88, 88)], 8.5), 0x3D3846)
+    ic.fill(ic.circ(67, 67, 13), 0xFFFFFF, .45)
+    obj(ic, ic.ring(67, 67, 13, 4.6), 0x5E5C64, 0x241F31, 1.5, sh=.15)
 
 
 @icon('screenshot', 0x5BC8F5, 0x1E6FD0)
@@ -649,17 +687,18 @@ def screenshot(ic):
         ic.fill(ic.line([(cx + dx * k, cy), (cx, cy), (cx, cy + dy * k)], 3.6), 0xFFFFFF)
 
 
-@icon('archiver', 0xD9A441, 0x94601C)
+@icon('archiver', 0xD9A441, 0x94601C, free=True)
 def archiver(ic):
-    # un carton ferme par une fermeture eclair
-    ic.raised(ic.rr(18, 17, 64, 66, 6), Grad(0xFFE9C2, 0xE8C78F, 100))
-    ic.fill(ic.rr(44, 17, 12, 66, 0), 0x6E4A1E, .95)
+    """Un carton fermé par une fermeture éclair, en objet."""
+    obj(ic, ic.rr(12, 14, 76, 70, 7), Grad(0xDEB48A, 0xCDAB8F, 90), 0x865E3C, 6)
+    ic.fill(ic.rr(12, 14, 76, 6, 3), 0xE9C9A6)
+    ic.fill(ic.rr(44, 14, 12, 70, 0), 0x63452C, .95)
     n = 7 if not ic.small else 4
     for i in range(n):
-        y = 20 + i * 45 / (n - 1 or 1)
-        ic.fill(ic.rr(46.8 if i % 2 == 0 else 50, y, 3.4 * (1.0 if not ic.small else 1.3), 4, .6), 0xF5D27A)
-    ic.raised(ic.rr(44.6, 64, 10.8, 16, 2.8), Grad(0xFFFFFF, 0xC7D0DC, 100))
-    ic.fill(ic.rr(48, 69, 4, 7.4, 2), 0x6B7A8E)
+        y = 18 + i * 46 / (n - 1 or 1)
+        ic.fill(ic.rr(46.6 if i % 2 == 0 else 50, y, 3.4 * (1.0 if not ic.small else 1.3), 4, .6), 0xF8E45C)
+    obj(ic, ic.rr(44.4, 62, 11.2, 17, 3), Grad(0xF6F5F4, 0xDEDDDA, 90), 0x9A9996, 2, sh=0)
+    ic.fill(ic.rr(48, 67, 4, 8, 2), 0x77767B)
 
 
 @icon('calendar', 0xFF6B5E, 0xCC2437, free=True)
@@ -679,38 +718,39 @@ def calendar(ic):
 
 
 # --- bureautique --------------------------------------------------------------------------------------------------
-@icon('letters', 0x4C93F5, 0x1E50C6)
+@icon('letters', 0x4C93F5, 0x1E50C6, free=True)
 def letters(ic):
-    doc(ic, 24, 13, 52, 74)
-    lines(ic, 32, 32, 36, 5, 9, 3.6, 0x4A82E8, .55)
+    """Un document de texte en objet, ses lignes bleues."""
+    adw_doc(ic, 18, 8, 64, 80)
+    lines(ic, 28, 28, 44, 6, 9.4, 3.6, 0x3584E4, .55)
 
 
-@icon('sheet', 0x3CC87F, 0x0E7E54)
+@icon('sheet', 0x3CC87F, 0x0E7E54, free=True)
 def sheet(ic):
-    m = ic.rr(15, 19, 70, 62, 6)
-    ic.raised(m, PAPER)
-    ic.fill(inter(m, ic.rr(14, 18, 72, 14, 0)), Grad(0x2FAF70, 0x1F8F5A, 100))
-    ic.fill(inter(m, ic.rr(14, 18, 15, 64, 0)), 0x2FAF70, .85)
-    ic.fill(ic.rr(30, 45, 19, 12, 0), 0xBFF0D3)
-    ic.fill(ic.rr(50, 58, 19, 12, 0), 0xBFF0D3)
-    c = 0x8CA79A
-    for x in (29, 49, 68):
-        ic.fill(ic.rr(x, 19, 1.2, 62), c, .9)
-    for y in (32, 44.5, 57, 69.5):
-        ic.fill(ic.rr(15, y, 70, 1.2), c, .9)
+    """Le tableur : une feuille en objet, sa grille, l'en-tête vert."""
+    m = ic.rr(10, 14, 80, 72, 7)
+    obj(ic, m, Grad(0xFFFFFF, 0xF6F5F4, 90), 0xC0BFBC, 5)
+    ic.fill(inter(m, ic.rr(8, 12, 84, 15, 0)), Grad(0x33D17A, 0x2EC27E, 90))
+    ic.fill(inter(m, ic.rr(8, 12, 16, 76, 0)), 0x2EC27E, .85)
+    ic.fill(ic.rr(25, 42, 21, 14, 0), 0xC4F2D3)
+    ic.fill(ic.rr(47, 56, 21, 14, 0), 0xC4F2D3)
+    for x in (24, 46, 68):
+        ic.fill(ic.rr(x, 14, 1.2, 72), 0x9A9996, .7)
+    for y in (27, 41, 55, 69):
+        ic.fill(ic.rr(10, y, 80, 1.2), 0x9A9996, .7)
 
 
-@icon('slides', 0xFF9A45, 0xDC4A17)
+@icon('slides', 0xFF9A45, 0xDC4A17, free=True)
 def slides(ic):
-    m = ic.rr(13, 19, 74, 50, 5)
-    ic.raised(m, PAPER)
-    ic.fill(ic.rr(11, 15, 78, 7, 3), Grad(0x5A6476, 0x3A4252, 100))
-    ic.fill(ic.circ(36, 44, 14), 0xB8C3D2)
-    ic.fill(ic.poly(ic.ell_pts(36, 44, 14, 14, -90, 30) + [(36, 44)]), Grad(0xFF8238, 0xE64A19, 90))
+    """La présentation : un tableau en objet sur son chevalet, un camembert orange."""
+    ic.fill(ic.line([(50, 68), (36, 90)], 4.4), 0x77767B)
+    ic.fill(ic.line([(50, 68), (64, 90)], 4.4), 0x77767B)
+    obj(ic, ic.rr(10, 14, 80, 56, 6), Grad(0xFFFFFF, 0xF6F5F4, 90), 0xC0BFBC, 4)
+    obj(ic, ic.rr(7, 9, 86, 8, 4), 0x5E5C64, 0x3D3846, 2.5, sh=0)
+    ic.fill(ic.circ(34, 43, 15), 0xDEDDDA)
+    ic.fill(ic.poly(ic.ell_pts(34, 43, 15, 15, -90, 30) + [(34, 43)]), Grad(0xFFA348, 0xFF7800, 90))
     if not ic.small:
-        lines(ic, 57, 36, 22, 3, 8.5, 4, 0xB3BFD0)
-    ic.fill(ic.line([(50, 70), (40, 85)], 4), 0xF1F4F8)
-    ic.fill(ic.line([(50, 70), (60, 85)], 4), 0xF1F4F8)
+        lines(ic, 56, 33, 26, 3, 9, 4, 0xC0BFBC)
 
 
 @icon('cardfile', 0xE8B23A, 0xB0701A)
@@ -736,14 +776,15 @@ def budget(ic):
         ic.fill(ic.ring(66, 57, 4.4, 1.4), 0xD98A10, .8)
 
 
-@icon('notes', 0xFFD84D, 0xEFA41B)
+@icon('notes', 0xFFD84D, 0xEFA41B, free=True)
 def notes(ic):
-    ic.raised(ic.rr(22, 21, 56, 65, 5), Grad(0xFFFDF2, 0xFFF3C8, 100))
-    ic.fill(ic.rr(22, 21, 56, 12, 4), Grad(0xFFC23D, 0xF2A122, 100))
+    """Le bloc-notes en objet : les feuilles jaunes, la reliure, les spirales."""
+    obj(ic, ic.rr(18, 16, 64, 72, 6), Grad(0xFFFBE0, 0xFFF4B8, 90), 0xE5A50A, 5)
+    ic.fill(ic.rr(18, 16, 64, 13, 5), Grad(0xF6D32D, 0xF5C211, 90))
     for i in range(5 if not ic.small else 3):
-        x = 31 + i * (9.5 if not ic.small else 19)
-        ic.fill(ic.rr(x - 1.6, 13, 3.2, 14, 1.6), Grad(0xE6EAF0, 0x8E99A8, 0))
-    lines(ic, 31, 44, 38, 4, 9.2, 2.8, 0xD3B878)
+        x = 28 + i * (11 if not ic.small else 22)
+        obj(ic, ic.rr(x - 1.8, 9, 3.6, 15, 1.8), 0xDEDDDA, 0x77767B, 1.2, sh=0)
+    lines(ic, 28, 42, 44, 4, 10, 3, 0xD7B85A)
 
 
 @icon('arabesque', 0x8A5BE8, 0x2A3FA8)
@@ -759,25 +800,27 @@ def arabesque(ic):
     ic.fill(ic.poly([(74, 40), (86, 46), (86, 53), (74, 48)]), 0xFFFFFF)
 
 
-@icon('pdf', 0xF2595E, 0xB51E36)
+@icon('pdf', 0xF2595E, 0xB51E36, free=True)
 def pdf(ic):
-    doc(ic, 24, 13, 52, 74)
-    ic.fill(ic.rr(33, 35, 34, 20, 2), Grad(0xFFC2B8, 0xE85A58, 110))
-    ic.fill(ic.poly([(33, 55), (44, 43), (51, 49), (58, 40), (67, 55)]), 0xB51E36, .8)
-    lines(ic, 33, 62, 34, 2, 8, 3.4, 0xB9C4D2)
+    """Un document PDF en objet : la feuille, une image, deux lignes, la bande rouge."""
+    adw_doc(ic, 18, 8, 64, 80)
+    ic.fill(ic.rr(28, 28, 44, 26, 3), Grad(0xF66151, 0xC01C28, 110))
+    ic.fill(ic.poly([(28, 54), (41, 39), (49, 47), (58, 36), (72, 54)]), 0xA51D2D, .8)
+    lines(ic, 28, 62, 44, 2, 9, 3.6, 0xC0BFBC)
 
 
-@icon('photos', 0xFBC6E0, 0xA585EA)
+@icon('photos', 0xFBC6E0, 0xA585EA, free=True)
 def photos(ic):
-    ic.push(0, 0, 1, -11, (46, 50))
-    ic.raised(ic.rr(19, 18, 52, 60, 2.4), Grad(0xF7B9CC, 0xEC7FA6, 100))
+    """Deux tirages en objets, l'un penché derrière l'autre."""
+    ic.push(0, 0, 1, -10, (46, 50))
+    obj(ic, ic.rr(14, 14, 58, 66, 3), Grad(0xDC8ADD, 0xC061CB, 90), 0x813D9C, 3)
     ic.pop()
     ic.push(0, 0, 1, 7, (54, 52))
-    ic.raised(ic.rr(24, 18, 58, 68, 2.4), Grad(0xFFFFFF, 0xEEF1F5, 100))
-    f = ic.rr(30, 24, 46, 46, .8)
-    ic.fill(f, Grad(0x5FC4F5, 0xBFE8F5, 90))
-    ic.fill(ic.circ(63, 37, 6.5), 0xFFD65C)
-    ic.fill(inter(f, ic.poly([(30, 62), (45, 44), (55, 56), (63, 49), (76, 62), (76, 70), (30, 70)])), Grad(0x3FA86E, 0x1F7A52, 90))
+    obj(ic, ic.rr(24, 14, 62, 74, 3), Grad(0xFFFFFF, 0xF6F5F4, 90), 0xC0BFBC, 4)
+    f = ic.rr(30, 20, 50, 50, 1)
+    ic.fill(f, Grad(0x62A0EA, 0x99C1F1, 90))
+    ic.fill(ic.circ(68, 33, 6.5), 0xF8E45C)
+    ic.fill(inter(f, ic.poly([(30, 62), (46, 43), (56, 55), (64, 47), (80, 62), (80, 70), (30, 70)])), Grad(0x33D17A, 0x26A269, 90))
     ic.pop()
 
 
@@ -795,16 +838,15 @@ def jet(ic):
     ic.pop()
 
 
-@icon('mail', 0x4FB5F7, 0x1B64DC)
+@icon('mail', 0x4FB5F7, 0x1B64DC, free=True)
 def mail(ic):
-    m = ic.rr(14, 25, 72, 52, 7)
-    ic.raised(m, Grad(0xFFFFFF, 0xE6ECF4, 100))
-    ic.fill(inter(m, ic.poly([(14, 77), (50, 46), (86, 77)])), Grad(0xFAFCFE, 0xDCE4EF, 100))
-    ic.fill(ic.line([(16, 75), (42, 52)], 1.4), 0x9FB0C8, .6)
-    ic.fill(ic.line([(84, 75), (58, 52)], 1.4), 0x9FB0C8, .6)
-    fl = inter(m, ic.soften(ic.poly([(11, 23), (89, 23), (54, 56), (46, 56)]), 1))
-    ic.shadow(fl, 1.1, 1.1, .22)
-    ic.fill(fl, Grad(0xFFFFFF, 0xEDF2F8, 100))
+    """L'enveloppe en objet : le dos, le rabat, les plis."""
+    m = ic.rr(8, 20, 84, 60, 8)
+    obj(ic, m, Grad(0xFFFFFF, 0xF6F5F4, 90), 0x9A9996, 5)
+    ic.fill(inter(m, ic.poly([(8, 80), (50, 46), (92, 80)])), Grad(0xF6F5F4, 0xDEDDDA, 90))
+    fl = inter(m, ic.soften(ic.poly([(5, 18), (95, 18), (55, 56), (45, 56)]), 1))
+    ic.shadow(fl, 1.0, 1.0, .18, dx=0)
+    ic.fill(fl, Grad(0x99C1F1, 0x62A0EA, 90))
 
 
 def bubble(ic, x, y, w, h, tailx, right=False):
@@ -854,15 +896,14 @@ def courier(ic):
 
 
 # --- creation -----------------------------------------------------------------------------------------------------
-@icon('paint', 0xFF8FA8, 0xD9416E)
+@icon('paint', 0xFF8FA8, 0xD9416E, free=True)
 def paint(ic):
-    pal = add(ic.ell(48, 52, 36, 31))
-    pal = sub(pal, ic.ell(70, 66, 8.5, 7.5))
-    ic.raised(ic.soften(pal, .7), Grad(0xF3D3A6, 0xCF9C63, 110))
-    for x, y, c in ((29, 44, 0xE5383B), (42, 33, 0xF5B83D), (58, 32, 0x2F9E6E), (73, 42, 0x2F74E0), (31, 62, 0x8A4FD6)):
-        ic.raised(ic.circ(x, y, 6.4), Grad(light(c, .2), c, 100), sh=False, rim=.5, dk=.1)
-    if not ic.small:
-        ic.fill(ic.ell(50, 62, 8, 7), 0xFFFFFF, .9)
+    """La palette de peintre en objet : le bois, le trou du pouce, les couleurs en relief."""
+    pal = sub(ic.ell(48, 50, 41, 35), ic.ell(72, 66, 9, 8))
+    obj(ic, ic.soften(pal, .7), Grad(0xDEB48A, 0xCDAB8F, 90), 0x865E3C, 5)
+    for x, y, c, cd in ((26, 42, 0xE01B24, 0xA51D2D), (40, 29, 0xF6D32D, 0xE5A50A), (58, 28, 0x33D17A, 0x26A269),
+                        (74, 39, 0x3584E4, 0x1A5FB4), (28, 61, 0x9141AC, 0x613583)):
+        obj(ic, ic.circ(x, y, 7), c, cd, 2, sh=0)
 
 
 @icon('iconedit', 0xEA5FBC, 0x8C2AB8)
@@ -973,25 +1014,28 @@ def mediaplayer(ic):
     ic.fill(play_tri(ic, 53, 50, 20), Grad(0x1FC4B2, 0x1278C8, 110))
 
 
-@icon('recorder', 0xEF4A6E, 0x9E1646)
+@icon('recorder', 0xEF4A6E, 0x9E1646, free=True)
 def recorder(ic):
-    # la cassette : deux bobines et sa fenetre
-    ic.raised(ic.rr(12, 24, 76, 54, 6), Grad(0x3A4252, 0x1E232E, 100), rim=.25)
-    ic.fill(ic.rr(19, 31, 62, 28, 3), Grad(0xFFF2D8, 0xF0D7A8, 100))
-    ic.fill(ic.rr(29, 38, 42, 15, 7.5), 0x1E232E)
-    for x in (37, 63):
-        ic.fill(ic.circ(x, 45.5, 6), 0xF4F6FA)
-        ic.fill(ic.circ(x, 45.5, 2.6), 0x1E232E)
-    ic.fill(ic.poly([(28, 78), (31, 64), (69, 64), (72, 78)]), 0x565F70)
+    """La cassette en objet : le boîtier, l'étiquette, la fenêtre et ses bobines."""
+    obj(ic, ic.rr(8, 22, 84, 58, 7), Grad(0x5E5C64, 0x3D3846, 90), 0x241F31, 6)
+    ic.fill(ic.rr(15, 29, 70, 30, 3), Grad(0xF66151, 0xE01B24, 90))
+    ic.fill(ic.rr(15, 29, 70, 8, 3), 0xFFFFFF, .85)
+    ic.fill(ic.rr(28, 41, 44, 14, 7), 0x241F31)
+    for x in (36, 64):
+        ic.fill(ic.circ(x, 48, 6), 0xF6F5F4)
+        ic.fill(ic.circ(x, 48, 2.6), 0x241F31)
+    ic.fill(ic.poly([(26, 80), (30, 66), (70, 66), (74, 80)]), 0x77767B)
 
 
-@icon('piano', 0x3B4150, 0x15171E)
+@icon('piano', 0x3B4150, 0x15171E, free=True)
 def piano(ic):
-    x0, w, n = 15, 70 / 5, 5
+    """Le clavier de piano en objet : le corps noir, les touches blanches, les dièses."""
+    obj(ic, ic.rr(8, 18, 84, 68, 7), Grad(0x3D3846, 0x241F31, 90), 0x000000, 6)
+    x0, w, n = 13, 74 / 5, 5
     for i in range(n):
-        ic.raised(ic.rr(x0 + i * w + .6, 18, w - 1.2, 64, 3), Grad(0xFFFFFF, 0xDDE3EC, 100), sh=False, rim=0, dk=.14)
+        obj(ic, ic.rr(x0 + i * w + .7, 26, w - 1.4, 54, 2.4), Grad(0xFFFFFF, 0xF6F5F4, 90), 0xC0BFBC, 2.4, sh=0)
     for i in (1, 2, 4):
-        ic.raised(ic.rr(x0 + i * w - 4.6, 16, 9.2, 40, 2.2), Grad(0x3A3F4C, 0x0E1016, 100), rim=.3, dk=0)
+        obj(ic, ic.rr(x0 + i * w - 4.8, 26, 9.6, 32, 2), 0x3D3846, 0x000000, 2, sh=0)
 
 
 @icon('music', 0xFF6F91, 0xB5249E)
@@ -1086,17 +1130,16 @@ def turtle(ic):
     ic.pop()
 
 
-@icon('view3d', 0x344A78, 0x101A36)
+@icon('view3d', 0x344A78, 0x101A36, free=True)
 def view3d(ic):
-    t, l, r, b = (50, 13), (17, 31), (83, 31), (50, 49)
-    bl, br, bb = (17, 69), (83, 69), (50, 87)
-    ic.shadow(ic.poly([t, r, br, bb, bl, l]), op=.45)
-    ic.fill(ic.poly([t, r, b, l]), Grad(0xFFD98A, 0xF5B14A, 90))
-    ic.fill(ic.poly([l, b, bb, bl]), Grad(0xFF8A5C, 0xD9472E, 90))
-    ic.fill(ic.poly([r, b, bb, br]), Grad(0x4FC8E8, 0x1C7CC0, 90))
+    """Le cube en trois tons, plus grand, posé sur son ombre."""
+    t, l, r, b = (50, 8), (12, 29), (88, 29), (50, 50)
+    bl, br, bb = (12, 71), (88, 71), (50, 92)
     if not ic.small:
-        for q in ((t, r), (r, b), (b, l), (l, t), (b, bb), (l, bl), (r, br), (bl, bb), (br, bb)):
-            ic.fill(ic.line(list(q), .9), 0xFFFFFF, .75)
+        ic.shadow(ic.poly([t, r, br, bb, bl, l]), dy=1.2, blur=1.6, op=.22, dx=0)
+    ic.fill(ic.poly([t, r, b, l]), Grad(0xF9F06B, 0xF6D32D, 90))
+    ic.fill(ic.poly([l, b, bb, bl]), Grad(0xFFA348, 0xE66100, 90))
+    ic.fill(ic.poly([r, b, bb, br]), Grad(0x62A0EA, 0x1C71D8, 90))
 
 
 # --- jeux ---------------------------------------------------------------------------------------------------------
@@ -1475,17 +1518,15 @@ def solitaire(ic):
     card(ic, 33, 21, 40, 56, 4, spade, 0x1E2632)
 
 
-@icon('targets', 0x35C4C0, 0x0E7890)
+@icon('targets', 0x35C4C0, 0x0E7890, free=True)
 def targets(ic):
-    for r, c in ((36, 0xFFFFFF), (28.5, 0xE8344A), (21, 0xFFFFFF), (13.5, 0xE8344A), (6, 0xFFFFFF)):
-        m = ic.circ(50, 50, r)
-        if r == 36:
-            ic.raised(m, Grad(0xFFFFFF, 0xE3E8EF, 110))
-        else:
-            ic.fill(m, Grad(light(c, .08), dark(c, .08), 100))
-    ic.shadow(ic.line([(50, 50), (84, 16)], 3))
-    ic.fill(ic.line([(50, 50), (82, 18)], 3), 0xF5C33D)
-    ic.fill(ic.poly([(80, 12), (90, 12), (88, 20), (78, 22)]), 0xFFFFFF)
+    """La cible en objet : ses anneaux, son épaisseur, une fléchette plantée."""
+    obj(ic, ic.circ(48, 50, 40), 0xFFFFFF, 0x9A9996, 5)
+    for r, c in ((32, 0xE01B24), (24, 0xFFFFFF), (16, 0xE01B24), (8, 0xFFFFFF)):
+        ic.fill(ic.circ(48, 50, r), c)
+    ic.shadow(ic.line([(48, 50), (84, 14)], 3), dy=1.0, blur=.6, op=.25, dx=0)
+    ic.fill(ic.line([(48, 50), (82, 16)], 3.2), 0xF5C211)
+    ic.fill(ic.poly([(80, 10), (91, 10), (89, 19), (78, 21)]), 0x3584E4)
 
 
 @icon('tetris', 0x2B2F52, 0x12142E)
