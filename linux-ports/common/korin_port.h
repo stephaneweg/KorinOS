@@ -49,6 +49,9 @@ int kport_audio_reload_soundfont (const char *path);
 // UIKit (uikit_gtk.cpp) : ajoute a la barre de menus un menu « Son » (choisir la SoundFont) ; pour les apps qui
 // n'ont pas de choix de SoundFont a elles (Arabesque)
 extern int kport_soundfont_menu;
+// UIKit (uikit_gtk.cpp) : apres chaque tour de la boucle de GTK, remet courant le contexte OpenGL ES de l'app (pose par
+// glkit_egl.cpp au premier armgl_make_current ; 0 : pas de GL)
+extern void (*kport_gl_restore) (void);
 
 #ifdef __cplusplus
 }

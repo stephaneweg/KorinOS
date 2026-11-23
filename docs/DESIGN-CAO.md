@@ -62,8 +62,8 @@ de la chaîne `tools/icons`.
 | Recherche de commande | Touche S (boîte à outils) | Recherche | **Ctrl+K** : commandes, paramètres, étapes, réglages | Le même geste que dans WebStudio (Ctrl+P) |
 | Historique | Frise en bas, barre de reconstruction, rouge et jaune | Historique optionnel | **La frise de 3DForge et de Fusion**, barre glissée, étapes en erreur, clic droit | Validée par l'utilisateur ; Fusion montre que ça marche |
 | Esquisse | Contraintes, bleu/noir, glyphes | Contraintes déduites, peu de glyphes | **Contraintes visibles (Fusion) + déduites pendant le tracé (Shapr3D)**, degrés de liberté toujours dits, conflit désigné | PlaneGCS donne les DDL et la liste des contraintes en conflit : on les montre |
-| Congé | Flèche, chaîne tangente, variable | Flèche, très direct | **Flèche + chaîne tangente au double-clic**, rayon variable plus tard | OCCT le permet sur toute arête |
-| Pousser/tirer | Commande Q à part | Le geste principal | **Q, et l'action en tête du panneau** quand une face est choisie ; opération auto | Le geste le plus rapide pour modifier une pièce |
+| Congé | Flèche, chaîne tangente, variable | Flèche, très direct | **Flèche + chaîne tangente au double-clic**, rayon variable plus tard (flèche faite le 23/11, forge 1.3.9 : §15.11) | OCCT le permet sur toute arête |
+| Pousser/tirer | Commande Q à part | Le geste principal | **Q, et l'action en tête du panneau** quand une face est choisie ; opération auto ; une poignée à tirer (23/11, forge 1.3.10 : §15.11) | Le geste le plus rapide pour modifier une pièce |
 | Erreurs | Étape en rouge, message dans une fenêtre | Message court | **Champ rouge + arêtes rouges + bandeau avec la valeur possible** ; étape rouge et cause en clair dans le panneau | Dire quoi faire, pas seulement que ça a échoué |
 | Petits écrans | — | iPad : panneaux qui se replient | **Un volet à la fois** à 800 × 600 : panneau en tiroir, barre sans légendes | Le Pi doit rester utilisable |
 | Fabrication | Très complet, très dense | Aucune | **Celle de 3DForge** (brut, 27 origines, ébauche, contour, G-code vérifié), plus le procédé (fraisage, résine, filament) | Validée et déjà écrite (`fcam.h`, `fprint.h`, `ffdm.h`) |
@@ -210,7 +210,14 @@ un corps sont grisés ; la frise annonce ce qu'elle contiendra.
 * **Cube de vue** : un clic sur une face, une arête ou un coin oriente la vue ; *Maison* revient à la vue de départ.
   Sous le cube : maison, ajuster (F6), style (ombré, ombré avec arêtes, fil de fer), regarder la face choisie (N),
   coupe. Vues : Alt+1 avant, Alt+2 dessus, Alt+3 droite, Alt+0 isométrique.
-* **Orthographique par défaut** (les cotes se lisent juste) ; perspective dans *Affichage*.
+* **Perspective par défaut** (23/11/2026, demande de l'utilisateur ; avant : orthographique), angle de champ vertical
+  35°, comme « Perspective avec faces orthographiques » de Fusion : une vue de face (une face du cube, Alt+1/2/3) passe
+  en orthographique le temps de cette vue, tourner la vue ou revenir à l'isométrique (Maison, Alt+0) rend la
+  perspective. Le choix (Affichage > Perspective Alt+5 / Orthographique Alt+6, ou clic droit sur le cube) est gardé
+  dans `HOME:/forge/forge.ini` ; le cube de vue reste orthographique. En perspective, la molette rapproche l'œil du
+  point sous le pointeur (la pièce, sinon le plan du point visé), qui reste en place ; déplacer garde sous le pointeur
+  le point pris ; Ajuster met la sphère autour de la pièce dans l'angle de champ. Le passage d'une projection à
+  l'autre garde la taille au point visé.
 
 ## 7. Unités, champs, paramètres, mesures
 
@@ -648,7 +655,7 @@ forge` contre l'OCCT et le PlaneGCS de `~/korin-cao/x86_64` (sautée et notée s
   pièce d'exemple est l'équerre de 3DForge, faite par OpenCASCADE en huit étapes : plaque, congé R 8 sur deux arêtes,
   paroi jointe, congé R 12, raccord R 6, trou Ø 22, deux lamages Ø 9 / Ø 14, oblong. Elle fait 63,99 cm³ (3DForge
   donnait 63,5), avec 24 faces, 60 arêtes et 1 188 triangles.
-* `render.cpp` : **la vue rendue par le processeur** dans une surface d'UIKit (orthographique, tampon de profondeur,
+* `render.cpp` : **la vue rendue par le processeur** dans une surface d'UIKit (perspective ou orthographique depuis forge 1.3.8, tampon de profondeur,
   ombrage par sommet, arêtes cachées par la profondeur, grille du plan XY, axes, trièdre, cube de vue), et le choix
   sous le pointeur (une arête à moins de 5 pixels, sinon la face, par un tampon des faces). Sans UIKit : le même code
   se compile pour Linux. **Pas encore le GPU** : la GlKit du PC ne se reconstruit pas sur cette machine et QEMU n'a pas
@@ -794,6 +801,83 @@ pose la cote et ouvre sa saisie. Pas essayé sur le ZBook ni sur le Pi.
   angle, `tangentChain`). Un rayon refusé donne le plus grand rayon qui passe, cherché par dichotomie
   (`filletMax` : 14 essais, forme valide, arrondi au dixième). Le panneau le dit et le bouton « Utiliser R … »
   le prend.
+* **La poignée du congé et du chanfrein** (23/11/2026, forge 1.3.9, demande de l'utilisateur), comme la flèche de
+  Fusion 360 : un disque sur une flèche, posé au milieu de l'arête (la première de la chaîne), le long de la
+  bissectrice de ses deux faces, tourné là où le congé s'enfonce (dans la matière pour une arête saillante, dans le
+  creux pour une arête rentrante : `edgeHandle`, le côté par un `BRepClass3d_SolidClassifier` en travers de la
+  bissectrice). Le disque est à la valeur (rayon ou distance) de l'arête. On le tire : la valeur est la place sur
+  l'axe du point le plus proche du rayon sous le pointeur (`View::ray`, juste en perspective comme en orthographique),
+  comptée depuis l'appui (pas de saut), arrondie à un pas qui suit le zoom (le plus fin de 0,1 0,2 0,5 1 2 5 10 mm qui
+  déplace le disque d'au moins 1,5 pixel, jamais plus que l'accrochage ; aussi la plus petite valeur). La puce et le
+  panneau suivent ; l'aperçu (la vraie forme) se refait une fois par lot de mouvements, comme les autres gestes, sans
+  la recherche du rayon maximal. Une valeur qui ne passe pas rougit la puce et la poignée pendant le glisser ; au
+  relâché, la dernière valeur qui passait revient (barre d'état : « Congé 13 mm ne passe pas : retour à 2 mm. »).
+  La frappe fait bouger la poignée ; Entrée, Échap comme avant. Au survol, elle prend la couleur de survol et la
+  barre d'état dit « Glisser la poignée pour le rayon ». Un congé ou un chanfrein dont OCCT rend une forme non valide
+  (trop grand : faces retournées) est maintenant refusé au rejeu (`BRepCheck_Analyzer`, comme `filletMax`). La
+  modification d'une étape depuis la frise passe par les champs du panneau, sans poignée.
+* **Les poignées de Pousser/tirer, de l'extrusion, de la hauteur de Boîte et Cylindre** (23/11/2026, forge 1.3.10,
+  demande de l'utilisateur : « on doit glisser la poignée », plus de valeur qui suit le pointeur). La même poignée que
+  le congé (même dessin, survol, rouge, liseré, pas selon le zoom borné par l'accrochage, aperçu par lot, code commun
+  dans main.cpp : `handlePlace` pose l'axe selon la commande, `handleChip` est la puce réglée), posée :
+  * Pousser/tirer : au centre de la face (centre de masse de ses triangles ; s'il tombe dans un trou, le centre du
+    triangle de la face le plus proche : `pushAnchor`), le long de sa normale ; valeur positive : tirer, négative :
+    pousser (la flèche suit le sens) ;
+  * extrusion : au centre de l'esquisse, le long de la normale de son plan, dans les deux sens ;
+  * Boîte et Cylindre : à l'étape de la hauteur, au centre de la base, le long de la normale du plan de la base ; le
+    disque est au centre de la face du haut ; négative : on creuse (comme avant). La base se trace comme avant.
+
+  La valeur ne change **que** pendant qu'on tire la poignée (jamais zéro : un pas de part et d'autre) ; le pointeur
+  qui passe ne fait rien. La frappe déplace la poignée. **Un clic hors de la poignée ne valide plus** : Entrée ou OK
+  valide, Échap annule la commande (comme avant) ; la barre d'état le rappelle. Pousser/tirer : un clic sur une autre
+  face plane la prend (la distance est gardée). La révolution (l'angle tapé) garde son clic qui valide. Le MCP ne
+  passe pas par les gestes : inchangé.
+* **L'esquisse dans la vue, le bouton Extrusion, les régions, le mode** (23/11/2026, forge 1.3.11, demandes de
+  l'utilisateur) :
+  * **une esquisse terminée se voit hors de son édition**, comme dans Fusion (qui cache une esquisse dès qu'une
+    extrusion l'utilise) : celles qu'aucune extrusion ni révolution jouée n'utilise sont tracées en traits fins
+    (`TJ_TEXT2`, la construction en pointillés), cachées par la pièce qui est devant ; celle choisie dans la frise et
+    celle de l'extrusion en cours sont en accent, par-dessus tout. Une esquisse extrudée se revoit en la choisissant
+    dans la frise ; une esquisse désactivée ou après la barre n'est pas montrée. Pas d'œil par esquisse : le panneau
+    Corps ne liste que les corps (`sketchShown`, `idleStrokes`) ;
+  * **le bouton Extrusion** dans la barre d'outils, après Esquisse (touche E, infobulle) ; pressé pendant une
+    esquisse, il la termine et l'extrude ;
+  * **les régions** (les « profils » de Fusion) : chaque contour fermé moins les contours fermés directement dedans
+    (`skRegions` : le parent d'un contour est le plus petit qui contient un de ses sommets ; profondeur 0 dans aucun
+    autre, 1 un trou, 2 un îlot dans un trou...). Pendant l'extrusion **et la révolution**, la région sous le pointeur
+    est teintée (survol), celles qui seront extrudées sont teintées d'accent (`View::fills`, sans profondeur) ; un clic
+    prend ou laisse une région, plusieurs possibles ; il en faut au moins une. Deux régions qui se touchent (un
+    contour et son trou) sont réunies en une face (`BRepAlgoAPI_Fuse` puis `ShapeUpgrade_UnifySameDomain`). Le choix
+    est gardé dans l'opération (`Feature::regions` : un point bien dans chaque région, le centre de son plus grand
+    triangle) et rejoué (`skFacesPick`) ; revenu au défaut, il est vidé. **Sans choix : tout le profil comme avant**
+    (`skFaces` inchangé : les régions de profondeur 0, un îlot dans un trou reste dehors ; il se choisit maintenant).
+    Une esquisse changée au point que la région choisie n'y est plus : l'étape passe en erreur (« l'esquisse n'a plus
+    la région choisie »). La poignée de 1.3.10 marche comme avant (elle passe d'abord). La révolution ne valide plus
+    au clic (le clic choisit une région) : Entrée ou OK ;
+  * **le mode de combinaison** existait (Nouveau | Joindre | Enlever | Inter. au panneau, `OP_INTERSECT` =
+    `BRepAlgoAPI_Common`) ; ajouté : le clavier (Alt+N, Alt+J, Alt+E, Alt+I, la touche par sa place ; rappelé au
+    panneau et en infobulle), la ligne « Corps visé » (sur un plan, joindre, enlever et intersection visent le premier
+    corps), et **l'aperçu teinté suit le mode** : accent pour nouveau et joindre, `TJ_DANGER` vu à travers pour
+    enlever, `TJ_WARNING` pour intersection (avant, une extrusion vers le bas sur un plan était rouge alors qu'elle
+    faisait un nouveau corps). Le défaut est inchangé : sur un plan, nouveau corps ; sur une face, joindre, ou enlever
+    quand on creuse ;
+  * **le format** : une extrusion ou une révolution avec un choix a `"regions" : [x, y, ...]` (écrit seulement s'il y
+    a un choix) ; la version du format reste 1 : un ancien document s'ouvre (tout le profil), un ancien Forge ignore
+    le champ. Le MCP : `get_feature` d'une esquisse liste ses `regions` (numéro, profondeur, aire, point dedans),
+    `extrude` et `revolve` prennent `regions` (leurs numéros), `get_feature` d'une extrusion rend `region_points` ;
+  * **une première version (commit 7f94394a) a été annulée (0634c12b)** : envoyée par erreur depuis une autre session,
+    elle cassait l'enregistrement (essai « enregistré puis rouvert (.forge) » en échec, « JSON illisible ») et
+    passait main.cpp et history.cpp de CRLF en LF. La cause, retrouvée en reconstruisant ce commit : `FaceRef` (et
+    `EdgeRef`) n'avaient pas de valeurs par défaut ; une esquisse neuve écrivait sa `face` jamais posée, des valeurs au
+    hasard, ici `-nan`, que le JSON n'admet pas (le changement de la pile par 7f94394a l'a fait paraître). Corrigé :
+    des zéros par défaut, `docSave` écrit 0 pour un nombre non fini, et `docLoad` relit un fichier qui contient `nan`
+    ou `-nan` (remplacés par 0 hors des chaînes) : un document déjà touché s'ouvre.
+
+  Selftest sous Linux : **70 vérifications, toutes bonnes** (17 de plus : esquisse visible puis cachée puis revue,
+  régions du rectangle percé et de l'îlot, extrusion d'une région à la poignée, du contour et de son trou réunis, de
+  la dernière région gardée, de l'îlot, des 4 modes au clavier et au panneau avec la teinte, le défaut sur une face,
+  enregistré puis rouvert avec un choix, ancien document sans le champ et avec un `-nan`, MCP `extrude` avec
+  `regions`). Korin pas construit ni essayé ici.
 * **Perçage** (H, Créer > Perçage). Un clic sur une face plane pose le premier trou, au demi-mm. Maj+clic en
   ajoute. Les valeurs : le diamètre et la profondeur (0 : traversant). Le lamage reste dans le modèle (Ø et
   profondeur), modifiable depuis la frise.

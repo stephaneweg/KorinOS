@@ -304,10 +304,22 @@ Fenêtre `WF_FRAMELESS | WF_TOP | WF_NOFOCUS | WF_RESERVE`, **plus `WF_ALPHA`**,
   * le volume de la sortie principale : haut-parleur (muet), curseur, valeur, flèche « › » vers le
     volet des sorties (soundmenu) ;
   * deux tuiles en pilule (56 px, pleines de l'accent quand actives) : **Réseau** (Wi-Fi et son
-    réseau, ou « Filaire » et l'adresse ; un clic : le menu Wi-Fi, sinon l'applet Wi-Fi des
-    réglages) et **Ne pas déranger** (`korin.notify.dnd`, gardé, le même que le volet rapide du mode
-    poche), qu'un clic bascule.
+    réseau, ou « Filaire » et l'adresse) et **Ne pas déranger** (`korin.notify.dnd`, gardé, le même que
+    le volet rapide du mode poche), qu'un clic bascule ;
+  * avec le Wi-Fi, un clic sur la tuile Réseau (un chevron à droite) **déplie la liste des réseaux dans le
+    volet**, comme GNOME (23/11/2026, demande de l'utilisateur) : une carte sous les tuiles (fond un peu
+    plus marqué, rayon 16), son en-tête (un disque d'accent et ses barres, « Wi-Fi », l'état), les réseaux
+    du plus fort au plus faible (cadenas, coche sur le réseau courant), la clé masquée et « Se connecter »
+    pour un réseau sécurisé inconnu, « Paramètres Wi-Fi… » en bas ; le volet grandit avec elle (ui_resize),
+    un second clic la replie, elle se replie une fois connecté. La liste est celle du menu Wi-Fi, sortie
+    dans `src/sys/common/wifilist.c` (partagée par `wifimenu` et `quickmenu`). Sans Wi-Fi : l'applet Wi-Fi
+    des réglages.
 * Le mode poche garde ses clics d'avant (compteur, heure, icônes une à une).
+* Le volet a **la teinte du dash** quel que soit le thème (23/11/2026, demande de l'utilisateur ; ≈ `#3B3D3F`,
+  textes clairs, tuiles un peu plus claires) : `dash_palette` écrit ces couleurs dans les jetons du seul
+  programme `quickmenu` (la liste Wi-Fi les lit aussi), de nouveau après un `WEV_THEME`. Il a la capture de la
+  souris comme un menu (`WF_GRAB`) : **un appui hors du volet le ferme**, sans aller à ce qui est dessous
+  (un second clic sur la zone d'état le ferme donc sans le rouvrir).
 
 ### 6.1 Contenu du menu ARMPI
 
@@ -571,14 +583,22 @@ du fichier : les catégories par nom, terminal et files, 4 espaces.
 
 > **Depuis le 23/11/2026, le panel est le dash de la vue d'ensemble** (§ 19), comme celui de GNOME :
 > rôle `WF_OVERVIEW` (caché dans la vue normale), sans `WF_RESERVE` ni `WF_BLUR` ; un bandeau
-> **flat** (demande de l'utilisateur : la teinte `TJ_DOCK` unie, translucide `0x30` en Givre, `0x28`
-> en Onyx Noir, sans dégradé, reflet ni ombre ; coins de 14/13/12 lissés), centré, à 14 px du bas,
+> **flat** (demande de l'utilisateur : un voile uni de l'encre claire, `ui_ink` du fond sombre de la
+> vue, transparence `0xE8`, à peine plus clair que ce fond, comme le dash de GNOME ; `0xC8` au survol ;
+> sans dégradé, reflet ni ombre ; coins de 14/13/12 lissés ; séparateur, points et grille à cette encre), centré, à 14 px du bas,
 > de la largeur de son contenu (hauteur 68/62/56, emplacements de 60/54/48, icônes de 46/42/36 selon
 > l'échelle). Survol : la même teinte un peu plus marquée, boîte unie. Dedans : les raccourcis, les
 > applications ouvertes (un point sous chacune), un séparateur, « Applications » (la grille des
 > applications de la vue d'ensemble, § 19 ; allumé tant qu'elle est ouverte). Plus de bureaux (le carrousel), ni corbeille, presse-papiers, réglages ou éteindre (les
 > réglages rapides de la barre de menus, § 6.0). Le bouton d'alimentation du PC ouvre toujours le
-> dialogue d'extinction. Ce qui suit décrit la barre d'avant.
+> dialogue d'extinction.
+>
+> **Réorganiser le dash en glissant** (23/11/2026) : un appui sur une icône ne l'ouvre qu'au relâché ; au-delà
+> de 6 px, c'est un glisser : l'icône suit le pointeur, un peu levée, les autres s'écartent, la place visée
+> est marquée. Posée, l'ordre des raccourcis change (`panel.ini`) ; une application ouverte non épinglée
+> posée parmi les raccourcis (ou juste après) s'y épingle. Le rang dans `panel.ini` se retrouve par le nom
+> (`dg_pin_of`) : un raccourci dont l'application manque n'a pas de place dans le dash. Ce qui suit décrit
+> la barre d'avant.
 
 Le panel (`src/sys/panel/panel.c`, commun au Pi et au PC ; `panel.asm` n'est plus copié sur la carte)
 remplace le dock depuis le 31/10. Revue du 17/11 (« fait encore un peu rétro ») : ce qui datait la
@@ -1063,6 +1083,18 @@ Demande de l'utilisateur : un bureau « comme GNOME » (Fedora Workstation réce
   visibles), les fenêtres de chaque bureau **en exposé** (côte à côte, sans se couvrir), et en bas
   le **dash** (le panel, § 8.9 : les applications épinglées, celles qui tournent, « Applications »).
 
+**Le choix du mode** (23/11/2026, demande de l'utilisateur) : `desktop = classic | overview` dans
+`/etc/system.ini` (avec `shell=desktop`), choisi dans Réglages > Écran > Interface (trois cartes : Bureau
+classique, Vue d'ensemble, Poche). **La vue d'ensemble est le défaut** (sans clé). Entre bureau classique et vue
+d'ensemble, « Appliquer » change tout de suite, sans redémarrer : les Réglages écrivent `desktop=`, préviennent
+Elegant (`WS_OP_OVERVIEW` a = 3 vue d'ensemble, 4 bureau classique ; synchrone), puis publient
+`korin.shell.desktop` (gardé) : le panel lance un `/sys/panel` neuf, qui prend l'autre forme, et s'arrête ; la
+barre de menus relit le mode au changement de la liste des fenêtres. Passer en Poche, ou en revenir, redémarre
+toujours. En bureau classique : le panel d'avant (`panel_classic.c` : barre pleine largeur, bureaux, corbeille, réglages, éteindre), le menu
+Korin, les clics icône par icône de la zone d'état, Super laissé aux applications ; `WS_OP_OVERVIEW` y répond
+`E_INVAL`, et c'est ainsi que le panel et la barre de menus savent le mode. La clé live peut fixer le sien
+(`installkey.py build --desktop overview`). Le glissement entre bureaux (Ctrl+Alt+flèches) vaut pour les deux.
+
 **Ouvrir, fermer.** Le bouton « Korin OS » de la barre de menus (`WS_OP_OVERVIEW`, 42 : a -1
 basculer, 0 fermer, 1 ouvrir, 2 lire → 1 ouverte, 0 fermée), Super seul (`dk_key` du mode
 desktop). Elle se ferme sur Échap, Entrée, un clic sur le fond, un second clic sur « Korin OS »,
@@ -1103,7 +1135,7 @@ bureau (empreinte à chaque tour).
 **Rendu (processeur).** Le coût est payé à l'ouverture, pas à chaque image :
 
 * le fond (couche du fond) composé une fois en pleine taille ; on en tire le fond de la vue (réduit
-  au seizième, flou de boîte, assombri à 112/256, agrandi en bilinéaire) et la vignette d'un bureau
+  au seizième, flou de boîte, assombri à 60/256, agrandi en bilinéaire) et la vignette d'un bureau
   (réduite par moyenne de blocs, coins de 16 px lissés). Fond et fond flouté sont gardés d'une
   ouverture à l'autre tant que la couche du fond ne change pas (empreinte des générations) ;
 * chaque fenêtre est composée hors écran par le chemin ordinaire (`draw_framed` : contenu, surface
@@ -1130,14 +1162,40 @@ panel (`launcher.c`, `la_grid`) ouvre une fenêtre `WF_APPGRID` (0x20000 : `WF_F
 WF_NOLIST | WF_ALPHA`, ni rideau ni capture) **transparente**, posée sur le fond gris de la vue : la
 recherche centrée en haut, les catégories en **pilules** sur une ligne (« Récentes », « Toutes », puis
 les catégories qui ont des applications ; la choisie dans un voile clair), une grande grille d'icônes
-(cases de 136 × 120, icônes de 60 ; 118 × 104 et 48 en petite échelle ; 8 colonnes au plus, centrée ;
-la molette la fait défiler). Tant qu'une telle fenêtre existe, Elegant passe en mode « applications »
+(cases de 136 × 120, icônes de 60 ; 118 × 104 et 48 en petite échelle ; 8 colonnes au plus, centrée),
+**en pages** comme GNOME : autant de rangées qu'il en tient, puis des points sous la grille (la page
+montrée pleine ; un clic va à sa page) et des flèches ‹ › de 44 px sur les côtés quand il y a une page
+avant ou après ; la molette (ou deux doigts sur le pavé) tourne une page par geste (350 ms sans cran
+entre deux gestes), Pg.Préc et Pg.Suiv aussi, et les flèches du clavier vont à la page de la case
+choisie. Le changement de page **glisse** (240 ms, « ease out ») : l'ancienne sort d'un côté pendant que
+la nouvelle entre de l'autre (le panel redessine la zone de la grille à chaque image, `la_page_slide`).
+
+**Glissement entre bureaux dans la vue normale** (`sw_*` d'`overview.c`) : Ctrl+Alt+Gauche / Droite, ou une
+fenêtre ramenée sur un autre bureau, font glisser le contenu du bureau (fond et fenêtres normales) d'un
+côté pendant que le nouveau entre de l'autre (260 ms ; le sens suit la touche, même en revenant au
+premier) ; la barre de menus, les volets et le curseur restent en place. Les deux images sont composées
+une fois hors écran (deux tampons de la taille de l'écran, rendus à la fin) : chaque image n'est que deux
+copies. Pas pendant la vue d'ensemble, ni en mode poche, ni sous un rideau. Tant qu'une telle fenêtre existe, Elegant passe en mode « applications »
 (`ov_q`, 300 ms, « ease out ») : **les bureaux se réduisent et montent en une rangée en haut** (13 % de
 la hauteur de l'écran chacun, centrés ; le bureau courant cerclé) pendant que **la grille monte du bas** ;
 elle fermée, l'inverse. Un clic sur un bureau de la rangée l'active (retour à la vue normale) ; sur le
 vide de la grille, Échap, ou un second clic sur « Applications » : retour au carrousel ; une
 application choisie s'ouvre et referme la vue. Pendant la grille, le dash répond toujours (le panel
 relaie ses événements : `la_other`). Une fenêtre `WF_APPGRID` créée hors de la vue l'ouvre.
+
+**À l'ouverture de la session** (23/11/2026, demande de l'utilisateur) : quand le dash arrive (`WF_OVERVIEW`) et
+qu'aucune fenêtre qui prend le clavier n'est ouverte, Elegant ouvre la vue d'ensemble, pour lancer la première
+application ; s'il y en a une (l'installateur de la clé live), la vue s'ouvre quand elle se ferme
+(`ov_start_pending`), sauf si une application s'est ouverte entre-temps. Pas à l'écran de connexion (login).
+
+**Survol quitté** (23/11/2026). Elegant n'envoie le survol qu'à la fenêtre sous le pointeur ; celle qui
+l'a reçu en dernier (`hov_win`) reçoit, quand le pointeur la quitte (pour une autre fenêtre, un cadre, le
+fond, la vue d'ensemble), un dernier `WEV_MOUSE` de genre 0 en (-1, -1) : le titre de menu de la barre, la
+zone d'état, une icône du dash ne restent plus en surbrillance.
+
+**Les pilules de catégories** de la grille sont dessinées texte d'abord, sur le fond transparent, puis le
+voile glissé **dessous** (`la_pill_under`, pixel par pixel, bords lissés) : le texte tracé sur un fond à
+demi transparent s'y frangeait de sombre (« il dégouline »).
 
 **Molette horizontale.** Nouvel événement des pilotes, `EV_HWHEEL` (5 ; +8 crans, vers la gauche
 > 0, comme la molette vers le haut) : i2chid (le pavé tactile du PC) le donne pour deux doigts qui

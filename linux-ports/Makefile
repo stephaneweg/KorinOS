@@ -1,19 +1,21 @@
-# linux-ports/Makefile -- Koton, Arabesque et Budget mensuel pour Linux (Fedora) : l'interface sur GTK 4, le son sur
-# FluidSynth, le reseau sur OpenSSL, le coffre a secrets sur libsecret.
+# linux-ports/Makefile -- Koton, Arabesque, Budget mensuel, TerraCube et Forge pour Linux (Fedora) : l'interface sur
+# GTK 4, le son sur FluidSynth, le reseau sur OpenSSL, le coffre a secrets sur libsecret, la 3D de TerraCube sur
+# OpenGL ES 3 (EGL), la CAO de Forge sur OpenCASCADE et PlaneGCS.
 # Les sources des apps restent dans src/apps/<app> (compilees telles quelles) ; ici, les couches qui remplacent les
 # kits de Korin (common/) et l'entree de chaque programme (<app>/linux_main.cpp).
 #
-#   make            -> bin/arabesque, bin/koton, bin/koton-plugins/<id>/, bin/llm, bin/budget
+#   make            -> bin/arabesque, bin/koton, bin/koton-plugins/<id>/, bin/llm, bin/budget, bin/terracube, bin/forge
 #   make clean
 #
 # Dependances (Fedora) : gcc-c++ make pkgconf gtk4-devel fluidsynth-devel openssl-devel libsecret-devel python3
-# fluid-soundfont-gm (sans libsecret-devel, Budget se construit sans coffre a secrets : banque.json et le .pem)
+# fluid-soundfont-gm (sans libsecret-devel, Budget se construit sans coffre a secrets : banque.json et le .pem) ;
+# TerraCube : libglvnd-devel (EGL, GLES 3), wayland-devel, zlib-devel ; Forge : opencascade-devel eigen3-devel boost-devel
 
 ROOT  := ..
 SRC   := $(ROOT)/src
 B     := build
 GEN   := $(B)/gen
-PKGS  := gtk4 fluidsynth gdk-pixbuf-2.0
+PKGS  := gtk4 fluidsynth gdk-pixbuf-2.0 wayland-client
 PKGCF := $(shell pkg-config --cflags $(PKGS))
 PKGLB := $(shell pkg-config --libs $(PKGS))
 
@@ -28,7 +30,12 @@ SHIMF    := -std=gnu++17 $(WARN) $(PKGCF)
 WRAP     := -Wl,--wrap=open,--wrap=fopen,--wrap=opendir,--wrap=readdir,--wrap=closedir,--wrap=mkdir,--wrap=stat,--wrap=access,--wrap=unlink,--wrap=remove,--wrap=rename,--wrap=posix_spawn,--wrap=pthread_create
 LIBS     := $(PKGLB) -lpthread -ldl -lm
 
-SHIM_OBJ := $(B)/common/uikit_gtk.o $(B)/common/audiokit_fluid.o $(B)/common/korin_paths.o $(B)/common/korin_thread.o $(B)/common/korin_sys.o
+# (la souris prise de TerraCube sous Wayland : deux protocoles, common/wayland/*.xml, compiles par wayland-scanner)
+WL_PROTO := relative-pointer-unstable-v1 pointer-constraints-unstable-v1
+WL_HDR   := $(patsubst %,$(GEN)/%.h,$(WL_PROTO))
+WL_OBJ   := $(patsubst %,$(B)/common/%.o,$(WL_PROTO))
+UI_OBJ   := $(B)/common/uikit_gtk.o $(WL_OBJ)
+SHIM_OBJ := $(UI_OBJ) $(B)/common/audiokit_fluid.o $(B)/common/korin_paths.o $(B)/common/korin_thread.o $(B)/common/korin_sys.o
 
 # ---- Arabesque (src/apps/arabesque) : le moteur se compile sans FMA, memes bits partout (tools/office/build.sh) ----
 AR      := $(SRC)/apps/arabesque
@@ -54,11 +61,41 @@ SECRETCF := $(shell pkg-config --cflags libsecret-1) -DKPORT_LIBSECRET
 SECRETLB := $(shell pkg-config --libs libsecret-1)
 endif
 BG_F    := $(COMMON) $(APPF) -I$(BG) $(SSLCF)
-BG_OBJ  := $(B)/budget/main.o $(B)/budget/linux_main.o $(B)/common/uikit_gtk.o $(B)/common/korin_paths.o \
+BG_OBJ  := $(B)/budget/main.o $(B)/budget/linux_main.o $(UI_OBJ) $(B)/common/korin_paths.o \
 	$(B)/common/korin_thread.o $(B)/common/korin_sys.o $(B)/common/korin_vault.o
-BG_LIBS := $(shell pkg-config --libs gtk4 gdk-pixbuf-2.0) $(SSLLB) $(SECRETLB) -lpthread -ldl -lm
+BG_LIBS := $(shell pkg-config --libs gtk4 gdk-pixbuf-2.0 wayland-client) $(SSLLB) $(SECRETLB) -lpthread -ldl -lm
 
-all: bin/arabesque bin/koton $(PLUG_BIN) bin/llm bin/budget
+# ---- TerraCube (src/apps/terracube) : OpenGL ES 3 par EGL (common/glkit_egl.cpp), le son par AudioKit (FluidSynth
+# pour la sortie), le MCP (json.c de src/lib/acp), le coffre (le jeton du MCP) ; C++ avec exceptions, comme sous Korin
+# (tools/pc/apps.sh)
+TC      := $(SRC)/apps/terracube
+TC_F    := $(OPT) -g0 -pthread -std=gnu++20 $(WARN) -Wno-sign-compare -Wno-unused-result -Wno-class-memaccess -Wno-format-overflow \
+	-Icommon -Icommon/include -I$(SRC)/kits/uikit/include -I$(GEN) -I$(ROOT)/tools/mesa/armgl -I$(SRC)/lib/acp -I$(TC)
+TC_SRC  := $(wildcard $(TC)/*.cpp)
+TC_OBJ  := $(patsubst $(TC)/%.cpp,$(B)/terracube/%.o,$(TC_SRC)) $(B)/terracube/linux_main.o $(B)/acp/json.o
+TC_HDR  := $(wildcard $(TC)/*.h) $(ROOT)/tools/mesa/armgl/armgl.h $(ROOT)/tools/mesa/armgl/glview.h
+GLLB    := $(shell pkg-config --libs egl glesv2)
+ZLB     := $(shell pkg-config --libs zlib)
+KITS_OBJ := $(B)/common/glkit_egl.o $(B)/common/kits_misc.o
+
+# ---- Forge (src/apps/forge) : OpenCASCADE du systeme (opencascade-devel : 7.9 sur Fedora 45, 8.0.1 sous Korin), PlaneGCS
+# construit ici (forge/build-planegcs.sh : les sources de FreeCAD de tools/cao/env.sh, l'Eigen du systeme) ; la vue rendue
+# par le processeur dans une surface d'UIKit ; le MCP (json.c de src/lib/acp), le coffre (le jeton du MCP)
+FG      := $(SRC)/apps/forge
+OCCI    := /usr/include/opencascade
+PGCS    := $(B)/cao/host/planegcs
+FG_F    := $(OPT) -g0 -pthread -std=gnu++20 $(WARN) -Wno-sign-compare -Wno-unused-result -Wno-class-memaccess -Wno-format-overflow \
+	-Wno-dangling-reference -Wno-overloaded-virtual -Icommon -Icommon/include -I$(SRC)/kits/uikit/include -I$(GEN) -I$(SRC)/lib/acp \
+	-I$(FG) -isystem $(OCCI) -I$(PGCS)/include -isystem /usr/include/eigen3
+FG_SRC  := $(wildcard $(FG)/*.cpp)
+FG_OBJ  := $(patsubst $(FG)/%.cpp,$(B)/forge/%.o,$(FG_SRC)) $(B)/forge/linux_main.o $(B)/forge/occt_paths.o $(B)/acp/json.o
+FG_HDR  := $(wildcard $(FG)/*.h $(FG)/*.inc)
+# (les toolkits d'OCCT de tools/pc/apps.sh, ceux de Fedora en .so)
+OCCT_TK := TKDESTEP TKDEIGES TKDESTL TKXCAF TKVCAF TKV3d TKService TKCAF TKLCAF TKCDF TKDE TKXSBase TKFillet TKOffset TKFeat \
+	TKBool TKBO TKPrim TKHLR TKMesh TKShHealing TKTopAlgo TKGeomAlgo TKBRep TKGeomBase TKG3d TKG2d TKMath TKernel
+FG_LIBS := $(addprefix -l,$(OCCT_TK)) $(PGCS)/lib/libplanegcs.a
+
+all: bin/arabesque bin/koton $(PLUG_BIN) bin/llm bin/budget bin/terracube bin/forge
 
 # les interfaces C des kits, generees de leurs .abi (comme sur Korin : tools/kits/abi2c.py)
 $(GEN)/uikit_abi.h: $(SRC)/kits/uikit/uikit.abi $(ROOT)/tools/kits/abi2c.py
@@ -71,11 +108,29 @@ $(GEN)/uikit_abi.h: $(SRC)/kits/uikit/uikit.abi $(ROOT)/tools/kits/abi2c.py
 $(GEN)/audiokit_abi.h: $(SRC)/kits/audiokit/audiokit.abi $(ROOT)/tools/kits/abi2c.py
 	@mkdir -p $(GEN)
 	python3 -I $(ROOT)/tools/kits/abi2c.py $< $(GEN) --arch x86_64 --const $(SRC)/kits/audiokit/audiokit.inc
-HDRS := $(GEN)/uikit_abi.h $(GEN)/audiokit_abi.h common/korin_port.h common/include/armpi/syscall.h
+$(GEN)/netkit_abi.h: $(SRC)/kits/netkit/netkit.abi $(ROOT)/tools/kits/abi2c.py
+	@mkdir -p $(GEN)
+	python3 -I $(ROOT)/tools/kits/abi2c.py $< $(GEN) --arch x86_64 --const $(SRC)/kits/netkit/netkit.inc
+$(GEN)/archivekit_abi.h: $(SRC)/kits/archivekit/archivekit.abi $(ROOT)/tools/kits/abi2c.py
+	@mkdir -p $(GEN)
+	python3 -I $(ROOT)/tools/kits/abi2c.py $< $(GEN) --arch x86_64 --const $(SRC)/kits/archivekit/archivekit.inc
+$(GEN)/%.h: common/wayland/%.xml
+	@mkdir -p $(GEN)
+	wayland-scanner client-header $< $@
+$(GEN)/%.c: common/wayland/%.xml
+	@mkdir -p $(GEN)
+	wayland-scanner private-code $< $@
+$(B)/common/%.o: $(GEN)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(OPT) -fPIC $(shell pkg-config --cflags wayland-client) -c $< -o $@
+HDRS := $(GEN)/uikit_abi.h $(GEN)/audiokit_abi.h $(GEN)/netkit_abi.h $(GEN)/archivekit_abi.h $(WL_HDR) common/korin_port.h common/include/armpi/syscall.h
 
 $(B)/common/%.o: common/%.cpp $(HDRS)
 	@mkdir -p $(dir $@)
 	$(CXX) $(COMMON) $(SHIMF) -c $< -o $@
+$(B)/common/glkit_egl.o: common/glkit_egl.cpp $(HDRS) $(ROOT)/tools/mesa/armgl/armgl.h
+	@mkdir -p $(dir $@)
+	$(CXX) $(COMMON) $(SHIMF) -I$(ROOT)/tools/mesa/armgl -c $< -o $@
 
 # (le coffre : avec libsecret si libsecret-devel est la ; le .o se refait quand ce choix change)
 $(B)/common/korin_vault.o: common/korin_vault.cpp $(HDRS) $(B)/common/.secret-$(or $(SECRET),0)
@@ -137,6 +192,44 @@ bin/koton-plugins/%/plugin.json: $(KT)/plugins/%/plugin.json
 bin/llm: $(SRC)/bin/llm/main.cpp
 	@mkdir -p bin
 	$(CXX) $(OPT) -g0 -std=gnu++17 -fno-exceptions -fno-rtti $(WARN) -I$(KT)/ui $< $(shell pkg-config --cflags --libs openssl) -o $@
+	strip $@
+
+# ---- TerraCube ----
+$(B)/terracube/main.o: $(TC)/main.cpp $(TC_HDR) $(HDRS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(TC_F) -Dmain=kport_app_main -c $< -o $@
+$(B)/terracube/linux_main.o: terracube/linux_main.cpp $(HDRS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(TC_F) -c $< -o $@
+$(B)/terracube/%.o: $(TC)/%.cpp $(TC_HDR) $(HDRS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(TC_F) -c $< -o $@
+$(B)/acp/json.o: $(SRC)/lib/acp/json.c $(SRC)/lib/acp/json.h
+	@mkdir -p $(dir $@)
+	$(CC) $(OPT) -g0 -c $< -o $@
+bin/terracube: $(TC_OBJ) $(SHIM_OBJ) $(KITS_OBJ) $(B)/common/korin_vault.o
+	@mkdir -p bin
+	$(CXX) $(OPT) -pthread $^ $(WRAP) $(LIBS) $(SECRETLB) $(GLLB) $(ZLB) -o $@
+	strip $@
+
+# ---- Forge ----
+$(PGCS)/lib/libplanegcs.a: forge/build-planegcs.sh $(ROOT)/tools/cao/build-planegcs.sh $(ROOT)/tools/cao/env.sh
+	sh forge/build-planegcs.sh
+$(B)/forge/main.o: $(FG)/main.cpp $(FG_HDR) $(HDRS) $(PGCS)/lib/libplanegcs.a
+	@mkdir -p $(dir $@)
+	$(CXX) $(FG_F) -Dmain=kport_app_main -c $< -o $@
+$(B)/forge/linux_main.o: forge/linux_main.cpp $(HDRS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(FG_F) -c $< -o $@
+$(B)/forge/occt_paths.o: forge/occt_paths.cpp common/korin_port.h
+	@mkdir -p $(dir $@)
+	$(CXX) $(OPT) -g0 -Icommon -c $< -o $@
+$(B)/forge/%.o: $(FG)/%.cpp $(FG_HDR) $(HDRS) $(PGCS)/lib/libplanegcs.a
+	@mkdir -p $(dir $@)
+	$(CXX) $(FG_F) -c $< -o $@
+bin/forge: $(FG_OBJ) $(UI_OBJ) $(B)/common/korin_paths.o $(B)/common/korin_thread.o $(B)/common/korin_sys.o $(B)/common/kits_misc.o $(B)/common/korin_vault.o $(PGCS)/lib/libplanegcs.a
+	@mkdir -p bin
+	$(CXX) $(OPT) -pthread $(filter %.o,$^) $(WRAP) -Wl,--export-dynamic-symbol=fopen,--export-dynamic-symbol=fopen64,--export-dynamic-symbol=open,--export-dynamic-symbol=open64 $(FG_LIBS) $(shell pkg-config --libs gtk4 gdk-pixbuf-2.0 wayland-client) $(SECRETLB) $(ZLB) -lpthread -ldl -lm -o $@
 	strip $@
 
 clean:

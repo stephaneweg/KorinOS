@@ -4,7 +4,8 @@
 //
 //   HOME:/...                    -> $KORIN_HOME/...  (par defaut ~/Korin)
 //   /apps/<app>.app/plugins      -> <bin>/<app>-plugins          (les greffons de Koton, construits avec lui)
-//   /apps/<app>.app/...          -> <racine>/src/apps/<app>/data/...   (les fichiers livres avec l'app)
+//   /apps/<app>.app/...          -> <racine>/src/apps/<app>/data/...   (les fichiers livres avec l'app ; s'ils n'y
+//                                sont pas : <racine>/src/apps/<app>/..., Forge : lang/)
 //   /apps/fmtracker.app/ins      -> <racine>/src/apps/fmtracker/ins   (les instruments de l'export FM Song)
 //   /home/public/arabesque       -> <racine>/src/apps/arabesque/presets
 //   /home/public/koton           -> <racine>/src/apps/koton/demos
@@ -188,7 +189,19 @@ extern "C" const char *kport_path (const char *p, char *buf, size_t cap)
 	{
 		if (starts (p, "/apps/fmtracker.app/ins", &rest)) { snprintf (buf, cap, "%s/src/apps/fmtracker/ins%s", s_root, rest); return buf; }
 		snprintf (pre, sizeof pre, "/apps/%s.app", s_app);
-		if (starts (p, pre, &rest)) { snprintf (buf, cap, "%s/src/apps/%s/data%s", s_root, s_app, rest); return buf; }
+		if (starts (p, pre, &rest))
+		{
+			// (data/ de l'app ; sinon son dossier : /apps/forge.app/lang -> src/apps/forge/lang)
+			snprintf (buf, cap, "%s/src/apps/%s/data%s", s_root, s_app, rest);
+			struct stat st;
+			if (*rest && __real_stat (buf, &st) != 0)
+			{
+				char alt[PATH_MAX];
+				snprintf (alt, sizeof alt, "%s/src/apps/%s%s", s_root, s_app, rest);
+				if (__real_stat (alt, &st) == 0) snprintf (buf, cap, "%s", alt);
+			}
+			return buf;
+		}
 		snprintf (pre, sizeof pre, "/home/public/%s", s_app);
 		if (starts (p, pre, &rest))
 		{

@@ -28,14 +28,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <algorithm>
+#include <array>
 #include <deque>
 #include <map>
 #include <string>
 #include <unordered_map>
 #include <vector>
 #include <uikit.h>
+#ifdef GDK_WINDOWING_WAYLAND
+#define KPORT_WAYLAND 1
+#include <gdk/wayland/gdkwayland.h>
+#include "relative-pointer-unstable-v1.h"
+#include "pointer-constraints-unstable-v1.h"
+#endif
 
-extern "C" { __thread long uikit__ret[4]; int kport_soundfont_menu; }
+extern "C" { __thread long uikit__ret[4]; int kport_soundfont_menu; void (*kport_gl_restore) (void); }
 
 namespace {
 
@@ -69,7 +77,7 @@ struct Buf
 
 struct Win;
 enum Kind { K_BUTTON, K_LABEL, K_CHECK, K_RADIO, K_DROPDOWN, K_SEGMENTED, K_TEXTBOX, K_TEXTAREA, K_SLIDER, K_NUMERIC,
-	K_KNOB, K_VUMETER, K_LCD, K_LIST, K_PANEL, K_TABS, K_PAGE, K_VIEW, K_CANVAS };
+	K_KNOB, K_VUMETER, K_LCD, K_LIST, K_PANEL, K_TABS, K_PAGE, K_VIEW, K_CANVAS, K_TOOLBAR, K_TOOL };
 
 struct Wid
 {
@@ -130,9 +138,13 @@ struct Win
 	// la souris de la fenetre
 	int held = 0; bool dragIgnored = false; double sx = 0, sy = 0;
 	std::string title;
+	// les surfaces (ui_surface : Forge) et les zones du contenu posees par-dessus elles (ui_surface_overlay)
+	std::vector<long> surfs;
+	std::vector<std::array<int, 4>> over;
+	GtkWidget *tip = 0;		// (ui_tip_at)
 };
 
-struct Ev { int type = 0, kind = 0, x = 0, y = 0, code = 0, ch = 0, mods = 0, win = 0; long wid = 0; int un = 0; long info = 0; };
+struct Ev { int type = 0, kind = 0, x = 0, y = 0, code = 0, ch = 0, mods = 0, win = 0; long wid = 0; int un = 0; long info = 0; int lcode = 0; };
 
 struct ui_vars *g_vars;
 std::map<long, Win *> g_wins;
@@ -156,7 +168,27 @@ long g_focusView;
 Win *cur () { auto i = g_wins.find (g_cur); return i == g_wins.end () ? 0 : i->second; }
 Win *win (long id) { auto i = g_wins.find (id); return i == g_wins.end () ? 0 : i->second; }
 Wid *wid (long id) { auto i = g_wids.find (id); return i == g_wids.end () ? 0 : i->second; }
-Buf *target () { if (g_target) return g_target; Win *w = cur (); return w ? &w->buf : 0; }
+// (l'app peut detourner ui.surf vers son propre tampon, comme ui_canvas_begin : TerraCube y dessine ses textes
+// avant de recopier l'image ; les dessins vont alors dans ce tampon, de la taille ui.w x ui.h)
+Buf g_alias;
+Buf *target ()
+{
+	if (g_target) return g_target;
+	Win *w = cur ();
+	if (!w) return 0;
+	if (g_vars && g_vars->surf && g_vars->surf != w->buf.px)
+	{
+		if (g_alias.px != g_vars->surf || g_alias.w != (int) g_vars->w || g_alias.h != (int) g_vars->h)
+		{
+			if (g_alias.cs) cairo_surface_destroy (g_alias.cs);
+			g_alias.cs = 0;
+			g_alias.px = g_vars->surf; g_alias.w = (int) g_vars->w; g_alias.h = (int) g_vars->h;
+			g_alias.clipOn = w->buf.clipOn; g_alias.cx0 = w->buf.cx0; g_alias.cy0 = w->buf.cy0; g_alias.cx1 = w->buf.cx1; g_alias.cy1 = w->buf.cy1;
+		}
+		return &g_alias;
+	}
+	return &w->buf;
+}
 unsigned tok (int tj) { return g_tok[tj / 4] & 0xFFFFFF; }
 
 void use_vars (Win *w)
@@ -169,6 +201,17 @@ void use_vars (Win *w)
 }
 
 void push (const Ev &e) { g_q.push_back (e); }
+
+// un tour de la boucle de GTK. Une app qui dessine en OpenGL ES (TerraCube : glkit_egl.cpp) garde son contexte EGL
+// courant entre deux tours ; GDK, qui peut rendre la fenetre en OpenGL lui aussi (GSK_RENDERER=ngl), croirait encore le
+// sien courant : le sien est oublie avant le tour (gdk_gl_context_clear_current), celui de l'app remis apres
+gboolean kport_iter (gboolean may_block)
+{
+	if (kport_gl_restore) gdk_gl_context_clear_current ();
+	gboolean r = g_main_context_iteration (0, may_block);
+	if (kport_gl_restore) kport_gl_restore ();
+	return r;
+}
 
 struct Quiet { Quiet () { g_quiet++; } ~Quiet () { g_quiet--; } };
 
@@ -352,16 +395,103 @@ int lay_text (const char *s, int px, long font, int ellipsW, int *baseline)
 }
 
 // ---- Cairo sur un tampon -------------------------------------------------------------------------------------------------
-cairo_t *cr_begin (Buf *b)
+//
+// L'octet haut des pixels est la transparence de Korin (0 opaque, 255 invisible ; 0xFF000000 : le trou que pose
+// ui_fill (..., 0xFF000000) dans une zone de ui_surface_overlay). Cairo (RGB24) y écrit autre chose (la couverture) :
+// cr_begin reçoit la zone que le dessin touche ; toute opaque, Cairo y dessine directement puis cr_end la remet opaque
+// (octet haut 0) ; avec de la transparence, Cairo dessine dans un calque ARGB32 à part que cr_end compose « par-dessus »
+// en gardant la transparence (le bord lissé d'un texte ou d'un coin arrondi posé sur un trou devient à demi
+// transparent, comme sous Korin, au lieu d'un liseré sombre et opaque).
+static inline unsigned kalpha (uint32_t p)	// (0 invisible .. 255 opaque)
+{
+	unsigned hb = p >> 24;
+	return hb == 0xFF ? ((p & 0xFFFFFF) ? 255 : 0) : 255 - hb;
+}
+static struct CrZone { int x0, y0, x1, y1; cairo_surface_t *layer; bool korin; } g_crz;
+
+cairo_t *cr_begin (Buf *b, double zx, double zy, double zw, double zh)
 {
 	if (!b || !b->px || b->w <= 0 || b->h <= 0) return 0;
-	if (!b->cs) b->cs = cairo_image_surface_create_for_data ((unsigned char *) b->px, CAIRO_FORMAT_RGB24, b->w, b->h, b->w * 4);
-	cairo_surface_mark_dirty (b->cs);
-	cairo_t *cr = cairo_create (b->cs);
-	if (b->clipOn) { cairo_rectangle (cr, b->cx0, b->cy0, b->cx1 - b->cx0, b->cy1 - b->cy0); cairo_clip (cr); }
+	int x0 = (int) floor (zx) - 2, y0 = (int) floor (zy) - 2, x1 = (int) ceil (zx + zw) + 2, y1 = (int) ceil (zy + zh) + 2;
+	int bx0 = 0, by0 = 0, bx1 = b->w, by1 = b->h;
+	if (b->clipOn) { bx0 = std::max (0, b->cx0); by0 = std::max (0, b->cy0); bx1 = std::min (b->w, b->cx1); by1 = std::min (b->h, b->cy1); }
+	x0 = std::max (x0, bx0), y0 = std::max (y0, by0), x1 = std::min (x1, bx1), y1 = std::min (y1, by1);
+	g_crz = { x0, y0, x1, y1, 0, false };
+	// (seulement sur le fond d'une fenêtre qui a des surfaces (ui_surface) : ses zones de ui_surface_overlay, posées
+	// souvent après le dessin, y comptent la transparence ; ailleurs l'octet haut ne compte pas, le dessin reste celui
+	// d'avant)
+	for (auto &e : g_wins)
+		if (&e.second->buf == b && !e.second->surfs.empty ()) g_crz.korin = true;
+	bool opaque = true;
+	for (int y = y0; y < y1 && opaque && g_crz.korin; y++)
+		for (int x = x0; x < x1; x++)
+			if (kalpha (b->px[(size_t) y * b->w + x]) < 255) { opaque = false; break; }
+	cairo_t *cr;
+	if (!g_crz.korin)	// (comme avant : Cairo directement, coupé par ui_clip seulement)
+	{
+		if (!b->cs) b->cs = cairo_image_surface_create_for_data ((unsigned char *) b->px, CAIRO_FORMAT_RGB24, b->w, b->h, b->w * 4);
+		cairo_surface_mark_dirty (b->cs);
+		cr = cairo_create (b->cs);
+		if (b->clipOn) { cairo_rectangle (cr, b->cx0, b->cy0, b->cx1 - b->cx0, b->cy1 - b->cy0); cairo_clip (cr); }
+		return cr;
+	}
+	if (x1 <= x0 || y1 <= y0) return 0;
+	if (opaque)
+	{
+		if (!b->cs) b->cs = cairo_image_surface_create_for_data ((unsigned char *) b->px, CAIRO_FORMAT_RGB24, b->w, b->h, b->w * 4);
+		cairo_surface_mark_dirty (b->cs);
+		cr = cairo_create (b->cs);
+	}
+	else
+	{
+		g_crz.layer = cairo_image_surface_create (CAIRO_FORMAT_ARGB32, x1 - x0, y1 - y0);
+		cr = cairo_create (g_crz.layer);
+		cairo_translate (cr, -x0, -y0);
+	}
+	cairo_rectangle (cr, x0, y0, x1 - x0, y1 - y0);
+	cairo_clip (cr);
 	return cr;
 }
-void cr_end (Buf *b, cairo_t *cr) { cairo_destroy (cr); cairo_surface_flush (b->cs); b->texDirty = true; }
+void cr_end (Buf *b, cairo_t *cr)
+{
+	cairo_destroy (cr);
+	const CrZone z = g_crz;
+	if (!z.layer)
+	{
+		cairo_surface_flush (b->cs);
+		for (int y = z.y0; y < z.y1 && z.korin; y++)	// (opaque avant, opaque après)
+			for (uint32_t *p = b->px + (size_t) y * b->w + z.x0, *e = p + (z.x1 - z.x0); p < e; p++) *p &= 0xFFFFFF;
+	}
+	else
+	{
+		cairo_surface_flush (z.layer);
+		const unsigned char *L = cairo_image_surface_get_data (z.layer);
+		int stride = cairo_image_surface_get_stride (z.layer);
+		for (int y = z.y0; y < z.y1; y++)
+		{
+			const uint32_t *s = (const uint32_t *) (L + (size_t) (y - z.y0) * stride);
+			uint32_t *d = b->px + (size_t) y * b->w + z.x0;
+			for (int x = 0; x < z.x1 - z.x0; x++)
+			{
+				uint32_t sp = s[x];
+				unsigned sa = sp >> 24;
+				if (!sa) continue;
+				unsigned da = kalpha (d[x]), k = da * (255 - sa);	// (la part du fond, sur 255 * 255)
+				unsigned oa = sa + (k + 127) / 255;
+				uint32_t o = 0;
+				for (int c = 0; c < 24; c += 8)
+				{
+					unsigned v = (((sp >> c) & 255) * 255 + ((d[x] >> c) & 255) * k / 255 + oa / 2) / oa;	// (prémultiplié -> couleur)
+					o |= std::min (255u, v) << c;
+				}
+				d[x] = oa >= 255 ? o : o | (255 - oa) << 24;
+			}
+		}
+		cairo_surface_destroy (z.layer);
+		g_crz.layer = 0;
+	}
+	b->texDirty = true;
+}
 void cr_color (cairo_t *cr, unsigned c) { cairo_set_source_rgb (cr, ((c >> 16) & 255) / 255.0, ((c >> 8) & 255) / 255.0, (c & 255) / 255.0); }
 GdkRGBA rgba (unsigned c) { GdkRGBA r = { ((c >> 16) & 255) / 255.0f, ((c >> 8) & 255) / 255.0f, (c & 255) / 255.0f, 1 }; return r; }
 
@@ -376,13 +506,78 @@ void fill_rect (Buf *b, long x, long y, long w, long h, unsigned c)
 	if (x1 > bx1) x1 = bx1;
 	if (y1 > by1) y1 = by1;
 	if (x1 <= x0 || y1 <= y0) return;
-	c &= 0xFFFFFF;
+	// (l'octet haut est garde, comme UIKit : la transparence d'une zone posee par-dessus une surface, 0 opaque, 255
+	// invisible ; ui_fill (..., 0xFF000000) efface la zone. Le fond de la fenetre l'ignore : B8G8R8X8)
 	for (long yy = y0; yy < y1; yy++)
 	{
 		uint32_t *p = b->px + yy * b->w + x0;
 		for (long xx = x0; xx < x1; xx++) *p++ = c;
 	}
 	b->texDirty = true;
+}
+
+// ---- les surfaces (ui_surface) : un tampon de pixels a une zone du contenu, par-dessus le fond de la fenetre ; les
+// zones de ui_surface_overlay repassent le fond par-dessus elles, avec sa transparence (octet haut : 0 opaque, 255
+// invisible), comme Elegant les compose sous Korin
+struct KSurface { long id; Win *win; int x, y, w, h; Buf buf; };
+std::map<long, KSurface *> g_surfs;
+long g_nextSurf = 1;
+
+void tex_of (Buf *b)
+{
+	if (!b->texDirty && b->tex) return;
+	if (b->tex) g_object_unref (b->tex);
+	GBytes *by = g_bytes_new (b->px, (size_t) b->w * (size_t) b->h * 4);
+	b->tex = gdk_memory_texture_new (b->w, b->h, GDK_MEMORY_B8G8R8X8, by, (size_t) b->w * 4);
+	g_bytes_unref (by);
+	b->texDirty = false;
+}
+
+// les surfaces de la fenetre, puis les zones du fond posees par-dessus
+void snapshot_surfaces (Win *wn, GtkSnapshot *sn)
+{
+	if (wn->surfs.empty ()) return;
+	graphene_rect_t r;
+	for (long id : wn->surfs)
+	{
+		auto i = g_surfs.find (id);
+		if (i == g_surfs.end ()) continue;
+		KSurface *f = i->second;
+		if (!f->buf.px || f->w <= 0 || f->h <= 0) continue;
+		tex_of (&f->buf);
+		graphene_rect_init (&r, (float) f->x, (float) f->y, (float) f->buf.w, (float) f->buf.h);
+		graphene_rect_t c; graphene_rect_init (&c, (float) f->x, (float) f->y, (float) f->w, (float) f->h);
+		gtk_snapshot_push_clip (sn, &c);
+		gtk_snapshot_append_scaled_texture (sn, f->buf.tex, GSK_SCALING_FILTER_NEAREST, &r);
+		gtk_snapshot_pop (sn);
+	}
+	Buf *b = &wn->buf;
+	for (auto &z : wn->over)
+	{
+		int x0 = std::max (0, z[0]), y0 = std::max (0, z[1]), x1 = std::min (b->w, z[0] + z[2]), y1 = std::min (b->h, z[1] + z[3]);
+		if (x1 <= x0 || y1 <= y0) continue;
+		int zw = x1 - x0, zh = y1 - y0;
+		std::vector<uint32_t> px ((size_t) zw * zh);
+		for (int y = 0; y < zh; y++)
+		{
+			const uint32_t *s = b->px + (size_t) (y0 + y) * b->w + x0;
+			uint32_t *d = &px[(size_t) y * zw];
+			for (int x = 0; x < zw; x++)
+			{
+				// (la transparence de Korin dans l'octet haut, 0 opaque ; Cairo ecrit 0xFF dans cet octet de ce qu'il
+				// dessine (RGB24) : 0xFF n'est transparent que sur le noir pose par ui_fill (..., 0xFF000000))
+				uint32_t p = s[x], hb = p >> 24;
+				uint32_t a = hb == 0xFF ? ((p & 0xFFFFFF) ? 255 : 0) : 255 - hb;
+				d[x] = (p & 0xFFFFFF) | a << 24;
+			}
+		}
+		GBytes *by = g_bytes_new (px.data (), px.size () * 4);
+		GdkTexture *t = gdk_memory_texture_new (zw, zh, GDK_MEMORY_B8G8R8A8, by, (size_t) zw * 4);
+		g_bytes_unref (by);
+		graphene_rect_init (&r, (float) x0, (float) y0, (float) zw, (float) zh);
+		gtk_snapshot_append_texture (sn, t, &r);
+		g_object_unref (t);
+	}
 }
 
 // ---- le KSurf : des pixels en fond, des widgets places par-dessus ------------------------------------------------------
@@ -462,6 +657,7 @@ void ksurf_snapshot (GtkWidget *w, GtkSnapshot *sn)
 		gtk_snapshot_append_scaled_texture (sn, b->tex, GSK_SCALING_FILTER_NEAREST, &r);
 		gtk_snapshot_pop (sn);
 	}
+	if (s->win) snapshot_surfaces (s->win, sn);
 	for (GtkWidget *c = gtk_widget_get_first_child (w); c; c = gtk_widget_get_next_sibling (c))
 		if (!GTK_IS_NATIVE (c)) gtk_widget_snapshot_child (w, c, sn);
 }
@@ -476,6 +672,26 @@ void ksurf_class_init (KSurfClass *k)
 void redraw (Buf *b, GtkWidget *w) { if (b) b->texDirty = true; if (w) gtk_widget_queue_draw (w); }
 
 // ---- le clavier : GDK -> codes HID -------------------------------------------------------------------------------------
+// la touche physique : le code evdev (le keycode de GDK - 8, Wayland et X11) -> son code HID (page 7 de l'USB HID).
+// Sous Korin, EV_CODE est la position de la touche, quelle que soit la disposition (docs/CLAVIER.md) : ZQSD de
+// TerraCube sur un AZERTY sont les codes de W A S D. Le caractere (EV_CHAR) reste celui de la disposition.
+static const unsigned char EVDEV_HID[128] = {
+	0, 0x29, 0x1E, 0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x2D, 0x2E, 0x2A, 0x2B,		// 0-15
+	0x14, 0x1A, 0x08, 0x15, 0x17, 0x1C, 0x18, 0x0C, 0x12, 0x13, 0x2F, 0x30, 0x28, 0xE0, 0x04, 0x16,	// 16-31
+	0x07, 0x09, 0x0A, 0x0B, 0x0D, 0x0E, 0x0F, 0x33, 0x34, 0x35, 0xE1, 0x31, 0x1D, 0x1B, 0x06, 0x19,	// 32-47
+	0x05, 0x11, 0x10, 0x36, 0x37, 0x38, 0xE5, 0x55, 0xE2, 0x2C, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E,	// 48-63
+	0x3F, 0x40, 0x41, 0x42, 0x43, 0x53, 0x47, 0x5F, 0x60, 0x61, 0x56, 0x5C, 0x5D, 0x5E, 0x57, 0x59,	// 64-79
+	0x5A, 0x5B, 0x62, 0x63, 0, 0, 0x64, 0x44, 0x45, 0, 0, 0, 0, 0, 0, 0,				// 80-95
+	0x58, 0xE4, 0x54, 0x46, 0xE6, 0, 0x4A, 0x52, 0x4B, 0x50, 0x4F, 0x4D, 0x51, 0x4E, 0x49, 0x4C,	// 96-111
+	0, 0, 0, 0, 0, 0, 0, 0x48, 0, 0, 0, 0, 0, 0xE3, 0xE7, 0x65,					// 112-127
+};
+int phys_hid (guint hw)
+{
+	if (hw < 8 || hw - 8 >= sizeof EVDEV_HID) return 0;
+	return EVDEV_HID[hw - 8];
+}
+// la touche d'apres ce qu'elle ecrit (la disposition) : le repli quand la position est inconnue, et les lettres des
+// raccourcis des menus
 int hid_of (guint kv, guint hw)
 {
 	guint l = gdk_keyval_to_lower (kv);
@@ -582,15 +798,17 @@ gboolean on_key (GtkEventControllerKey *c, guint kv, guint hw, GdkModifierType s
 	if (mb) { if (press) g_keyMods |= mb; else g_keyMods &= ~mb; }
 	int mods = mods_of (st);
 	if (mb) mods = press ? (mods | mb) : (mods & ~mb);
-	int hid = hid_of (kv, hw);
+	int lhid = hid_of (kv, hw), hid = phys_hid (hw);
+	// (le pave numerique : ce que dit Verr. Num., fleches ou chiffres, comme le dit la disposition)
+	if (!hid || (hid >= 0x54 && hid <= 0x63 && lhid)) hid = lhid;
 	if (focus && in_popover (focus)) return FALSE;
 	if (focus && is_editable (focus))
 	{
 		// (un champ : les touches d'edition sont a lui ; Echap, les touches de fonction et les raccourcis a l'app)
 		bool app = kv == GDK_KEY_Escape || (hid >= 0x3A && hid <= 0x45) || (mods & 0x04);
-		if ((mods & 0x01) && hid >= 0x04 && hid <= 0x1D)
+		if ((mods & 0x01) && lhid >= 0x04 && lhid <= 0x1D)
 		{
-			char l = (char) ('a' + hid - 0x04);
+			char l = (char) ('a' + lhid - 0x04);
 			app = !strchr ("acvxzy", l);
 		}
 		if (!app) return FALSE;
@@ -598,7 +816,7 @@ gboolean on_key (GtkEventControllerKey *c, guint kv, guint hw, GdkModifierType s
 	if (focus && in_list (focus) && (hid == 0x51 || hid == 0x52 || hid == 0x4B || hid == 0x4E || hid == 0x28)) return FALSE;
 	(void) c;
 	Ev e;
-	e.type = WEV_KEY; e.kind = press ? 1 : 0; e.code = hid; e.mods = mods; e.win = (int) w->id;
+	e.type = WEV_KEY; e.kind = press ? 1 : 0; e.code = hid; e.lcode = lhid; e.mods = mods; e.win = (int) w->id;
 	gunichar u = gdk_keyval_to_unicode (kv);
 	e.ch = (int) u;
 	if (kv == GDK_KEY_Return || kv == GDK_KEY_KP_Enter) e.ch = 13;
@@ -613,6 +831,157 @@ gboolean on_key (GtkEventControllerKey *c, guint kv, guint hw, GdkModifierType s
 }
 gboolean on_key_press (GtkEventControllerKey *c, guint kv, guint hw, GdkModifierType st, gpointer d) { return on_key (c, kv, hw, st, d, true); }
 void on_key_release (GtkEventControllerKey *c, guint kv, guint hw, GdkModifierType st, gpointer d) { on_key (c, kv, hw, st, d, false); }
+
+// ---- la souris prise (ui_pointer_lock : TerraCube) -------------------------------------------------------------------
+// Sous Wayland : le pointeur verrouille (pointer-constraints-unstable-v1) et ses deplacements relatifs
+// (relative-pointer-unstable-v1), comme Elegant les rend sous Korin : des WEV_MOUSE de genre WEV_M_REL (3), dx, dy, les
+// boutons tenus dans EV_CODE ; le curseur est cache. Sans ces protocoles (X11, un compositeur qui ne les a pas) : un
+// repli, le curseur cache et les deplacements pris entre deux positions du pointeur (il s'arrete au bord de la
+// fenetre). La fenetre qui perd le focus rend la souris (WEV_FOCUS, comme sous Korin).
+struct PointerLock
+{
+	Win *w = 0;			// la fenetre qui a la souris (0 : personne)
+	bool wayland = false;		// verrouille par Wayland (sinon le repli)
+	bool haveLast = false;
+	double lastX = 0, lastY = 0;
+	double fx = 0, fy = 0;		// (les fractions de pixel gardees d'un deplacement a l'autre)
+#ifdef KPORT_WAYLAND
+	zwp_locked_pointer_v1 *lk = 0;
+	zwp_relative_pointer_v1 *rel = 0;
+#endif
+} g_lock;
+
+void rel_push (Win *w, double dx, double dy)
+{
+	g_lock.fx += dx; g_lock.fy += dy;
+	int ix = (int) g_lock.fx, iy = (int) g_lock.fy;
+	if (!ix && !iy) return;
+	g_lock.fx -= ix; g_lock.fy -= iy;
+	Ev e; e.type = WEV_MOUSE; e.kind = 3; e.win = (int) w->id; e.x = ix; e.y = iy; e.code = w->held; e.mods = g_keyMods;
+	push (e);
+}
+
+#ifdef KPORT_WAYLAND
+zwp_pointer_constraints_v1 *g_wlPc;
+zwp_relative_pointer_manager_v1 *g_wlRpm;
+
+void wl_global (void *, wl_registry *reg, uint32_t name, const char *iface, uint32_t)
+{
+	if (!strcmp (iface, zwp_pointer_constraints_v1_interface.name))
+		g_wlPc = (zwp_pointer_constraints_v1 *) wl_registry_bind (reg, name, &zwp_pointer_constraints_v1_interface, 1);
+	else if (!strcmp (iface, zwp_relative_pointer_manager_v1_interface.name))
+		g_wlRpm = (zwp_relative_pointer_manager_v1 *) wl_registry_bind (reg, name, &zwp_relative_pointer_manager_v1_interface, 1);
+}
+void wl_global_remove (void *, wl_registry *, uint32_t) {}
+const wl_registry_listener g_wlReg = { wl_global, wl_global_remove };
+
+// les deux gestionnaires du compositeur, une fois (sur une file a part, puis rendus a celle de GDK)
+bool wl_protocols ()
+{
+	static int done = -1;
+	if (done >= 0) return done;
+	done = 0;
+	GdkDisplay *gd = gdk_display_get_default ();
+	if (!gd || !GDK_IS_WAYLAND_DISPLAY (gd)) return false;
+	wl_display *dpy = gdk_wayland_display_get_wl_display (gd);
+	wl_event_queue *q = wl_display_create_queue (dpy);
+	wl_display *wrap = (wl_display *) wl_proxy_create_wrapper (dpy);
+	wl_proxy_set_queue ((wl_proxy *) wrap, q);
+	wl_registry *reg = wl_display_get_registry (wrap);
+	wl_registry_add_listener (reg, &g_wlReg, 0);
+	wl_display_roundtrip_queue (dpy, q);
+	if (g_wlPc) wl_proxy_set_queue ((wl_proxy *) g_wlPc, 0);
+	if (g_wlRpm) wl_proxy_set_queue ((wl_proxy *) g_wlRpm, 0);
+	wl_registry_destroy (reg);
+	wl_proxy_wrapper_destroy (wrap);
+	wl_event_queue_destroy (q);
+	done = g_wlPc && g_wlRpm;
+	if (getenv ("KORIN_DEBUG_WIDGETS")) fprintf (stderr, "uikit: Wayland : pointer-constraints %s, relative-pointer %s\n", g_wlPc ? "oui" : "non", g_wlRpm ? "oui" : "non");
+	return done;
+}
+
+void rel_motion (void *data, zwp_relative_pointer_v1 *, uint32_t, uint32_t, wl_fixed_t dx, wl_fixed_t dy, wl_fixed_t, wl_fixed_t)
+{
+	Win *w = (Win *) data;
+	if (g_lock.w == w) rel_push (w, wl_fixed_to_double (dx), wl_fixed_to_double (dy));
+}
+const zwp_relative_pointer_v1_listener g_relL = { rel_motion };
+void lk_locked (void *, zwp_locked_pointer_v1 *) {}
+void lock_release ();
+void lk_unlocked (void *data, zwp_locked_pointer_v1 *)
+{
+	// (le compositeur a repris le pointeur : l'app l'apprend comme sous Korin, par une perte de focus, puis le focus
+	// revient si la fenetre l'a encore ; un clic reprend la souris)
+	Win *w = (Win *) data;
+	if (g_lock.w != w) return;
+	lock_release ();
+	Ev e; e.type = WEV_FOCUS; e.win = (int) w->id; e.kind = 0; push (e);
+	if (gtk_window_is_active (GTK_WINDOW (w->gw))) { e.kind = 1; push (e); }
+}
+const zwp_locked_pointer_v1_listener g_lkL = { lk_locked, lk_unlocked };
+#endif
+
+void lock_release ()
+{
+	Win *w = g_lock.w;
+	if (!w) return;
+#ifdef KPORT_WAYLAND
+	if (g_lock.rel) zwp_relative_pointer_v1_destroy (g_lock.rel);
+	if (g_lock.lk) zwp_locked_pointer_v1_destroy (g_lock.lk);
+	g_lock.rel = 0; g_lock.lk = 0;
+#endif
+	g_lock.w = 0; g_lock.wayland = false; g_lock.haveLast = false;
+	gtk_widget_set_cursor (w->surf, 0);
+}
+
+bool lock_take (Win *w)
+{
+	if (g_lock.w == w) return true;
+	lock_release ();
+	g_lock = PointerLock ();
+	g_lock.w = w;
+	gtk_widget_set_cursor_from_name (w->surf, "none");
+#ifdef KPORT_WAYLAND
+	if (wl_protocols () && !getenv ("KORIN_NO_POINTER_LOCK"))
+	{
+		GdkSurface *gs = gtk_native_get_surface (GTK_NATIVE (w->gw));
+		GdkSeat *seat = gdk_display_get_default_seat (gdk_display_get_default ());
+		GdkDevice *ptr = seat ? gdk_seat_get_pointer (seat) : 0;
+		wl_pointer *wp = ptr ? gdk_wayland_device_get_wl_pointer (ptr) : 0;
+		wl_surface *ws = gs ? gdk_wayland_surface_get_wl_surface (gs) : 0;
+		if (wp && ws)
+		{
+			g_lock.lk = zwp_pointer_constraints_v1_lock_pointer (g_wlPc, ws, wp, 0, ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_ONESHOT);
+			zwp_locked_pointer_v1_add_listener (g_lock.lk, &g_lkL, w);
+			g_lock.rel = zwp_relative_pointer_manager_v1_get_relative_pointer (g_wlRpm, wp);
+			zwp_relative_pointer_v1_add_listener (g_lock.rel, &g_relL, w);
+			g_lock.wayland = true;
+		}
+	}
+#endif
+	if (getenv ("KORIN_DEBUG_WIDGETS")) fprintf (stderr, "uikit: souris prise (%s)\n", g_lock.wayland ? "Wayland : pointeur verrouille" : "repli : deplacements du pointeur");
+	return true;
+}
+
+// un mouvement du pointeur sur le fond d'une fenetre qui a la souris : rendu en deplacement (repli), ou ignore (Wayland
+// donne les deplacements) -> true : pris
+bool lock_motion (KSurf *s, double x, double y)
+{
+	if (!g_lock.w || s->view || s->win != g_lock.w) return false;
+	if (g_lock.wayland) return true;
+	if (g_lock.haveLast) rel_push (g_lock.w, x - g_lock.lastX, y - g_lock.lastY);
+	g_lock.lastX = x; g_lock.lastY = y; g_lock.haveLast = true;
+	return true;
+}
+
+void on_active (GObject *o, GParamSpec *, gpointer data)
+{
+	Win *w = (Win *) data;
+	bool on = gtk_window_is_active (GTK_WINDOW (o));
+	if (!on && g_lock.w == w) lock_release ();
+	Ev e; e.type = WEV_FOCUS; e.win = (int) w->id; e.kind = on ? 1 : 0;
+	push (e);
+}
 
 // ---- la souris : la fenetre (fond) et les vues ---------------------------------------------------------------------------
 int btn_bit (guint b) { return b == 1 ? 1 : b == 3 ? 2 : b == 2 ? 4 : 0; }
@@ -671,6 +1040,7 @@ void on_drag_update (GtkGestureDrag *g, double dx, double dy, gpointer data)
 	KSurf *s = (KSurf *) data;
 	if (*ignored_of (s)) return;
 	double sx = s->view ? s->view->startX : s->win->sx, sy = s->view ? s->view->startY : s->win->sy;
+	if (lock_motion (s, sx + dx, sy + dy)) return;
 	int mods = mods_of (gtk_event_controller_get_current_event_state (GTK_EVENT_CONTROLLER (g)));
 	mouse_ev (s, 0, sx + dx, sy + dy, *held_of (s), mods, 0);
 }
@@ -688,6 +1058,7 @@ void on_drag_end (GtkGestureDrag *g, double dx, double dy, gpointer data)
 void on_motion (GtkEventControllerMotion *m, double x, double y, gpointer data)
 {
 	KSurf *s = (KSurf *) data;
+	if (lock_motion (s, x, y)) return;
 	if (*held_of (s)) return;			// (un glisser : drag-update le donne)
 	GtkWidget *w = GTK_WIDGET (s);
 	if (!s->view && gtk_widget_pick (w, x, y, GTK_PICK_DEFAULT) != w) return;
@@ -754,6 +1125,7 @@ GtkWidget *ksurf_new (Win *w, Wid *v)
 gboolean on_close_request (GtkWindow *, gpointer data)
 {
 	Win *w = (Win *) data;
+	if (g_lock.w == w) lock_release ();
 	Ev e; e.type = WEV_CLOSE; e.win = (int) w->id;
 	push (e);
 	return TRUE;
@@ -862,6 +1234,7 @@ Win *win_new (long x, long y, long w, long h, const char *title, long flags, boo
 		gtk_window_set_transient_for (GTK_WINDOW (n->gw), GTK_WINDOW (cur ()->gw));
 	}
 	g_signal_connect (n->gw, "close-request", G_CALLBACK (on_close_request), n);
+	g_signal_connect (n->gw, "notify::is-active", G_CALLBACK (on_active), n);
 	GtkEventController *k = gtk_event_controller_key_new ();
 	gtk_event_controller_set_propagation_phase (k, GTK_PHASE_CAPTURE);
 	g_signal_connect (k, "key-pressed", G_CALLBACK (on_key_press), n);
@@ -884,6 +1257,8 @@ Win *win_new (long x, long y, long w, long h, const char *title, long flags, boo
 void wid_free (Wid *d);
 void win_destroy (Win *w)
 {
+	if (g_lock.w == w) lock_release ();
+	for (long id : std::vector<long> (w->surfs)) { auto i = g_surfs.find (id); if (i != g_surfs.end ()) { i->second->buf.release (); delete i->second; g_surfs.erase (i); } }
 	std::vector<long> ids = w->wids;
 	for (long id : ids) { Wid *d = wid (id); if (d) wid_free (d); }
 	if (g_focusView && !wid (g_focusView)) g_focusView = 0;
@@ -1384,7 +1759,7 @@ void view_paint (Wid *v)
 }
 
 // ---- les dialogues : des boucles imbriquees -------------------------------------------------------------------------------
-void run_until (bool *done) { while (!*done) g_main_context_iteration (0, TRUE); }
+void run_until (bool *done) { while (!*done) kport_iter (TRUE); }
 GtkWindow *parent_win () { Win *w = cur (); if (!w) w = menu_win (); return w ? GTK_WINDOW (w->gw) : 0; }
 
 struct AlertRes { bool done; int r; };
@@ -1440,6 +1815,14 @@ void set_filters (GtkFileDialog *d)
 }
 long file_dialog (int mode, long dir, long name, long buf, long cap)
 {
+	// (essai sans les mains : KORIN_FILE_ANSWER=<chemin> repond aux dialogues de fichiers sans les montrer)
+	const char *ans = getenv ("KORIN_FILE_ANSWER");
+	if (ans && *ans)
+	{
+		fprintf (stderr, "uikit: dialogue de fichiers (%s) -> %s\n", mode == 0 ? "ouvrir" : mode == 1 ? "enregistrer" : "dossier", ans);
+		snprintf ((char *) buf, (size_t) cap, "%s", ans);
+		return 1;
+	}
 	GtkFileDialog *d = gtk_file_dialog_new ();
 	gtk_file_dialog_set_modal (d, TRUE);
 	gtk_file_dialog_set_title (d, mode == 0 ? "Ouvrir" : mode == 1 ? "Enregistrer" : "Choisir un dossier");
@@ -1647,6 +2030,42 @@ static void script_click (Win *w, const char *a)
 	}
 	for (int i = 1; i <= n; i++) { mouse_ev (s, 1, lx, ly, held, 0, i); mouse_ev (s, 2, lx, ly, 0, 0, 0); }
 }
+// wheel:x,y,n : le pointeur en x,y puis n crans de molette (positif : vers le haut) ; drag:x0,y0,x1,y1[,bouton] : un
+// glisser en 20 pas (bouton 1 gauche, 2 milieu, 3 droit)
+static KSurf *script_at (Win *w, int x, int y, double &lx, double &ly)
+{
+	GtkWidget *p = gtk_widget_pick (w->surf, x, y, GTK_PICK_DEFAULT);
+	KSurf *s = p && G_TYPE_CHECK_INSTANCE_TYPE (p, ksurf_get_type ()) ? (KSurf *) p : (KSurf *) w->surf;
+	lx = x, ly = y;
+	if (s->view) lx -= s->view->x, ly -= s->view->y;
+	return s;
+}
+static void script_wheel (Win *w, const char *a)
+{
+	int x = 0, y = 0, n = 1;
+	sscanf (a, "%d,%d,%d", &x, &y, &n);
+	double lx, ly;
+	KSurf *s = script_at (w, x, y, lx, ly);
+	mouse_ev (s, 0, lx, ly, 0, 0, 0);
+	for (int i = 0; i < std::abs (n); i++)
+	{
+		Ev e; e.type = WEV_WHEEL; e.y = e.code = n > 0 ? 1 : -1; e.win = (int) w->id;
+		if (s->view) e.wid = s->view->id;
+		push (e);
+	}
+}
+static void script_drag (Win *w, const char *a)
+{
+	int x0 = 0, y0 = 0, x1 = 0, y1 = 0, b = 1;
+	sscanf (a, "%d,%d,%d,%d,%d", &x0, &y0, &x1, &y1, &b);
+	int held = b == 3 ? 2 : b == 2 ? 4 : 1;
+	double lx, ly;
+	KSurf *s = script_at (w, x0, y0, lx, ly);
+	double ox = lx - x0, oy = ly - y0;
+	mouse_ev (s, 1, lx, ly, held, 0, 1);
+	for (int i = 1; i <= 20; i++) mouse_ev (s, 0, x0 + (x1 - x0) * i / 20.0 + ox, y0 + (y1 - y0) * i / 20.0 + oy, held, 0, 0);
+	mouse_ev (s, 2, x1 + ox, y1 + oy, 0, 0, 0);
+}
 static void shot (Win *w, const char *path)
 {
 	if (!w) return;
@@ -1664,9 +2083,41 @@ static void shot (Win *w, const char *path)
 		g_object_unref (t);
 		fprintf (stderr, "uikit: capture %s (%dx%d)\n", path, W, H);
 	}
+	else if (w->buf.px)
+	{
+		// (une fenetre redessinee a chaque image, TerraCube : GTK n'a pas d'image gardee a ce moment ; le contenu seul,
+		// le fond et ses surfaces, sans la barre de menus ni les widgets)
+		Buf all; all.alloc (w->buf.w, w->buf.h, 0);
+		memcpy (all.px, w->buf.px, (size_t) w->buf.w * w->buf.h * 4);
+		for (long id : w->surfs)
+		{
+			auto i = g_surfs.find (id);
+			if (i == g_surfs.end ()) continue;
+			KSurface *f = i->second;
+			for (int y = 0; y < f->h && y < f->buf.h && f->y + y < all.h; y++)
+				for (int x = 0; x < f->w && x < f->buf.w && f->x + x < all.w; x++)
+					if (f->y + y >= 0 && f->x + x >= 0) all.px[(size_t) (f->y + y) * all.w + f->x + x] = f->buf.px[(size_t) y * f->buf.w + x];
+		}
+		for (auto &z : w->over)
+			for (int y = std::max (0, z[1]); y < std::min (all.h, z[1] + z[3]); y++)
+				for (int x = std::max (0, z[0]); x < std::min (all.w, z[0] + z[2]); x++)
+				{
+					uint32_t o = w->buf.px[(size_t) y * all.w + x], &d = all.px[(size_t) y * all.w + x];
+					unsigned hb = o >> 24, a = hb == 0xFF ? ((o & 0xFFFFFF) ? 255 : 0) : 255 - hb;
+					uint32_t m = 0;
+					for (int k = 0; k < 24; k += 8) m |= ((((o >> k) & 255) * a + ((d >> k) & 255) * (255 - a)) / 255) << k;
+					d = m;
+				}
+		tex_of (&all);
+		gdk_texture_save_to_png (all.tex, path);
+		all.release ();
+		fprintf (stderr, "uikit: capture %s (%dx%d, le contenu)\n", path, w->buf.w, w->buf.h);
+	}
 	if (node) gsk_render_node_unref (node);
 	g_object_unref (p);
 }
+struct PopState { bool done; int r; GtkWidget *pop; };
+static PopState *g_pop;		// (le menu ouvert : KORIN_SCRIPT pop:<numero> y choisit)
 static gboolean script_step (gpointer data)
 {
 	std::string *st = (std::string *) data;
@@ -1697,6 +2148,20 @@ static gboolean script_step (gpointer data)
 			else if (ch == ' ') hid = 0x2C;
 			script_key (last_win (), hid, 0, ch, true);
 		}
+	}
+	// kdown:<hid>, kup:<hid> : une touche tenue puis lachee (TerraCube : marcher) ; mrel:dx,dy : la souris prise bouge
+	else if ((!strncmp (a, "kdown:", 6) || !strncmp (a, "kup:", 4)) && w)
+	{
+		int hid = (int) strtol (strchr (a, ':') + 1, 0, 0);
+		Ev e; e.type = WEV_KEY; e.kind = a[1] == 'd'; e.code = hid; e.win = (int) w->id; e.ch = script_ch (hid);
+		push (e);
+	}
+	else if (!strncmp (a, "mrel:", 5) && w)
+	{
+		int dx = 0, dy = 0;
+		sscanf (a + 5, "%d,%d", &dx, &dy);
+		Ev e; e.type = WEV_MOUSE; e.kind = 3; e.win = (int) w->id; e.x = dx; e.y = dy; e.code = w->held;
+		push (e);
 	}
 	else if (!strncmp (a, "shot:", 5)) shot (w, a + 5);
 	else if (!strncmp (a, "shot2:", 6)) shot (last_win (), a + 6);
@@ -1731,6 +2196,10 @@ static gboolean script_step (gpointer data)
 	{
 		for (long id : last_win ()->wids) { Wid *d = wid (id); if (d && d->kind == K_BUTTON && d->text == a + 7) { notify (d, UN_ACTIVATE); break; } }
 	}
+	// pop:<numero> : l'entree de ce numero du menu ouvert (-1 : le fermer sans choisir)
+	else if (!strncmp (a, "pop:", 4) && g_pop) { g_pop->r = atoi (a + 4); gtk_popover_popdown (GTK_POPOVER (g_pop->pop)); }
+	else if (!strncmp (a, "wheel:", 6) && w) script_wheel (w, a + 6);
+	else if (!strncmp (a, "drag:", 5) && w) script_drag (w, a + 5);
 	else if (!strncmp (a, "click:", 6) && w) script_click (w, a + 6);
 	else if (!strncmp (a, "click2:", 7) && last_win ()) script_click (last_win (), a + 7);	// (la derniere fenetre)
 	else if (!strcmp (a, "exit")) { fflush (0); _exit (0); }
@@ -1767,10 +2236,10 @@ long ui_event (long ms)
 		{
 			bool fired = false;
 			guint src = g_timeout_add ((guint) ms, timeout_cb, &fired);
-			while (g_q.empty () && !fired) g_main_context_iteration (0, TRUE);
+			while (g_q.empty () && !fired) kport_iter (TRUE);
 			if (!fired) g_source_remove (src);
 		}
-		else while (g_q.empty () && g_main_context_iteration (0, FALSE)) {}
+		else while (g_q.empty () && kport_iter (FALSE)) {}
 	}
 	if (g_q.empty ())
 	{
@@ -1874,7 +2343,7 @@ long ui_menu_key (long)
 	if (!w) return -1;
 	int mods = g_ev.mods & 7;
 	for (const MenuItem &it : w->items)
-		if (it.shid && it.shid == g_ev.code && it.smods == mods && it.id >= 0)
+		if (it.shid && it.shid == (it.shid >= 0x04 && it.shid <= 0x1D && g_ev.lcode ? g_ev.lcode : g_ev.code) && it.smods == mods && it.id >= 0)
 		{
 			int st = w->state.count (it.id) ? w->state[it.id] : 0;
 			if (st & UMS_DISABLED) return -1;
@@ -1906,7 +2375,7 @@ long ui_rbox (long x, long y, long w, long h, long r, long top, long bottom)
 	Buf *b = target ();
 	if (w <= 0 || h <= 0) return 0;
 	if (r <= 0 && top == bottom) { fill_rect (b, x, y, w, h, (unsigned) top); return 0; }
-	cairo_t *cr = cr_begin (b);
+	cairo_t *cr = cr_begin (b, x, y, w, h);
 	if (!cr) return 0;
 	double rr = (double) r;
 	if (rr * 2 > w) rr = w / 2.0;
@@ -1933,7 +2402,7 @@ long ui_rbox (long x, long y, long w, long h, long r, long top, long bottom)
 long ui_vp_disc (long cx, long cy, long r, long c)
 {
 	Buf *b = target ();
-	cairo_t *cr = cr_begin (b);
+	cairo_t *cr = cr_begin (b, (cx - r) / 16.0, (cy - r) / 16.0, 2 * r / 16.0, 2 * r / 16.0);
 	if (!cr) return 0;
 	cr_color (cr, (unsigned) c);
 	cairo_arc (cr, cx / 16.0, cy / 16.0, r / 16.0, 0, 2 * M_PI);
@@ -1944,7 +2413,8 @@ long ui_vp_disc (long cx, long cy, long r, long c)
 long ui_vp_line (long x0, long y0, long x1, long y1, long th, long c)
 {
 	Buf *b = target ();
-	cairo_t *cr = cr_begin (b);
+	double m = th / 16.0;
+	cairo_t *cr = cr_begin (b, std::min (x0, x1) / 16.0 - m, std::min (y0, y1) / 16.0 - m, std::labs (x1 - x0) / 16.0 + 2 * m, std::labs (y1 - y0) / 16.0 + 2 * m);
 	if (!cr) return 0;
 	cr_color (cr, (unsigned) c);
 	cairo_set_line_width (cr, th / 16.0);
@@ -1959,9 +2429,11 @@ long ui_vp_poly (long pts, long n, long c)
 {
 	Buf *b = target ();
 	if (n < 3) return 0;
-	cairo_t *cr = cr_begin (b);
-	if (!cr) return 0;
 	const int32_t *p = (const int32_t *) pts;
+	long mx0 = p[0], my0 = p[1], mx1 = p[0], my1 = p[1];
+	for (long i = 1; i < n; i++) mx0 = std::min (mx0, (long) p[2 * i]), mx1 = std::max (mx1, (long) p[2 * i]), my0 = std::min (my0, (long) p[2 * i + 1]), my1 = std::max (my1, (long) p[2 * i + 1]);
+	cairo_t *cr = cr_begin (b, mx0 / 16.0, my0 / 16.0, (mx1 - mx0) / 16.0, (my1 - my0) / 16.0);
+	if (!cr) return 0;
 	cr_color (cr, (unsigned) c);
 	cairo_set_fill_rule (cr, CAIRO_FILL_RULE_EVEN_ODD);
 	cairo_move_to (cr, p[0] / 16.0, p[1] / 16.0);
@@ -1979,7 +2451,11 @@ static long text_draw (const char *s, long x, long base, long color, long px, lo
 	int bl = 0;
 	int w = lay_text (s, (int) px, font, fit && maxw > 0 ? (int) maxw : 0, &bl);
 	if (fit && maxw > 0 && w > maxw) w = (int) maxw;
-	cairo_t *cr = cr_begin (b);
+	PangoRectangle ink, lg;
+	pango_layout_get_pixel_extents (g_lay, &ink, &lg);
+	int ex0 = std::min (ink.x, lg.x), ey0 = std::min (ink.y, lg.y), ex1 = std::max (ink.x + ink.width, lg.x + lg.width), ey1 = std::max (ink.y + ink.height, lg.y + lg.height);
+	if (!fit && maxw > 0) ex1 = std::min (ex1, (int) maxw);
+	cairo_t *cr = cr_begin (b, (double) (x + ex0), (double) (base - bl + ey0), (double) (ex1 - ex0), (double) (ey1 - ey0));
 	if (!cr) return x + w;
 	if (!fit && maxw > 0) { cairo_rectangle (cr, (double) x, 0, (double) maxw, (double) b->h); cairo_clip (cr); }
 	pango_cairo_update_context (cr, g_pctx);
@@ -2004,7 +2480,9 @@ long ui_text_wrap (long s, long x, long y, long w, long c, long font, long px, l
 	int hh = PANGO_PIXELS (lg.height);
 	if (!measure)
 	{
-		cairo_t *cr = cr_begin (b);
+		PangoRectangle ink;
+		pango_layout_get_pixel_extents (g_lay, &ink, 0);
+		cairo_t *cr = cr_begin (b, (double) (x + std::min (0, ink.x)), (double) (y + std::min (0, ink.y)), (double) std::max ((int) w, ink.x + ink.width) - std::min (0, ink.x) + 2, (double) std::max (hh, ink.y + ink.height) - std::min (0, ink.y) + 2);
 		if (cr) { pango_cairo_update_context (cr, g_pctx); cr_color (cr, (unsigned) c); cairo_move_to (cr, (double) x, (double) y); pango_cairo_show_layout (cr, g_lay); cr_end (b, cr); }
 	}
 	pango_layout_set_single_paragraph_mode (g_lay, TRUE);
@@ -2480,6 +2958,8 @@ long ui_w_move (long w, long x, long y, long ww, long hh)
 {
 	Wid *d = wid (w);
 	if (!d) return 0;
+	if (d->kind == K_TOOLBAR && (x != d->x || y != d->y))
+		for (auto &p : g_wids) if (p.second->parent == d->id && p.second->kind == K_TOOL) { p.second->x += (int) x - d->x; p.second->y += (int) y - d->y; }
 	d->x = (int) x; d->y = (int) y; d->w = (int) ww; d->h = (int) hh;
 	if ((d->kind == K_SLIDER || d->kind == K_VUMETER) && ww > 0 && hh > 0)
 	{
@@ -2496,6 +2976,9 @@ long ui_w_move (long w, long x, long y, long ww, long hh)
 	{
 		d->buf.alloc ((int) ww, (int) hh, d->kind == K_VIEW ? tok (TJ_SURFACE) : 0xFFFFFF);
 		d->dirty = true;
+		// (une vue a une autre taille est redessinee tout de suite, comme UIKit la redessine avec la fenetre : sinon elle
+		// reste vide jusqu'a ce que l'app la marque ; la frise de Forge apres un agrandissement)
+		if (d->kind == K_VIEW && d->paint) view_paint (d);
 	}
 	gtk_widget_queue_allocate (d->win->surf);
 	return 0;
@@ -2591,6 +3074,7 @@ long ui_w_set_value (long w, long v)
 	case K_NUMERIC: d->value = v; gtk_spin_button_set_value (GTK_SPIN_BUTTON (d->gw), (double) v); break;
 	case K_KNOB: d->value = v < d->vmin ? d->vmin : v > d->vmax ? d->vmax : v; gtk_widget_queue_draw (d->gw); break;
 	case K_VUMETER: ui_vumeter_level (w, v); break;
+	case K_TOOL: d->value = v != 0; if (GTK_IS_TOGGLE_BUTTON (d->gw)) gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (d->gw), v != 0); break;
 	case K_LIST:
 		if (v < 0 || v >= (long) d->items.size ()) gtk_list_box_unselect_all (GTK_LIST_BOX (d->inner));
 		else
@@ -2916,7 +3400,6 @@ void kport_tr_add (const char *from, const char *to)
 	g_tr[from] = to;
 }
 
-struct PopState { bool done; int r; GtkWidget *pop; };
 static void pop_closed (GtkPopover *, gpointer d) { ((PopState *) d)->done = true; }
 static void pop_item (GtkButton *b, gpointer d)
 {
@@ -2937,8 +3420,10 @@ long ui_popup_local (long x, long y, long labels, long width)
 	gtk_widget_add_css_class (box, "k-menu");
 	if (width > 0) gtk_widget_set_size_request (box, (int) width, -1);
 	const char *p = (const char *) labels;
+	std::string said;
 	for (int i = 0; *p; i++, p += strlen (p) + 1)
 	{
+		said += (i ? " | " : "") + std::string ((unsigned char) p[0] == 2 ? "[x] " : "") + TRs ((unsigned char) p[0] <= 2 ? p + 1 : p);
 		if (!strcmp (p, "-")) { gtk_box_append (GTK_BOX (box), gtk_separator_new (GTK_ORIENTATION_HORIZONTAL)); continue; }
 		bool dis = (unsigned char) p[0] == 1, on = (unsigned char) p[0] == 2;	// (0x01 : grisee, 0x02 : cochee)
 		GtkWidget *b = gtk_button_new ();
@@ -2956,7 +3441,10 @@ long ui_popup_local (long x, long y, long labels, long width)
 	gtk_popover_set_pointing_to (GTK_POPOVER (s.pop), &r);
 	g_signal_connect (s.pop, "closed", G_CALLBACK (pop_closed), &s);
 	gtk_popover_popup (GTK_POPOVER (s.pop));
+	if (getenv ("KORIN_SCRIPT")) fprintf (stderr, "uikit: menu ouvert en (%ld, %ld) : %s\n", x, y, said.c_str ());
+	g_pop = &s;
 	run_until (&s.done);
+	g_pop = nullptr;
 	g_signal_handlers_disconnect_by_data (s.pop, &s);
 	gtk_widget_unparent (s.pop);
 	w->held = 0;
@@ -2984,7 +3472,7 @@ long ui_clip_get (long buf, long cap)
 	ClipRes r = { false, 0 };
 	gdk_clipboard_read_text_async (c, 0, clip_cb, &r);
 	gint64 end = g_get_monotonic_time () + 2000000;
-	while (!r.done && g_get_monotonic_time () < end) g_main_context_iteration (0, FALSE);
+	while (!r.done && g_get_monotonic_time () < end) kport_iter (FALSE);
 	if (!r.done || !r.t) { if (cap > 0) ((char *) buf)[0] = 0; return 0; }
 	snprintf ((char *) buf, (size_t) cap, "%s", r.t);
 	long n = (long) strlen ((char *) buf);
@@ -3042,5 +3530,153 @@ long ui_image_size (long img)
 	return im->w;
 }
 long ui_image_free (long img) { Img *im = (Img *) img; if (im) { free (im->px); delete im; } return 0; }
+
+// ---- ce que TerraCube et Forge demandent de plus ----
+// la souris prise : WEV_MOUSE de genre WEV_M_REL (3), dx, dy, les boutons dans EV_CODE ; 0 : rendue
+long ui_pointer_lock (long on)
+{
+	Win *w = cur ();
+	if (!w) return -1;
+	if (!on) { if (g_lock.w == w) lock_release (); return 0; }
+	return lock_take (w) ? 0 : -1;
+}
+
+// une surface : x, y, l, h du contenu, WS_SF_XRGB8888 -> poignee (elle passe par-dessus le fond de la fenetre)
+long ui_surface (long x, long y, long w, long h, long fmt)
+{
+	(void) fmt;
+	Win *wn = cur ();
+	if (!wn || w <= 0 || h <= 0) return 0;
+	KSurface *f = new KSurface;
+	f->id = g_nextSurf++; f->win = wn; f->x = (int) x; f->y = (int) y; f->w = (int) w; f->h = (int) h;
+	f->buf.alloc ((int) w, (int) h, 0);
+	g_surfs[f->id] = f;
+	wn->surfs.push_back (f->id);
+	gtk_widget_queue_draw (wn->surf);
+	return f->id;
+}
+static KSurface *surface_of (long id) { auto i = g_surfs.find (id); return i == g_surfs.end () ? 0 : i->second; }
+long ui_surface_pixels (long s)
+{
+	KSurface *f = surface_of (s);
+	if (!f) { uikit__ret[1] = uikit__ret[2] = uikit__ret[3] = 0; return 0; }
+	uikit__ret[0] = (long) f->buf.px; uikit__ret[1] = (long) f->buf.w * 4; uikit__ret[2] = f->buf.w; uikit__ret[3] = f->buf.h;
+	return (long) f->buf.px;
+}
+long ui_surface_damage (long s, long, long, long, long)
+{
+	KSurface *f = surface_of (s);
+	if (f) redraw (&f->buf, f->win->surf);
+	return 0;
+}
+long ui_surface_damage_list (long s, long, long) { return ui_surface_damage (s, 0, 0, 0, 0); }
+long ui_surface_move (long s, long x, long y, long w, long h)
+{
+	KSurface *f = surface_of (s);
+	if (!f || w <= 0 || h <= 0) return 0;
+	f->x = (int) x; f->y = (int) y; f->w = (int) w; f->h = (int) h;
+	if (w != f->buf.w || h != f->buf.h)
+	{
+		// (le contenu est garde dans le coin haut gauche, comme un tampon agrandi d'Elegant ; l'app redessine)
+		Buf n; n.alloc ((int) w, (int) h, 0);
+		for (int yy = 0; yy < std::min (n.h, f->buf.h); yy++) memcpy (n.px + (size_t) yy * n.w, f->buf.px + (size_t) yy * f->buf.w, (size_t) std::min (n.w, f->buf.w) * 4);
+		f->buf.release ();
+		f->buf = n;
+	}
+	redraw (&f->buf, f->win->surf);
+	return 1;
+}
+long ui_surface_free (long s)
+{
+	KSurface *f = surface_of (s);
+	if (!f) return 0;
+	Win *wn = f->win;
+	wn->surfs.erase (std::remove (wn->surfs.begin (), wn->surfs.end (), s), wn->surfs.end ());
+	f->buf.release ();
+	g_surfs.erase (s);
+	delete f;
+	gtk_widget_queue_draw (wn->surf);
+	return 0;
+}
+// les zones du contenu (x, y, l, h en 16 bits) posees par-dessus les surfaces de la fenetre courante, avec leur transparence
+long ui_surface_overlay (long zones, long n)
+{
+	Win *wn = cur ();
+	if (!wn) return 0;
+	wn->over.clear ();
+	const uint16_t *z = (const uint16_t *) zones;
+	for (long i = 0; z && i < n && i < 32; i++) wn->over.push_back ({ (int) (int16_t) z[i * 4], (int) (int16_t) z[i * 4 + 1], (int) z[i * 4 + 2], (int) z[i * 4 + 3] });
+	redraw (&wn->buf, wn->surf);
+	return 0;
+}
+
+// la barre d'outils : une zone ; ses boutons sont des widgets a eux, places de gauche a droite comme dans UIKit
+// (uk_tabs.c) et emmenes par ui_w_move de la barre
+long ui_toolbar (long x, long y, long w, long h)
+{
+	if (!h) h = ui_metric (UMT_CTL) + 16;
+	Wid *d = wid_new (K_TOOLBAR, x, y, w, h, 0);
+	if (!d) return 0;
+	d->value = 8;	// (x du prochain bouton, depuis le bord)
+	return d->id;
+}
+static void on_tool_toggled (GtkToggleButton *b, gpointer data)
+{
+	Wid *d = (Wid *) data;
+	d->value = gtk_toggle_button_get_active (b);
+	notify (d, UN_ACTIVATE);
+}
+long ui_toolbar_add (long bar, long glyph, long label, long fl)
+{
+	Wid *b = wid (bar);
+	if (!b || b->kind != K_TOOLBAR) return 0;
+	if (fl & UTB_SEP) b->value += 12;
+	int ht = (int) ui_metric (UMT_CTL), wd = ht;
+	std::string t = label ? TRs ((const char *) label) : "";
+	if (glyph && *(const char *) glyph) t = std::string ((const char *) glyph) + (t.empty () ? "" : " " + t);
+	if (label) wd = (int) ui_text_width ((long) t.c_str (), ui_metric (UMT_PX), 0) + 20 + (glyph ? 20 : 0);
+	GtkWidget *g = (fl & UTB_TOGGLE) ? gtk_toggle_button_new () : gtk_button_new ();
+	GtkWidget *l = elabel (t.c_str (), 0.5f);
+	gtk_button_set_child (GTK_BUTTON (g), l);
+	gtk_widget_add_css_class (g, "flat");
+	gtk_widget_set_focus_on_click (g, FALSE);
+	gtk_widget_set_focusable (g, FALSE);
+	Wid *d = wid_new (K_TOOL, b->x + b->value, b->y + (b->h - ht) / 2, wd, ht, g);
+	if (!d) return 0;
+	b->value += wd + 2;
+	d->parent = bar; d->flags = fl; d->label = l; d->text = t;
+	if (fl & UTB_TOGGLE) g_signal_connect (g, "toggled", G_CALLBACK (on_tool_toggled), d);
+	else g_signal_connect (g, "clicked", G_CALLBACK (on_clicked), d);
+	refresh_visibility (d->win);
+	return d->id;
+}
+
+// une infobulle tout de suite, au point x, y de la fenetre (texte 0 : retiree)
+long ui_tip_at (long x, long y, long text)
+{
+	Win *wn = cur ();
+	if (!wn) return 0;
+	if (!text || !*(const char *) text)
+	{
+		if (wn->tip) gtk_popover_popdown (GTK_POPOVER (wn->tip));
+		return 0;
+	}
+	if (!wn->tip)
+	{
+		wn->tip = gtk_popover_new ();
+		gtk_popover_set_autohide (GTK_POPOVER (wn->tip), FALSE);
+		gtk_popover_set_has_arrow (GTK_POPOVER (wn->tip), FALSE);
+		gtk_popover_set_position (GTK_POPOVER (wn->tip), GTK_POS_TOP);
+		gtk_widget_set_can_target (wn->tip, FALSE);
+		gtk_widget_set_can_focus (wn->tip, FALSE);
+		gtk_popover_set_child (GTK_POPOVER (wn->tip), gtk_label_new (""));
+		gtk_widget_set_parent (wn->tip, wn->surf);
+	}
+	gtk_label_set_text (GTK_LABEL (gtk_popover_get_child (GTK_POPOVER (wn->tip))), TRs ((const char *) text));
+	GdkRectangle r = { (int) x, (int) y, 1, 1 };
+	gtk_popover_set_pointing_to (GTK_POPOVER (wn->tip), &r);
+	gtk_popover_popup (GTK_POPOVER (wn->tip));
+	return 0;
+}
 
 } // extern "C"

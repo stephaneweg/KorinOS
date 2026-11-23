@@ -1,5 +1,18 @@
 # Design : l'écran de connexion
 
+**Refait le 23/11/2026 comme celui de Fedora (GNOME)**, à la demande de l'utilisateur (la variante B, plein écran,
+remplace la carte A) : `src/sys/login/login.c` occupe tout l'écran, sans cadre (couche normale : les réglages rapides et
+le dialogue d'extinction passent devant ; ni `WF_TOP` ni `WF_BACK`, qui mettrait un fond opaque sous le fond d'écran),
+sur **le fond sombre de la vue d'ensemble** (`#2A2B2D`). Au milieu, **la liste des comptes** (disque d'initiale de 48
+coloré par l'uid, nom ; survol et compte choisi au clavier dans une boîte arrondie de la teinte du dash) ; un clic, ou
+Entrée, montre **le compte en grand** (disque de 96, nom, champ du mot de passe de 300 × 40 avec l'œil et la flèche ;
+un compte sans mot de passe : « Ouvrir la session ») et, **à gauche du champ, un bouton rond ← qui revient à la liste**
+(Échap aussi, champ vide) ; un seul compte : directement en grand. **En haut au milieu** la date et l'heure ; **en haut
+à droite la zone d'état** (réseau, son, alimentation) qui ouvre **les réglages rapides** de la barre de menus
+(`/sys/quickmenu` avec l'argument « L<bord droit> » : sans Réglages ni « Paramètres Wi-Fi… », on n'est pas authentifié ;
+Éteindre pose `/tmp/login.halt` avant le dialogue d'extinction) ; **en bas au milieu** « Korin OS » et son losange.
+Elegant ne bascule pas la vue d'ensemble (Super) tant que login tourne. Ce qui suit décrit la carte A d'avant.
+
 **Fait le 16/11/2026** (première version, PC) : `src/sys/login/login.c` dessine la carte A (A1 plusieurs comptes, A3 sans mot de passe, A4 un seul compte), sur le fond à facettes lancé par Elegant ; menus d'alimentation de UIKit. Pas encore : le verrou (A5), le changement d'utilisateur (A9), les menus clavier et accessibilité (A7, A8), les images des comptes, l'état de Verr. Maj. ; le thème de l'écran de connexion (`/etc/login.ini`).
 
 Proposition du 15/11/2026, à la demande de l'utilisateur (« designer le futur écran de login, proposition fenêtrée ou

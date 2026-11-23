@@ -180,9 +180,14 @@ void desk_set(long desk, long count)
 	if ((u64)desk >= (u64)n)
 		desk = n - 1;
 	if (desk != cur || changed) {
+		/* (vue normale, un autre bureau : il glisse ; l'image d'avant est prise ici, overview.c) */
+		long slide = desk != cur && !changed && sw_prepare();
 		desk_cur = desk;
 		desk_apply();
+		if (slide)
+			sw_start(sw_dir ? sw_dir : desk > cur ? 1 : -1);
 	}
+	sw_dir = 0;
 }
 
 /* espace : le montre */
@@ -280,6 +285,7 @@ long desk_key(const u8 *in)
 		d = desk_count - 1;
 	if ((u64)d >= (u64)desk_count)
 		d = 0;
+	sw_dir = dir; /* (le glissement suit la touche, même en revenant au premier) */
 	desk_show(d);
 	return 1;
 }

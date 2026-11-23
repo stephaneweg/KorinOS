@@ -72,6 +72,9 @@ long la_grid;
 static long la_tx[LA_MAXTABS], la_tw[LA_MAXTABS]; /* (la_grid) les pilules : x, largeur */
 static long la_ty;           /* (la_grid) haut des pilules */
 #define LA_PILL_H 32
+#define LA_DOTS_H 34 /* (la_grid) sous la grille : les points des pages */
+#define LA_ARROW_W 44 /* (la_grid) les flèches des pages, sur les côtés */
+static u64 la_wheel_t;      /* (la_grid) dernière page tournée à la molette (ms) */
 #define LA_GRID_MAXC 8
 static u8 la_res[AP_MAX];
 static char la_q[LA_NORM];
@@ -172,7 +175,7 @@ static void la_grid_metrics(void)
 	long s = ui_scale(); /* la grille : grandes cases, 8 colonnes au plus */
 	long cw = s == 2 ? 118 : 136, ch = s == 2 ? 104 : 120;
 	la_icon = s == 2 ? 48 : 60;
-	long cols = (W - 80) / cw;
+	long cols = (W - 2 * (LA_ARROW_W + 20)) / cw; /* (la place des flèches des pages) */
 	if (cols > LA_GRID_MAXC)
 		cols = LA_GRID_MAXC;
 	if (cols < 1)
@@ -182,7 +185,7 @@ static void la_grid_metrics(void)
 	la_cellh = ch;
 	long gx = (W - cols * cw) / 2;
 	la_gy = la_ty + LA_PILL_H + 22;
-	long rows = (la_ch - la_gy - 8) / ch;
+	long rows = (la_ch - la_gy - LA_DOTS_H) / ch; /* (sous la grille : les points des pages) */
 	la_rows = rows < 1 ? 1 : rows;
 	/* (la_gx et la_gw servent à la recherche : la grille garde son x dans la_grid_x) */
 	la_grid_x = gx;
@@ -319,20 +322,124 @@ static long la_total(void)
 }
 
 /* rangée du haut voulue : bornée, redessine si elle change */
+static void la_cell_draw(long i, long show);
+
+/* (la_grid) d'une page à l'autre (rangées du haut) : l'ancienne sort d'un côté, la nouvelle entre de
+ * l'autre (LA_SLIDE_MS, « ease out ») ; seule la zone de la grille est redessinée à chaque image */
+#define LA_SLIDE_MS 240
+static long la_xoff; /* décalage des cases (le glissement) */
+static void la_page_slide(long from, long to)
+{
+	long dir = to > from ? 1 : -1, W = la_geom[1], gy = la_gy, gh = la_rows * la_cellh;
+	long per = la_rows * la_cols;
+	u64 t0 = (u64)korin_sys0(SYS_TIME_MS);
+	for (;;) {
+		long t = (long)(((u64)korin_sys0(SYS_TIME_MS) - t0) * 65536 / LA_SLIDE_MS);
+		if (t >= 65536)
+			break;
+		long u = 65536 - t; /* 1 - (1 - t)^3 */
+		long e = 65536 - (u * u / 65536) * u / 65536;
+		long dx = W * e / 65536;
+		ui_clip(0, gy, W, gh);
+		ui_fill(0, gy, W, gh, 0xFF000000);
+		la_xoff = -dir * dx;
+		la_scroll = from;
+		for (long i = from * la_cols; i < from * la_cols + per && i < la_n; i++)
+			la_cell_draw(i, 0);
+		la_xoff = dir * (W - dx);
+		la_scroll = to;
+		for (long i = to * la_cols; i < to * la_cols + per && i < la_n; i++)
+			la_cell_draw(i, 0);
+		ui_clip(0, 0, 0, 0);
+		ui_update(0, gy, W, gh);
+		korin_sys1(SYS_SLEEP, 10);
+	}
+	la_xoff = 0;
+}
+
 static void la_scroll_to(long r)
 {
+	if (la_grid) /* (pages entières) */
+		r = r < 0 ? 0 : r / la_rows * la_rows;
 	long low = la_total() - la_rows; /* le plus bas */
 	if (low < 0)
 		low = 0;
+	if (la_grid) /* (la dernière page commence à un multiple de la_rows) */
+		low = la_total() ? (la_total() - 1) / la_rows * la_rows : 0;
 	if (r > low)
 		r = low;
 	if (r < 0)
 		r = 0;
 	if (la_scroll == r)
 		return;
-	la_scroll = r;
 	la_hover = -1; /* (la case survolée a changé) */
+	if (la_grid && la_win > 0) /* (la grille : la page glisse vers la suivante) */
+		la_page_slide(la_scroll, r);
+	la_scroll = r;
 	la_draw();
+}
+
+static u32 la_grid_ink(void);
+static void la_soft_box(long x, long y, long w, long h, long r, u32 t);
+
+/* (la_grid) -> pages de la_res, page montrée */
+static long la_pages(void)
+{
+	long r = la_total();
+	return r ? (r + la_rows - 1) / la_rows : 1;
+}
+
+/* (la_grid) x du premier point des pages, y de leur centre */
+static void la_dots_at(long *x, long *y)
+{
+	long n = la_pages();
+	*x = (la_geom[1] - (n * 16 - 8)) / 2;
+	*y = la_gy + la_rows * la_cellh + LA_DOTS_H / 2;
+}
+
+/* (la_grid) point -> page de ce point (-1 : aucun), flèches : -2 précédente, -3 suivante */
+static long la_page_at(long x, long y)
+{
+	long n = la_pages();
+	if (n < 2)
+		return -1;
+	long cur = la_scroll / la_rows;
+	long gy = la_gy, gh = la_rows * la_cellh;
+	if (y >= gy && y < gy + gh) {
+		if (cur > 0 && x < LA_ARROW_W + 8)
+			return -2;
+		if (cur < n - 1 && x >= la_geom[1] - LA_ARROW_W - 8)
+			return -3;
+	}
+	long dx, dy;
+	la_dots_at(&dx, &dy);
+	if (y < dy - 10 || y > dy + 10 || x < dx - 4)
+		return -1;
+	long p = (x - dx + 4) / 16;
+	return p < n ? p : -1;
+}
+
+/* (la_grid) les points des pages (la page montrée pleine) et les flèches, s'il y a plusieurs pages */
+static void la_pages_draw(void)
+{
+	long n = la_pages();
+	if (n < 2)
+		return;
+	long cur = la_scroll / la_rows, x, y;
+	la_dots_at(&x, &y);
+	for (long p = 0; p < n; p++, x += 16)
+		la_soft_box(x, y - 4, 8, 8, 4, p == cur ? 0x10 : 0xA0);
+	long gy = la_gy + la_rows * la_cellh / 2;
+	u32 ink = la_grid_ink();
+	if (cur > 0) { /* ‹ */
+		la_soft_box(8, gy - 22, LA_ARROW_W, 44, 22, 0xD8);
+		ui_text((long)"\xE2\x80\xB9", 8 + LA_ARROW_W / 2 - 5, gy + 9, ink, 26, (long)ui.font_b, 0);
+	}
+	if (cur < n - 1) { /* › */
+		long ax = la_geom[1] - 8 - LA_ARROW_W;
+		la_soft_box(ax, gy - 22, LA_ARROW_W, 44, 22, 0xD8);
+		ui_text((long)"\xE2\x80\xBA", ax + LA_ARROW_W / 2 - 5, gy + 9, ink, 26, (long)ui.font_b, 0);
+	}
 }
 
 /* (la_grid) l'encre sur le fond de la vue d'ensemble (sombre : le fond d'écran assombri par Elegant) */
@@ -359,7 +466,7 @@ static void la_cell_draw(long i, long show)
 		return;
 	long cw = la_cellw, ch = la_cellh;
 	long y = r * ch + la_gy;
-	long x = c * cw + (la_grid ? la_grid_x : la_gx);
+	long x = c * cw + (la_grid ? la_grid_x : la_gx) + la_xoff;
 	long app = la_res[i];
 	u32 ink = la_grid ? la_grid_ink() : tok(TJ_TEXT1);
 	if (la_grid) { /* sur le fond de la vue : transparent, survol d'un voile clair */
@@ -396,6 +503,11 @@ static void la_sel_set(long s)
 	la_sel = s;
 	if (s >= 0) {
 		long r = (long)((u64)s / (u64)la_cols); /* sa rangée */
+		if (la_grid && (r < la_scroll || r >= la_scroll + la_rows)) { /* (la page de la case) */
+			la_scroll = r / la_rows * la_rows;
+			la_draw();
+			return;
+		}
 		if (r < la_scroll) {
 			la_scroll = r;
 			la_draw();
@@ -516,19 +628,62 @@ static long la_cell_at(long x, long y)
 	return (long)i;
 }
 
+/* (la_grid) une pilule du voile clair (transparence t) glissée SOUS ce qui est déjà dessiné (le texte) : chaque pixel
+ * 0xTTRRGGBB (TT : transparence, couleur non prémultipliée) passe devant le voile ; bords lissés sur un pixel */
+static void la_pill_under(long x, long y, long w, long h, u32 t)
+{
+	u32 ink = la_grid_ink() & 0xFFFFFF;
+	long r = h / 2;
+	for (long j = 0; j < h; j++) {
+		if (y + j < 0 || y + j >= ui.h)
+			continue;
+		u32 *row = (u32 *)ui.surf + (y + j) * ui.w;
+		long dy2 = 2 * j + 1 - h; /* (en demi-pixels, depuis l'axe) */
+		for (long i = 0; i < w; i++) {
+			long X = x + i;
+			if (X < 0 || X >= ui.w)
+				continue;
+			long cov = 256; /* couverture du pixel par la pilule, sur 256 */
+			long cx = i < r ? r : i >= w - r ? w - r : -1;
+			if (cx >= 0) {
+				long dx2 = 2 * i + 1 - 2 * cx;
+				long d2 = dx2 * dx2 + dy2 * dy2, r2 = 4 * r * r;
+				if (d2 >= r2 + 4 * r)
+					continue;
+				if (d2 > r2 - 4 * r)
+					cov = (r2 + 4 * r - d2) * 256 / (8 * r);
+			}
+			long ap = (255 - (long)t) * cov / 256; /* opacité du voile ici */
+			u32 d = row[X];
+			long ad = 255 - (long)(d >> 24);
+			long a = ad + ap * (255 - ad) / 255;
+			if (a <= 0)
+				continue;
+			long wp = ap * (255 - ad) / 255;
+			u32 o = 0;
+			for (int sh = 0; sh < 24; sh += 8) {
+				long cd = (long)(d >> sh) & 0xFF, cp = (long)(ink >> sh) & 0xFF;
+				o |= (u32)((cd * ad + cp * wp) / a) << sh;
+			}
+			row[X] = o | (u32)(255 - a) << 24;
+		}
+	}
+}
+
 /* onglet, 1 : montrer tout de suite */
 static void la_tab_draw(long t, long show)
 {
 	if (la_grid) { /* une pilule : la choisie pleine du voile clair, les autres au survol */
 		long x = la_tx[t], y = la_ty, w = la_tw[t], h = LA_PILL_H;
 		ui_fill(x, y, w, h, 0xFF000000);
-		if (la_cur == t)
-			la_soft_box(x, y, w, h, h / 2, la_zone == 2 ? 0x70 : 0xA0);
-		else if (la_tab_hover == t)
-			la_soft_box(x, y, w, h, h / 2, 0xD0);
 		long sel = la_cur == t;
 		ui_text_fit((long)la_cat_name(la_tab[t]), x + 14, y + h / 2 + 5, la_grid_ink(), LA_TAB_PX,
 			    (long)(sel ? ui.font_b : ui.font), w - 20);
+		/* le voile glissé sous le texte (le texte tracé sur un fond à demi transparent s'y frangeait de sombre) */
+		if (sel)
+			la_pill_under(x, y, w, h, la_zone == 2 ? 0x70 : 0xA0);
+		else if (la_tab_hover == t)
+			la_pill_under(x, y, w, h, 0xD0);
 		if (show)
 			ui_update(x, y, w, h);
 		return;
@@ -611,6 +766,7 @@ static void la_draw(void)
 			long tw = ui_text_width((long)s, 14, (long)ui.font);
 			ui_text((long)s, (la_geom[1] - tw) / 2, la_gy + 40, la_grid_ink(), 14, (long)ui.font, 0);
 		}
+		la_pages_draw();
 		la_clip_field();
 		ui_w_draw(0);
 		la_clip_off();
@@ -818,6 +974,17 @@ static int la_mouse(long *pick)
 		u64 dx = (u64)(x - la_cx), dy = (u64)(y - la_cy);
 		if (dx >= (u64)la_cw || dy >= (u64)la_ch) /* hors de la feuille : ferme */
 			return 1;
+		if (la_grid) { /* une flèche, un point : la page */
+			long pg = la_page_at(x, y);
+			if (pg == -2 || pg == -3) {
+				la_scroll_to(la_scroll + (pg == -2 ? -la_rows : la_rows));
+				return 0;
+			}
+			if (pg >= 0) {
+				la_scroll_to(pg * la_rows);
+				return 0;
+			}
+		}
 		if (la_grid) { /* ni la recherche, ni une pilule, ni une icône : retour aux bureaux */
 			long in_box = x >= la_gx && x < la_gx + la_gw && y >= la_by && y < la_by + LA_BOX_H;
 			if (!in_box && la_tab_at(x, y) < 0 && la_cell_at(x, y) < 0)
@@ -898,7 +1065,18 @@ void launcher(void)
 			if (la_mouse(&pick))
 				break;
 		} else if (t == WEV_WHEEL) { /* (un cran vers le haut : positif) */
-			la_scroll_to(la_scroll - *(i32 *)(ui.ev + EV_Y));
+			long n = *(i32 *)(ui.ev + EV_Y);
+			if (la_grid) { /* une page par geste (les crans rapprochés d'un pavé tactile n'en tournent qu'une) */
+				u64 now = (u64)korin_sys0(SYS_TIME_MS);
+				if (n && now - la_wheel_t > 350) {
+					la_wheel_t = now;
+					la_scroll_to(la_scroll + (n > 0 ? -la_rows : la_rows));
+				} else if (n) {
+					la_wheel_t = now;
+				}
+			} else {
+				la_scroll_to(la_scroll - n);
+			}
 		} else if (t == WEV_KEY && *(u32 *)(ui.ev + EV_KIND)) {
 			if (la_key(*(u32 *)(ui.ev + EV_CODE), &pick))
 				break;

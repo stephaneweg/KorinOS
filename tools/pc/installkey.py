@@ -13,6 +13,11 @@
         korin/boot.cfg                Korin tout de suite, sans menu
         le système « live »           build/pc/sysroot (sans home/), et etc/install.ini (Setup en mode install)
       --plan FICHIER : (essai) osinstall lancé par init2 avec ce plan (etc/plan-test.ini), sans Setup
+      --desktop classic|overview : le bureau de la clé (desktop= de etc/system.ini ; sans : celui de l'arbre,
+                                   le bureau classique)
+      --pkg NOM|FICHIER.opk : (répétable) un paquet installé sur la clé sans le reconstruire : un nom est pris dans
+                              le dépôt du PC (l'index de etc/pkg/pkg.ini, l'archive vérifiée par son SHA-256), un
+                              .opk tel quel ; ses fichiers vont dans l'arbre, sa fiche dans var/pkg/db (comme pkg)
   python -I tools/pc/installkey.py run [--target IMAGE] [qemu_nvme.py options...]
       démarre la clé sous QEMU (usb-storage sur xHCI, amorçable) avec un disque NVMe cible (défaut : une image
       de tools/pc/mkkorindisk.py, le faux Windows, en snapshot : jamais écrite)
@@ -31,6 +36,9 @@ import tarfile
 import tempfile
 import uuid
 import zlib
+import hashlib
+import urllib.request
+import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
@@ -118,6 +126,67 @@ def tree_size(d):
     return n
 
 
+def pkg_fetch(tree, name, cache):
+    """un paquet du dépôt du PC (repo = de etc/pkg/pkg.ini) -> le chemin de son .opk, vérifié par le SHA-256 de l'index"""
+    repo = None
+    for line in open(os.path.join(tree, "etc", "pkg", "pkg.ini"), encoding="utf-8"):
+        k, _, v = line.partition("=")
+        if k.strip() == "repo":
+            repo = v.split("#")[0].strip()
+    if not repo or not repo.startswith("https://"):
+        raise SystemExit("--pkg %s : pas de dépôt https dans etc/pkg/pkg.ini" % name)
+    index = urllib.request.urlopen(repo + "/index.txt", timeout=60).read().decode("utf-8")
+    ent, cur = {}, None
+    for line in index.splitlines():
+        line = line.strip()
+        if line.startswith("["):
+            cur = line[1:-1]
+        elif cur == name and "=" in line:
+            k, _, v = line.partition("=")
+            ent[k.strip()] = v.strip()
+    if "file" not in ent:
+        raise SystemExit("--pkg %s : absent de %s/index.txt" % (name, repo))
+    url = ent["file"] if ent["file"].startswith("https://") else repo + "/" + ent["file"]
+    path = os.path.join(cache, os.path.basename(url))
+    if not os.path.isfile(path) or hashlib.sha256(open(path, "rb").read()).hexdigest() != ent.get("sha256"):
+        print("installkey : %s %s, %s" % (name, ent.get("version", "?"), url))
+        with urllib.request.urlopen(url, timeout=600) as r, open(path, "wb") as f:
+            shutil.copyfileobj(r, f, 1 << 20)
+    if hashlib.sha256(open(path, "rb").read()).hexdigest() != ent.get("sha256"):
+        raise SystemExit("--pkg %s : l'archive n'a pas le SHA-256 de l'index" % name)
+    return path
+
+
+def pkg_install(tree, opk):
+    """un .opk dans l'arbre de la clé : ses fichiers, puis var/pkg/db/<nom>.ini (le format de mkrepo.write_db)"""
+    z = zipfile.ZipFile(opk)
+    man = {}
+    for line in z.read("PKG/manifest.ini").decode("utf-8").splitlines():
+        if "=" in line and not line.lstrip().startswith("#"):
+            k, _, v = line.partition("=")
+            man[k.strip()] = v.strip()
+    files = []
+    for n in z.namelist():
+        if n.startswith("PKG/") or n.endswith("/"):
+            continue
+        data = z.read(n)
+        dst = os.path.join(tree, *n.split("/"))
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        with open(dst, "wb") as f:
+            f.write(data)
+        files.append((n, hashlib.sha256(data).hexdigest()))
+    L = ["# installe par tools/pc/installkey.py --pkg", "[package]"]
+    L += ["%s = %s" % (k, man.get(k, "")) for k in ("name", "title", "version", "category", "author", "summary")]
+    L += ["mode = manual"] + ["%s = %s" % (k, man.get(k, "")) for k in ("required", "restart", "needs", "config")]
+    L += ["boot = " + man["boot"]] if man.get("boot") else []
+    L += ["", "[files]"] + ["%s = %s" % f for f in files]
+    db = os.path.join(tree, "var", "pkg", "db")
+    os.makedirs(db, exist_ok=True)
+    with open(os.path.join(db, man["name"] + ".ini"), "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(L) + "\n")
+    print("installkey : paquet %s %s (%d fichiers)" % (man["name"], man.get("version", "?"), len(files)))
+
+
 def build(a):
     sysroot = os.path.abspath(a.sysroot)
     esp = os.path.abspath(a.esp)
@@ -129,6 +198,16 @@ def build(a):
     try:
         tree = os.path.join(work, "key")
         shutil.copytree(sysroot, tree, ignore=shutil.ignore_patterns("home"))
+        if not os.path.isfile(os.path.join(tree, "etc", "pkg", "abi")):
+            # un arbre fait depuis les sources (tools/pc/sysroot.sh), pas des paquets publiés : le niveau des tables des
+            # kits (etc/pkg/abi : sans lui, pkg lit 0 et refuse tout paquet qui « demande un système plus récent », Jet
+            # compris) et la base des paquets installés (var/pkg/db), comme build.ps1 le fait pour la carte du Pi
+            subprocess.check_call([sys.executable, "-I", os.path.join(ROOT, "tools", "pkg", "mkrepo.py"), "--db-only",
+                                   "--sd", tree], env=dict(os.environ, ARCH="x86_64"), stdout=subprocess.DEVNULL)
+        cache = os.path.join(PC, "pkgcache")
+        for p in a.pkg or []:  # des paquets publiés, installés sur la clé (--pkg)
+            os.makedirs(cache, exist_ok=True)
+            pkg_install(tree, p if p.endswith(".opk") else pkg_fetch(tree, p, cache))
         if a.repo:  # le dépôt hors ligne (tools/pc/keyroot.py) : /packages/pc de la clé
             shutil.copytree(os.path.abspath(a.repo), os.path.join(tree, "packages", "pc"))
         if a.installer and not os.path.isfile(os.path.join(tree, "apps", "installer.app", "main")):
@@ -145,6 +224,13 @@ def build(a):
             f.write(KEY_BOOTCFG)
         with open(os.path.join(tree, "etc", "install.ini"), "w", encoding="ascii", newline="") as f:
             f.write(INSTALL_INI)
+        if a.desktop:  # le genre du bureau de la clé (desktop= de system.ini : classic, overview)
+            sysini = os.path.join(tree, "etc", "system.ini")
+            lines = open(sysini, encoding="latin-1").read().splitlines() if os.path.isfile(sysini) else []
+            lines = [l for l in lines if not l.replace(" ", "").startswith("desktop=")]
+            lines.append("desktop=%s" % a.desktop)
+            with open(sysini, "w", encoding="latin-1", newline="") as f:
+                f.write("\n".join(lines) + "\n")
         sess = os.path.join(tree, "etc", "session")  # la session de la clé : l'installateur, plein écran
         if os.path.isfile(sess) and os.path.isfile(os.path.join(tree, "apps", "installer.app", "main")):
             with open(sess, "a", encoding="utf-8", newline="\n") as f:
@@ -240,6 +326,10 @@ def main():
     b.add_argument("--out", default=os.path.join(PC, "installkey.img"))
     b.add_argument("--extra-mb", type=int, default=32)
     b.add_argument("--plan", default=None)
+    b.add_argument("--desktop", default=None, choices=("classic", "overview"),
+                   help="le bureau de la clé (desktop= de etc/system.ini ; sans : celui de l'arbre)")
+    b.add_argument("--pkg", action="append", default=None,
+                   help="un paquet installé sur la clé : un nom du dépôt du PC, ou un fichier .opk (répétable)")
     b.add_argument("--disktest", nargs="?", const="ext4", default=None, choices=("ext4", "exfat", "fat32", "ext4read", "ext4write"))
     r = sub.add_parser("run")
     r.add_argument("--key", default=os.path.join(PC, "installkey.img"))

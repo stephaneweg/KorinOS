@@ -48,8 +48,9 @@ struct Frame {
 };
 
 // une arête retrouvée par son milieu et sa tangente au milieu ; une face plane par un de ses points et sa normale
-struct EdgeRef { double mid[3], tan[3]; };
-struct FaceRef { double pt[3], n[3]; };
+// (des zéros par défaut : une opération qui n'en a pas en écrit quand même une dans le .forge)
+struct EdgeRef { double mid[3] = { 0, 0, 0 }, tan[3] = { 0, 0, 0 }; };
+struct FaceRef { double pt[3] = { 0, 0, 0 }, n[3] = { 0, 0, 1 }; };
 
 // ---- l'esquisse (sketch.cpp) : des points, des éléments qui les partagent (deux lignes qui se suivent ont le même
 // point : la coïncidence va de soi), des contraintes résolues par PlaneGCS --------------------------------------------
@@ -96,6 +97,8 @@ struct Feature {
 					// congé, chanfrein : rayon ; pousser/tirer : distance (signée) ; oblong : longueur, largeur
 	double d1 = 0, d2 = 0, dep2 = 0;// perçage : diamètre, diamètre et profondeur du lamage (c : profondeur, 0 : traversant)
 	std::vector<double> pos;	// perçage : centres x, y dans le repère (deux par trou)
+	std::vector<double> regions;	// extrusion, révolution : les régions choisies de l'esquisse, un point (x, y de
+					// l'esquisse) dans chacune ; vide : tout le profil (skFaces, le défaut)
 	std::vector<EdgeRef> edges;	// congé, chanfrein
 	FaceRef face;			// pousser/tirer
 	Sketch sk;			// esquisse
@@ -145,6 +148,19 @@ bool facePlane (const Body &b, int face, Frame &out);
 bool skSolve (Sketch &s);
 // les faces de ses contours fermés (les petits dans les grands font des trous) -> vide si aucun contour fermé
 TopoDS_Shape skFaces (const Sketch &s, std::string &err);
+// les régions (les « profils » de Fusion) : chaque contour fermé moins les contours fermés directement dedans ;
+// depth 0 : dans aucun autre, 1 : dans un autre (un trou du profil entier), 2 : un îlot dans un trou... ; ix, iy : un
+// point bien dedans (dans l'esquisse) ; rangées de la plus grande à la
+// plus petite -> faux (err) si aucun contour fermé
+struct SkRegion { TopoDS_Shape face; int depth = 0; double area = 0, ix = 0, iy = 0; };
+bool skRegions (const Sketch &s, std::vector<SkRegion> &out, std::string &err);
+// la région qui contient le point (x, y) de l'esquisse (-1 : aucune)
+int skRegionAt (const Sketch &s, const std::vector<SkRegion> &r, double x, double y);
+// les régions du profil entier (skFaces) : celles de profondeur 0 (un îlot dans un trou n'y est pas)
+bool skRegionDefault (const SkRegion &r);
+// les faces à extruder : les régions qui contiennent les points (x, y à la suite) ; sans point, le profil entier
+// (skFaces) ; deux régions qui se touchent (un contour et son trou) font une seule face -> vide si rien (err)
+TopoDS_Shape skFacesPick (const Sketch &s, const std::vector<double> &picks, std::string &err);
 // un point de l'esquisse dans l'espace, et l'inverse (projeté sur le plan)
 void skWorld (const Sketch &s, double x, double y, double out[3]);
 void skLocal (const Sketch &s, const double p[3], double &x, double &y);
@@ -191,6 +207,10 @@ void featureSet (Feature &f, int i, double v);
 std::vector<int> tangentChain (const Body &b, int edge);
 // le plus grand rayon de congé qui passe sur ces arêtes du corps (0 : aucun), cherché par dichotomie
 double filletMax (const TopoDS_Shape &s, const std::vector<EdgeRef> &edges, double hi);
+// l'axe de la poignée d'un congé ou d'un chanfrein sur une arête du corps : at, le milieu de l'arête ; dir (unitaire),
+// la bissectrice des deux faces, tournée là où le congé s'enfonce (dans la matière pour une arête saillante, dans le
+// vide pour une arête rentrante) -> faux : arête pas retrouvée, ou pas entre deux faces distinctes
+bool edgeHandle (const TopoDS_Shape &s, const EdgeRef &r, double at[3], double dir[3]);
 std::string fmtNum (double v);	// 12,5 ; 90
 
 } // namespace forge

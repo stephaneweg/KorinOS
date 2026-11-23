@@ -208,8 +208,10 @@ une carte ou un dossier de Windows : pas dans le cloud. Le telnet du Pi sous QEM
 * **Pas d'installation** : `tools/pc/korin.ps1 install` écrit sur D: ; dans le cloud, au plus
   `pwsh tools/pc/korin.ps1 … -DryRun` (étape `pwsh`). Jamais annoncer une installation.
 * **Publication de paquets** : la clé de signature des paquets de Korin est dans la variable d'environnement
-  `OnyxPkgKey` de l'environnement du cloud (la clé PEM elle-même, sur une ligne ; la même que `onyx_pkg-key.pem.txt`,
-  vérifiée contre `skel/sd0/etc/pkg/onyx.pub`). `tools/pkg/publish.sh` la prend quand `ONYX_PKG_KEY_FILE` manque.
+  **`OnyxPkgKey` ou `ONYX_PKG_KEY`** de l'environnement du cloud (selon l'environnement, l'une ou l'autre ; la clé PEM
+  elle-même, sur une ligne ; la même que `onyx_pkg-key.pem.txt`, vérifiée contre `skel/sd0/etc/pkg/onyx.pub`).
+  `tools/pkg/pub.py` et `tools/pkg/publish.sh` prennent l'une ou l'autre quand `ONYX_PKG_KEY_FILE` manque ; pour savoir
+  laquelle existe sans l'afficher : `[ -n "$ONYX_PKG_KEY" ] && echo oui`.
   **Jamais l'afficher** (ni `echo`, ni `env`, ni un `print` de diagnostic), jamais dans le dépôt ni dans un fichier
   hors d'un temporaire 600 ; ne publier (et surtout pousser) que sur demande de l'utilisateur.
 * **Pas de push** sans demande de l'utilisateur.

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-# make-rpms.py -- fait les paquets rpm de Koton, d'Arabesque et de Budget mensuel (Fedora) sans rpmbuild : cargo-generate-rpm écrit le
-# fichier rpm lui-même, comme le fait Tauri.
+# make-rpms.py -- fait les paquets rpm de Koton, d'Arabesque, de Budget mensuel, de TerraCube et de Forge (Fedora) sans rpmbuild :
+# cargo-generate-rpm écrit le fichier rpm lui-même, comme le fait Tauri.
 #
 #   python3 -I linux-ports/packaging/make-rpms.py      (après « make » dans linux-ports)
-#   -> linux-ports/rpm/korin-<app>-<v>-<RELEASE>.x86_64.rpm (koton, arabesque, budget ; ou ceux nommés en arguments)
+#   -> linux-ports/rpm/korin-<app>-<v>-<RELEASE>.x86_64.rpm (koton, arabesque, budget, terracube, forge ; ou ceux nommés en
+#      arguments)
 #
 # Prérequis : cargo install cargo-generate-rpm --locked
 #
@@ -11,7 +12,8 @@
 # donc l'arborescence du dépôt sous /opt/korin :
 #   /opt/korin/linux-ports/bin/...              programmes et greffons
 #   /opt/korin/src/apps/<app>/{data,demos,presets}, /opt/korin/src/apps/fmtracker/ins, /opt/korin/skel/sd0/res/lang
-#   (Budget : src/apps/budget/app.txt seul, pour que le binaire reconnaisse la racine)
+#   (Budget : src/apps/budget/app.txt seul, pour que le binaire reconnaisse la racine ; TerraCube : data/ (les exemples
+#   Python et BASIC), Forge : lang/ ; les deux : app.txt et SKILL.md, la compétence pour un agent IA)
 #   /usr/bin/<app>                              un lanceur (exec du vrai binaire)
 #   /usr/share/applications, /usr/share/icons   l'entrée du menu et l'icône
 import os
@@ -27,7 +29,7 @@ ROOT = os.path.dirname(PORTS)
 WORK = os.path.join(PORTS, 'build', 'rpm')
 OUT = os.path.join(PORTS, 'rpm')
 OPT = '/opt/korin'
-RELEASE = '3'			# à augmenter quand les binaires changent sans changer de version
+RELEASE = '8'			# à augmenter quand les binaires changent sans changer de version
 
 COMMON_REQ = {'gtk4': '*'}
 SOUND_REQ = {'fluidsynth-libs': '*', 'fluid-soundfont-gm': '*'}
@@ -66,6 +68,32 @@ APPS = {
         'req': {'openssl-libs': '*', 'libsecret': '*'}, 'recommends': {'xdg-utils': '*'},
         'categories': 'Office;Finance;', 'exec': 'budget',
     },
+    'terracube': {
+        'summary': 'TerraCube : bac à sable de blocs en 3D de Korin OS (OpenGL ES 3, scripts Python, agent IA)',
+        'desc': "TerraCube est un monde sans bord fait de blocs, généré d'une graine : on le parcourt, on creuse et on "
+                "construit, en créatif ou en survie ; des scripts (Python, port 4730) et un agent IA (MCP) peuvent le piloter.",
+        'name': 'TerraCube', 'mime': '',
+        'bins': ['linux-ports/bin/terracube'],
+        'files': ['src/apps/terracube/app.txt', 'src/apps/terracube/SKILL.md'],
+        'trees': ['src/apps/terracube/data', 'skel/sd0/res/lang'],
+        'req': {'libglvnd-egl': '*', 'libglvnd-gles': '*', 'fluidsynth-libs': '*', 'libsecret': '*', 'zlib-ng-compat': '*'},
+        'recommends': {'mesa-libEGL': '*', 'mesa-dri-drivers': '*', 'python3': '*'},
+        'categories': 'Game;Simulation;', 'exec': 'terracube',
+    },
+    'forge': {
+        'summary': 'Forge : la CAO de Korin OS (OpenCASCADE, PlaneGCS, export STEP, agent IA)',
+        'desc': "Forge dessine des pièces en 3D : solides exacts d'OpenCASCADE, congés sur n'importe quelle arête, "
+                "esquisses avec contraintes (PlaneGCS), historique paramétrique, export STEP, IGES, STL ; pilotable par un agent IA (MCP).",
+        'name': 'Forge', 'mime': '',
+        'bins': ['linux-ports/bin/forge'],
+        'files': ['src/apps/forge/app.txt', 'src/apps/forge/SKILL.md'],
+        'trees': ['src/apps/forge/lang', 'skel/sd0/res/lang'],
+        'req': {'opencascade-foundation': '*', 'opencascade-modeling': '*', 'opencascade-ocaf': '*',
+                'opencascade-visualization': '*', 'libsecret': '*', 'zlib-ng-compat': '*'},
+        'recommends': {},
+        'categories': 'Graphics;Engineering;3DGraphics;', 'exec': 'forge %f',
+        'icon': 'armpi',	# (Forge n'a pas encore d'icône dans tools/icons : celle de Korin)
+    },
 }
 
 
@@ -86,7 +114,7 @@ def version(app):
 
 def icon_png(app, size, dest):
     """Une taille de l'icône Korin (tools/icons/rendered/<app>.rgba, format ARIC) en PNG, alpha dé-prémultiplié."""
-    d = open(os.path.join(ROOT, 'tools', 'icons', 'rendered', app + '.rgba'), 'rb').read()
+    d = open(os.path.join(ROOT, 'tools', 'icons', 'rendered', APPS[app].get('icon', app) + '.rgba'), 'rb').read()
     assert d[:4] == b'ARIC'
     n = struct.unpack_from('<H', d, 6)[0]
     sizes = {}
@@ -134,7 +162,8 @@ def build(app, info):
         add(os.path.join(ROOT, f), f'{OPT}/{f}', '644')
     for t in info['trees']:
         top = os.path.join(ROOT, t)
-        for dp, _, fs in os.walk(top):
+        for dp, ds, fs in os.walk(top):
+            ds[:] = [d for d in ds if d != '__pycache__']	# (les .pyc d'un essai local)
             for f in sorted(fs):
                 src = os.path.join(dp, f)
                 rel = os.path.relpath(src, ROOT)

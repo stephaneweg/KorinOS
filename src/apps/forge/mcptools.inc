@@ -244,9 +244,19 @@ std::string sketchJson (const Sketch &s)
 			s.plane.n[0] * s.plane.x[1] - s.plane.n[1] * s.plane.x[0] };
 	std::string err;
 	TopoDS_Shape faces = skFaces (s, err);
+	// les régions (profils) qu'une extrusion ou une révolution peut choisir (profiles : leurs numéros)
+	std::vector<SkRegion> rg;
+	JA pr;
+	if (!faces.IsNull () && skRegions (s, rg, err))
+		for (size_t i = 0; i < rg.size (); i++) {
+			double p[2] = { rg[i].ix, rg[i].iy };
+			pr.add (JO ().num ("index", (int) i).num ("depth", rg[i].depth).num ("area", std::round (rg[i].area * 1000) / 1000).raw ("inside_point", jv (p, 2))
+				.boo ("in_default_profile", skRegionDefault (rg[i])).end ());
+		}
 	return JO ().raw ("plane_origin", jv (s.plane.o)).raw ("plane_normal", jv (s.plane.n)).raw ("plane_x", jv (s.plane.x)).raw ("plane_y", jv (y))
 		.num ("on_body", s.body).num ("degrees_of_freedom", s.dof).boo ("fully_constrained", s.dof == 0)
-		.boo ("has_closed_profile", !faces.IsNull ()).raw ("points", pts.end ()).raw ("elements", ge.end ()).raw ("constraints", co.end ()).end ();
+		.boo ("has_closed_profile", !faces.IsNull ()).raw ("points", pts.end ()).raw ("elements", ge.end ()).raw ("constraints", co.end ())
+		.raw ("regions", pr.end ()).end ();
 }
 
 std::string featureJson (int i, bool full)
@@ -294,6 +304,14 @@ std::string featureJson (int i, bool full)
 			o.raw ("hole_positions_in_frame", c.end ());
 		}
 		if (f.kind == ST_PATTERN) o.str ("pattern_mode", f.mode ? "circular" : "linear").num ("count", f.count);
+		if ((f.kind == ST_EXTRUDE || f.kind == ST_REVOLVE) && !f.regions.empty ()) {
+			JA c;
+			for (size_t k = 0; k + 1 < f.regions.size (); k += 2) {
+				double p[2] = { f.regions[k], f.regions[k + 1] };
+				c.add (jv (p, 2));
+			}
+			o.raw ("region_points", c.end ());
+		}
 	}
 	return o.end ();
 }
@@ -874,6 +892,21 @@ std::string sweep (const Args &a, StepKind k)
 	if (k == ST_EXTRUDE) f.a = a.num ("distance", 0, true, &f, 0);
 	else f.a = a.num ("angle", 360, false, &f, 0);
 	opArgs (a, f);
+	// regions : les numéros des régions de l'esquisse (get_feature, sketch.regions) ; gardées par un point dans chacune
+	const json_t *rv = a.get ("regions");
+	if (rv && rv->kind != JSON_NULL) {
+		if (rv->kind != JSON_ARR) fail ("regions must be an array of region indices");
+		const Sketch &sk = g_doc.feats[f.ref].sk;
+		std::vector<SkRegion> rg;
+		std::string err;
+		if (!skRegions (sk, rg, err)) fail ("the sketch has no closed profile");
+		for (int i = 0; i < json_len (rv); i++) {
+			const json_t *e = json_at (rv, i);
+			int r = e && e->kind == JSON_NUM ? atoi (e->s) : -1;
+			if (r < 0 || r >= (int) rg.size ()) fail ("no region " + std::to_string (r) + " in this sketch (it has " + std::to_string (rg.size ()) + ")");
+			f.regions.push_back (rg[r].ix), f.regions.push_back (rg[r].iy);
+		}
+	}
 	f.name = a.str ("name");
 	return commitFeature (f, k == ST_EXTRUDE ? "extrusion" : "revolution");
 }
@@ -1028,7 +1061,9 @@ std::string t_delete_parameter (const Args &a)
 }
 
 // -- la vue
-std::string t_set_view (const Args &a)
+// la direction (view, iso par défaut) et le cadrage (fit) demandés ; une face : orthographique pour un temps si la
+// perspective est le choix (viewFace), sauf projection imposée (persp : 1 perspective, 0 orthographique)
+std::string viewDirection (const Args &a, int persp = -1)
 {
 	std::string v = a.str ("view", "iso");
 	static const char *const V[7] = { "right", "left", "back", "front", "top", "bottom", "iso" };
@@ -1037,10 +1072,37 @@ std::string t_set_view (const Args &a)
 		if (v == V[i]) k = i;
 	if (k < 0) fail ("view must be front, back, left, right, top, bottom or iso");
 	if (g_sm.on) fail ("the user is editing a sketch in Forge");
-	g_view.standard (k);
+	viewFace (k);
+	if (persp >= 0) g_view.persp = persp != 0;
 	if (a.boolean ("fit", true)) g_view.fit (g_doc);
+	return v;
+}
+
+// projection : "perspective" -> vrai, "orthographic" -> faux
+bool projectionArg (const Args &a)
+{
+	std::string p = a.str ("projection");
+	if (p != "perspective" && p != "orthographic") fail ("projection must be perspective or orthographic");
+	return p == "perspective";
+}
+
+const char *projectionName () { return g_view.persp ? "perspective" : "orthographic"; }
+
+// la projection (gardée, comme si l'utilisateur la choisissait) ; seule, elle laisse la direction de la vue
+std::string t_set_view (const Args &a)
+{
+	std::string v;
+	int forced = -1;
+	if (a.has ("projection")) {
+		bool p = projectionArg (a);
+		forced = p;
+		if (p != g_perspPref || p != g_view.persp) setProjection (p, true);
+	}
+	if (a.has ("view") || !a.has ("projection")) v = viewDirection (a, forced);
 	cameraChanged ();
-	return JO ().str ("view", v).end ();
+	JO o;
+	if (!v.empty ()) o.str ("view", v);
+	return o.str ("projection", projectionName ()).end ();
 }
 
 std::string t_highlight (const Args &a)
@@ -1093,8 +1155,19 @@ std::string pngOf (const std::vector<uint32_t> &px, int w, int h)
 std::string g_image;		// (la capture : rendue à part, dans le contenu de la réponse)
 std::string t_screenshot (const Args &a)
 {
-	if (a.has ("view")) t_set_view (a);
+	// (une projection demandée pour la capture seulement : la vue reprend ensuite la sienne)
+	int forced = a.has ("projection") ? (int) projectionArg (a) : -1;
+	if (a.has ("view")) viewDirection (a, forced);
+	else if (forced >= 0) g_view.persp = forced != 0;
 	renderView ();
+	struct Back {
+		bool on;
+		~Back ()
+		{
+			bool p = g_perspPref && !g_orthoFace;
+			if (on && g_view.persp != p) g_view.persp = p, cameraChanged ();
+		}
+	} back { forced >= 0 };
 	int mw = std::max (64, std::min (2048, a.integer ("max_width", 1024)));
 	int w = VW, h = VH;
 	if ((int) g_back.size () < w * h) fail ("the view is not rendered yet");
@@ -1270,14 +1343,18 @@ const ToolDef TOOLS[] = {
 	  t_set_sketch_dimension, false },
 	{ "extrude",
 	  "Extrude the closed profiles of a sketch along the sketch normal by distance (negative: the other way). operation new (default), "
-	  "join, cut or intersect with body.",
+	  "join, cut or intersect with body. regions: only these regions of the sketch (indices from the sketch's regions in get_feature: "
+	  "each closed contour minus the contours directly inside; an island in a hole is its own region); default: the whole profile "
+	  "(the regions of depth 0).",
 	  S ({ "type" : "object", "properties" : { "sketch" : { "type" : "integer" }, "distance" : { "type" : ["number", "string"] },
 		  "operation" : { "type" : "string", "enum" : ["new", "join", "cut", "intersect"] }, "body" : { "type" : "integer" },
+		  "regions" : { "type" : "array", "items" : { "type" : "integer" } },
 		  "name" : { "type" : "string" } }, "required" : ["sketch", "distance"] }),
 	  t_extrude, false },
-	{ "revolve", "Revolve the closed profiles of a sketch around its first construction line by angle (degrees, default 360). operation and body as for extrude.",
+	{ "revolve", "Revolve the closed profiles of a sketch around its first construction line by angle (degrees, default 360). operation, body and regions as for extrude.",
 	  S ({ "type" : "object", "properties" : { "sketch" : { "type" : "integer" }, "angle" : { "type" : ["number", "string"] },
 		  "operation" : { "type" : "string", "enum" : ["new", "join", "cut", "intersect"] }, "body" : { "type" : "integer" },
+		  "regions" : { "type" : "array", "items" : { "type" : "integer" } },
 		  "name" : { "type" : "string" } }, "required" : ["sketch"] }),
 	  t_revolve, false },
 	{ "edit_feature",
@@ -1304,17 +1381,21 @@ const ToolDef TOOLS[] = {
 	  t_set_parameter, false },
 	{ "delete_parameter", "Delete a named parameter (values that use it go into error).",
 	  S ({ "type" : "object", "properties" : { "name" : { "type" : "string" } }, "required" : ["name"] }), t_delete_parameter, false },
-	{ "set_view", "Turn the 3D view to a standard direction (front, back, left, right, top, bottom, iso) and fit the part.",
+	{ "set_view",
+	  "Turn the 3D view to a standard direction (front, back, left, right, top, bottom, iso) and fit the part; and/or set the projection "
+	  "(perspective, the default, or orthographic; kept for the next sessions). With only projection, the direction stays.",
 	  S ({ "type" : "object", "properties" : { "view" : { "type" : "string", "enum" : ["front", "back", "left", "right", "top", "bottom", "iso"] },
-		  "fit" : { "type" : "boolean" } } }),
+		  "fit" : { "type" : "boolean" }, "projection" : { "type" : "string", "enum" : ["perspective", "orthographic"] } } }),
 	  t_set_view, true },
 	{ "highlight", "Select a body, or faces/edges of it, in Forge so that the user sees them (no arguments: clear the selection).",
 	  S ({ "type" : "object", "properties" : { "body" : { "type" : "integer" }, "faces" : { "type" : "array", "items" : { "type" : "integer" } },
 		  "edges" : { "type" : "array", "items" : { "type" : "integer" } } } }),
 	  t_highlight, true },
-	{ "screenshot", "Return a PNG image of the 3D view (optionally after set_view). Use it to check the result visually.",
+	{ "screenshot",
+	  "Return a PNG image of the 3D view (optionally after set_view; projection: for this image only). Use it to check the result visually.",
 	  S ({ "type" : "object", "properties" : { "view" : { "type" : "string", "enum" : ["front", "back", "left", "right", "top", "bottom", "iso"] },
-		  "fit" : { "type" : "boolean" }, "max_width" : { "type" : "integer" } } }),
+		  "fit" : { "type" : "boolean" }, "projection" : { "type" : "string", "enum" : ["perspective", "orthographic"] },
+		  "max_width" : { "type" : "integer" } } }),
 	  t_screenshot, true },
 	{ "export",
 	  "Export bodies (default: all visible) to STEP, IGES, STL (binary) or BREP. A relative path goes to HOME:/forge/; Korin paths "
@@ -1366,7 +1447,11 @@ std::string toolCall (const json_t *params)
 		} catch (const ToolErr &x) {
 			text = x.msg, err = true;
 		} catch (const Standard_Failure &x) {
+#if OCC_VERSION_HEX >= 0x080000
 			text = std::string ("OpenCASCADE: ") + x.what (), err = true;
+#else
+			text = std::string ("OpenCASCADE: ") + x.GetMessageString (), err = true;	// (OCCT 7 : le port Linux, linux-ports)
+#endif
 		} catch (const std::exception &x) {
 			text = std::string ("error: ") + x.what (), err = true;
 		}

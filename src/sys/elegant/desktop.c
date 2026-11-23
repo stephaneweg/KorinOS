@@ -35,10 +35,14 @@ static void dk_none_w(struct win *w)
 #define HID_LGUI 0xE3
 #define HID_RGUI 0xE7
 static long dk_super; /* Super appuyé, seul jusqu'ici */
+static long login_pid; /* > 0 : /sys/login tourne */
 
 static long dk_key(const u8 *in)
 {
 	u64 code = M64(in, 8);
+	if (!ov_enabled || login_pid > 0) /* (le bureau classique : Super va aux applications, comme avant ; pas de vue
+					      d'ensemble à l'écran de connexion) */
+		return 0;
 	if (code == HID_LGUI || code == HID_RGUI) {
 		if (M64(in, 16)) {
 			dk_super = 1;
@@ -102,7 +106,6 @@ void dk_init(void)
 #ifndef WR_EXITED
 #define WR_EXITED 1 /* (sortie : le code de sortie, < 0 : -signal) */
 #endif
-static long login_pid;          /* > 0 : /sys/login tourne */
 static int voronoy_early;       /* le fond à facettes lancé avant login (pas relancé par la session) */
 static long voronoy_pid;        /* (son pid : arrêté si la session ne le veut pas, session.off) */
 static int login_done;          /* 1 : la session est ouverte (ou il n'y a pas d'écran de connexion) */

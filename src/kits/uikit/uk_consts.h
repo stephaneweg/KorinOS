@@ -277,7 +277,7 @@
 #define WS_OP_WIN_PLACE 33
 #define WS_OP_WIN_TOP 40
 #define WS_OP_SESSION_END 41
-#define WS_OP_OVERVIEW 42 /* vue d'ensemble : a -1 basculer, 0 fermer, 1 ouvrir, 2 lire (ws_ext.inc) */
+#define WS_OP_OVERVIEW 42 /* vue d'ensemble : a -1 basculer, 0 fermer, 1 ouvrir, 2 lire ; 3 / 4 : le mode (ws_ext.inc) */
 #define WSM_W 0
 #define WSM_H 2
 #define WSM_FLAGS 4

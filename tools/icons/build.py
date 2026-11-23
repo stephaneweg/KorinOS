@@ -22,7 +22,7 @@ import numpy as np
 from PIL import Image
 
 from iconlib import Ic, reduce_to
-from art import ICONS, GLYPHS
+from art import ICONS, FREE, GLYPHS
 
 OUT = os.path.join(HERE, 'rendered')
 # les tailles dessinees a l'ecran : menus 16, Fichiers 20 et 48, Reglages 24, panel 26 a 38, dock 36 et 40, Logiciels 32,
@@ -39,9 +39,12 @@ TOOL_SIZES = (16, 18, 20)       # glyphes d'outils (tb-*) : trois tailles, ils s
 def master(name, small):
     top, bottom, art = ICONS[name]
     ic = Ic(small)
-    ic.tile(top, bottom)
+    free = name in FREE  # (un objet d'Adwaita, sans plaque : il porte sa propre épaisseur)
+    if not free:
+        ic.tile(top, bottom)
     art(ic)
-    ic.rim()
+    if not free:
+        ic.rim()
     return ic.pix
 
 

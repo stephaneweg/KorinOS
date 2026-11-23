@@ -440,6 +440,10 @@ void compose_clip(void)
 		ov_compose_clip();
 		goto cursor;
 	}
+	if (sw_on) { /* un bureau qui glisse vers un autre (overview.c) */
+		sw_compose_clip();
+		goto cursor;
+	}
 	struct win *cover = surf_cover(); /* une surface couvre la zone : rien dessous */
 	if (!cover)
 		policy->back();
@@ -487,8 +491,9 @@ void draw_window(struct win *w)
 	u64 f = w->flags;
 	if (f & WF_FRAMELESS) {
 		long a = ((f >> 8) & 1) & ~measure_opaque; /* (WF_ALPHA ; mesure : sans transparence) */
-		if ((f & WF_BLUR) && a)
-			glass_under(w); /* (le verre : flou dessous, ombre) */
+		if ((f & WF_BLUR) && a && !ov_on)
+			glass_under(w); /* (le verre : flou dessous, ombre ; pas dans la vue d'ensemble : la barre y est
+					   claire, sur le fond de la vue) */
 		bb_blit_any(w->surf, w->w * 4, w->x, w->y, w->w, w->h, a);
 		draw_surface(w, w->x, w->y); /* la surface attachée par-dessus (surface.c) */
 		return;
@@ -861,6 +866,39 @@ static void push_close(struct win *w)
 	win_push(w, evbuf);
 }
 
+/* la fenêtre qui a reçu le dernier survol : quand le pointeur la quitte (par une autre fenêtre, un cadre, le fond),
+ * un dernier déplacement en (-1, -1) lui dit qu'il n'est plus sur elle (sinon un titre de la barre de menus, une
+ * icône du dash restaient en surbrillance) */
+static struct win *hov_win;
+
+static void hover_to(struct win *w)
+{
+	struct win *o = hov_win;
+	hov_win = w;
+	if (!o || o == w)
+		return;
+	ev_clear();
+	M32(evbuf, EV_TYPE) = WEV_MOUSE;
+	M32(evbuf, 4) = 0;
+	M32(evbuf, EV_X) = (u32)-1;
+	M32(evbuf, EV_Y) = (u32)-1;
+	M32(evbuf, 16) = (u32)cur_buttons;
+	M32(evbuf, EV_MODS) = (u32)cur_mods;
+	win_push(o, evbuf);
+}
+
+/* -> le nombre de fenêtres qui prennent le clavier (une application, l'installateur de la clé...), sauf w */
+static long ov_start_pending; /* 1 : le dash est arrivé devant une fenêtre ; la vue s'ouvrira quand elle se fermera */
+static long apps_open(const struct win *w)
+{
+	long n = 0;
+	for (long i = 0; i < win_count; i++)
+		if (win_z[i] != w && !win_z[i]->mini &&
+		    !(win_z[i]->flags & (WF_OVERVIEW | WF_APPGRID | WF_BACK | WF_HOME | WF_NOFOCUS)))
+			n++;
+	return n;
+}
+
 /* x, y, boutons */
 void mouse(long x, long y, long buttons)
 {
@@ -913,19 +951,20 @@ void mouse(long x, long y, long buttons)
 		return;
 	}
 	/* --- la vue d'ensemble : ce qui n'est ni une barre, ni le dash, ni un menu */
-	if (ov_on && ov_mouse(x, y, down, up))
+	if (ov_on && ov_mouse(x, y, down, up)) {
+		if (!down)
+			hover_to(0);
 		return;
+	}
 	if (!down) { /* survol : le mode, puis le contenu sous le pointeur (fenêtre active, ou sans
 			focus : dock, barre de menus) */
-		if (policy->hover(x, y))
-			return;
 		long zone;
-		struct win *w = win_hit(x, y, &zone);
-		if (!w || zone != Z_CLIENT)
-			return;
-		if (!(w->flags & WF_NOFOCUS) && w != win_focus)
-			return;
-		send_mouse(w, 0);
+		struct win *w = policy->hover(x, y) ? 0 : win_hit(x, y, &zone);
+		if (w && (zone != Z_CLIENT || (!(w->flags & WF_NOFOCUS) && w != win_focus)))
+			w = 0;
+		hover_to(w);
+		if (w)
+			send_mouse(w, 0);
 		return;
 	}
 	if ((down & 1) && policy->click(x, y)) /* bouton gauche : le mode, puis les fenêtres */
@@ -1167,6 +1206,12 @@ void win_unlink(struct win *w)
 		capture_win = 0;
 	if (drag_win == w)
 		drag_win = 0;
+	if (hov_win == w)
+		hov_win = 0;
+	if (ov_start_pending && !ov_on && !apps_open(w)) { /* (la dernière fenêtre d'avant le dash : la vue d'ensemble) */
+		ov_start_pending = 0;
+		ov_open();
+	}
 	wins_changed();
 }
 
@@ -1448,6 +1493,16 @@ long req_create(void)
 		ov_close(desk_cur, w);
 	if ((role & WF_APPGRID) && !ov_on) /* la grille des applications : dans la vue d'ensemble */
 		ov_open();
+	if ((role & WF_OVERVIEW) && ov_enabled && !ov_on) { /* le dash arrive (une session commence) : sans application
+							     ouverte, la vue d'ensemble d'abord, pour lancer la première
+							     (demande de l'utilisateur, 23/11/2026) ; sinon (l'installateur
+							     de la clé), quand la dernière se ferme */
+		if (!apps_open(w))
+			ov_open();
+		else
+			ov_start_pending = 1;
+	} else if (!(role & (WF_OVERVIEW | WF_APPGRID | WF_BACK | WF_HOME | WF_NOFOCUS)))
+		ov_start_pending = 0; /* (une application s'ouvre : on y travaille déjà) */
 	M64(msg, WM_A) = (u64)buf;
 	M64(msg, WM_B) = frame ? content : 0;
 	M64(msg, WM_C) = frame ? content + frame : 0;

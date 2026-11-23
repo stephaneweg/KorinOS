@@ -1,9 +1,9 @@
 [package]
 name = "claudecode"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-description = "Claude Code pour Korin : le frontal de la CLI officielle d'Anthropic (sessions, chat), sur egui (docs/etude/LINUX-HOST.md)"
+description = "Claude Code pour Korin : le frontal de la CLI officielle d'Anthropic, l'interface de ClaudeCodeUI en egui (docs/etude/CLAUDECODE-UI.md)"
 publish = false
 
 [[bin]]
@@ -11,14 +11,61 @@ name = "claudecode"
 path = "src/main.rs"
 
 [dependencies]
-egui = { version = "0.37", default-features = false, features = ["default_fonts"] }
+# (les polices d'émojis monochromes, comme egui-korin : les mêmes glyphes sous Korin et sur l'hôte de développement)
+egui = { version = "0.37", default-features = false, features = ["default_fonts", "monochrome_emoji_fonts"] }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
+ccui-shared = { path = "crates/shared" }
+ccui-core = { path = "crates/core" }
+tokio = { version = "1", features = ["full"] }
+chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
+rust_decimal = { version = "1", default-features = false, features = ["std", "serde"] }
+
+[features]
+# l'hôte de développement Linux : la même interface dans une fenêtre eframe, ou en image (--shot) ; dev.rs
+dev = ["dep:eframe", "dep:hdrshot-egui-backend", "dep:png"]
 
 # l'hôte egui de Korin (docs/EGUI.md) : seulement pour la cible de Korin ; ailleurs (cargo test sur la machine de
 # construction) les modules sans fenêtre s'essaient seuls
 [target.'cfg(target_os = "korin")'.dependencies]
 egui-korin = { path = "../../lib/egui-korin" }
+
+[target.'cfg(not(target_os = "korin"))'.dependencies]
+eframe = { version = "0.37", optional = true, default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
+hdrshot-egui-backend = { version = "=0.2.0", optional = true, default-features = false, features = ["std"] }
+png = { version = "0.18", optional = true }
+
+[workspace]
+# ccui-shared et ccui-core : le moteur de ClaudeCodeUI (MIT, © 2026 Atypical Consulting ; crates/README.md)
+members = ["crates/shared", "crates/core"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+ccui-shared = { path = "crates/shared" }
+ccui-core = { path = "crates/core" }
+serde = { version = "1", features = ["derive"] }
+# preserve_order : l'ordre des clés compte (réglages réécrits en place, messages à la CLI)
+serde_json = { version = "1", features = ["preserve_order"] }
+chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
+rust_decimal = { version = "1", default-features = false, features = ["std", "serde"] }
+regex = "1"
+base64 = "0.22"
+sha1 = "0.10"
+hex = "0.4"
+html-escape = "0.2"
+unicode-normalization = "0.1"
+unicode-general-category = "1"
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+parking_lot = "0.12"
+dirs = "6"
+dunce = "1"
+libc = "0.2"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("korin"))'] }

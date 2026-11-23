@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-23 01:31
+date = 2026-11-23 22:29
 abi = 629
 packages = 117
 board = pc
@@ -724,18 +724,18 @@ content = abbe00f72f244a9ded8a32ece9a30d41e4882fa84f05b9a081019e35c1ec0163
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.93
+version = 2026.11.94
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 32104374
-installed = 96507713
-sha256 = 164a4b8abd188793697edc0812068283a550f75ea34440d89f2a49f3df7af512
-file = pkgs/pc-2026.11.93.opk
+size = 34194066
+installed = 100918089
+sha256 = 6b41b7aaf23affa4e1500a60d704d55bf9be5d0797aab1f8aaca50439aaaa4ad
+file = pkgs/pc-2026.11.94.opk
 needs = 
 required = 1
 restart = 1
-content = da11d8e24621bcdece4e63bbbfd76a85b1b493b923fa0385113fadf33106350b
+content = 25421fc9168af78cbadd92b0f53019b1d4e97af2f5302815bbc8ffc29883977e
 
 [2048]
 title = 2048
@@ -829,18 +829,18 @@ content = ba2e800410de12765a9d2b50e701da00489707fc7c2c53436b38a621fef7464d
 
 [budget]
 title = Budget mensuel
-version = 1.0.7
+version = 1.0.8
 category = Bureautique
 author = Korin OS
 summary = Le budget du mois : charges, paiements, chèques repas, dépenses courantes, reste par jour et synchronisation bancaire Enable Banking (les fichiers de l'app Windows)
-size = 2395099
-installed = 6094504
-sha256 = 2f122b8d5a34b8dd2ba660876dd67e8ad7aa16fabe3ed7e802a5186bf5b272e1
-file = pkgs/budget-1.0.7.opk
+size = 2406319
+installed = 6111208
+sha256 = 796f0ed2352e9bd073e48a668d45084239aaf8c965453d46d016d4c180cc24d7
+file = pkgs/budget-1.0.8.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 2fa87abd17f50ec4b0ab112ea2de2f93a9d301b97d91aaf66c3bab757e6ea398
+content = 095e8ef7ff4294482116527146a5ed8a34e273ba5115de841bff1285c7407514
 
 [builder]
 title = PiBuild
@@ -1009,18 +1009,18 @@ content = 792079d68767402d32b6552f4362830db0203ba1d457e4f365b9fd448337a48c
 
 [forge]
 title = Forge
-version = 1.3.7
+version = 1.3.11
 category = Création
 author = Korin OS
 summary = La CAO de Korin : solides exacts d'OpenCASCADE, formes au geste, pousser/tirer, congés sur toute arête, historique modifiable, pilotable par un agent (MCP)
-size = 12869637
-installed = 31814447
-sha256 = a9c36a30e27df55bcb9c47009f0df1a6f4559d5ad442dbf8de416b54061457d9
-file = pkgs/forge-1.3.7.opk
+size = 12943028
+installed = 31953388
+sha256 = e617a9d214be538588bb41a6bde98feb26de88a9be689a7a267fec41553bded0
+file = pkgs/forge-1.3.11.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = a63665aa94e8d7596b7db6e1bc775f2b2dc5ae5747fcb2d57b871289b7f66511
+content = 7b6b65ccd6f10d70bdfb01b439f05907a68503ae900520ecbf195e24c75a9922
 
 [freecell]
 title = FreeCell
@@ -2104,18 +2104,18 @@ content = af2f547cc615197d129148483c0b24bdd7752b305b011ace6ee5ff4ce89e9b7b
 
 [claude-code]
 title = Claude Code
-version = 2.1.330.9
+version = 2.1.330.10
 category = Développement
 author = Korin OS
 summary = Claude Code, l'agent de code d'Anthropic, par votre abonnement Claude (Pro, Max, Team) : la commande claude au Terminal, et Craft Anything s'en sert (téléchargé chez Anthropic à l'installation, 380 Mo)
-size = 4063518
-installed = 390070704
-sha256 = 04408b68adabec0dc724453dd8fba1a56b96635289baaf4f2a2753f869dd50cc
-file = pkgs/claude-code-2.1.330.9.opk
+size = 7215756
+installed = 398439405
+sha256 = a03327b97d808183ee5b6f0a27b14f3e169851f8ee1fce05c54506e9a548f7ab
+file = pkgs/claude-code-2.1.330.10.opk
 needs = linuxhost, bash, git, rg, python, pkgman >= 1.0.21, abi >= 627
 required = 0
 restart = 0
-content = 66e4149db9dd276bc23072e252a2b2cbb2b1c3bb6e77fcccf990fd03e8398b64
+content = 2336125c79c1a4185f9a17b9fa755ece05ef3789ec89c3db6bd4e072174b7956
 
 [rust-data-1]
 title = Rust (1/1)

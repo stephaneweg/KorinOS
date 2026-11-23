@@ -22,6 +22,7 @@
 #include <NCollection_IndexedMap.hxx>
 #include <STEPControl_Writer.hxx>
 #include <Standard_Failure.hxx>
+#include <Standard_Version.hxx>
 #include <StlAPI_Writer.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
@@ -185,7 +186,11 @@ std::string exportBodies (const std::vector<const Body *> &bodies, const std::st
 		} else
 			return "format inconnu : " + format + " (step, iges, stl, brep)";
 	} catch (const Standard_Failure &x) {
+#if OCC_VERSION_HEX >= 0x080000
 		return std::string ("OpenCASCADE : ") + x.what ();
+#else
+		return std::string ("OpenCASCADE : ") + x.GetMessageString ();	// (OCCT 7 : le port Linux, linux-ports)
+#endif
 	}
 	return "";
 }

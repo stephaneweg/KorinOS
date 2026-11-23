@@ -70,12 +70,16 @@ static const char ec_s_back[] = "La r\xC3\xA9solution d'avant est revenue.";
 static const char ec_s_refused[] = "Cette r\xC3\xA9solution est refus\xC3\xA9" "e.";
 static const char ec_s_q1[] = "Garder cette r\xC3\xA9solution ? Retour dans ";
 static const char ec_s_interface[] = "Interface";
-static const char ec_s_desktop[] = "Bureau";
+static const char ec_s_desktop[] = "Bureau classique";
+static const char ec_s_overview[] = "Vue d'ensemble";
 static const char ec_s_pocket[] = "Poche";
 static const char ec_s_desktop_d[] = "Fen\xC3\xAAtres, panel en bas";
-static const char ec_s_pocket_d[] = "Plein \xC3\xA9" "cran, accueil, tactile";
+static const char ec_s_overview_d[] = "Bureaux en carrousel, dash";
+static const char ec_s_pocket_d[] = "Plein \xC3\xA9" "cran, tactile";
 static const char ec_s_size[] = "Taille des contr\xC3\xB4les";
-static const char ec_s_warn[] = "Passer \xC3\xA0 Poche relance la session. Les apps ouvertes sont ferm\xC3\xA9" "es.";
+static const char ec_s_warn[] = "Passer en Poche, ou en revenir, red\xC3\xA9marre : les apps ouvertes sont ferm\xC3\xA9" "es.";
+static const char ec_s_apply[] = "Appliquer";
+static const char ec_s_applied[] = "Le bureau a chang\xC3\xA9.";
 static const char ec_s_relaunch[] = "Appliquer et relancer";
 static const char ec_s_reboot[] = "Red\xC3\xA9marrage...";
 static const char ec_s_failed[] = "init2 ne r\xC3\xA9pond pas : red\xC3\xA9marrez \xC3\xA0 la main.";
@@ -88,16 +92,21 @@ static long ec_w_label, ec_w_bar;
 static WsMode ec_modes[EC_MAX];
 static char ec_labels[EC_MAX][EC_LABEL];
 static char ec_line[96];
-static long ec_shell;				/* system.ini : 1 poche */
+static long ec_shell;				/* system.ini : 0 bureau classique, 1 vue d'ensemble, 2 poche */
+static long ec_sys_pocket, ec_sys_ov;		/* (lecture : shell = poche, desktop = overview) */
 static long ec_dens;				/* (lecture) theme.txt : 1 touch */
 static long ec_dens_read;			/* la densité du fichier */
-static long ec_choice;				/* carte choisie : 0 Bureau, 1 Poche */
+static long ec_choice;				/* carte choisie : 0 bureau classique, 1 vue d'ensemble, 2 poche */
 static long ec_w_seg;				/* Normale | Tactile */
 static long ec_cw;				/* largeur d'une carte */
-static long ec_cx[2];				/* leurs x */
+static long ec_cx[3];				/* leurs x */
 static WsMsg ec_msg;
 
 /* op, a, b, c -> résultat (réponse dans ec_msg) */
+#ifndef WS_OP_OVERVIEW
+#define WS_OP_OVERVIEW 42	/* (ws_ext.inc) 3 : vue d'ensemble, 4 : bureau classique */
+#endif
+
 static long ec_call (long op, long a, long b, long c)
 {
 	ec_msg.op = op;
@@ -207,7 +216,9 @@ static long ec_confirm (void)
 static void ec_ini_sys (char *key, char *val, void *)
 {
 	if (!strcmp (key, "shell"))
-		ec_shell = !strcmp (val, "poche");
+		ec_sys_pocket = !strcmp (val, "poche");
+	if (!strcmp (key, "desktop"))
+		ec_sys_ov = strcmp (val, "classic") != 0;	/* (la vue d'ensemble par défaut) */
 }
 
 /* (ini_read de theme.txt) */
@@ -257,9 +268,29 @@ static void ec_win (long x, long y, long w, long h)
 	ui_fill (x + 4, y + 4, w - 8, 3, tok (TJ_LINE));
 }
 
-/* x, y = coin, pocket = 0 bureau / 1 poche : la petite image du mode */
-static void ec_thumb (long x, long y, long pocket)
+/* x, y = coin, mode = 0 bureau classique / 1 vue d'ensemble / 2 poche : la petite image du mode */
+static void ec_thumb (long x, long y, long mode)
 {
+	long pocket = mode == 2;
+	if (mode == 1)				/* vue d'ensemble : le fond sombre, un bureau au milieu et ses voisins, le dash */
+	{
+		uint32_t dark = (uint32_t) ui_mix (tok (TJ_TEXT1), 0, 128);
+		ui_rbox (x, y, EC_VIG_W, EC_VIG_H, 5, dark, dark);
+		uint32_t d = tok (TJ_SUNKEN);
+		ui_rbox (x + 22, y + 9, EC_VIG_W - 44, 42, 3, d, d);	/* le bureau du milieu */
+		ui_rbox (x + 4, y + 13, 12, 34, 2, (uint32_t) ui_mix (d, dark, 110), (uint32_t) ui_mix (d, dark, 110));
+		ui_rbox (x + EC_VIG_W - 16, y + 13, 12, 34, 2, (uint32_t) ui_mix (d, dark, 110), (uint32_t) ui_mix (d, dark, 110));
+		ec_win (x + 30, y + 17, 26, 18);	/* ses fenêtres, côte à côte */
+		ec_win (x + 60, y + 19, 24, 16);
+		uint32_t g = (uint32_t) ui_mix (dark, 0x00FFFFFF, 40);	/* le dash */
+		ui_rbox (x + EC_VIG_W / 2 - 24, y + EC_VIG_H - 14, 48, 10, 3, g, g);
+		for (long i = 0; i < 4; i++)
+		{
+			uint32_t c = tok (i ? TJ_LINE_STRONG : TJ_ACCENT);
+			ui_rbox (x + EC_VIG_W / 2 - 20 + i * 11, y + EC_VIG_H - 12, 7, 6, 2, c, c);
+		}
+		return;
+	}
 	ui_rbox (x, y, EC_VIG_W, EC_VIG_H, 5, tok (TJ_LINE_STRONG), tok (TJ_LINE_STRONG));	/* l'écran */
 	ui_rbox (x + 1, y + 1, EC_VIG_W - 2, EC_VIG_H - 2, 4, tok (TJ_SUNKEN), tok (TJ_SUNKEN));
 	ui_fill (x + 1, y + 1, EC_VIG_W - 2, 6, tok (TJ_BAR));	/* la barre du haut */
@@ -295,9 +326,9 @@ static void ec_draw (void)
 		ui_w_move (ec_w_seg, x + w - EC_SEG_W, EC_DENS_Y, EC_SEG_W, EC_SEG_H);
 	fm_draw ();
 	ui_text ((long) TR (ec_s_interface), x + 2, EC_IF_Y, tok (TJ_TEXT1), 14, FB (), 0);	/* titre */
-	long cw = (long) ((unsigned long) (w - 12) >> 1);	/* deux cartes */
+	long cw = (w - 24) / 3;			/* trois cartes */
 	ec_cw = cw;
-	for (long i = 0; i < 2; i++)
+	for (long i = 0; i < 3; i++)
 	{
 		long cx = x + i * (cw + 12), sel = ec_choice == i;
 		ec_cx[i] = cx;
@@ -306,11 +337,11 @@ static void ec_draw (void)
 		c = tok (sel ? TJ_ACCENT_LIGHT : TJ_FACE);
 		ui_rbox (cx + 1 + sel, EC_CARD_Y + 1 + sel, cw - 2 - 2 * sel, EC_CARD_H - 2 - 2 * sel, FM_RADIUS - 1, c, c);
 		ec_thumb (cx + (long) ((unsigned long) (cw - EC_VIG_W) >> 1), EC_CARD_Y + 12, i);	/* la vignette, centrée */
-		const char *t = TR (i ? ec_s_pocket : ec_s_desktop);	/* nom, description */
+		const char *t = TR (i == 2 ? ec_s_pocket : i ? ec_s_overview : ec_s_desktop);	/* nom, description */
 		long tw = ui_text_width ((long) t, 14, FB ());
 		ui_text ((long) t, cx + (long) ((unsigned long) (cw - tw) >> 1), EC_CARD_Y + EC_VIG_H + 32,
 			 tok (sel ? TJ_ACCENT_DARK : TJ_TEXT1), 14, FB (), 0);
-		t = TR (i ? ec_s_pocket_d : ec_s_desktop_d);
+		t = TR (i == 2 ? ec_s_pocket_d : i ? ec_s_overview_d : ec_s_desktop_d);
 		tw = cw - ui_text_width ((long) t, 12, F ());
 		if (tw < 0)
 			tw = 0;
@@ -321,7 +352,8 @@ static void ec_draw (void)
 	if (ec_w_seg)				/* (par-dessus le fond du volet) */
 		ui_w_draw (ec_w_seg);
 	ui_text ((long) TR (ec_s_warn), x + 2, EC_WARN_Y, tok (TJ_TEXT2), 13, F (), w);	/* l'avertissement, le bouton */
-	ui_button (x, EC_BTN_Y, EC_BTN_W, EC_BTN_H, (long) TR (ec_s_relaunch), ec_shell != ec_choice);	/* principal si
+	long live = ec_shell != 2 && ec_choice != 2;	/* (bureau classique <-> vue d'ensemble : sans redémarrer) */
+	ui_button (x, EC_BTN_Y, EC_BTN_W, EC_BTN_H, (long) TR (live ? ec_s_apply : ec_s_relaunch), ec_shell != ec_choice);	/* principal si
 												 * le mode change */
 }
 
@@ -333,7 +365,19 @@ static void ec_relaunch (void)
 		ec_dens_read = ui_w_get_value (ec_w_seg) == 1;
 		ec_dens_write ();
 	}
-	ini_set (P_SYSTEM, "shell", ec_choice ? "poche" : "desktop");	/* le mode */
+	if (ec_shell != 2 && ec_choice != 2)	/* bureau classique <-> vue d'ensemble : tout de suite, sans redémarrer */
+	{
+		const char *v = ec_choice ? "overview" : "classic";
+		ini_set (P_SYSTEM, "desktop", v);
+		ec_call (WS_OP_OVERVIEW, ec_choice ? 3 : 4, 0, 0);	/* Elegant d'abord (synchrone), */
+		bus_publish ((long) "korin.shell.desktop", (long) v, -1, BUS_RETAIN);	/* puis le panel se relance */
+		ec_shell = ec_choice;
+		ap.msg = ec_s_applied;
+		return;
+	}
+	ini_set (P_SYSTEM, "shell", ec_choice == 2 ? "poche" : "desktop");	/* le mode */
+	if (ec_choice < 2)			/* le genre du bureau (Elegant, le panel, la barre de menus) */
+		ini_set (P_SYSTEM, "desktop", ec_choice ? "overview" : "classic");
 	ap.msg = ec_s_reboot;			/* « Redémarrage... », vu un instant */
 	draw ();
 	sys_sleep (400);
@@ -353,7 +397,7 @@ static int ec_xclick (long x, long y)
 {
 	if (y >= EC_CARD_Y && y < EC_CARD_Y + EC_CARD_H)	/* les cartes */
 	{
-		for (long i = 0; i < 2; i++)
+		for (long i = 0; i < 3; i++)
 			if (x >= ec_cx[i] && x < ec_cx[i] + ec_cw)
 			{
 				ec_choice = i;
@@ -383,8 +427,10 @@ static void ec_close (void)
 /* (ouverture) l'état des fichiers, la liste Normale | Tactile, le dessin et les clics de la section */
 static void ec_if_open (void)
 {
-	ec_shell = 0;
-	ini_read (P_SYSTEM, ec_ini_sys);	/* shell = poche ? */
+	ec_sys_pocket = 0;
+	ec_sys_ov = 1;				/* (sans clé : la vue d'ensemble) */
+	ini_read (P_SYSTEM, ec_ini_sys);	/* shell = poche ? desktop = overview ? */
+	ec_shell = ec_sys_pocket ? 2 : ec_sys_ov ? 1 : 0;
 	ec_dens_read = display_density_file ();	/* density = touch ? */
 	ec_choice = ec_shell;
 	ec_w_seg = ui_segmented (ui.w - (AP_MARGIN + (long) EC_SEG_W), EC_DENS_Y, EC_SEG_W, EC_SEG_H,

@@ -105,5 +105,14 @@ diffère du python 1.0.3 publié, plus récent : la date affichée sert à voir 
 **weather 1.0.1 PC (20/11, main 34ea92e)** : publié depuis le cloud par `pub.py weather --tree build/pc/apps/sdroot
 --only apps/weather.app/main` après `setup.sh root`, `base toolchains` (18 min sur 4 cœurs), `ARCH=x86_64
 tools/posix/build.sh`, `tools/pc/apps.sh weather`. Dans cet environnement du cloud, la clé est dans **`ONYX_PKG_KEY`**
-(PEM), pas `OnyxPkgKey` que lit pub.py : `OnyxPkgKey="$ONYX_PKG_KEY" python3 tools/pkg/pub.py …`. Le Pi n'a pas weather
+(PEM) ; depuis le 23/11, pub.py et publish.sh lisent `OnyxPkgKey` ou `ONYX_PKG_KEY` (plus besoin de la passer). Le Pi n'a pas weather
 dans son index publié.
+
+**23/11 (soir), publiés depuis le cloud** (pub.py --api, clé ONYX_PKG_KEY) : pc 2026.11.94 (vue d'ensemble, dash,
+quickmenu, login façon Fedora, umount, polices Noto, icônes Adwaita ; --add-new), budget 1.0.8, claude-code
+2.1.330.10 (--only apps/claudecode.app/ ; chaîne Rust du PC refaite par ARCH=x86_64 SKIP_TESTS=1 tools/rust/build.sh,
+quelques minutes). **forge 1.3.11 publié** (essayé sous QEMU : l'équerre, Esquisse/Extrusion/Combiner) : les archives GitHub
+(codeload) d'OCCT et de FreeCAD sont refusées par le proxy (403), mais `git clone` des dépôts publics passe (accord
+de l'utilisateur) : clone --depth 1 du tag (OCCT V8_0_1 = b8f597c, FreeCAD 1.1.4 = 4fd3bf3, sparse planegcs), arbres
+posés dans ~/korin-cao/src aux noms de fetch.sh (git archive ne retombe pas sur le SHA-256 de GitHub), Eigen par
+GitLab (SHA bon) ; build-occt.sh 26 min sur 4 cœurs, build-planegcs.sh, apps.sh forge, pub.py forge.

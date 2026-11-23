@@ -8,7 +8,7 @@
 
 /* ---- elegant.c (elegant.asm) */
 
-#define INI_MAX 1024
+#define INI_MAX 8192 /* (system.ini et ses commentaires dépassent 1 Kio : une clé ajoutée à la fin n'était pas lue) */
 #define WIN_RESTORE_N 5 /* win_restore : x, y, l, h d'avant, 1 si agrandie */
 
 extern u64 info[5];         /* SYS_WS_DISPLAY / SYS_WS_MODE : adresse, largeur, hauteur, pas,

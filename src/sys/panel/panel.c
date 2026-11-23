@@ -1,5 +1,7 @@
 /* panel : le dash du bureau Elegant (/sys/panel, lancé par la session), comme celui de GNOME
- * (23/11/2026 ; docs/DESIGN-ELEGANT.md 8.9 et 19). Il n'est montré que dans la vue d'ensemble
+ * (23/11/2026 ; docs/DESIGN-ELEGANT.md 8.9 et 19), quand le bureau est en vue d'ensemble
+ * (le défaut ; avec desktop=classic de /etc/system.ini, le bureau classique : la barre d'avant,
+ * panel_classic.c). Il n'est montré que dans la vue d'ensemble
  * (rôle WF_OVERVIEW : Elegant le cache dans la vue normale) : un bandeau de verre arrondi,
  * centré en bas de l'écran, de la largeur de son contenu :
  *   - les RACCOURCIS (panelconf : /etc/panel.ini), puis les applications ouvertes qui n'en ont
@@ -28,8 +30,8 @@ static const int ech[3][4] = {
 	{62, 54, 42, 13},
 	{56, 48, 36, 12},
 };
-#define FLAT_T_LIGHT 0x30 /* transparence du bandeau : Givre, */
-#define FLAT_T_DARK 0x28  /* Onyx Noir */
+#define FLAT_T 0xE8     /* transparence du bandeau : un voile clair à peine (≈ 9 %) sur le fond sombre de la vue */
+#define FLAT_T_HOVER 0xC8 /* survol (≈ 22 %) */
 static struct {
 	long bh, cw, icon, rad;
 } cur;
@@ -51,13 +53,13 @@ static long sl_x[SL_MAX];
 static u8 sl_app[SL_MAX];
 static long shown;   /* 1 : la vue d'ensemble est ouverte (le dash se voit) */
 static long grid_open; /* 1 : la grille des applications est montrée (« Applications » allumé) */
+/* le glisser d'une icône (réorganiser le dash, 23/11/2026) : l'emplacement appuyé, le glisser commencé, le pointeur,
+ * la place visée */
+static long dg_slot = -1, dg_on, dg_x0, dg_mx, dg_to;
+#define DG_START 6 /* px avant qu'un appui devienne un glisser */
 
 static void draw(void);
 
-static u32 tok(long off)
-{
-	return M32(ui_tokens(), off);
-}
 
 /* ---------------------------------------------------------------------------
  *  Disposition
@@ -208,11 +210,17 @@ static u32 mix4(u32 a, u32 b, u32 k)
 	return o;
 }
 
-/* -> la teinte du bandeau : le dock du thème, unie et un peu translucide (flat, 23/11/2026) */
+/* -> l'encre sur le fond de la vue d'ensemble (toujours sombre : le fond d'écran assombri par Elegant) */
+static u32 dash_ink(void)
+{
+	return (u32)ui_ink(0x00202124) & 0xFFFFFF;
+}
+
+/* -> la teinte du bandeau : un voile de l'encre claire, à peine plus clair que le fond de la vue (flat, comme le
+ * dash de GNOME ; 23/11/2026) */
 static u32 flat_colour(void)
 {
-	int dark = tok(TJ_DARK) != 0;
-	return (tok(TJ_DOCK) & 0xFFFFFF) | (u32)(dark ? FLAT_T_DARK : FLAT_T_LIGHT) << 24;
+	return dash_ink() | (u32)FLAT_T << 24;
 }
 
 /* boîte arrondie unie, écrite dans les pixels : coins lissés sur le fond bg (0xTTRRGGBB) */
@@ -256,10 +264,8 @@ static void draw_body(void)
 /* x, largeur : le fond d'un élément survolé, la teinte du bandeau un peu plus marquée */
 static void hover_box(long x, long w)
 {
-	int dark = tok(TJ_DARK) != 0;
 	u32 bg = flat_colour();
-	u32 c = ((u32)ui_mix(bg & 0xFFFFFF, dark ? 0x00FFFFFF : tok(TJ_TEXT1) & 0xFFFFFF, dark ? 40 : 28) & 0xFFFFFF) |
-		(bg & 0xFF000000);
+	u32 c = dash_ink() | (u32)FLAT_T_HOVER << 24;
 	flat_rbox(x + 3, SH_M + 5, w - 6, cur.bh - 10, cur.rad - 4 > 6 ? cur.rad - 4 : 6, c, bg);
 }
 
@@ -268,7 +274,7 @@ static void draw_apps(void)
 	u8 *tj = (u8 *)ui_tokens();
 	long cw = cur.cw;
 	int dark = M32(tj, TJ_DARK) != 0;
-	u32 ink = M32(tj, TJ_TEXT1);
+	u32 ink = dash_ink();
 	if (hover == HIT_APPS || grid_open) {
 		hover_box(apps_x, cw);
 		ink = M32(tj, dark ? TJ_ACCENT_VIVID : TJ_ACCENT);
@@ -277,13 +283,103 @@ static void draw_apps(void)
 	ui_glyph((long)"glyph-apps", apps_x + (cw - side) / 2, SH_M + (cur.bh - side) / 2, side, ink);
 }
 
+/* (glisser) la place visée par le pointeur : épinglée, parmi les épinglées ; ouverte, n'importe où (posée parmi les
+ * épinglées ou juste après, elle s'épingle là) */
+static long dg_target(void)
+{
+	long t = nslots ? (dg_mx - sl_x[0] + cur.cw / 2) / cur.cw : 0;
+	if (dg_mx < sl_x[0])
+		t = 0;
+	long hi = dg_slot < npinned ? npinned - 1 : nslots - 1;
+	if (t > hi)
+		t = hi;
+	if (t < 0)
+		t = 0;
+	return t;
+}
+
+/* (glisser) l'emplacement dessiné à la place k : les autres se poussent pour laisser la place visée */
+static long dg_slot_at(long k)
+{
+	if (k == dg_to)
+		return dg_slot;
+	long i = k;
+	if (dg_slot < dg_to && k >= dg_slot && k < dg_to)
+		i = k + 1;
+	else if (dg_slot > dg_to && k > dg_to && k <= dg_slot)
+		i = k - 1;
+	return i;
+}
+
+/* (glisser) le rang dans panel.ini de l'épinglée montrée à la place k (une épinglée dont l'application manque n'a
+ * pas de place : les deux rangs diffèrent alors) */
+static long dg_pin_of(long k)
+{
+	for (long i = 0; i < pan_npin; i++)
+		if (str_eq(pan_pin[i], ap_nom[sl_app[k]]))
+			return i;
+	return -1;
+}
+
+/* (glisser) posée : l'ordre des raccourcis change (panel.ini) ; une ouverte posée parmi eux s'épingle là */
+static void dg_drop(void)
+{
+	if (dg_to == dg_slot)
+		return;
+	char name[AP_NOM];
+	str_copy_n(name, ap_nom[sl_app[dg_slot]], AP_NOM);
+	if (dg_slot < npinned) { /* une épinglée : à la place de celle visée, dans les épinglées */
+		long from = dg_pin_of(dg_slot), to = dg_pin_of(dg_to);
+		if (from < 0 || to < 0)
+			return;
+		if (from < to)
+			mem_move(pan_pin[from], pan_pin[from + 1], (u64)(to - from) * AP_NOM);
+		else
+			mem_move(pan_pin[to + 1], pan_pin[to], (u64)(from - to) * AP_NOM);
+		str_copy_n(pan_pin[to], name, AP_NOM);
+	} else { /* une ouverte : épinglée si posée parmi les épinglées (ou juste après) */
+		if (dg_to > npinned || pan_npin >= PANEL_MAXPINS)
+			return;
+		long to = dg_to < npinned ? dg_pin_of(dg_to) : (npinned ? dg_pin_of(npinned - 1) + 1 : 0);
+		if (to < 0)
+			to = pan_npin;
+		mem_move(pan_pin[to + 1], pan_pin[to], (u64)(pan_npin - to) * AP_NOM);
+		str_copy_n(pan_pin[to], name, AP_NOM);
+		pan_npin++;
+	}
+	if (pan_save() < 0)
+		say("panel : panel.ini non écrit\n");
+}
+
 static void draw(void)
 {
 	if (!ui.surf)
 		return;
-	u8 *tj = (u8 *)ui_tokens();
 	draw_body();
 	long top = SH_M, bh = cur.bh, cw = cur.cw, ic = cur.icon;
+	if (dg_on) { /* --- un glisser : les autres icônes se poussent, celle tenue suit le pointeur, un peu levée */
+		for (long k = 0; k < nslots; k++) {
+			long i = dg_slot_at(k);
+			if (i == dg_slot)
+				continue;
+			long x = sl_x[k], app = sl_app[i];
+			ui_icon((long)ap_nom[app], x + (cw - ic) / 2, top + (bh - ic) / 2 - 3, ic);
+			if (pids[app]) {
+				u32 v = dash_ink();
+				ui_rbox(x + cw / 2 - 2, top + bh - 8, 5, 5, 2, v, v);
+			}
+		}
+		hover_box(sl_x[dg_to], cw); /* (la place où elle irait) */
+		long dx = dg_mx - cw / 2;
+		if (dx < SH_M)
+			dx = SH_M;
+		if (dx > ui.w - SH_M - cw)
+			dx = ui.w - SH_M - cw;
+		ui_icon((long)ap_nom[sl_app[dg_slot]], dx + (cw - ic) / 2, top + (bh - ic) / 2 - 7, ic);
+		draw_apps();
+		ui_update_all();
+		return;
+	}
 	for (long i = 0; i < nslots; i++) { /* --- emplacements */
 		long x = sl_x[i];
 		if (hover == i)
@@ -291,13 +387,12 @@ static void draw(void)
 		long app = sl_app[i];
 		ui_icon((long)ap_nom[app], x + (cw - ic) / 2, top + (bh - ic) / 2 - 3, ic);
 		if (pids[app]) { /* un point sous une application ouverte */
-			u32 v = M32(tj, TJ_DARK) ? M32(tj, TJ_TEXT1) : M32(tj, TJ_ACCENT);
+			u32 v = dash_ink();
 			ui_rbox(x + cw / 2 - 2, top + bh - 8, 5, 5, 2, v, v);
 		}
 	}
 	if (nslots) { /* --- séparateur */
-		u32 c = M32(tj, TJ_DARK) ? M32(tj, TJ_LINE_STRONG) : M32(tj, TJ_TEXT3);
-		ui_fill(apps_x - SEP_W / 2 - 1, top + 14, 1, bh - 28, (c & 0xFFFFFF) | 0x90000000);
+		ui_fill(apps_x - SEP_W / 2 - 1, top + 14, 1, bh - 28, dash_ink() | 0xB0000000);
 	}
 	draw_apps();
 	ui_update_all();
@@ -461,10 +556,26 @@ static void tick(void)
 	}
 }
 
+int classic_main(void); /* panel_classic.c */
+
+/* le bureau a changé de genre (korin.shell.desktop, les Réglages : Elegant le sait déjà) : un panel neuf, qui
+ * prend l'autre forme, puis celui-ci s'arrête (ses fenêtres partent avec lui) */
+void panel_respawn(void)
+{
+	ksys(SYS_SPAWN, (long)"/sys/panel", 0, 0, 0, 0, 0);
+	_exit(0);
+}
+
 int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
+	/* le bureau classique (desktop=classic : Elegant n'a pas de vue d'ensemble) : la barre d'avant */
+	M64(pan_msg, WM_OP) = WS_OP_OVERVIEW;
+	M64(pan_msg, WM_A) = 2;
+	M32(pan_msg, WM_LEN) = 0;
+	if (ksys(SYS_WS_CALL, (long)pan_msg, 0, 0, 0, 0, 0) < 0)
+		return classic_main();
 	ui_init((long)&ui);
 	if (ui_screen((long)scr) < 0)
 		_exit(0);
@@ -483,6 +594,7 @@ int main(int argc, char **argv)
 	draw();
 	/* le bouton d'alimentation du PC (acpid, docs/etude/BATTERIE-PC.md) : le dialogue d'extinction */
 	long power_sub = bus_subscribe((long)"korin.power.button", 0);
+	long mode_sub = bus_subscribe((long)"korin.shell.desktop", 0); /* (les Réglages changent le bureau) */
 	say("panel : bureau prêt\n"); /* au journal, avec son heure : le repère du démarrage (docs/BOOT.md) */
 	for (;;) {
 		long t = ui_event(1000);
@@ -509,6 +621,8 @@ int main(int argc, char **argv)
 		if (t == WEV_BUS) {
 			if (power_sub > 0 && *(u32 *)(ui.ev + BEV_SUB) == (u32)power_sub)
 				ksys(SYS_SPAWN, (long)"/sys/shutdown", 0, 0, 0, 0, 0);
+			if (mode_sub > 0 && *(u32 *)(ui.ev + BEV_SUB) == (u32)mode_sub)
+				panel_respawn();
 			continue;
 		}
 		if (t != WEV_MOUSE)
@@ -516,7 +630,36 @@ int main(int argc, char **argv)
 		tip_ticks = 0;
 		long mx = *(i32 *)(ui.ev + EV_X), my = *(i32 *)(ui.ev + EV_Y);
 		long h = hit(mx, my);
-		if (*(u32 *)(ui.ev + EV_KIND) != 1) {
+		u32 kind = *(u32 *)(ui.ev + EV_KIND);
+		if (dg_slot >= 0 && kind == 0) { /* un appui tenu sur une icône : au-delà de DG_START px, un glisser */
+			if (!dg_on && (mx - dg_x0 > DG_START || dg_x0 - mx > DG_START)) {
+				dg_on = 1;
+				hover_set(-1);
+			}
+			if (dg_on) {
+				dg_mx = mx;
+				dg_to = dg_target();
+				draw();
+			}
+			continue;
+		}
+		if (dg_slot >= 0 && kind == 2) { /* relâché : posée (glisser), ou un clic (l'application) */
+			long s = dg_slot, was = dg_on;
+			if (was)
+				dg_drop();
+			dg_slot = -1;
+			dg_on = 0;
+			if (was) {
+				relayout();
+				hover_set(h);
+			} else {
+				hover_set(-1);
+				app_open(sl_app[s]); /* (Elegant referme la vue d'ensemble) */
+				tick();
+			}
+			continue;
+		}
+		if (kind != 1) {
 			hover_set(h);
 			continue;
 		}
@@ -527,9 +670,11 @@ int main(int argc, char **argv)
 				slot_menu(-1, pan_x + mx);
 			continue;
 		}
-		if (h >= 0) {
-			hover_set(-1);
-			app_open(sl_app[h]); /* (Elegant referme la vue d'ensemble) */
+		if (h >= 0) { /* l'appui : un clic (au relâché) ou un glisser (réorganiser) */
+			dg_slot = h;
+			dg_x0 = dg_mx = mx;
+			dg_on = 0;
+			continue;
 		} else if (h == HIT_APPS) {
 			hover_set(-1);
 			/* la grille des applications de la vue d'ensemble (Elegant fait monter les bureaux en

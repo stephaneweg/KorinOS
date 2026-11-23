@@ -125,6 +125,7 @@ static long bar_h = 30;
 static long hov;            /* titre survolé + 1 (0 : aucun) */
 static long ov_sub;         /* korin.shell.overview (Elegant : la vue d'ensemble) */
 static long ov_shown;       /* 1 : la vue d'ensemble est ouverte (« Korin OS » allumé) */
+static long ov_mode;        /* 1 : le bureau est en vue d'ensemble (desktop=overview) ; 0 : le bureau classique */
 static long tray_x0 = 1 << 30; /* zone d'état (heure, batterie, réseau, son) : début ; un clic : réglages rapides */
 static long tray_hov;       /* 1 : la zone d'état est survolée */
 static long open_menu;      /* titre ouvert + 1 (0 : aucun) */
@@ -171,7 +172,32 @@ static void draw(void);
  *  Petits outils
  * --------------------------------------------------------------------------- */
 
-static u32 tj(const u8 *t, long off) { return *(const u32 *)(t + off); }
+/* la barre « claire » : pendant la vue d'ensemble d'Elegant (bureau seulement), sans verre ni ombre, le
+ * texte, les icônes et le losange à l'encre claire sur le fond sombre de la vue (23/11/2026, comme GNOME) */
+static int clear_bar;
+#define CLEAR_BG 0x00202124 /* (le fond de la vue d'ensemble, à peu près : l'encre se choisit dessus) */
+static u32 tj(const u8 *t, long off)
+{
+	if (clear_bar) {
+		u32 ink = (u32)ui_ink(CLEAR_BG) & 0xFFFFFF;
+		if (off == TJ_TEXT1 || off == TJ_ACCENT)
+			return ink;
+		if (off == TJ_TEXT2)
+			return (u32)ui_mix(ink, CLEAR_BG, 64);
+		if (off == TJ_TEXT3)
+			return (u32)ui_mix(ink, CLEAR_BG, 128);
+		if (off == TJ_BAR)
+			return CLEAR_BG;
+	}
+	return *(const u32 *)(t + off);
+}
+
+/* (barre claire) une pilule d'un voile de l'encre claire, transparence t, sur le fond transparent */
+static void clear_pill(long x, long y, long w, long h, long r, u32 t)
+{
+	u32 c = ((u32)ui_ink(CLEAR_BG) & 0xFFFFFF) | t << 24;
+	ui_rbox(x, y, w, h, r, c, c);
+}
 static const u8 *tokens(void) { return (const u8 *)ui_tokens(); }
 static long spawn(const char *path, const char *args)
 {
@@ -820,7 +846,9 @@ static void draw_titles(long x, long base)
 			c = glass_hover(); /* (sur le verre : translucide) */
 			box = 1;
 		}
-		if (box)
+		if (box && clear_bar)
+			clear_pill(x - 8, 4, (long)w + 16, bar_h - 8, 5, open_menu == t + 1 ? 0xB0 : 0xD8);
+		else if (box)
 			glass_rbox(x - 8, 4, (long)w + 16, bar_h - 8, 5, c);
 		ui_text((long)s, x, base, tj(k, TJ_TEXT1), MB_PX, (long)font, (long)w + 4);
 		x += (long)w + 18;
@@ -1294,8 +1322,12 @@ static void draw(void)
 {
 	const u8 *k = tokens();
 	long bh = bar_h;
+	clear_bar = ov_shown && !poche; /* (la vue d'ensemble : la barre claire, sans verre) */
 	glass_set(bh, TJ_BAR, GLASS_EDGE_BOTTOM); /* le verre (glass.c), comme le panel ; bord en bas */
-	glass_draw(ui.w);
+	if (clear_bar)
+		ui_fill(0, 0, ui.w, bh, 0xFF000000);
+	else
+		glass_draw(ui.w);
 	u32 text1 = tj(k, TJ_TEXT1);
 	long end = tw(str_armpi, ui.font_b) + 31 + 8; /* menu Korin : fin de la zone */
 	if (poche) /* (poche : le losange seul) */
@@ -1312,7 +1344,9 @@ static void draw(void)
 		c = glass_hover();
 		box = 1;
 	}
-	if (box)
+	if (box && clear_bar) /* (la vue ouverte : « Korin OS » dans une pilule claire) */
+		clear_pill(6, 4, end - 6, bh - 8, (bh - 8) / 2, hov == 1 ? 0x98 : 0xB8);
+	else if (box)
 		glass_rbox(6, 4, end - 6, bh - 8, 5, c);
 	long base = (long)((u64)bh >> 1) + 5; /* ligne de base : milieu + 5 */
 	ui_text((long)s_losange, 12, base, tj(k, TJ_ACCENT), MB_PX + 2, (long)ui.font, 0);
@@ -1337,7 +1371,9 @@ static void draw(void)
 		draw_poche_right(&x, base, k);
 	} else { /* heure, à droite */
 		clock_text();
-		if (tray_hov && tray_x0 < ui.w) /* la zone d'état survolée : une pilule de verre */
+		if (tray_hov && tray_x0 < ui.w && clear_bar) /* la zone d'état survolée : une pilule */
+			clear_pill(tray_x0, 3, ui.w - 4 - tray_x0, bh - 6, (bh - 6) / 2, 0xD8);
+		else if (tray_hov && tray_x0 < ui.w) /* (de verre) */
 			glass_rbox(tray_x0, 3, ui.w - 4 - tray_x0, bh - 6, (bh - 6) / 2, glass_hover());
 		x = ui.w - tw(clockbuf, ui.font_b) - 12;
 		ui_text((long)clockbuf, x, base, text1, MB_PX, (long)ui.font_b, 0);
@@ -1361,7 +1397,7 @@ static void draw(void)
 	x -= 12 + 16; /* son : haut-parleur 16 x 14 */
 	snd_x = x;
 	snd_icon(x);
-	tray_x0 = poche ? 1 << 30 : x - 10;
+	tray_x0 = poche || !ov_mode ? 1 << 30 : x - 10; /* (le bureau classique : les icônes une à une) */
 	if (pq_on) { /* PocketQI : bulle 16 x 14 */
 		x -= 12 + 16;
 		pq_x = x;
@@ -1463,6 +1499,7 @@ static void overview_query(void)
 	M32(m, WM_LEN) = 0;
 	long r = ksys(SYS_WS_CALL, (long)m, 0, 0, 0, 0, 0);
 	ov_shown = r == 1;
+	ov_mode = r >= 0; /* (E_INVAL : le bureau classique, pas de vue d'ensemble) */
 }
 
 /* abonnement (> 0), sinon 0 */
@@ -1497,8 +1534,10 @@ int main(int argc, char **argv)
 	snd_poll();
 	bat_sub = subscribe(s_bat_topic, 0); /* la batterie (acpid du PC) */
 	bat_read();
-	if (!poche) /* la vue d'ensemble d'Elegant */
+	if (!poche) { /* la vue d'ensemble d'Elegant (ou le bureau classique) */
+		overview_query();
 		ov_sub = subscribe(s_t_overview, BUS_CURRENT);
+	}
 	if (poche) { /* mode poche : non lues, apps ouvertes */
 		unread_sub = subscribe(s_unread, BUS_CURRENT);
 		count_apps();

@@ -5,9 +5,14 @@
 //   { "format" : "forge", "version" : 1, "name" : "...", "bar" : n, "params" : [[nom, formule], ...],
 //     "features" : [ { "kind" : "box", ... }, ... ] }
 //
+// Une extrusion ou une révolution qui n'utilise que certaines régions de son esquisse a « "regions" : [x, y, ...] »
+// (1.3.11 : un point de l'esquisse dans chaque région ; sans ce champ, tout le profil). Le format reste en version 1 :
+// un document plus ancien s'ouvre tel quel, un Forge plus ancien ignore le champ (il extrude tout le profil).
+//
 // MIT License -- Copyright (c) 2026 Stéphane Wegener.
 #include "agent.h"
 
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -31,6 +36,7 @@ struct W {
 	void num (double v)
 	{
 		char s[40];
+		if (!std::isfinite (v)) v = 0;	// (le JSON n'a ni nan ni inf : une valeur jamais posée ne rend pas le fichier illisible)
 		if (std::fabs (v - std::round (v)) < 1e-12 && std::fabs (v) < 1e15) snprintf (s, sizeof s, "%.0f", v);
 		else snprintf (s, sizeof s, "%.17g", v);
 		jb_puts (&b, s);
@@ -106,6 +112,8 @@ void featureOut (W &w, const Feature &f)
 	double v[6] = { f.a, f.b, f.c, f.d1, f.d2, f.dep2 };
 	jb_putc (&w.b, ','), w.key ("values"), w.nums (v, 6);
 	jb_putc (&w.b, ','), w.key ("pos"), w.nums (f.pos.data (), (int) f.pos.size ());
+	if (!f.regions.empty ())	// (1.3.11 : seulement quand des régions sont choisies ; un ancien Forge l'ignore)
+		jb_putc (&w.b, ','), w.key ("regions"), w.nums (f.regions.data (), (int) f.regions.size ());
 	jb_putc (&w.b, ','), w.key ("edges"), jb_putc (&w.b, '[');
 	for (size_t i = 0; i < f.edges.size (); i++) {
 		double e[6] = { f.edges[i].mid[0], f.edges[i].mid[1], f.edges[i].mid[2], f.edges[i].tan[0], f.edges[i].tan[1], f.edges[i].tan[2] };
@@ -207,6 +215,8 @@ bool featureIn (const json_t *v, Feature &f)
 	f.a = vals[0], f.b = vals[1], f.c = vals[2], f.d1 = vals[3], f.d2 = vals[4], f.dep2 = vals[5];
 	const json_t *p = json_get (v, "pos");
 	for (int i = 0; i < json_len (p); i++) f.pos.push_back (num (json_at (p, i)));
+	const json_t *rg = json_get (v, "regions");	// (absent d'un document d'avant 1.3.11 : le profil entier)
+	for (int i = 0; i + 1 < json_len (rg); i += 2) f.regions.push_back (num (json_at (rg, i))), f.regions.push_back (num (json_at (rg, i + 1)));
 	const json_t *e = json_get (v, "edges");
 	for (int i = 0; i < json_len (e); i++) {
 		double q[6] = { 0, 0, 0, 0, 0, 0 };
@@ -233,6 +243,40 @@ bool featureIn (const json_t *v, Feature &f)
 	f.off = boolean (json_get (v, "off"));
 	if (f.kind == ST_SKETCH) sketchIn (json_get (v, "sketch"), f.sk);
 	return true;
+}
+
+// un document écrit avant 1.3.11 a pu recevoir « nan » ou « -nan » (une face jamais posée : des valeurs au hasard)
+// là où le JSON veut un nombre : remplacés par 0 hors des chaînes, pour le relire quand même
+std::string fixNonFinite (const std::string &in)
+{
+	std::string out;
+	bool str = false;
+	for (size_t i = 0; i < in.size (); i++) {
+		char c = in[i];
+		if (str) {
+			out += c;
+			if (c == '\\' && i + 1 < in.size ()) out += in[++i];
+			else if (c == '"') str = false;
+			continue;
+		}
+		if (c == '"') {
+			str = true;
+			out += c;
+			continue;
+		}
+		size_t j = i + (c == '-' || c == '+');
+		auto word = [&] (const char *w) {
+			size_t n = strlen (w);
+			return in.compare (j, n, w) == 0 && (j + n >= in.size () || !isalnum ((unsigned char) in[j + n]));
+		};
+		if (word ("nan") || word ("inf")) {
+			out += '0';
+			i = j + 2;
+			continue;
+		}
+		out += c;
+	}
+	return out;
 }
 
 } // namespace
@@ -275,6 +319,10 @@ std::string docLoad (Doc &d, const std::string &path)
 	while ((n = fread (buf, 1, sizeof buf, fp)) > 0) text.append (buf, n);
 	fclose (fp);
 	json_t *v = json_parse (text.data (), text.size ());
+	if (!v) {
+		std::string fixed = fixNonFinite (text);
+		v = json_parse (fixed.data (), fixed.size ());
+	}
 	if (!v) return "ce fichier n'est pas un document Forge (JSON illisible)";
 	std::string err;
 	if (std::string (json_gets (v, "format")) != "forge") err = "ce fichier n'est pas un document Forge";

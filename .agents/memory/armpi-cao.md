@@ -1,6 +1,6 @@
 ---
 name: armpi-cao
-description: CAO native (successeur de 3DForge) : OCCT 8.0.1 + PlaneGCS portés (tools/cao), caotest passe sous QEMU PC le 14/11, paquets PC occt-dev/planegcs-dev/caotest publiés le 15/11 ; maquettes validées le 15/11, app pas écrite
+description: CAO native Forge (successeur de 3DForge) sur OCCT + PlaneGCS ; historique des étapes 0-4, MCP, perspective (1.3.8), poignée du congé (1.3.9, 23/11), poignées de Pousser/Boîte/Cylindre (1.3.10), esquisse visible et régions à extruder (1.3.11)
 metadata:
   type: project
 ---
@@ -99,3 +99,60 @@ l'arête du coin opposé ; frise en icônes dessinées dans l'app (iconLines), n
 Modifier… / Supprimer / Supprimer à partir d'ici ; suppression avec dépendances (agent.cpp planRemoval/applyRemoval :
 une forme jointe à un corps disparu devient un nouveau corps) ; Fichier Nouveau / Ouvrir / Enregistrer (sous), format
 .forge = l'historique en JSON (docfile.cpp), rejoué à l'ouverture. Pas essayé sur le ZBook ni le Pi.
+
+- 23/11 : porté sous Linux (linux-ports/, bin/forge ; voir [[armpi-linux-ports]]).
+
+**23/11, forge 1.3.8 (pas publié, branche claude/forge-perspective)** : demande de l'utilisateur : vue en
+**perspective par défaut** (render.cpp : struct Proj, FOV 35° vertical, cam.scale reste px/mm au point visé dans les
+deux modes -> dist = focal / scale ; profondeur z en mm le long de la vue, interpolée en 1/z ; découpage au plan proche
+(nearZ = dist/100) des triangles (triClip), arêtes, grille, esquisse ; zoomAt = homothétie de toute la caméra autour du
+point sous le pointeur (zb du dernier rendu si sameAsRendered, sinon le plan du point visé) ; panFrom/pan à la
+profondeur du point pris ; fit = sphère de la boîte dans 78 % du petit côté). Puis, 2e demande : un **clic sur une face
+du cube passe en orthographique** pour un temps (g_orthoFace, comme « Perspective avec faces orthographiques » de
+Fusion ; aussi Alt+1/2/3 et MCP set_view front/top...) ; tourner la vue ou Maison/Alt+0 rend la perspective. Choix
+gardé (g_perspPref) dans HOME:/forge/forge.ini (« projection = perspective|orthographic ») : Affichage > Perspective
+Alt+5 / Orthographique Alt+6 (ids 27, 28), clic droit sur le cube (menu : les deux cochés selon le choix, Vue
+isométrique, Ajuster), MCP set_view/screenshot `projection`. Selftest 36/36 sous Linux (8 essais ajoutés) ; Korin pas
+essayé (ni QEMU ni le Pi).
+
+**23/11, forge 1.3.9 (pas publié, branche claude/forge-fillet-handle)** : demande de l'utilisateur : une **poignée**
+pour régler congé et chanfrein à la souris (Korin et Linux). main.cpp « la poignée du congé et du chanfrein »
+(handleOn/handleMouse/handleStrokes, état dans Cmd : hAt, hDir, handle 0/1/2, lastGood) ; history.cpp `edgeHandle`
+(milieu de l'arête, bissectrice des normales, saillante/rentrante par BRepClass3d_SolidClassifier à 0,01 mm en
+travers). Valeur = place sur l'axe (1:1) du point le plus proche du rayon souris, depuis l'appui ; pas selon le zoom
+(0,1…10 mm, >= 1,5 px, <= accrochage) ; aperçu par g_cmdDirty (un par lot), filletMax sauté pendant le glisser ; au
+relâché une valeur refusée revient à lastGood. Ajout au rejeu : congé/chanfrein non valide (BRepCheck_Analyzer) =
+erreur (avant, R 13 sur la plaque de 8 mm passait, faces retournées). View::Dot round/hole (disque évidé). Modifier
+une étape depuis la frise : pas de poignée (autre chemin : champs du panneau). Selftest 44/44 sous Linux (8 essais :
+axe, saillante/rentrante, glisser persp/ortho, trop grand, frappe, volumes) ; KORIN_SCRIPT : `wheel:x,y,0` = un
+survol. Korin pas construit ni essayé ici.
+
+**23/11, forge 1.3.10 (pas publié, branche claude/forge-handles)** : demande de l'utilisateur : une poignée à glisser
+(plus de valeur qui suit le pointeur) pour Pousser/tirer (dès la face choisie), l'extrusion (même chemin) et la
+hauteur de Boîte et Cylindre. Code de la poignée du congé rendu commun (main.cpp : handleStage/handleOn,
+handlePlace pose hAt/hDir par commande, handleChip = puce réglée, handleSigned = valeurs ± jamais 0, flèche dans le
+sens de la valeur ; pushAnchor : centre de masse des triangles de la face, sinon centre du triangle le plus proche ;
+Cmd::hFace). Un clic hors de la poignée ne valide plus (Entrée/OK ; Pousser : clic sur une autre face = changer de
+face, distance gardée) ; Échap inchangé ; révolution inchangée ; alongNormal retiré. Selftest 53/53 sous Linux
+(9 essais : pointeur seul sans effet, glisser persp/ortho, volumes exacts, frappe, changement de face, Échap).
+Piège d'essai KORIN_SCRIPT : le vrai pointeur sur la fenêtre envoie ses mouvements (survol juste avant chaque clic).
+Korin pas construit ni essayé ici.
+
+**23/11, forge 1.3.11 (pas publié, branche claude/forge-extrude)** : demandes de l'utilisateur : (1) une esquisse
+terminée se voit dans la vue (main.cpp `sketchShown`/`idleStrokes` : celles qu'aucune extrusion/révolution jouée
+n'utilise, traits fins TJ_TEXT2 avec profondeur ; celle choisie dans la frise ou en cours d'extrusion en accent ;
+extrudée = cachée comme Fusion) ; (2) bouton **Extrusion** (TB_EXTRUDE, après Esquisse ; pendant une esquisse : la
+termine et l'extrude) ; (3) **régions** (sketch.cpp `skRegions` : contour moins enfants directs, profondeur, point
+dedans ; `skRegionAt`, `skFacesPick` réunit des régions qui se touchent) ; pendant extrusion ET révolution, survol
+teinté, clic prend/laisse (`regToggle`, jamais aucune, retour au défaut = vidé), `Feature::regions` (points x, y de
+l'esquisse), défaut = `skFaces` inchangé (îlot dans un trou dehors) ; la révolution ne valide plus au clic ;
+(4) mode : existait au panneau ; ajouté Alt+N/J/E/I (`cmdOpKey`, par position), ligne « Corps visé », fantôme teinté
+selon le mode (`View::ghostInter`, TJ_WARNING ; enlever TJ_DANGER). Format : `"regions"` écrit seulement s'il y a un
+choix, version 1 gardée. MCP : sketch `regions`, extrude/revolve `regions` (numéros). Selftest 70/70 sous Linux
+(17 ajoutés) ; KORIN_SCRIPT : `wact:<id>` pour un bouton de la barre (un `click:` de script ne touche pas les
+widgets GTK), captures regardées. Korin pas construit ni essayé ici.
+**Le premier essai (7f94394a, envoyé par erreur depuis une autre session) a été annulé par 0634c12b** : il cassait
+l'enregistrement et passait main.cpp/history.cpp en LF. Cause retrouvée (commit reconstruit, fichier gardé) :
+`FaceRef`/`EdgeRef` sans valeurs par défaut -> la `face` d'une esquisse neuve écrite `-nan` (JSON illisible).
+Corrigé : zéros par défaut, `docSave` écrit 0 pour un non-fini, `docLoad` relit `nan`/`-nan` (-> 0). Piège :
+main.cpp, history.cpp, model.h, mcptools.inc, lang/en.txt sont en **CRLF** : les garder (vérifier `grep -c $'\r$'`).

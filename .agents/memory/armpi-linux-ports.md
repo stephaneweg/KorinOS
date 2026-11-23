@@ -1,6 +1,6 @@
 ---
 name: armpi-linux-ports
-description: "23/11/2026 : Koton, Arabesque et Budget (banque comprise) portés sous Linux (Fedora 45) dans linux-ports/ : UIKit sur GTK 4, AudioKit sur FluidSynth, coffre sur libsecret, sources des apps compilées telles quelles ; binaires dans linux-ports/bin ; Budget sur la branche claude/linux-budget"
+description: "23/11/2026 : Koton, Arabesque, Budget (banque comprise), TerraCube et Forge portés sous Linux (Fedora 45) dans linux-ports/ : UIKit sur GTK 4, AudioKit sur FluidSynth, coffre sur libsecret, sources des apps compilées telles quelles ; binaires dans linux-ports/bin ; Budget sur la branche claude/linux-budget"
 metadata:
   type: project
 ---
@@ -44,3 +44,37 @@ Pièges : libsecret-devel absent ici -> en-têtes pris par « dnf download libse
 make ; sans cela le Makefile construit sans coffre. Les clics de script sont en coordonnées du contenu (sans la barre
 de titre de la capture). Essais : faux serveur Enable Banking et faux navigateur (curl -L) dans build/fakebank (non
 commités), KORIN_HOME d'essai ; secrets d'essai retirés par « budget --vault-forget ».
+
+TerraCube et Forge (23/11, branche claude/linux-forge-terracube, pas poussée) : bin/terracube, bin/forge, paquets
+korin-terracube et korin-forge (RELEASE 4 pour tous). Ajouts à common/ : glkit_egl.cpp (armgl_* sur EGL de libglvnd,
+display EGL_PLATFORM_SURFACELESS_MESA, pbuffers sinon FBO ; TerraCube rend hors écran, glReadPixels, textes dans
+ui.surf détourné, recopie : uikit_gtk dessine alors dans ce tampon, g_alias), kits_misc.cpp (net_info par getifaddrs,
+ArchiveKit sur zlib), wayland/*.xml (pointer-constraints + relative-pointer, réduits, wayland-scanner au make) pour
+ui_pointer_lock ; uikit_gtk : WEV_FOCUS (notify::is-active), surfaces + ui_surface_overlay (transparence : octet haut
+0 opaque ; Cairo écrit 0xFF dans l'octet haut de ce qu'il dessine en RGB24 -> 0xFF n'est transparent que sur
+0xFF000000 ; fill_rect garde l'octet haut), ui_toolbar(_add), ui_tip_at, une vue redimensionnée repeinte tout de
+suite (frise de Forge), KORIN_SCRIPT kdown/kup/mrel, KORIN_FILE_ANSWER (dialogues de fichiers sans les montrer),
+capture de repli (le contenu) quand GTK n'a pas d'image gardée (fenêtre redessinée à chaque image).
+**Clavier** (retour de l'utilisateur : WASD au lieu de ZQSD sur AZERTY) : EV_CODE = position physique (evdev ->
+HID, table EVDEV_HID), comme Korin (docs/CLAVIER.md) ; EV_CHAR par la disposition ; pavé numérique par le keyval
+(Verr. Num.) ; raccourcis des menus par la lettre de la disposition (Ev.lcode). Sous Korin, uk_misc.c
+shortcut_match compare la POSITION à la lettre US : Ctrl+Z d'un AZERTY y est la touche W (non changé dans Korin).
+Pièges : GSK en GL (GSK_RENDERER=ngl) + contexte EGL de l'app = segfault : kport_iter (gdk_gl_context_clear_current
+avant chaque tour de GTK, kport_gl_restore après) ; GTK 4.24 prend Vulkan par défaut. Le selftest de TerraCube
+relancé sur un monde sauvé attend 120 s (tronçon au bord jamais maillé, bug de l'app, aussi sous Korin) : KORIN_HOME
+neuf. Forge : OCCT 7.9.3 de Fedora (8.0.1 sous Korin) : seul écart, Standard_Failure::what (8.0) ->
+GetMessageString sous #if OCC_VERSION_HEX dans agent.cpp et mcptools.inc (CRLF ! écrire en newline='') ; OCCT
+(bibliothèque partagée) ouvre « HOME:/forge/x.step » lui-même, hors des --wrap : forge/occt_paths.cpp définit
+fopen/fopen64/open/open64 dans le programme (exportés, dlsym RTLD_NEXT). PlaneGCS : forge/build-planegcs.sh
+(KORIN_CAO=build/cao, FreeCAD 1.1.4 téléchargé et vérifié, Eigen du système 5.0.1, HOST=1 de tools/cao). Forge n'a
+pas d'icône dans tools/icons (rpm : logo armpi). Essais : selftests (TerraCube 73, Forge 28), NVIDIA/Mesa/llvmpipe,
+Python 4730, MCP 7312/7311, STEP relu par OCCT, .forge enregistré puis rouvert ; souris réelle pas essayée.
+
+23/11 (branche claude/forge-perspective) : **transparence des zones de ui_surface_overlay** (retour de l'utilisateur :
+liseré sombre aux étiquettes du cube de Forge, coins noirs aux boutons) : Cairo RGB24 écrit la couverture dans l'octet
+haut (pas la transparence de Korin) et mélange les bords avec le noir du trou 0xFF000000. cr_begin reçoit maintenant
+la zone du dessin ; sur le fond d'une fenêtre qui a des ui_surface (Forge seule parmi les ports) : zone opaque ->
+Cairo direct puis octet haut remis à 0 ; sinon calque ARGB32 composé « par-dessus » en gardant la transparence
+(comme rb_px de uk_theme.c sous Korin). Les autres fenêtres : inchangé. KORIN_SCRIPT : wheel:x,y,n, drag:x0,y0,x1,y1[,b]
+(b 2 milieu, 3 droit), pop:<n> (le menu ui_popup_local ouvert ; ses entrées écrites sur stderr). Piège : les
+coordonnées des scripts sont celles du contenu (sous la barre de menus : capture y - 65 sur ce bureau). RELEASE 5.

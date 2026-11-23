@@ -38,13 +38,14 @@
 #define OV_R_DESK 16          /* rayon des coins d'un bureau (à sa taille dans la vue) */
 #define OV_SH_DESK 14         /* son ombre */
 #define OV_SH_WIN 10          /* l'ombre d'une fenêtre */
-#define OV_DIM 112            /* le fond de la vue : luminosité sur 256 */
+#define OV_DIM 60             /* le fond de la vue : luminosité sur 256 (plus sombre : demande du 23/11) */
 #define OV_SNAP_BUDGET (128L << 20) /* images pleine taille gardées (octets) */
 #define OV_DRAG_PX 6          /* au-delà, un appui sur une fenêtre devient un glisser */
 #define OV_COL_EMPTY 0x001E1F22 /* (sans mémoire pour le fond) */
 #define OV_MAXW 4096
 
 long ov_on; /* non nul : la vue d'ensemble a l'écran (ouverture, ouverte, fermeture) */
+long ov_enabled; /* la vue existe (défaut) ; desktop=classic (system.ini) : le bureau classique */
 
 static long ov_state; /* 1 ouverture, 2 ouverte, 3 fermeture */
 static long ov_p = OV_ONE;     /* avancement du zoom (0 : vue normale, OV_ONE : vue d'ensemble) */
@@ -1055,7 +1056,7 @@ static void scroll_to(long d)
 
 void ov_open(void)
 {
-	if (policy->flags & POLF_POCKET)
+	if ((policy->flags & POLF_POCKET) || !ov_enabled)
 		return;
 	if (ov_on) {
 		if (ov_state == 3) { /* (en train de se fermer : on revient) */
@@ -1155,12 +1156,15 @@ void ov_reset(void)
 /* -> 1 pendant une animation (la boucle n'attend presque pas) */
 long ov_busy(void)
 {
-	return ov_on && (ov_state != 2 || ov_pos != ov_pos_b || ov_q != ov_qb);
+	return sw_on || (ov_on && (ov_state != 2 || ov_pos != ov_pos_b || ov_q != ov_qb));
 }
 
 /* à chaque tour (dk_tick) */
+static void sw_tick(void);
+
 void ov_tick(void)
 {
+	sw_tick();
 	if (!ov_on)
 		return;
 	u64 now = now_ms();
@@ -1247,10 +1251,20 @@ void ov_gone(struct win *w)
 		}
 }
 
-/* WS_OP_OVERVIEW : a -1 basculer, 0 fermer, 1 ouvrir, 2 lire -> 1 ouverte / 0 fermée */
+/* WS_OP_OVERVIEW : a -1 basculer, 0 fermer, 1 ouvrir, 2 lire -> 1 ouverte / 0 fermée ; 3 le bureau passe en vue
+ * d'ensemble, 4 au bureau classique (les Réglages, sans redémarrer ; system.ini est écrit par eux) -> 0 */
 long req_overview(void)
 {
-	if (policy->flags & POLF_POCKET)
+	long m = MS64(msg, WM_A);
+	if ((m == 3 || m == 4) && !(policy->flags & POLF_POCKET)) {
+		if (m == 4 && ov_on) /* (la vue ouverte : fermée tout de suite) */
+			ov_reset();
+		ov_enabled = m == 3;
+		wins_changed(); /* (la barre de menus relit le mode) */
+		dirty_all();
+		return 0;
+	}
+	if ((policy->flags & POLF_POCKET) || !ov_enabled) /* (le bureau classique : pas de vue d'ensemble) */
 		return E_INVAL;
 	long a = MS64(msg, WM_A);
 	if (a == -1)
@@ -1469,4 +1483,116 @@ long ov_key(const u8 *in)
 	else if (code == KEY_RIGHT)
 		scroll_to(ov_sel + 1);
 	return 1;
+}
+
+/* ---------------------------------------------------------------------------
+ *  Le glissement d'un bureau à l'autre, dans la vue normale (23/11/2026)
+ * ---------------------------------------------------------------------------
+ * Ctrl+Alt+Gauche / Droite, ou une fenêtre ramenée sur un autre bureau : comme GNOME, le contenu du
+ * bureau d'avant (fond et fenêtres normales) sort d'un côté pendant que celui du nouveau entre de l'autre
+ * (OV_SWITCH_MS, « ease out ») ; les barres, les volets et le curseur restent en place. Les deux images
+ * sont composées une fois (hors écran, le chemin ordinaire) : chaque image n'est que deux copies. */
+#define OV_SWITCH_MS 260
+
+long sw_dir, sw_on;
+static u32 *sw_old, *sw_new;
+static long sw_w, sw_h, sw_sign;
+static u64 sw_t0;
+static long sw_x; /* décalage du bureau d'avant (0 .. -sign * largeur) */
+
+/* la couche du fond et la couche normale (le bureau courant) composées en pleine taille dans dst */
+static void render_desk(u32 *dst)
+{
+	u32 *keep_bb = bb;
+	long keep_pitch = bb_pitch;
+	struct rect keep_clip = clip_r;
+	bb = dst;
+	bb_pitch = scr_w << 2;
+	clip_r = (struct rect){ 0, 0, scr_w, scr_h };
+	policy->back();
+	for (long layer = 0; layer < 2; layer++)
+		for (long i = 0; i < win_count; i++) {
+			struct win *w = win_z[i];
+			if (w->mini || win_layer(w) != layer)
+				continue;
+			draw_window(w);
+		}
+	bb = keep_bb;
+	bb_pitch = keep_pitch;
+	clip_r = keep_clip;
+}
+
+static void sw_free(void)
+{
+	if (sw_old)
+		free(sw_old);
+	if (sw_new)
+		free(sw_new);
+	sw_old = sw_new = 0;
+	sw_on = 0;
+}
+
+long sw_prepare(void)
+{
+	if (ov_on || (policy->flags & POLF_POCKET) || curtain_on)
+		return 0;
+	if (sw_on) /* (un glissement pas fini : le suivant part d'ici) */
+		sw_free();
+	long px = scr_w * scr_h;
+	sw_old = ov_alloc(px * 4);
+	sw_new = ov_alloc(px * 4);
+	if (!sw_old || !sw_new) {
+		sw_free();
+		return 0;
+	}
+	sw_w = scr_w;
+	sw_h = scr_h;
+	render_desk(sw_old);
+	return 1;
+}
+
+void sw_start(long dir)
+{
+	if (!sw_old || !sw_new)
+		return;
+	render_desk(sw_new);
+	sw_sign = dir > 0 ? 1 : -1;
+	sw_t0 = now_ms();
+	sw_x = 0;
+	sw_on = 1;
+	dirty_all();
+}
+
+static void sw_tick(void)
+{
+	if (!sw_on)
+		return;
+	if (sw_w != scr_w || sw_h != scr_h) { /* (l'écran a changé de taille) */
+		sw_free();
+		dirty_all();
+		return;
+	}
+	long t = (long)((now_ms() - sw_t0) * OV_ONE / OV_SWITCH_MS);
+	if (t >= OV_ONE) {
+		sw_free();
+		dirty_all();
+		return;
+	}
+	sw_x = -sw_sign * (sw_w * ease(t) / OV_ONE);
+	dirty_all();
+}
+
+void sw_compose_clip(void)
+{
+	long W = sw_w;
+	bb_blit(sw_old, W * 4, sw_x, 0, W, sw_h);              /* l'ancien sort, */
+	bb_blit(sw_new, W * 4, sw_x + sw_sign * W, 0, W, sw_h); /* le nouveau entre */
+	for (long layer = 2; layer < WIN_LAYERS; layer++) /* les barres, les volets, les menus : en place */
+		for (long i = 0; i < win_count; i++) {
+			struct win *w = win_z[i];
+			if (w->mini || win_layer(w) != layer)
+				continue;
+			draw_window(w);
+		}
+	policy->front();
 }
