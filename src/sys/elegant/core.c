@@ -866,6 +866,27 @@ static void push_close(struct win *w)
 	win_push(w, evbuf);
 }
 
+/* la fenêtre qui a reçu le dernier survol : quand le pointeur la quitte (par une autre fenêtre, un cadre, le fond),
+ * un dernier déplacement en (-1, -1) lui dit qu'il n'est plus sur elle (sinon un titre de la barre de menus, une
+ * icône du dash restaient en surbrillance) */
+static struct win *hov_win;
+
+static void hover_to(struct win *w)
+{
+	struct win *o = hov_win;
+	hov_win = w;
+	if (!o || o == w)
+		return;
+	ev_clear();
+	M32(evbuf, EV_TYPE) = WEV_MOUSE;
+	M32(evbuf, 4) = 0;
+	M32(evbuf, EV_X) = (u32)-1;
+	M32(evbuf, EV_Y) = (u32)-1;
+	M32(evbuf, 16) = (u32)cur_buttons;
+	M32(evbuf, EV_MODS) = (u32)cur_mods;
+	win_push(o, evbuf);
+}
+
 /* x, y, boutons */
 void mouse(long x, long y, long buttons)
 {
@@ -918,19 +939,20 @@ void mouse(long x, long y, long buttons)
 		return;
 	}
 	/* --- la vue d'ensemble : ce qui n'est ni une barre, ni le dash, ni un menu */
-	if (ov_on && ov_mouse(x, y, down, up))
+	if (ov_on && ov_mouse(x, y, down, up)) {
+		if (!down)
+			hover_to(0);
 		return;
+	}
 	if (!down) { /* survol : le mode, puis le contenu sous le pointeur (fenêtre active, ou sans
 			focus : dock, barre de menus) */
-		if (policy->hover(x, y))
-			return;
 		long zone;
-		struct win *w = win_hit(x, y, &zone);
-		if (!w || zone != Z_CLIENT)
-			return;
-		if (!(w->flags & WF_NOFOCUS) && w != win_focus)
-			return;
-		send_mouse(w, 0);
+		struct win *w = policy->hover(x, y) ? 0 : win_hit(x, y, &zone);
+		if (w && (zone != Z_CLIENT || (!(w->flags & WF_NOFOCUS) && w != win_focus)))
+			w = 0;
+		hover_to(w);
+		if (w)
+			send_mouse(w, 0);
 		return;
 	}
 	if ((down & 1) && policy->click(x, y)) /* bouton gauche : le mode, puis les fenêtres */
@@ -1172,6 +1194,8 @@ void win_unlink(struct win *w)
 		capture_win = 0;
 	if (drag_win == w)
 		drag_win = 0;
+	if (hov_win == w)
+		hov_win = 0;
 	wins_changed();
 }
 

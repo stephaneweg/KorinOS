@@ -87,6 +87,25 @@ static const char s_wf_param[] = "Paramètres Wi-Fi…";
 
 static u32 tj(long off) { return *(const u32 *)((const u8 *)ui_tokens() + off); }
 static const char *tr(const char *s) { return lang_tr(s); }
+
+/* la teinte du dash de la vue d'ensemble (un voile clair sur son fond sombre : ≈ #3B3D3F), quel que soit le thème
+ * (demande du 23/11/2026) : écrite dans les jetons de ce programme seul (la liste Wi-Fi les lit aussi), remise après
+ * un changement de thème */
+static void dash_palette(void)
+{
+	u8 *k = (u8 *)ui_tokens();
+	u32 acc = *(u32 *)(k + TJ_ACCENT);
+	static const struct { u16 off; u32 c; } pal[] = {
+		{TJ_MENU, 0x3B3D3F},	   {TJ_FACE, 0x3B3D3F},	       {TJ_SURFACE, 0x45474A},
+		{TJ_SUNKEN, 0x4A4C4F},	   {TJ_RAISED, 0x55575A},      {TJ_RAISED_LOW, 0x505255},
+		{TJ_LINE, 0x515356},	   {TJ_LINE_STRONG, 0x6A6D70}, {TJ_TEXT1, 0xF2F3F4},
+		{TJ_TEXT2, 0xC5C7CA},	   {TJ_TEXT3, 0x989BA0},       {TJ_HOVER, 0x55575A},
+		{TJ_DARK, 1},
+	};
+	for (unsigned i = 0; i < sizeof pal / sizeof pal[0]; i++)
+		*(u32 *)(k + pal[i].off) = pal[i].c;
+	*(u32 *)(k + TJ_ACCENT_LIGHT) = (u32)ui_mix(0x3B3D3F, acc & 0xFFFFFF, 90);
+}
 static long spawn(const char *path, const char *args)
 {
 	return ksys(SYS_SPAWN, (long)path, (long)args, 0, 0, 0, 0);
@@ -458,6 +477,7 @@ int main(int argc, char **argv)
 		return 0;
 	}
 	ui_init((long)&ui);
+	dash_palette();
 	ui_screen((long)scr);
 	long right = arg && *arg ? (long)parse_dec(arg) : scr[0];
 	long x = right - QW + 4;
@@ -475,7 +495,7 @@ int main(int argc, char **argv)
 	net_sub = bus_subscribe((long)t_net, 0);
 	dnd_sub = bus_subscribe((long)t_dnd, 0);
 	bat_sub = bus_subscribe((long)t_bat, 0);
-	if (ui_window_ex(win_x, win_y, QW, QH, (long)tr(title), WF_FRAMELESS | WF_TOP | WF_NOLIST | WF_ALPHA) < 0)
+	if (ui_window_ex(win_x, win_y, QW, QH, (long)tr(title), WF_FRAMELESS | WF_TOP | WF_NOLIST | WF_ALPHA | WF_GRAB) < 0)
 		return 0;
 	draw();
 	for (;;) {
@@ -492,6 +512,9 @@ int main(int argc, char **argv)
 		if (t == WEV_FOCUS) {
 			if (!kind)
 				return 0;
+		} else if (t == WEV_THEME) { /* (le kit a relu le thème : la teinte du dash, de nouveau) */
+			dash_palette();
+			draw();
 		} else if (t == WEV_KEY) {
 			if (kind && *(u32 *)(ui.ev + EV_CODE) == KEY_ESC)
 				return 0;
@@ -510,7 +533,9 @@ int main(int argc, char **argv)
 			draw();
 		} else if (t == WEV_MOUSE) {
 			long mx = *(i32 *)(ui.ev + EV_X), my = *(i32 *)(ui.ev + EV_Y);
-			if (kind == 1) {
+			if (kind == 1) { /* (WF_GRAB, comme un menu : un appui ailleurs le ferme) */
+				if (mx < 0 || my < 0 || mx >= ui.w || my >= ui.h)
+					return 0;
 				if (click(mx, my))
 					return 0;
 			} else if (kind == 2) {

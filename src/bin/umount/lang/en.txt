@@ -1,0 +1,7 @@
+# bin/umount : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
+usage : umount POINT | VOLUME\n = usage: umount POINT | VOLUME\n
+umount : / est le volume système, il ne se démonte pas\n = umount: / is the system volume, it cannot be unmounted\n
+ : pas de volume monté à ce point\n = : no volume mounted at this point\n
+ : pas de tel volume, ou pas monté\n = : no such volume, or not mounted\n
+ pas démonté : \ = \ not unmounted:\ 
+ démonté\n = \ unmounted\n

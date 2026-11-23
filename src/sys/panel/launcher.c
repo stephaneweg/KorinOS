@@ -628,19 +628,62 @@ static long la_cell_at(long x, long y)
 	return (long)i;
 }
 
+/* (la_grid) une pilule du voile clair (transparence t) glissée SOUS ce qui est déjà dessiné (le texte) : chaque pixel
+ * 0xTTRRGGBB (TT : transparence, couleur non prémultipliée) passe devant le voile ; bords lissés sur un pixel */
+static void la_pill_under(long x, long y, long w, long h, u32 t)
+{
+	u32 ink = la_grid_ink() & 0xFFFFFF;
+	long r = h / 2;
+	for (long j = 0; j < h; j++) {
+		if (y + j < 0 || y + j >= ui.h)
+			continue;
+		u32 *row = (u32 *)ui.surf + (y + j) * ui.w;
+		long dy2 = 2 * j + 1 - h; /* (en demi-pixels, depuis l'axe) */
+		for (long i = 0; i < w; i++) {
+			long X = x + i;
+			if (X < 0 || X >= ui.w)
+				continue;
+			long cov = 256; /* couverture du pixel par la pilule, sur 256 */
+			long cx = i < r ? r : i >= w - r ? w - r : -1;
+			if (cx >= 0) {
+				long dx2 = 2 * i + 1 - 2 * cx;
+				long d2 = dx2 * dx2 + dy2 * dy2, r2 = 4 * r * r;
+				if (d2 >= r2 + 4 * r)
+					continue;
+				if (d2 > r2 - 4 * r)
+					cov = (r2 + 4 * r - d2) * 256 / (8 * r);
+			}
+			long ap = (255 - (long)t) * cov / 256; /* opacité du voile ici */
+			u32 d = row[X];
+			long ad = 255 - (long)(d >> 24);
+			long a = ad + ap * (255 - ad) / 255;
+			if (a <= 0)
+				continue;
+			long wp = ap * (255 - ad) / 255;
+			u32 o = 0;
+			for (int sh = 0; sh < 24; sh += 8) {
+				long cd = (long)(d >> sh) & 0xFF, cp = (long)(ink >> sh) & 0xFF;
+				o |= (u32)((cd * ad + cp * wp) / a) << sh;
+			}
+			row[X] = o | (u32)(255 - a) << 24;
+		}
+	}
+}
+
 /* onglet, 1 : montrer tout de suite */
 static void la_tab_draw(long t, long show)
 {
 	if (la_grid) { /* une pilule : la choisie pleine du voile clair, les autres au survol */
 		long x = la_tx[t], y = la_ty, w = la_tw[t], h = LA_PILL_H;
 		ui_fill(x, y, w, h, 0xFF000000);
-		if (la_cur == t)
-			la_soft_box(x, y, w, h, h / 2, la_zone == 2 ? 0x70 : 0xA0);
-		else if (la_tab_hover == t)
-			la_soft_box(x, y, w, h, h / 2, 0xD0);
 		long sel = la_cur == t;
 		ui_text_fit((long)la_cat_name(la_tab[t]), x + 14, y + h / 2 + 5, la_grid_ink(), LA_TAB_PX,
 			    (long)(sel ? ui.font_b : ui.font), w - 20);
+		/* le voile glissé sous le texte (le texte tracé sur un fond à demi transparent s'y frangeait de sombre) */
+		if (sel)
+			la_pill_under(x, y, w, h, la_zone == 2 ? 0x70 : 0xA0);
+		else if (la_tab_hover == t)
+			la_pill_under(x, y, w, h, 0xD0);
 		if (show)
 			ui_update(x, y, w, h);
 		return;

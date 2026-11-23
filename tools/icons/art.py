@@ -140,12 +140,15 @@ def control(ic):
 
 @icon('files', 0x3CC1F2, 0x0C79C8)
 def files(ic):
-    back = add(ic.rr(15, 25, 32, 16, 5), ic.rr(15, 31, 70, 44, 5))
-    ic.raised(back, Grad(0xF6B73C, 0xE08F1B, 100), rim=.3)
-    if not ic.small:
-        ic.raised(ic.rr(22, 36, 56, 26, 2), PAPER, rim=0, dk=0)
-    front = ic.soften(ic.poly([(14, 44), (86, 44), (84, 77), (16, 77)]), 1.6)
-    ic.raised(front, Grad(0xFFD768, 0xF5A72C, 100), rim=.6)
+    """Un classeur a tiroirs fermes, chacun sa poignee et son etiquette."""
+    ic.raised(ic.rr(18, 14, 64, 72, 6), Grad(0xF5F7FB, 0xC3CDDA, 100), rim=.5)
+    drawer = Grad(0xFFCE5E, 0xF09A22, 100)
+    pull = Grad(0x9A5A12, 0x6E3D0A, 90)
+    for y in (19, 41, 63):
+        ic.raised(ic.rr(23, y, 54, 18.5, 3), drawer, rim=.6, dk=.22)
+        if not ic.small:
+            ic.fill(ic.rr(41, y + 3, 18, 5, 1), PAPER)
+        ic.fill(ic.rr(38, y + 10.5, 24, 4.5, 2.25), pull)
 
 
 @icon('terminal', 0x3A404B, 0x14171D)

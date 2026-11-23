@@ -3917,11 +3917,34 @@ static const char *space_text (const struct vspace *sp, char *buf, long px, long
 /* haut de la premiere ligne de volume (sous les acces rapides) */
 static long vol_y0 (void) { return pl_n ? PAN_Y0 + pl_n * PROW_H + PL_GAP : PAN_Y0; }
 
+/* le panneau de gauche defile quand ses lignes ne tiennent pas (23/11/2026) : pan_scroll pixels, la molette sur lui */
+static long pan_scroll;
+static long ptr_x;				/* x du pointeur (le dernier evenement de la souris) : la molette va au panneau */
+#define PAN_CLIP_Y	8			/* (en haut, le contenu defile sous rien : le panneau commence la) */
+
+/* -> le plus grand defilement du panneau (0 : tout tient) */
+static long pan_max (void)
+{
+	long h = vol_y0 () + vol_n * VROW_H + 8 - H_;
+	return h > 0 ? h : 0;
+}
+
+static void pan_clamp (void)
+{
+	long m = pan_max ();
+	if (pan_scroll > m)
+		pan_scroll = m;
+	if (pan_scroll < 0)
+		pan_scroll = 0;
+}
+
 static void draw_panel (void)
 {
 	ui_fill (0, 0, PAN_W - 1, H_, TOK (TJ_SUNKEN));
 	ui_fill (PAN_W - 1, 0, 1, H_, TOK (TJ_LINE));
-	long hl = cur_hl (), y0 = PAN_Y0;
+	pan_clamp ();
+	ui_clip (0, PAN_CLIP_Y, PAN_W - 1, H_ - PAN_CLIP_Y);	/* (les lignes defilent dans le panneau) */
+	long hl = cur_hl (), y0 = PAN_Y0 - pan_scroll;
 	if (pl_n)
 	{					/* acces rapides */
 		text (TR ("Accès rapides"), 14, y0 - 10, TOK (TJ_TEXT2), 12, ui.font_b, 0);
@@ -3933,13 +3956,15 @@ static void draw_panel (void)
 			draw_folder (14, y + 5, TOK (TJ_TEXT2), TOK (TJ_TEXT2));
 			text (places[i].lab, 42, y + 19, TOK (TJ_TEXT1), 13, ui.font, PAN_W - 50);
 		}
-		y0 = vol_y0 ();
+		y0 = vol_y0 () - pan_scroll;
 	}
 	text (TR ("Volumes"), 14, y0 - 10, TOK (TJ_TEXT2), 12, ui.font_b, 0);
 	for (long i = 0; i < vol_n; i++)
 	{
 		long y = i * VROW_H + y0;	/* haut de la ligne */
-		if (y + VROW_H > H_)
+		if (y + VROW_H <= PAN_CLIP_Y)
+			continue;
+		if (y >= H_)
 			break;
 		struct vol *v = &vols[i];
 		if (hl == i)
@@ -3959,6 +3984,16 @@ static void draw_panel (void)
 			text (vol_kind (v), 42, y + 31, TOK (TJ_TEXT2), 12, ui.font, PAN_W - 42 - 36);	/* genre */
 		if (v->rem)
 			draw_eject (PAN_W - 22, y + 13);
+	}
+	ui_clip (0, 0, 0, 0);
+	long m = pan_max ();
+	if (m > 0)
+	{					/* la place dans le panneau : une barre fine, a droite */
+		long track = H_ - PAN_CLIP_Y - 8, th = track * H_ / (H_ + m);
+		if (th < 24)
+			th = 24;
+		long ty = PAN_CLIP_Y + 4 + (track - th) * pan_scroll / m;
+		ui_rbox (PAN_W - 6, ty, 3, th, 1, TOK (TJ_LINE_STRONG), TOK (TJ_LINE_STRONG));
 	}
 }
 
@@ -4610,9 +4645,10 @@ static void on_mouse (void)
 			ui_window_drag ();
 			return;
 		}
-		if (y < PAN_Y0)			/* panneau : acces rapides puis volumes */
+		long py = y + pan_scroll;	/* (le panneau defile : la ligne sous le pointeur) */
+		if (py < PAN_Y0)			/* panneau : acces rapides puis volumes */
 			return;
-		long r = (y - PAN_Y0) / PROW_H;
+		long r = (py - PAN_Y0) / PROW_H;
 		if (r < pl_n && (ui_ev_field (&ui, EV_CODE) & 2))
 		{				/* bouton droit sur un acces rapide : Retirer */
 			char *e = tr_cat (popbuf, "Retirer") + 1;
@@ -4629,9 +4665,9 @@ static void on_mouse (void)
 		else
 		{
 			long y0 = vol_y0 ();
-			if (y < y0)
+			if (py < y0)
 				return;
-			r = (y - y0) / VROW_H;
+			r = (py - y0) / VROW_H;
 			if (r >= vol_n)
 				return;
 			if (vols[r].rem && x >= PAN_W - 36)
@@ -5034,7 +5070,10 @@ int main (int argc, char **argv)
 			uikit_w_event (&code, &taken);
 		}
 		else if (t == WEV_MOUSE)
+		{
+			ptr_x = ui_ev_field (&ui, EV_X);
 			on_mouse ();
+		}
 		else if (t == WEV_KEY)
 			on_key ();
 		else if (t == WEV_MENU)
@@ -5048,6 +5087,12 @@ int main (int argc, char **argv)
 				draw ();
 			else if (chg_sub && sub == chg_sub && chg_seen (ui_ev_field (&ui, BEV_TOPIC)))
 				draw ();
+		}
+		else if (t == WEV_WHEEL && ptr_x < PAN_W)
+		{				/* sur le panneau : ses lignes (40 px par cran) */
+			pan_scroll -= ui_ev_field (&ui, EV_Y) * 40;
+			pan_clamp ();
+			draw ();
 		}
 		else if (t == WEV_WHEEL)
 		{				/* 3 lignes (liste), 1 rangee (icones) */

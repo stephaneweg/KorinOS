@@ -37,3 +37,11 @@ classique <-> vue d'ensemble sans redémarrer (WS_OP_OVERVIEW 3/4, korin.shell.d
 panel_classic.c = le panel d'avant. /etc/ca-bundle toujours posé par sysroot.sh (pkg sur la clé live). Elegant
 INI_MAX 8 Kio. La clé live : installkey.py build --extra-mb 1024 (place pour Jet) ; l'utilisateur la teste sur le ZBook
 et sous QEMU+KVM (fluide).
+
+**23/11 (fin)** : dash réorganisable en glissant (panel.c dg_*, rang panel.ini par le nom) ; commande `umount`
+(src/bin/umount, C) ; panneau de Fichiers qui défile ; icône `files` = classeur à tiroirs FERMÉS (l'utilisateur
+préfère fermés) ; Elegant envoie un survol (-1,-1) à la fenêtre quittée (hov_win) ; quickmenu en WF_GRAB (clic
+ailleurs = fermé) et à la teinte du dash (dash_palette, jetons du seul process) ; pilules de catégories : voile
+glissé sous le texte (la_pill_under). Icônes Adwaita (LGPL3 / CC-BY-SA 3.0, « GNOME Project ») : le dépôt n'a PAS
+d'icônes d'apps, seulement dossiers, périphériques, types de fichiers, avatar, symboliques. Piège : un remplacement
+Python avec un motif vide (`s.index` d'une déclaration anticipée) insère le texte entre chaque caractère.

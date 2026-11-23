@@ -53,6 +53,10 @@ static long sl_x[SL_MAX];
 static u8 sl_app[SL_MAX];
 static long shown;   /* 1 : la vue d'ensemble est ouverte (le dash se voit) */
 static long grid_open; /* 1 : la grille des applications est montrée (« Applications » allumé) */
+/* le glisser d'une icône (réorganiser le dash, 23/11/2026) : l'emplacement appuyé, le glisser commencé, le pointeur,
+ * la place visée */
+static long dg_slot = -1, dg_on, dg_x0, dg_mx, dg_to;
+#define DG_START 6 /* px avant qu'un appui devienne un glisser */
 
 static void draw(void);
 
@@ -279,12 +283,103 @@ static void draw_apps(void)
 	ui_glyph((long)"glyph-apps", apps_x + (cw - side) / 2, SH_M + (cur.bh - side) / 2, side, ink);
 }
 
+/* (glisser) la place visée par le pointeur : épinglée, parmi les épinglées ; ouverte, n'importe où (posée parmi les
+ * épinglées ou juste après, elle s'épingle là) */
+static long dg_target(void)
+{
+	long t = nslots ? (dg_mx - sl_x[0] + cur.cw / 2) / cur.cw : 0;
+	if (dg_mx < sl_x[0])
+		t = 0;
+	long hi = dg_slot < npinned ? npinned - 1 : nslots - 1;
+	if (t > hi)
+		t = hi;
+	if (t < 0)
+		t = 0;
+	return t;
+}
+
+/* (glisser) l'emplacement dessiné à la place k : les autres se poussent pour laisser la place visée */
+static long dg_slot_at(long k)
+{
+	if (k == dg_to)
+		return dg_slot;
+	long i = k;
+	if (dg_slot < dg_to && k >= dg_slot && k < dg_to)
+		i = k + 1;
+	else if (dg_slot > dg_to && k > dg_to && k <= dg_slot)
+		i = k - 1;
+	return i;
+}
+
+/* (glisser) le rang dans panel.ini de l'épinglée montrée à la place k (une épinglée dont l'application manque n'a
+ * pas de place : les deux rangs diffèrent alors) */
+static long dg_pin_of(long k)
+{
+	for (long i = 0; i < pan_npin; i++)
+		if (str_eq(pan_pin[i], ap_nom[sl_app[k]]))
+			return i;
+	return -1;
+}
+
+/* (glisser) posée : l'ordre des raccourcis change (panel.ini) ; une ouverte posée parmi eux s'épingle là */
+static void dg_drop(void)
+{
+	if (dg_to == dg_slot)
+		return;
+	char name[AP_NOM];
+	str_copy_n(name, ap_nom[sl_app[dg_slot]], AP_NOM);
+	if (dg_slot < npinned) { /* une épinglée : à la place de celle visée, dans les épinglées */
+		long from = dg_pin_of(dg_slot), to = dg_pin_of(dg_to);
+		if (from < 0 || to < 0)
+			return;
+		if (from < to)
+			mem_move(pan_pin[from], pan_pin[from + 1], (u64)(to - from) * AP_NOM);
+		else
+			mem_move(pan_pin[to + 1], pan_pin[to], (u64)(from - to) * AP_NOM);
+		str_copy_n(pan_pin[to], name, AP_NOM);
+	} else { /* une ouverte : épinglée si posée parmi les épinglées (ou juste après) */
+		if (dg_to > npinned || pan_npin >= PANEL_MAXPINS)
+			return;
+		long to = dg_to < npinned ? dg_pin_of(dg_to) : (npinned ? dg_pin_of(npinned - 1) + 1 : 0);
+		if (to < 0)
+			to = pan_npin;
+		mem_move(pan_pin[to + 1], pan_pin[to], (u64)(pan_npin - to) * AP_NOM);
+		str_copy_n(pan_pin[to], name, AP_NOM);
+		pan_npin++;
+	}
+	if (pan_save() < 0)
+		say("panel : panel.ini non écrit\n");
+}
+
 static void draw(void)
 {
 	if (!ui.surf)
 		return;
 	draw_body();
 	long top = SH_M, bh = cur.bh, cw = cur.cw, ic = cur.icon;
+	if (dg_on) { /* --- un glisser : les autres icônes se poussent, celle tenue suit le pointeur, un peu levée */
+		for (long k = 0; k < nslots; k++) {
+			long i = dg_slot_at(k);
+			if (i == dg_slot)
+				continue;
+			long x = sl_x[k], app = sl_app[i];
+			ui_icon((long)ap_nom[app], x + (cw - ic) / 2, top + (bh - ic) / 2 - 3, ic);
+			if (pids[app]) {
+				u32 v = dash_ink();
+				ui_rbox(x + cw / 2 - 2, top + bh - 8, 5, 5, 2, v, v);
+			}
+		}
+		hover_box(sl_x[dg_to], cw); /* (la place où elle irait) */
+		long dx = dg_mx - cw / 2;
+		if (dx < SH_M)
+			dx = SH_M;
+		if (dx > ui.w - SH_M - cw)
+			dx = ui.w - SH_M - cw;
+		ui_icon((long)ap_nom[sl_app[dg_slot]], dx + (cw - ic) / 2, top + (bh - ic) / 2 - 7, ic);
+		draw_apps();
+		ui_update_all();
+		return;
+	}
 	for (long i = 0; i < nslots; i++) { /* --- emplacements */
 		long x = sl_x[i];
 		if (hover == i)
@@ -535,7 +630,36 @@ int main(int argc, char **argv)
 		tip_ticks = 0;
 		long mx = *(i32 *)(ui.ev + EV_X), my = *(i32 *)(ui.ev + EV_Y);
 		long h = hit(mx, my);
-		if (*(u32 *)(ui.ev + EV_KIND) != 1) {
+		u32 kind = *(u32 *)(ui.ev + EV_KIND);
+		if (dg_slot >= 0 && kind == 0) { /* un appui tenu sur une icône : au-delà de DG_START px, un glisser */
+			if (!dg_on && (mx - dg_x0 > DG_START || dg_x0 - mx > DG_START)) {
+				dg_on = 1;
+				hover_set(-1);
+			}
+			if (dg_on) {
+				dg_mx = mx;
+				dg_to = dg_target();
+				draw();
+			}
+			continue;
+		}
+		if (dg_slot >= 0 && kind == 2) { /* relâché : posée (glisser), ou un clic (l'application) */
+			long s = dg_slot, was = dg_on;
+			if (was)
+				dg_drop();
+			dg_slot = -1;
+			dg_on = 0;
+			if (was) {
+				relayout();
+				hover_set(h);
+			} else {
+				hover_set(-1);
+				app_open(sl_app[s]); /* (Elegant referme la vue d'ensemble) */
+				tick();
+			}
+			continue;
+		}
+		if (kind != 1) {
 			hover_set(h);
 			continue;
 		}
@@ -546,9 +670,11 @@ int main(int argc, char **argv)
 				slot_menu(-1, pan_x + mx);
 			continue;
 		}
-		if (h >= 0) {
-			hover_set(-1);
-			app_open(sl_app[h]); /* (Elegant referme la vue d'ensemble) */
+		if (h >= 0) { /* l'appui : un clic (au relâché) ou un glisser (réorganiser) */
+			dg_slot = h;
+			dg_x0 = dg_mx = mx;
+			dg_on = 0;
+			continue;
 		} else if (h == HIT_APPS) {
 			hover_set(-1);
 			/* la grille des applications de la vue d'ensemble (Elegant fait monter les bureaux en

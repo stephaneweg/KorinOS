@@ -315,6 +315,11 @@ Fenêtre `WF_FRAMELESS | WF_TOP | WF_NOFOCUS | WF_RESERVE`, **plus `WF_ALPHA`**,
     dans `src/sys/common/wifilist.c` (partagée par `wifimenu` et `quickmenu`). Sans Wi-Fi : l'applet Wi-Fi
     des réglages.
 * Le mode poche garde ses clics d'avant (compteur, heure, icônes une à une).
+* Le volet a **la teinte du dash** quel que soit le thème (23/11/2026, demande de l'utilisateur ; ≈ `#3B3D3F`,
+  textes clairs, tuiles un peu plus claires) : `dash_palette` écrit ces couleurs dans les jetons du seul
+  programme `quickmenu` (la liste Wi-Fi les lit aussi), de nouveau après un `WEV_THEME`. Il a la capture de la
+  souris comme un menu (`WF_GRAB`) : **un appui hors du volet le ferme**, sans aller à ce qui est dessous
+  (un second clic sur la zone d'état le ferme donc sans le rouvrir).
 
 ### 6.1 Contenu du menu ARMPI
 
@@ -586,7 +591,14 @@ du fichier : les catégories par nom, terminal et files, 4 espaces.
 > applications ouvertes (un point sous chacune), un séparateur, « Applications » (la grille des
 > applications de la vue d'ensemble, § 19 ; allumé tant qu'elle est ouverte). Plus de bureaux (le carrousel), ni corbeille, presse-papiers, réglages ou éteindre (les
 > réglages rapides de la barre de menus, § 6.0). Le bouton d'alimentation du PC ouvre toujours le
-> dialogue d'extinction. Ce qui suit décrit la barre d'avant.
+> dialogue d'extinction.
+>
+> **Réorganiser le dash en glissant** (23/11/2026) : un appui sur une icône ne l'ouvre qu'au relâché ; au-delà
+> de 6 px, c'est un glisser : l'icône suit le pointeur, un peu levée, les autres s'écartent, la place visée
+> est marquée. Posée, l'ordre des raccourcis change (`panel.ini`) ; une application ouverte non épinglée
+> posée parmi les raccourcis (ou juste après) s'y épingle. Le rang dans `panel.ini` se retrouve par le nom
+> (`dg_pin_of`) : un raccourci dont l'application manque n'a pas de place dans le dash. Ce qui suit décrit
+> la barre d'avant.
 
 Le panel (`src/sys/panel/panel.c`, commun au Pi et au PC ; `panel.asm` n'est plus copié sur la carte)
 remplace le dock depuis le 31/10. Revue du 17/11 (« fait encore un peu rétro ») : ce qui datait la
@@ -1170,6 +1182,15 @@ elle fermée, l'inverse. Un clic sur un bureau de la rangée l'active (retour à
 vide de la grille, Échap, ou un second clic sur « Applications » : retour au carrousel ; une
 application choisie s'ouvre et referme la vue. Pendant la grille, le dash répond toujours (le panel
 relaie ses événements : `la_other`). Une fenêtre `WF_APPGRID` créée hors de la vue l'ouvre.
+
+**Survol quitté** (23/11/2026). Elegant n'envoie le survol qu'à la fenêtre sous le pointeur ; celle qui
+l'a reçu en dernier (`hov_win`) reçoit, quand le pointeur la quitte (pour une autre fenêtre, un cadre, le
+fond, la vue d'ensemble), un dernier `WEV_MOUSE` de genre 0 en (-1, -1) : le titre de menu de la barre, la
+zone d'état, une icône du dash ne restent plus en surbrillance.
+
+**Les pilules de catégories** de la grille sont dessinées texte d'abord, sur le fond transparent, puis le
+voile glissé **dessous** (`la_pill_under`, pixel par pixel, bords lissés) : le texte tracé sur un fond à
+demi transparent s'y frangeait de sombre (« il dégouline »).
 
 **Molette horizontale.** Nouvel événement des pilotes, `EV_HWHEEL` (5 ; +8 crans, vers la gauche
 > 0, comme la molette vers le haut) : i2chid (le pavé tactile du PC) le donne pour deux doigts qui

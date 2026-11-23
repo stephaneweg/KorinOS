@@ -43,6 +43,7 @@ programme C, avec des arguments sans limite de longueur.
 | `whois` | `[-h serveur] [-p port] domaine [serveur]` : whois.iana.org, puis le serveur de son `refer:` |
 | `ftp` | `[-u utilisateur] [-p mot de passe] [hôte [port]]`, commandes sur l'entrée standard : `open`, `user`, `ls`, `dir`, `cd`, `cdup`, `pwd`, `get`, `put`, `mget`, `mput`, `delete`, `mkdir`, `rmdir`, `rename`, `size`, `lcd`, `lpwd`, `quote`, `close`, `bye` ; passif, binaire, pas de FTPS. `sh` interactif (telnet) ne donne pas le clavier à ses programmes : `ftp hôte < commandes.txt`, ou un tube |
 | `mount` | sans argument : les volumes ; `VOLUME:` le remonte (source de `mounts.txt`, ou `blk.usbNp1`) ; `VOLUME: source [service]` |
+| `umount` | `POINT \| VOLUME` (23/11/2026) : démonte un volume (`/media/ram`, `/net/…`), la mémoire d'un ramfs est rendue ; `/` jamais ; pour une clé, `eject` (il écrit d'abord les fichiers ouverts) |
 | `eject` | `[-f] [/media/usbn]` : les entrées des fichiers ouverts écrites (`FS_SYNC` de fatfs), refusé s'il en reste sans `-f`, puis démonté ; cartes jamais |
 | `mkfs` | `[-t auto\|fat32\|exfat\|ext4] [-L étiquette] [-c octets] [-y] [-f] [--card] VOLUME \| blk.PARTITION` : FAT32, exFAT (`src/lib/exfat`) ou ext4 (`src/lib/ext4`, pas remonté tant qu'il n'y a pas de service ext4), écrit par le service bloc ; une partition sans volume (`blk.nvme0p3` : l'installateur) n'est pas montée ensuite ; confirmation sur l'entrée standard sans `-y` (vide : rien n'est fait) ; `/` jamais, la carte avec `--card` |
 
