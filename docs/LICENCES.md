@@ -20,7 +20,7 @@ Le code de Korin OS est sous licence **MIT** ([LICENSE](../LICENSE)), sauf ce qu
 | Firmware Wi-Fi CYW43455 | `firmware/wifi/`, `sdcard/firmware` | Cypress, `LICENCE.cypress` ; nvram GPL-2.0 ; origine dans `SOURCE.txt` |
 | Firmware Wi-Fi Intel AX201 (PC) | `firmware/pc/iwlwifi/` | Intel, `LICENCE.iwlwifi_firmware` : redistribution binaire sans modification ; origine dans `SOURCE.txt` |
 | FASMARM, fasm | `tools/fasmarm`, `ref/fasm*`, `src/bin/fasmarm/fasmarm.asm` | licence de fasm (`LICENSE.TXT`), le code traduit compris |
-| Polices DejaVu, Inter, Spleen | `ref/fonts`, `ref/spleen` | leurs fichiers `LICENSE` |
+| Polices DejaVu, Inter, Spleen ; Noto Sans Symbols, Symbols 2, Math, Noto Emoji (OFL 1.1 : les symboles et émojis des pages web, polices de repli de Jet ; 23/11/2026) | `ref/fonts`, `ref/spleen` | leurs fichiers `LICENSE` |
 | Sintel (extraits) | `skel/sd0/home/public/video` | CC BY 3.0, Blender Foundation |
 
 Les émulateurs sont réécrits sous MIT : leurs commentaires citent le comportement décrit par d'autres projets, sans

@@ -887,6 +887,18 @@ static void hover_to(struct win *w)
 	win_push(o, evbuf);
 }
 
+/* -> le nombre de fenêtres qui prennent le clavier (une application, l'installateur de la clé...), sauf w */
+static long ov_start_pending; /* 1 : le dash est arrivé devant une fenêtre ; la vue s'ouvrira quand elle se fermera */
+static long apps_open(const struct win *w)
+{
+	long n = 0;
+	for (long i = 0; i < win_count; i++)
+		if (win_z[i] != w && !win_z[i]->mini &&
+		    !(win_z[i]->flags & (WF_OVERVIEW | WF_APPGRID | WF_BACK | WF_HOME | WF_NOFOCUS)))
+			n++;
+	return n;
+}
+
 /* x, y, boutons */
 void mouse(long x, long y, long buttons)
 {
@@ -1196,6 +1208,10 @@ void win_unlink(struct win *w)
 		drag_win = 0;
 	if (hov_win == w)
 		hov_win = 0;
+	if (ov_start_pending && !ov_on && !apps_open(w)) { /* (la dernière fenêtre d'avant le dash : la vue d'ensemble) */
+		ov_start_pending = 0;
+		ov_open();
+	}
 	wins_changed();
 }
 
@@ -1477,6 +1493,16 @@ long req_create(void)
 		ov_close(desk_cur, w);
 	if ((role & WF_APPGRID) && !ov_on) /* la grille des applications : dans la vue d'ensemble */
 		ov_open();
+	if ((role & WF_OVERVIEW) && ov_enabled && !ov_on) { /* le dash arrive (une session commence) : sans application
+							     ouverte, la vue d'ensemble d'abord, pour lancer la première
+							     (demande de l'utilisateur, 23/11/2026) ; sinon (l'installateur
+							     de la clé), quand la dernière se ferme */
+		if (!apps_open(w))
+			ov_open();
+		else
+			ov_start_pending = 1;
+	} else if (!(role & (WF_OVERVIEW | WF_APPGRID | WF_BACK | WF_HOME | WF_NOFOCUS)))
+		ov_start_pending = 0; /* (une application s'ouvre : on y travaille déjà) */
 	M64(msg, WM_A) = (u64)buf;
 	M64(msg, WM_B) = frame ? content : 0;
 	M64(msg, WM_C) = frame ? content + frame : 0;

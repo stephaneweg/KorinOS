@@ -1183,6 +1183,11 @@ vide de la grille, Échap, ou un second clic sur « Applications » : retour au 
 application choisie s'ouvre et referme la vue. Pendant la grille, le dash répond toujours (le panel
 relaie ses événements : `la_other`). Une fenêtre `WF_APPGRID` créée hors de la vue l'ouvre.
 
+**À l'ouverture de la session** (23/11/2026, demande de l'utilisateur) : quand le dash arrive (`WF_OVERVIEW`) et
+qu'aucune fenêtre qui prend le clavier n'est ouverte, Elegant ouvre la vue d'ensemble, pour lancer la première
+application ; s'il y en a une (l'installateur de la clé live), la vue s'ouvre quand elle se ferme
+(`ov_start_pending`), sauf si une application s'est ouverte entre-temps. Pas à l'écran de connexion (login).
+
 **Survol quitté** (23/11/2026). Elegant n'envoie le survol qu'à la fenêtre sous le pointeur ; celle qui
 l'a reçu en dernier (`hov_win`) reçoit, quand le pointeur la quitte (pour une autre fenêtre, un cadre, le
 fond, la vue d'ensemble), un dernier `WEV_MOUSE` de genre 0 en (-1, -1) : le titre de menu de la barre, la
