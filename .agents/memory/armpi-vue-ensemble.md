@@ -45,3 +45,7 @@ ailleurs = fermé) et à la teinte du dash (dash_palette, jetons du seul process
 glissé sous le texte (la_pill_under). Icônes Adwaita (LGPL3 / CC-BY-SA 3.0, « GNOME Project ») : le dépôt n'a PAS
 d'icônes d'apps, seulement dossiers, périphériques, types de fichiers, avatar, symboliques. Piège : un remplacement
 Python avec un motif vide (`s.index` d'une déclaration anticipée) insère le texte entre chaque caractère.
+Icônes (23/11, sur main) : iconlib STYLE = 'adwaita' (plaque à épaisseur, aplats ; 'tile' = avant), art.obj() +
+@icon(free=True) pour les objets libres (files, control, calculator, clock, calendar, corbeille). Suite proposée :
+redessiner en objets ce qui s'y prête, icônes Adwaita de dossiers/types dans Fichiers. Écran de connexion façon
+Fedora (login.c plein écran, couche normale ; quickmenu « L… » sans Réglages).
