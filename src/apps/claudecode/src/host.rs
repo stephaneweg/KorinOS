@@ -25,8 +25,17 @@ pub fn pick_folder(start: &str, tag: &str) {
     QUEUE.lock().unwrap().push(Req::PickFolder { start: start.to_string(), tag: tag.to_string() });
 }
 
+static TITLE: Mutex<String> = Mutex::new(String::new());
+
 pub fn set_title(t: &str) {
+    *TITLE.lock().unwrap() = t.to_string();
     QUEUE.lock().unwrap().push(Req::Title(t.to_string()));
+}
+
+/// Le dernier titre donné à la fenêtre (la bande de titre sous Korin).
+pub fn title() -> String {
+    let t = TITLE.lock().unwrap();
+    if t.is_empty() { "Claude Code".into() } else { t.clone() }
 }
 
 pub fn close() {

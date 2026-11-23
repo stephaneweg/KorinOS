@@ -187,9 +187,13 @@ impl App {
         if let Route::Session(id) = &r {
             self.store.load_session(&self.be, id);
             self.held = Some(id.clone());
-            self.views.entry(id.clone()).or_default();
+            // (l'en-tête redonne son titre à la fenêtre)
+            self.views.entry(id.clone()).or_default().header.last_title.clear();
         }
         self.ui.palette_open = false;
+        if !matches!(r, Route::Session(_)) {
+            crate::host::set_title("Claude Code");
+        }
         self.route = r;
     }
 
@@ -221,6 +225,15 @@ impl App {
 
         let t = self.t;
         let mut go = None;
+        // Sous Korin, Elegant dessine les boutons de la fenêtre sur le contenu, en haut à droite : une bande de titre
+        // (comme les apps Craft) leur laisse la place, au-dessus du rail, de la page et de l'inspecteur.
+        if cfg!(target_os = "korin") {
+            egui::Panel::top("korin-title").exact_size(34.0).frame(Frame::new().fill(t.chrome).inner_margin(Margin { left: 14, right: 120, top: 0, bottom: 0 }).stroke(Stroke::new(1.0, t.separator))).show(ui, |ui| {
+                ui.horizontal_centered(|ui| {
+                    ui.add(egui::Label::new(egui::RichText::new(crate::host::title()).font(theme::medium(theme::SMALL)).color(t.text_dim)).truncate());
+                });
+            });
+        }
         let rail_w = self.store.prefs.rail_width.as_deref().and_then(|w| w.trim_end_matches("px").parse::<f32>().ok()).unwrap_or(256.0);
         let rail = egui::Panel::left("rail")
             .resizable(true)

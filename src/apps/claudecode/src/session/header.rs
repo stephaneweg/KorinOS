@@ -31,7 +31,7 @@ pub struct HeaderState {
     busy: Option<Task<Result<Option<String>, String>>>,
     fork: Option<Task<String>>,
     note: Option<String>,
-    last_title: String,
+    pub last_title: String,
 }
 
 /// `#42` pour l'adresse d'une PR, sinon le dernier segment de l'adresse.
