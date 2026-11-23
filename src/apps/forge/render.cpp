@@ -489,7 +489,15 @@ void View::render (unsigned *pix, int pitch, const Doc &d, const Palette &p, con
 		for (int oy = -d.size; oy <= d.size; oy++)
 			for (int ox = -d.size; ox <= d.size; ox++) {
 				int X = (int) x + ox, Y = (int) y + oy;
-				if (X >= 0 && Y >= 0 && X < W && Y < H) pix[(size_t) Y * pitch + X] = d.col;
+				if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
+				if (d.round) {	// (le disque, son bord adouci d'un demi-pixel)
+					double r = sqrt ((double) (ox * ox + oy * oy));
+					if (r > d.size + 0.5) continue;
+					unsigned col = d.hole > 0 && r < d.size - d.hole ? d.holeCol : d.col;
+					unsigned &px0 = pix[(size_t) Y * pitch + X];
+					px0 = r > d.size - 0.5 ? mix (px0, col, 128) : col;
+				} else
+					pix[(size_t) Y * pitch + X] = d.col;
 			}
 	}
 	// le trièdre, en bas à gauche

@@ -68,7 +68,8 @@ public:
 	bool ghostCut = false;
 	// des traits par-dessus tout (l'esquisse) : polylignes dans l'espace, couleur, épaisseur, pointillés ; des points
 	struct Stroke { std::vector<double> pts; unsigned col; int thick; bool dashed; };
-	struct Dot { double p[3]; unsigned col; int size; };
+	// (round : un disque de rayon size, évidé de hole pixels en holeCol ; sinon un carré de côté 2 size + 1)
+	struct Dot { double p[3]; unsigned col; int size; bool round = false; int hole = 0; unsigned holeCol = 0; };
 	std::vector<Stroke> strokes;
 	std::vector<Dot> dots;
 	bool dimBodies = false;		// (en esquisse : la pièce pâlie)

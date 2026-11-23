@@ -144,6 +144,12 @@ struct Cmd {
 	int pick = 0;			// (combiner) le clic dans la vue choisit : 0 rien, 1 la cible, 2 les outils
 	int pickBody = -1;		// (combiner) la cible et les outils d'avant le bouton (Échap y revient)
 	std::vector<int> pickTools;
+	// (congé, chanfrein) la poignée : au milieu de la première arête, le long de la bissectrice de ses deux faces
+	bool hOk = false;		// posée (l'arête est entre deux faces)
+	double hAt[3] = { 0, 0, 0 }, hDir[3] = { 0, 0, 0 };
+	int handle = 0;			// 0 rien, 1 survolée, 2 tirée
+	double hS0 = 0, hV0 = 0;	// (au début du glisser) la place sur l'axe sous le pointeur, la valeur
+	double lastGood = 0;		// la dernière valeur dont l'aperçu passait (0 : aucune)
 } g_cmd;
 
 StepKind toolKind (Tool t)
@@ -174,6 +180,8 @@ long w_sktools;
 enum { SKB_H, SKB_V, SKB_COINC, SKB_PAR, SKB_PERP, SKB_TAN, SKB_EQ, SKB_CONC, SKB_ON, SKB_CONS, SKB_DEL, SKB_CANCEL, SKB_DONE, SKB_N };
 long skb[SKB_N];
 void skStrokes ();
+void handleStrokes ();
+bool handleScreen (double &dx, double &dy, double &tx, double &ty);
 void skLabels (std::vector<std::array<int, 4>> &Z, int X, int Y);
 void skPanel ();
 
@@ -242,6 +250,7 @@ void renderView ()
 	g_view.ghost = g_cmd.tool != T_NONE && !g_cmd.ghost.pts.empty () ? &g_cmd.ghost : nullptr;
 	g_view.ghostCut = (g_cmd.f.op == OP_CUT && g_cmd.tool != T_COMBINE) || ((g_cmd.tool == T_PUSH || g_cmd.tool == T_EXTRUDE) && g_cmd.f.a < 0);
 	skStrokes ();
+	handleStrokes ();
 	g_view.render (g_back.data (), VW, g_doc, g_pal, g_sels, g_hot);
 	for (int y = 0; y < VH; y++) memcpy (pix + (size_t) y * (pitch / 4), g_back.data () + (size_t) y * VW, (size_t) VW * 4);
 	ui_surface_damage (g_surf, 0, 0, 0, 0);
@@ -268,6 +277,20 @@ void paintOverlays ()
 		std::string t = std::string (TR (c.label)) + "  " + (c.text.empty () ? fmtNum (c.val) : c.text) + "|";
 		c.sw = (int) ui_text_width ((long) t.c_str (), 13, (long) ui.font) + 24;
 		c.sx = imax (2, imin (VW - c.sw - 2, (int) sx + 10)), c.sy = imax (2, imin (VH - 28, (int) sy - 30));
+		double hx, hy, tx, ty;
+		if (&c == &g_cmd.chips[0] && handleScreen (hx, hy, tx, ty)) {	// (la puce ne cache pas la poignée : à côté, sinon dessous, à gauche)
+			auto over = [&] (int bx, int by) {
+				auto in = [&] (double px, double py) { return px > bx - 12 && px < bx + c.sw + 12 && py > by - 12 && py < by + 26 + 12; };
+				for (int k = 0; k <= 4; k++)
+					if (in (hx + (tx - hx) * k / 4, hy + (ty - hy) * k / 4)) return true;
+				return false;
+			};
+			const int cand[4][2] = { { (int) sx + 10, (int) sy - 30 }, { (int) sx + 10, (int) sy + 12 }, { (int) sx - c.sw - 10, (int) sy - 30 }, { (int) sx - c.sw - 10, (int) sy + 12 } };
+			for (auto &q : cand) {
+				int bx = imax (2, imin (VW - c.sw - 2, q[0])), by = imax (2, imin (VH - 28, q[1]));
+				if (!over (bx, by)) { c.sx = bx, c.sy = by; break; }
+			}
+		}
 		Z.push_back ({ c.sx, c.sy, c.sw, 26 });
 	}
 	auto has = [] (const std::vector<std::array<int, 4>> &v, const std::array<int, 4> &z) { return std::find (v.begin (), v.end (), z) != v.end (); };
@@ -448,8 +471,8 @@ void panelUpdate ()
 			{ "Clic : un coin de la base, sur une face ou sur le sol", "Clic : le coin opposé (la diagonale)", "On monte pour la hauteur ; clic ou Entrée" },
 			{ "Clic : le centre de la base, sur une face ou sur le sol", "On s'éloigne pour le rayon ; clic", "On monte pour la hauteur ; clic ou Entrée" },
 			{ "Clic : la face plane à pousser ou à tirer", "Glisser pour la distance ; clic ou Entrée", "" },
-			{ "Clic : les arêtes (Maj : plusieurs) ; Entrée", "Tapez le rayon ; Entrée", "" },
-			{ "Clic : les arêtes (Maj : plusieurs) ; Entrée", "Tapez la distance ; Entrée", "" },
+			{ "Clic : les arêtes (Maj : plusieurs) ; Entrée", "Glisser la poignée ou tapez le rayon ; Entrée", "" },
+			{ "Clic : les arêtes (Maj : plusieurs) ; Entrée", "Glisser la poignée ou tapez la distance ; Entrée", "" },
 			{ "Cible ou Outils, puis les corps dans la vue", "Cible ou Outils, puis les corps dans la vue", "" },
 			{ "Une esquisse fermée : l'étape choisie dans la frise, ou la dernière", "Glisser le long de la normale, ou tapez la distance ; Entrée", "" },
 			{ "Une esquisse avec une ligne de construction (l'axe)", "Tapez l'angle ; Entrée", "" },
@@ -749,14 +772,21 @@ void cmdRefresh ()
 		insertFeature (probe, probe.bar, g_cmd.f);
 		replay (probe, 0.2);
 		g_cmd.err = probe.feats[probe.bar - 1].error;
+		if (g_cmd.err.empty () && (tt == T_FILLET || tt == T_CHAMFER)) g_cmd.lastGood = g_cmd.f.a;
 		g_cmd.ghost = Mesh ();
 		int gb = tt == T_PATTERN && g_cmd.f.ref >= 0 ? g_doc.feats[g_cmd.f.ref].body : g_cmd.f.body;
 		if (g_cmd.err.empty () && gb >= 0 && gb < (int) probe.bodies.size ())
 			meshShape (probe.bodies[gb].shape, g_cmd.ghost, 0.2);
-		if (!g_typing && !g_cmd.err.empty () && tt == T_FILLET && g_cmd.f.body >= 0 && g_cmd.f.body < (int) g_doc.bodies.size ())
+		if (!g_typing && g_cmd.handle != 2 && !g_cmd.err.empty () && tt == T_FILLET && g_cmd.f.body >= 0 && g_cmd.f.body < (int) g_doc.bodies.size ())
 			g_cmd.maxR = filletMax (g_doc.bodies[g_cmd.f.body].shape, g_cmd.f.edges, g_cmd.f.a);	// (dichotomie)
 	} else
 		cmdGhost ();
+	if ((tt == T_FILLET || tt == T_CHAMFER) && g_cmd.handle != 2) {	// (la poignée : sur la première arête, refaite quand le choix change)
+		const Feature &f = g_cmd.f;
+		g_cmd.hOk = !f.edges.empty () && f.body >= 0 && f.body < (int) g_doc.bodies.size () && !g_doc.bodies[f.body].shape.IsNull ()
+			&& edgeHandle (g_doc.bodies[f.body].shape, f.edges[0], g_cmd.hAt, g_cmd.hDir);
+		if (!g_cmd.hOk) g_cmd.handle = 0;
+	}
 	renderView ();
 	paintOverlays ();
 	panelUpdate ();
@@ -951,12 +981,201 @@ double alongNormal (const double o[3], const double n[3], int x, int y)
 	return snapv (((x - sx) * vx + (y - sy) * vy) / l2 * 10);
 }
 
+// ---- la poignée du congé et du chanfrein ------------------------------------------------------------------------
+//
+// Un disque sur une flèche, posé au milieu de la (première) arête et tourné le long de la bissectrice de ses deux
+// faces, là où le congé s'enfonce (comme la flèche de Fusion 360). Le disque est à la valeur (rayon, distance) de
+// l'arête, le long de l'axe. On le tire : la valeur est la place, sur l'axe, du point le plus proche du rayon sous le
+// pointeur (juste en perspective comme en orthographique), arrondie à un pas qui suit le zoom (handleStep) ; la puce
+// affiche la valeur, l'aperçu se refait une fois par lot de mouvements (g_cmdDirty, comme les autres gestes), sans la
+// recherche du rayon maximal.
+
+bool handleOn () { return (g_cmd.tool == T_FILLET || g_cmd.tool == T_CHAMFER) && g_cmd.stage >= 1 && g_cmd.hOk && !g_cmd.chips.empty (); }
+void handlePoint (double v, double p[3])
+{
+	for (int i = 0; i < 3; i++) p[i] = g_cmd.hAt[i] + g_cmd.hDir[i] * v;
+}
+// les pixels par mm le long de l'axe, au point p
+double handlePxPerMm (const double p[3])
+{
+	double q[3] = { p[0] + g_cmd.hDir[0], p[1] + g_cmd.hDir[1], p[2] + g_cmd.hDir[2] }, ax, ay, bx, by;
+	g_view.toScreen (p, ax, ay);
+	g_view.toScreen (q, bx, by);
+	if (ax < -1e6 || bx < -1e6) return 0;
+	return sqrt ((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
+}
+// le bout de la flèche : 44 pixels au-delà du disque (moins si l'axe file vers soi)
+void handleTip (const double p[3], double tip[3])
+{
+	double l = handlePxPerMm (p);
+	double mm = l > 0.05 ? 44 / l : 44 / std::max (g_view.cam.scale, 1e-6);
+	mm = std::min (mm, 44 / std::max (g_view.cam.scale, 1e-6) * 3);
+	for (int i = 0; i < 3; i++) tip[i] = p[i] + g_cmd.hDir[i] * mm;
+}
+// la poignée à l'écran (dans la vue) : le disque, le bout de la flèche -> faux : pas de poignée
+bool handleScreen (double &dx, double &dy, double &tx, double &ty)
+{
+	if (!handleOn ()) return false;
+	double p[3], tip[3];
+	handlePoint (g_cmd.chips[0].val, p);
+	handleTip (p, tip);
+	g_view.toScreen (p, dx, dy);
+	g_view.toScreen (tip, tx, ty);
+	return dx > -1e6 && tx > -1e6;
+}
+// le pointeur sur la poignée : à 10 pixels du disque, ou à 6 de la flèche
+bool handleHit (int x, int y)
+{
+	double dx, dy, tx, ty;
+	if (!handleScreen (dx, dy, tx, ty)) return false;
+	double px = x + 0.5, py = y + 0.5;
+	if ((px - dx) * (px - dx) + (py - dy) * (py - dy) <= 100) return true;
+	double vx = tx - dx, vy = ty - dy, l2 = vx * vx + vy * vy;
+	double t = l2 > 0 ? std::max (0.0, std::min (1.0, ((px - dx) * vx + (py - dy) * vy) / l2)) : 0;
+	double ex = dx + vx * t - px, ey = dy + vy * t - py;
+	return ex * ex + ey * ey <= 36;
+}
+// la place le long de l'axe (mm depuis le milieu de l'arête) du point de l'axe le plus proche du rayon sous le
+// pointeur -> faux : l'axe vu par le bout
+bool handleAxisAt (int x, int y, double &s)
+{
+	double o[3], u[3];
+	g_view.ray (x, y, o, u);
+	const double *a = g_cmd.hAt, *d = g_cmd.hDir;
+	double w[3] = { a[0] - o[0], a[1] - o[1], a[2] - o[2] };
+	double b = d[0] * u[0] + d[1] * u[1] + d[2] * u[2];
+	double dw = d[0] * w[0] + d[1] * w[1] + d[2] * w[2], uw = u[0] * w[0] + u[1] * w[1] + u[2] * w[2];
+	double den = 1 - b * b;
+	if (den < 1e-3) return false;
+	s = (b * uw - dw) / den;
+	return true;
+}
+// le pas de la valeur tirée : le plus fin de 0,1 0,2 0,5 1 2 5 10 mm qui déplace le disque d'au moins un pixel et
+// demi (de près, des dixièmes ; de loin, des mm), jamais plus gros que l'accrochage (Affichage) ; aussi la plus
+// petite valeur
+double handleStep ()
+{
+	double p[3];
+	handlePoint (g_cmd.chips[0].val, p);
+	double l = handlePxPerMm (p);
+	for (double c : { 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0 })
+		if (c >= g_snap || c * l >= 1.5) return std::min (c, g_snap);
+	return g_snap;
+}
+// la valeur pour le pointeur en (x, y) pendant le glisser
+double handleValue (int x, int y)
+{
+	double s;
+	if (!handleAxisAt (x, y, s)) return g_cmd.chips[0].val;
+	double v = g_cmd.hV0 + (s - g_cmd.hS0), st = handleStep ();
+	return std::max (st, std::round (v / st) * st);
+}
+
+void handleStrokes ()
+{
+	if (!handleOn ()) return;
+	double p[3], tip[3];
+	handlePoint (g_cmd.chips[0].val, p);
+	handleTip (p, tip);
+	bool hot = g_cmd.handle != 0;
+	unsigned col = !g_cmd.err.empty () ? g_pal.danger : hot ? g_pal.hover : g_pal.accent;
+	const double *a = g_cmd.hAt;
+	int th = hot ? 3 : 2;
+	std::vector<View::Stroke> st;	// (chaque trait sur un liseré de la couleur des surfaces : lisible sur l'aperçu teinté)
+	st.push_back ({ { a[0], a[1], a[2], p[0], p[1], p[2] }, col, 1, false });	// (de l'arête au disque)
+	st.push_back ({ { p[0], p[1], p[2], tip[0], tip[1], tip[2] }, col, th, false });
+	// la pointe : deux traits de 11 pixels, tracés à l'écran puis reportés dans le plan de la pointe face à la vue
+	double r[3], u[3], f[3], px, py, tx, ty;
+	g_view.cam.basis (r, u, f);
+	g_view.toScreen (p, px, py);
+	g_view.toScreen (tip, tx, ty);
+	double vx = tx - px, vy = ty - py, vl = sqrt (vx * vx + vy * vy);
+	if (vl > 4) {
+		vx /= vl, vy /= vl;
+		for (int sgn = -1; sgn <= 1; sgn += 2) {
+			double hx = tx - vx * 11 + sgn * vy * 6, hy = ty - vy * 11 - sgn * vx * 6, w3[3];
+			if (!g_view.onPlane ((int) std::lround (hx - 0.5), (int) std::lround (hy - 0.5), tip, f, w3)) continue;
+			st.push_back ({ { tip[0], tip[1], tip[2], w3[0], w3[1], w3[2] }, col, th, false });
+		}
+	}
+	for (auto s : st) s.col = jet (TJ_SURFACE), s.thick += 2, g_view.strokes.push_back (s);
+	for (auto &s : st) g_view.strokes.push_back (s);
+	View::Dot dot;
+	for (int i = 0; i < 3; i++) dot.p[i] = p[i];
+	dot.col = jet (TJ_SURFACE), dot.size = hot ? 10 : 9, dot.round = true;
+	g_view.dots.push_back (dot);
+	dot.col = col, dot.size = hot ? 9 : 8, dot.hole = 3, dot.holeCol = jet (TJ_SURFACE);
+	g_view.dots.push_back (dot);
+}
+
+const char *handleHelp () { return TR (g_cmd.tool == T_FILLET ? "Glisser la poignée pour le rayon" : "Glisser la poignée pour la distance"); }
+
+// la souris sur la poignée -> vrai si elle est prise (survol, appui, glisser, relâché)
+bool handleMouse (int kind, int x, int y, int buttons)
+{
+	if (g_cmd.handle == 2) {
+		if (kind == 0) {
+			double v = handleValue (x, y);
+			Chip &c = g_cmd.chips[0];
+			if (v != c.val || !c.text.empty ()) {
+				c.val = v, c.text.clear ();	// (la puce suit, sans la frappe en cours)
+				g_cmd.err.clear ();
+				g_cmdDirty = true;
+			}
+			return true;
+		}
+		if (kind == 2) {	// relâché : la valeur reste ; si elle ne passe pas, la dernière qui passait
+			g_cmd.handle = handleHit (x, y) ? 1 : 0;
+			if (g_cmdDirty) g_cmdDirty = false, cmdRefresh ();
+			if (!g_cmd.err.empty () && g_cmd.lastGood > 0) {
+				std::string m = std::string (TR (toolName (g_cmd.tool))) + " " + fmtNum (g_cmd.chips[0].val) + TR (" mm ne passe pas : retour à ")
+					+ fmtNum (g_cmd.lastGood) + " mm.";
+				g_cmd.chips[0].val = g_cmd.lastGood;
+				cmdRefresh ();
+				status (m.c_str ());
+			} else {
+				cmdRefresh ();	// (avec le rayon maximal, s'il ne passe toujours pas)
+				status (handleHelp ());
+			}
+			return true;
+		}
+		return true;
+	}
+	if (!handleOn ()) return false;
+	bool hit = handleHit (x, y);
+	if (kind == 0 && !buttons) {	// le survol
+		if (hit != (g_cmd.handle == 1)) {
+			g_cmd.handle = hit ? 1 : 0;
+			if (hit) g_hot = Pick ();
+			renderView ();
+			paintOverlays ();
+			status (hit ? handleHelp () : TR (toolName (g_cmd.tool)));
+		}
+		return hit;
+	}
+	if (kind == 1 && (buttons & 1) && hit) {	// l'appui : le glisser commence (la valeur tapée d'abord, si elle se lit)
+		Chip &c = g_cmd.chips[0];
+		double v;
+		if (!c.text.empty () && evalExpr (g_doc, c.text.c_str (), v) && v > 0) c.val = v;
+		double s;
+		if (!handleAxisAt (x, y, s)) {
+			status (TR ("La poignée est vue par le bout : tournez la vue, ou tapez la valeur."));
+			return true;
+		}
+		g_cmd.handle = 2, g_cmd.hS0 = s, g_cmd.hV0 = c.val;
+		g_cmd.active = 0;
+		return true;
+	}
+	return false;
+}
+
 // la souris pendant une commande -> vrai si elle est prise
 bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 {
 	if (g_cmd.tool == T_NONE || (buttons & 6)) return false;	// (droit, milieu : la vue)
 	Feature &f = g_cmd.f;
 	Tool t = g_cmd.tool;
+	if ((t == T_FILLET || t == T_CHAMFER) && handleMouse (kind, x, y, buttons)) return true;
 	if (kind == 0) {		// déplacement : le geste en cours
 		if ((t == T_BOX || t == T_CYL) && g_cmd.stage == 1) {
 			double p[3];
@@ -1979,7 +2198,7 @@ void viewMouse (int kind, int x, int y, int buttons, bool shift)
 		skMouse (kind, x, y, kind == 2 ? g_btn : buttons, shift);
 		return;
 	}
-	if (!overUi && kind != 3 && cmdMouse (kind, x, y, kind == 2 ? g_btn : buttons, shift)) return;
+	if ((!overUi || g_cmd.handle == 2) && kind != 3 && cmdMouse (kind, x, y, kind == 2 ? g_btn : buttons, shift)) return;	// (la poignée tirée : jusqu'au relâché)
 	if (kind == 0) {
 		if (buttons) return;
 		int hc = g_view.cubeFaceAt (x, y);
@@ -3337,6 +3556,161 @@ void type (const char *s)
 	for (; *s; s++) cmdKey (0, *s);
 }
 
+// le volume d'un maillage fermé (triangles tournés vers l'extérieur), en mm³
+double meshVolume (const Mesh &m)
+{
+	double v = 0;
+	for (size_t t = 0; t + 2 < m.tris.size (); t += 3) {
+		const float *a = &m.pts[m.tris[t] * 3], *b = &m.pts[m.tris[t + 1] * 3], *c = &m.pts[m.tris[t + 2] * 3];
+		v += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6.0;
+	}
+	return v;
+}
+
+// tirer la poignée de la valeur v0 à la valeur v1 (appui sur le disque, un mouvement, relâché), comme la souris
+void handleDrag (double v0, double v1, bool release = true)
+{
+	double p[3], q[3], sx, sy, ex, ey;
+	handlePoint (v0, p);
+	handlePoint (v1, q);
+	g_view.toScreen (p, sx, sy);
+	g_view.toScreen (q, ex, ey);
+	viewMouse (1, (int) sx, (int) sy, 1, false);
+	viewMouse (0, (int) ex, (int) ey, 1, false);
+	if (g_cmdDirty) g_cmdDirty = false, cmdRefresh ();	// (comme la boucle quand plus rien n'attend)
+	if (!release) return;
+	viewMouse (2, (int) ex, (int) ey, 0, false);
+	g_btn = 0;
+}
+
+// la poignée du congé et du chanfrein, sur une boîte 40 × 30 × 20 (base centrée sur l'origine, z de 0 à 20)
+void handleTests ()
+{
+	char s[300];
+	Doc keepDoc = g_doc;
+	std::vector<Snap> ku = g_undo, kr = g_redo;
+	bool kd = g_dirty, kp = g_view.persp;
+	double ksnap = g_snap;
+	Doc d;
+	Feature bx;
+	bx.kind = ST_BOX, bx.name = "Boîte 1", bx.op = OP_NEW, bx.a = 40, bx.b = 30, bx.c = 20;
+	d.feats.push_back (bx);
+	Feature top = bx;	// (un bloc posé dessus, joint : des arêtes rentrantes à son pied)
+	top.name = "Boîte 2", top.op = OP_JOIN, top.body = 0, top.a = 10, top.b = 30, top.c = 10, top.frame.o[2] = 20;
+	Doc dl = d;
+	dl.feats.push_back (top);
+	dl.bar = 2;
+	d.bar = 1;
+	replay (dl, 0.2);
+	g_doc = d;
+	g_sels.clear ();
+	rebuild ();
+	const double V0 = 40 * 30 * 20, L = 40, K = 1 - M_PI / 4;
+	// l'arête du haut, à l'avant : milieu (0, -15, 20), le long de X ; la poignée entre dans la matière, vers (0, 1, -1)
+	int edge = -1;
+	for (int i = 0; i < g_doc.bodies[0].mesh.nedges; i++) {
+		EdgeRef r = edgeRef (g_doc.bodies[0], i);
+		if (std::fabs (r.tan[0]) > 0.99 && std::fabs (r.mid[1] + 15) < 1e-6 && std::fabs (r.mid[2] - 20) < 1e-6) edge = i;
+	}
+	double at[3], dir[3], at2[3], dir2[3];
+	bool okf = edge >= 0 && edgeHandle (g_doc.bodies[0].shape, edgeRef (g_doc.bodies[0], edge), at, dir);
+	const double h = sqrt (0.5);
+	bool good = okf && std::fabs (at[0]) < 1e-6 && std::fabs (at[1] + 15) < 1e-6 && std::fabs (at[2] - 20) < 1e-6
+		&& std::fabs (dir[0]) < 1e-6 && std::fabs (dir[1] - h) < 1e-6 && std::fabs (dir[2] + h) < 1e-6;
+	// une arête rentrante (au pied du bloc, x = 5, z = 20, le long de Y) : la poignée va dans le creux, vers (1, 0, 1)
+	bool okr = false;
+	if (!dl.bodies.empty ()) {
+		const Body &B = dl.bodies[0];
+		for (int i = 0; i < B.mesh.nedges && !okr; i++) {
+			EdgeRef r = edgeRef (B, i);
+			if (std::fabs (r.tan[1]) > 0.99 && std::fabs (r.mid[0] - 5) < 1e-6 && std::fabs (r.mid[2] - 20) < 1e-6)
+				okr = edgeHandle (B.shape, r, at2, dir2) && std::fabs (dir2[0] - h) < 1e-6 && std::fabs (dir2[2] - h) < 1e-6 && std::fabs (dir2[1]) < 1e-6;
+		}
+	}
+	snprintf (s, sizeof s, "milieu (%.2f, %.2f, %.2f), direction (%.3f, %.3f, %.3f) ; rentrante (%.3f, %.3f, %.3f)",
+		  at[0], at[1], at[2], dir[0], dir[1], dir[2], okr ? dir2[0] : 0.0, okr ? dir2[1] : 0.0, okr ? dir2[2] : 0.0);
+	check ("poignée du congé : au milieu de l'arête, vers la matière (saillante) ou le creux (rentrante)", good && okr, s);
+	// le glisser : la valeur suit le point de l'axe le plus proche du rayon sous le pointeur, perspective et orthographique
+	for (int mode = 0; mode < 2; mode++) {
+		g_view.persp = mode == 0;
+		g_view.standard (6);
+		g_view.fit (g_doc);
+		g_view.zoomAt (VW / 2, VH / 2, 1.6);
+		cameraChanged ();
+		g_snap = 1;
+		select (Pick { 0, -1, edge });
+		cmdStart (T_FILLET);
+		double ax0[3], sa = 0;
+		for (int i = 0; i < 3; i++) ax0[i] = g_cmd.hAt[i];
+		// un point de l'axe à 7,3 mm : sous le pointeur, il revient à 7,3 mm (à un demi-pixel près)
+		double q[3], sx, sy;
+		for (int i = 0; i < 3; i++) q[i] = g_cmd.hAt[i] + g_cmd.hDir[i] * 7.3;
+		g_view.toScreen (q, sx, sy);
+		bool axisOk = handleAxisAt ((int) std::floor (sx), (int) std::floor (sy), sa);
+		double tol = 1 / std::max (handlePxPerMm (q), 1e-6);
+		handleDrag (2, 6);
+		double got = g_cmd.chips[0].val, st = handleStep ();
+		bool box = g_cmd.chips[0].text.empty () && g_cmd.f.a == got && g_cmd.err.empty () && !g_cmd.ghost.pts.empty ();
+		double gv = meshVolume (g_cmd.ghost), want = V0 - K * got * got * L;
+		snprintf (s, sizeof s, "%s : axe à 7,3 mm -> %.3f mm (±%.2f) ; tirée de 2 à 6 -> R %s (pas %s mm) ; aperçu %.1f mm³ pour %.1f attendus",
+			  mode ? "orthographique" : "perspective", sa, tol, fmtNum (got).c_str (), fmtNum (st).c_str (), gv, want);
+		check (mode ? "poignée tirée en orthographique : la puce et l'aperçu suivent" : "poignée tirée en perspective : la puce et l'aperçu suivent",
+		       handleOn () && axisOk && std::fabs (sa - 7.3) < tol && std::fabs (got - 6) <= st + 2 * tol && box && std::fabs (gv - want) < 0.003 * V0
+		       && std::fabs (ax0[1] + 15) < 1e-6 && std::fabs (ax0[2] - 20) < 1e-6, s);
+		if (mode == 0) {
+			// trop grand (R 25 sur une boîte de 20) : l'erreur pendant le glisser, puis la dernière valeur qui passait
+			double before = g_cmd.chips[0].val;
+			handleDrag (before, 25, false);
+			bool errDuring = !g_cmd.err.empty () && g_cmd.handle == 2 && g_cmd.ghost.pts.empty ();
+			double over = g_cmd.chips[0].val;
+			double p[3], ex, ey;
+			handlePoint (over, p);
+			g_view.toScreen (p, ex, ey);
+			viewMouse (2, (int) ex, (int) ey, 0, false);
+			g_btn = 0;
+			snprintf (s, sizeof s, "R %s pendant le glisser : « %s » ; relâché : R %s, %s", fmtNum (over).c_str (), errDuring ? "erreur" : "pas d'erreur",
+				  fmtNum (g_cmd.chips[0].val).c_str (), g_cmd.err.empty () ? "aperçu bon" : g_cmd.err.c_str ());
+			check ("poignée tirée trop loin : erreur sans plantage, retour à la dernière valeur bonne", errDuring && over > 20 && g_cmd.chips[0].val == before
+			       && g_cmd.err.empty () && g_cmd.tool == T_FILLET, s);
+			// la frappe : la poignée suit la valeur tapée
+			type ("4");
+			double p4[3], dx, dy, tx, ty;
+			handlePoint (4, p4);
+			handleScreen (dx, dy, tx, ty);
+			double ex4, ey4;
+			g_view.toScreen (p4, ex4, ey4);
+			bool follows = g_cmd.chips[0].val == 4 && std::fabs (dx - ex4) < 1e-6 && std::fabs (dy - ey4) < 1e-6;
+			cmdKey (0x2A, 0);
+			check ("valeur tapée : la poignée la suit", follows, follows ? "R 4" : "");
+		}
+		double r = g_cmd.chips[0].val;
+		cmdKey (0x28, 0);	// (Entrée)
+		double vol = g_doc.bodies.empty () ? 0 : bodyVolume (g_doc.bodies[0]), wantv = V0 - K * r * r * L;
+		snprintf (s, sizeof s, "R %s : %.2f mm³, attendu %.2f", fmtNum (r).c_str (), vol, wantv);
+		check (mode ? "congé validé après le glisser (orthographique) : V = boîte - (1 - π/4) R² L" : "congé validé après le glisser (perspective) : V = boîte - (1 - π/4) R² L",
+		       g_cmd.tool == T_NONE && g_doc.feats.size () == 2 && std::fabs (vol - wantv) < 0.01, s);
+		g_doc = d;
+		rebuild ();
+	}
+	// le chanfrein, en orthographique : D 4 -> V = boîte - D² L / 2
+	select (Pick { 0, -1, edge });
+	cmdStart (T_CHAMFER);
+	handleDrag (2, 4);
+	double dd = g_cmd.chips[0].val;
+	cmdKey (0x28, 0);
+	double vol = g_doc.bodies.empty () ? 0 : bodyVolume (g_doc.bodies[0]), wantc = V0 - dd * dd * L / 2;
+	snprintf (s, sizeof s, "D %s : %.2f mm³, attendu %.2f", fmtNum (dd).c_str (), vol, wantc);
+	check ("chanfrein à la poignée", std::fabs (dd - 4) < 0.6 && std::fabs (vol - wantc) < 0.01, s);
+	g_doc = keepDoc;
+	g_undo = ku, g_redo = kr, g_dirty = kd;
+	g_view.persp = kp, g_snap = ksnap;
+	g_sels.clear ();
+	rebuild ();
+	g_view.standard (6);
+	g_view.fit (g_doc);
+	refreshAll ();
+}
+
 int selftest (double buildMs)
 {
 	char s[240];
@@ -3825,6 +4199,7 @@ int selftest (double buildMs)
 		check ("cube de vue : une face en orthographique, tourner ou Maison rend la perspective", face && orbit && alt3 && iso, s);
 		g_view.fit (g_doc);
 	}
+	handleTests ();
 	select (Pick ());
 	g_snap = 5;	// (le réglage d'origine)
 	printf ("forge : %s\n", fails ? "FAIL" : "PASS");

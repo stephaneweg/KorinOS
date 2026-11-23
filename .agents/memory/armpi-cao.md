@@ -1,6 +1,6 @@
 ---
 name: armpi-cao
-description: CAO native (successeur de 3DForge) : OCCT 8.0.1 + PlaneGCS portés (tools/cao), caotest passe sous QEMU PC le 14/11, paquets PC occt-dev/planegcs-dev/caotest publiés le 15/11 ; maquettes validées le 15/11, app pas écrite
+description: CAO native Forge (successeur de 3DForge) sur OCCT + PlaneGCS ; historique des étapes 0-4, MCP, perspective (1.3.8), poignée du congé (1.3.9, 23/11)
 metadata:
   type: project
 ---
@@ -114,3 +114,15 @@ gardé (g_perspPref) dans HOME:/forge/forge.ini (« projection = perspective|ort
 Alt+5 / Orthographique Alt+6 (ids 27, 28), clic droit sur le cube (menu : les deux cochés selon le choix, Vue
 isométrique, Ajuster), MCP set_view/screenshot `projection`. Selftest 36/36 sous Linux (8 essais ajoutés) ; Korin pas
 essayé (ni QEMU ni le Pi).
+
+**23/11, forge 1.3.9 (pas publié, branche claude/forge-fillet-handle)** : demande de l'utilisateur : une **poignée**
+pour régler congé et chanfrein à la souris (Korin et Linux). main.cpp « la poignée du congé et du chanfrein »
+(handleOn/handleMouse/handleStrokes, état dans Cmd : hAt, hDir, handle 0/1/2, lastGood) ; history.cpp `edgeHandle`
+(milieu de l'arête, bissectrice des normales, saillante/rentrante par BRepClass3d_SolidClassifier à 0,01 mm en
+travers). Valeur = place sur l'axe (1:1) du point le plus proche du rayon souris, depuis l'appui ; pas selon le zoom
+(0,1…10 mm, >= 1,5 px, <= accrochage) ; aperçu par g_cmdDirty (un par lot), filletMax sauté pendant le glisser ; au
+relâché une valeur refusée revient à lastGood. Ajout au rejeu : congé/chanfrein non valide (BRepCheck_Analyzer) =
+erreur (avant, R 13 sur la plaque de 8 mm passait, faces retournées). View::Dot round/hole (disque évidé). Modifier
+une étape depuis la frise : pas de poignée (autre chemin : champs du panneau). Selftest 44/44 sous Linux (8 essais :
+axe, saillante/rentrante, glisser persp/ortho, trop grand, frappe, volumes) ; KORIN_SCRIPT : `wheel:x,y,0` = un
+survol. Korin pas construit ni essayé ici.
