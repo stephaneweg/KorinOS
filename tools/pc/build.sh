@@ -97,9 +97,11 @@ done
 UCFLAGS="-std=gnu11 -O2 -ffreestanding -nostdlib -static -fno-pie -no-pie -fno-stack-protector
 -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -I$OUT/gen -Wl,-Ttext-segment=0x400000 -Wl,-e,_start
 -Wl,-z,noexecstack"
+# (memset, memcpy... : GCC peut les appeler même en -ffreestanding, selon sa version ; initrd/lib/mem.c)
+$CC $UCFLAGS -fno-tree-loop-distribute-patterns -c src/kernel/arch/pc/initrd/lib/mem.c -o "$OBJ/initrd_mem.o"
 for f in src/kernel/arch/pc/initrd/*.c; do
 	n=$(basename "$f" .c)
-	$CC $UCFLAGS "$f" -o "$INITRD/$n"
+	$CC $UCFLAGS "$f" "$OBJ/initrd_mem.o" -o "$INITRD/$n"
 	NAMES="$NAMES $n"
 done
 # kits écrits en C, communs au Pi et au PC (tools/kits/build_c.sh)
