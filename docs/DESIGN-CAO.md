@@ -62,7 +62,7 @@ de la chaîne `tools/icons`.
 | Recherche de commande | Touche S (boîte à outils) | Recherche | **Ctrl+K** : commandes, paramètres, étapes, réglages | Le même geste que dans WebStudio (Ctrl+P) |
 | Historique | Frise en bas, barre de reconstruction, rouge et jaune | Historique optionnel | **La frise de 3DForge et de Fusion**, barre glissée, étapes en erreur, clic droit | Validée par l'utilisateur ; Fusion montre que ça marche |
 | Esquisse | Contraintes, bleu/noir, glyphes | Contraintes déduites, peu de glyphes | **Contraintes visibles (Fusion) + déduites pendant le tracé (Shapr3D)**, degrés de liberté toujours dits, conflit désigné | PlaneGCS donne les DDL et la liste des contraintes en conflit : on les montre |
-| Congé | Flèche, chaîne tangente, variable | Flèche, très direct | **Flèche + chaîne tangente au double-clic**, rayon variable plus tard | OCCT le permet sur toute arête |
+| Congé | Flèche, chaîne tangente, variable | Flèche, très direct | **Flèche + chaîne tangente au double-clic**, rayon variable plus tard (flèche faite le 23/11, forge 1.3.9 : §15.11) | OCCT le permet sur toute arête |
 | Pousser/tirer | Commande Q à part | Le geste principal | **Q, et l'action en tête du panneau** quand une face est choisie ; opération auto | Le geste le plus rapide pour modifier une pièce |
 | Erreurs | Étape en rouge, message dans une fenêtre | Message court | **Champ rouge + arêtes rouges + bandeau avec la valeur possible** ; étape rouge et cause en clair dans le panneau | Dire quoi faire, pas seulement que ça a échoué |
 | Petits écrans | — | iPad : panneaux qui se replient | **Un volet à la fois** à 800 × 600 : panneau en tiroir, barre sans légendes | Le Pi doit rester utilisable |
@@ -801,6 +801,21 @@ pose la cote et ouvre sa saisie. Pas essayé sur le ZBook ni sur le Pi.
   angle, `tangentChain`). Un rayon refusé donne le plus grand rayon qui passe, cherché par dichotomie
   (`filletMax` : 14 essais, forme valide, arrondi au dixième). Le panneau le dit et le bouton « Utiliser R … »
   le prend.
+* **La poignée du congé et du chanfrein** (23/11/2026, forge 1.3.9, demande de l'utilisateur), comme la flèche de
+  Fusion 360 : un disque sur une flèche, posé au milieu de l'arête (la première de la chaîne), le long de la
+  bissectrice de ses deux faces, tourné là où le congé s'enfonce (dans la matière pour une arête saillante, dans le
+  creux pour une arête rentrante : `edgeHandle`, le côté par un `BRepClass3d_SolidClassifier` en travers de la
+  bissectrice). Le disque est à la valeur (rayon ou distance) de l'arête. On le tire : la valeur est la place sur
+  l'axe du point le plus proche du rayon sous le pointeur (`View::ray`, juste en perspective comme en orthographique),
+  comptée depuis l'appui (pas de saut), arrondie à un pas qui suit le zoom (le plus fin de 0,1 0,2 0,5 1 2 5 10 mm qui
+  déplace le disque d'au moins 1,5 pixel, jamais plus que l'accrochage ; aussi la plus petite valeur). La puce et le
+  panneau suivent ; l'aperçu (la vraie forme) se refait une fois par lot de mouvements, comme les autres gestes, sans
+  la recherche du rayon maximal. Une valeur qui ne passe pas rougit la puce et la poignée pendant le glisser ; au
+  relâché, la dernière valeur qui passait revient (barre d'état : « Congé 13 mm ne passe pas : retour à 2 mm. »).
+  La frappe fait bouger la poignée ; Entrée, Échap comme avant. Au survol, elle prend la couleur de survol et la
+  barre d'état dit « Glisser la poignée pour le rayon ». Un congé ou un chanfrein dont OCCT rend une forme non valide
+  (trop grand : faces retournées) est maintenant refusé au rejeu (`BRepCheck_Analyzer`, comme `filletMax`). La
+  modification d'une étape depuis la frise passe par les champs du panneau, sans poignée.
 * **Perçage** (H, Créer > Perçage). Un clic sur une face plane pose le premier trou, au demi-mm. Maj+clic en
   ajoute. Les valeurs : le diamètre et la profondeur (0 : traversant). Le lamage reste dans le modèle (Ø et
   profondeur), modifiable depuis la frise.

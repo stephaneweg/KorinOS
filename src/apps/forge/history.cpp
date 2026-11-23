@@ -16,6 +16,9 @@
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepClass_FaceClassifier.hxx>
+#include <BRepClass3d_SolidClassifier.hxx>
+#include <GeomAPI_ProjectPointOnSurf.hxx>
+#include <Geom_Surface.hxx>
 #include <BRepFilletAPI_MakeChamfer.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <BRepCheck_Analyzer.hxx>
@@ -413,6 +416,9 @@ int replay (Doc &d, double deflection)
 					if (!mk.IsDone ()) throw Fail { "le chanfrein ne passe pas (distance trop grande ?)" };
 					r = mk.Shape ();
 				}
+				// (trop grand, OCCT rend parfois une forme quand même, retournée ou trouée : refusée, comme filletMax)
+				if (!BRepCheck_Analyzer (r).IsValid ())
+					throw Fail { f.kind == ST_FILLET ? "le congé ne passe pas (rayon trop grand ?)" : "le chanfrein ne passe pas (distance trop grande ?)" };
 				b->shape = r;
 				break;
 			}
@@ -809,6 +815,61 @@ double filletMax (const TopoDS_Shape &s, const std::vector<EdgeRef> &edges, doub
 		else hi = m;
 	}
 	return std::floor (lo * 10) / 10;	// (au dixième, en dessous)
+}
+
+bool edgeHandle (const TopoDS_Shape &s, const EdgeRef &r, double at[3], double dir[3])
+{
+	try {
+		TopoDS_Edge e = findEdge (s, r);
+		if (e.IsNull ()) return false;
+		double tan[3];
+		edgeSig (e, at, tan);
+		TopTools_IndexedDataMapOfShapeListOfShape e2f;
+		TopExp::MapShapesAndAncestors (s, TopAbs_EDGE, TopAbs_FACE, e2f);
+		int k = e2f.FindIndex (e);
+		if (k <= 0) return false;
+		// les normales (vers l'extérieur) des deux faces au milieu de l'arête
+		gp_Vec n[2];
+		int nf = 0;
+		TopoDS_Face first;
+		for (TopTools_ListOfShape::Iterator it (e2f (k)); it.More () && nf < 2; it.Next ()) {
+			TopoDS_Face F = TopoDS::Face (it.Value ());
+			if (nf == 1 && F.IsSame (first)) continue;	// (une couture : la même face des deux côtés)
+			Handle (Geom_Surface) S = BRep_Tool::Surface (F);
+			if (S.IsNull ()) return false;
+			GeomAPI_ProjectPointOnSurf pr (P (at), S);
+			if (!pr.NbPoints ()) return false;
+			double u, v;
+			pr.LowerDistanceParameters (u, v);
+			gp_Pnt q;
+			gp_Vec du, dv;
+			S->D1 (u, v, q, du, dv);
+			gp_Vec m = du.Crossed (dv);
+			if (m.Magnitude () < 1e-12) return false;
+			m.Normalize ();
+			if (F.Orientation () == TopAbs_REVERSED) m.Reverse ();
+			if (nf == 0) first = F;
+			n[nf++] = m;
+		}
+		if (nf < 2) return false;
+		gp_Vec b = n[0] + n[1], c = n[0] - n[1];
+		if (b.Magnitude () < 1e-9) return false;
+		b.Normalize ();
+		// saillante ou rentrante : à côté de l'arête, en travers de la bissectrice, on sort de la matière (saillante)
+		// ou on y reste (rentrante, plus de 180° de matière autour de l'arête)
+		bool convex = true;
+		if (c.Magnitude () > 1e-9) {
+			c.Normalize ();
+			gp_Pnt q = P (at).Translated (c * 0.01);
+			BRepClass3d_SolidClassifier cl (s, q, 1e-7);
+			convex = cl.State () != TopAbs_IN;
+		}
+		if (convex) b.Reverse ();	// (saillante : le congé enlève, il s'enfonce dans la matière ; rentrante : il remplit le creux)
+		dir[0] = b.X (), dir[1] = b.Y (), dir[2] = b.Z ();
+		return true;
+	} catch (...) {
+		return false;
+	}
 }
 
 bool evalExpr (const char *s, double &out)

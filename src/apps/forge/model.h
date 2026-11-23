@@ -191,6 +191,10 @@ void featureSet (Feature &f, int i, double v);
 std::vector<int> tangentChain (const Body &b, int edge);
 // le plus grand rayon de congé qui passe sur ces arêtes du corps (0 : aucun), cherché par dichotomie
 double filletMax (const TopoDS_Shape &s, const std::vector<EdgeRef> &edges, double hi);
+// l'axe de la poignée d'un congé ou d'un chanfrein sur une arête du corps : at, le milieu de l'arête ; dir (unitaire),
+// la bissectrice des deux faces, tournée là où le congé s'enfonce (dans la matière pour une arête saillante, dans le
+// vide pour une arête rentrante) -> faux : arête pas retrouvée, ou pas entre deux faces distinctes
+bool edgeHandle (const TopoDS_Shape &s, const EdgeRef &r, double at[3], double dir[3]);
 std::string fmtNum (double v);	// 12,5 ; 90
 
 } // namespace forge
