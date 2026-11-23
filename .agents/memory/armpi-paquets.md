@@ -107,3 +107,10 @@ diffère du python 1.0.3 publié, plus récent : la date affichée sert à voir 
 tools/posix/build.sh`, `tools/pc/apps.sh weather`. Dans cet environnement du cloud, la clé est dans **`ONYX_PKG_KEY`**
 (PEM) ; depuis le 23/11, pub.py et publish.sh lisent `OnyxPkgKey` ou `ONYX_PKG_KEY` (plus besoin de la passer). Le Pi n'a pas weather
 dans son index publié.
+
+**23/11 (soir), publiés depuis le cloud** (pub.py --api, clé ONYX_PKG_KEY) : pc 2026.11.94 (vue d'ensemble, dash,
+quickmenu, login façon Fedora, umount, polices Noto, icônes Adwaita ; --add-new), budget 1.0.8, claude-code
+2.1.330.10 (--only apps/claudecode.app/ ; chaîne Rust du PC refaite par ARCH=x86_64 SKIP_TESTS=1 tools/rust/build.sh,
+quelques minutes). **forge 1.3.11 pas publié** : OCCT et PlaneGCS (tools/cao/fetch.sh) viennent d'archives GitHub
+d'autres dépôts, refusées par la portée GitHub de la session (403 codeload) ; add_repo refusé. À faire depuis WSL
+(tools/cao/build-occt.sh puis tools/pc/apps.sh forge, pub.py forge) ou une session qui a ces dépôts.
