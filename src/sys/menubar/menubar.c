@@ -1,13 +1,18 @@
 /* menubar - la barre de menus du bureau Elegant (/sys/menubar, lancée par la session, comme
  * le menubar d'Onyx ; docs/DESIGN-ELEGANT.md 6), traduite ligne à ligne de menubar.asm :
- *   * à gauche, le menu Korin (losange d'accent + nom) : À propos, les catégories d'applications
- *     (manifestes app.txt) qui ouvrent leur sous-menu, les fenêtres ouvertes ;
+ *   * à gauche, « Korin OS » (losange d'accent + nom) : depuis le 23/11/2026, il bascule la vue
+ *     d'ensemble d'Elegant (WS_OP_OVERVIEW : les bureaux en carrousel, le dash), allumé tant
+ *     qu'elle est ouverte (korin.shell.overview) ; sans elle (un Elegant plus ancien), le menu Korin
+ *     d'avant : À propos, les catégories d'applications, les fenêtres ouvertes ;
  *   * à côté, le nom de l'application active (WEV_WINLIST) ; si elle a publié des menus
  *     (ui_menu ; lus par ui_menu_get toutes les 200 ms et à chaque WEV_WINLIST, refaits quand le
  *     numéro de série change) : un menu en gras à son nom (Quitter), puis ses menus ; un choix
  *     lui est renvoyé (ui_menu_command : WEV_MENU) ; un clic sur un autre titre pendant qu'un
  *     menu est ouvert ouvre celui-là ;
- *   * à droite, l'heure (décalage de /etc/clock.cfg, réglé par l'Horloge, plus le temps
+ *   * à droite, la zone d'état : depuis le 23/11/2026, un clic n'importe où dessus (heure,
+ *     batterie, réseau, son) ouvre les réglages rapides (/sys/quickmenu : réseau, son, Ne pas
+ *     déranger, Réglages, Éteindre ; un second clic les ferme) ; le mode poche garde les clics
+ *     d'avant, icône par icône. L'heure (décalage de /etc/clock.cfg, réglé par l'Horloge, plus le temps
  *     depuis le démarrage), l'état du réseau (relu quand netd ou le Wi-Fi le publient sur le
  *     bus, korin.net.* ; sans busd, à chaque dessin ; un clic : le menu Wi-Fi ou l'adresse) et le
  *     haut-parleur (barre si la sortie principale est muette ; état de sound relu par AudioKit) :
@@ -86,6 +91,8 @@ static const char s_t_home[] = "korin.shell.home";
 static const char s_t_switch[] = "korin.shell.switch";
 static const char s_t_quick[] = "korin.shell.quick";
 static const char s_unread[] = "korin.notify.unread";
+static const char s_t_overview[] = "korin.shell.overview";
+static const char p_quickmenu[] = "/sys/quickmenu";
 
 static struct krt_ui ui;
 static long net_x;          /* icône du réseau */
@@ -116,6 +123,10 @@ static u32 app_pids[64];
 static char argbuf[24];
 static long bar_h = 30;
 static long hov;            /* titre survolé + 1 (0 : aucun) */
+static long ov_sub;         /* korin.shell.overview (Elegant : la vue d'ensemble) */
+static long ov_shown;       /* 1 : la vue d'ensemble est ouverte (« Korin OS » allumé) */
+static long tray_x0 = 1 << 30; /* zone d'état (heure, batterie, réseau, son) : début ; un clic : réglages rapides */
+static long tray_hov;       /* 1 : la zone d'état est survolée */
 static long open_menu;      /* titre ouvert + 1 (0 : aucun) */
 static long pend_x;         /* clic qui a fermé un menu (écran ; pend_y = -1 : aucun) */
 static long pend_y = -1;
@@ -1294,7 +1305,7 @@ static void draw(void)
 	mb_shown = 1;
 	u32 c = 0; /* survol, ouvert */
 	long box = 0;
-	if (open_menu == 1) {
+	if (open_menu == 1 || (ov_shown && !poche)) { /* (menu ouvert, ou vue d'ensemble) */
 		c = tj(k, TJ_ACCENT_LIGHT);
 		box = 1;
 	} else if (hov == 1) {
@@ -1326,6 +1337,8 @@ static void draw(void)
 		draw_poche_right(&x, base, k);
 	} else { /* heure, à droite */
 		clock_text();
+		if (tray_hov && tray_x0 < ui.w) /* la zone d'état survolée : une pilule de verre */
+			glass_rbox(tray_x0, 3, ui.w - 4 - tray_x0, bh - 6, (bh - 6) / 2, glass_hover());
 		x = ui.w - tw(clockbuf, ui.font_b) - 12;
 		ui_text((long)clockbuf, x, base, text1, MB_PX, (long)ui.font_b, 0);
 	}
@@ -1348,6 +1361,7 @@ static void draw(void)
 	x -= 12 + 16; /* son : haut-parleur 16 x 14 */
 	snd_x = x;
 	snd_icon(x);
+	tray_x0 = poche ? 1 << 30 : x - 10;
 	if (pq_on) { /* PocketQI : bulle 16 x 14 */
 		x -= 12 + 16;
 		pq_x = x;
@@ -1375,6 +1389,12 @@ static void press_right(long x)
 	}
 	if ((u64)(x - pq_x + 4) < 24) { /* PocketQI */
 		pq_click();
+		return;
+	}
+	if (!poche && x >= tray_x0) { /* bureau : toute la zone d'état ouvre les réglages rapides (un second
+					 clic les ferme) */
+		*fmt_dec((u64)(ui.w - 4), argbuf) = 0;
+		spawn(p_quickmenu, argbuf);
 		return;
 	}
 	if (bat_x > 0 && x >= bat_x - 4 && x < bat_x1 + 6) { /* batterie */
@@ -1409,10 +1429,40 @@ static void on_bus(void)
 		net_refresh();
 	} else if (sub == (u64)bat_sub) { /* korin.power.battery : la batterie */
 		bat_read();
+	} else if (sub == (u64)ov_sub) { /* korin.shell.overview : « Korin OS » allumé ou non */
+		char v[8];
+		long n = bus_get((long)s_t_overview, (long)v, sizeof v - 1);
+		ov_shown = n > 0 && v[0] == '1';
 	} else {
 		return;
 	}
 	draw();
+}
+
+/* la vue d'ensemble d'Elegant ouverte ou fermée (WS_OP_OVERVIEW) -> 1 ouverte, 0 fermée, < 0 : pas
+ * de vue d'ensemble (le menu Korin d'avant) */
+static long overview_toggle(void)
+{
+	static u8 m[WS_MSG] __attribute__((aligned(16)));
+	M64(m, WM_OP) = WS_OP_OVERVIEW;
+	M64(m, WM_A) = (u64)-1;
+	M32(m, WM_LEN) = 0;
+	long r = ksys(SYS_WS_CALL, (long)m, 0, 0, 0, 0, 0);
+	if (r >= 0)
+		ov_shown = r;
+	return r;
+}
+
+/* l'état de la vue d'ensemble relu (WS_OP_OVERVIEW, lire) : Elegant prévient aussi la liste des fenêtres
+ * quand elle s'ouvre ou se ferme */
+static void overview_query(void)
+{
+	static u8 m[WS_MSG] __attribute__((aligned(16)));
+	M64(m, WM_OP) = WS_OP_OVERVIEW;
+	M64(m, WM_A) = 2;
+	M32(m, WM_LEN) = 0;
+	long r = ksys(SYS_WS_CALL, (long)m, 0, 0, 0, 0, 0);
+	ov_shown = r == 1;
 }
 
 /* abonnement (> 0), sinon 0 */
@@ -1447,6 +1497,8 @@ int main(int argc, char **argv)
 	snd_poll();
 	bat_sub = subscribe(s_bat_topic, 0); /* la batterie (acpid du PC) */
 	bat_read();
+	if (!poche) /* la vue d'ensemble d'Elegant */
+		ov_sub = subscribe(s_t_overview, BUS_CURRENT);
 	if (poche) { /* mode poche : non lues, apps ouvertes */
 		unread_sub = subscribe(s_unread, BUS_CURRENT);
 		count_apps();
@@ -1460,7 +1512,9 @@ int main(int argc, char **argv)
 		long type = ui_event(MB_POLL);
 		if (!type)
 			continue;
-		if (type == WEV_WINLIST) { /* (la fenêtre active a pu changer) */
+		if (type == WEV_WINLIST) { /* (la fenêtre active a pu changer ; la vue d'ensemble aussi) */
+			if (!poche)
+				overview_query();
 			menu_poll();
 			help_probe();
 			count_apps();
@@ -1480,10 +1534,12 @@ int main(int argc, char **argv)
 			on_bus();
 		} else if (type == WEV_MOUSE) {
 			long x = *(i32 *)(ui.ev + EV_X);
-			if (*(u32 *)(ui.ev + EV_KIND) != 1) { /* survol des titres de menus */
+			if (*(u32 *)(ui.ev + EV_KIND) != 1) { /* survol des titres de menus, de la zone d'état */
 				long h = title_at(x) + 1;
-				if (h != hov) {
+				long th = x >= tray_x0;
+				if (h != hov || th != tray_hov) {
 					hov = h;
+					tray_hov = th;
 					draw();
 				}
 				continue;
@@ -1495,6 +1551,10 @@ int main(int argc, char **argv)
 			}
 			if (!t && poche) { /* poche : le losange montre l'accueil */
 				shell_pub(s_t_home);
+				continue;
+			}
+			if (!t && overview_toggle() >= 0) { /* bureau : « Korin OS » bascule la vue d'ensemble */
+				draw();
 				continue;
 			}
 			open_menus(t);

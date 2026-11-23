@@ -89,6 +89,8 @@ $sys_c += @("shutdown")
 # les volets du son et du Wi-Fi de la barre en C (src/sys/soundmenu, wifimenu ; PC-PILOTES.md, "Retours du ZBook :
 # bureau") : soundmenu compare a l'asm sous QEMU raspi4b (identique au pixel), wifimenu sur le PC
 $sys_c += @("soundmenu", "wifimenu")
+# les reglages rapides de la zone d'etat de la barre (src/sys/quickmenu, 23/11/2026 : vue d'ensemble, DESIGN-ELEGANT.md 19)
+$sys_c += @("quickmenu")
 if ((Test-Path (Join-Path $root "build\svc\aarch64\vfs")) -and (Test-Path (Join-Path $root "build\svc\aarch64\fatfs"))) { $defmod += @("-d", "FILES_C=1") }
 Push-Location (Join-Path $root "src\svc\modules")
 try {

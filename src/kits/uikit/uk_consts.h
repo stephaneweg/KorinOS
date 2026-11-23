@@ -277,6 +277,7 @@
 #define WS_OP_WIN_PLACE 33
 #define WS_OP_WIN_TOP 40
 #define WS_OP_SESSION_END 41
+#define WS_OP_OVERVIEW 42 /* vue d'ensemble : a -1 basculer, 0 fermer, 1 ouvrir, 2 lire (ws_ext.inc) */
 #define WSM_W 0
 #define WSM_H 2
 #define WSM_FLAGS 4
@@ -289,6 +290,8 @@
 #define WEV_THEME 14
 #define WF_HOME 0x4000
 #define WF_BLUR 0x8000 /* flou d'arrière-plan et ombre portée (ws_ext.inc) */
+#define WF_OVERVIEW 0x10000 /* montrée seulement dans la vue d'ensemble (le dash) */
+#define WF_APPGRID 0x20000 /* la grille des applications de la vue d'ensemble */
 #define WS_OP_WIN_THUMB 37
 #define WS_SF_XRGB8888 0
 #define WS_SF_RGB565 1

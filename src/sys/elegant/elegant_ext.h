@@ -68,4 +68,22 @@ void screen_fb_moved(void);
 long pk_is_app(const struct win *w); /* normale, à cadre (dialogues compris), hors accueil */
 long pk_owns(const struct win *w);   /* mode poche : sa place est tenue par Elegant */
 
+/* ---- overview.c : la vue d'ensemble (mode desktop) */
+
+extern long ov_on;        /* non nul : la vue a l'écran (ouverture, ouverte, fermeture) */
+void ov_open(void);
+void ov_close(long desk, struct win *w); /* bureau (-1 : celui du milieu), fenêtre à ramener */
+void ov_toggle(void);
+void ov_tick(void);
+long ov_busy(void);       /* une animation en cours */
+void ov_reset(void);      /* l'écran change de taille */
+void ov_compose_clip(void);
+long ov_top(const struct win *w); /* montrée et touchée normalement pendant la vue */
+long ov_mouse(long x, long y, long down, long up);
+long ov_wheel(long n);   /* -> 1 si prise (0 : la grille des applications la reçoit) */
+void ov_hwheel(long n);  /* crans horizontaux (vers la gauche > 0) */
+long ov_key(const u8 *in);
+void ov_gone(struct win *w);
+long req_overview(void);
+
 #endif

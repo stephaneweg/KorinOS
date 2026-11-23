@@ -30,9 +30,27 @@ static void dk_none_w(struct win *w)
 	(void)w;
 }
 
-static long dk_no_key(const u8 *in)
+/* Super seul (appuyé puis relâché sans autre touche) : la vue d'ensemble (overview.c), comme
+ * GNOME ; Super est avalé, les autres touches passent */
+#define HID_LGUI 0xE3
+#define HID_RGUI 0xE7
+static long dk_super; /* Super appuyé, seul jusqu'ici */
+
+static long dk_key(const u8 *in)
 {
-	(void)in;
+	u64 code = M64(in, 8);
+	if (code == HID_LGUI || code == HID_RGUI) {
+		if (M64(in, 16)) {
+			dk_super = 1;
+		} else {
+			if (dk_super)
+				ov_toggle();
+			dk_super = 0;
+		}
+		return 1;
+	}
+	if (M64(in, 16))
+		dk_super = 0; /* une autre touche : Super n'est plus seul */
 	return 0;
 }
 
@@ -48,7 +66,7 @@ const struct policy mode_desktop = {
 	.wins = dk_none,
 	.flags = 0,
 	.place = dk_none_w,
-	.key = dk_no_key,
+	.key = dk_key,
 	.gone = dk_none_w,
 	.raise = dk_none_w,
 };
@@ -57,6 +75,7 @@ const struct policy mode_desktop = {
 void dk_tick(void)
 {
 	sh_tick(0);
+	ov_tick(); /* la vue d'ensemble : animations, vignettes */
 }
 
 /* fond uni dans le clip */

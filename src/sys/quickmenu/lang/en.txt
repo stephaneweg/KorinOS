@@ -1,0 +1,12 @@
+# sys/quickmenu : anglais (cles : les textes du source)
+Réglages rapides = Quick Settings
+Ne pas déranger = Do Not Disturb
+Activé = On
+Désactivé = Off
+Filaire = Wired
+Réseau = Network
+hors ligne = offline
+non connecté = not connected
+Batterie = Battery
+en charge = charging
+aucune sortie = no output

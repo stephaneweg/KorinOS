@@ -76,7 +76,7 @@ static void frame(struct gest *g, const struct hid_contact *c, int n, int button
 	/* déplacements des doigts déjà là (centièmes de mm) */
 	int32_t mx[HID_MAX_FINGERS], my[HID_MAX_FINGERS];
 	int matched = 0, best = -1;
-	int32_t best_d = -1, sum_dy = 0;
+	int32_t best_d = -1, sum_dy = 0, sum_dx = 0;
 	for (int i = 0; i < n; i++) {
 		const struct hid_contact *p = find(g->prev, g->nprev, c[i].id);
 		mx[i] = my[i] = 0;
@@ -94,6 +94,7 @@ static void frame(struct gest *g, const struct hid_contact *c, int n, int button
 		}
 		matched++;
 		sum_dy += my[i];
+		sum_dx += mx[i];
 		int32_t d = iabs(mx[i]) + iabs(my[i]);
 		if (d > best_d) {
 			best_d = d;
@@ -108,6 +109,8 @@ static void frame(struct gest *g, const struct hid_contact *c, int n, int button
 		g->moved = 0;
 		g->phys_used = 0;
 		g->scroll = 0;
+		g->scroll_x = 0;
+		g->axis = 0;
 		g->x0 = c[0].x;
 		g->y0 = c[0].y;
 		int32_t ddx = (int32_t)((int64_t)(c[0].x - g->tap_x) * g->xmm100 / g->xrange);
@@ -156,12 +159,29 @@ static void frame(struct gest *g, const struct hid_contact *c, int n, int button
 	}
 
 	if (n == 2 && !g->phys && matched == 2) {
-		/* défilement à deux doigts : la moyenne des deux en Y */
+		/* défilement à deux doigts : la moyenne des deux ; le sens (vertical ou horizontal) est celui
+		   qui a le plus bougé au début du geste */
 		g->scroll += sum_dy / 2;
-		int notches = g->scroll / g->cfg.scroll_mm100;
-		if (notches) {
-			g->scroll -= notches * g->cfg.scroll_mm100;
-			emit(ctx, GEV_WHEEL, g->cfg.natural ? notches : -notches, 0, 0);
+		g->scroll_x += sum_dx / 2;
+		if (!g->axis) {
+			int32_t ay = iabs(g->scroll), ax = iabs(g->scroll_x);
+			if (ay >= g->cfg.scroll_mm100 / 2 || ax >= g->cfg.scroll_mm100 / 2)
+				g->axis = ax > ay ? 2 : 1;
+		}
+		if (g->axis == 1) {
+			g->scroll_x = 0;
+			int notches = g->scroll / g->cfg.scroll_mm100;
+			if (notches) {
+				g->scroll -= notches * g->cfg.scroll_mm100;
+				emit(ctx, GEV_WHEEL, g->cfg.natural ? notches : -notches, 0, 0);
+			}
+		} else if (g->axis == 2) {
+			g->scroll = 0;
+			int notches = g->scroll_x / g->cfg.scroll_mm100;
+			if (notches) {
+				g->scroll_x -= notches * g->cfg.scroll_mm100;
+				emit(ctx, GEV_HWHEEL, g->cfg.natural ? notches : -notches, 0, 0);
+			}
 		}
 	} else if (best >= 0 && (n == 1 || g->phys || g->drag) && best_d > 0) {
 		/* le pointeur : le doigt qui bouge le plus ; accélération d'après la vitesse (mm/s) */

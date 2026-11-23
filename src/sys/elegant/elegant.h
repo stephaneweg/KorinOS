@@ -17,6 +17,7 @@
  *	remote.c	les fenêtres une à une, rdpd (remote.inc)
  *	screen.c	résolution à chaud (screen.inc) ; screen_aarch64.c / _x86_64.c : EDID
  *	pocket.c	mode « poche » (pocket.inc)
+ *	overview.c	la vue d'ensemble du bureau (bureaux en carrousel, exposé)
  *
  * Conventions de la traduction : une fonction de l'asm garde son nom (mots français traduits :
  * hid_abonner -> hid_subscribe, win_minimise -> win_minimize, req_mesure -> req_measure,
@@ -39,6 +40,7 @@
 #define IN_MOUSE_REL 2 /* +8 dx, +16 dy, +24 boutons */
 #define IN_MOUSE_ABS 3 /* +8 x, +16 y (0..32767), +24 boutons */
 #define IN_WHEEL 4     /* +8 crans */
+#define IN_HWHEEL 5    /* +8 crans horizontaux, vers la gauche > 0 (deux doigts sur le pavé tactile, i2chid) */
 #define HID_OP_SUBSCRIBE 1
 #define HID_RING_EV 64 /* anneau : +0 tête, +8 queue, événements */
 #define HID_RING_N 64
@@ -53,6 +55,7 @@
 #define MINI_CURTAIN 4  /* cachée par une fenêtre WF_CURTAIN */
 #define MINI_BEHIND 8   /* mode poche : derrière l'app devant, ou sous l'accueil */
 #define MINI_BAR 16     /* mode poche : barre du haut masquée (F11) */
+#define MINI_OVERVIEW 32 /* (WF_OVERVIEW) hors de la vue d'ensemble (overview.c) */
 
 /* zones (win_hit) */
 #define Z_TITLE 1

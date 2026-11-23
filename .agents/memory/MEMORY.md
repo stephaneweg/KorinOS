@@ -29,7 +29,8 @@
 - [BASIC d'Onyx](armpi-basic-onyx.md) — VM, QBasic, QBStudio, GPIO Lab, Turtle Quest, GpioKit ; jugé sur les .bas d'Onyx inchangés ; dans main
 - [Viewport3D](armpi-viewport3d.md) — System.3D sur GpuKit, dans main, GPU à essayer sur le Pi
 - [Panel](armpi-panel.md) — barre du bas par défaut à la place du dock, lanceur, WF_CURTAIN ; ancien dock masqué à garder ; pièges d'essai QEMU
-- [Cosmo Zoom!](armpi-cosmozoom.md) — port d'Onyx dans main : jeu en C++, gk_draw en asm dans GpuKit ; QEMU seulement
+- [Vue d'ensemble](armpi-vue-ensemble.md) — 23/11 : Elegant overview.c (bureaux en carrousel, exposé), panel = dash WF_OVERVIEW, « Korin OS » bascule, zone d'état -> /sys/quickmenu, deux doigts horizontaux (EV_HWHEEL) ; essayé sous QEMU q35 (PC) ; grille des applications (WF_APPGRID), dash flat
+- [Cosmo Zoom!](armpi-cosmozoom.md) — port d'Onyx dans main : jeu en C++, gk_draw en asm dans GpuKit ; essayé sous QEMU q35 (PC) ; grille des applications (WF_APPGRID), dash flat
 - [Chrome sans barre](armpi-chrome-notitle.md) — seul chrome, deux thèmes (Givre, Onyx Noir), FRAME_CAP_W à laisser libre, glyphes clairs ; ce qui reste
 - [Essais sur le Pi](armpi-essais-pi.md) — l'utilisateur a tout essayé sur le Pi (2/11) : les mentions « QEMU seulement » peuvent être dépassées
 - [Idée UnionFS](armpi-idee-unionfs.md) — pour plus tard : deux volumes vus comme un seul, le plus récent gagne
@@ -75,9 +76,9 @@
 - [Agent IA sur Korin](armpi-agent-ia-korin.md) — abonnement seulement ; Mistral Vibe avec façade native Korin préférée ; AGENTS.md + compétences
 - [dlopen](armpi-dlopen.md) — vrai dlopen dans libposix, hôte -rdynamic, modules -shared ; dans main depuis le 11/11 (06ef7995, 5fb03d1a), essayé sur le Pi
 - [Renommage des noms français](armpi-renommage-francais.md) — au fur et à mesure du portage de chaque kit en C ; tools/rename_ids.py, comparaison des binaires
-- [CPython](armpi-cpython.md) — 3.14.10 étapes 1-2 dans main (59c119e8) ; étape 3 (tree-sitter, cffi, pip) sur claude/python-step3-fd7473 ; QEMU seulement
+- [CPython](armpi-cpython.md) — 3.14.10 étapes 1-2 dans main (59c119e8) ; étape 3 (tree-sitter, cffi, pip) sur claude/python-step3-fd7473 ; essayé sous QEMU q35 (PC) ; grille des applications (WF_APPGRID), dash flat
 - [Rust pour Korin](armpi-rust.md) — cible aarch64-unknown-korin (croisée, WSL), branche claude/rust-target-06eed0 (12/11), QEMU seulement ; pièges build-std, dérouleur partagé
-- [Modules Rust de Python](armpi-python-rust-ext.md) — étape 5 dans main (e68c0a7d, 12/11) : cdylib pyo3, build-rust-ext.sh, caisses patchées, OpenSSL exporté ; QEMU seulement
+- [Modules Rust de Python](armpi-python-rust-ext.md) — étape 5 dans main (e68c0a7d, 12/11) : cdylib pyo3, build-rust-ext.sh, caisses patchées, OpenSSL exporté ; essayé sous QEMU q35 (PC) ; grille des applications (WF_APPGRID), dash flat
 - [cargo dans Korin](armpi-cargo.md) — Rust dans Korin PC (20/11) : cargo 0.98.0 tourne sous QEMU, /devtools/rust/bin au PATH, cibles intégrées à rustc 1.97.1, LLVM puis rustc tournent dans Korin PC : cargo build/run, macros procédurales, build.rs (21/11, claude/epic-dirac-9trnk0, QEMU)
 - [Apps Craft](armpi-craft.md) — Suite ArtCraft sur Korin PC : les 17 apps construites et ouvertes (QEMU), paquets craft + un par app, à publier ; puis menus Korin et barre de titre (docs/agents/CRAFT-HANDOVER.md)
 - [Python et Vibe](armpi-python-vibe.md) — étapes 0 à 5 dans main, étape 6 (harness, arbre POSIX /sd0) aussi, poussé (12/11), QEMU seulement
@@ -124,7 +125,7 @@
 - [Idée pibuild + Godot](armpi-idee-pibuild-godot.md) — pour plus tard : pibuild reconnaît project.godot, exporte le jeu et l'installe dans /apps
 - [Fonds d'écran](armpi-fonds-ecran.md) — fonds d'Onyx dans Korin (17/11) : wallpaper.c commun voronoy/Réglages, wallpaper.ini personnel, korin.wallpaper
 - [Démarrage](armpi-demarrage.md) — volet de Réglages façon services.msc (17/11) : .off/.manual, services.deps, INIT_OP_SVC_*, QEMU seulement
-- [Batterie du PC](armpi-batterie.md) — acpid sur ACPICA (17/11) : %, temps restant, alertes, extinction à 5 %, profil d'énergie, icône de la barre ; QEMU seulement
+- [Batterie du PC](armpi-batterie.md) — acpid sur ACPICA (17/11) : %, temps restant, alertes, extinction à 5 %, profil d'énergie, icône de la barre ; essayé sous QEMU q35 (PC) ; grille des applications (WF_APPGRID), dash flat
 - [Coffre à secrets](armpi-coffre.md) — 18/11 : fait sur le PC (keyvault, TPM, migrations), vérifié sous QEMU ; ZBook, vrai TPM et enforce restent
 - [build world du PC](armpi-build-world-pc.md) — après Jet : nettoyer build, tout reconstruire (libposix relinkée partout, GCC STAGES=posix), tout publier, nouvelle clé
 - [Identification GitHub](armpi-gh.md) — code d'appareil dans git-credential-korin (oauthd : provider github, jetons durables), Réglages › Comptes en ligne et › Coffre (21/11) ; QEMU PC vérifié, pc 2026.11.77 ; client « Korin » livré (Ov23liuX6RMNkkcSZ4Fh) dans pc 2026.11.78 ; connexion réelle validée (21/11), push par Claude Code en essai ; pas de gh
@@ -134,7 +135,7 @@
 - [Widevine dans Jet](armpi-widevine.md) — hôte Linux, jalon 1 fait (QEMU PC) ; compatibilité glibc, canal de Google, ClearKey d'abord (19/11) ; étapes 2 à 7 faites (QEMU) : licence réelle, cdmhost, Widevine et Shaka jouent dans Jet, UA Chrome Linux, case des réglages et cdmupdate ; publié dans jet 1.4.0 et pc 2026.11.63 (20/11)
 - [Suivi du plan](armpi-suivi-plan.md) — artefact « Plan Korin OS » (18/11), base items à tenir à jour par ArtifactData quand un chantier bouge
 - [ImageKit](armpi-imagekit.md) — au plan le 18/11 : traducteurs d'images, document à calques canonique, UIKit s'appuie dessus ; docs/etude/IMAGEKIT.md
-- [TerraCube](armpi-terracube.md) — 19/11 : bac à sable de blocs sur GlKit (PC), scripts Python/BASIC port 4730, MCP 7312 ; QEMU seulement
+- [TerraCube](armpi-terracube.md) — 19/11 : bac à sable de blocs sur GlKit (PC), scripts Python/BASIC port 4730, MCP 7312 ; essayé sous QEMU q35 (PC) ; grille des applications (WF_APPGRID), dash flat
 - [Noyau Linux écarté](armpi-noyau-linux.md) — 20/11 : Korin sur Linux (Elegant sur DRM) seulement en cas de vrai blocage ; on garde le micronoyau from scratch
 - [Relics](armpi-relics.md) — jeu à la Rick Dangerous en C sur gamefb (19/11) : 7 mondes, 21 niveaux de tools/relics/mklevels.py vérifiés par run.sh, musique (music.h), fuites devant le rocher ; PC 1.1.2 publié
 - [Morpho](armpi-morpho.md) — animal de compagnie à la Tamagotchi (20/11) : créature 3D paramétrique façon Spore, C++ sur gk_draw, vue « studio » sombre encadrée, stades tirés au hasard ; banc hôte tools/morpho ; PC 1.0.0 publié (main 0a7a89f), QEMU PC seulement

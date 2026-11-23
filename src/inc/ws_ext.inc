@@ -156,5 +156,13 @@ WS_OP_DRAG_IMAGE	= 39		; a id, b x | y << 16 | largeur << 32 | hauteur << 48 (co
 ; WS_OP_RESIZE (sa taille), une app fait d'elle-meme une carte en bas a droite de l'ecran, au-dessus des autres.
 WS_OP_WIN_TOP		= 40		; a id, b 1 dessus / 0 comme les autres -> 0 ; E_INVAL : fenetre du fond
 WS_OP_SESSION_END	= 41		; (init2 seul, uid 0) la session est fermee : l'ecran de connexion revient -> 0, E_PERM
+; Vue d'ensemble du bureau (23/11/2026, docs/DESIGN-ELEGANT.md 19) : les bureaux en carrousel, leurs
+; fenetres en expose. Le bouton « Korin OS » de la barre de menus la bascule ; Super seul aussi.
+; Une fenetre WF_OVERVIEW (le dash du panel) n'est montree que pendant la vue ; l'etat est publie
+; sur le bus (korin.shell.overview = 1 / 0, garde).
+WF_OVERVIEW		= 65536		; role : montree seulement dans la vue d'ensemble
+WF_APPGRID		= 131072	; role : la grille des applications de la vue d'ensemble (les bureaux
+					; montent en rangee en haut, elle monte du bas)
+WS_OP_OVERVIEW		= 42		; a -1 basculer, 0 fermer, 1 ouvrir, 2 lire -> 1 ouverte / 0 fermee
 WS_DRAG_IMG_W		= 256		; (Elegant coupe le rectangle a cette taille)
 WS_DRAG_IMG_H		= 160

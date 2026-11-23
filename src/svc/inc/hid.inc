@@ -25,6 +25,7 @@ EV_KEY		= 1
 EV_MOUSE_REL	= 2
 EV_MOUSE_ABS	= 3
 EV_WHEEL	= 4
+EV_HWHEEL	= 5			; molette horizontale : a = crans, vers la gauche > 0 (i2chid : deux doigts)
 
 HID_MAX_USAGES	= 16
 

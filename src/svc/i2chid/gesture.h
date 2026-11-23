@@ -7,7 +7,9 @@
  *	                                   -> glisser (bouton gauche appuyé jusqu'au lever ; sans bouger :
  *	                                      double clic)
  *	deux doigts                        -> molette (la page suit les doigts, comme gt911 ; natural = 0 :
- *	                                      comme une molette)
+ *	                                      comme une molette) ; de gauche à droite : molette horizontale
+ *	                                      (GEV_HWHEEL : le carrousel des bureaux d'Elegant, 23/11/2026) ;
+ *	                                      le sens se décide au début du geste, il ne change plus ensuite
  *	boutons du pavé                    -> boutons 1 à 3 ; un pavé à un seul bouton (« clickpad ») : droit
  *	                                      à deux doigts ou dans le coin bas droit
  * Sans rien du système : essayé par test/hidrd_test.c. docs/etude/TOUCHPAD-PC.md. */
@@ -19,6 +21,7 @@
 /* événements (ceux de l'anneau de hidmanager) */
 #define GEV_MOUSE_REL 2 /* a = dx, b = dy (vers le bas), c = boutons (0 gauche, 1 droit, 2 milieu) */
 #define GEV_WHEEL 4     /* a = crans (vers le haut > 0) */
+#define GEV_HWHEEL 5    /* a = crans horizontaux (vers la gauche > 0, comme vers le haut) */
 #define GEV_TOUCHPAD (1L << 30) /* (dans c : mouvement du pavé ; hidmanager lui donne la vitesse « touchpad »
 				 * de /etc/pointer.ini, et l'ôte) */
 
@@ -55,6 +58,8 @@ struct gest {
 	int clickpad; /* 1 : un seul bouton physique (le pavé entier) */
 	/* restes (1/256 de point, centièmes de mm) */
 	int32_t fx, fy, scroll;
+	int32_t scroll_x; /* (deux doigts) course horizontale pas encore donnée */
+	int axis;         /* sens du défilement à deux doigts : 0 pas encore décidé, 1 vertical, 2 horizontal */
 	int jumps; /* doigts « téléportés » ignorés (frame) */
 };
 
