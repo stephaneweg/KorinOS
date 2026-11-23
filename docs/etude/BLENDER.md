@@ -1,0 +1,214 @@
+# Blender sur Korin PC
+
+Chantier ouvert le 23/11/2026 à la demande de l'utilisateur : **porter Blender dans Korin**. Ce document est l'étude
+de départ : ce que Blender demande, ce que Korin a déjà, le chemin par jalons et les risques. Il sera tenu à jour
+(§ 0) au fil des jalons, comme [VULKAN.md](VULKAN.md) ou [LINUX-HOST.md](LINUX-HOST.md).
+
+## 0. En bref
+
+| Jalon | Quoi | État |
+|---|---|---|
+| 0 | Source, versions, chaîne CMake de Korin, scripts `tools/blender` | à faire |
+| 1 | Les dépendances indispensables, croisées pour Korin PC (Python 3.13, OIIO, OCIO, OpenEXR, TBB, shaderc…) | à faire |
+| 2 | **Blender sans écran** (`WITH_HEADLESS`) : `blender -b` charge un .blend, exécute du Python, rend par Cycles sur le processeur | à faire |
+| 3 | **GHOST de Korin** : fenêtres UIKit, entrées, presse-papier ; rendu par Vulkan (VkKit, WSI de Korin) | à faire |
+| 4 | Le reste : Embree, OpenSubdiv, Manifold, OpenVDB, son, vidéo, import/export (USD, Alembic…) | à faire |
+| 5 | Paquet `blender`, app (`app.txt`, icône, catégorie), compétence, essai sur le ZBook | à faire |
+
+**Cible : Korin PC (x86-64, le ZBook) seulement.** Le Pi n'a ni Vulkan (v3dv écarté, [MESA.md](../MESA.md)) ni OpenGL
+de bureau : V3D s'arrête à OpenGL ES 3.0, et Blender ne sait pas dessiner en ES.
+
+## 1. La version
+
+| Version | Sortie | Python | Remarque |
+|---|---|---|---|
+| **5.3.0** | 10/11/2026 | 3.13 | la dernière ; version ordinaire, plus suivie après la 5.4 |
+| 5.2.4 LTS | 10/11/2026 | 3.13 | suivie deux ans ; mêmes dépendances à peu près |
+| 4.5.16 LTS | 10/11/2026 | 3.11 | ancienne ; pas d'intérêt |
+
+Les dépendances lues ici sont celles de la **5.3.0** (`build_files/build_environment/cmake/versions.cmake`, clone
+partiel dans `~/korin-blender/src` sous WSL). **Recommandation : la 5.2 LTS**, une base qui ne bouge plus pendant un
+port long ; on passera à la LTS suivante d'un coup. La 5.3 se défend si l'utilisateur veut la dernière.
+
+Blender se construit avec **GCC 14.2** (`RELEASE_GCC_VERSION`) : exactement la chaîne `x86_64-onyx-elf-14.2` de Korin.
+
+## 2. Ce que Blender demande au système
+
+### 2.1 L'affichage : Vulkan, pas OpenGL
+
+Blender dessine son interface et ses vues (EEVEE, Workbench) par un **moteur GPU** à choisir : OpenGL 4.3 *de
+bureau* (profil core) ou **Vulkan** (`WITH_VULKAN_BACKEND`, actif par défaut sous Linux depuis la 5.x). Korin PC n'a
+**pas** d'OpenGL de bureau (Mesa iris construit en GL ES seulement, `tools/mesa/configure-iris.sh` : `-Dopengl=false`),
+mais il a **Vulkan** par anv (VkKit, [VULKAN.md](VULKAN.md)), déjà éprouvé par Godot en Forward+.
+
+**Choix proposé : Vulkan seul** (`WITH_OPENGL_BACKEND=OFF`, donc pas d'epoxy). Ce que le moteur Vulkan de Blender
+5.3 exige (`source/blender/gpu/vulkan/vk_backend.cc`) :
+
+| Exigence | anv sur le Gen12 du ZBook |
+|---|---|
+| Vulkan 1.1 au moins | 1.4 |
+| `VK_KHR_swapchain` | oui, par la WSI de Korin (surface headless + `VkKorinSurfaceInfo`) |
+| `VK_KHR_dynamic_rendering`, `timeline_semaphore`, `buffer_device_address`, `separate_depth_stencil_layouts` | oui (cœur de 1.2/1.3) |
+| geometry shaders, dual source blend, image cube array, stores et atomiques en fragment, `drawIndirectFirstInstance` | oui sur Gen12 |
+| facultatif : `dynamic_rendering_local_read`, `graphics_pipeline_library`, `host_image_copy`, `external_memory_fd`… | à relever au premier lancement (`vulkaninfo` ou le journal de Blender) |
+
+Blender compile ses shaders GLSL en SPIR-V **à l'exécution**, par **shaderc** (glslang) : une bibliothèque C++ de plus,
+sans besoin du système. Il garde un cache de SPIR-V sur disque : le premier lancement sera lent, les suivants non.
+
+**L'essai sans GPU.** QEMU n'a pas de GPU Intel : anv n'y fait qu'un essai à blanc. Pour essayer l'interface sous
+QEMU, il faudrait **lavapipe** (Vulkan sur le processeur, de Mesa, par LLVM ; LLVM est déjà construit pour Korin
+avec Rust). Option à décider au jalon 3 : sans lui, chaque essai de l'interface se fait sur le ZBook.
+
+### 2.2 Le fenêtrage : GHOST
+
+Blender parle au système par **GHOST** (`intern/ghost`) : `GHOST_System*` (événements, écrans, presse-papier,
+curseurs, minuteries), `GHOST_Window*` (fenêtres, titre, taille, état), `GHOST_Context*` (GL ou Vulkan). Il existe
+des versions X11, Wayland, Win32, Cocoa, **SDL** et **Headless**.
+
+* **SDL** est tentant (SDL 3 est porté, [SDL.md](../SDL.md)) mais il ne convient pas : sa version de Korin n'a pas
+  Vulkan, et GHOST SDL est une version « de développement » (une fenêtre, pas de glisser-déposer, presse-papier
+  réduit).
+* **Proposé : `GHOST_SystemKorin` et `GHOST_WindowKorin` sur UIKit**, comme la plateforme `korin` de Godot
+  (`tools/godot/platform/korin` : `display_server_korin.cpp`, `korin_ui.c`, `rendering_context_driver_vulkan_korin.cpp`).
+  Le contexte : `GHOST_ContextVK` avec une branche Korin pour la surface (comme sa branche SDL), le reste du contexte
+  tel quel.
+
+Ce que GHOST demande à Korin, par ordre d'importance :
+
+| Besoin | Korin |
+|---|---|
+| plusieurs fenêtres de premier niveau (Blender ouvre préférences, rendu, éditeurs détachés dans des fenêtres) | UIKit multi-fenêtres (bloc par fenêtre) |
+| souris : position, boutons, **molette fine et pavé tactile** (zoom, rotation de la vue), capture et **déplacement du curseur** (`setCursorPosition`, rotation continue) | à vérifier : SDL notait l'absence de souris relative et de capture (`SDL.md` § 7) |
+| clavier : touches physiques (raccourcis), modificateurs, répétition, texte saisi (accents AZERTY) | codes de touche physiques connus (ports Linux, mémoire `armpi-linux-ports`) |
+| curseurs standard et personnalisés (bitmap) | à vérifier dans UIKit |
+| presse-papier texte (et image) | presse-papier du système |
+| taille de l'écran, échelle (DPI), plein écran | `WEV_SCREEN`, plein écran d'Elegant |
+| glisser-déposer de fichiers depuis le gestionnaire | plus tard (idée notée dans la mémoire) |
+| dialogue de fichiers | **inutile** : Blender a son propre navigateur |
+
+Ce qui manque à UIKit s'y ajoute en fin de `uikit.abi` (règle des ports), pas dans Blender.
+
+### 2.3 POSIX
+
+Blender est un gros programme C/C++ multithread ordinaire. Points à surveiller, connus des ports précédents :
+
+* **Threads** : pthread, TLS (`thread_local`), beaucoup de threads (TBB) : déjà éprouvé par Godot et WebKit.
+* **TBB** (oneTBB 2022.3) : ses chemins `__linux__` (futex, `sched_getaffinity`, `/proc`) ne seront pas pris,
+  comme pour tout code tiers sous Korin (`__linux__` n'est pas défini) ; il faudra peut-être un chemin générique
+  pthread, ou ajouter `sched_getaffinity` à libposix.
+* **Mémoire** : Blender réserve beaucoup ; l'allocateur de TBB (`WITH_TBB_MALLOC_PROXY`) remplace malloc : à couper
+  d'abord.
+* **dlopen** : existe ([dlopen](../../.agents/memory/armpi-dlopen.md)) ; Python s'en sert pour ses modules en .so
+  (numpy).
+* **Fichiers** : `std::filesystem`, `realpath`, liens absents (Blender sait s'en passer), sauvegarde par
+  renommage (`rename` atomique), surveillance de fichiers (pas d'inotify : Blender s'en passe sur les plateformes
+  sans).
+* **Chemins de Blender** (`GHOST_SystemPathsUnix`) : réglages dans `~/.config/blender/5.x`, scripts et données à côté
+  de l'exécutable (`WITH_INSTALL_PORTABLE`) : à poser sur l'arbre de Korin (`/apps/blender.app/…`, `HOME:/.config`).
+* **Python embarqué** : Blender exige **Python 3.13** exactement (`PYTHON_VERSION 3.13.13`) ; Korin a CPython 3.14
+  ([PYTHON-PORT.md](../PYTHON-PORT.md)) : on refait la même construction en 3.13, avec les mêmes retouches. numpy
+  2.3 se construit par meson et Cython (croisé, comme les roues de l'étape 3 de Python).
+
+## 3. Les dépendances
+
+Versions de la 5.3.0. **Classe A** : sans elles, pas de Blender utile. **B** : fonctions importantes, à ajouter au
+jalon 4. **C** : plus tard ou jamais. « Korin » : déjà construit pour Korin PC (sysroot de Jet, paquets `-dev`,
+ports précédents).
+
+| Bibliothèque | Version | Classe | Korin | Remarque |
+|---|---|---|---|---|
+| zlib, libpng, freetype, libwebp, libxml2, sqlite, OpenSSL, brotli | — | A | **oui** (`<lib>-dev`) | freetype doit avoir brotli (Blender le vérifie) |
+| libjpeg-turbo | 2.1.3 | A | probable (Jet) | à vérifier |
+| Python + numpy | 3.13.13, 2.3.4 | A | 3.14 seulement | refaire en 3.13 |
+| OpenImageIO | 3.1.16 | A | non | **obligatoire** (`find_package(OpenImageIO REQUIRED)`) |
+| OpenEXR, Imath, libdeflate | 3.4.10, 3.2.2, 1.18 | A | non | pour OIIO |
+| libtiff | 4.7.1 | A | non | pour OIIO |
+| OpenColorIO (+ yaml-cpp, pystring, expat, minizip-ng) | 2.5.0 | A | non | gestion des couleurs ; tout Blender s'en sert |
+| fmt, robin-map | 12.1, 1.3.0 | A | non | en-têtes surtout |
+| oneTBB | 2022.3 | A | non | sans lui Blender tourne, mais sur un seul cœur par endroits |
+| shaderc (glslang, SPIRV-Tools) | — | A | non | Vulkan |
+| en-têtes Vulkan | — | A | **oui** (VkKit) | `build/pc/mesa/include/vulkan` |
+| Eigen, Bullet, libmv, Mantaflow, audaspace | — | A | dans `extern/` | construits avec Blender |
+| FFTW3 | 3.3.10 | B | non | océan, compositeur |
+| OpenSubdiv | 3.7.0 | B | non | subdivision sur GPU/CPU |
+| Manifold | 3.5.2 | B | non | booléens rapides |
+| Embree | 4.4.1 | B | non | accélère Cycles (ISPC non requis) |
+| OpenImageDenoise | — | B | non | débruitage de Cycles (gros : ISPC, oneDNN) |
+| OpenVDB (+ blosc) | 13.0 | B | non | volumes |
+| Alembic, USD, MaterialX | 1.8.3, 26.08, 1.39.4 | B/C | non | import/export ; USD est très gros (Boost) |
+| FFmpeg (+ x264, vpx, opus…) | 8.1 | B | Jet a des décodeurs | vidéo du séquenceur |
+| son (OpenAL / SDL / Jack / PulseAudio) | — | B | AudioKit | une sortie audaspace sur AudioKit ou par SDL 3 |
+| OSL, LLVM | 1.15.6, 22.1.7 | C | LLVM de Rust (autre version) | shaders OSL de Cycles |
+| Cycles sur GPU (CUDA, HIP, oneAPI, Metal) | — | C | — | rien sur l'Intel UHD ; NVIDIA un jour |
+| OpenXR, 3Dconnexion (spnav), Jack, Wayland, X11 | — | C | — | coupés |
+
+Elles se construisent **dans WSL, en croisé** (comme OCCT : `tools/cao/korin.cmake`, CMake voit « Linux » sans
+`__linux__`), en bibliothèques statiques, rangées dans `~/korin-blender/x86_64/deps`. Blender a ses propres
+recettes (`build_files/build_environment`, un superbuild par `ExternalProject`) : on peut s'en servir avec notre
+fichier de chaîne, ou écrire nos scripts comme pour Godot et OCCT. **Proposé : nos scripts**, une bibliothèque par
+fonction de `tools/blender/deps.sh`, avec les options et les versions de Blender ; le superbuild suppose trop de
+choses sur l'hôte (Python, meson, `ldd`).
+
+## 4. Le chemin
+
+### Jalon 0 : la base (1 jour)
+
+* `tools/blender/env.sh`, `fetch.sh` (archive de la version choisie, sommes), le fichier de chaîne
+  (`tools/blender/korin.cmake`, repris de la CAO).
+* `korin.patch` vide au départ ; les retouches de Blender iront là (comme Godot).
+
+### Jalon 1 : les dépendances A (quelques jours)
+
+Dans l'ordre : Imath, OpenEXR, libdeflate, libtiff, fmt, robin-map, expat, yaml-cpp, pystring, minizip-ng, OCIO,
+OIIO, oneTBB, shaderc, Python 3.13, numpy. Chacune avec un petit essai lancé dans Korin sous QEMU quand c'est
+utile (OIIO : lire et écrire un EXR et un PNG ; TBB : `parallel_for` sur 16 cœurs ; Python : `step2.py`).
+
+### Jalon 2 : Blender sans écran (le premier vrai résultat)
+
+`WITH_HEADLESS=ON`, `WITH_CYCLES=ON`, sans Embree ni OSL, `WITH_VULKAN_BACKEND=OFF`, `WITH_OPENGL_BACKEND=OFF`,
+`WITH_INSTALL_PORTABLE=ON`, tout le facultatif coupé. Essais sous QEMU PC :
+
+1. `blender -b --version`, puis `blender -b --python-expr "import bpy; print(bpy.app.version_string)"` ;
+2. `blender -b -f 1` sur une scène simple : un rendu Cycles CPU en PNG, comparé à celui de Blender sous Linux
+   (même scène, mêmes échantillons) ;
+3. un script qui crée un objet, applique des modificateurs et enregistre un .blend, rouvert par Blender sous Windows.
+
+C'est la preuve que le moteur, Python et Cycles tournent ; tout ce qui suit est l'affichage.
+
+### Jalon 3 : l'interface
+
+* GHOST Korin sur UIKit (§ 2.2), contexte Vulkan sur la WSI de Korin ; `WITH_VULKAN_BACKEND=ON`.
+* Sous QEMU : la fenêtre, les événements et les menus seulement si lavapipe est construit ; sinon essais sur le ZBook
+  (paquet d'essai par la mise à jour habituelle).
+* Critère : ouvrir Blender, l'écran de démarrage, le cube par défaut, tourner la vue, passer en Edit Mode, rendre
+  une image par F12 (Cycles CPU, EEVEE sur le GPU).
+
+### Jalon 4 : les fonctions (au fil des besoins)
+
+Embree et OpenSubdiv d'abord (vitesse), puis Manifold, FFTW3, OIDN, le son sur AudioKit, FFmpeg, OpenVDB, puis les
+formats d'échange. Chacun ajouté sans casser les autres.
+
+### Jalon 5 : la livraison
+
+Paquet `blender` (gros : par la Release, comme Godot), `app.txt` (catégorie Graphisme, clés de PocketQI), icône,
+compétence `korin-app-blender` pour piloter Blender par Python (`blender -b --python`), ce que Claude Code et Vibe
+savent déjà faire.
+
+## 5. Risques
+
+| Risque | Poids | Parade |
+|---|---|---|
+| **Taille de la construction** : Blender + dépendances, des heures ; l'édition de liens demande plusieurs Go ; WSL n'a que 9 Go | fort | `JOBS=4` (un WSL de 7,8 Go est déjà tombé à -j12), une seule grosse construction à la fois, `-g0`, liens par `ld.gold` ou `mold` si la chaîne le permet |
+| **Vitesse du GPU Intel UHD (TGL GT1)** : EEVEE est lourd | moyen | Workbench et Cycles CPU d'abord ; EEVEE en résolution réduite ; la NVIDIA plus tard (NVK) |
+| **Le moteur Vulkan sur anv de Korin** : WSI maison, mémoire du faux libdrm, beaucoup de pipelines | moyen | journal de Blender (`--debug-gpu`), essais par étapes, lavapipe sous QEMU |
+| **TBB et la mémoire** (beaucoup de threads, gros `mmap`) | moyen | malloc de libposix d'abord, TBB réglé au nombre de cœurs |
+| **Python 3.13 exact** | faible | la construction 3.14 se reprend ; numpy par meson croisé |
+| GHOST : souris capturée, curseur déplacé par le programme | moyen | à ajouter à UIKit et Elegant s'ils manquent |
+| Licence | faible | Blender est GPL-3 ; paquet séparé avec ses sources citées, comme les autres ports GPL |
+
+## 6. Questions pour l'utilisateur
+
+1. **La version** : 5.2 LTS (proposé) ou 5.3 ?
+2. **Vulkan seul** (proposé), ou ajouter aussi OpenGL de bureau à Mesa iris (`-Dopengl=true`, plus un contexte GL
+   de bureau dans GlKit) pour avoir le moteur OpenGL de Blender en repli ?
+3. **lavapipe** pour essayer l'interface sous QEMU (proposé au jalon 3), ou les essais sur le ZBook seulement ?
