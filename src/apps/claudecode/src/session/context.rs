@@ -284,7 +284,7 @@ pub fn show_context(ui: &mut Ui, cx: &mut Cx, st: &mut ContextState, id: &str) {
                         ui.painter().rect_filled(egui::Rect::from_min_size(egui::pos2(x, rect.top()), egui::vec2(dw, 8.0)), CornerRadius::ZERO, cat_color(&t, r.color));
                         x += dw;
                     }
-                    egui::Grid::new(("ctx-legend", id)).num_columns(3).spacing([8.0, 4.0]).show(ui, |ui| {
+                    egui::Grid::new(("ctx-legend", id)).num_columns(3).min_col_width(0.0).spacing([8.0, 4.0]).show(ui, |ui| {
                         let mut line = |ui: &mut Ui, c: Color32, label: &str, n: i64| {
                             let (r, _) = ui.allocate_exact_size(egui::vec2(9.0, 9.0), Sense::hover());
                             ui.painter().rect_filled(r, CornerRadius::same(2), c);
@@ -308,7 +308,7 @@ pub fn show_context(ui: &mut Ui, cx: &mut Cx, st: &mut ContextState, id: &str) {
                                 .on_hover_text(t!("Ctx.AutoTitle"));
                             // /autocompact <jetons|auto> : la CLI garde la fenêtre pour le modèle et répond dans le fil
                             ui.add_enabled_ui(can, |ui| {
-                                egui::ComboBox::from_id_salt(("ctx-window", id)).selected_text(t!("Ctx.Window")).show_ui(ui, |ui| {
+                                egui::ComboBox::from_id_salt(("ctx-window", id)).width(150.0).wrap_mode(egui::TextWrapMode::Truncate).selected_text(t!("Ctx.Window")).show_ui(ui, |ui| {
                                     for w in WINDOWS {
                                         let label = if w == "auto" { t!("Ctx.WindowAuto") } else { fmt::tokens(w.parse().unwrap_or(0)) };
                                         if ui.selectable_label(false, label).clicked() {

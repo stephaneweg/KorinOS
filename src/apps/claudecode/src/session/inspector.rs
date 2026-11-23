@@ -287,7 +287,7 @@ pub fn tabs(ui: &mut Ui, t: &Tokens, labels: &[String], on: &mut usize) {
     let r = Frame::new().inner_margin(Margin { left: 12, right: 12, top: 8, bottom: 0 }).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 2.0;
+            ui.spacing_mut().item_spacing.x = 18.0;
             for (i, label) in labels.iter().enumerate() {
                 let sel = *on == i;
                 let c = if sel { t.text } else { t.text_faint };
