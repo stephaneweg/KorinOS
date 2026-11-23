@@ -148,7 +148,7 @@ TextureCraft 39, GridCraft 34, SoundCraft 26, le lanceur 7. Le dossier `target` 
 | `hdrshot-egui-backend` 0.2.0 | le cache oubliait les textures qui changent (les pages de WordCraft restaient figées) | tout redessiner quand une texture change |
 | `rustix` 1.1.5 (PhotoCraft), 1.1.6 | ne connaît pas Korin (140 erreurs) | Korin comme Horizon (newlib), sauf ce que libposix a (`flock`, `pipe2`, les `*at`, la lecture des dossiers, les horloges de temps CPU…) : `tools/craft/rustix_korin.py` |
 | `cap-primitives` 4.0.3 | `O_DSYNC`, `O_RSYNC`, `ttyname`, `O_PATH`, `uid_t` 16 bits | `tools/craft/crate_korin.py` |
-| `mio` 1.2.4, `socket2` 0.6.5, `tokio` 1.54.1 | tokio (MaterialCraft, TextureCraft, FilmCraft…) | de l'ancien port de Spotify ; mio par ses replis « unsupported » (`--cfg` de build.sh) |
+| `mio` 1.2.4, `socket2` 0.6.5, `tokio` 1.54.1 | tokio (MaterialCraft, TextureCraft, FilmCraft…) | de l'ancien port de Spotify ; mio par ses replis « unsupported » (`--cfg` de build.sh) ; `tokio::process` : `uid`/`gid` en 16 bits (newlib), ajouté pour Claude Code (23/11) |
 | `open` 5.4.5 | aucun lanceur de fichiers | celui de l'ancien port de Spotify |
 | `fs4` 1.1.0 | `allocate` | la branche sans `fallocate` |
 

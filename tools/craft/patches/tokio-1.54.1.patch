@@ -1,6 +1,5 @@
-
---- a/src/net/unix/ucred.rs	2006-07-24 03:21:28.000000000 +0200
-+++ b/src/net/unix/ucred.rs	2026-11-18 18:32:26.393107460 +0100
+--- a/src/net/unix/ucred.rs	2026-11-23 17:02:33.792570183 +0100
++++ b/src/net/unix/ucred.rs	2026-11-23 17:02:33.805680676 +0100
 @@ -72,7 +72,8 @@
      target_os = "fuchsia",
      target_os = "hurd",
@@ -21,3 +20,25 @@
  ))]
  pub(crate) mod impl_noproc {
      use crate::net::unix::UnixStream;
+--- a/src/process/mod.rs	2026-11-23 17:02:33.792634197 +0100
++++ b/src/process/mod.rs	2026-11-23 17:02:33.806502829 +0100
+@@ -686,6 +686,9 @@
+     pub fn uid(&mut self, id: u32) -> &mut Command {
+         #[cfg(target_os = "nto")]
+         let id = id as i32;
++        // (Korin : uid_t et gid_t de newlib, 16 bits)
++        #[cfg(target_os = "korin")]
++        let id = id as u16;
+         self.std.uid(id);
+         self
+     }
+@@ -697,6 +700,9 @@
+     pub fn gid(&mut self, id: u32) -> &mut Command {
+         #[cfg(target_os = "nto")]
+         let id = id as i32;
++        // (Korin : uid_t et gid_t de newlib, 16 bits)
++        #[cfg(target_os = "korin")]
++        let id = id as u16;
+         self.std.gid(id);
+         self
+     }
