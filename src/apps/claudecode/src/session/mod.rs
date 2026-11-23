@@ -7,6 +7,10 @@
 //! fichier.
 
 pub mod composer;
+pub mod effort;
+pub mod menus;
+pub mod popovers;
+pub mod status_line;
 pub mod header;
 pub mod inspector;
 pub mod page;
