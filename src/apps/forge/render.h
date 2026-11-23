@@ -13,6 +13,7 @@ namespace forge {
 // les couleurs, tirées des jetons du thème par l'app (docs/DESIGN-CAO.md §10)
 struct Palette {
 	unsigned bg, grid, grid50, accent, hover, edge, axis[3], cubeFace, cubeLine, cubeHot, danger;
+	unsigned inter = 0;		// (le fantôme d'une intersection)
 	bool dark;
 };
 
@@ -65,13 +66,18 @@ public:
 	void toScreen (const double p[3], double &x, double &y) const;
 	// le fantôme d'une opération en cours (null : aucun), dessiné en teinte d'accent, ou de danger pour enlever
 	const Mesh *ghost = nullptr;
-	bool ghostCut = false;
-	// des traits par-dessus tout (l'esquisse) : polylignes dans l'espace, couleur, épaisseur, pointillés ; des points
-	struct Stroke { std::vector<double> pts; unsigned col; int thick; bool dashed; };
+	bool ghostCut = false, ghostInter = false;	// (intersection : en teinte inter, cachée par ce qui est devant)
+	// des traits par-dessus tout (l'esquisse) : polylignes dans l'espace, couleur, épaisseur, pointillés ; depth : cachés
+	// par la pièce qui est devant (une esquisse terminée, hors de son édition) ; des points
+	struct Stroke { std::vector<double> pts; unsigned col; int thick; bool dashed; bool depth = false; };
 	// (round : un disque de rayon size, évidé de hole pixels en holeCol ; sinon un carré de côté 2 size + 1)
 	struct Dot { double p[3]; unsigned col; int size; bool round = false; int hole = 0; unsigned holeCol = 0; };
 	std::vector<Stroke> strokes;
 	std::vector<Dot> dots;
+	// des surfaces teintées sous les traits, sans profondeur (les régions d'une esquisse pendant l'extrusion : choisies,
+	// survolées) ; amount : 0..255, la part de la couleur mêlée à la scène
+	struct Fill { const Mesh *m; unsigned col; int amount; };
+	std::vector<Fill> fills;
 	bool dimBodies = false;		// (en esquisse : la pièce pâlie)
 	// regarder le long de -n (la face vers soi), x vers la droite autant que possible
 	void lookAlong (const double n[3]);

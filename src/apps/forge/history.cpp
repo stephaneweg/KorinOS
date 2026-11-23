@@ -283,7 +283,7 @@ static TopoDS_Shape sweepTool (const Doc &d, const Feature &f)
 	if (f.ref < 0 || f.ref >= (int) d.feats.size () || d.feats[f.ref].kind != ST_SKETCH) throw Fail { "l'esquisse n'existe plus" };
 	const Sketch &sk = d.feats[f.ref].sk;
 	std::string err;
-	TopoDS_Shape faces = skFaces (sk, err);
+	TopoDS_Shape faces = skFacesPick (sk, f.regions, err);	// (les régions choisies ; aucune : le profil entier)
 	if (faces.IsNull ()) throw Fail { "l'esquisse n'a " + err };
 	if (f.kind == ST_EXTRUDE) {
 		if (std::fabs (f.a) < 0.01) throw Fail { "la distance est nulle" };
@@ -536,6 +536,14 @@ const char *opName (Op o)
 	return "";
 }
 
+// (extrusion, révolution) les régions choisies : « · 2 régions » ; rien pour le profil entier
+static std::string regionsDetail (const Feature &f)
+{
+	size_t n = f.regions.size () / 2;
+	if (!n) return "";
+	return " · " + std::to_string (n) + (n > 1 ? trUi (" régions") : trUi (" région"));
+}
+
 std::string featureDetail (const Feature &f)
 {
 	std::string n = std::to_string (f.edges.size ()) + (f.edges.size () > 1 ? trUi (" arêtes") : trUi (" arête"));
@@ -550,8 +558,8 @@ std::string featureDetail (const Feature &f)
 	case ST_SLOT: return trUi ("oblong ") + fmtNum (f.a) + " × " + fmtNum (f.b) + trUi (" · à travers");
 	case ST_SKETCH: return std::to_string (f.sk.geos.size ()) + trUi (" éléments, ") + std::to_string (f.sk.cons.size ()) + trUi (" contraintes")
 		+ (f.sk.dof == 0 ? trUi (" · contrainte") : f.sk.dof > 0 ? " · " + std::to_string (f.sk.dof) + trUi (" DDL") : "");
-	case ST_EXTRUDE: return fmtNum (std::fabs (f.a)) + " mm" + (f.a < 0 ? trUi (" vers le bas") : "") + " · " + opName (f.op);
-	case ST_REVOLVE: return fmtNum (f.a) + "° · " + opName (f.op);
+	case ST_EXTRUDE: return fmtNum (std::fabs (f.a)) + " mm" + (f.a < 0 ? trUi (" vers le bas") : "") + " · " + opName (f.op) + regionsDetail (f);
+	case ST_REVOLVE: return fmtNum (f.a) + "° · " + opName (f.op) + regionsDetail (f);
 	case ST_SHELL: return trUi ("épaisseur ") + fmtNum (f.a) + " · " + std::to_string (f.faces.size ()) + (f.faces.size () > 1 ? trUi (" faces ouvertes") : trUi (" face ouverte"));
 	case ST_PATTERN: return std::to_string (f.count) + trUi (" exemplaires · ") + (f.mode == 0 ? trUi ("pas ") + fmtNum (f.a) + " mm" : fmtNum (f.a) + "°");
 	case ST_MIRROR: return std::string (trUi ("symétrie · ")) + (f.op == OP_JOIN ? trUi ("jointe") : trUi ("nouveau corps"));

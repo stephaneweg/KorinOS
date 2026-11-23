@@ -48,6 +48,7 @@
 #include <netkit_abi.h>
 #include <Standard_Failure.hxx>
 #include <Standard_Version.hxx>
+#include <TopExp_Explorer.hxx>
 #include "json.h"
 #include "agent.h"
 #include "mcp.h"
@@ -97,7 +98,7 @@ long w_op, b_ok, b_cancel, w_pmode, w_paxis, b_usemax;	// la commande en cours
 long b_ctarget, b_ctools, w_cop, c_keep;		// (combiner) cible, outils, type, conserver les outils
 long e_param, b_param;				// les paramètres nommés
 long e_val[3], b_apply, b_off, b_del, b_barhere;	// l'étape choisie
-enum { TB_SKETCH, TB_BOX, TB_CYL, TB_PUSH, TB_FILLET, TB_CHAMFER, TB_COMBINE, TB_MEASURE, TB_N };
+enum { TB_SKETCH, TB_EXTRUDE, TB_BOX, TB_CYL, TB_PUSH, TB_FILLET, TB_CHAMFER, TB_COMBINE, TB_MEASURE, TB_N };
 long tb[TB_N];
 
 // ---- annuler, rétablir ------------------------------------------------------------------------------------------
@@ -151,6 +152,10 @@ struct Cmd {
 	int hFace = -1;			// (pousser/tirer) la face choisie, dans le maillage de son corps
 	double hS0 = 0, hV0 = 0;	// (au début du glisser) la place sur l'axe sous le pointeur, la valeur
 	double lastGood = 0;		// la dernière valeur dont l'aperçu passait (0 : aucune)
+	// (extrusion, révolution) les régions de l'esquisse, leurs triangles (teintés dans la vue), celle sous le pointeur
+	std::vector<SkRegion> regs;
+	std::vector<Mesh> regMesh;
+	int regHot = -1;
 } g_cmd;
 
 StepKind toolKind (Tool t)
@@ -181,6 +186,8 @@ long w_sktools;
 enum { SKB_H, SKB_V, SKB_COINC, SKB_PAR, SKB_PERP, SKB_TAN, SKB_EQ, SKB_CONC, SKB_ON, SKB_CONS, SKB_DEL, SKB_CANCEL, SKB_DONE, SKB_N };
 long skb[SKB_N];
 void skStrokes ();
+bool cmdHasOp ();
+std::string regSummary ();
 void handleStrokes ();
 void handlePlace ();
 Chip &handleChip ();
@@ -229,6 +236,7 @@ void palette ()
 	p.axis[0] = jet (TJ_AXIS_X), p.axis[1] = jet (TJ_AXIS_Y), p.axis[2] = jet (TJ_AXIS_Z);
 	p.cubeFace = jet (TJ_RAISED), p.cubeLine = jet (TJ_LINE_STRONG), p.cubeHot = jet (TJ_ACCENT_LIGHT);
 	p.danger = jet (TJ_DANGER);
+	p.inter = jet (TJ_WARNING);
 }
 
 // ---- la vue -----------------------------------------------------------------------------------------------------
@@ -251,7 +259,10 @@ void renderView ()
 	g_camDirty = false;
 	g_back.resize ((size_t) VW * VH);
 	g_view.ghost = g_cmd.tool != T_NONE && !g_cmd.ghost.pts.empty () ? &g_cmd.ghost : nullptr;
-	g_view.ghostCut = (g_cmd.f.op == OP_CUT && g_cmd.tool != T_COMBINE) || ((g_cmd.tool == T_PUSH || g_cmd.tool == T_EXTRUDE) && g_cmd.f.a < 0);
+	// (la teinte suit le mode : enlever en rouge, vu à travers ; intersection en ambre ; nouveau, joindre : l'accent ;
+	// pousser/tirer : enlever quand on pousse)
+	g_view.ghostCut = g_cmd.tool != T_COMBINE && (g_cmd.f.op == OP_CUT || (g_cmd.tool == T_PUSH && g_cmd.f.a < 0));
+	g_view.ghostInter = g_cmd.tool != T_COMBINE && g_cmd.tool != T_PUSH && g_cmd.f.op == OP_INTERSECT;
 	skStrokes ();
 	handleStrokes ();
 	g_view.render (g_back.data (), VW, g_doc, g_pal, g_sels, g_hot);
@@ -477,8 +488,8 @@ void panelUpdate ()
 			{ "Clic : les arêtes (Maj : plusieurs) ; Entrée", "Glisser la poignée ou tapez le rayon ; Entrée", "" },
 			{ "Clic : les arêtes (Maj : plusieurs) ; Entrée", "Glisser la poignée ou tapez la distance ; Entrée", "" },
 			{ "Cible ou Outils, puis les corps dans la vue", "Cible ou Outils, puis les corps dans la vue", "" },
-			{ "Une esquisse fermée : l'étape choisie dans la frise, ou la dernière", "Glisser la poignée ou tapez la distance ; Entrée", "" },
-			{ "Une esquisse avec une ligne de construction (l'axe)", "Tapez l'angle ; Entrée", "" },
+			{ "Une esquisse fermée : l'étape choisie dans la frise, ou la dernière", "Glisser la poignée ou tapez la distance ; clic : une région ; Entrée", "" },
+			{ "Une esquisse avec une ligne de construction (l'axe)", "Tapez l'angle ; clic : une région ; Entrée", "" },
 			{ "Clic : l'emplacement, sur une face plane", "Maj+clic : un trou de plus ; le diamètre, la profondeur (0 : traversant) ; Entrée", "" },
 			{ "Clic : les faces à ouvrir (Maj : plusieurs)", "L'épaisseur des parois ; Entrée", "" },
 			{ "L'étape répétée : celle choisie dans la frise, ou la dernière forme", "Le nombre et le pas (ou l'angle) ; Entrée", "" },
@@ -489,9 +500,12 @@ void panelUpdate ()
 		ui_w_set_text (p_sec, (long) TR ("Valeurs"));
 		std::vector<std::pair<std::string, std::string>> rows;
 		for (auto &c : g_cmd.chips) rows.push_back ({ TR (c.label), (c.text.empty () ? fmtNum (c.val) : c.text) + " mm" + (c.locked ? TR ("  (tenue)") : "") });
-		bool hasOp = g_cmd.tool == T_BOX || g_cmd.tool == T_CYL || g_cmd.tool == T_EXTRUDE || g_cmd.tool == T_REVOLVE;
+		bool hasOp = cmdHasOp ();
 		static const char *const OPS[4] = { "nouveau", "joindre", "enlever", "intersection" };
 		if (hasOp) rows.push_back ({ TR ("Opération"), std::string (TR (OPS[g_cmd.f.op])) + (g_cmd.opAuto ? TR (" · auto") : "") });
+		if (hasOp && g_cmd.f.op != OP_NEW && g_cmd.f.body >= 0 && g_cmd.f.body < (int) g_doc.bodies.size ())
+			rows.push_back ({ TR ("Corps visé"), g_doc.bodies[g_cmd.f.body].name });
+		if ((g_cmd.tool == T_EXTRUDE || g_cmd.tool == T_REVOLVE) && !g_cmd.regs.empty ()) rows.push_back ({ TR ("Régions"), regSummary () });
 		if (g_cmd.tool == T_FILLET || g_cmd.tool == T_CHAMFER) rows.push_back ({ TR ("Arêtes"), std::to_string (g_cmd.f.edges.size ()) });
 		if (g_cmd.tool == T_SHELL) rows.push_back ({ TR ("Faces ouvertes"), std::to_string (g_cmd.f.faces.size ()) });
 		if (g_cmd.tool == T_HOLE) rows.push_back ({ TR ("Trous"), std::to_string (g_cmd.f.pos.size () / 2) });
@@ -537,6 +551,7 @@ void panelUpdate ()
 		ui_w_show (b_ok, true);
 		ui_w_show (b_cancel, true);
 		state = g_cmd.err.empty () ? "" : "⚠ " + g_cmd.err;
+		if (hasOp && state.empty ()) state = TR ("Le mode : Alt+N nouveau corps, Alt+J joindre, Alt+E enlever, Alt+I intersection.");
 		if (g_cmd.maxR > 0) state += std::string (TR (" Le plus grand rayon qui passe : ")) + fmtNum (g_cmd.maxR) + " mm.";
 	} else if (g_selStep >= 0 && g_selStep < (int) g_doc.feats.size ()) {
 		const Feature &f = g_doc.feats[g_selStep];
@@ -790,6 +805,119 @@ void cmdRefresh ()
 	panelUpdate ();
 }
 
+// ---- les régions de l'esquisse (extrusion, révolution) ------------------------------------------------------------
+//
+// Comme les profils de Fusion : chaque contour fermé moins ceux directement dedans est une région (skRegions) ; un
+// clic dans la vue en prend une ou la laisse, plusieurs à la fois. Sans choix (Feature::regions vide), tout le profil
+// d'avant : les régions de profondeur 0, un îlot dans un trou laissé. Le choix est gardé dans l'opération par un point
+// bien dans chaque région ; revenu au défaut, il est vidé (l'esquisse peut alors changer librement).
+
+void regLoad ()
+{
+	g_cmd.regs.clear ();
+	g_cmd.regMesh.clear ();
+	g_cmd.regHot = -1;
+	if (g_cmd.f.ref < 0 || g_cmd.f.ref >= (int) g_doc.feats.size ()) return;
+	std::string err;
+	skRegions (g_doc.feats[g_cmd.f.ref].sk, g_cmd.regs, err);
+	for (auto &r : g_cmd.regs) {
+		Mesh m;
+		meshShape (r.face, m, 0.1);
+		g_cmd.regMesh.push_back (m);
+	}
+}
+// pour chaque région : elle est extrudée (le choix, sinon le défaut)
+std::vector<char> regChosen ()
+{
+	std::vector<char> in (g_cmd.regs.size (), 0);
+	if (g_cmd.f.ref < 0) return in;
+	const Sketch &sk = g_doc.feats[g_cmd.f.ref].sk;
+	if (g_cmd.f.regions.size () < 2)
+		for (size_t i = 0; i < in.size (); i++) in[i] = skRegionDefault (g_cmd.regs[i]);
+	for (size_t k = 0; k + 1 < g_cmd.f.regions.size (); k += 2) {
+		int i = skRegionAt (sk, g_cmd.regs, g_cmd.f.regions[k], g_cmd.f.regions[k + 1]);
+		if (i >= 0) in[i] = 1;
+	}
+	return in;
+}
+// la région sous le point (x, y) de la vue (-1 : aucune)
+int regAt (int x, int y)
+{
+	if (g_cmd.regs.empty () || g_cmd.f.ref < 0) return -1;
+	const Sketch &sk = g_doc.feats[g_cmd.f.ref].sk;
+	double p[3], u, v;
+	if (!g_view.onPlane (x, y, sk.plane.o, sk.plane.n, p)) return -1;
+	skLocal (sk, p, u, v);
+	return skRegionAt (sk, g_cmd.regs, u, v);
+}
+// une région prise ou laissée -> faux : c'était la dernière (il en faut une)
+bool regToggle (int i)
+{
+	if (i < 0 || i >= (int) g_cmd.regs.size ()) return false;
+	std::vector<char> in = regChosen ();
+	in[i] = !in[i];
+	int n = 0;
+	bool isDefault = true;
+	for (size_t k = 0; k < in.size (); k++) n += in[k], isDefault = isDefault && (bool) in[k] == skRegionDefault (g_cmd.regs[k]);
+	if (!n) return false;
+	g_cmd.f.regions.clear ();
+	if (!isDefault)
+		for (size_t k = 0; k < in.size (); k++)
+			if (in[k]) g_cmd.f.regions.push_back (g_cmd.regs[k].ix), g_cmd.f.regions.push_back (g_cmd.regs[k].iy);
+	return true;
+}
+// le texte du choix : « tout le profil », « 2 régions sur 3 »
+std::string regSummary ()
+{
+	std::vector<char> in = regChosen ();
+	int n = 0;
+	for (char c : in) n += c;
+	if (g_cmd.f.regions.empty ()) return TR ("tout le profil");
+	return std::to_string (n) + TR (" sur ") + std::to_string (in.size ());
+}
+// le clic sur une région : prise ou laissée, l'aperçu refait
+void regClick (int i)
+{
+	std::vector<char> was = regChosen ();
+	if (!regToggle (i)) {
+		status (TR ("Il faut au moins une région : prenez-en une autre avant de laisser celle-ci."));
+		return;
+	}
+	cmdRefresh ();
+	std::string m = std::string (TR (was[i] ? "Région laissée" : "Région prise")) + " (" + regSummary () + TR ("). Entrée ou OK pour valider.");
+	status (m.c_str ());
+}
+
+// le mode de combinaison (boîte, cylindre, extrusion, révolution) : choisi au panneau ou au clavier (Alt+N, J, E, I) ;
+// sur un plan sans corps, joindre, enlever et intersection visent le premier corps
+bool cmdHasOp () { return g_cmd.tool == T_BOX || g_cmd.tool == T_CYL || g_cmd.tool == T_EXTRUDE || g_cmd.tool == T_REVOLVE; }
+void cmdSetOp (Op o)
+{
+	g_cmd.f.op = o;
+	if (g_cmd.tool == T_MIRROR && g_cmd.f.op != OP_NEW) g_cmd.f.op = OP_JOIN;	// (symétrie : jointe ou nouveau corps)
+	g_cmd.opAuto = false;
+	if (g_cmd.f.op != OP_NEW && (g_cmd.f.body < 0 || g_cmd.f.body >= (int) g_doc.bodies.size () || g_doc.bodies[g_cmd.f.body].shape.IsNull ())) {
+		g_cmd.f.body = -1;	// (sur le sol : le corps visé est le premier)
+		for (size_t i = 0; i < g_doc.bodies.size (); i++)
+			if (!g_doc.bodies[i].shape.IsNull ()) { g_cmd.f.body = (int) i; break; }
+	}
+	cmdRefresh ();
+}
+
+// Alt+N nouveau corps, Alt+J joindre, Alt+E enlever, Alt+I intersection (la touche par sa place, comme les
+// raccourcis de Korin ; N, J, E, I sont aux mêmes places en AZERTY et en QWERTY) -> vrai si pris
+bool cmdOpKey (int code, int ch)
+{
+	if (!cmdHasOp ()) return false;
+	int l = code == 0x11 ? 'n' : code == 0x0D ? 'j' : code == 0x08 ? 'e' : code == 0x0C ? 'i' : ch < 128 ? tolower (ch) : 0;
+	Op o = l == 'n' ? OP_NEW : l == 'j' ? OP_JOIN : l == 'e' ? OP_CUT : l == 'i' ? OP_INTERSECT : (Op) -1;
+	if ((int) o < 0) return false;
+	cmdSetOp (o);
+	static const char *const M[4] = { "Mode : nouveau corps", "Mode : joindre", "Mode : enlever", "Mode : intersection" };
+	status (TR (M[g_cmd.f.op]));
+	return true;
+}
+
 void cmdStart (Tool t)
 {
 	g_cmd = Cmd ();
@@ -799,9 +927,6 @@ void cmdStart (Tool t)
 	Feature &f = g_cmd.f;
 	f.kind = toolKind (t);
 	f.name = featureName (g_doc, f.kind);
-	if (t <= T_COMBINE)
-		ui_w_set_value (tb[t == T_BOX ? TB_BOX : t == T_CYL ? TB_CYL : t == T_PUSH ? TB_PUSH : t == T_FILLET ? TB_FILLET : t == T_CHAMFER ? TB_CHAMFER
-			: TB_COMBINE], 1);
 	Pick k = sel0 ();
 	// ce qui est déjà choisi sert de départ : une face plane pour pousser/tirer, des arêtes pour un congé
 	if (t == T_PUSH && !k.none () && k.face >= 0 && faceRef (g_doc.bodies[k.body], k.face, f.face)) {
@@ -859,6 +984,7 @@ void cmdStart (Tool t)
 		f.ref = ref;
 		f.kind = t == T_EXTRUDE ? ST_EXTRUDE : ST_REVOLVE;
 		f.name = featureName (g_doc, f.kind);
+		regLoad ();
 		g_cmd.stage = 1;
 		Chip c;
 		c.label = t == T_EXTRUDE ? "Distance" : "Angle";
@@ -918,6 +1044,9 @@ void cmdStart (Tool t)
 		f.op = OP_JOIN;
 		g_cmd.stage = 1;
 	}
+	if (t <= T_EXTRUDE)	// (le bouton de la barre enfoncé : la commande a bien commencé)
+		ui_w_set_value (tb[t == T_BOX ? TB_BOX : t == T_CYL ? TB_CYL : t == T_PUSH ? TB_PUSH : t == T_FILLET ? TB_FILLET : t == T_CHAMFER ? TB_CHAMFER
+			: t == T_EXTRUDE ? TB_EXTRUDE : TB_COMBINE], 1);
 	g_sels.clear ();
 	g_cmd.active = 0;	// (le clavier : la première valeur ; Tab, la suivante)
 	ui_w_focus (0);
@@ -1306,9 +1435,22 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 			g_cmdDirty = true;
 			return true;
 		}
-		// la hauteur, l'extrusion : seule la poignée change la valeur (le pointeur qui passe ne fait rien) ;
+		// extrusion, révolution : le survol teinte la région sous le pointeur (un clic la prend ou la laisse)
+		if ((t == T_EXTRUDE || t == T_REVOLVE) && g_cmd.stage == 1) {
+			int r = buttons ? g_cmd.regHot : regAt (x, y);
+			if (r != g_cmd.regHot) {
+				g_cmd.regHot = r;
+				g_hot = Pick ();
+				renderView ();
+				paintOverlays ();
+				if (r >= 0) status (TR (regChosen ()[r] ? "Clic : laisser cette région" : "Clic : prendre cette région"));
+				else status (TR (toolName (t)));
+			}
+			return true;
+		}
+		// la hauteur : seule la poignée change la valeur (le pointeur qui passe ne fait rien) ;
 		// pousser/tirer : le survol habituel (un clic sur une autre face la prend)
-		if (((t == T_BOX || t == T_CYL) && g_cmd.stage == 2) || (t == T_EXTRUDE && g_cmd.stage == 1)) return true;
+		if ((t == T_BOX || t == T_CYL) && g_cmd.stage == 2) return true;
 		return false;		// (le survol habituel)
 	}
 	if (kind != 2) return kind == 1;
@@ -1381,13 +1523,13 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 		cmdRefresh ();
 		return true;
 	}
-	if (t == T_EXTRUDE) {	// (un clic hors de la poignée ne valide plus : Entrée ou OK)
-		status (handleClickHelp ());
-		return true;
-	}
-	if (t == T_REVOLVE) {
-		cmdApplyChips ();
-		cmdCommit ();
+	if (t == T_EXTRUDE || t == T_REVOLVE) {	// un clic dans une région : prise ou laissée ; ailleurs, il ne valide pas (Entrée ou OK)
+		int r = regAt (x, y);
+		if (r >= 0) {
+			regClick (r);
+			g_cmd.regHot = r;
+		} else
+			status (t == T_EXTRUDE ? handleClickHelp () : TR ("Tapez l'angle, ou cliquez une région ; Entrée ou OK pour valider."));
 		return true;
 	}
 	if (t == T_HOLE) {	// le premier clic : la face et le premier trou ; Maj+clic : un trou de plus ; un clic : fini
@@ -1568,16 +1710,16 @@ const char *skToolName (SkTool t)
 void skWorldPt (int i, double out[3]) { skWorld (g_sm.s, g_sm.s.pts[i].x, g_sm.s.pts[i].y, out); }
 
 // une polyligne d'un élément (dans l'espace)
-std::vector<double> skPoly (const SkGeo &g)
+std::vector<double> skPolyOf (const Sketch &s, const SkGeo &g)
 {
 	std::vector<double> v;
 	double p[3];
-	auto add = [&] (double x, double y) { skWorld (g_sm.s, x, y, p); v.insert (v.end (), { p[0], p[1], p[2] }); };
+	auto add = [&] (double x, double y) { skWorld (s, x, y, p); v.insert (v.end (), { p[0], p[1], p[2] }); };
 	if (g.t == SG_LINE) {
-		add (g_sm.s.pts[g.a].x, g_sm.s.pts[g.a].y);
-		add (g_sm.s.pts[g.b].x, g_sm.s.pts[g.b].y);
+		add (s.pts[g.a].x, s.pts[g.a].y);
+		add (s.pts[g.b].x, s.pts[g.b].y);
 	} else {
-		const SkPoint &c = g_sm.s.pts[g.c];
+		const SkPoint &c = s.pts[g.c];
 		double a0 = g.t == SG_ARC ? g.a0 : 0, a1 = g.t == SG_ARC ? g.a1 : 2 * M_PI;
 		int n = imax (8, (int) ((a1 - a0) / (2 * M_PI) * 72));
 		for (int k = 0; k <= n; k++) {
@@ -1586,6 +1728,53 @@ std::vector<double> skPoly (const SkGeo &g)
 		}
 	}
 	return v;
+}
+std::vector<double> skPoly (const SkGeo &g) { return skPolyOf (g_sm.s, g); }
+
+// Une esquisse terminée reste dans la vue, hors de son édition (comme Fusion, qui cache une esquisse quand une
+// extrusion l'utilise) : celles qu'aucune extrusion ni révolution jouée n'utilise, en traits fins cachés par la pièce
+// qui est devant ; celle choisie dans la frise et celle de l'extrusion en cours, en accent, par-dessus tout.
+// (Pas de bouton œil par esquisse : le panneau Corps ne montre que les corps ; une esquisse consommée se revoit en la
+// choisissant dans la frise.)
+bool sketchConsumed (int i)
+{
+	for (int j = i + 1; j < g_doc.bar && j < (int) g_doc.feats.size (); j++) {
+		const Feature &f = g_doc.feats[j];
+		if ((f.kind == ST_EXTRUDE || f.kind == ST_REVOLVE) && f.ref == i && !f.off) return true;
+	}
+	return false;
+}
+// 0 : cachée ; 1 : montrée (fine) ; 2 : mise en avant (choisie dans la frise, ou en cours d'extrusion)
+int sketchShown (int i)
+{
+	if (i < 0 || i >= (int) g_doc.feats.size () || g_doc.feats[i].kind != ST_SKETCH) return 0;
+	const Feature &f = g_doc.feats[i];
+	if (i == g_selStep || ((g_cmd.tool == T_EXTRUDE || g_cmd.tool == T_REVOLVE) && g_cmd.f.ref == i)) return 2;
+	if (i >= g_doc.bar || f.off) return 0;
+	return sketchConsumed (i) ? 0 : 1;
+}
+// les esquisses montrées hors de leur édition ; pendant l'extrusion, ses régions teintées (choisies, survolée)
+void idleStrokes ()
+{
+	unsigned thin = (unsigned) ui_mix (jet (TJ_TEXT2), g_pal.bg, 40);
+	for (size_t i = 0; i < g_doc.feats.size (); i++) {
+		int how = sketchShown ((int) i);
+		if (!how) continue;
+		const Sketch &s = g_doc.feats[i].sk;
+		for (auto &e : s.geos) {
+			View::Stroke st { skPolyOf (s, e), how == 2 ? g_pal.accent : e.cons ? g_pal.grid50 : thin, how == 2 ? 2 : 1, e.cons };
+			st.depth = how == 1;
+			g_view.strokes.push_back (st);
+		}
+	}
+	if ((g_cmd.tool == T_EXTRUDE || g_cmd.tool == T_REVOLVE) && !g_cmd.regs.empty ()) {
+		std::vector<char> in = regChosen ();
+		for (size_t r = 0; r < g_cmd.regMesh.size (); r++) {
+			bool hot = (int) r == g_cmd.regHot;
+			if (in[r]) g_view.fills.push_back ({ &g_cmd.regMesh[r], hot ? g_pal.hover : g_pal.accent, hot ? 120 : 80 });
+			else if (hot) g_view.fills.push_back ({ &g_cmd.regMesh[r], g_pal.hover, 70 });
+		}
+	}
 }
 
 bool skSelHas (int kind, int i)
@@ -1612,7 +1801,11 @@ void skStrokes ()
 {
 	g_view.strokes.clear ();
 	g_view.dots.clear ();
-	if (!g_sm.on) return;
+	g_view.fills.clear ();
+	if (!g_sm.on) {
+		idleStrokes ();
+		return;
+	}
 	Sketch &s = g_sm.s;
 	unsigned freeCol = g_pal.dark ? (unsigned) ui_mix (jet (TJ_AXIS_Z), 0xFFFFFF, 38) : jet (TJ_AXIS_Z);
 	for (size_t g = 0; g < s.geos.size (); g++) {
@@ -3203,11 +3396,15 @@ void control (long w, long code)
 				return;
 			}
 	if (code == UN_ACTIVATE || code == UN_CHANGE) {
-		static const int MAP[TB_N] = { 37, 30, 31, 32, 33, 34, 35, -1 };
+		static const int MAP[TB_N] = { 37, 38, 30, 31, 32, 33, 34, 35, -1 };
 		for (int i = 0; i < TB_N; i++)
 			if (w == tb[i] && MAP[i] >= 0) {
-				if (g_sm.on) {
+				if (g_sm.on) {	// (en esquisse : Esquisse la termine ; Extrusion la termine et l'extrude)
 					if (i == TB_SKETCH) skLeave (true);
+					else if (i == TB_EXTRUDE) {
+						skLeave (true);
+						command (38);
+					}
 				} else if (g_cmd.tool != T_NONE) cmdEnd ();
 				else command (MAP[i]);
 				if (ui_w_get_value (tb[i]) && g_cmd.tool == T_NONE) ui_w_set_value (tb[i], 0);
@@ -3264,14 +3461,7 @@ void control (long w, long code)
 	}
 	if (w == w_op && code == UN_CHANGE) {
 		long v = ui_w_get_value (w_op);
-		g_cmd.f.op = v == 0 ? OP_NEW : v == 1 ? OP_JOIN : v == 2 ? OP_CUT : OP_INTERSECT;
-		if (g_cmd.tool == T_MIRROR && g_cmd.f.op != OP_NEW) g_cmd.f.op = OP_JOIN;	// (symétrie : jointe ou nouveau corps)
-		g_cmd.opAuto = false;
-		if (g_cmd.f.op != OP_NEW && g_cmd.f.body < 0) {	// (sur le sol : le corps visé est le premier)
-			for (size_t i = 0; i < g_doc.bodies.size (); i++)
-				if (!g_doc.bodies[i].shape.IsNull ()) { g_cmd.f.body = (int) i; break; }
-		}
-		cmdRefresh ();
+		cmdSetOp (v == 0 ? OP_NEW : v == 1 ? OP_JOIN : v == 2 ? OP_CUT : OP_INTERSECT);
 	} else if (w == b_ok && code == UN_ACTIVATE) {
 		cmdKey (0x28, 0);
 	} else if (w == b_cancel && code == UN_ACTIVATE) {
@@ -3306,8 +3496,10 @@ void buildWindow ()
 	ui_w_tip (w_mode, (long) TR ("Fabrication (G-code GRBL) : à une étape suivante"));
 	TB_H = h + 24;
 	w_bar = ui_toolbar (408, (TB_H - h) / 2, imax (100, (int) ui.w - 408 - 96 - 128), 0);	// (à sa place ; ui_w_move de la barre emmène ses boutons)
-	static const char *const TOOLS[TB_N] = { "Esquisse", "Boîte", "Cylindre", "Pousser", "|Congé", "Chanfrein", "|Combiner", "|Mesurer" };
-	static const char *const TIPS[TB_N] = { "Esquisse (S) sur la face choisie ou le plan XY : lignes, rectangles, cercles, arcs, contraintes (PlaneGCS) ; E l'extrude", "Boîte (B) : clic à un coin, clic au coin opposé, on monte, clic",
+	static const char *const TOOLS[TB_N] = { "Esquisse", "Extrusion", "Boîte", "Cylindre", "Pousser", "|Congé", "Chanfrein", "|Combiner", "|Mesurer" };
+	static const char *const TIPS[TB_N] = { "Esquisse (S) sur la face choisie ou le plan XY : lignes, rectangles, cercles, arcs, contraintes (PlaneGCS) ; E l'extrude",
+		"Extrusion (E) de l'esquisse choisie dans la frise, ou de la dernière : la poignée ou la distance, un clic prend ou laisse une région, le mode au panneau (Alt+N/J/E/I)",
+		"Boîte (B) : clic à un coin, clic au coin opposé, on monte, clic",
 		"Cylindre : clic au centre, on s'éloigne pour le rayon, clic, on monte, clic", "Pousser/tirer (Q) une face plane", "Congé (F) sur les arêtes choisies",
 		"Chanfrein (Maj+F) sur les arêtes choisies", "Combiner : une cible et des outils, en union, soustraction ou intersection", "Mesurer : à une étape suivante" };
 	for (int i = 0; i < TB_N; i++) {
@@ -3331,6 +3523,7 @@ void buildWindow ()
 	}
 	for (int i = 0; i < 3; i++) e_val[i] = ui_textbox (0, 0, 10, h, 0);
 	w_op = ui_segmented (0, 0, 10, h, (long) TR ("Nouveau|Joindre|Enlever|Inter."));
+	ui_w_tip (w_op, (long) TR ("Le mode : nouveau corps (Alt+N), joindre (Alt+J), enlever (Alt+E), intersection (Alt+I)"));
 	w_pmode = ui_segmented (0, 0, 10, h, (long) TR ("Linéaire|Circulaire"));
 	w_paxis = ui_segmented (0, 0, 10, h, (long) TR ("Axe X|Axe Y|Axe Z"));
 	b_usemax = ui_pushbutton (0, 0, 10, h, (long) "", 0);
@@ -3574,6 +3767,7 @@ void loop (double untilMs)
 		if (!press || taken) continue;
 		int key = ui_ev_field (&ui, EV_CODE), ch = ui_ev_field (&ui, EV_CHAR);
 		if (skKey (key, ch, mods)) continue;
+		if ((mods & UI_MOD_ALT) && !(mods & UI_MOD_CTRL) && cmdOpKey (key, ch)) continue;
 		if (cmdKey (key, ch)) continue;
 		long id = ui_menu_key (0);
 		if (id >= 0) {
@@ -3970,6 +4164,327 @@ void handleTests2 ()
 	g_undo = ku, g_redo = kr, g_dirty = kd;
 	g_view.persp = kp, g_snap = ksnap;
 	g_sels.clear ();
+	rebuild ();
+	g_view.standard (6);
+	g_view.fit (g_doc);
+	refreshAll ();
+}
+
+// les esquisses dans la vue, les régions à extruder, les modes de combinaison, le fichier (1.3.11)
+void regionTests ()
+{
+	char s[400];
+	Doc keepDoc = g_doc;
+	std::vector<Snap> ku = g_undo, kr = g_redo;
+	bool kd = g_dirty, kp = g_view.persp;
+	double ksnap = g_snap;
+	g_snap = 1;
+	// un rectangle de 60 × 40 (0..60, 0..40) percé d'un cercle R 10 au point (20, 20) ; island : un îlot R 4 dans le trou
+	auto sketch = [] (bool island, double z, int body) {
+		Feature f;
+		f.kind = ST_SKETCH, f.name = island ? "Esquisse îlot" : "Esquisse 1";
+		Sketch &k = f.sk;
+		k.plane.o[2] = z, k.body = body;
+		int a = skAddPoint (k, 0, 0), b = skAddPoint (k, 60, 0), c = skAddPoint (k, 60, 40), d = skAddPoint (k, 0, 40);
+		skAddLine (k, a, b), skAddLine (k, b, c), skAddLine (k, c, d), skAddLine (k, d, a);
+		skAddCircle (k, skAddPoint (k, 20, 20), 10);
+		if (island) skAddCircle (k, skAddPoint (k, 20, 20), 4);
+		skSolve (k);
+		return f;
+	};
+	auto install = [] (const Doc &d) {
+		g_doc = d;
+		g_sels.clear ();
+		g_selStep = -1;
+		rebuild ();
+		g_view.persp = true;
+		g_view.standard (6);
+		g_view.cam.tx = 30, g_view.cam.ty = 20, g_view.cam.tz = 0, g_view.cam.scale = 7;	// (l'esquisse au milieu de la vue)
+		cameraChanged ();
+	};
+	auto vol = [] () { return totalVolume () * 1000; };	// (mm³)
+	const double A = 60 * 40, C = M_PI * 100, I = M_PI * 16;
+	// 1. l'esquisse terminée se voit hors de son édition ; extrudée, elle est cachée ; choisie dans la frise, elle revient
+	{
+		Doc d;
+		d.feats.push_back (sketch (false, 0, -1));
+		d.bar = 1;
+		install (d);
+		renderView ();
+		std::vector<uint32_t> with = g_back;
+		size_t nStrokes = g_view.strokes.size ();
+		bool depth = nStrokes && g_view.strokes[0].depth;
+		g_doc.feats[0].off = true;	// (désactivée : pas montrée ; la même image sans ses traits)
+		renderView ();
+		std::vector<uint32_t> without = g_back;
+		g_doc.feats[0].off = false;
+		int diff = 0;
+		for (size_t i = 0; i < with.size () && i < without.size (); i++) diff += with[i] != without[i];
+		Feature e;
+		e.kind = ST_EXTRUDE, e.name = "Extrusion 1", e.ref = 0, e.a = 10;
+		g_doc.feats.push_back (e);
+		g_doc.bar = 2;
+		rebuild ();
+		renderView ();
+		size_t afterExtrude = g_view.strokes.size ();
+		g_selStep = 0;
+		renderView ();
+		size_t chosen = g_view.strokes.size ();
+		bool accent = chosen && g_view.strokes[0].col == g_pal.accent && !g_view.strokes[0].depth;
+		g_selStep = -1;
+		snprintf (s, sizeof s, "hors édition : %d traits (profondeur %s), %d pixels dessinés ; extrudée : %d traits ; choisie dans la frise : %d traits%s",
+			  (int) nStrokes, depth ? "oui" : "non", diff, (int) afterExtrude, (int) chosen, accent ? " en accent" : "");
+		check ("esquisse visible dans la vue après sa fin, cachée une fois extrudée, revue choisie dans la frise",
+		       nStrokes == 5 && depth && diff > 200 && afterExtrude == 0 && chosen == 5 && accent, s);
+	}
+	// 2. les régions du rectangle percé : le rectangle troué (profondeur 0) et le disque (1)
+	{
+		Feature f = sketch (false, 0, -1);
+		std::vector<SkRegion> r;
+		std::string err;
+		bool ok = skRegions (f.sk, r, err);
+		bool good = ok && r.size () == 2 && r[0].depth == 0 && r[1].depth == 1 && std::fabs (r[0].area - (A - C)) < 1e-3 && std::fabs (r[1].area - C) < 1e-3
+			&& skRegionAt (f.sk, r, r[0].ix, r[0].iy) == 0 && skRegionAt (f.sk, r, r[1].ix, r[1].iy) == 1 && skRegionAt (f.sk, r, 20, 20) == 1
+			&& skRegionAt (f.sk, r, 50, 5) == 0 && skRegionAt (f.sk, r, 80, 5) == -1;
+		snprintf (s, sizeof s, "%d régions ; aires %s et %s mm² (attendu %s et %s)", (int) r.size (), r.size () > 0 ? fmtNum (r[0].area).c_str () : "-",
+			  r.size () > 1 ? fmtNum (r[1].area).c_str () : "-", fmtNum (A - C).c_str (), fmtNum (C).c_str ());
+		check ("régions d'un rectangle percé d'un cercle : 2, le rectangle troué et le disque", good, s);
+		Feature g = sketch (true, 0, -1);
+		ok = skRegions (g.sk, r, err);
+		snprintf (s, sizeof s, "%d régions, profondeurs %d %d %d ; aire de l'îlot %s", (int) r.size (), r.size () > 2 ? r[0].depth : -1, r.size () > 2 ? r[1].depth : -1,
+			  r.size () > 2 ? r[2].depth : -1, r.size () > 2 ? fmtNum (r[2].area).c_str () : "-");
+		check ("régions avec un îlot dans le trou : 3 (profondeurs 0, 1, 2)", ok && r.size () == 3 && r[2].depth == 2 && std::fabs (r[1].area - (C - I)) < 1e-3
+		       && std::fabs (r[2].area - I) < 1e-3, s);
+	}
+	// 3. l'extrusion d'une seule région choisie à la souris : le disque (pris), le rectangle (laissé)
+	auto pt = [] (double x, double y, double z, double p[3]) { p[0] = x, p[1] = y, p[2] = z; };
+	{
+		Doc d;
+		d.feats.push_back (sketch (false, 0, -1));
+		d.bar = 1;
+		install (d);
+		g_selStep = 0;
+		cmdStart (T_EXTRUDE);
+		bool started = g_cmd.tool == T_EXTRUDE && g_cmd.regs.size () == 2;
+		std::string first = regSummary ();
+		double disc[3], frame[3];
+		pt (14, 24, 0, disc), pt (52, 33, 0, frame);
+		moveTo (disc);
+		bool hover = g_cmd.regHot == 1;
+		renderView ();
+		bool tinted = !g_view.fills.empty ();
+		clickAt (disc);
+		std::string both = regSummary ();
+		moveTo (frame);
+		clickAt (frame);
+		std::string one = regSummary ();
+		bool handle = handleOn ();
+		handleDrag (10, 14);	// (la poignée marche toujours, la région choisie gardée)
+		double h = g_cmd.chips.empty () ? 0 : g_cmd.chips[0].val;
+		bool kept2 = g_cmd.f.regions.size () == 2;
+		cmdKey (0x28, 0);
+		double v = vol ();
+		const Feature &e = g_doc.feats.back ();
+		snprintf (s, sizeof s, "%s ; survol %s, teinte %s ; disque pris : %s ; rectangle laissé : %s ; poignée tirée à %s mm ; %s ; %.3f mm³, attendu %.3f", first.c_str (),
+			  hover ? "oui" : "non", tinted ? "oui" : "non", both.c_str (), one.c_str (), fmtNum (h).c_str (), featureDetail (e).c_str (), v, C * h);
+		check ("extrusion d'une seule région choisie (le disque), à la poignée : V = π R² h", started && hover && tinted && handle && kept2 && std::fabs (h - 14) < 0.6
+		       && e.kind == ST_EXTRUDE && e.regions.size () == 2 && std::fabs (v - C * h) < 1e-6 * C * h, s);
+		// les deux régions choisies : la face pleine (réunies), V = 60 × 40 × h
+		install (d);
+		g_selStep = 0;
+		cmdStart (T_EXTRUDE);
+		moveTo (disc), clickAt (disc);
+		type ("10");
+		cmdKey (0x28, 0);
+		v = vol ();
+		int solids = 0;
+		if (!g_doc.bodies.empty ())
+			for (TopExp_Explorer x (g_doc.bodies[0].shape, TopAbs_SOLID); x.More (); x.Next ()) solids++;
+		snprintf (s, sizeof s, "%s ; %d solide(s) ; %.3f mm³, attendu %.3f", featureDetail (g_doc.feats.back ()).c_str (), solids, v, A * 10);
+		check ("extrusion du rectangle et de son trou choisis : un seul solide plein", solids == 1 && std::fabs (v - A * 10) < 1e-6 * A * 10, s);
+		// la dernière région ne se laisse pas (il en faut une) ; sans choix : le profil entier, comme avant
+		install (d);
+		g_selStep = 0;
+		cmdStart (T_EXTRUDE);
+		moveTo (frame), clickAt (frame);
+		bool kept = g_cmd.f.regions.empty () && regChosen ()[0];
+		type ("10");
+		cmdKey (0x28, 0);
+		v = vol ();
+		snprintf (s, sizeof s, "dernière région gardée : %s ; %.3f mm³, attendu %.3f", kept ? "oui" : "non", v, (A - C) * 10);
+		check ("sans choix : tout le profil (le rectangle percé), la dernière région ne se laisse pas", kept && g_doc.feats.back ().regions.empty () && std::fabs (v - (A - C) * 10) < 1e-6 * A * 10, s);
+	}
+	// 4. un îlot dans le trou : par défaut laissé (comme avant) ; choisi seul, il est extrudé
+	{
+		Doc d;
+		d.feats.push_back (sketch (true, 0, -1));
+		d.bar = 1;
+		install (d);
+		g_selStep = 0;
+		cmdStart (T_EXTRUDE);
+		double isl[3], frame[3];
+		pt (21, 21, 0, isl), pt (52, 33, 0, frame);
+		moveTo (isl), clickAt (isl);
+		moveTo (frame), clickAt (frame);
+		std::string sum = regSummary ();
+		type ("10");
+		cmdKey (0x28, 0);
+		double v = vol ();
+		Feature def;
+		def.kind = ST_EXTRUDE, def.name = "Extrusion 2", def.ref = 0, def.a = 10;
+		Doc d2 = d;
+		d2.feats.push_back (def);
+		d2.bar = 2;
+		replay (d2, 0.2);
+		double vd = 0;
+		for (auto &b : d2.bodies) vd += bodyVolume (b);
+		snprintf (s, sizeof s, "îlot seul (%s) : %.3f mm³, attendu %.3f ; par défaut : %.3f, attendu %.3f", sum.c_str (), v, I * 10, vd, (A - C) * 10);
+		check ("extrusion d'un îlot dans un trou (choisi) ; par défaut, l'îlot reste dehors", std::fabs (v - I * 10) < 1e-6 * I * 10 && std::fabs (vd - (A - C) * 10) < 1e-6 * A * 10, s);
+	}
+	// 5. les quatre modes : une boîte 60 × 40 × 10, le disque R 10 de l'esquisse du sol extrudé de 20 mm
+	{
+		Doc d;
+		Feature bx;
+		bx.kind = ST_BOX, bx.name = "Boîte 1", bx.op = OP_NEW, bx.a = 60, bx.b = 40, bx.c = 10;
+		bx.frame.o[0] = 30, bx.frame.o[1] = 20;
+		d.feats.push_back (bx);
+		d.feats.push_back (sketch (false, 0, -1));
+		d.bar = 2;
+		const double B = A * 10;
+		struct M { const char *name; int how; double want; };	// how : 0 rien (défaut), 1..3 Alt+J/E/I, 4 le panneau (Inter.)
+		const M modes[] = { { "nouveau corps (défaut sur un plan)", 0, B + C * 20 }, { "joindre (Alt+J)", 1, B + C * 10 }, { "enlever (Alt+E)", 2, B - C * 10 },
+				    { "intersection (Alt+I)", 3, C * 10 }, { "intersection (panneau)", 4, C * 10 }, { "nouveau corps (Alt+N, après Alt+E)", 5, B + C * 20 } };
+		for (auto &m : modes) {
+			install (d);
+			g_selStep = 1;
+			cmdStart (T_EXTRUDE);
+			double disc[3];
+			pt (14, 24, 0, disc);
+			moveTo (disc), clickAt (disc);	// (le disque seul)
+			double frame[3];
+			pt (52, 33, 0, frame);
+			moveTo (frame), clickAt (frame);
+			Op auto0 = g_cmd.f.op;
+			if (m.how == 1) cmdOpKey (0x0D, 0);
+			else if (m.how == 2) cmdOpKey (0x08, 0);
+			else if (m.how == 3) cmdOpKey (0x0C, 0);
+			else if (m.how == 4) ui_w_set_value (w_op, 3), control (w_op, UN_CHANGE);
+			else if (m.how == 5) cmdOpKey (0x08, 0), cmdOpKey (0x11, 0);
+			type ("20");
+			cmdRefresh ();
+			renderView ();
+			Op op = g_cmd.f.op;
+			bool tint = op == OP_CUT ? g_view.ghostCut && !g_view.ghostInter : op == OP_INTERSECT ? g_view.ghostInter && !g_view.ghostCut : !g_view.ghostCut && !g_view.ghostInter;
+			bool ghost = !g_cmd.ghost.pts.empty ();
+			cmdKey (0x28, 0);
+			double v = vol ();
+			const Feature &e = g_doc.feats.back ();
+			snprintf (s, sizeof s, "%s : défaut %s, choisi %s, aperçu %s ; %s ; %.3f mm³, attendu %.3f", m.name, opName (auto0), opName (op), tint ? "teinté selon le mode" : "mal teinté",
+				  featureDetail (e).c_str (), v, m.want);
+			check ((std::string ("extrusion, mode ") + m.name).c_str (), auto0 == OP_NEW && e.kind == ST_EXTRUDE && e.error.empty () && tint && ghost && std::fabs (v - m.want) < 1e-6 * B, s);
+		}
+		// sur une face : joindre par défaut, enlever quand on creuse
+		Doc f = d;
+		f.feats[1] = sketch (false, 10, 0);
+		install (f);
+		g_selStep = 1;
+		cmdStart (T_EXTRUDE);
+		Op up = g_cmd.f.op;
+		type ("-5");
+		cmdRefresh ();
+		Op down = g_cmd.f.op;
+		cmdKey (0x29, 0);
+		snprintf (s, sizeof s, "vers le haut : %s ; vers le bas : %s", opName (up), opName (down));
+		check ("extrusion sur une face : joindre par défaut, enlever quand on creuse", up == OP_JOIN && down == OP_CUT, s);
+	}
+	// 6. le fichier : un document avec un choix de régions, enregistré puis relu ; un ancien document sans ce champ
+	{
+		Doc d;
+		d.name = "régions";
+		d.feats.push_back (sketch (true, 0, -1));
+		Feature e;
+		e.kind = ST_EXTRUDE, e.name = "Extrusion îlot", e.ref = 0, e.a = 10;
+		std::vector<SkRegion> r;
+		std::string err;
+		skRegions (d.feats[0].sk, r, err);
+		if (r.size () == 3) e.regions = { r[2].ix, r[2].iy, r[0].ix, r[0].iy };	// (l'îlot et le rectangle troué)
+		d.feats.push_back (e);
+		Feature e2;
+		e2.kind = ST_EXTRUDE, e2.name = "Extrusion 2", e2.ref = 0, e2.a = -4;
+		d.feats.push_back (e2);
+		d.bar = 3;
+		replay (d, 0.2);
+		double v0 = 0;
+		for (auto &b : d.bodies) v0 += bodyVolume (b);
+		const char *tmp = "/tmp/forge-selftest-regions.forge";
+		std::string se = docSave (d, tmp), le;
+		Doc d2;
+		if (se.empty ()) le = docLoad (d2, tmp);
+		std::string text;
+		if (FILE *fp = fopen (tmp, "rb")) {
+			char buf[4096];
+			size_t n;
+			while ((n = fread (buf, 1, sizeof buf, fp)) > 0) text.append (buf, n);
+			fclose (fp);
+		}
+		double v2 = 0;
+		bool same = le.empty () && d2.feats.size () == 3 && d2.feats[1].regions == d.feats[1].regions && d2.feats[2].regions.empty ();
+		if (le.empty ()) {
+			replay (d2, 0.2);
+			for (auto &b : d2.bodies) v2 += bodyVolume (b);
+		}
+		bool clean = text.find ("nan") == std::string::npos && text.find ("inf") == std::string::npos;
+		double want = (I + (A - C)) * 10 + (A - C) * 4;
+		snprintf (s, sizeof s, "%s%s%d étapes ; régions %s ; %.3f mm³ -> %.3f (attendu %.3f)%s", se.c_str (), le.c_str (), (int) d2.feats.size (), same ? "identiques" : "différentes",
+			  v0, v2, want, clean ? "" : " ; nan dans le fichier !");
+		check ("enregistré puis rouvert (.forge) avec un choix de régions : identique", same && clean && std::fabs (v0 - want) < 1e-6 * want && std::fabs (v2 - v0) < 1e-6 * want, s);
+		// le même document comme l'écrivait 1.3.10 : sans « regions », et un « -nan » d'une face jamais posée
+		std::string old = text;
+		for (size_t at; (at = old.find (",\"regions\":[")) != std::string::npos;) old.erase (at, old.find (']', at) - at + 1);
+		size_t fc = old.find ("\"face\":[");
+		if (fc != std::string::npos) old.replace (fc + 8, 1, "-nan");
+		bool oldOk = old.find ("regions") == std::string::npos && old.find ("-nan") != std::string::npos;
+		if (FILE *fp = fopen (tmp, "wb")) fwrite (old.data (), 1, old.size (), fp), fclose (fp);
+		Doc d3;
+		std::string oe = docLoad (d3, tmp);
+		double v3 = 0;
+		if (oe.empty ()) {
+			replay (d3, 0.2);
+			for (auto &b : d3.bodies) v3 += bodyVolume (b);
+		}
+		double wantOld = (A - C) * 10 + (A - C) * 4;
+		snprintf (s, sizeof s, "%s%d étapes, sans régions : %s ; %.3f mm³ (attendu %.3f : le profil entier)", oe.c_str (), (int) d3.feats.size (),
+			  oe.empty () && d3.feats.size () == 3 && d3.feats[1].regions.empty () ? "oui" : "non", v3, wantOld);
+		check ("un ancien document (sans « regions », un « -nan ») s'ouvre : le profil entier", oldOk && oe.empty () && d3.feats.size () == 3 && d3.feats[1].regions.empty ()
+		       && std::fabs (v3 - wantOld) < 1e-6 * wantOld, s);
+		unlink (tmp);
+	}
+	// 7. MCP : extrude avec regions (numéros des régions de l'esquisse)
+	{
+		Doc d;
+		d.feats.push_back (sketch (true, 0, -1));
+		d.bar = 1;
+		install (d);
+		std::string out, err;
+		const char *args = "{\"sketch\":0,\"distance\":10,\"regions\":[2]}";
+		json_t *a = json_parse (args, strlen (args));
+		try {
+			out = sweep (Args { a }, ST_EXTRUDE);
+		} catch (const ToolErr &x) {
+			err = x.msg;
+		}
+		json_free (a);
+		std::string sj = sketchJson (g_doc.feats[0].sk);
+		double v = vol ();
+		bool listed = sj.find ("\"regions\":[{") != std::string::npos && sj.find ("\"depth\":2") != std::string::npos;
+		snprintf (s, sizeof s, "%s régions listées par get_feature : %s ; %.3f mm³, attendu %.3f", err.c_str (), listed ? "oui" : "non", v, I * 10);
+		check ("MCP : extrude avec regions (l'îlot seul)", err.empty () && listed && std::fabs (v - I * 10) < 1e-6 * I * 10, s);
+	}
+	g_doc = keepDoc;
+	g_undo = ku, g_redo = kr, g_dirty = kd;
+	g_view.persp = kp, g_snap = ksnap;
+	g_sels.clear ();
+	g_selStep = -1;
 	rebuild ();
 	g_view.standard (6);
 	g_view.fit (g_doc);
@@ -4480,6 +4995,7 @@ int selftest (double buildMs)
 	}
 	handleTests ();
 	handleTests2 ();
+	regionTests ();
 	select (Pick ());
 	g_snap = 5;	// (le réglage d'origine)
 	printf ("forge : %s\n", fails ? "FAIL" : "PASS");

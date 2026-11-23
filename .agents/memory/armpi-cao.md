@@ -1,6 +1,6 @@
 ---
 name: armpi-cao
-description: CAO native Forge (successeur de 3DForge) sur OCCT + PlaneGCS ; historique des étapes 0-4, MCP, perspective (1.3.8), poignée du congé (1.3.9, 23/11), poignées de Pousser/Boîte/Cylindre (1.3.10)
+description: CAO native Forge (successeur de 3DForge) sur OCCT + PlaneGCS ; historique des étapes 0-4, MCP, perspective (1.3.8), poignée du congé (1.3.9, 23/11), poignées de Pousser/Boîte/Cylindre (1.3.10), esquisse visible et régions à extruder (1.3.11)
 metadata:
   type: project
 ---
@@ -137,3 +137,22 @@ face, distance gardée) ; Échap inchangé ; révolution inchangée ; alongNorma
 (9 essais : pointeur seul sans effet, glisser persp/ortho, volumes exacts, frappe, changement de face, Échap).
 Piège d'essai KORIN_SCRIPT : le vrai pointeur sur la fenêtre envoie ses mouvements (survol juste avant chaque clic).
 Korin pas construit ni essayé ici.
+
+**23/11, forge 1.3.11 (pas publié, branche claude/forge-extrude)** : demandes de l'utilisateur : (1) une esquisse
+terminée se voit dans la vue (main.cpp `sketchShown`/`idleStrokes` : celles qu'aucune extrusion/révolution jouée
+n'utilise, traits fins TJ_TEXT2 avec profondeur ; celle choisie dans la frise ou en cours d'extrusion en accent ;
+extrudée = cachée comme Fusion) ; (2) bouton **Extrusion** (TB_EXTRUDE, après Esquisse ; pendant une esquisse : la
+termine et l'extrude) ; (3) **régions** (sketch.cpp `skRegions` : contour moins enfants directs, profondeur, point
+dedans ; `skRegionAt`, `skFacesPick` réunit des régions qui se touchent) ; pendant extrusion ET révolution, survol
+teinté, clic prend/laisse (`regToggle`, jamais aucune, retour au défaut = vidé), `Feature::regions` (points x, y de
+l'esquisse), défaut = `skFaces` inchangé (îlot dans un trou dehors) ; la révolution ne valide plus au clic ;
+(4) mode : existait au panneau ; ajouté Alt+N/J/E/I (`cmdOpKey`, par position), ligne « Corps visé », fantôme teinté
+selon le mode (`View::ghostInter`, TJ_WARNING ; enlever TJ_DANGER). Format : `"regions"` écrit seulement s'il y a un
+choix, version 1 gardée. MCP : sketch `regions`, extrude/revolve `regions` (numéros). Selftest 70/70 sous Linux
+(17 ajoutés) ; KORIN_SCRIPT : `wact:<id>` pour un bouton de la barre (un `click:` de script ne touche pas les
+widgets GTK), captures regardées. Korin pas construit ni essayé ici.
+**Le premier essai (7f94394a, envoyé par erreur depuis une autre session) a été annulé par 0634c12b** : il cassait
+l'enregistrement et passait main.cpp/history.cpp en LF. Cause retrouvée (commit reconstruit, fichier gardé) :
+`FaceRef`/`EdgeRef` sans valeurs par défaut -> la `face` d'une esquisse neuve écrite `-nan` (JSON illisible).
+Corrigé : zéros par défaut, `docSave` écrit 0 pour un non-fini, `docLoad` relit `nan`/`-nan` (-> 0). Piège :
+main.cpp, history.cpp, model.h, mcptools.inc, lang/en.txt sont en **CRLF** : les garder (vérifier `grep -c $'\r$'`).

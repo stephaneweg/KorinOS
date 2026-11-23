@@ -244,9 +244,19 @@ std::string sketchJson (const Sketch &s)
 			s.plane.n[0] * s.plane.x[1] - s.plane.n[1] * s.plane.x[0] };
 	std::string err;
 	TopoDS_Shape faces = skFaces (s, err);
+	// les régions (profils) qu'une extrusion ou une révolution peut choisir (profiles : leurs numéros)
+	std::vector<SkRegion> rg;
+	JA pr;
+	if (!faces.IsNull () && skRegions (s, rg, err))
+		for (size_t i = 0; i < rg.size (); i++) {
+			double p[2] = { rg[i].ix, rg[i].iy };
+			pr.add (JO ().num ("index", (int) i).num ("depth", rg[i].depth).num ("area", std::round (rg[i].area * 1000) / 1000).raw ("inside_point", jv (p, 2))
+				.boo ("in_default_profile", skRegionDefault (rg[i])).end ());
+		}
 	return JO ().raw ("plane_origin", jv (s.plane.o)).raw ("plane_normal", jv (s.plane.n)).raw ("plane_x", jv (s.plane.x)).raw ("plane_y", jv (y))
 		.num ("on_body", s.body).num ("degrees_of_freedom", s.dof).boo ("fully_constrained", s.dof == 0)
-		.boo ("has_closed_profile", !faces.IsNull ()).raw ("points", pts.end ()).raw ("elements", ge.end ()).raw ("constraints", co.end ()).end ();
+		.boo ("has_closed_profile", !faces.IsNull ()).raw ("points", pts.end ()).raw ("elements", ge.end ()).raw ("constraints", co.end ())
+		.raw ("regions", pr.end ()).end ();
 }
 
 std::string featureJson (int i, bool full)
@@ -294,6 +304,14 @@ std::string featureJson (int i, bool full)
 			o.raw ("hole_positions_in_frame", c.end ());
 		}
 		if (f.kind == ST_PATTERN) o.str ("pattern_mode", f.mode ? "circular" : "linear").num ("count", f.count);
+		if ((f.kind == ST_EXTRUDE || f.kind == ST_REVOLVE) && !f.regions.empty ()) {
+			JA c;
+			for (size_t k = 0; k + 1 < f.regions.size (); k += 2) {
+				double p[2] = { f.regions[k], f.regions[k + 1] };
+				c.add (jv (p, 2));
+			}
+			o.raw ("region_points", c.end ());
+		}
 	}
 	return o.end ();
 }
@@ -874,6 +892,21 @@ std::string sweep (const Args &a, StepKind k)
 	if (k == ST_EXTRUDE) f.a = a.num ("distance", 0, true, &f, 0);
 	else f.a = a.num ("angle", 360, false, &f, 0);
 	opArgs (a, f);
+	// regions : les numéros des régions de l'esquisse (get_feature, sketch.regions) ; gardées par un point dans chacune
+	const json_t *rv = a.get ("regions");
+	if (rv && rv->kind != JSON_NULL) {
+		if (rv->kind != JSON_ARR) fail ("regions must be an array of region indices");
+		const Sketch &sk = g_doc.feats[f.ref].sk;
+		std::vector<SkRegion> rg;
+		std::string err;
+		if (!skRegions (sk, rg, err)) fail ("the sketch has no closed profile");
+		for (int i = 0; i < json_len (rv); i++) {
+			const json_t *e = json_at (rv, i);
+			int r = e && e->kind == JSON_NUM ? atoi (e->s) : -1;
+			if (r < 0 || r >= (int) rg.size ()) fail ("no region " + std::to_string (r) + " in this sketch (it has " + std::to_string (rg.size ()) + ")");
+			f.regions.push_back (rg[r].ix), f.regions.push_back (rg[r].iy);
+		}
+	}
 	f.name = a.str ("name");
 	return commitFeature (f, k == ST_EXTRUDE ? "extrusion" : "revolution");
 }
@@ -1310,14 +1343,18 @@ const ToolDef TOOLS[] = {
 	  t_set_sketch_dimension, false },
 	{ "extrude",
 	  "Extrude the closed profiles of a sketch along the sketch normal by distance (negative: the other way). operation new (default), "
-	  "join, cut or intersect with body.",
+	  "join, cut or intersect with body. regions: only these regions of the sketch (indices from the sketch's regions in get_feature: "
+	  "each closed contour minus the contours directly inside; an island in a hole is its own region); default: the whole profile "
+	  "(the regions of depth 0).",
 	  S ({ "type" : "object", "properties" : { "sketch" : { "type" : "integer" }, "distance" : { "type" : ["number", "string"] },
 		  "operation" : { "type" : "string", "enum" : ["new", "join", "cut", "intersect"] }, "body" : { "type" : "integer" },
+		  "regions" : { "type" : "array", "items" : { "type" : "integer" } },
 		  "name" : { "type" : "string" } }, "required" : ["sketch", "distance"] }),
 	  t_extrude, false },
-	{ "revolve", "Revolve the closed profiles of a sketch around its first construction line by angle (degrees, default 360). operation and body as for extrude.",
+	{ "revolve", "Revolve the closed profiles of a sketch around its first construction line by angle (degrees, default 360). operation, body and regions as for extrude.",
 	  S ({ "type" : "object", "properties" : { "sketch" : { "type" : "integer" }, "angle" : { "type" : ["number", "string"] },
 		  "operation" : { "type" : "string", "enum" : ["new", "join", "cut", "intersect"] }, "body" : { "type" : "integer" },
+		  "regions" : { "type" : "array", "items" : { "type" : "integer" } },
 		  "name" : { "type" : "string" } }, "required" : ["sketch"] }),
 	  t_revolve, false },
 	{ "edit_feature",

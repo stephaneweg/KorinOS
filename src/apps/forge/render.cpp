@@ -440,7 +440,7 @@ void View::render (unsigned *pix, int pitch, const Doc &d, const Palette &p, con
 	// le fantôme : ses faces mêlées à la scène (joindre : cachées par ce qui est devant ; enlever : vues à travers)
 	if (ghost && !ghost->pts.empty ()) {
 		const Mesh &m = *ghost;
-		unsigned gc = ghostCut ? p.danger : p.accent;
+		unsigned gc = ghostCut ? p.danger : ghostInter && p.inter ? p.inter : p.accent;
 		std::vector<double> cp (m.pts.size ());
 		for (size_t i = 0; i < m.pts.size () / 3; i++) P.cam (&m.pts[i * 3], &cp[i * 3]);
 		const double F = focal ();
@@ -475,10 +475,30 @@ void View::render (unsigned *pix, int pitch, const Doc &d, const Palette &p, con
 					unsigned &px0 = pix[(size_t) y * pitch + x];
 					px0 = mix (px0, p.bg, 150);
 				}
+	for (const Fill &fl : fills) {	// (chaque pixel une fois par surface)
+		if (!fl.m || fl.m->pts.empty ()) continue;
+		const Mesh &m = *fl.m;
+		std::vector<double> cp (m.pts.size ());
+		for (size_t i = 0; i < m.pts.size () / 3; i++) P.cam (&m.pts[i * 3], &cp[i * 3]);
+		std::vector<unsigned char> hit ((size_t) W * H, 0);
+		auto put = [&] (int x, int y, float, double) {
+			size_t i = (size_t) y * W + x;
+			if (hit[i]) return;
+			hit[i] = 1;
+			unsigned &px0 = pix[(size_t) y * pitch + x];
+			px0 = mix (px0, fl.col, fl.amount);
+		};
+		const double none[3] = { 0, 0, 0 };
+		for (size_t t = 0; t < m.tris.size () / 3; t++) {
+			double c[3][3];
+			for (int k = 0; k < 3; k++) memcpy (c[k], &cp[m.tris[t * 3 + k] * 3], sizeof c[k]);
+			triClip (P, W, H, c, none, put);
+		}
+	}
 	for (const Stroke &s : strokes)
 		for (size_t k = 0; k + 5 < s.pts.size (); k += 3) {
 			if (s.dashed && (k / 3) % 2) continue;
-			seg (pix, pitch, P, &s.pts[k], &s.pts[k + 3], s.col, s.thick, false);
+			seg (pix, pitch, P, &s.pts[k], &s.pts[k + 3], s.col, s.thick, s.depth);
 		}
 	for (const Dot &d : dots) {
 		double c[3], x, y;

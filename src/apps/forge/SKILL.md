@@ -112,7 +112,10 @@ partagés (contour fermé). Lignes horizontales et verticales : contraintes H/V 
 cite les éléments par leur numéro dans l'esquisse (`elements_created` dans la réponse) : `length`, `radius`,
 `diameter` (avec `value`), `horizontal`, `vertical`, `parallel`, `perpendicular`, `equal`, `tangent`, `concentric`.
 Un contour dans un plus grand fait un trou à l'extrusion. `revolve` tourne autour de la **première ligne de
-construction**.
+construction**. Pour n'extruder qu'une partie : `get_feature` de l'esquisse liste ses `regions` (chaque contour fermé
+moins ceux directement dedans : `index`, `depth` 0 dehors, 1 un trou, 2 un îlot dans un trou ; `area`,
+`inside_point`) ; `extrude ... regions=[1]` (ou `revolve`) ne prend que celles-là (deux régions qui se touchent sont
+réunies). Sans `regions` : tout le profil (les régions de profondeur 0 ; un îlot dans un trou reste dehors).
 
 ## 6. Recettes
 
