@@ -395,16 +395,103 @@ int lay_text (const char *s, int px, long font, int ellipsW, int *baseline)
 }
 
 // ---- Cairo sur un tampon -------------------------------------------------------------------------------------------------
-cairo_t *cr_begin (Buf *b)
+//
+// L'octet haut des pixels est la transparence de Korin (0 opaque, 255 invisible ; 0xFF000000 : le trou que pose
+// ui_fill (..., 0xFF000000) dans une zone de ui_surface_overlay). Cairo (RGB24) y écrit autre chose (la couverture) :
+// cr_begin reçoit la zone que le dessin touche ; toute opaque, Cairo y dessine directement puis cr_end la remet opaque
+// (octet haut 0) ; avec de la transparence, Cairo dessine dans un calque ARGB32 à part que cr_end compose « par-dessus »
+// en gardant la transparence (le bord lissé d'un texte ou d'un coin arrondi posé sur un trou devient à demi
+// transparent, comme sous Korin, au lieu d'un liseré sombre et opaque).
+static inline unsigned kalpha (uint32_t p)	// (0 invisible .. 255 opaque)
+{
+	unsigned hb = p >> 24;
+	return hb == 0xFF ? ((p & 0xFFFFFF) ? 255 : 0) : 255 - hb;
+}
+static struct CrZone { int x0, y0, x1, y1; cairo_surface_t *layer; bool korin; } g_crz;
+
+cairo_t *cr_begin (Buf *b, double zx, double zy, double zw, double zh)
 {
 	if (!b || !b->px || b->w <= 0 || b->h <= 0) return 0;
-	if (!b->cs) b->cs = cairo_image_surface_create_for_data ((unsigned char *) b->px, CAIRO_FORMAT_RGB24, b->w, b->h, b->w * 4);
-	cairo_surface_mark_dirty (b->cs);
-	cairo_t *cr = cairo_create (b->cs);
-	if (b->clipOn) { cairo_rectangle (cr, b->cx0, b->cy0, b->cx1 - b->cx0, b->cy1 - b->cy0); cairo_clip (cr); }
+	int x0 = (int) floor (zx) - 2, y0 = (int) floor (zy) - 2, x1 = (int) ceil (zx + zw) + 2, y1 = (int) ceil (zy + zh) + 2;
+	int bx0 = 0, by0 = 0, bx1 = b->w, by1 = b->h;
+	if (b->clipOn) { bx0 = std::max (0, b->cx0); by0 = std::max (0, b->cy0); bx1 = std::min (b->w, b->cx1); by1 = std::min (b->h, b->cy1); }
+	x0 = std::max (x0, bx0), y0 = std::max (y0, by0), x1 = std::min (x1, bx1), y1 = std::min (y1, by1);
+	g_crz = { x0, y0, x1, y1, 0, false };
+	// (seulement sur le fond d'une fenêtre qui a des surfaces (ui_surface) : ses zones de ui_surface_overlay, posées
+	// souvent après le dessin, y comptent la transparence ; ailleurs l'octet haut ne compte pas, le dessin reste celui
+	// d'avant)
+	for (auto &e : g_wins)
+		if (&e.second->buf == b && !e.second->surfs.empty ()) g_crz.korin = true;
+	bool opaque = true;
+	for (int y = y0; y < y1 && opaque && g_crz.korin; y++)
+		for (int x = x0; x < x1; x++)
+			if (kalpha (b->px[(size_t) y * b->w + x]) < 255) { opaque = false; break; }
+	cairo_t *cr;
+	if (!g_crz.korin)	// (comme avant : Cairo directement, coupé par ui_clip seulement)
+	{
+		if (!b->cs) b->cs = cairo_image_surface_create_for_data ((unsigned char *) b->px, CAIRO_FORMAT_RGB24, b->w, b->h, b->w * 4);
+		cairo_surface_mark_dirty (b->cs);
+		cr = cairo_create (b->cs);
+		if (b->clipOn) { cairo_rectangle (cr, b->cx0, b->cy0, b->cx1 - b->cx0, b->cy1 - b->cy0); cairo_clip (cr); }
+		return cr;
+	}
+	if (x1 <= x0 || y1 <= y0) return 0;
+	if (opaque)
+	{
+		if (!b->cs) b->cs = cairo_image_surface_create_for_data ((unsigned char *) b->px, CAIRO_FORMAT_RGB24, b->w, b->h, b->w * 4);
+		cairo_surface_mark_dirty (b->cs);
+		cr = cairo_create (b->cs);
+	}
+	else
+	{
+		g_crz.layer = cairo_image_surface_create (CAIRO_FORMAT_ARGB32, x1 - x0, y1 - y0);
+		cr = cairo_create (g_crz.layer);
+		cairo_translate (cr, -x0, -y0);
+	}
+	cairo_rectangle (cr, x0, y0, x1 - x0, y1 - y0);
+	cairo_clip (cr);
 	return cr;
 }
-void cr_end (Buf *b, cairo_t *cr) { cairo_destroy (cr); cairo_surface_flush (b->cs); b->texDirty = true; }
+void cr_end (Buf *b, cairo_t *cr)
+{
+	cairo_destroy (cr);
+	const CrZone z = g_crz;
+	if (!z.layer)
+	{
+		cairo_surface_flush (b->cs);
+		for (int y = z.y0; y < z.y1 && z.korin; y++)	// (opaque avant, opaque après)
+			for (uint32_t *p = b->px + (size_t) y * b->w + z.x0, *e = p + (z.x1 - z.x0); p < e; p++) *p &= 0xFFFFFF;
+	}
+	else
+	{
+		cairo_surface_flush (z.layer);
+		const unsigned char *L = cairo_image_surface_get_data (z.layer);
+		int stride = cairo_image_surface_get_stride (z.layer);
+		for (int y = z.y0; y < z.y1; y++)
+		{
+			const uint32_t *s = (const uint32_t *) (L + (size_t) (y - z.y0) * stride);
+			uint32_t *d = b->px + (size_t) y * b->w + z.x0;
+			for (int x = 0; x < z.x1 - z.x0; x++)
+			{
+				uint32_t sp = s[x];
+				unsigned sa = sp >> 24;
+				if (!sa) continue;
+				unsigned da = kalpha (d[x]), k = da * (255 - sa);	// (la part du fond, sur 255 * 255)
+				unsigned oa = sa + (k + 127) / 255;
+				uint32_t o = 0;
+				for (int c = 0; c < 24; c += 8)
+				{
+					unsigned v = (((sp >> c) & 255) * 255 + ((d[x] >> c) & 255) * k / 255 + oa / 2) / oa;	// (prémultiplié -> couleur)
+					o |= std::min (255u, v) << c;
+				}
+				d[x] = oa >= 255 ? o : o | (255 - oa) << 24;
+			}
+		}
+		cairo_surface_destroy (z.layer);
+		g_crz.layer = 0;
+	}
+	b->texDirty = true;
+}
 void cr_color (cairo_t *cr, unsigned c) { cairo_set_source_rgb (cr, ((c >> 16) & 255) / 255.0, ((c >> 8) & 255) / 255.0, (c & 255) / 255.0); }
 GdkRGBA rgba (unsigned c) { GdkRGBA r = { ((c >> 16) & 255) / 255.0f, ((c >> 8) & 255) / 255.0f, (c & 255) / 255.0f, 1 }; return r; }
 
@@ -1943,6 +2030,42 @@ static void script_click (Win *w, const char *a)
 	}
 	for (int i = 1; i <= n; i++) { mouse_ev (s, 1, lx, ly, held, 0, i); mouse_ev (s, 2, lx, ly, 0, 0, 0); }
 }
+// wheel:x,y,n : le pointeur en x,y puis n crans de molette (positif : vers le haut) ; drag:x0,y0,x1,y1[,bouton] : un
+// glisser en 20 pas (bouton 1 gauche, 2 milieu, 3 droit)
+static KSurf *script_at (Win *w, int x, int y, double &lx, double &ly)
+{
+	GtkWidget *p = gtk_widget_pick (w->surf, x, y, GTK_PICK_DEFAULT);
+	KSurf *s = p && G_TYPE_CHECK_INSTANCE_TYPE (p, ksurf_get_type ()) ? (KSurf *) p : (KSurf *) w->surf;
+	lx = x, ly = y;
+	if (s->view) lx -= s->view->x, ly -= s->view->y;
+	return s;
+}
+static void script_wheel (Win *w, const char *a)
+{
+	int x = 0, y = 0, n = 1;
+	sscanf (a, "%d,%d,%d", &x, &y, &n);
+	double lx, ly;
+	KSurf *s = script_at (w, x, y, lx, ly);
+	mouse_ev (s, 0, lx, ly, 0, 0, 0);
+	for (int i = 0; i < std::abs (n); i++)
+	{
+		Ev e; e.type = WEV_WHEEL; e.y = e.code = n > 0 ? 1 : -1; e.win = (int) w->id;
+		if (s->view) e.wid = s->view->id;
+		push (e);
+	}
+}
+static void script_drag (Win *w, const char *a)
+{
+	int x0 = 0, y0 = 0, x1 = 0, y1 = 0, b = 1;
+	sscanf (a, "%d,%d,%d,%d,%d", &x0, &y0, &x1, &y1, &b);
+	int held = b == 3 ? 2 : b == 2 ? 4 : 1;
+	double lx, ly;
+	KSurf *s = script_at (w, x0, y0, lx, ly);
+	double ox = lx - x0, oy = ly - y0;
+	mouse_ev (s, 1, lx, ly, held, 0, 1);
+	for (int i = 1; i <= 20; i++) mouse_ev (s, 0, x0 + (x1 - x0) * i / 20.0 + ox, y0 + (y1 - y0) * i / 20.0 + oy, held, 0, 0);
+	mouse_ev (s, 2, x1 + ox, y1 + oy, 0, 0, 0);
+}
 static void shot (Win *w, const char *path)
 {
 	if (!w) return;
@@ -1993,6 +2116,8 @@ static void shot (Win *w, const char *path)
 	if (node) gsk_render_node_unref (node);
 	g_object_unref (p);
 }
+struct PopState { bool done; int r; GtkWidget *pop; };
+static PopState *g_pop;		// (le menu ouvert : KORIN_SCRIPT pop:<numero> y choisit)
 static gboolean script_step (gpointer data)
 {
 	std::string *st = (std::string *) data;
@@ -2071,6 +2196,10 @@ static gboolean script_step (gpointer data)
 	{
 		for (long id : last_win ()->wids) { Wid *d = wid (id); if (d && d->kind == K_BUTTON && d->text == a + 7) { notify (d, UN_ACTIVATE); break; } }
 	}
+	// pop:<numero> : l'entree de ce numero du menu ouvert (-1 : le fermer sans choisir)
+	else if (!strncmp (a, "pop:", 4) && g_pop) { g_pop->r = atoi (a + 4); gtk_popover_popdown (GTK_POPOVER (g_pop->pop)); }
+	else if (!strncmp (a, "wheel:", 6) && w) script_wheel (w, a + 6);
+	else if (!strncmp (a, "drag:", 5) && w) script_drag (w, a + 5);
 	else if (!strncmp (a, "click:", 6) && w) script_click (w, a + 6);
 	else if (!strncmp (a, "click2:", 7) && last_win ()) script_click (last_win (), a + 7);	// (la derniere fenetre)
 	else if (!strcmp (a, "exit")) { fflush (0); _exit (0); }
@@ -2246,7 +2375,7 @@ long ui_rbox (long x, long y, long w, long h, long r, long top, long bottom)
 	Buf *b = target ();
 	if (w <= 0 || h <= 0) return 0;
 	if (r <= 0 && top == bottom) { fill_rect (b, x, y, w, h, (unsigned) top); return 0; }
-	cairo_t *cr = cr_begin (b);
+	cairo_t *cr = cr_begin (b, x, y, w, h);
 	if (!cr) return 0;
 	double rr = (double) r;
 	if (rr * 2 > w) rr = w / 2.0;
@@ -2273,7 +2402,7 @@ long ui_rbox (long x, long y, long w, long h, long r, long top, long bottom)
 long ui_vp_disc (long cx, long cy, long r, long c)
 {
 	Buf *b = target ();
-	cairo_t *cr = cr_begin (b);
+	cairo_t *cr = cr_begin (b, (cx - r) / 16.0, (cy - r) / 16.0, 2 * r / 16.0, 2 * r / 16.0);
 	if (!cr) return 0;
 	cr_color (cr, (unsigned) c);
 	cairo_arc (cr, cx / 16.0, cy / 16.0, r / 16.0, 0, 2 * M_PI);
@@ -2284,7 +2413,8 @@ long ui_vp_disc (long cx, long cy, long r, long c)
 long ui_vp_line (long x0, long y0, long x1, long y1, long th, long c)
 {
 	Buf *b = target ();
-	cairo_t *cr = cr_begin (b);
+	double m = th / 16.0;
+	cairo_t *cr = cr_begin (b, std::min (x0, x1) / 16.0 - m, std::min (y0, y1) / 16.0 - m, std::labs (x1 - x0) / 16.0 + 2 * m, std::labs (y1 - y0) / 16.0 + 2 * m);
 	if (!cr) return 0;
 	cr_color (cr, (unsigned) c);
 	cairo_set_line_width (cr, th / 16.0);
@@ -2299,9 +2429,11 @@ long ui_vp_poly (long pts, long n, long c)
 {
 	Buf *b = target ();
 	if (n < 3) return 0;
-	cairo_t *cr = cr_begin (b);
-	if (!cr) return 0;
 	const int32_t *p = (const int32_t *) pts;
+	long mx0 = p[0], my0 = p[1], mx1 = p[0], my1 = p[1];
+	for (long i = 1; i < n; i++) mx0 = std::min (mx0, (long) p[2 * i]), mx1 = std::max (mx1, (long) p[2 * i]), my0 = std::min (my0, (long) p[2 * i + 1]), my1 = std::max (my1, (long) p[2 * i + 1]);
+	cairo_t *cr = cr_begin (b, mx0 / 16.0, my0 / 16.0, (mx1 - mx0) / 16.0, (my1 - my0) / 16.0);
+	if (!cr) return 0;
 	cr_color (cr, (unsigned) c);
 	cairo_set_fill_rule (cr, CAIRO_FILL_RULE_EVEN_ODD);
 	cairo_move_to (cr, p[0] / 16.0, p[1] / 16.0);
@@ -2319,7 +2451,11 @@ static long text_draw (const char *s, long x, long base, long color, long px, lo
 	int bl = 0;
 	int w = lay_text (s, (int) px, font, fit && maxw > 0 ? (int) maxw : 0, &bl);
 	if (fit && maxw > 0 && w > maxw) w = (int) maxw;
-	cairo_t *cr = cr_begin (b);
+	PangoRectangle ink, lg;
+	pango_layout_get_pixel_extents (g_lay, &ink, &lg);
+	int ex0 = std::min (ink.x, lg.x), ey0 = std::min (ink.y, lg.y), ex1 = std::max (ink.x + ink.width, lg.x + lg.width), ey1 = std::max (ink.y + ink.height, lg.y + lg.height);
+	if (!fit && maxw > 0) ex1 = std::min (ex1, (int) maxw);
+	cairo_t *cr = cr_begin (b, (double) (x + ex0), (double) (base - bl + ey0), (double) (ex1 - ex0), (double) (ey1 - ey0));
 	if (!cr) return x + w;
 	if (!fit && maxw > 0) { cairo_rectangle (cr, (double) x, 0, (double) maxw, (double) b->h); cairo_clip (cr); }
 	pango_cairo_update_context (cr, g_pctx);
@@ -2344,7 +2480,9 @@ long ui_text_wrap (long s, long x, long y, long w, long c, long font, long px, l
 	int hh = PANGO_PIXELS (lg.height);
 	if (!measure)
 	{
-		cairo_t *cr = cr_begin (b);
+		PangoRectangle ink;
+		pango_layout_get_pixel_extents (g_lay, &ink, 0);
+		cairo_t *cr = cr_begin (b, (double) (x + std::min (0, ink.x)), (double) (y + std::min (0, ink.y)), (double) std::max ((int) w, ink.x + ink.width) - std::min (0, ink.x) + 2, (double) std::max (hh, ink.y + ink.height) - std::min (0, ink.y) + 2);
 		if (cr) { pango_cairo_update_context (cr, g_pctx); cr_color (cr, (unsigned) c); cairo_move_to (cr, (double) x, (double) y); pango_cairo_show_layout (cr, g_lay); cr_end (b, cr); }
 	}
 	pango_layout_set_single_paragraph_mode (g_lay, TRUE);
@@ -3262,7 +3400,6 @@ void kport_tr_add (const char *from, const char *to)
 	g_tr[from] = to;
 }
 
-struct PopState { bool done; int r; GtkWidget *pop; };
 static void pop_closed (GtkPopover *, gpointer d) { ((PopState *) d)->done = true; }
 static void pop_item (GtkButton *b, gpointer d)
 {
@@ -3283,8 +3420,10 @@ long ui_popup_local (long x, long y, long labels, long width)
 	gtk_widget_add_css_class (box, "k-menu");
 	if (width > 0) gtk_widget_set_size_request (box, (int) width, -1);
 	const char *p = (const char *) labels;
+	std::string said;
 	for (int i = 0; *p; i++, p += strlen (p) + 1)
 	{
+		said += (i ? " | " : "") + std::string ((unsigned char) p[0] == 2 ? "[x] " : "") + TRs ((unsigned char) p[0] <= 2 ? p + 1 : p);
 		if (!strcmp (p, "-")) { gtk_box_append (GTK_BOX (box), gtk_separator_new (GTK_ORIENTATION_HORIZONTAL)); continue; }
 		bool dis = (unsigned char) p[0] == 1, on = (unsigned char) p[0] == 2;	// (0x01 : grisee, 0x02 : cochee)
 		GtkWidget *b = gtk_button_new ();
@@ -3302,7 +3441,10 @@ long ui_popup_local (long x, long y, long labels, long width)
 	gtk_popover_set_pointing_to (GTK_POPOVER (s.pop), &r);
 	g_signal_connect (s.pop, "closed", G_CALLBACK (pop_closed), &s);
 	gtk_popover_popup (GTK_POPOVER (s.pop));
+	if (getenv ("KORIN_SCRIPT")) fprintf (stderr, "uikit: menu ouvert en (%ld, %ld) : %s\n", x, y, said.c_str ());
+	g_pop = &s;
 	run_until (&s.done);
+	g_pop = nullptr;
 	g_signal_handlers_disconnect_by_data (s.pop, &s);
 	gtk_widget_unparent (s.pop);
 	w->held = 0;

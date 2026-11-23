@@ -130,7 +130,7 @@ dans `~/.config/korin-ports/settings.ini`). Pour un lancement : `--soundfont x.s
 | `KORIN_GL_VERBOSE` | TerraCube : ce que donne EGL (le fournisseur, le GPU, pbuffers ou FBO) |
 | `LIBGL_ALWAYS_SOFTWARE=1` | TerraCube rendu par le processeur (llvmpipe de Mesa, avec `__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json` sur une machine NVIDIA) : la distance de vue réduite, comme softpipe sous Korin |
 | `KORIN_NO_POINTER_LOCK=1` | TerraCube : la souris prise sans le verrou de Wayland (le repli) |
-| `KORIN_SCRIPT` | essai sans les mains : `1500:menu:11;4000:shot:/tmp/a.png;5000:exit` (`menu:<id>`, `key:<hid>[:mods]`, `kdown:<hid>` / `kup:<hid>` une touche tenue, `mrel:dx,dy` la souris prise qui bouge, `click:x,y[,clics[,3 : bouton droit]]`, `wset:<widget>:<valeur>`, `wact:<widget>`, `shot:` une capture PNG ; pour la dernière fenêtre ouverte, un dialogue : `key2:`, `chars2:<texte>`, `click2:`, `press2:<texte d'un bouton>`, `shot2:` ; `dump:` / `dump2:` l'état réel des widgets, les captures pouvant être en retard ; `close`, `exit`) ; `KORIN_DEBUG_WIDGETS=1` liste les widgets |
+| `KORIN_SCRIPT` | essai sans les mains : `1500:menu:11;4000:shot:/tmp/a.png;5000:exit` (`menu:<id>`, `key:<hid>[:mods]`, `kdown:<hid>` / `kup:<hid>` une touche tenue, `mrel:dx,dy` la souris prise qui bouge, `click:x,y[,clics[,3 : bouton droit]]`, `wheel:x,y,n` des crans de molette au point x,y, `drag:x0,y0,x1,y1[,bouton : 1, 2 milieu, 3 droit]` un glisser, `pop:<n>` l'entrée n du menu ouvert (ses entrées sont écrites sur la sortie d'erreur ; `-1` le ferme), `wset:<widget>:<valeur>`, `wact:<widget>`, `shot:` une capture PNG ; pour la dernière fenêtre ouverte, un dialogue : `key2:`, `chars2:<texte>`, `click2:`, `press2:<texte d'un bouton>`, `shot2:` ; `dump:` / `dump2:` l'état réel des widgets, les captures pouvant être en retard ; `close`, `exit`) ; `KORIN_DEBUG_WIDGETS=1` liste les widgets |
 
 ## Ce qui est porté
 
@@ -210,6 +210,13 @@ dans `~/.config/korin-ports/settings.ini`). Pour un lancement : `--soundfont x.s
   le même corps ; les captures de la fenêtre (vue, panneau des corps, cube, boutons de la vue posés par-dessus). Les
   deux paquets extraits hors du dépôt : les selftests passent. Pas essayé à la main : la souris dans la vue (tourner,
   choisir), les vrais dialogues de fichiers, Claude Code branché sur le MCP.
+- Forge 1.3.8 (23/11, vue en perspective) : le selftest passe (36 vérifications, dont la projection, le rayon sous le
+  pointeur, le découpage au plan proche, le cadrage, le choix d'une face et d'une arête, le zoom et le déplacement en
+  perspective, la vue de face orthographique) ; scripts : clic droit sur le cube (le menu), `pop:`, Alt+5, relance
+  (le choix gardé dans `~/Korin/forge/forge.ini`), molette et glisser (`wheel:`, `drag:`). Les panneaux posés sur la
+  vue : un texte ou un coin arrondi dessiné sur une zone transparente (`ui_fill (..., 0xFF000000)`) l'est à demi sur
+  ses bords lissés (calque ARGB32 composé dans `cr_end`), comme sous Korin : plus de liseré sombre aux étiquettes du
+  cube ni de coins noirs aux boutons ; seules les fenêtres qui ont une `ui_surface` (Forge) sont touchées.
 
 - TerraCube (23/11) : `bin/terracube --selftest` passe (73 vérifications : protocole, MCP dont la capture, console,
   survie, fabrication, circuits, liquides, créatures, sauvegarde et relecture, image rendue) sur le GPU NVIDIA (EGL
