@@ -115,10 +115,44 @@ l'instant (voir § 7) : l'onglet Terminal et les sessions de Claude Code sur le 
   `--shot f.png --route overview …` : une image sans fenêtre, faite par le rendu CPU de Korin (le même
   qu'egui-korin) : c'est ainsi que la disposition est vérifiée.
 
-## 7. État
+## 7. État (23/11/2026)
 
-Voir la fin de ce document (mise à jour à chaque étape).
+Fait (branche `claude/claudecode-ui`) :
 
-- Étape 1 (cet inventaire) et 2 (ccui-shared et ccui-core dans le dépôt, construits pour Linux et Korin PC, leurs
-  essais verts : 98 + 95) : faites le 23/11.
-- Étape 3 (coquille egui : disposition, rail, quotas, pages vides, hôte de développement et captures) : en cours.
+- étapes 1 et 2 : cet inventaire ; ccui-shared et ccui-core dans le dépôt, construits pour Linux et Korin PC, leurs
+  essais verts (98 + 95 ; l'app : 102) ;
+- étape 3 : la coquille (backend.rs, state.rs, host.rs, app.rs), le rail avec le rangement de Korin, les quotas,
+  l'hôte de développement (`dev.sh`, `--shot`) ;
+- étapes 4 à 6, faites par cinq agents puis fusionnées : le fil (registre d'outils, Markdown avec tableaux et blocs
+  de code, réflexion, compaction, sous-agents, workflows, cartes, signets, copier, fork, rewind, texte en cours,
+  reprise après plantage), l'en-tête (renommer, PR, export, Remote Control, terminer, titre de la fenêtre), le
+  composeur (brouillon tenu par le moteur, envoi, envoyer maintenant, file, interrompre, historique, `/` et `@`,
+  modèle, conseiller, style, effort, mode, `/config`, Rapide, Réflexion, Ultracode, pièces jointes par chemin,
+  ligne d'état), l'inspecteur (autorisation avec diff et portée, plan, questions, formulaires MCP, tâches, outil :
+  sortie, entrée, JSON brut, agent, workflow, diff non validé, contexte, mémoire, dossiers en plus, état,
+  connexion), la vue d'ensemble et la file des décisions, la palette Ctrl K (recherche dans les transcriptions),
+  l'arrière-plan, les worktrees (nettoyage pas à pas), Nouvelle session, Extensions (MCP, skills, agents, plugins
+  et places de marché, hooks, règles d'autorisation), Réglages (langue, thème de Korin, taille du code, drapeaux,
+  à propos) ;
+- sous Korin : une bande de titre (les boutons d'Elegant), pas d'appel à UIKit avant la fenêtre, pas de `ps` ni de
+  `lsof` ; la langue par défaut est le français.
+
+Vérifié : captures de l'hôte de développement (sombre et clair) sur de vraies sessions (quelques sessions haiku
+très courtes : envoi, autorisation d'un Edit par Entrée, question) ; **sous QEMU PC (KVM)** : l'app s'ouvre (barre de
+menus de Korin, rail, palette, une transcription relue et affichée par ccui-core sur le runtime tokio de Korin).
+
+Pas vérifié : une vraie session `claude` sous Korin (pas de CLI ni de compte dans l'image d'essai), le ZBook, le Pi ;
+à l'écran : le tableau et la file de la vue d'ensemble avec des sessions vivantes, le plan de nettoyage des
+worktrees, les cartes d'agent et de workflow, la boîte du rewind.
+
+Manque ou simplifié :
+
+- pièces jointes : pas de collage d'image ni de glisser-déposer sous Korin (un champ de chemin ; sur Linux, le dépôt
+  de fichiers) ; pas de vignettes (pas de décodeur d'images) ;
+- la taille du code est enregistrée mais pas encore appliquée au fil (`theme::CODE` fixe) ;
+- pas de navigation au clavier dans les tableaux des Extensions et des Worktrees ;
+- `/mcp`, `/hooks`, `/plugins` ouvrent Extensions sans choisir l'onglet ;
+- notifications natives : un bandeau dans la fenêtre ; pas de canard (mascotte) ; pas de mise à jour automatique ;
+- de l'ancienne app de Korin : l'onglet Terminal et les sessions de Claude Code sur le web ne sont pas repris
+  (term.rs reste dans le dépôt) ;
+- le patch de tokio (`tokio::process`) n'est pas encore dans le paquet `rust` publié (son vendor).
