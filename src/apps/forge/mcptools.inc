@@ -1366,7 +1366,11 @@ std::string toolCall (const json_t *params)
 		} catch (const ToolErr &x) {
 			text = x.msg, err = true;
 		} catch (const Standard_Failure &x) {
+#if OCC_VERSION_HEX >= 0x080000
 			text = std::string ("OpenCASCADE: ") + x.what (), err = true;
+#else
+			text = std::string ("OpenCASCADE: ") + x.GetMessageString (), err = true;	// (OCCT 7 : le port Linux, linux-ports)
+#endif
 		} catch (const std::exception &x) {
 			text = std::string ("error: ") + x.what (), err = true;
 		}

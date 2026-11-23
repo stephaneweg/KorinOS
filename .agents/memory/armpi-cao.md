@@ -99,3 +99,5 @@ l'arête du coin opposé ; frise en icônes dessinées dans l'app (iconLines), n
 Modifier… / Supprimer / Supprimer à partir d'ici ; suppression avec dépendances (agent.cpp planRemoval/applyRemoval :
 une forme jointe à un corps disparu devient un nouveau corps) ; Fichier Nouveau / Ouvrir / Enregistrer (sous), format
 .forge = l'historique en JSON (docfile.cpp), rejoué à l'ouverture. Pas essayé sur le ZBook ni le Pi.
+
+- 23/11 : porté sous Linux (linux-ports/, bin/forge ; voir [[armpi-linux-ports]]).

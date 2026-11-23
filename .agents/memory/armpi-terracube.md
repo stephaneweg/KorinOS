@@ -65,3 +65,5 @@ repris d'un jeu existant), doc `docs/TERRACUBE.md`.
   world.explain ; la compétence donne le codage complet des états et les règles ; exemple secret_stairs.py essayé.
 
 **How to apply:** les numéros de blocs ne bougent jamais (ajout à la fin de `blocks.h`, de `terracube.py`, de la doc) ; de même les objets (100+, `items.h`).
+
+- 23/11 : porté sous Linux (linux-ports/, bin/terracube ; voir [[armpi-linux-ports]]).
