@@ -19,7 +19,7 @@ if [ "$ONYX_ARCH" = x86_64 ]; then
 	# Korin PC (22/11/2026, docs/agents/JET-LOCAL-BUILD.md) : le SIMD x86-64 (SSE2 et AVX2, choisis au
 	# lancement), assemblé par nasm. La copie de src/extra n'a que simd/arm : la source officielle 3.1.4
 	# (même version, SHA-256 fixé), dans ~/.cache/korin-src
-	command -v nasm >/dev/null || { echo "libjpeg-turbo: nasm manque (apt install nasm)" >&2; exit 1; }
+	command -v nasm >/dev/null || { echo "libjpeg-turbo: nasm manque (paquet nasm : apt install nasm, dnf install nasm)" >&2; exit 1; }
 	JT=libjpeg-turbo-3.1.4.tar.gz
 	JSUM=e23d3ebb2c6ee4d0e2a5823dbb55b614845df5ea3435c956fed5cf04041a87ad
 	JD=${KORIN_SRC_CACHE:-$HOME/.cache/korin-src}

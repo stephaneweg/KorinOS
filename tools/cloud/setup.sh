@@ -1,9 +1,10 @@
 #!/bin/sh
 # setup.sh : met en place une machine Linux x86-64 neuve (Ubuntu ou Debian, sans WSL ni Windows) pour construire
 # Korin OS et l'essayer sous QEMU : PC (q35 + OVMF) et Pi (raspi4b). Guide : docs/agents/CLOUD.md.
+# Aussi Fedora (dnf, vérifié sur les noms de paquets de Fedora 43 le 23/11/2026) : seule l'étape root change.
 # Depuis la racine du dépôt :
 #
-#     sudo sh tools/cloud/setup.sh root      les paquets de la distribution (apt) et /opt/toolchains :
+#     sudo sh tools/cloud/setup.sh root      les paquets de la distribution (apt, ou dnf : Fedora) et /opt/toolchains :
 #                                            la SEULE étape qui demande root (elle le dit, et ne fait que ça)
 #     sh tools/cloud/setup.sh all            tout le reste, dans l'ordre ci-dessous
 #     sh tools/cloud/setup.sh base toolchains qemu verify     seulement ces étapes
@@ -123,13 +124,27 @@ write_env () {
 # ---- root : la seule étape qui demande root ---------------------------------------------------------------------
 step_root () {
 	[ "$(id -u)" = 0 ] || die "l'étape root demande root : sudo sh tools/cloud/setup.sh root"
-	have apt-get || die "apt-get absent : installer l'équivalent des paquets de cette étape à la main"
+	if have apt-get; then
+		root_apt
+	elif have dnf; then
+		root_dnf
+	else
+		die "ni apt-get ni dnf : installer l'équivalent des paquets de l'étape root à la main"
+	fi
+	u=${SUDO_USER:-root}
+	mkdir -p "$TOOLCHAINS"
+	chown "$u" "$TOOLCHAINS"
+	echo "root : fait ; $TOOLCHAINS appartient à $u. La suite sans root : sh tools/cloud/setup.sh all"
+}
+
+root_apt () {
 	say "paquets de la distribution (apt-get)"
 	export DEBIAN_FRONTEND=noninteractive
 	apt-get update
 	# construire : le noyau, les kits, libposix, les chaînes (GCC 14 se construit avec le GCC de l'hôte)
-	P="build-essential git curl ca-certificates unzip xz-utils bzip2 zstd file patch rsync cmake ninja-build
-	pkg-config bison flex gperf unifdef ruby perl texinfo gawk m4 python3 python3-venv python3-pip mtools dosfstools"
+	P="build-essential git curl ca-certificates unzip zip xz-utils bzip2 zstd file patch rsync cmake ninja-build
+	pkg-config bison flex gperf unifdef ruby perl texinfo gawk m4 python3 python3-venv python3-pip mtools dosfstools
+	nasm"
 	# QEMU (raspi4b demande QEMU 9.0 : sinon l'étape qemu le construit avec ce qui suit) et OVMF
 	P="$P qemu-system-x86 qemu-system-arm qemu-utils ovmf libglib2.0-dev libpixman-1-dev libslirp-dev
 	libfdt-dev zlib1g-dev"
@@ -145,10 +160,35 @@ step_root () {
 		if [ -n "$c" ] && [ "$c" != "(none)" ]; then apt-get install -y --no-install-recommends "$p" || true
 		else echo "(pas de paquet $p ici)"; fi
 	done
-	u=${SUDO_USER:-root}
-	mkdir -p "$TOOLCHAINS"
-	chown "$u" "$TOOLCHAINS"
-	echo "root : fait ; $TOOLCHAINS appartient à $u. La suite sans root : sh tools/cloud/setup.sh all"
+}
+
+# Fedora : les mêmes besoins que root_apt, noms de Fedora (vérifiés sur Fedora 43 : Python 3.14 est son python3,
+# QEMU 10.1 a raspi4b, LLVM 21). Perl : le paquet « perl » entier (perl-interpreter seul n'a pas les modules
+# qu'OpenSSL et les générateurs de WebKit chargent). Les noms absents d'une autre version sont sautés un par un.
+root_dnf () {
+	say "paquets de la distribution (dnf)"
+	# construire : le noyau, les kits, libposix, les chaînes (GCC 14 se construit avec le GCC de l'hôte)
+	P="gcc gcc-c++ make glibc-devel git curl ca-certificates unzip zip xz bzip2 zstd file patch rsync cmake ninja-build
+	pkgconf-pkg-config bison flex gperf unifdef ruby rubygem-json ruby-default-gems perl texinfo gawk m4 python3
+	python3-pip python3-devel mtools dosfstools nasm diffutils findutils which hostname tar gzip"
+	# QEMU (l'étape qemu prend celui-ci s'il a raspi4b, sinon le construit avec ce qui suit) et OVMF
+	P="$P qemu-system-x86 qemu-system-aarch64 qemu-img edk2-ovmf glib2-devel pixman-devel libslirp-devel
+	libfdt-devel zlib-ng-compat-devel"
+	# .NET (le SDK de construction) ; Jet et Mesa ; FreeBASIC (le libtinfo de l'hôte : tools/gcc/fbc.sh)
+	P="$P libicu-devel openssl-devel ncurses-libs"
+	for p in $P; do
+		dnf install -y --setopt=install_weak_deps=False "$p" >/dev/null 2>&1 || echo "(pas de paquet $p ici)"
+	done
+	# facultatifs : LLVM 21 et libclc (Mesa iris : tools/mesa/build-clc.sh, écrit pour les chemins de Debian
+	# /usr/lib/llvm-21 : à adapter, Fedora les met dans /usr), qemu-user-static (essais d'AArch64 hors QEMU système)
+	for p in llvm-devel clang-devel libclc-devel spirv-llvm-translator-devel spirv-tools qemu-user-static; do
+		dnf install -y --setopt=install_weak_deps=False "$p" >/dev/null 2>&1 || echo "(pas de paquet $p ici)"
+	done
+	miss=
+	for c in gcc g++ make git curl cmake ninja bison flex gperf ruby perl makeinfo python3 nasm qemu-system-x86_64; do
+		have "$c" || miss="$miss $c"
+	done
+	[ -z "$miss" ] || die "après dnf, il manque :$miss"
 }
 
 # ---- base : fasm, FASMARM, python, env.sh -------------------------------------------------------------------

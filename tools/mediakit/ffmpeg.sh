@@ -38,7 +38,7 @@ esac
 # décodeurs H.264, HEVC, VP9...) et le processeur de Korin PC (Tiger Lake, sans AVX-512 : le noyau ne l'autorise
 # pas) ; le kit du système (FLAVOR=kit) reste en x86-64 de base, sans assembleur
 if [ "$FLAVOR-$ARCH" = jet-x86_64 ]; then
-	command -v nasm >/dev/null || { echo "ffmpeg : nasm manque (apt install nasm)"; exit 1; }
+	command -v nasm >/dev/null || { echo "ffmpeg : nasm manque (paquet nasm : apt install nasm, dnf install nasm)"; exit 1; }
 	CPU="--arch=x86_64 --cpu=tigerlake --x86asmexe=nasm --disable-avx512 --disable-avx512icl"
 	CF="-mno-red-zone -march=tigerlake -mno-avx512f -mtune=tigerlake"
 fi

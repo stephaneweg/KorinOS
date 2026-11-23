@@ -92,8 +92,14 @@ ln -sfn ../inc "$S/include/freebasic"		# (ou fbc cherche ses .bi, relatif a bin/
 HOSTINC=$W/hostinc
 mkdir -p "$HOSTINC"
 cp "$ROOT/tools/gcc/fbc/rtlib/armpi/termcap.h" "$HOSTINC/"
-ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 "$W/hostlib/libncurses.so"	# (termcap est dans tinfo)
-ln -sf /lib/x86_64-linux-gnu/libtinfo.so.6 "$W/hostlib/libtinfo.so"
+# (termcap est dans tinfo ; Debian et Ubuntu : /lib/x86_64-linux-gnu, Fedora : /usr/lib64)
+TINFO=
+for t in /lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib64/libtinfo.so.6; do
+	[ -f "$t" ] && { TINFO=$t; break; }
+done
+[ -n "$TINFO" ] || { echo "fbc : libtinfo.so.6 introuvable (paquet libtinfo6 ou ncurses-libs)" >&2; exit 1; }
+ln -sf "$TINFO" "$W/hostlib/libncurses.so"
+ln -sf "$TINFO" "$W/hostlib/libtinfo.so"
 HOSTCC="gcc -L$W/hostlib -I$HOSTINC"
 HOSTCF="-O2 -DDISABLE_GPM -DDISABLE_FFI -DDISABLE_X11 -DDISABLE_OPENGL -DDISABLE_FBDEV"
 if want host && ! done_ host0; then

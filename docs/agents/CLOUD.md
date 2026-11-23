@@ -16,6 +16,14 @@ sh tools/cloud/setup.sh all            # ou une liste d'étapes : base toolchain
 
 Un clone superficiel (`--depth 1`) suffit : ≈ 950 Mo ; l'historique complet fait 1,6 Go.
 
+**Fedora** (23/11/2026) : les mêmes commandes ; l'étape `root` prend alors `dnf` (paquets de Fedora, Perl entier,
+QEMU de Fedora, `edk2-ovmf`, `nasm`). Vérifié dans une Fedora 43 neuve (image conteneur officielle) : `root`, `base`,
+`toolchains` (la chaîne x86-64 en archive), `qemu` (le QEMU 10.1 de Fedora a q35 et raspi4b), `sources`, `python`
+(Python 3.14 est le `python3` de Fedora 43), puis `verify` : le noyau, les kits et les services construits par le
+GCC 15 de Fedora, `ktest` 59 / 0 sous QEMU. L'essai du Pi (`carte_linux.py`) échoue, comme sous Ubuntu à la même
+date : `ui_menu_states` de `uikit.abi` n'a pas de version en assembleur. Sur une machine avec `/dev/kvm` (Fedora
+installée, pas un conteneur) : `--qemu "-accel kvm -cpu host"` aux scripts d'essai, presque à la vitesse native.
+
 `tools/cloud/setup.sh` est idempotent (ce qui est fait et vérifié est gardé), télécharge depuis les sources
 officielles à des versions fixées (SHA-256 vérifiés, ou révision git), et ne demande root qu'à l'étape `root`, qui le
 dit. Sa sortie, `~/korin-cloud/env.sh`, donne aux scripts du dépôt ce qui changeait d'une machine à l'autre :
