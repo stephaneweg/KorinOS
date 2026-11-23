@@ -23,7 +23,7 @@ tout est à jour\n = everything is up to date\n
 le système de démarrage a changé : redémarrage\n = the boot system changed: restarting\n
 le mode : manual, auto ou never\n = the mode: manual, auto or never\n
 pkg : commande inconnue ou nom manquant : %s (pkg seul : l'aide)\n = pkg: unknown command or missing name: %s (pkg alone: the help)\n
-usage : pkg list [-a] [filtre] | info NOM | add NOM... | delete [-p] NOM... |\n        update NOM... | update -a | upgrade | check | mode NOM manual|auto|never | commit\n        [-r DEPOT] avant la commande : un autre dépôt\n = usage: pkg list [-a] [filter] | info NAME | add NAME... | delete [-p] NAME... |\n        update NAME... | update -a | upgrade | check | mode NAME manual|auto|never | commit\n        [-r REPO] before the command: another repository\n
+usage : pkg list [-a] [filtre] | info NOM | add [--force] NOM... | delete [-p] NOM... |\n        update NOM... | update -a | upgrade | check | mode NOM manual|auto|never | commit\n        [-r DEPOT] avant la commande : un autre dépôt\n        [--root RACINE] avant la commande : le système à gérer (osinstall : /media/tgt)\n = usage: pkg list [-a] [filter] | info NAME | add [--force] NAME... | delete [-p] NAME... |\n        update NAME... | update -a | upgrade | check | mode NAME manual|auto|never | commit\n        [-r REPO] before the command: another repository\n        [--root ROOT] before the command: the system to manage (osinstall: /media/tgt)\n
 Un autre travail sur les paquets est en cours. = Another package job is running.
 # Titres et résumés des paquets (l'index du dépôt, par pkg ui-list : Logiciels) ; les noms des apps sont dans sys/panel.
 # (un « ; » coupe un résumé dans l'index : la clé est ce qui reste)
