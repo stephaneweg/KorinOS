@@ -38,7 +38,7 @@ même graine, même `.mid`.
 ## Paquets rpm
 
     cargo install cargo-generate-rpm --locked      # une fois (écrit le rpm sans rpmbuild ni sudo)
-    python3 -I packaging/make-rpms.py              # -> rpm/korin-koton-<v>-1.x86_64.rpm, rpm/korin-arabesque-<v>-1.x86_64.rpm
+    python3 -I packaging/make-rpms.py              # -> rpm/korin-koton-<v>-<r>.x86_64.rpm, rpm/korin-arabesque-<v>-<r>.x86_64.rpm (r : RELEASE du script)
     sudo dnf install --nogpgcheck rpm/*.rpm        # paquets non signés
 
 Version : celle du paquet PC de Korin (`tools/pkg/versions.ini`, section `[pc]`). Les binaires cherchent leurs données

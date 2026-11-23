@@ -22,3 +22,10 @@ gtk_window_set_default_size (compte le titre) ; un ui_slider créé 10x24 puis �
 
 Vérifié : 20 préréglages, même .mid à chaque fois et en -O0 (FMA : « nuit » diffère) ; kptest 107/107 ; captures par
 KORIN_SCRIPT. Pas comparé à un .mid de Korin même ; souris réelle, dialogues de fichiers et IA pas essayés à la main.
+
+Piège (23/11, « Composer avec l'IA » figeait Koton, GTK : « ne répond pas ») : build/gen/uikit_abi.h (abi2c avec
+armpi.inc) définit O_TRUNC 8, O_APPEND 16, O_NONBLOCK 32 de Korin, inclus avant <fcntl.h> : ils remplaçaient ceux de
+Linux. Le tube de llm restait bloquant (read dans LlmRun::drain) et O_TRUNC ne tronquait pas (fichiers réécrits plus
+courts : fin de l'ancien contenu gardée). Le Makefile retire ces trois blocs après abi2c. Les captures shot2 de
+KORIN_SCRIPT peuvent être périmées (le bouton masqué y restait visible) : vérifier l'état par gtk_widget_get_visible.
+Rpm : RELEASE dans packaging/make-rpms.py (2 depuis ce correctif).

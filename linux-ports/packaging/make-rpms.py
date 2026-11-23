@@ -3,7 +3,7 @@
 # fichier rpm lui-même, comme le fait Tauri.
 #
 #   python3 -I linux-ports/packaging/make-rpms.py      (après « make » dans linux-ports)
-#   -> linux-ports/rpm/korin-koton-<v>-1.x86_64.rpm, linux-ports/rpm/korin-arabesque-<v>-1.x86_64.rpm
+#   -> linux-ports/rpm/korin-koton-<v>-<RELEASE>.x86_64.rpm, linux-ports/rpm/korin-arabesque-<v>-<RELEASE>.x86_64.rpm
 #
 # Prérequis : cargo install cargo-generate-rpm --locked
 #
@@ -26,6 +26,7 @@ ROOT = os.path.dirname(PORTS)
 WORK = os.path.join(PORTS, 'build', 'rpm')
 OUT = os.path.join(PORTS, 'rpm')
 OPT = '/opt/korin'
+RELEASE = '2'			# à augmenter quand les binaires changent sans changer de version
 
 COMMON_REQ = {'gtk4': '*', 'fluidsynth-libs': '*', 'fluid-soundfont-gm': '*'}
 
@@ -141,7 +142,7 @@ def build(app, info):
     lines = ['[package]', f'name = "korin-{app}"', f'version = {toml_str(ver)}', 'edition = "2021"',
              'license = "MIT"', f'description = {toml_str(info["summary"])}',
              'homepage = "https://github.com/stephaneweg/KorinOS"', '',
-             '[package.metadata.generate-rpm]', f'summary = {toml_str(info["summary"])}',
+             '[package.metadata.generate-rpm]', f'release = "{RELEASE}"', f'summary = {toml_str(info["summary"])}',
              f'post_install_script = "gtk-update-icon-cache -q /usr/share/icons/hicolor 2>/dev/null || :"',
              'assets = [']
     for src, dest, mode in assets:

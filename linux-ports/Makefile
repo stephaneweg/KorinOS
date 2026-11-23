@@ -49,6 +49,9 @@ $(GEN)/uikit_abi.h: $(SRC)/kits/uikit/uikit.abi $(ROOT)/tools/kits/abi2c.py
 	@mkdir -p $(GEN)
 	python3 -I $(ROOT)/tools/kits/abi2c.py $< $(GEN) --arch x86_64 \
 		--const $(SRC)/inc/armpi.inc $(SRC)/inc/ws_ext.inc $(SRC)/kits/uikit/uikit.inc
+	@# (les drapeaux d'ouverture de Korin portent les noms POSIX avec d'autres valeurs : inclus avant <fcntl.h>, ils
+	@#  remplaceraient ceux de Linux -- O_NONBLOCK 32 laisse le tube de llm bloquant, O_TRUNC 8 ne tronque pas)
+	sed -i -E '/^#ifndef (O_TRUNC|O_APPEND|O_NONBLOCK)$$/,/^#endif$$/d' $@
 $(GEN)/audiokit_abi.h: $(SRC)/kits/audiokit/audiokit.abi $(ROOT)/tools/kits/abi2c.py
 	@mkdir -p $(GEN)
 	python3 -I $(ROOT)/tools/kits/abi2c.py $< $(GEN) --arch x86_64 --const $(SRC)/kits/audiokit/audiokit.inc
