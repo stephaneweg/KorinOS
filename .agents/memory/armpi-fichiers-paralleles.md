@@ -1,6 +1,6 @@
 ---
 name: armpi-fichiers-paralleles
-description: "22-23/11/2026 : cache des noms dans vfs, index par dossier et 8 fils dans fatfs, BLK_DRIVER_V3 et 8 files NVMe ; branche claude/serene-newton-051kkg, QEMU seulement, à essayer sur le ZBook"
+description: "22-23/11/2026 : cache des noms dans vfs, index par dossier et 8 fils dans fatfs, BLK_DRIVER_V3 et 8 files NVMe ; dans main et dans pc 2026.11.93 (publié le 23/11, avec le noyau du compteur des pages) ; QEMU seulement, à essayer sur le ZBook"
 metadata:
   node_type: memory
   type: project

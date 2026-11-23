@@ -167,7 +167,7 @@ d'heure : les compilateurs attendaient le disque à 97 %. Ce qui a été appris 
 
 ## Étape 3 (session du cloud, 22-23/11/2026) : ce qui est fait
 
-Branche `claude/serene-newton-051kkg` (pas encore dans `main`).
+Branche `claude/serene-newton-051kkg`, fusionnée dans `main` le 23/11.
 
 ### 0. Le volume système rapide sous charge
 
@@ -217,7 +217,7 @@ Ces paquets sont **publiés sur la branche** (`pub.py --new --base HEAD --no-pus
 rend disponibles. Ensuite, dans Korin : `pkg add cmake perl ruby gperf bison unifdef pkgconf` (et ninja, nasm,
 python, gcc) pour essayer CMake + Ninja sur WebKit.
 
-### 3. Jet 1.4.8 : construit, essayé sous QEMU, PAS publié
+### 3. Jet 1.4.8 : construit, essayé sous QEMU, publié le 23/11 (avec le SDK 1.4.8)
 
 - WebKit de zéro : 7746 cibles en 1 h 43 (4 cœurs), sans erreur ; Jet relié (133 Mo). Les seules instructions
   AVX-512 du binaire sont dans les chemins choisis au lancement d'OpenSSL (AES-GCM, ChaCha, Poly1305) et de simdutf
@@ -228,18 +228,17 @@ python, gcc) pour essayer CMake + Ninja sur WebKit.
   dans cette session) ; sur le ZBook il y est.
 - `pub.py jet --api --dry-run` passe (seul `apps/jet.app/main` change ; `cdmhost` et `cdmupdate` gardés) ; à publier
   avec `--abi 629` (le système publié est à 629, les relais de UIKit de ce Jet viennent des sources d'aujourd'hui).
-- **Non publié** : jet est un paquet de la Release (`release = 1`) et le SDK aussi ; l'envoi passe par une branche
-  `release-upload/…` et le workflow « Release upload » (docs/PAQUETS.md), que cette session n'avait pas le droit de
-  pousser. Les fichiers sont dans le conteneur du cloud : `~/korin-webkit-x86_64/out/jet.app/main`,
-  `build/pc/jet-sdk/jet-sdk-1.4.8-{1,2,3}.zip` ; perdus s'il est rendu (tout se refait : `build-deps.sh`,
-  `fetch-angle.sh`, `build-webkit.sh`, `build-ui.sh`, `build-media.sh`, `build-jet.sh`, `jet-sdk.sh`, ≈ 2 h 30 sur 4
-  cœurs ; `build/pc/mesa/lib/libglkit.a` repris d'un SDK publié).
+- **Publié le 23/11** (accord de l'utilisateur) : `pc-jet-1.4.8.opk` et `jet-sdk-1.4.8-{1,2,3}.zip` dans la Release
+  par la branche jetable `release-upload/jet-1.4.8` et le workflow « Release upload », puis `pub.py jet --api
+  --manual-upload --abi 629`. Dans Korin : `pkg update`, et pour le SDK `bash jet-sdk-get.sh 1.4.8 /home/<vous>/jet-sdk`.
+  Tout se refait au besoin : `build-deps.sh`, `fetch-angle.sh`, `build-webkit.sh`, `build-ui.sh`, `build-media.sh`,
+  `build-jet.sh`, `jet-sdk.sh` (≈ 2 h 30 sur 4 cœurs ; `build/pc/mesa/lib/libglkit.a` repris d'un SDK publié).
 - Puis **tf1plus 1.0.3** (`user.css`, `needs = jet >= 1.4.8`) : après jet.
 
-### Le paquet système `pc` : prêt, PAS publié
+### Le paquet système `pc` 2026.11.93 : publié le 23/11 (accord de l'utilisateur)
 
-`pub.py pc --dry-run` : 2026.11.92 → .93 (noyau avec le compteur des pages, 917b76a ; initrd ; `vfs`, `fatfs`,
-`nvme`, `fsbench`...). Pas publié exprès : `pkgd` l'installerait tout seul sur le ZBook dès la fusion dans `main`,
-alors que les nouveaux services de fichiers ne sont essayés que sous QEMU (FICHIERS-PERF.md : les essayer d'abord à
-la main, en gardant les anciens). Un `pc` publié depuis le cloud remplace aussi tous les programmes que le GCC du
-cloud compile autrement (78 fichiers) : `--only` pour s'en tenir au noyau, à l'initrd et aux trois services.
+Seulement six fichiers (`--only`) : `korin/kernel.elf` (le compteur des pages, 917b76a), `korin/initrd.tar`,
+`sys/svc/vfs`, `sys/svc/fatfs`, `sys/svc/nvme` et `bin/fsbench` (nouveau). Les autres programmes du paquet, que le
+GCC du cloud compile autrement, sont restés ceux de 2026.11.92. Les nouveaux services de fichiers ne sont essayés
+que sous QEMU : sur le ZBook, `pkgd` installe le paquet ; en cas de problème, revenir à 2026.11.92 (noyau, initrd,
+`vfs`, `fatfs`, `nvme`).
