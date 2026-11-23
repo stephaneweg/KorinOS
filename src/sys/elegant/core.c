@@ -491,8 +491,9 @@ void draw_window(struct win *w)
 	u64 f = w->flags;
 	if (f & WF_FRAMELESS) {
 		long a = ((f >> 8) & 1) & ~measure_opaque; /* (WF_ALPHA ; mesure : sans transparence) */
-		if ((f & WF_BLUR) && a)
-			glass_under(w); /* (le verre : flou dessous, ombre) */
+		if ((f & WF_BLUR) && a && !ov_on)
+			glass_under(w); /* (le verre : flou dessous, ombre ; pas dans la vue d'ensemble : la barre y est
+					   claire, sur le fond de la vue) */
 		bb_blit_any(w->surf, w->w * 4, w->x, w->y, w->w, w->h, a);
 		draw_surface(w, w->x, w->y); /* la surface attachée par-dessus (surface.c) */
 		return;
