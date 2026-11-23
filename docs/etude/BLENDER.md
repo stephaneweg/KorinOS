@@ -9,7 +9,7 @@ de départ : ce que Blender demande, ce que Korin a déjà, le chemin par jalons
 | Jalon | Quoi | État |
 |---|---|---|
 | 0 | Source, versions, chaîne CMake de Korin, scripts `tools/blender` | **fait (23/11)** : `env.sh`, `korin.cmake`, `versions.py`, `fetch.sh` (Blender 5.2.4 et les sources de classe A) |
-| 1 | Les dépendances indispensables, croisées pour Korin PC (Python 3.13, OIIO, OCIO, OpenEXR, TBB, shaderc…) | à faire |
+| 1 | Les dépendances indispensables, croisées pour Korin PC (Python 3.13, OIIO, OCIO, OpenEXR, TBB, shaderc…) | **fait (24/11)**, construit seulement (rien lancé dans Korin) ; numpy reporté au jalon 4 |
 | 2 | **Blender sans écran** (`WITH_HEADLESS`) : `blender -b` charge un .blend, exécute du Python, rend par Cycles sur le processeur | à faire |
 | 3 | **GHOST de Korin** : fenêtres UIKit, entrées, presse-papier ; rendu par Vulkan (VkKit, WSI de Korin) | à faire |
 | 4 | Le reste : Embree, OpenSubdiv, Manifold, OpenVDB, son, vidéo, import/export (USD, Alembic…) | à faire |
@@ -162,11 +162,46 @@ choses sur l'hôte (Python, meson, `ldd`).
   (`sh tools/blender/fetch.sh [NOM…]`).
 * Les retouches de Blender iront dans `tools/blender/korin.patch` (comme Godot), créé au premier besoin.
 
-### Jalon 1 : les dépendances A (quelques jours)
+### Jalon 1 : les dépendances A (fait le 23-24/11)
 
-Dans l'ordre : Imath, OpenEXR, libdeflate, libtiff, fmt, robin-map, expat, yaml-cpp, pystring, minizip-ng, OCIO,
-OIIO, oneTBB, shaderc, Python 3.13, numpy. Chacune avec un petit essai lancé dans Korin sous QEMU quand c'est
-utile (OIIO : lire et écrire un EXR et un PNG ; TBB : `parallel_for` sur 16 cœurs ; Python : `step2.py`).
+`sh tools/blender/deps.sh [nom…]` (WSL, depuis la racine du dépôt) construit tout en statique dans
+`~/korin-blender/x86_64/deps`, une fonction par bibliothèque, avec les options des recettes de Blender
+(`build_files/build_environment/cmake/<nom>.cmake`), sans Python ni outils ; une bibliothèque faite (marque
+`obj/<nom>/.fait`) est sautée, `FORCE=1` la refait. `sh tools/blender/python.sh` fait Python.
+
+| Bibliothèque | Durée (JOBS=4) | Remarque |
+|---|---|---|
+| zlib, libpng, libjpeg, libwebp, freetype, brotli | — | **recopiées** du sysroot de Jet (`jetlibs`), même processeur (`-march=tigerlake -mno-avx512f`) |
+| Imath, libdeflate, OpenEXR, libtiff | 2 min | OpenEXR : retouche (voir plus bas) ; pièges des flottants par signal coupés |
+| fmt, robin-map, expat, yaml-cpp, pystring, minizip-ng | 30 s | pystring compilé à la main (pas d'installation) |
+| OpenColorIO 2.5 | 1 min | retouche (`alloca`) |
+| oneTBB 2022.3 | 30 s | statique, tbbmalloc sans proxy ; **pas encore essayé dans Korin** (chemins sans `__linux__`) |
+| OpenImageIO 3.1.13 | 6 min | retouche ; sans OpenJPEG, OpenJPH, libheif, FFmpeg, freetype (à ajouter au besoin) |
+| shaderc v2025.4 (glslang, SPIRV-Tools), SPIRV-Reflect, VMA, en-têtes Vulkan 1.4.341 | 5 min | seulement `libshaderc_combined.a` : la cible `.so` ne se lie pas |
+| CPython 3.13.13 | 8 min | `tools/python/build.sh` avec `PYVER`, `PYPATCH`, `STATIC_LIBPY=1` : `libpython3.13.a` (12,5 Mo) et la bibliothèque standard ; un Python 3.13 de l'hôte est construit d'abord |
+| numpy 2.3.4 | — | **reporté au jalon 4** : se construit par meson (fichier croisé à écrire) ; Blender démarre sans (`WITH_PYTHON_NUMPY=OFF`) |
+
+Les retouches (`tools/blender/patches/<nom>.patch`, posées par `deps.sh`, marque `.korin-patch` dans la source) :
+
+* **OpenEXR** : `<threads.h>` existe dans la chaîne (newlib) mais pas `machine/_threads.h` : la voie pthread,
+  comme FreeBSD (`!defined(__armpi__)`).
+* **OpenColorIO** : `alloca` dans `argparse.cpp`. En C++, `<cstdlib>` va droit au `stdlib.h` de newlib par
+  `#include_next` sans passer par celui de libposix, et newlib ne déclare pas `alloca` en `-std=c++17` strict.
+  libposix déclare maintenant `alloca` dans son `stdlib.h` sous `_GNU_SOURCE` (comme glibc), ce qui suffit au C.
+* **OpenImageIO** : Korin rangé avec Linux pour `strcasecmp_l` et la locale « C » (newlib les a), avec GNU/Hurd
+  pour `sysutil` (en-têtes POSIX ; pas de chemin de l'exécutable, faute de `/proc`).
+* **Python 3.13** : `patches/python-3.13.patch`, les retouches de `tools/python/korin.patch` refaites pour la 3.13
+  (le morceau de `strerror_r` n'y sert pas).
+
+Pièges :
+
+* **Jamais `-I` vers le sysroot de Jet** : il contient des copies des en-têtes de libposix (`fcntl.h`…), et leur
+  `#include_next` y retombe au lieu d'aller à newlib (`off_t` inconnu). Les bibliothèques de Jet sont recopiées.
+* `-specs=posix.specs` une seule fois : CMake reprend les `CMAKE_<LANG>_FLAGS` sur la ligne de liaison.
+* Le `build/pc/posix` peut retarder sur la source de libposix : `ARCH=x86_64 sh tools/posix/build.sh`.
+* `wsl bash -c '… $X …'` développe `$X` avant bash : lancer des scripts (`wsl -- sh tools/blender/…`).
+
+Rien n'a encore tourné dans Korin : la vraie épreuve de ces bibliothèques est le jalon 2.
 
 ### Jalon 2 : Blender sans écran (le premier vrai résultat)
 

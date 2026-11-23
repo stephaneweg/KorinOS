@@ -148,4 +148,4 @@
 - [Outils de construction](armpi-devtools.md) — 22-23/11 : cmake, perl, ruby, m4, bison, gperf, unifdef, pkgconf, 13 <lib>-dev (tools/devtools) ; flex bloqué ; publiés dans main (23/11)
 - [Ports Linux](armpi-linux-ports.md) — 23/11 : Koton, Arabesque, Budget, TerraCube (GLES 3 par EGL, souris prise Wayland) et Forge (OCCT 7.9 de Fedora, PlaneGCS) sous Linux (linux-ports/) : UIKit sur GTK 4, AudioKit sur FluidSynth, codes de touche physiques, binaires dans linux-ports/bin
 - [ClaudeCodeUI dans l'app Claude Code](armpi-claudecode-ui.md) — 23/11 : interface et moteur de ClaudeCodeUI (MIT) en egui sans Tauri, crates/{shared,core}, hôte dev Linux (--shot), QEMU PC ; branche claude/claudecode-ui
-- [Blender](armpi-blender.md) — 23/11 : chantier ouvert (docs/etude/BLENDER.md) : 5.2 LTS, Vulkan seul, lavapipe pour QEMU ; jalon 0 fait (tools/blender), suite : dépendances A
+- [Blender](armpi-blender.md) — 23-24/11 : 5.2 LTS, Vulkan seul, lavapipe pour QEMU (docs/etude/BLENDER.md) ; jalons 0 et 1 faits (tools/blender : dépendances et Python 3.13 construits) ; suite : blender -b

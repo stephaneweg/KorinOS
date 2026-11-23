@@ -1,12 +1,12 @@
 """La bibliotheque standard de CPython dans un zip pour Korin (docs/PYTHON-PORT.md).
 
-Usage : python3.14 -I tools/python/mkzip.py <lib/python3.14 installe> <python314.zip> [--deflate]
+Usage : python3.X -I tools/python/mkzip.py <lib/python3.X installe> <python3X.zip> [--deflate]
 
 Chaque module y est en source (.py, pour les traces et inspect) et precompile (.pyc en
 « unchecked-hash » : zipimport ne compare pas de date, la carte n'ecrit jamais de __pycache__).
 Laisses de cote : les essais, l'IDLE, tkinter, ensurepip, site-packages, lib-dynload (les .so
 restent des fichiers) et le _sysconfigdata de la machine de construction.
-Le Python qui lance ce script doit etre un 3.14 (meme nombre magique que l'interpreteur).
+Le Python qui lance ce script doit etre de la version de la bibliotheque (meme nombre magique).
 """
 import importlib.util
 import os
@@ -21,7 +21,10 @@ SKIP_FILES = {"turtle.py"}
 def main():
     src, dst = sys.argv[1], sys.argv[2]
     method = zipfile.ZIP_DEFLATED if "--deflate" in sys.argv else zipfile.ZIP_STORED
-    assert sys.version_info[:2] == (3, 14), "il faut un Python 3.14"
+    # le Python qui compile doit etre celui de la bibliotheque (lib/python3.X) : meme nombre magique
+    want = os.path.basename(os.path.normpath(src)).replace("python", "")
+    have = "%d.%d" % sys.version_info[:2]
+    assert want == have, "il faut un Python %s (pas %s)" % (want, have)
     n = 0
     tmp = dst + ".tmp"
     with zipfile.ZipFile(tmp, "w", method) as z:
