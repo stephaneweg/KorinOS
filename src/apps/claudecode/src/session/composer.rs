@@ -545,9 +545,14 @@ fn go(ui: &mut Ui, t: &Tokens, label: &str, key: Option<&str>, kind: Kind, enabl
         _ => (Color32::TRANSPARENT, if enabled { t.text } else { t.text_faint }, Stroke::new(1.0, t.card_border)),
     };
     let inner = Frame::new().fill(fill).stroke(stroke).corner_radius(CornerRadius::same(theme::R)).inner_margin(Margin::symmetric(12, 5)).show(ui, |ui| {
+        // (dans une rangée de droite à gauche, la touche vient d'abord)
+        let rtl = ui.layout().prefer_right_to_left();
         ui.horizontal(|ui| {
+            if rtl && let Some(k) = key {
+                widgets::kbd(ui, t, k);
+            }
             ui.label(RichText::new(label).font(theme::medium(theme::SMALL)).color(fg));
-            if let Some(k) = key {
+            if !rtl && let Some(k) = key {
                 widgets::kbd(ui, t, k);
             }
         });
