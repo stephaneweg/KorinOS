@@ -111,6 +111,8 @@ dans son index publié.
 **23/11 (soir), publiés depuis le cloud** (pub.py --api, clé ONYX_PKG_KEY) : pc 2026.11.94 (vue d'ensemble, dash,
 quickmenu, login façon Fedora, umount, polices Noto, icônes Adwaita ; --add-new), budget 1.0.8, claude-code
 2.1.330.10 (--only apps/claudecode.app/ ; chaîne Rust du PC refaite par ARCH=x86_64 SKIP_TESTS=1 tools/rust/build.sh,
-quelques minutes). **forge 1.3.11 pas publié** : OCCT et PlaneGCS (tools/cao/fetch.sh) viennent d'archives GitHub
-d'autres dépôts, refusées par la portée GitHub de la session (403 codeload) ; add_repo refusé. À faire depuis WSL
-(tools/cao/build-occt.sh puis tools/pc/apps.sh forge, pub.py forge) ou une session qui a ces dépôts.
+quelques minutes). **forge 1.3.11 publié** (essayé sous QEMU : l'équerre, Esquisse/Extrusion/Combiner) : les archives GitHub
+(codeload) d'OCCT et de FreeCAD sont refusées par le proxy (403), mais `git clone` des dépôts publics passe (accord
+de l'utilisateur) : clone --depth 1 du tag (OCCT V8_0_1 = b8f597c, FreeCAD 1.1.4 = 4fd3bf3, sparse planegcs), arbres
+posés dans ~/korin-cao/src aux noms de fetch.sh (git archive ne retombe pas sur le SHA-256 de GitHub), Eigen par
+GitLab (SHA bon) ; build-occt.sh 26 min sur 4 cœurs, build-planegcs.sh, apps.sh forge, pub.py forge.
