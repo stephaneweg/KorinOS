@@ -217,6 +217,11 @@ dans `~/.config/korin-ports/settings.ini`). Pour un lancement : `--soundfont x.s
   vue : un texte ou un coin arrondi dessiné sur une zone transparente (`ui_fill (..., 0xFF000000)`) l'est à demi sur
   ses bords lissés (calque ARGB32 composé dans `cr_end`), comme sous Korin : plus de liseré sombre aux étiquettes du
   cube ni de coins noirs aux boutons ; seules les fenêtres qui ont une `ui_surface` (Forge) sont touchées.
+- Forge 1.3.10 (23/11, les poignées de Pousser/tirer, de l'extrusion et de la hauteur de Boîte et Cylindre) : le
+  selftest passe (53 vérifications) ; scripts : `wheel:x,y,0` (survols : la valeur ne bouge pas), `drag:` sur la
+  poignée (Pousser 5 -> 25 mm, Boîte 10 -> 28,5 mm, Cylindre 10 -> 25,5 mm), Entrée (`dump:` : le corps ajouté).
+  Le vrai pointeur posé sur la fenêtre envoie aussi ses mouvements pendant un script : un survol juste avant chaque
+  clic (même instant) garde le geste voulu.
 
 - TerraCube (23/11) : `bin/terracube --selftest` passe (73 vérifications : protocole, MCP dont la capture, console,
   survie, fabrication, circuits, liquides, créatures, sauvegarde et relecture, image rendue) sur le GPU NVIDIA (EGL
