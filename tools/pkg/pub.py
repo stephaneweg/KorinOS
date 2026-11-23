@@ -22,7 +22,7 @@ Le chemin sur des publications partielles des 4-20/11 (.agents/memory/armpi-paqu
   6. la version monte (tools/pkg/versions.ini : [pc] d'abord ; une version deja plus haute dans versions.ini est prise),
      l'archive est ecrite par mkrepo.write_opk, son manifeste par mkrepo.manifest_text (meme abi que le publie, sauf
      --abi), la seule section du paquet est reecrite dans l'index, signe (cle : --key, ONYX_PKG_KEY_FILE,
-     C:\\Projects\\onyx_pkg-key.pem.txt, ou OnyxPkgKey) ;
+     C:\\Projects\\onyx_pkg-key.pem.txt, OnyxPkgKey ou ONYX_PKG_KEY) ;
   7. checkrepo.py sur une copie du depot (liens) : seules les archives de la Release absentes de la copie locale sont
      tolerees ; --dry-run s'arrete ici, sans rien laisser ;
   8. git merge origin/main, archive envoyee dans la Release (release = 1), puis un commit des seuls fichiers du depot
@@ -226,7 +226,7 @@ def main ():
 	ap.add_argument ("--new", action = "store_true", help = "un paquet absent de l'index publie : tous ses fichiers, pris dans l'arbre")
 	ap.add_argument ("--abi", type = int, help = "le besoin abi >= N du manifeste (defaut : celui du publie)")
 	ap.add_argument ("--force", action = "store_true", help = "continuer si le content publie ne se recalcule pas")
-	ap.add_argument ("--key", help = "la cle privee (defaut : ONYX_PKG_KEY_FILE, %s, OnyxPkgKey)" % DEFAULT_KEY)
+	ap.add_argument ("--key", help = "la cle privee (defaut : ONYX_PKG_KEY_FILE, %s, OnyxPkgKey ou ONYX_PKG_KEY)" % DEFAULT_KEY)
 	ap.add_argument ("--base", default = "origin/main", help = "la reference git du depot publie (defaut : origin/main)")
 	ap.add_argument ("--no-fetch", action = "store_true", help = "ne pas faire git fetch au debut")
 	ap.add_argument ("--no-push", action = "store_true", help = "commiter sans pousser")

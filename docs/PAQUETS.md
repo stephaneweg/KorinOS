@@ -168,7 +168,8 @@ ONYX_PKG_KEY_FILE=/chemin/cle.pem sh tools/pkg/publish.sh [--push]
 `mkrepo.py --bump --db` dans `packages/` de ce dépôt (GitHub Pages le sert) ; `checkrepo.py` (signature avec la clé des
 cartes `skel/sd0/etc/pkg/onyx.pub`, chaque archive, chaque nom, chaque besoin) ; un commit de `packages/` et de
 `tools/pkg/versions.ini` ; **pousse seulement avec `--push`**. Sans `ONYX_PKG_KEY_FILE`, la clé est prise dans la
-variable `OnyxPkgKey` (la clé PEM elle-même, agents du cloud) ; sans clé, rien. Avec une clé qui n'est pas celle des
+variable `OnyxPkgKey` ou `ONYX_PKG_KEY` (la clé PEM elle-même, agents du cloud : selon l'environnement, l'une ou
+l'autre) ; sans clé, rien. Avec une clé qui n'est pas celle des
 cartes, arrêt avant le commit. `KORIN_REPO_DIR` désigne un autre clone de KorinOS, mis à jour avant.
 
 Depuis une machine qui n'a pas construit les gros paquets de WSL (WebKit, .NET, bureautique...) : `mkrepo.py
@@ -277,7 +278,7 @@ branche). Le script :
    écrit l'archive par `mkrepo.write_opk` et son manifeste par `mkrepo.manifest_text` avec l'`abi` du manifeste publié
    (`--abi N` pour un paquet qui demande de nouvelles fonctions des kits, publiées par `pc`), réécrit la **seule section**
    du paquet dans l'index (et la date ; l'`abi` de `[repo]` si le paquet `pc` change `etc/pkg/abi`), signe
-   (`--key`, `ONYX_PKG_KEY_FILE`, `C:\Projects\onyx_pkg-key.pem.txt`, ou `OnyxPkgKey`) ;
+   (`--key`, `ONYX_PKG_KEY_FILE`, `C:\Projects\onyx_pkg-key.pem.txt`, `OnyxPkgKey` ou `ONYX_PKG_KEY`) ;
 7. `checkrepo.py` sur une copie du dépôt (`build/pub-tmp`, liens) : seules les archives de la Release absentes de
    `build/pkg-release-pc/` sont tolérées. **`--dry-run` s'arrête ici** et ne laisse rien ;
 8. fusionne `origin/main`, envoie l'archive dans la Release (`release = 1` ; arrêt si le nom y est déjà), commite par un

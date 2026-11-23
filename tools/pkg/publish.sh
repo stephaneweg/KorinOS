@@ -1,8 +1,8 @@
 #!/bin/sh
 # tools/pkg/publish.sh -- publier les paquets d'ARMPI (docs/PAQUETS.md). Depuis build/sdroot/ tel que build.ps1 l'a construit :
 #
-#   1. la cle privee : $ONYX_PKG_KEY_FILE (un chemin ; jamais dans un depot, jamais dans le chat), sinon $OnyxPkgKey (la cle
-#      PEM elle-meme, agents du cloud ; une ligne acceptee : remise en PEM dans un fichier temporaire 600, efface a la fin),
+#   1. la cle privee : $ONYX_PKG_KEY_FILE (un chemin ; jamais dans un depot, jamais dans le chat), sinon $OnyxPkgKey ou
+#      $ONYX_PKG_KEY (la cle PEM elle-meme, agents du cloud : selon l'environnement, l'une ou l'autre ; une ligne acceptee : remise en PEM dans un fichier temporaire 600, efface a la fin),
 #      sinon rien n'est publie ;
 #   2. le depot ou vont les paquets : celui-ci par defaut (son dossier packages/, servi par GitHub Pages) ; un autre clone
 #      de stephaneweg/KorinOS : $KORIN_REPO_DIR, mis a jour ;
@@ -46,6 +46,8 @@ SD=build/sdroot; OUT=packages; REL=build/pkg-release; SYS=armpi
 [ -f $SD/etc/pkg/onyx.pub ] || { echo "publish : pas de cle publique des cartes ($SD/etc/pkg/onyx.pub)" >&2; exit 2; }
 
 # ---- la cle ----
+[ -n "$OnyxPkgKey" ] || OnyxPkgKey=${ONYX_PKG_KEY:-}
+export OnyxPkgKey
 if { [ -z "$ONYX_PKG_KEY_FILE" ] || [ ! -f "$ONYX_PKG_KEY_FILE" ]; } && [ -n "$OnyxPkgKey" ]; then
 	ONYX_PKG_KEY_FILE=$(mktemp); chmod 600 "$ONYX_PKG_KEY_FILE"; trap 'rm -f "$ONYX_PKG_KEY_FILE"' EXIT
 	# (la variable peut tenir sur une ligne : on refait l'en-tete, le base64 en lignes de 64, la fin ; rien n'est affiche)
@@ -56,7 +58,7 @@ h, b = m.group (1), re.sub (r"\s", "", m.group (2))
 open (sys.argv[1], "w").write ("-----BEGIN %s-----\n%s\n-----END %s-----\n" % (h, "\n".join (textwrap.wrap (b, 64)), h))' "$ONYX_PKG_KEY_FILE"
 fi
 if [ -z "$ONYX_PKG_KEY_FILE" ] || [ ! -f "$ONYX_PKG_KEY_FILE" ]; then
-	echo "publish : pas de cle de signature (ONYX_PKG_KEY_FILE ou OnyxPkgKey) : rien n'est publie" >&2
+	echo "publish : pas de cle de signature (ONYX_PKG_KEY_FILE, OnyxPkgKey ou ONYX_PKG_KEY) : rien n'est publie" >&2
 	exit 2
 fi
 

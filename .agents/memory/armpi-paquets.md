@@ -105,5 +105,5 @@ diffère du python 1.0.3 publié, plus récent : la date affichée sert à voir 
 **weather 1.0.1 PC (20/11, main 34ea92e)** : publié depuis le cloud par `pub.py weather --tree build/pc/apps/sdroot
 --only apps/weather.app/main` après `setup.sh root`, `base toolchains` (18 min sur 4 cœurs), `ARCH=x86_64
 tools/posix/build.sh`, `tools/pc/apps.sh weather`. Dans cet environnement du cloud, la clé est dans **`ONYX_PKG_KEY`**
-(PEM), pas `OnyxPkgKey` que lit pub.py : `OnyxPkgKey="$ONYX_PKG_KEY" python3 tools/pkg/pub.py …`. Le Pi n'a pas weather
+(PEM) ; depuis le 23/11, pub.py et publish.sh lisent `OnyxPkgKey` ou `ONYX_PKG_KEY` (plus besoin de la passer). Le Pi n'a pas weather
 dans son index publié.
