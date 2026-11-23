@@ -131,23 +131,31 @@ static void bk_complete (const std::vector<std::string> &tg, std::vector<std::st
 		out.push_back (x);
 	}
 }
-// la liste au point : d'abord Poste fixe / Dépense / Ignorer / À classer plus tard, puis le poste ou la colonne
-static bool bk_pick (Grid *g, int wx, int wy, const std::vector<std::string> &tg, std::string &out)
+// la liste déroulante de la cellule (grid.h, GChoice) : les postes fixes, puis les colonnes des dépenses courantes,
+// chaque groupe sous son titre, puis Ignorer et À classer plus tard ; cur : le choix actuel, coché
+static void bk_choices (const std::vector<std::string> &tg, const std::string &cur, std::vector<GChoice> &out)
 {
-	std::string l1 = std::string (TR ("Poste fixe\xE2\x80\xA6")) + '\0' + TR ("D\xC3\xA9pense\xE2\x80\xA6") + '\0' + "-" + '\0' + bank::IGNORE + '\0' + bank::LATER + '\0';
-	int k = popup (g, wx, wy, l1.c_str ());
-	if (k == 3) { out = bank::IGNORE; return true; }
-	if (k == 4) { out = bank::LATER; return true; }
-	if (k != 0 && k != 1) return false;
-	const char *pre = k == 0 ? bank::LINE_PREFIX : bank::CAT_PREFIX;
-	std::vector<std::string> names;
-	std::string l2;
-	for (auto &x : tg) if (x.compare (0, strlen (pre), pre) == 0) { names.push_back (x); l2 += x.substr (strlen (pre)); l2 += '\0'; }
-	if (names.empty ()) return false;
-	int j = popup (g, wx, wy, l2.c_str ());
-	if (j < 0 || j >= (int) names.size ()) return false;
-	out = names[(size_t) j];
-	return true;
+	static const char *const titles[2] = { "Postes fixes", "D\xC3\xA9penses courantes" };
+	const char *pres[2] = { bank::LINE_PREFIX, bank::CAT_PREFIX };
+	for (int k = 0; k < 2; k++)
+	{
+		bool first = true;
+		for (auto &x : tg)
+		{
+			if (x.compare (0, strlen (pres[k]), pres[k]) != 0) continue;
+			if (first) { GChoice h; h.label = TR (titles[k]); h.group = true; out.push_back (h); first = false; }
+			GChoice c; c.label = x.substr (strlen (pres[k])); c.value = x; c.on = x == cur;
+			out.push_back (c);
+		}
+	}
+	bool head = false;
+	for (const char *o : { bank::IGNORE, bank::LATER })
+	{
+		if (!bank::in_list (tg, o)) continue;
+		if (!head) { GChoice h; h.label = TR ("Autres choix"); h.group = true; out.push_back (h); head = true; }
+		GChoice c; c.label = TR (o); c.value = o; c.on = cur == o;
+		out.push_back (c);
+	}
 }
 
 // ---- la fenêtre des opérations à classer (BankImportForm) ---------------------------------------------------------
@@ -196,7 +204,7 @@ struct ImpModel : GridModel
 		if (c == IC_TARGET)
 		{
 			std::string x;
-			if (!bk_resolve (tg, t, x)) return TR ("Destination inconnue \xE2\x80\x94 Menu ou clic droit : la liste \xE2\x80\x94 \xC3\x89" "chap pour annuler");
+			if (!bk_resolve (tg, t, x)) return TR ("Destination inconnue \xE2\x80\x94 Alt+Bas ou F4 : la liste \xE2\x80\x94 \xC3\x89" "chap pour annuler");
 			set_target (i, x);
 		}
 		return 0;
@@ -216,12 +224,16 @@ struct ImpModel : GridModel
 		if (c == IC_TARGET) { if (x.target == bank::LATER) s.fg = C_RED; else if (x.target == bank::IGNORE) s.fg = C_DIM; else if (x.fromRule) s.bold = true; }
 	}
 	void complete (int c, std::vector<std::string> &out) override { if (c == IC_TARGET) bk_complete (tg, out); }
+	bool has_choices (int c) override { return c == IC_TARGET; }
+	void choices (int i, int c, std::vector<GChoice> &out) override { (void) c; if (i < (int) r.size ()) bk_choices (tg, r[(size_t) i].target, out); }
+	void choose (int i, int c, const std::string &v) override { (void) c; if (i < (int) r.size ()) set_target (i, v); }
+	// Menu, Maj+F10, clic droit : la liste déroulante de la destination
 	void context (Grid *g, int i, int c, int wx, int wy) override
 	{
-		(void) c;
+		(void) c; (void) wx; (void) wy;
 		if (i < 0 || i >= (int) r.size ()) return;
-		std::string x;
-		if (bk_pick (g, wx, wy, tg, x)) { set_target (i, x); g->dirty (); }
+		g->go (i, IC_TARGET);
+		g->open_drop ();
 	}
 	void message (const char *s) override { if (g_impMsg) ui_w_set_text (g_impMsg, (long) (s && *s ? s : " ")); }
 };
@@ -254,7 +266,7 @@ static bool bk_import (Month &m, const std::vector<bank::Tx> &txs, std::vector<b
 	int y = 12;
 	{
 		const char *hint = TR ("Choisissez o\xC3\xB9 va chaque op\xC3\xA9ration : un poste fixe (le montant s'ajoute \xC3\xA0 \xC2\xAB D\xC3\xA9j\xC3\xA0 pay\xC3\xA9 \xC2\xBB), une colonne des d\xC3\xA9penses courantes, ou Ignorer. "
-			"Tapez le nom (ex. Orange, Courses) ou Menu / clic droit pour la liste. Cochez \xC2\xAB Retenir \xC2\xBB pour que les prochaines op\xC3\xA9rations avec ce mot-cl\xC3\xA9 soient class\xC3\xA9" "es toutes seules. "
+			"Un clic dans \xC2\xAB Classer dans \xC2\xBB (ou Alt+Bas, F4) ouvre la liste ; on peut aussi taper le nom (ex. Orange, Courses). Cochez \xC2\xAB Retenir \xC2\xBB pour que les prochaines op\xC3\xA9rations avec ce mot-cl\xC3\xA9 soient class\xC3\xA9" "es toutes seules. "
 			"\xC2\xAB \xC3\x80 classer plus tard \xC2\xBB laisse l'op\xC3\xA9ration pour la prochaine synchronisation.");
 		int hh = (int) ui_text_wrap ((long) hint, 0, 0, W - 32 - FRAME_CAP_W, 0, (long) ui.font, 14, 1);
 		ui_label (16, y, W - 32 - FRAME_CAP_W, hh + 4, (long) hint, ULB_WRAP | ULB_DIM);
@@ -447,7 +459,7 @@ struct RulesModel : GridModel
 		if (c == RC_TARGET && !v.empty ())
 		{
 			std::string x;
-			if (!bk_resolve (tg, v, x)) return TR ("Destination inconnue \xE2\x80\x94 Menu ou clic droit : la liste \xE2\x80\x94 \xC3\x89" "chap pour annuler");
+			if (!bk_resolve (tg, v, x)) return TR ("Destination inconnue \xE2\x80\x94 Alt+Bas ou F4 : la liste \xE2\x80\x94 \xC3\x89" "chap pour annuler");
 			v = x;
 		}
 		if (i >= (int) r.size ()) { if (v.empty ()) return 0; r.push_back (bank::Rule ()); i = (int) r.size () - 1; }
@@ -457,22 +469,21 @@ struct RulesModel : GridModel
 	void clear (int i, int c) override { if (i < (int) r.size ()) { if (c == RC_KEY) r[(size_t) i].keyword.clear (); else r[(size_t) i].target.clear (); } }
 	void complete (int c, std::vector<std::string> &out) override { if (c == RC_TARGET) bk_complete (tg, out); }
 	void delete_row (int i) override { if (i >= 0 && i < (int) r.size ()) r.erase (r.begin () + i); }
+	bool has_choices (int c) override { return c == RC_TARGET; }
+	void choices (int i, int c, std::vector<GChoice> &out) override { (void) c; bk_choices (tg, i < (int) r.size () ? r[(size_t) i].target : std::string (), out); }
+	void choose (int i, int c, const std::string &v) override
+	{
+		(void) c;
+		if (i >= (int) r.size ()) { r.push_back (bank::Rule ()); i = (int) r.size () - 1; }
+		r[(size_t) i].target = v;
+	}
 	void context (Grid *g, int i, int c, int wx, int wy) override
 	{
 		(void) c;
 		static const char items[] = "Choisir la destination\xE2\x80\xA6\0Supprimer la r\xC3\xA8gle\0";
 		int k = popup (g, wx, wy, items);
 		if (k == 1) { delete_row (i); g->clamp (); g->dirty (); }
-		else if (k == 0)
-		{
-			std::string x;
-			if (bk_pick (g, wx, wy, tg, x))
-			{
-				if (i >= (int) r.size ()) { r.push_back (bank::Rule ()); i = (int) r.size () - 1; }
-				r[(size_t) i].target = x;
-				g->dirty ();
-			}
-		}
+		else if (k == 0) { g->go (i, RC_TARGET); g->open_drop (); }
 	}
 };
 static RulesModel g_mRules;

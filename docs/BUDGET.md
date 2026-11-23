@@ -58,8 +58,19 @@ passe de Windows à Korin et retour sans conversion.
     écouté par l'app), sinon l'adresse se copie vers un autre appareil et l'adresse de retour (« code= ») se colle.
   - Le client : JWT RS256 signé par OpenSSL, HTTPS de PocketQI (`../pocketqi/http.h`, certificats du système),
     réponses lues par le JSON de `model.h`. Requêtes bloquantes (quelques secondes, message dans la barre d'état).
-  - Classer : taper le nom (« Orange », « Courses », « plus tard ») suffit ; Menu ou clic droit donne la liste (Poste
-    fixe… / Dépense… / Ignorer / À classer plus tard).
+  - Classer (23/11, à la demande de l'utilisateur : « pas de drop down affiché ») : la cellule « Classer dans » est une
+    **liste déroulante** (une flèche ▾ à droite). Un clic (ou un toucher) sur la cellule, Alt+Bas ou F4 l'ouvre ;
+    Menu, Maj+F10 et le clic droit aussi. Elle montre d'un coup les postes fixes, puis les colonnes des dépenses
+    courantes, chacun sous son titre, puis « Autres choix » (Ignorer, à classer plus tard), le choix actuel coché ;
+    flèches, Page, Début / Fin, Entrée ou Tab pour choisir, Échap ou F4 pour fermer, la molette fait défiler. Taper
+    le nom (« Orange », « Courses », « plus tard ») marche toujours, avec la complétion. La liste est dessinée par la
+    grille elle-même (`grid.h` : `GridModel::has_choices`, `choices`, `choose`), dans sa vue, sans fonction de kit
+    nouvelle ; la même dans la colonne « … classer dans » des règles (Réglages de la banque). Avant, la liste ne
+    venait que du clic droit ou de la touche Menu, en deux menus de suite (`ui_popup_local`), sans rien à l'écran qui
+    le dise : au doigt (PocketTerm) ou sans touche Menu, rien ne s'ouvrait. Essayé sous Linux seulement
+    (`linux-ports/`), pas sous Korin.
+  - Corrigé en même temps : la complétion d'un libellé accentué (« me » tapé, « Médical » proposé) coupait le « é »
+    (« meddical »).
   - Essais : `--bank-api URL` (un faux serveur), `--bank-follow` (l'autorisation suivie sans navigateur) ;
     `tools/budget/banktest.cpp` sur le PC.
 * **Les calculs** (`Calc.cs`) : formule pour formule. Montants en dix-millièmes entiers (le `decimal` de C#), prorata en
@@ -74,6 +85,12 @@ passe de Windows à Korin et retour sans conversion.
   grisées, non réglées en gras, paiement partiel en orange), le suivi (soldes, jours couverts, Budget initial /
   Prévision / Réel), les dépenses courantes (complétion des libellés, totaux par catégorie avec les chèques repas dans
   la première, total, moyenne par jour, tri par date), le dialogue du modèle, Enregistrer un paiement.
+
+## Sous Linux
+
+Budget se construit aussi pour Linux (Fedora), sans changer ses sources : `linux-ports/` (`make`, `bin/budget`,
+paquet `korin-budget`), UIKit sur GTK 4, `HOME:/budget` dans `~/Korin/budget`, la page de la banque dans le
+navigateur du système, la clé et la session dans le trousseau du bureau (libsecret). Voir `linux-ports/README.md`.
 
 ## Ce qui change pour Korin
 
