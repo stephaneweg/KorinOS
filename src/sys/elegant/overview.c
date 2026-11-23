@@ -38,7 +38,7 @@
 #define OV_R_DESK 16          /* rayon des coins d'un bureau (à sa taille dans la vue) */
 #define OV_SH_DESK 14         /* son ombre */
 #define OV_SH_WIN 10          /* l'ombre d'une fenêtre */
-#define OV_DIM 112            /* le fond de la vue : luminosité sur 256 */
+#define OV_DIM 60             /* le fond de la vue : luminosité sur 256 (plus sombre : demande du 23/11) */
 #define OV_SNAP_BUDGET (128L << 20) /* images pleine taille gardées (octets) */
 #define OV_DRAG_PX 6          /* au-delà, un appui sur une fenêtre devient un glisser */
 #define OV_COL_EMPTY 0x001E1F22 /* (sans mémoire pour le fond) */

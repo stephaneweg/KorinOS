@@ -28,8 +28,8 @@ static const int ech[3][4] = {
 	{62, 54, 42, 13},
 	{56, 48, 36, 12},
 };
-#define FLAT_T_LIGHT 0x30 /* transparence du bandeau : Givre, */
-#define FLAT_T_DARK 0x28  /* Onyx Noir */
+#define FLAT_T 0xE8     /* transparence du bandeau : un voile clair à peine (≈ 9 %) sur le fond sombre de la vue */
+#define FLAT_T_HOVER 0xC8 /* survol (≈ 22 %) */
 static struct {
 	long bh, cw, icon, rad;
 } cur;
@@ -54,10 +54,6 @@ static long grid_open; /* 1 : la grille des applications est montrée (« Applic
 
 static void draw(void);
 
-static u32 tok(long off)
-{
-	return M32(ui_tokens(), off);
-}
 
 /* ---------------------------------------------------------------------------
  *  Disposition
@@ -208,11 +204,17 @@ static u32 mix4(u32 a, u32 b, u32 k)
 	return o;
 }
 
-/* -> la teinte du bandeau : le dock du thème, unie et un peu translucide (flat, 23/11/2026) */
+/* -> l'encre sur le fond de la vue d'ensemble (toujours sombre : le fond d'écran assombri par Elegant) */
+static u32 dash_ink(void)
+{
+	return (u32)ui_ink(0x00202124) & 0xFFFFFF;
+}
+
+/* -> la teinte du bandeau : un voile de l'encre claire, à peine plus clair que le fond de la vue (flat, comme le
+ * dash de GNOME ; 23/11/2026) */
 static u32 flat_colour(void)
 {
-	int dark = tok(TJ_DARK) != 0;
-	return (tok(TJ_DOCK) & 0xFFFFFF) | (u32)(dark ? FLAT_T_DARK : FLAT_T_LIGHT) << 24;
+	return dash_ink() | (u32)FLAT_T << 24;
 }
 
 /* boîte arrondie unie, écrite dans les pixels : coins lissés sur le fond bg (0xTTRRGGBB) */
@@ -256,10 +258,8 @@ static void draw_body(void)
 /* x, largeur : le fond d'un élément survolé, la teinte du bandeau un peu plus marquée */
 static void hover_box(long x, long w)
 {
-	int dark = tok(TJ_DARK) != 0;
 	u32 bg = flat_colour();
-	u32 c = ((u32)ui_mix(bg & 0xFFFFFF, dark ? 0x00FFFFFF : tok(TJ_TEXT1) & 0xFFFFFF, dark ? 40 : 28) & 0xFFFFFF) |
-		(bg & 0xFF000000);
+	u32 c = dash_ink() | (u32)FLAT_T_HOVER << 24;
 	flat_rbox(x + 3, SH_M + 5, w - 6, cur.bh - 10, cur.rad - 4 > 6 ? cur.rad - 4 : 6, c, bg);
 }
 
@@ -268,7 +268,7 @@ static void draw_apps(void)
 	u8 *tj = (u8 *)ui_tokens();
 	long cw = cur.cw;
 	int dark = M32(tj, TJ_DARK) != 0;
-	u32 ink = M32(tj, TJ_TEXT1);
+	u32 ink = dash_ink();
 	if (hover == HIT_APPS || grid_open) {
 		hover_box(apps_x, cw);
 		ink = M32(tj, dark ? TJ_ACCENT_VIVID : TJ_ACCENT);
@@ -281,7 +281,6 @@ static void draw(void)
 {
 	if (!ui.surf)
 		return;
-	u8 *tj = (u8 *)ui_tokens();
 	draw_body();
 	long top = SH_M, bh = cur.bh, cw = cur.cw, ic = cur.icon;
 	for (long i = 0; i < nslots; i++) { /* --- emplacements */
@@ -291,13 +290,12 @@ static void draw(void)
 		long app = sl_app[i];
 		ui_icon((long)ap_nom[app], x + (cw - ic) / 2, top + (bh - ic) / 2 - 3, ic);
 		if (pids[app]) { /* un point sous une application ouverte */
-			u32 v = M32(tj, TJ_DARK) ? M32(tj, TJ_TEXT1) : M32(tj, TJ_ACCENT);
+			u32 v = dash_ink();
 			ui_rbox(x + cw / 2 - 2, top + bh - 8, 5, 5, 2, v, v);
 		}
 	}
 	if (nslots) { /* --- séparateur */
-		u32 c = M32(tj, TJ_DARK) ? M32(tj, TJ_LINE_STRONG) : M32(tj, TJ_TEXT3);
-		ui_fill(apps_x - SEP_W / 2 - 1, top + 14, 1, bh - 28, (c & 0xFFFFFF) | 0x90000000);
+		ui_fill(apps_x - SEP_W / 2 - 1, top + 14, 1, bh - 28, dash_ink() | 0xB0000000);
 	}
 	draw_apps();
 	ui_update_all();

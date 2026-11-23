@@ -571,8 +571,9 @@ du fichier : les catégories par nom, terminal et files, 4 espaces.
 
 > **Depuis le 23/11/2026, le panel est le dash de la vue d'ensemble** (§ 19), comme celui de GNOME :
 > rôle `WF_OVERVIEW` (caché dans la vue normale), sans `WF_RESERVE` ni `WF_BLUR` ; un bandeau
-> **flat** (demande de l'utilisateur : la teinte `TJ_DOCK` unie, translucide `0x30` en Givre, `0x28`
-> en Onyx Noir, sans dégradé, reflet ni ombre ; coins de 14/13/12 lissés), centré, à 14 px du bas,
+> **flat** (demande de l'utilisateur : un voile uni de l'encre claire, `ui_ink` du fond sombre de la
+> vue, transparence `0xE8`, à peine plus clair que ce fond, comme le dash de GNOME ; `0xC8` au survol ;
+> sans dégradé, reflet ni ombre ; coins de 14/13/12 lissés ; séparateur, points et grille à cette encre), centré, à 14 px du bas,
 > de la largeur de son contenu (hauteur 68/62/56, emplacements de 60/54/48, icônes de 46/42/36 selon
 > l'échelle). Survol : la même teinte un peu plus marquée, boîte unie. Dedans : les raccourcis, les
 > applications ouvertes (un point sous chacune), un séparateur, « Applications » (la grille des
@@ -1103,7 +1104,7 @@ bureau (empreinte à chaque tour).
 **Rendu (processeur).** Le coût est payé à l'ouverture, pas à chaque image :
 
 * le fond (couche du fond) composé une fois en pleine taille ; on en tire le fond de la vue (réduit
-  au seizième, flou de boîte, assombri à 112/256, agrandi en bilinéaire) et la vignette d'un bureau
+  au seizième, flou de boîte, assombri à 60/256, agrandi en bilinéaire) et la vignette d'un bureau
   (réduite par moyenne de blocs, coins de 16 px lissés). Fond et fond flouté sont gardés d'une
   ouverture à l'autre tant que la couche du fond ne change pas (empreinte des générations) ;
 * chaque fenêtre est composée hors écran par le chemin ordinaire (`draw_framed` : contenu, surface
