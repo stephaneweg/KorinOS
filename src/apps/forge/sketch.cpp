@@ -294,7 +294,8 @@ bool skAxis (const Sketch &s, double o[3], double d[3])
 
 // ---- les contours en faces --------------------------------------------------------------------------------------
 
-TopoDS_Shape skFaces (const Sketch &s, std::string &err)
+// les contours fermés de l'esquisse en faces planes (non triées)
+static bool skClosedFaces (const Sketch &s, std::vector<SkRegion> &faces, std::string &err)
 {
 	gp_Dir n (s.plane.n[0], s.plane.n[1], s.plane.n[2]), x (s.plane.x[0], s.plane.x[1], s.plane.x[2]);
 	Handle (TopTools_HSequenceOfShape) edges = new TopTools_HSequenceOfShape, wires;
@@ -327,40 +328,109 @@ TopoDS_Shape skFaces (const Sketch &s, std::string &err)
 	}
 	if (closed.empty ()) {
 		err = "aucun contour fermé";
-		return TopoDS_Shape ();
+		return false;
 	}
-	// les faces, de la plus grande à la plus petite ; une face dans une plus grande en fait un trou
-	struct F { TopoDS_Face f; double area; };
-	std::vector<F> faces;
 	for (auto &w : closed) {
 		BRepBuilderAPI_MakeFace mf (gp_Pln (gp_Pnt (s.plane.o[0], s.plane.o[1], s.plane.o[2]), n), w, true);
 		if (!mf.IsDone ()) continue;
 		GProp_GProps g;
 		BRepGProp::SurfaceProperties (mf.Face (), g);
-		faces.push_back ({ mf.Face (), std::fabs (g.Mass ()) });
+		SkRegion r;
+		r.face = mf.Face ();
+		r.area = std::fabs (g.Mass ());
+		faces.push_back (r);
 	}
-	std::sort (faces.begin (), faces.end (), [] (const F &a, const F &b) { return a.area > b.area; });
-	std::vector<TopoDS_Shape> keep;
-	std::vector<char> hole (faces.size (), 0);
-	for (size_t i = 0; i < faces.size (); i++) {
-		if (hole[i]) continue;
-		TopoDS_Shape f = faces[i].f;
-		for (size_t j = i + 1; j < faces.size (); j++) {
-			if (hole[j]) continue;
-			TopExp_Explorer v (faces[j].f, TopAbs_VERTEX);
-			if (!v.More ()) continue;
-			gp_Pnt p = BRep_Tool::Pnt (TopoDS::Vertex (v.Current ()));
-			BRepClass_FaceClassifier cl (TopoDS::Face (faces[i].f), p, 1e-6);
-			if (cl.State () == TopAbs_IN) f = BRepAlgoAPI_Cut (f, faces[j].f).Shape (), hole[j] = 1;
-		}
-		keep.push_back (f);
+	if (faces.empty ()) {
+		err = "aucun contour fermé";
+		return false;
 	}
-	if (keep.size () == 1) return keep[0];
+	return true;
+}
+
+static TopoDS_Shape compound (const std::vector<TopoDS_Shape> &v)
+{
+	if (v.size () == 1) return v[0];
 	TopoDS_Compound comp;
 	BRep_Builder bb;
 	bb.MakeCompound (comp);
-	for (auto &f : keep) bb.Add (comp, f);
+	for (auto &f : v) bb.Add (comp, f);
 	return comp;
+}
+
+// les régions : les contours, du plus grand au plus petit ; le parent d'un contour est le plus petit qui le contient
+// (un de ses sommets dedans) ; la région d'un contour = sa face moins celles de ses enfants
+bool skRegions (const Sketch &s, std::vector<SkRegion> &out, std::string &err)
+{
+	out.clear ();
+	std::vector<SkRegion> faces;
+	if (!skClosedFaces (s, faces, err)) return false;
+	std::sort (faces.begin (), faces.end (), [] (const SkRegion &a, const SkRegion &b) { return a.area > b.area; });
+	std::vector<int> parent (faces.size (), -1);
+	for (size_t j = 1; j < faces.size (); j++) {
+		TopExp_Explorer v (faces[j].face, TopAbs_VERTEX);
+		if (!v.More ()) continue;
+		gp_Pnt p = BRep_Tool::Pnt (TopoDS::Vertex (v.Current ()));
+		for (size_t i = j; i-- > 0;) {	// (le plus petit qui le contient : le premier en remontant)
+			BRepClass_FaceClassifier cl (TopoDS::Face (faces[i].face), p, 1e-6);
+			if (cl.State () == TopAbs_IN) {
+				parent[j] = (int) i;
+				break;
+			}
+		}
+	}
+	for (size_t i = 0; i < faces.size (); i++) {
+		SkRegion r = faces[i];
+		r.depth = parent[i] < 0 ? 0 : out[parent[i]].depth + 1;	// (le parent est avant : plus grand)
+		for (size_t j = i + 1; j < faces.size (); j++)
+			if (parent[j] == (int) i) r.face = BRepAlgoAPI_Cut (r.face, faces[j].face).Shape ();
+		out.push_back (r);
+	}
+	return true;
+}
+
+int skRegionAt (const Sketch &s, const std::vector<SkRegion> &r, double x, double y)
+{
+	double w[3];
+	skWorld (s, x, y, w);
+	gp_Pnt p (w[0], w[1], w[2]);
+	for (size_t i = r.size (); i-- > 0;) {	// (les plus petites d'abord : un îlot avant le contour qui l'entoure)
+		for (TopExp_Explorer f (r[i].face, TopAbs_FACE); f.More (); f.Next ()) {
+			BRepClass_FaceClassifier cl (TopoDS::Face (f.Current ()), p, 1e-6);
+			if (cl.State () == TopAbs_IN) return (int) i;
+		}
+	}
+	return -1;
+}
+
+TopoDS_Shape skFacesPick (const Sketch &s, const std::vector<double> &picks, std::string &err)
+{
+	std::vector<SkRegion> r;
+	if (!skRegions (s, r, err)) return TopoDS_Shape ();
+	std::vector<TopoDS_Shape> keep;
+	if (picks.size () < 2) {	// (sans choix : les régions de profondeur paire, les trous restent des trous)
+		for (auto &x : r)
+			if (x.depth % 2 == 0) keep.push_back (x.face);
+	} else {
+		std::vector<char> in (r.size (), 0);
+		for (size_t k = 0; k + 1 < picks.size (); k += 2) {
+			int i = skRegionAt (s, r, picks[k], picks[k + 1]);
+			if (i < 0) {
+				err = "plus le contour choisi (l'esquisse a changé)";
+				return TopoDS_Shape ();
+			}
+			if (!in[i]) in[i] = 1, keep.push_back (r[i].face);
+		}
+	}
+	if (keep.empty ()) {
+		err = "aucun contour fermé";
+		return TopoDS_Shape ();
+	}
+	return compound (keep);
+}
+
+TopoDS_Shape skFaces (const Sketch &s, std::string &err)
+{
+	return skFacesPick (s, {}, err);
 }
 
 } // namespace forge

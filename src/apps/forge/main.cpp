@@ -97,7 +97,7 @@ long w_op, b_ok, b_cancel, w_pmode, w_paxis, b_usemax;	// la commande en cours
 long b_ctarget, b_ctools, w_cop, c_keep;		// (combiner) cible, outils, type, conserver les outils
 long e_param, b_param;				// les paramètres nommés
 long e_val[3], b_apply, b_off, b_del, b_barhere;	// l'étape choisie
-enum { TB_SKETCH, TB_BOX, TB_CYL, TB_PUSH, TB_FILLET, TB_CHAMFER, TB_COMBINE, TB_MEASURE, TB_N };
+enum { TB_SKETCH, TB_EXTRUDE, TB_BOX, TB_CYL, TB_PUSH, TB_FILLET, TB_CHAMFER, TB_COMBINE, TB_MEASURE, TB_N };
 long tb[TB_N];
 
 // ---- annuler, rétablir ------------------------------------------------------------------------------------------
@@ -151,6 +151,12 @@ struct Cmd {
 	int hFace = -1;			// (pousser/tirer) la face choisie, dans le maillage de son corps
 	double hS0 = 0, hV0 = 0;	// (au début du glisser) la place sur l'axe sous le pointeur, la valeur
 	double lastGood = 0;		// la dernière valeur dont l'aperçu passait (0 : aucune)
+	// (extrusion, révolution) les contours de l'esquisse, comme les profils de Fusion : un clic dans l'un le prend ou
+	// le laisse ; f.pos garde un point de chacun des contours choisis (vide : tous, sauf les trous)
+	std::vector<SkRegion> regs;
+	std::vector<Mesh> regMesh;	// (leur surface, pour la vue)
+	std::vector<double> regPt;	// un point dans chacun (x, y de l'esquisse)
+	int regHot = -1;		// le contour survolé
 } g_cmd;
 
 StepKind toolKind (Tool t)
@@ -181,6 +187,8 @@ long w_sktools;
 enum { SKB_H, SKB_V, SKB_COINC, SKB_PAR, SKB_PERP, SKB_TAN, SKB_EQ, SKB_CONC, SKB_ON, SKB_CONS, SKB_DEL, SKB_CANCEL, SKB_DONE, SKB_N };
 long skb[SKB_N];
 void skStrokes ();
+int regAt (int x, int y);
+void regToggle (int r);
 void handleStrokes ();
 void handlePlace ();
 Chip &handleChip ();
@@ -799,9 +807,9 @@ void cmdStart (Tool t)
 	Feature &f = g_cmd.f;
 	f.kind = toolKind (t);
 	f.name = featureName (g_doc, f.kind);
-	if (t <= T_COMBINE)
+	if (t <= T_EXTRUDE)
 		ui_w_set_value (tb[t == T_BOX ? TB_BOX : t == T_CYL ? TB_CYL : t == T_PUSH ? TB_PUSH : t == T_FILLET ? TB_FILLET : t == T_CHAMFER ? TB_CHAMFER
-			: TB_COMBINE], 1);
+			: t == T_EXTRUDE ? TB_EXTRUDE : TB_COMBINE], 1);
 	Pick k = sel0 ();
 	// ce qui est déjà choisi sert de départ : une face plane pour pousser/tirer, des arêtes pour un congé
 	if (t == T_PUSH && !k.none () && k.face >= 0 && faceRef (g_doc.bodies[k.body], k.face, f.face)) {
@@ -841,18 +849,32 @@ void cmdStart (Tool t)
 			if (g_doc.feats[i].kind == ST_SKETCH) ref = i;
 		if (ref < 0) {
 			g_cmd = Cmd ();
+			for (int i = 0; i < TB_N; i++) ui_w_set_value (tb[i], 0);	// (le bouton relâché)
 			status (TR ("Aucune esquisse : S pour en dessiner une."));
 			return;
 		}
 		std::string err;
-		if (skFaces (g_doc.feats[ref].sk, err).IsNull ()) {
+		if (!skRegions (g_doc.feats[ref].sk, g_cmd.regs, err)) {
 			g_cmd = Cmd ();
+			for (int i = 0; i < TB_N; i++) ui_w_set_value (tb[i], 0);	// (le bouton relâché)
 			status (TR (("L'esquisse n'a " + err + ".").c_str ()));
 			return;
+		}
+		g_cmd.regMesh.resize (g_cmd.regs.size ());	// (les contours : leur surface et un point dedans)
+		g_cmd.regPt.assign (2 * g_cmd.regs.size (), 0);
+		for (size_t i = 0; i < g_cmd.regs.size (); i++) {
+			meshShape (g_cmd.regs[i].face, g_cmd.regMesh[i], 0.1);
+			const Mesh &m = g_cmd.regMesh[i];
+			if (m.tris.size () < 3) continue;
+			double c[3] = { 0, 0, 0 };
+			for (int k = 0; k < 3; k++)
+				for (int a = 0; a < 3; a++) c[a] += m.pts[m.tris[k] * 3 + a] / 3;
+			skLocal (g_doc.feats[ref].sk, c, g_cmd.regPt[2 * i], g_cmd.regPt[2 * i + 1]);
 		}
 		double o[3], d[3];
 		if (t == T_REVOLVE && !skAxis (g_doc.feats[ref].sk, o, d)) {
 			g_cmd = Cmd ();
+			for (int i = 0; i < TB_N; i++) ui_w_set_value (tb[i], 0);	// (le bouton relâché)
 			status (TR ("Révolution : l'esquisse n'a pas d'axe (une ligne de construction : X sur une ligne)."));
 			return;
 		}
@@ -1308,7 +1330,12 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 		}
 		// la hauteur, l'extrusion : seule la poignée change la valeur (le pointeur qui passe ne fait rien) ;
 		// pousser/tirer : le survol habituel (un clic sur une autre face la prend)
-		if (((t == T_BOX || t == T_CYL) && g_cmd.stage == 2) || (t == T_EXTRUDE && g_cmd.stage == 1)) return true;
+		if ((t == T_EXTRUDE || t == T_REVOLVE) && g_cmd.stage == 1) {	// (le contour survolé)
+			int r = regAt (x, y);
+			if (r != g_cmd.regHot) g_cmd.regHot = r, g_camDirty = true;
+			return true;
+		}
+		if ((t == T_BOX || t == T_CYL) && g_cmd.stage == 2) return true;
 		return false;		// (le survol habituel)
 	}
 	if (kind != 2) return kind == 1;
@@ -1380,6 +1407,13 @@ bool cmdMouse (int kind, int x, int y, int buttons, bool shift)
 		g_cmd.stage = f.edges.empty () ? 0 : 1;
 		cmdRefresh ();
 		return true;
+	}
+	if (t == T_EXTRUDE || t == T_REVOLVE) {	// un clic dans un contour : pris ou laissé
+		int r = regAt (x, y);
+		if (r >= 0 && g_cmd.regs.size () > 1) {
+			regToggle (r);
+			return true;
+		}
 	}
 	if (t == T_EXTRUDE) {	// (un clic hors de la poignée ne valide plus : Entrée ou OK)
 		status (handleClickHelp ());
@@ -1568,16 +1602,16 @@ const char *skToolName (SkTool t)
 void skWorldPt (int i, double out[3]) { skWorld (g_sm.s, g_sm.s.pts[i].x, g_sm.s.pts[i].y, out); }
 
 // une polyligne d'un élément (dans l'espace)
-std::vector<double> skPoly (const SkGeo &g)
+std::vector<double> skPolyOf (const Sketch &sk, const SkGeo &g)
 {
 	std::vector<double> v;
 	double p[3];
-	auto add = [&] (double x, double y) { skWorld (g_sm.s, x, y, p); v.insert (v.end (), { p[0], p[1], p[2] }); };
+	auto add = [&] (double x, double y) { skWorld (sk, x, y, p); v.insert (v.end (), { p[0], p[1], p[2] }); };
 	if (g.t == SG_LINE) {
-		add (g_sm.s.pts[g.a].x, g_sm.s.pts[g.a].y);
-		add (g_sm.s.pts[g.b].x, g_sm.s.pts[g.b].y);
+		add (sk.pts[g.a].x, sk.pts[g.a].y);
+		add (sk.pts[g.b].x, sk.pts[g.b].y);
 	} else {
-		const SkPoint &c = g_sm.s.pts[g.c];
+		const SkPoint &c = sk.pts[g.c];
 		double a0 = g.t == SG_ARC ? g.a0 : 0, a1 = g.t == SG_ARC ? g.a1 : 2 * M_PI;
 		int n = imax (8, (int) ((a1 - a0) / (2 * M_PI) * 72));
 		for (int k = 0; k <= n; k++) {
@@ -1586,6 +1620,94 @@ std::vector<double> skPoly (const SkGeo &g)
 		}
 	}
 	return v;
+}
+
+std::vector<double> skPoly (const SkGeo &g) { return skPolyOf (g_sm.s, g); }
+
+// (extrusion, révolution) les contours choisis : ceux de f.pos, sinon tous sauf les trous (profondeur paire)
+std::vector<char> regChosen ()
+{
+	std::vector<char> on (g_cmd.regs.size (), 0);
+	if (g_cmd.f.ref < 0) return on;
+	const Sketch &sk = g_doc.feats[g_cmd.f.ref].sk;
+	if (g_cmd.f.pos.size () < 2) {
+		for (size_t i = 0; i < on.size (); i++) on[i] = g_cmd.regs[i].depth % 2 == 0;
+		return on;
+	}
+	for (size_t k = 0; k + 1 < g_cmd.f.pos.size (); k += 2) {
+		int i = skRegionAt (sk, g_cmd.regs, g_cmd.f.pos[k], g_cmd.f.pos[k + 1]);
+		if (i >= 0) on[i] = 1;
+	}
+	return on;
+}
+
+// les esquisses hors de leur édition : celles qu'aucune extrusion ou révolution n'utilise encore (comme Fusion, qui
+// cache l'esquisse consommée), et celle choisie dans la frise ou en cours d'extrusion (en couleur d'accent) ; pendant
+// une extrusion ou une révolution, ses contours : les choisis teintés d'accent, le survolé, les autres à peine
+void skStrokesIdle ()
+{
+	bool cmdSk = (g_cmd.tool == T_EXTRUDE || g_cmd.tool == T_REVOLVE) && g_cmd.f.ref >= 0;
+	int cmdRef = cmdSk ? g_cmd.f.ref : -1;
+	int n = imin (g_doc.bar, (int) g_doc.feats.size ());
+	for (int i = 0; i < n; i++) {
+		const Feature &f = g_doc.feats[i];
+		if (f.kind != ST_SKETCH || f.off) continue;
+		bool used = false;
+		for (int j = i + 1; j < n && !used; j++) {
+			const Feature &u = g_doc.feats[j];
+			used = !u.off && (u.kind == ST_EXTRUDE || u.kind == ST_REVOLVE) && u.ref == i;
+		}
+		bool sel = i == g_selStep || i == cmdRef;
+		if (used && !sel) continue;
+		unsigned col = sel ? g_pal.accent : jet (TJ_TEXT2);
+		for (const SkGeo &e : f.sk.geos)
+			g_view.strokes.push_back ({ skPolyOf (f.sk, e), e.cons ? g_pal.grid50 : col, 2, e.cons });
+	}
+	if (!cmdSk) return;
+	std::vector<char> on = regChosen ();
+	for (size_t i = 0; i < g_cmd.regs.size () && i < g_cmd.regMesh.size (); i++) {
+		bool hot = (int) i == g_cmd.regHot;
+		unsigned col = on[i] ? g_pal.accent : hot ? g_pal.hover : jet (TJ_TEXT3);
+		int amount = on[i] ? (hot ? 130 : 90) : hot ? 80 : 36;
+		g_view.fills.push_back ({ &g_cmd.regMesh[i], col, amount });
+	}
+}
+
+// (extrusion, révolution) le contour sous le point (x, y) de la vue (-1 : aucun)
+int regAt (int x, int y)
+{
+	if (g_cmd.f.ref < 0 || g_cmd.regs.empty ()) return -1;
+	const Sketch &sk = g_doc.feats[g_cmd.f.ref].sk;
+	double p[3], lx, ly;
+	if (!g_view.onPlane (x, y, sk.plane.o, sk.plane.n, p)) return -1;
+	skLocal (sk, p, lx, ly);
+	return skRegionAt (sk, g_cmd.regs, lx, ly);
+}
+
+// (extrusion, révolution) un clic dans un contour : il est pris, ou laissé ; jamais aucun (le dernier reste) ; le choix
+// de tous sauf les trous redevient « automatique » (f.pos vide : l'esquisse peut changer sans perdre ses contours)
+void regToggle (int r)
+{
+	std::vector<char> on = regChosen ();
+	on[r] ^= 1;
+	int n = 0;
+	bool auto_ = true;
+	for (size_t i = 0; i < on.size (); i++) {
+		n += on[i];
+		if ((bool) on[i] != (g_cmd.regs[i].depth % 2 == 0)) auto_ = false;
+	}
+	if (!n) {
+		status (TR ("Il faut au moins un contour : cliquez-en un autre d'abord."));
+		return;
+	}
+	g_cmd.f.pos.clear ();
+	if (!auto_)
+		for (size_t i = 0; i < on.size (); i++)
+			if (on[i]) g_cmd.f.pos.push_back (g_cmd.regPt[2 * i]), g_cmd.f.pos.push_back (g_cmd.regPt[2 * i + 1]);
+	cmdRefresh ();
+	std::string m = std::string (TR ("Contours choisis : ")) + std::to_string (n) + TR (" sur ") + std::to_string (on.size ()) +
+		TR (". Un clic dans un contour le prend ou le laisse.");
+	status (m.c_str ());
 }
 
 bool skSelHas (int kind, int i)
@@ -1612,7 +1734,11 @@ void skStrokes ()
 {
 	g_view.strokes.clear ();
 	g_view.dots.clear ();
-	if (!g_sm.on) return;
+	g_view.fills.clear ();
+	if (!g_sm.on) {
+		skStrokesIdle ();
+		return;
+	}
 	Sketch &s = g_sm.s;
 	unsigned freeCol = g_pal.dark ? (unsigned) ui_mix (jet (TJ_AXIS_Z), 0xFFFFFF, 38) : jet (TJ_AXIS_Z);
 	for (size_t g = 0; g < s.geos.size (); g++) {
@@ -3203,7 +3329,7 @@ void control (long w, long code)
 				return;
 			}
 	if (code == UN_ACTIVATE || code == UN_CHANGE) {
-		static const int MAP[TB_N] = { 37, 30, 31, 32, 33, 34, 35, -1 };
+		static const int MAP[TB_N] = { 37, 38, 30, 31, 32, 33, 34, 35, -1 };
 		for (int i = 0; i < TB_N; i++)
 			if (w == tb[i] && MAP[i] >= 0) {
 				if (g_sm.on) {
@@ -3306,8 +3432,10 @@ void buildWindow ()
 	ui_w_tip (w_mode, (long) TR ("Fabrication (G-code GRBL) : à une étape suivante"));
 	TB_H = h + 24;
 	w_bar = ui_toolbar (408, (TB_H - h) / 2, imax (100, (int) ui.w - 408 - 96 - 128), 0);	// (à sa place ; ui_w_move de la barre emmène ses boutons)
-	static const char *const TOOLS[TB_N] = { "Esquisse", "Boîte", "Cylindre", "Pousser", "|Congé", "Chanfrein", "|Combiner", "|Mesurer" };
-	static const char *const TIPS[TB_N] = { "Esquisse (S) sur la face choisie ou le plan XY : lignes, rectangles, cercles, arcs, contraintes (PlaneGCS) ; E l'extrude", "Boîte (B) : clic à un coin, clic au coin opposé, on monte, clic",
+	static const char *const TOOLS[TB_N] = { "Esquisse", "Extrusion", "|Boîte", "Cylindre", "Pousser", "|Congé", "Chanfrein", "|Combiner", "|Mesurer" };
+	static const char *const TIPS[TB_N] = { "Esquisse (S) sur la face choisie ou le plan XY : lignes, rectangles, cercles, arcs, contraintes (PlaneGCS) ; E l'extrude",
+		"Extrusion (E) de l'esquisse choisie dans la frise, sinon de la dernière : un clic dans un contour le prend ou le laisse ; nouveau corps, joindre, enlever ou intersection",
+		"Boîte (B) : clic à un coin, clic au coin opposé, on monte, clic",
 		"Cylindre : clic au centre, on s'éloigne pour le rayon, clic, on monte, clic", "Pousser/tirer (Q) une face plane", "Congé (F) sur les arêtes choisies",
 		"Chanfrein (Maj+F) sur les arêtes choisies", "Combiner : une cible et des outils, en union, soustraction ou intersection", "Mesurer : à une étape suivante" };
 	for (int i = 0; i < TB_N; i++) {
@@ -4142,6 +4270,42 @@ int selftest (double buildMs)
 		check ("extrusion : la poignée, pas le pointeur seul", on && still == 10 && std::fabs (got - 15) <= st + 1e-9 && g_cmd.f.a == got, s);
 		cmdKey (0x29, 0);
 	}
+	{	// l'esquisse se voit hors de son édition ; à l'extrusion, ses contours se choisissent (le trou, la plaque)
+		skStrokes ();
+		snprintf (s, sizeof s, "%d traits hors de l'édition (%d éléments)", (int) g_view.strokes.size (), (int) g_doc.feats[skIdx].sk.geos.size ());
+		check ("esquisse gardée : elle se voit dans la vue", (int) g_view.strokes.size () == (int) g_doc.feats[skIdx].sk.geos.size (), s);
+		cmdStart (T_EXTRUDE);
+		int outer = -1, hole = -1;
+		for (size_t i = 0; i < g_cmd.regs.size (); i++) (g_cmd.regs[i].depth == 0 ? outer : hole) = (int) i;
+		std::vector<char> on = regChosen ();
+		auto tv = [] () { Body b; b.shape = featureTool (g_doc, g_cmd.f); return b.shape.IsNull () ? 0.0 : bodyVolume (b); };
+		double vDef = tv ();
+		snprintf (s, sizeof s, "%d contours, choisis %d/%d, %s", (int) g_cmd.regs.size (), outer >= 0 ? (int) on[outer] : -1,
+			  hole >= 0 ? (int) on[hole] : -1, cm3 (vDef / 1000).c_str ());
+		check ("extrusion : deux contours, la plaque choisie, pas le trou", g_cmd.regs.size () == 2 && outer >= 0 && hole >= 0 &&
+		       on[outer] && !on[hole] && g_cmd.f.pos.empty () && std::fabs (vDef - (50 * 20 - M_PI * 16) * 10) < 0.5, s);
+		regToggle (hole);
+		double vBoth = tv ();
+		regToggle (outer);
+		double vHole = tv ();
+		regToggle (hole);	// (le dernier : refusé)
+		on = regChosen ();
+		snprintf (s, sizeof s, "les deux : %s ; le trou seul : %s ; le dernier gardé : %d", cm3 (vBoth / 1000).c_str (), cm3 (vHole / 1000).c_str (), (int) on[hole]);
+		check ("extrusion : un clic prend ou laisse un contour (jamais aucun)", std::fabs (vBoth - 50 * 20 * 10) < 0.5 &&
+		       std::fabs (vHole - M_PI * 16 * 10) < 0.5 && on[hole] && !on[outer] && g_cmd.f.pos.size () == 2, s);
+		regToggle (outer);	// (les deux, puis la plaque seule : le choix redevient automatique)
+		regToggle (hole);
+		check ("extrusion : la plaque seule redevient le choix automatique", g_cmd.f.pos.empty (), "");
+		static const Op OPS[3] = { OP_JOIN, OP_CUT, OP_INTERSECT };
+		bool opsOk = true;
+		for (Op o : OPS) {	// (sans corps sous l'esquisse : l'opération choisie vise le premier corps)
+			ui_w_set_value (w_op, o == OP_JOIN ? 1 : o == OP_CUT ? 2 : 3);
+			control (w_op, UN_CHANGE);
+			opsOk = opsOk && g_cmd.f.op == o && !g_cmd.opAuto && g_cmd.f.body >= 0;
+		}
+		check ("extrusion : nouveau corps, joindre, enlever, intersection au choix", opsOk, "");
+		cmdKey (0x29, 0);
+	}
 	cmdStart (T_EXTRUDE);
 	type ("15");
 	cmdKey (0x28, 0);
@@ -4149,6 +4313,8 @@ int selftest (double buildMs)
 	snprintf (s, sizeof s, "%s : %s ; +%s (attendu +%s)", g_doc.feats.back ().name.c_str (), featureDetail (g_doc.feats.back ()).c_str (),
 		  cm3 (totalVolume () - v1).c_str (), cm3 (want).c_str ());
 	check ("extrusion de l'esquisse (rectangle percé), nouveau corps", g_doc.feats.back ().kind == ST_EXTRUDE && std::fabs (totalVolume () - v1 - want) < 0.001, s);
+	skStrokes ();
+	check ("esquisse extrudée : cachée (comme Fusion)", g_view.strokes.empty (), "");
 	// l'esquisse modifiée : la cote à 60, l'extrusion suit
 	for (auto &c : g_doc.feats[skIdx].sk.cons) if (c.t == SC_DIST) c.v = 60;
 	skSolve (g_doc.feats[skIdx].sk);
