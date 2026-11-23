@@ -1,9 +1,9 @@
 [package]
 name = "claudecode"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-description = "Claude Code pour Korin : le frontal de la CLI officielle d'Anthropic (sessions, chat), sur egui (docs/etude/LINUX-HOST.md)"
+description = "Claude Code pour Korin : le frontal de la CLI officielle d'Anthropic, l'interface de ClaudeCodeUI en egui (docs/etude/CLAUDECODE-UI.md)"
 publish = false
 
 [[bin]]
@@ -11,14 +11,29 @@ name = "claudecode"
 path = "src/main.rs"
 
 [dependencies]
-egui = { version = "0.37", default-features = false, features = ["default_fonts"] }
+# (les polices d'émojis monochromes, comme egui-korin : les mêmes glyphes sous Korin et sur l'hôte de développement)
+egui = { version = "0.37", default-features = false, features = ["default_fonts", "monochrome_emoji_fonts"] }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
+ccui-shared = { path = "crates/shared" }
+ccui-core = { path = "crates/core" }
+tokio = { version = "1", features = ["full"] }
+chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
+rust_decimal = { version = "1", default-features = false, features = ["std", "serde"] }
+
+[features]
+# l'hôte de développement Linux : la même interface dans une fenêtre eframe, ou en image (--shot) ; dev.rs
+dev = ["dep:eframe", "dep:hdrshot-egui-backend", "dep:png"]
 
 # l'hôte egui de Korin (docs/EGUI.md) : seulement pour la cible de Korin ; ailleurs (cargo test sur la machine de
 # construction) les modules sans fenêtre s'essaient seuls
 [target.'cfg(target_os = "korin")'.dependencies]
 egui-korin = { path = "../../lib/egui-korin" }
+
+[target.'cfg(not(target_os = "korin"))'.dependencies]
+eframe = { version = "0.37", optional = true, default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
+hdrshot-egui-backend = { version = "=0.2.0", optional = true, default-features = false, features = ["std"] }
+png = { version = "0.18", optional = true }
 
 [workspace]
 # ccui-shared et ccui-core : le moteur de ClaudeCodeUI (MIT, © 2026 Atypical Consulting ; crates/README.md)
