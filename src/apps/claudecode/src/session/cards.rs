@@ -78,8 +78,7 @@ pub fn ledger(ui: &mut Ui, t: &Tokens, uis: &mut UiState, h: &SessionHandle, too
     Frame::new().stroke(Stroke::new(1.0, t.card_border)).corner_radius(CornerRadius::same(theme::R_LG)).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.spacing_mut().item_spacing.y = 0.0;
-        let fill = t.chrome.lerp_to_gamma(t.canvas, 0.4);
-        let r = fold_header(ui, t, open, Some(fill), |ui| {
+        let r = fold_header(ui, t, open, None, |ui| {
             ui.add(Label::new(RichText::new(&title).font(theme::mono(theme::CAPTION)).color(t.text_faint)).selectable(false));
         });
         clicked = r.clicked();
