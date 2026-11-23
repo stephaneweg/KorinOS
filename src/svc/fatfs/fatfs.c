@@ -36,7 +36,12 @@
  *    plus le répertoire. */
 #include "fatfs.h"
 
+#if defined(__x86_64__)
+#define BC_N 2048     /* secteurs en cache (1 Mo : un dossier de milliers de noms longs y tient ; point 3 de
+			 docs/agents/FICHIERS-PERF.md) */
+#else
 #define BC_N 256      /* secteurs en cache (128 Ko) */
+#endif
 #define BLOC_N 128    /* secteurs par transfert direct (64 Ko : FS_READ_BUF) */
 #if defined(__x86_64__)
 #define FT_N 8        /* fils qui servent les requêtes */
@@ -50,9 +55,15 @@
 #define NO_MAX OUV_MAX
 #define CC_BLOCK_SHIFT 7 /* bloc du cache : 128 secteurs (BLOC_N) */
 #define CC_BLOCK_BYTES (BLOC_N * 512)
-#define CC_BLOCKS_MAX 4096 /* 256 Mo */
+#if defined(__x86_64__)
+#define CC_BLOCKS_MAX 16384 /* 1 Go pour / (le PC : 1/8 de la mémoire libre au plus, rendu quand elle manque) */
+#define CC_OTHER_MAX 4096   /* 256 Mo : les autres volumes */
+#define CC_HASH 32768
+#else
+#define CC_BLOCKS_MAX 4096 /* 256 Mo (décision du 01/11/2026 pour la carte du Pi) */
 #define CC_OTHER_MAX 1024  /* 64 Mo : les volumes autres que SD0 */
 #define CC_HASH 8192
+#endif
 #define CC_FILE_MAX 0x8000000 /* un fichier plus gros n'y passe pas (vidéo) */
 #define CC_RESERVE 16384      /* pages libres laissées aux process (64 Mo) */
 #define CC_CHECK_MASK 63      /* mémoire libre revue tous les 64 défauts */

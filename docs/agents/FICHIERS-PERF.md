@@ -83,7 +83,7 @@ ensemble.
   l'ancien binaire, et **demander à l'utilisateur avant d'installer** sur le ZBook (CLAUDE.md, « Le système
   lui-même »).
 
-## Fait (session du cloud, 22-23/11/2026) : points 1, 2, 4 et 5
+## Fait (session du cloud, 22-23/11/2026) : points 1 à 5
 
 Branche `claude/serene-newton-051kkg`. Essayé sous QEMU seulement (q35, 4 cœurs, **sans KVM**, NVMe de QEMU, machine
 chargée par la construction de WebKit) : **à essayer sur le ZBook**, en gardant les anciens `vfs`, `fatfs`, `nvme`.
@@ -95,7 +95,13 @@ chargée par la construction de WebKit) : **à essayer sur le ZBook**, en gardan
 | 4. lectures en parallèle dans `fatfs` | 8 fils sur le PC (1 sur le Pi). Lecteurs (open sans écriture, read, stat, readdir, seek, info, close sans écriture) en parallèle, le verrou relâché pendant leurs lectures du périphérique, chacun dans sa zone du tampon partagé ; écrivains seuls (ils attendent la fin des lecteurs). Une op tient son fichier ouvert (`fo->busy`) ; une fermeture qui doit écrire repasse en écrivain ; les avis de fork et de fin de process passent dans l'ordre (`recv`), la fin en écrivain seulement si un de ses fichiers doit écrire. | `src/svc/fatfs/fatfs.c`, `src/svc/common/fsowner.c` |
 | 5. plusieurs requêtes en vol (`blkserv`, `nvme`) | `struct blk_driver` : champ `concurrency` ajouté à la fin (`BLK_DRIVER_V3`) ; `blkserv` sert alors chaque périphérique par autant de fils et appelle `read`/`read_sg` sans son verrou (écritures et le reste : une à la fois, comme avant ; les autres pilotes ne changent pas). `nvme` : jusqu'à 8 paires de files d'E/S (ce que le contrôleur accorde), chacune avec ses places, ses listes PRP, son tampon et son verrou ; une requête prend une file libre ; toutes sur le vecteur 0. La garde `policy_write_ok` est inchangée. | `src/svc/common/blkserv.[ch]`, `src/svc/nvme/nvme.c` |
 
-Le point 3 (caches proportionnés) n'est pas fait.
+Point 3, sur le PC seulement (le Pi garde ses tailles et la décision du 01/11) : cache des secteurs de 128 Ko à
+**1 Mo** (`BC_N` 2048 ; toujours en correspondance directe), cache des données jusqu'à **1 Go** pour `/` (1/8 de la
+mémoire libre au plus, rendu quand elle manque, comme avant) et 256 Mo pour les autres volumes.
+
+Non-régression (QEMU) : `posixtest` 339 réussis / 17 échecs / 5 sautés, **les mêmes** avant et après (les échecs
+sont anciens : `/ram0`, `xbit`, `RLIMIT_NOFILE`) ; `vfstest` et `fstest2` : les mêmes échecs avant et après (essais
+d'avant l'arbre unique : `ram0:`, `SD:`, `fs.ram0`).
 
 ### Mesures (`fsbench`, nouvelle commande `src/bin/fsbench`)
 
