@@ -1,10 +1,12 @@
-# Koton, Arabesque et Budget mensuel sous Linux
+# Koton, Arabesque, Budget mensuel, TerraCube et Forge sous Linux
 
-Trois applications de Korin portées sous Linux (essayées sur Fedora 45, x86_64) : **Koton** (« KotonStudio », le
+Des applications de Korin portées sous Linux (essayées sur Fedora 45, x86_64) : **Koton** (« KotonStudio », le
 studio de composition, `src/apps/koton`), **Arabesque** (la composition algorithmique par fractales,
-`src/apps/arabesque`) et **Budget mensuel** (`src/apps/budget`, avec la liaison bancaire par Enable Banking).
+`src/apps/arabesque`), **Budget mensuel** (`src/apps/budget`, avec la liaison bancaire par Enable Banking),
+**TerraCube** (le bac à sable de blocs en 3D, `src/apps/terracube`) et **Forge** (la CAO, `src/apps/forge`).
 L'interface est en **GTK 4**, le son en **FluidSynth** (sortie PipeWire, PulseAudio ou ALSA), le réseau sur
-**OpenSSL**, le coffre à secrets sur **libsecret** (le trousseau du bureau).
+**OpenSSL**, le coffre à secrets sur **libsecret** (le trousseau du bureau), la 3D de TerraCube en **OpenGL ES 3**
+(EGL : le pilote du GPU, ou Mesa).
 
 Les sources des apps ne sont **pas copiées** : `make` compile celles de `src/apps/<app>` telles quelles. Ce qui
 change, ce sont les kits de Korin qu'elles appellent, refaits pour Linux :
@@ -16,8 +18,11 @@ change, ce sont les kits de Korin qu'elles appellent, refaits pour Linux :
 | `common/korin_paths.cpp` | les chemins de Korin (`HOME:/`, `/apps/<app>.app/`...) traduits pour Linux ; Jet (le navigateur de Korin) remplacé par celui du système (`xdg-open`, sinon `gio open`) |
 | `common/korin_thread.cpp` | les fils de haute priorité (SCHED_FIFO refusé sans droit temps réel : le fil part quand même) |
 | `common/korin_sys.cpp` | les appels système de Korin que les apps font elles-mêmes (`armpi_syscall`) : l'horloge (`SYS_TIME_MS`, `SYS_CLOCK_GET`), le coffre à secrets |
-| `common/korin_vault.cpp` | le coffre à secrets de Korin (`src/lib/keyvault/keyvault.h` : `kv_set`, `kv_get`...) sur le Secret Service, par libsecret ; seulement pour Budget |
-| `arabesque/linux_main.cpp`, `koton/linux_main.cpp`, `budget/linux_main.cpp` | l'entrée de chaque programme : les chemins, puis le `main` de Korin, ou un mode sans fenêtre |
+| `common/korin_vault.cpp` | le coffre à secrets de Korin (`src/lib/keyvault/keyvault.h` : `kv_set`, `kv_get`...) sur le Secret Service, par libsecret ; pour Budget, TerraCube et Forge (le jeton du MCP) |
+| `common/glkit_egl.cpp` | GlKit (`armgl_*` de `tools/mesa/armgl/armgl.h`) sur EGL : un contexte OpenGL ES 3.0 et des surfaces hors écran (pbuffers, sinon FBO) ; TerraCube relit son image et la recopie dans la fenêtre comme sous Korin, le HUD de UIKit dessiné dedans |
+| `common/kits_misc.cpp` | les bouts de NetKit (`net_info` : l'adresse de la machine) et d'ArchiveKit (`ar_deflate_new`, `ar_crc32`... sur zlib : les PNG des captures) dont TerraCube et Forge se servent ; les sockets sont celles de POSIX |
+| `common/wayland/*.xml` | deux protocoles de Wayland (pointeur verrouillé, déplacements relatifs), pour la souris prise de TerraCube (`ui_pointer_lock`) |
+| `arabesque/`, `koton/`, `budget/`, `terracube/`, `forge/` : `linux_main.cpp` | l'entrée de chaque programme : les chemins, puis le `main` de Korin, ou un mode sans fenêtre |
 | `bin/` | les binaires construits (x86_64, Fedora 45) |
 
 Le moteur musical (composition, formats `.kson`, `.sq`, `.arb`, `.ifs`, `.stl`, exports MIDI, FM Song, WAV) est celui
@@ -26,19 +31,23 @@ même graine, même `.mid`.
 
 ## Dépendances (Fedora)
 
-    sudo dnf install gcc-c++ make pkgconf python3 gtk4-devel fluidsynth-devel openssl-devel libsecret-devel fluid-soundfont-gm
+    sudo dnf install gcc-c++ make pkgconf python3 gtk4-devel fluidsynth-devel openssl-devel libsecret-devel fluid-soundfont-gm \
+        libglvnd-devel wayland-devel zlib-ng-compat-devel opencascade-devel eigen3-devel boost-devel
 
 Sans `libsecret-devel`, Budget se construit sans coffre à secrets (la session bancaire va alors dans `banque.json` et
 la clé reste dans son `.pem`, comme sur un Korin sans coffre ; `bin/budget --vault-status` dit lequel des deux).
 
 À l'exécution : `gtk4`, `openssl-libs` ; pour Koton et Arabesque `fluidsynth-libs` et une SoundFont General MIDI
 (`fluid-soundfont-gm` pose `/usr/share/soundfonts/FluidR3_GM.sf2`, prise par défaut), pour l'export MP3 d'Arabesque
-`lame-libs` ; pour Budget `libsecret` et un trousseau (GNOME : déjà là), `xdg-utils` pour le navigateur.
+`lame-libs` ; pour Budget `libsecret` et un trousseau (GNOME : déjà là), `xdg-utils` pour le navigateur ; pour
+TerraCube `libglvnd-egl`, `libglvnd-gles` et un pilote OpenGL ES 3.0 (Mesa ou celui du GPU), `fluidsynth-libs` (la
+sortie du son) ; pour Forge `opencascade-foundation`, `opencascade-modeling`, `opencascade-draw` n'est pas utile
+(voir plus bas).
 
 ## Construire
 
     cd linux-ports
-    make -j8          # -> bin/arabesque, bin/koton, bin/koton-plugins/<id>/, bin/llm, bin/budget
+    make -j8          # -> bin/arabesque, bin/koton, bin/koton-plugins/<id>/, bin/llm, bin/budget, bin/terracube, bin/forge
     make clean        # (efface build/ ; les binaires de bin/ restent)
 
 `make` génère d'abord les en-têtes C des kits depuis leurs `.abi` (`tools/kits/abi2c.py`, comme pour Korin).
@@ -106,7 +115,10 @@ dans `~/.config/korin-ports/settings.ini`). Pour un lancement : `--soundfont x.s
 | `KORIN_FLUID_GAIN` | le gain des synthés (0,5) |
 | `KORIN_FLUID_VERBOSE` | les messages de FluidSynth et l'état de la sortie |
 | `KORIN_BROWSER` | la commande qui ouvre une adresse ou un dossier (à la place de `xdg-open`) |
-| `KORIN_SCRIPT` | essai sans les mains : `1500:menu:11;4000:shot:/tmp/a.png;5000:exit` (`menu:<id>`, `key:<hid>[:mods]`, `click:x,y[,clics[,3 : bouton droit]]`, `wset:<widget>:<valeur>`, `wact:<widget>`, `shot:` une capture PNG ; pour la dernière fenêtre ouverte, un dialogue : `key2:`, `chars2:<texte>`, `click2:`, `press2:<texte d'un bouton>`, `shot2:` ; `dump:` / `dump2:` l'état réel des widgets, les captures pouvant être en retard ; `close`, `exit`) ; `KORIN_DEBUG_WIDGETS=1` liste les widgets |
+| `KORIN_GL_VERBOSE` | TerraCube : ce que donne EGL (le fournisseur, le GPU, pbuffers ou FBO) |
+| `LIBGL_ALWAYS_SOFTWARE=1` | TerraCube rendu par le processeur (llvmpipe de Mesa, avec `__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json` sur une machine NVIDIA) : la distance de vue réduite, comme softpipe sous Korin |
+| `KORIN_NO_POINTER_LOCK=1` | TerraCube : la souris prise sans le verrou de Wayland (le repli) |
+| `KORIN_SCRIPT` | essai sans les mains : `1500:menu:11;4000:shot:/tmp/a.png;5000:exit` (`menu:<id>`, `key:<hid>[:mods]`, `kdown:<hid>` / `kup:<hid>` une touche tenue, `mrel:dx,dy` la souris prise qui bouge, `click:x,y[,clics[,3 : bouton droit]]`, `wset:<widget>:<valeur>`, `wact:<widget>`, `shot:` une capture PNG ; pour la dernière fenêtre ouverte, un dialogue : `key2:`, `chars2:<texte>`, `click2:`, `press2:<texte d'un bouton>`, `shot2:` ; `dump:` / `dump2:` l'état réel des widgets, les captures pouvant être en retard ; `close`, `exit`) ; `KORIN_DEBUG_WIDGETS=1` liste les widgets |
 
 ## Ce qui est porté
 
@@ -127,6 +139,17 @@ dans `~/.config/korin-ports/settings.ini`). Pour un lancement : `--soundfont x.s
   `bank-session`, `home=` le dossier de `HOME:/`), comme dans le coffre de Korin ; sans trousseau, comme avant
   (`banque.json` et le `.pem`). Un `banque.json` de l'app Windows ou de Korin sert tel quel (copier aussi le `.pem`).
 
+- **TerraCube** : tout le jeu (créatif et survie, fabrication dessinée dans le jeu, console, météo, liquides,
+  circuits de cuivre, créatures), le rendu OpenGL ES 3.0 par le GPU (EGL de libglvnd : NVIDIA, Intel par Mesa, ou
+  llvmpipe), le HUD de UIKit par-dessus la 3D (dessiné dans l'image relue, comme sous Korin), le son synthétisé dans
+  le jeu (flux d'AudioKit sur la sortie de FluidSynth), le pilotage par **scripts** (port 4730, 127.0.0.1 ; les
+  exemples Python sont dans `src/apps/terracube/data/python`) et par un **agent IA** (MCP, port 7312, jeton dans le
+  trousseau du bureau, sinon `~/Korin/terracube/mcp.txt`), les mondes dans `~/Korin/terracube/worlds`.
+  **La souris prise** (« Cliquez dans la vue pour jouer, Échap rend la souris ») : sous Wayland, le pointeur est
+  verrouillé par le compositeur et ses déplacements relatifs lus tels quels (`pointer-constraints` et
+  `relative-pointer`, que GNOME, KDE et wlroots ont) ; sans eux (X11), un repli : le curseur caché, les
+  déplacements pris entre deux positions du pointeur, qui s'arrête au bord de la fenêtre.
+
 ## Différences et limites
 
 - L'interface est celle de Korin, faite de widgets GTK 4 placés au pixel près là où UIKit les met ; les vues dessinées
@@ -141,10 +164,28 @@ dans `~/.config/korin-ports/settings.ini`). Pour un lancement : `--soundfont x.s
 - Les fonctions de UIKit et d'AudioKit dont ces apps ne se servent pas ne sont pas refaites (arbres, barres
   d'onglets, surfaces partagées, capture audio, Opus/FLAC...).
 - Comme sous Korin : pas d'entrée MIDI matérielle, « Obtenir une SoundFont » de Koton ne télécharge rien.
+- **Le clavier** : comme sous Korin, une touche a le code HID de sa **position** (`EV_CODE`, d'après le code matériel
+  evdev), le caractère tapé suit la disposition : sur un AZERTY, TerraCube marche en ZQSD comme sous Korin. Les
+  raccourcis des menus (Ctrl+S, Ctrl+Z...) se lisent par la lettre de la disposition (sous Korin : par la position,
+  `uk_misc.c`) ; ce qu'une app lit elle-même dans `EV_CODE` reste la position, comme sous Korin.
+- TerraCube : l'image passe par le processeur à chaque image (rendu hors écran, `glReadPixels`, textes, recopie dans
+  la fenêtre, puis GTK l'affiche), comme sous Korin ; à 1024 × 640, 58 images/s (le jeu en fait 60 au plus) sur une NVIDIA T1200. Plein écran
+  (F9) : une fenêtre sans bord de la taille de l'écran, pas le plein écran de GTK. Les exemples BASIC visent le BASIC
+  de Korin.
 - Un dossier se lit trié par nom (sous Korin, l'ordre de la carte) : les listes de styles et de tracés gardent leur ordre.
 - La lecture et l'export sonnent comme FluidSynth avec la SoundFont choisie, pas comme le synthé d'AudioKit.
 
 ## Vérifié
+
+- TerraCube (23/11) : `bin/terracube --selftest` passe (73 vérifications : protocole, MCP dont la capture, console,
+  survie, fabrication, circuits, liquides, créatures, sauvegarde et relecture, image rendue) sur le GPU NVIDIA (EGL
+  de NVIDIA), sur l'Intel par Mesa (iris) et par le processeur (llvmpipe), avec les trois rendus de GTK
+  (`GSK_RENDERER=vulkan`, `ngl`, `cairo`) ; une partie lancée par `KORIN_SCRIPT` (clic dans la vue : la souris prise
+  par Wayland, marche avec la touche de position W, capture : la 3D et le HUD) ; un script Python par le port 4730
+  (`post`, `fill`, `get_block`) et un client MCP (`initialize`, `tools/list`, `get_block`, `screenshot`). Pas essayé
+  à la main : la souris réelle dans la partie, le son à l'oreille. Le selftest relancé sur un monde déjà sauvé attend
+  120 s avant de se lancer (un tronçon au bord de la vue jamais maillé : le même sous Korin) : prendre un
+  `KORIN_HOME` neuf.
 
 - Les 20 préréglages d'Arabesque (`presets/*.arb` et `exemples/nocturne.arb`) recomposés par `--render` : même `.mid`
   à chaque fois, et le même compilé en `-O0` ; compilé avec FMA (`-march=native -ffp-contract=fast`), « nuit » diffère :
