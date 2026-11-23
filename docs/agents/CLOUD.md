@@ -23,6 +23,9 @@ QEMU de Fedora, `edk2-ovmf`, `nasm`). Vérifié dans une Fedora 43 neuve (image 
 GCC 15 de Fedora, `ktest` 59 / 0 sous QEMU. L'essai du Pi (`carte_linux.py`) échoue, comme sous Ubuntu à la même
 date : `ui_menu_states` de `uikit.abi` n'a pas de version en assembleur. Sur une machine avec `/dev/kvm` (Fedora
 installée, pas un conteneur) : `--qemu "-accel kvm -cpu host"` aux scripts d'essai, presque à la vitesse native.
+Fedora 45 (GCC 16.2, 23/11/2026) : la même suite passe (`VERIFY_PI=0`), puis `sysroot.sh`, `mkkorindisk.py` et le
+bureau sous QEMU ; GCC 16 avait trouvé deux erreurs, corrigées : un `memset` appelé par les programmes d'essai de
+l'initrd (`initrd/lib/mem.c`), une variable inutilisée dans `nvme.c`. Python 3.14 : par uv (Fedora 45 en a un autre).
 
 `tools/cloud/setup.sh` est idempotent (ce qui est fait et vérifié est gardé), télécharge depuis les sources
 officielles à des versions fixées (SHA-256 vérifiés, ou révision git), et ne demande root qu'à l'étape `root`, qui le

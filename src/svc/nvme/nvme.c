@@ -204,7 +204,7 @@ static void unlock(void)
 /* -> une file d'E/S libre, prise (on attend s'il n'y en a pas) */
 static struct ioqueue *q_take(void)
 {
-	for (int spin = 0;; spin++) {
+	for (;;) {
 		u32 h = __atomic_fetch_add(&q_hand, 1, __ATOMIC_RELAXED);
 		for (int k = 0; k < nq; k++) {
 			struct ioqueue *q = &ioqs[(h + k) % nq];
