@@ -1,5 +1,7 @@
 /* panel : le dash du bureau Elegant (/sys/panel, lancé par la session), comme celui de GNOME
- * (23/11/2026 ; docs/DESIGN-ELEGANT.md 8.9 et 19). Il n'est montré que dans la vue d'ensemble
+ * (23/11/2026 ; docs/DESIGN-ELEGANT.md 8.9 et 19), quand le bureau est en vue d'ensemble
+ * (desktop=overview de /etc/system.ini) ; sinon, le bureau classique : la barre d'avant
+ * (panel_classic.c). Il n'est montré que dans la vue d'ensemble
  * (rôle WF_OVERVIEW : Elegant le cache dans la vue normale) : un bandeau de verre arrondi,
  * centré en bas de l'écran, de la largeur de son contenu :
  *   - les RACCOURCIS (panelconf : /etc/panel.ini), puis les applications ouvertes qui n'en ont
@@ -459,10 +461,18 @@ static void tick(void)
 	}
 }
 
+int classic_main(void); /* panel_classic.c */
+
 int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
+	/* le bureau classique (desktop=classic, le défaut : Elegant n'a pas de vue d'ensemble) : la barre d'avant */
+	M64(pan_msg, WM_OP) = WS_OP_OVERVIEW;
+	M64(pan_msg, WM_A) = 2;
+	M32(pan_msg, WM_LEN) = 0;
+	if (ksys(SYS_WS_CALL, (long)pan_msg, 0, 0, 0, 0, 0) < 0)
+		return classic_main();
 	ui_init((long)&ui);
 	if (ui_screen((long)scr) < 0)
 		_exit(0);

@@ -1064,6 +1064,14 @@ Demande de l'utilisateur : un bureau « comme GNOME » (Fedora Workstation réce
   visibles), les fenêtres de chaque bureau **en exposé** (côte à côte, sans se couvrir), et en bas
   le **dash** (le panel, § 8.9 : les applications épinglées, celles qui tournent, « Applications »).
 
+**Le choix du mode** (23/11/2026, demande de l'utilisateur) : `desktop = classic | overview` dans
+`/etc/system.ini` (avec `shell=desktop`), choisi dans Réglages > Écran > Interface (trois cartes : Bureau
+classique, Vue d'ensemble, Poche ; « Appliquer et relancer » redémarre). **Le bureau classique est le défaut** :
+le panel d'avant (`panel_classic.c` : barre pleine largeur, bureaux, corbeille, réglages, éteindre), le menu
+Korin, les clics icône par icône de la zone d'état, Super laissé aux applications ; `WS_OP_OVERVIEW` y répond
+`E_INVAL`, et c'est ainsi que le panel et la barre de menus savent le mode. La clé live peut fixer le sien
+(`installkey.py build --desktop overview`). Le glissement entre bureaux (Ctrl+Alt+flèches) vaut pour les deux.
+
 **Ouvrir, fermer.** Le bouton « Korin OS » de la barre de menus (`WS_OP_OVERVIEW`, 42 : a -1
 basculer, 0 fermer, 1 ouvrir, 2 lire → 1 ouverte, 0 fermée), Super seul (`dk_key` du mode
 desktop). Elle se ferme sur Échap, Entrée, un clic sur le fond, un second clic sur « Korin OS »,

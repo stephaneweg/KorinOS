@@ -131,6 +131,8 @@ long mode_choose(const char *arg)
 	const char *name = arg;
 	if (!name || !*name) {
 		read_shell(); /* shell= de /etc/system.ini */
+		/* desktop= : le bureau classique (défaut) ou la vue d'ensemble (overview.c) */
+		ov_enabled = read_key(path_ini, "desktop") && str_eq(ini_val, "overview");
 		name = mode_name;
 		if (force_desktop()) /* (options.txt : shell=desktop) */
 			name = str_mode_desktop;

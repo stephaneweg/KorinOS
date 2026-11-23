@@ -125,6 +125,7 @@ static long bar_h = 30;
 static long hov;            /* titre survolé + 1 (0 : aucun) */
 static long ov_sub;         /* korin.shell.overview (Elegant : la vue d'ensemble) */
 static long ov_shown;       /* 1 : la vue d'ensemble est ouverte (« Korin OS » allumé) */
+static long ov_mode;        /* 1 : le bureau est en vue d'ensemble (desktop=overview) ; 0 : le bureau classique */
 static long tray_x0 = 1 << 30; /* zone d'état (heure, batterie, réseau, son) : début ; un clic : réglages rapides */
 static long tray_hov;       /* 1 : la zone d'état est survolée */
 static long open_menu;      /* titre ouvert + 1 (0 : aucun) */
@@ -1396,7 +1397,7 @@ static void draw(void)
 	x -= 12 + 16; /* son : haut-parleur 16 x 14 */
 	snd_x = x;
 	snd_icon(x);
-	tray_x0 = poche ? 1 << 30 : x - 10;
+	tray_x0 = poche || !ov_mode ? 1 << 30 : x - 10; /* (le bureau classique : les icônes une à une) */
 	if (pq_on) { /* PocketQI : bulle 16 x 14 */
 		x -= 12 + 16;
 		pq_x = x;
@@ -1498,6 +1499,7 @@ static void overview_query(void)
 	M32(m, WM_LEN) = 0;
 	long r = ksys(SYS_WS_CALL, (long)m, 0, 0, 0, 0, 0);
 	ov_shown = r == 1;
+	ov_mode = r >= 0; /* (E_INVAL : le bureau classique, pas de vue d'ensemble) */
 }
 
 /* abonnement (> 0), sinon 0 */
@@ -1532,8 +1534,10 @@ int main(int argc, char **argv)
 	snd_poll();
 	bat_sub = subscribe(s_bat_topic, 0); /* la batterie (acpid du PC) */
 	bat_read();
-	if (!poche) /* la vue d'ensemble d'Elegant */
+	if (!poche) { /* la vue d'ensemble d'Elegant (ou le bureau classique) */
+		overview_query();
 		ov_sub = subscribe(s_t_overview, BUS_CURRENT);
+	}
 	if (poche) { /* mode poche : non lues, apps ouvertes */
 		unread_sub = subscribe(s_unread, BUS_CURRENT);
 		count_apps();

@@ -39,6 +39,8 @@ static long dk_super; /* Super appuyé, seul jusqu'ici */
 static long dk_key(const u8 *in)
 {
 	u64 code = M64(in, 8);
+	if (!ov_enabled) /* (le bureau classique : Super va aux applications, comme avant) */
+		return 0;
 	if (code == HID_LGUI || code == HID_RGUI) {
 		if (M64(in, 16)) {
 			dk_super = 1;

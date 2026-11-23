@@ -45,6 +45,7 @@
 #define OV_MAXW 4096
 
 long ov_on; /* non nul : la vue d'ensemble a l'écran (ouverture, ouverte, fermeture) */
+long ov_enabled; /* desktop=overview (system.ini) : la vue existe ; sinon le bureau classique */
 
 static long ov_state; /* 1 ouverture, 2 ouverte, 3 fermeture */
 static long ov_p = OV_ONE;     /* avancement du zoom (0 : vue normale, OV_ONE : vue d'ensemble) */
@@ -1055,7 +1056,7 @@ static void scroll_to(long d)
 
 void ov_open(void)
 {
-	if (policy->flags & POLF_POCKET)
+	if ((policy->flags & POLF_POCKET) || !ov_enabled)
 		return;
 	if (ov_on) {
 		if (ov_state == 3) { /* (en train de se fermer : on revient) */
@@ -1253,7 +1254,7 @@ void ov_gone(struct win *w)
 /* WS_OP_OVERVIEW : a -1 basculer, 0 fermer, 1 ouvrir, 2 lire -> 1 ouverte / 0 fermée */
 long req_overview(void)
 {
-	if (policy->flags & POLF_POCKET)
+	if ((policy->flags & POLF_POCKET) || !ov_enabled) /* (le bureau classique : pas de vue d'ensemble) */
 		return E_INVAL;
 	long a = MS64(msg, WM_A);
 	if (a == -1)

@@ -13,6 +13,8 @@
         korin/boot.cfg                Korin tout de suite, sans menu
         le système « live »           build/pc/sysroot (sans home/), et etc/install.ini (Setup en mode install)
       --plan FICHIER : (essai) osinstall lancé par init2 avec ce plan (etc/plan-test.ini), sans Setup
+      --desktop classic|overview : le bureau de la clé (desktop= de etc/system.ini ; sans : celui de l'arbre,
+                                   le bureau classique)
   python -I tools/pc/installkey.py run [--target IMAGE] [qemu_nvme.py options...]
       démarre la clé sous QEMU (usb-storage sur xHCI, amorçable) avec un disque NVMe cible (défaut : une image
       de tools/pc/mkkorindisk.py, le faux Windows, en snapshot : jamais écrite)
@@ -145,6 +147,13 @@ def build(a):
             f.write(KEY_BOOTCFG)
         with open(os.path.join(tree, "etc", "install.ini"), "w", encoding="ascii", newline="") as f:
             f.write(INSTALL_INI)
+        if a.desktop:  # le genre du bureau de la clé (desktop= de system.ini : classic, overview)
+            sysini = os.path.join(tree, "etc", "system.ini")
+            lines = open(sysini, encoding="latin-1").read().splitlines() if os.path.isfile(sysini) else []
+            lines = [l for l in lines if not l.replace(" ", "").startswith("desktop=")]
+            lines.append("desktop=%s" % a.desktop)
+            with open(sysini, "w", encoding="latin-1", newline="") as f:
+                f.write("\n".join(lines) + "\n")
         sess = os.path.join(tree, "etc", "session")  # la session de la clé : l'installateur, plein écran
         if os.path.isfile(sess) and os.path.isfile(os.path.join(tree, "apps", "installer.app", "main")):
             with open(sess, "a", encoding="utf-8", newline="\n") as f:
@@ -240,6 +249,8 @@ def main():
     b.add_argument("--out", default=os.path.join(PC, "installkey.img"))
     b.add_argument("--extra-mb", type=int, default=32)
     b.add_argument("--plan", default=None)
+    b.add_argument("--desktop", default=None, choices=("classic", "overview"),
+                   help="le bureau de la clé (desktop= de etc/system.ini ; sans : celui de l'arbre)")
     b.add_argument("--disktest", nargs="?", const="ext4", default=None, choices=("ext4", "exfat", "fat32", "ext4read", "ext4write"))
     r = sub.add_parser("run")
     r.add_argument("--key", default=os.path.join(PC, "installkey.img"))
