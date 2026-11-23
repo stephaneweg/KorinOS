@@ -526,7 +526,7 @@ impl Overview {
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         ui.spacing_mut().item_spacing.x = 4.0;
                         widgets::dim(ui, &t, &t!("Palette.Open"));
-                        kbd(ui, &t, &t!("Key.Enter"));
+                        kbd(ui, &t, "Enter");
                         widgets::dim(ui, &t, &format!("{} · ", t!("Perm.HintDeny")));
                         kbd(ui, &t, "D");
                         if answerable(&queue[i].permission.tool) {
@@ -728,7 +728,7 @@ impl Overview {
                 widgets::dim(ui, &t, &t!("Ov.Reread"));
                 kbd(ui, &t, "R");
                 widgets::dim(ui, &t, &format!("{} · ", t!("Ov.ResumeKey")));
-                kbd(ui, &t, &t!("Key.Enter"));
+                kbd(ui, &t, "Enter");
                 widgets::dim(ui, &t, &format!("{} · ", t!("Ov.Select")));
                 kbd(ui, &t, "K");
                 kbd(ui, &t, "J");

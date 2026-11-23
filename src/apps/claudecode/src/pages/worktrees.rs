@@ -738,7 +738,7 @@ impl Worktrees {
         });
 
         // le tableau
-        let w = parts::widths(ui.available_width(), &[0.0, 0.0, 84.0, 200.0], &[0.9, 1.1, 0.0, 0.0]);
+        let w = parts::widths(ui.available_width(), &[0.0, 0.0, 84.0, 300.0], &[0.9, 1.1, 0.0, 0.0]);
         let right = [false, false, true, true];
         let size_title = format!("{}{}", t!("Wt.Col.Size"), if self.by_size { " ↓" } else { "" });
         let titles = [t!("Wt.Col.Worktree"), t!("Wt.Col.Why"), size_title, String::new()];
@@ -759,7 +759,7 @@ impl Worktrees {
                     ui.horizontal(|ui| {
                         ui.add_space(10.0);
                         widgets::cap(ui, &t, &t!(title));
-                        ui.label(RichText::new(t!(help)).font(egui::FontId::proportional(theme::CAPTION)).color(t.text_faint));
+                        one_line(ui, RichText::new(t!(help)).font(egui::FontId::proportional(theme::CAPTION)).color(t.text_faint)).on_hover_text(t!(help));
                     });
                     let r = ui.max_rect();
                     ui.painter().hline(r.x_range(), ui.cursor().top(), Stroke::new(1.0, t.separator));
@@ -861,9 +861,8 @@ impl Worktrees {
                     let font_id = if b { theme::semibold(theme::LABEL) } else { egui::FontId::proportional(theme::LABEL) };
                     job.append(&s, 0.0, egui::TextFormat { font_id, color: if b { t.text } else { t.text_dim }, ..Default::default() });
                 }
-                job.wrap.max_width = ui.available_width();
                 job.wrap.max_rows = 2;
-                ui.add(egui::Label::new(job)).on_hover_text(parts::plain(&wi.why));
+                ui.add(egui::Label::new(job).wrap()).on_hover_text(parts::plain(&wi.why));
             }
             2 => {
                 let s = if wi.state == WtState::Orphan || wi.branch_only {
