@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-23 23:41
+date = 2026-11-23 23:44
 abi = 629
 packages = 117
 board = pc
@@ -979,18 +979,18 @@ content = 25d4d247a2982b777ad62deb5d6390a1d27d074ff6ae8a6a9af8b40611be2302
 
 [disks]
 title = Disques
-version = 1.0.9
+version = 1.0.10
 category = Système
 author = Korin OS
 summary = 
-size = 125025
-installed = 257036
-sha256 = 9da58fab29b7333b7a6c58aa1af632559ef8366aa38a07363b056e9b16cf804b
-file = pkgs/disks-1.0.9.opk
+size = 127262
+installed = 261150
+sha256 = 61789e88c24345e4e5488214914cf226a3a0a29f8aeb0e16cc4e6134db9f3f7a
+file = pkgs/disks-1.0.10.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = acabfef7d64d48e7cb1755b53d9e275c632874b5b0d0eca24fd5c2e7aec38005
+content = 841a096866a9e30b5d9818a3f51deb47d71c28c87e9f66ec6583fd279c744e22
 
 [fmtracker]
 title = FM Tracker
