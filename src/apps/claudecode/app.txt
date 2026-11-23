@@ -1,6 +1,6 @@
-# Manifeste de Claude Code (src/apps/claudecode : le frontal de la CLI officielle de Claude Code, en Rust sur egui, dans
-# le style des apps Craft ; docs/etude/LINUX-HOST.md, jalon 4). Paquet claude-code.
+# Manifeste de Claude Code (src/apps/claudecode : le frontal de la CLI officielle de Claude Code, en Rust sur egui :
+# l'interface de ClaudeCodeUI, docs/etude/CLAUDECODE-UI.md). Paquet claude-code.
 name     = Claude Code
 category = Développement
-description = Claude Code, l'agent de code d'Anthropic, dans une fenêtre : vos conversations (les changer, renommer, ranger dans des dossiers, épingler, supprimer), le chat, les autorisations des outils. Avec votre abonnement Claude.
+description = Claude Code, l'agent de code d'Anthropic, dans une fenêtre (l'interface de ClaudeCodeUI) : sessions en parallèle et vue d'ensemble, autorisations avec diff, inspecteur des outils, palette Ctrl K, worktrees, extensions (MCP, plugins, hooks), quotas ; vos conversations rangées en dossiers. Avec votre abonnement Claude.
 keywords = claude code agent ia anthropic conversation chat programmation assistant
