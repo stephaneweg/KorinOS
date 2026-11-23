@@ -33,14 +33,26 @@ fn main() {
     let mut app = app::App::new(&ctx, Box::new(|| egui_korin::system_theme() == egui::Theme::Dark));
     let mut options = egui_korin::Options::new("Claude Code").size(1280, 820);
     options.min_size = Some([860, 540]);
+    let trace = std::env::var_os("CLAUDECODE_TRACE").is_some();
+    let mut n = 0u32;
     let r = egui_korin::run_with(options, &ctx, move |ctx, input, host| {
+        n += 1;
+        if trace && n <= 2 {
+            eprintln!("claudecode : image {n}");
+        }
         // la barre de menus de Korin (app.rs : menu_text, menu_command)
         egui_korin::menu::set(&app.menu_text());
         for id in egui_korin::menu::take_chosen() {
             app.menu_command(id);
         }
         app.set_focused(input.focused);
+        if trace && n <= 2 {
+            eprintln!("claudecode : menus");
+        }
         let out = ctx.run_ui(input, |ui| app.ui(ui));
+        if trace && n <= 2 {
+            eprintln!("claudecode : passe");
+        }
         for r in host::take() {
             match r {
                 host::Req::Open(t) => host.open(&t),

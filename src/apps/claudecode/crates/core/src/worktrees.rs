@@ -903,6 +903,10 @@ async fn process_cwds() -> ProcList {
             return l.clone();
         }
     }
+    // Korin : pas de `lsof`
+    if cfg!(target_os = "korin") {
+        return Vec::new();
+    }
     let list = tokio::task::spawn_blocking(|| {
         std::process::Command::new("lsof")
             .args(["-n", "-P", "-w", "-d", "cwd", "-Fpcn"])

@@ -107,9 +107,19 @@ pub struct App {
 impl App {
     pub fn new(ctx: &egui::Context, system_dark: Box<dyn Fn() -> bool>) -> App {
         theme::install_fonts(ctx);
+        let trace = std::env::var_os("CLAUDECODE_TRACE").is_some();
+        if trace {
+            eprintln!("claudecode : moteur");
+        }
         let be = Backend::new();
         be.set_context(ctx);
+        if trace {
+            eprintln!("claudecode : état");
+        }
         let store = AppStore::new(&be);
+        if trace {
+            eprintln!("claudecode : prêt");
+        }
         let t = Tokens::for_dark(system_dark());
         App {
             store,

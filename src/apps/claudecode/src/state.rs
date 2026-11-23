@@ -271,7 +271,7 @@ impl AppStore {
         let summary = be.core.sessions.summary();
         let bg_needs = ccui_core::background_agents::needs_you_count();
         // (la veille des agents d'arrière-plan, une fois par minute, comme `bg_watch` au montage du rail)
-        {
+        if std::env::var_os("CLAUDECODE_NO_BG").is_none() {
             let _g = be.rt.enter();
             ccui_core::background_agents::watch(be.core.sink.clone());
         }

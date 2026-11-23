@@ -462,7 +462,8 @@ fn scan_held() -> HashSet<String> {
 
 /// stdout of a short helper command. ponytail: `ps`/`lsof` only, so empty on Windows (Win32_Process if needed).
 fn run(cmd: &str, args: &[&str]) -> Option<String> {
-    if cfg!(windows) {
+    // Korin : ni `ps` ni `lsof` (et un fork à chaque image pour rien)
+    if cfg!(windows) || cfg!(target_os = "korin") {
         return None;
     }
     let out = std::process::Command::new(cmd).args(args).stdin(std::process::Stdio::null()).output().ok()?;
