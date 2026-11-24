@@ -347,8 +347,8 @@ static const u8 uk_vt_has_tab[UT_VIEWF + 1] = {
 #define FR (VTF_FOCUS | VTF_RING)
 static const u8 uk_vt_flags_tab[UT_VIEWF + 1] = {
 	0, 0, VTF_FOCUS, FR, FRM, 0, FRM, FRM, FRM, FR, 0, FR | VTF_TAB, FR, 0, FR, FR, 0, 0, 0, 0, 0,
-	FRM, VTF_FOCUS | VTF_MOVE, 0, 0, VTF_MOVE, 0, FR, FR, 0, FR, VTF_FOCUS, 0, 0, VTF_FOCUS | VTF_TAB,
-};
+	FRM, VTF_FOCUS | VTF_MOVE, VTF_MOVE, 0, VTF_MOVE, 0, FR, FR, 0, FR, VTF_FOCUS, 0, 0, VTF_FOCUS | VTF_TAB,
+};	/* (UT_TABSTRIP : VTF_MOVE, en haut d'une fenêtre il la déplace comme le vide) */
 #undef FRM
 #undef FR
 

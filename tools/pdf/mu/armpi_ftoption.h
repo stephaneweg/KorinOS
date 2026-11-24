@@ -364,7 +364,7 @@ FT_BEGIN_HEADER
    *   You would normally undefine this configuration macro when building a
    *   version of FreeType that doesn't contain a Type~1 or CFF driver.
    */
-/* #define FT_CONFIG_OPTION_POSTSCRIPT_NAMES */	/* Onyx: off */
+#define FT_CONFIG_OPTION_POSTSCRIPT_NAMES	/* Onyx l'avait retire : sans lui le pilote CFF refuse les 14 polices standard (Korin, 24/11) */
 
 
   /**************************************************************************
@@ -381,7 +381,7 @@ FT_BEGIN_HEADER
    *   in your 'psnames' module.  The Type~1 driver will not be able to
    *   synthesize a Unicode charmap out of the glyphs found in the fonts.
    */
-/* #define FT_CONFIG_OPTION_ADOBE_GLYPH_LIST */	/* Onyx: off */
+#define FT_CONFIG_OPTION_ADOBE_GLYPH_LIST	/* Onyx l'avait retire : sans lui le pilote CFF refuse les 14 polices standard (Korin, 24/11) */
 
 
   /**************************************************************************
@@ -626,7 +626,7 @@ FT_BEGIN_HEADER
    *
    * (By default, the module uses 'psnames' to extract glyph names.)
    */
-/* #define TT_CONFIG_OPTION_POSTSCRIPT_NAMES */	/* Onyx: off */
+#define TT_CONFIG_OPTION_POSTSCRIPT_NAMES	/* Onyx l'avait retire : sans lui le pilote CFF refuse les 14 polices standard (Korin, 24/11) */
 
 
   /**************************************************************************
