@@ -10,7 +10,14 @@ constats critiques ont été relus dans le code. Chaque constat porte une mentio
 * **certain** : le chemin a été suivi dans le code de bout en bout ;
 * **probable** : le constat dépend d'une course, du matériel ou d'un comportement qui n'a pas été essayé.
 
-Les numéros de ligne sont ceux du 24/11. Ce document complète le plan de [SECURITE.md](SECURITE.md) et l'étape 5 de
+Les numéros de ligne sont ceux du 24/11.
+
+**Deux passes.** Les §1 à §9 sont la première passe, corrigée là où la seconde l'a infirmée ou aggravée (mentions
+« seconde passe »). Les §10 à §17 sont la seconde passe : chaînes d'attaque, Jet, inventaire des appels système,
+démarrage et installation, services et kits restants, erreurs corrigées, et **le plan révisé (§17), qui remplace la
+liste du §1 et le §9**.
+
+Ce document complète le plan de [SECURITE.md](SECURITE.md) et l'étape 5 de
 [MULTI-UTILISATEUR.md](MULTI-UTILISATEUR.md).
 
 **Cadre.** La règle du 29/10 (« pas de sécurité contre un attaquant ») a été assouplie le 18/11 : la menace retenue
@@ -107,8 +114,12 @@ contournements des §3.2 à §3.4.
 * **Effet :** le fils emporte des copies de la RAM : coffre, clés TLS, mots de passe en mémoire.
 * **Même défaut :**
   * `phoff + phnum*phentsize` (`elf.c:38`) ;
-  * `check_elf` de `image.c` : index hors bornes de `im->pages[]`, probablement une #GP du noyau ;
+  * `check_elf` de `image.c:168` (et `phoff`, `image.c:159`). Ce n'est pas une #GP, contrairement à ce que disait la
+    première version : `image_map` lit `im->pages[fo/4096]` avec un index choisi (`image.c:205-207`) et **mappe la
+    valeur lue comme une page physique** (`image.c:214`). L'index peut viser la mémoire de l'appelant (pas de SMAP), donc
+    la page projetée est choisie : lecture de toute la RAM, sans course (seconde passe) ;
   * `kits.c:78`, qui demande `rights`.
+* Le test d'`elf.c` est à la ligne 45, la copie aux lignes 80-81.
 
 **N4. Empoisonnement du cache d'images : élévation entre comptes.** *Certain, relu.*
 
@@ -249,9 +260,12 @@ pid). Les opérations à réserver sont listées service par service plus bas.
 * Un montage par-dessus `/etc` est possible.
 * `UNMOUNT root` provoque un déni de service global.
 
-**F3. La casse FAT contourne les règles, même en `enforce`.** *Certain, relu (`access.c:28-34`, `strncmp`).*
+**F3. La casse FAT contourne les règles en lecture, même en `enforce`.** *Certain, relu (`access.c:28-34`,
+`strncmp`).*
 
 * `/ETC/SHADOW.INI`, `/Var/KeyVault/1000.db`, `/Etc/KeyVault/machine.key` et `/HOME/autre/…` échappent aux règles.
+  Un chemin qui ne correspond à aucune règle tombe sur `return !ecrire` (`access.c:58`) : c'est un contournement **en
+  lecture seulement**, l'écriture reste refusée (seconde passe).
 * Avec le shadow, la clé de la machine (sans TPM) et le `.db`, le coffre s'attaque hors ligne.
 * **Correction :** comparaison sans casse (déjà faite pour `/sbin`). Vérifier aussi les points et espaces de fin et
   les noms courts `XXXX~1`.
@@ -260,13 +274,17 @@ pid). Les opérations à réserver sont listées service par service plus bas.
 
 * **Où :** `common/fsowner.c:28-43`, fatfs, ext4fs, ramfs.
 * **Exploitation :** `FS_OPEN "etc/shadow.ini"` envoyé directement au service du volume système.
+* **Aggravé (seconde passe) :** `proprietaire()` reconnaît vfs **à son nom de process** (« vfs », `fsowner.c:38`),
+  qui se choisit au lancement. Un faux « vfs » ouvre des fichiers au nom de n'importe quel pid.
 * **Correction :** un drapeau du noyau « appelants de confiance seulement », ou bien `m->pid == pid de vfs`.
 
 **F5. Images de disque piégées (clé USB).**
 
 * **ext4fs, élevée, certain :** `bpg` et `ipg` ne sont pas bornés à `8*bs` au montage (`ext4r.c:73`, `ext4w.c:971`).
   Il en résulte une écriture de bits hors de `bm[65536]` dans le `.bss` (`ext4w.c:203-213`, `284-289`), dans un
-  service qui a les droits matériel.
+  service qui a les droits matériel. **Nuance (seconde passe) :** usbstorage ne monte automatiquement que fatfs ou
+  exfat (`usbstorage.c:46`, `299`) ; ext4 demande un montage explicite (qu'une app peut obtenir par F2 et imgblk).
+  Par simple branchement d'une clé, l'attaque se limite donc au déni de service.
 * **ramfs (`/tmp`), élevée, certain :**
   * `pos + len` déborde (`ramfs.c:380-399`) ;
   * une poignée sur un nœud réutilisé après `unlink` permet à A de lire le fichier de B ;
@@ -349,8 +367,10 @@ sous l'uid de B. **Correction :** lire `/home/<compte de session>/etc/startup.tx
 * **PBKDF2-SHA256 à 20 000 tours** (`authd.c:70`) : passer à Argon2id (déjà dans keyvault) ou autour de 600 000
   tours. Le format garde le nombre de tours, la migration est donc douce.
 * **sudo** :
-  * l'environnement n'est pas nettoyé (`sudo.c:205`) : `sudo -s` lit le `~/.bashrc` de l'utilisateur, et `BASH_ENV`
-    passe ;
+  * l'environnement : `SYS_SPAWN` de korinrt ne transmet aucun bloc d'environnement, donc `BASH_ENV` ne passe **pas**
+    (corrigé par la seconde passe). Le fils prend les valeurs par défaut (`env.c:37-39`) et garde `HOME=/home` en
+    uid 0 : `sudo -s` lit `/home/.bashrc`, qui n'est celui de l'utilisateur que si son home vaut `/home` (installations
+    de développement) ;
   * les arguments sont recollés avec des espaces (`sudo.c:197-204`) ;
   * `find()` copie `argv[1]` sans borne dans `path[256]` (`sudo.c:116`).
 * `ecrire_mdp` : nom non borné dans `ligne_cpt[200]` (`authd.c:330`, `348`). Seul l'uid 0 peut l'appeler.
@@ -382,6 +402,11 @@ défaut.
   les autres comptes. `blk.usbN` est touché aussi.
 * **Défaut annexe :** le propriétaire du tampon n'est pas vérifié (`BUF_INFO`). Un attaquant peut enregistrer le
   tampon de fatfs à son nom.
+* **Bien pire (seconde passe, relu) :** `op_attach` borne la fenêtre à la taille **déclarée** par l'appelant
+  (jusqu'à `BUF_SLOT`, 64 Mo), pas à la taille réelle du tampon (`blkserv.c:614`). `op_rw` calcule
+  `phys = addr - start + c->phys` (`blkserv.c:646`) et nvme fait le DMA à cette adresse. Un tampon d'une page déclaré
+  à 64 Mo donne un **DMA en lecture et en écriture sur la RAM physique qui suit** : le noyau tout de suite, sans
+  redémarrage, même en `enforce` (chaîne C3 du §10). `policy_write_ok` de nvme ne limite que les secteurs écrits.
 * **Correction :** réserver ces opérations à vfs, fatfs et mkfs élevé ; vérifier `info[2] == pid`.
 
 **P2. pcid : prise d'une fonction PCIe et écriture de sa configuration sans droits.** *Certain pour la prise ;
@@ -591,7 +616,9 @@ refus de tout index plus ancien que le dernier, expiration.
 * `.opk` local : `name` du manifeste non validé, donc `remove_tree("/var/pkg/stage/../..")` est possible
   (`pkglib.h:1190`, `1308`).
 * pkgd tue et relance des process par **nom** (`pkglib.h:918-945`). Un process nommé `pkgd` bloque les mises à jour.
-* ArchiveKit `name_unsafe` (`ar_read.c:1251`) ne rejette ni `\` ni `:`.
+* ArchiveKit `name_unsafe` (`ar_read.c:1251`) ne rejette ni `\` ni `:`. Ce n'est pas une traversée (seconde
+  passe) : vfs ne découpe que sur `/`, et `:` n'est un préfixe qu'en tête de chemin. Reste un nom invalide pour Windows
+  sur la partition FAT partagée.
 * korin-mcp écrit ses journaux et captures dans `/tmp/korin-mcp*`, lisibles par les autres comptes. Sa liste
   `no_launch` n'est qu'un garde-fou.
 * Outils d'essai livrés dans l'image :
@@ -639,7 +666,7 @@ refus de tout index plus ancien que le dernier, expiration.
 
 ---
 
-## 9. Plan de correction proposé
+## 9. Plan de correction proposé (première passe, remplacé par le §17)
 
 **Vague 1 : quelques heures, gain maximal.** La plupart de ces corrections protègent aussi des bugs.
 
@@ -684,3 +711,530 @@ prérequis), `unveil` pour WebContent, ASLR (après N14), `pledge`. À long term
 **Vérification :** un programme d'essai `sectest`, prévu par SECURITE.md, qui tente chaque contournement de ce
 document (avis forgé, `PATHMAP`, casse, `fs.*` direct, `blk.*` brut, abonnement HID, `session.ini`, ELF piégé,
 `SHM_TRUNC`) et doit être refusé partout. Il servirait de test de non-régression.
+
+---
+
+# Seconde passe (24/11/2026)
+
+Cinq lectures de plus, toujours sans rien exécuter :
+
+* l'inventaire de tous les appels système ;
+* le modèle de menace de Jet et du code étranger ;
+* les services et kits que la première passe n'avait pas lus ;
+* la chaîne de démarrage, d'installation et de mise à jour ;
+* une contre-lecture adverse de la première passe.
+
+Les constats nouveaux les plus graves ont été relus dans le code, comme pour la première passe :
+
+* `CHUNK_FREE` d'intelgpu ;
+* le nom des objets du cache de fichiers de libposix ;
+* `CR0.WP` ;
+* la règle d'ESP d'osinstall ;
+* `sys_kill` ;
+* `new_pid` ;
+* les messages vides de `CHAN_SEND` ;
+* la fenêtre d'`op_attach` ;
+* `image_map` ;
+* `fsowner.c` ;
+* `op_slave` de vterm ;
+* le PNG de UIKit ;
+* `haspw` de login.
+
+Numérotation des nouveaux constats :
+
+| Préfixe | Domaine |
+|---|---|
+| N18 à N29 | noyau |
+| J | Jet |
+| X | transverse |
+| L | code étranger |
+| B | démarrage |
+| D | services et kits |
+
+## 10. Chaînes d'attaque
+
+D'une app non privilégiée (ou de WebContent compromis) jusqu'au noyau ou à l'uid 0, par ordre de simplicité :
+
+| # | Mode | Étapes | Résultat |
+|---|---|---|---|
+| C1 | `log` (défaut) | écrire `/sys/svc/x`, puis `INIT_OP_LAUNCH /sys/svc/x` (M2) : x a `rights`, puis `DEV_MAP` ou `DMA_ALLOC` sans IOMMU (N15) | anneau 0, sans course ni bug mémoire |
+| C2 | `log` | compte sans mot de passe : `AUTH_SUDO ""` (A3) ; sinon ajouter son compte à `/etc/elevate.ini` | uid 0, puis C1 |
+| C3 | **`enforce`** | `BUF_CREATE` 4 Ko, `BUF_GRANT` au pilote, `ATTACH` déclaré à 64 Mo, `BLK_READ` vers une adresse au-delà du tampon (P1) : DMA dans la RAM physique, à une adresse connue par `BUF_INFO` | anneau 0 en quatre appels |
+| C4 | `enforce` | `VFS_MOUNT` avec `../` (F2) : code en uid 0 (sans droits, tué en 3 s : il lance un fils), puis il écrit `/sys/svc/y`, puis C1. Variante : `PATHMAP /sys` vers son dossier (F1) | uid 0, puis anneau 0 |
+| C5 | `enforce` | `IMAGE_CREATE("/apps/jet.app/main")` avec le vrai contenu, `fork`, scellement, lancement ; keyvault hache une image conforme, puis le fils réécrit le code par la fenêtre héritée (N2, empreinte paresseuse `image.c:113-125`) | jetons du coffre au nom de Jet |
+| C6 | entre comptes | faux `/bin/sudo` en cache (N4), ou `HID_OP_ABONNER` puis `HID_OP_PILOTE` (G1) | mot de passe d'un autre compte, puis uid 0 |
+| C7 | noyau | `SHM_TRUNC` (N1), `BUF_FREE` en double (N8), fenêtre d'image (N2), `CHUNK_FREE` (J7), usage après libération d'un process (N18, N19) : pages libérées encore mappées, réutilisées comme tables de pages. Ou `image_map` (N3) : lecture de toute la RAM | anneau 0 |
+| C8 | Jet | bug JSC, puis entrée dans le tas JIT RWX (J2), puis lecture de `HOME/jet/webkit/cookies.db` et `connect()` (J1, J3) | **compte Google volé sans aucune élévation**, en secondes |
+
+**Persistance**, par ordre de discrétion :
+
+1. `/etc/web-probe.js` (J4) ;
+2. clé publique et dépôt de pkg dans `/etc/pkg` : pkgd (uid 0, chaque jour) installe les paquets de l'attaquant (L4) ;
+3. `local.tar` sur l'ESP (B2) ;
+4. `HOME:/etc/startup.txt` ;
+5. le module Widevine dans `HOME` (J5).
+
+**Gravités revues par la contre-lecture :**
+
+* **Sous-estimées :** P1 (DMA direct), N8 (critique), N3 côté `image.c` (critique), N2 (contourne le coffre), M2
+  (passerelle de C1, critique), F1 (remapper `/sys` ou `/bin`).
+* **Surestimées :**
+  * N7 : déni de service seulement, que N5 donne déjà ;
+  * la variante `snapshot.c` de G2 : plantage, exécution peu probable ;
+  * R7 : on ne tire de l'ISN que le TSC ; l'injection passe plutôt par la fenêtre RST de 64 Ko ;
+  * le repli en uid 0 de `INIT_OP_LAUNCH` : les requêtes en file d'un process mort sont supprimées, et LAUNCH donne déjà
+    les droits ;
+  * F5 par simple branchement d'une clé.
+* **Nuancés :**
+  * F3 : contournement en lecture seulement ;
+  * P2 : la prise et le déni de service sont certains ; l'écriture en RAM par MSI n'est pas tranchée pour nvme, MSI-X
+    étant dans un BAR ;
+  * N4 : keyvault compare l'empreinte au fichier (`keyvault.c:910-916`), donc N4 seul ne trompe pas le coffre. Mais une
+    correction de A2 qui vérifierait `/bin/sudo` par `SYS_PROC_EXE` seul serait contournée par N4 : il faut l'empreinte.
+* **N9, processeur :** le ZBook a un i7-11800H (Tiger Lake-H).
+  * Ne s'appliquent pas : Meltdown, L1TF, MDS, TAA, Retbleed.
+  * S'appliquent : Spectre v1, Spectre v2 et BHI (eIBRS existe, mais Korin n'écrit pas `SPEC_CTRL`), et peut-être GDS
+    et ITS selon le microcode.
+  * L'absence de SMEP compte davantage : tout bug du noyau devient un saut vers du code utilisateur.
+
+## 11. Jet et le code étranger
+
+**Comment Jet tourne.** Tous les process de Jet lancent `/apps/jet.app/main`, avec leur rôle en argument
+(`ProcessLauncherOnyx.cpp:155`) :
+
+| Process | Nombre | Rôle |
+|---|---|---|
+| UI | 1 | fenêtre, UIKit |
+| Réseau | 1 | curl, OpenSSL, cookies, cache |
+| WebContent | 1 par onglet et par site | JSC avec JIT DFG/FTL, mise en page, Skia, **ANGLE et Mesa iris dans le process**, décodeurs, son |
+| cdmhost | à la demande | Widevine, lancé **par WebContent** |
+
+Il n'y a pas de process GPU. Tous ont l'uid de l'utilisateur, aucun n'a `rights`, et aucun n'est cloisonné.
+
+| # | Gravité | Constat | Où |
+|---|---|---|---|
+| J1 | critique | **WebContent n'est qu'une app ordinaire du compte** : tout `HOME` en lecture et en écriture, tous les services joignables, `socket()` direct vers netd (exfiltration sans passer par le process réseau), environnement et fd sans `CLOEXEC` hérités | `ProcessLauncherOnyx.cpp:155` |
+| J2 | élevée | **JIT en RWX à adresse fixe** : `ENABLE_SEPARATED_WX_HEAP 0`, pages `PROT_WRITE\|PROT_EXEC`, pas d'ASLR. Une primitive d'écriture de JSC suffit pour exécuter du code, sans ROP | `PlatformEnable.h:540`, `OSAllocatorPOSIX.cpp:81` |
+| J3 | critique | **`cookies.db` en clair** (SID, `__Secure-1PSID`…), avec localstorage, indexeddb et mediakeys, dans `HOME/jet/webkit`, dossiers en 0755, lisibles par WebContent lui-même : une lecture vole la session Google (pas liée à l'appareil) | `engine_webkit.cpp:890-916` |
+| J4 | critique en `log` | **`/etc/web-probe.js` injecté dans toutes les pages et tous les cadres**, au début du document. Un fichier écrit donne une persistance invisible dans Gmail et la banque. De même, `/etc/web-console` envoie la console vers `KLOG`, et `JET_CDMHOST` choisit le programme lancé | `engine_webkit.cpp:971-980`, `1041-1053` |
+| J5 | élevée | **Module Widevine chargé depuis `HOME/.jet/widevine`** sans empreinte au chargement (vérifiée seulement au téléchargement). Le module propriétaire tourne avec tout `HOME` | `0009-eme-widevine.patch`, `module.cpp:40-65` |
+| J6 | élevée | **Surfaces des pages accordées à tous** (`BUF_GRANT n, -1`). 128 numéros à essayer : tout process lit l'écran de Gmail (codes 2FA) ou y écrit | `webkit2_armpi.c:254`, `mm.c:899` |
+| J7 | critique | **intelgpu `IG_OP_CHUNK_FREE` libère le tampon sans délier la PPGTT** (relu, `serve.c:298-310`). Le GPU écrit alors dans des pages rendues au pmm : WebContent, déjà client pour WebGL, atteint la RAM entière, puis l'anneau 0 | `src/svc/intelgpu/serve.c:307` |
+| J8 | moyenne | Téléchargements automatiques sans confirmation dans `~/downloads`. Le bit d'exécution n'est pas une frontière : `SPAWN_IMAGE` lance des octets lus n'importe où | `engine_webkit.cpp:495-504` |
+| J9 | correct | Schémas : aucun programme externe lancé, `file:` fermé aux pages http, `xdg-open` limité à http(s) | `engine_webkit.cpp:644-691` |
+| J10 | faible | EME accordé sans demander : toute page fait charger le module propriétaire | `engine_webkit.cpp:756-762` |
+| J11 | faible | Tubes vers les aides sans `CLOEXEC`, hérités par les process web | `engine_webkit.cpp:796-822` |
+| J12 | moyenne | keyvault prend WebContent pour Jet (même image) : le jour où Jet gardera un secret au coffre, WebContent le lira | — |
+| X1 | critique | **Le cache de fichiers projetés de libposix empoisonne du code entre comptes.** Les objets SHM sont nommés `/file-<FNV(nom de base)>-<taille>-<mtime>` (relu, `ipc.c:413-419`) et ouverts sans contrôle (N11). Un compte pré-crée le nom avec son contenu, ou projette l'objet existant en écriture partagée. Tout process .NET ou Python de tout uid, root compris, exécute alors son `System.Private.CoreLib.dll` ou sa `.so` | `src/lib/posix/ipc.c:397-500` |
+| X2 | info | La capture de syscall de linuxhost n'est pas une frontière : un JIT ou un saut vers un `syscall` de libposix fait des appels natifs, et le module peut couper la traduction | `signal.c:512-571` |
+| L1 | élevée | **linuxhost** : le programme Linux tourne dans le process hôte, avec l'uid de l'utilisateur, sans filtre. Ses serveurs « 127.0.0.1 » sont exposés (R1). Claude Code en mode `bypassPermissions` (que l'app sait choisir, `background.rs:482`) peut, par une injection de consigne dans une page lue par WebFetch, lancer un shell : une entrée « du web vers du code » sans aucun bug du moteur | `src/sys/linuxhost`, `src/lib/linux` |
+| L3 | moyenne | Les runtimes de `/devtools` sont inscriptibles par tous en `log`, et exposés à X1 et A6 | — |
+| L4 | critique en `log` | **Apps et paquets.** Une app n'a aucun droit déclaré. pkgd écrit en uid 0 partout sauf dans `var/`, `etc/wifi*` et `etc/remote*` (donc aussi `sys/`, `etc/shadow.ini`, `/boot`). La seule racine de confiance, `/etc/pkg/onyx.pub`, est inscriptible par tous en `log` | `pkglib.h:530-539` |
+
+**La chaîne la plus courte** (installation par défaut, un compte) :
+
+1. un bug du moteur ;
+2. vol du compte Google, par `cookies.db` (J3) ou par `OA_TOKEN` d'oauthd (O1, jeton Drive complet), sans élévation ;
+3. une seule IPC pour l'uid 0 (A3, I1 ou G1) ;
+4. le noyau par J7, la voie la plus naturelle depuis WebContent ;
+5. la persistance par J4 ou par pkg.
+
+**Il ne faut aucune évasion de bac à sable.**
+
+**Ce que `unveil` (étape 3 de SECURITE.md) doit laisser à WebContent**, posé dans `WebProcessMainOnyx.cpp` avant le
+premier script :
+
+* **En lecture :**
+  * `/apps/jet.app/` ;
+  * les polices, ICU et `/etc/ca-bundle*` ;
+  * `/lib` ;
+  * `/etc/web-gpu-*`, lus avant le verrou.
+* **En lecture et écriture :** un `/tmp/jet-<pid>/` créé par l'UI.
+* **Rien d'autre**, en particulier :
+  * ni `HOME/jet/webkit`, ni `HOME/jet/cache`, ni `HOME/.jet/widevine`, ni `HOME/downloads` : le stockage passe par
+    le process réseau, à vérifier pour IndexedDB et `mediakeys` ;
+  * ni `/etc/web-probe.js`.
+* **Aucune exécution** : cdmhost doit être lancé par l'UI.
+* **Prérequis :** F1, F3 et F4 fermés, sinon `unveil` se contourne.
+
+**Ce que `pledge` (étape 5) doit poser sur WebContent :**
+
+* **Permis :**
+  * mémoire, threads, futex, horloge, `getrandom` ;
+  * IPC à poignées : `CHAN_*`, `HANDLE_*`, `SHM_CREATE`, `SHM_MAP`, `SHM_CTL` sans `PIN`.
+* **Interdits :**
+  * `SHM_OPEN` et `SHM_UNLINK` nommés (couper le cache de X1 dans ce process) ;
+  * le réseau ;
+  * `SPAWN*`, `FORK`, `EXEC`, `IMAGE_*` ;
+  * tout ce qui demande `rights`, et `BUF_GRANT -1` ;
+  * `KLOG`, `PROC_*` et `KILL` sur d'autres pid ;
+  * `SVC_SIGNAL`, `WS_SIGNAL`, le presse-papier du noyau.
+* **`SVC_OPEN` limité à une liste :** vfs, intelgpu, son en sortie seulement.
+
+## 12. Noyau : inventaire des appels système
+
+Chaque structure utilisateur est copiée une seule fois, sans double lecture (sauf le futex, voulu). Il n'y a pas
+d'appel de type ptrace. Le noyau ne porte ni environnement ni cwd : ils passent par vfs et libposix.
+
+**Légende :**
+
+* **Contrôle :**
+  * ∅ : aucun ;
+  * R : `rights` ;
+  * U0 : uid 0 ;
+  * MU : même uid ou uid 0 ;
+  * P : propriétaire de l'objet ;
+  * S : soi seulement.
+* **Verdict :** « ok », ou le constat qui s'y rapporte. Seules les lignes qui ne sont pas « ok » sont détaillées
+  ici. Les appels sûrs sont listés à la fin.
+
+| N° | Appel | Gestionnaire | Contrôle | Verdict |
+|---|---|---|---|---|
+| 01 | BUF_CREATE | mm.c:842 | ∅ | 64 Mo contigus, 128 pour tout le système (N13) |
+| 04 | BUF_FREE | mm.c:919 | S | N8 |
+| 05 | DMA_ALLOC | mm.c:951 | R | taille non bornée (N24) |
+| 08 | VM_PROTECT | mm.c:616 | S | N10 |
+| 0B | VM_STATS | mm.c:743 | ∅, tout pid | **N18** |
+| 0D | BUF_INFO | mm.c:932 | ∅ | adresse physique de tout tampon |
+| 12 | SPAWN_IMAGE | proc.c:490 | ∅ (R, U0 selon options) | N3, 256 Mo de kmalloc |
+| 13 | WAIT | proc.c:242 | ∅, tout pid | faible |
+| 14 | KILL | proc.c:290 | MU | **N18**, N27 |
+| 15, 1F | PROCLIST(_FROM) | proc.c:317 | ∅ | N21 |
+| 1A | SPAWN_PRELOADED | proc.c:738 | ∅ | N4 |
+| 1E | PROC_INFO | proc.c:337 | ∅ | faible |
+| 20, 24 | THREAD_CREATE | thread.c:25 | S | N6, threads illimités |
+| 22 | FUTEX_WAIT | thread.c:196 | S | N7 |
+| 29 | THREAD_KILL | thread.c:116 | S | **N18** |
+| 2A | THREAD_LIST | thread.c:130 | ∅, tout pid | faible |
+| 2B | SIG_ACTION | signal.c:44 | S | N6 |
+| 2C | SIG_SEND | signal.c:192 | MU | **N18**, N23, N27 |
+| 35 | SVC_SIGNAL | svc.c:482 | ∅ | N17 |
+| 36 | SVC_MAP_CALLER | svc.c:356 | R | **N19** ; 64 vues pour tout le système |
+| 39 | SVC_FORWARD | svc.c:499 | P | N16 |
+| 40 | DEV_MAP | hw.c:30 | R | N15 |
+| 46 | KIT_REGISTER | kits.c:157 | R | N3, N29 |
+| 48 | IMAGE_FORGET | image.c:362 | ∅ | N4 |
+| 4F | IO_PORT | hw.c:207 | R | N15 |
+| 54 | WS_POST | ws.c:93 | ws | **N22** |
+| 58, 59 | CLIP_SET, CLIP_GET | ws.c:208, 228 | ∅ | N12 |
+| 5A | WS_SIGNAL | ws.c:82 | ∅ | N17 |
+| 60, 61 | PRINT, KLOG | syscall.c:28, sys.c:200 | ∅ | faible |
+| 63 | GETRANDOM | sys.c:133 | ∅ | N14 |
+| 64 | LIB_OPEN | kits.c:182 | ∅ | N29 |
+| 65 | IMAGE_LIST | image.c:386 | ∅ | chemins de tous les comptes |
+| 66 | IMAGE_CREATE | image.c:260 | ∅ | N4, N24 |
+| 67 | IMAGE_SEAL | image.c:320 | P | N2 |
+| 68 | MEMBARRIER | syscall.c:44 | S | N26 |
+| 69 | PROC_STATS | syscall.c:64 | ∅, tout pid | N25 |
+| 6A | FORK | proc.c:534 | S, refusé avec R | N2 |
+| 6B | EXEC | proc.c:592 | S, refusé avec R | N3, N19 |
+| 6D | SETPGID | signal.c:419 | soi ou un fils | N28 |
+| 6F | SETITIMER | signal.c:460 | S | **N18** (fil des alarmes) |
+| 76 | CHAN_SEND | ipc.c:532 | P | **N20** |
+| 79 | SHM_CREATE | ipc.c:850 | ∅ | 1 Go, pas de quota (N13) |
+| 7A, 7B | SHM_OPEN, SHM_UNLINK | ipc.c:879, 927 | ∅ | N1, N11, X1 |
+| 7C, 7D | SHM_CTL, SHM_MAP | ipc.c:961, 1020 | P | N10, N11 |
+| 94 | PROC_EXE | proc.c:405 | ∅ | faible ; SHA-256 jusqu'à 4 Go à la demande |
+| 95 | PROC_SET_SCRIPT | proc.c:439 | S | A6 |
+
+**Appels jugés sûrs :**
+
+* **Mémoire et threads :** SBRK, BUF_GRANT, BUF_MAP, VM_MAP (W+X déjà noté), VM_UNMAP, VM_ADVISE, VM_QUERY,
+  VM_PAGEINFO, TLS_SET, EXIT, GETPID, PROC_FLAGS, SLEEP, YIELD, TIME_MS, CLOCK_GET, PROC_RIGHTS, THREAD_EXIT,
+  FUTEX_WAKE, THREAD_JOIN, THREAD_SELF, SET_PRIORITY, SET_NAME.
+* **Signaux :** SIG_RETURN, SIG_MASK, SIG_ALTSTACK.
+* **Services :** SVC_REGISTER (R), SVC_OPEN, SVC_CALL, SVC_NEXT, SVC_REPLY, SVC_UNMAP_CALLER, SVC_CALLER_PHYS.
+* **Démarrage et matériel (avec R ou propriétaire) :** MOD_*, BOOT_*, IMAGE_PRELOAD, IRQ_*, ACPI_TABLE, IRQ_MSI,
+  POWER, CLOCK_SET.
+* **Fenêtres :** WS_REGISTER, WS_CALL, WS_NEXT, WS_REPLY, WS_DISPLAY, EV_WAIT, SCREEN_INFO, WS_MODE.
+* **Divers :** SYSINFO, GETPPID, GETPGID, CPU_LOAD.
+* **Poignées et canaux :** HANDLE_*, CHAN_CREATE, CHAN_RECV, CHAN_SHUTDOWN.
+* **Identité :** GETUID, SETUID (U0), PROC_UID, PROC_SETUID (U0), SYSCALL_CAPTURE.
+* FW_CALL n'existe pas (E_NOSYS).
+
+### Nouveaux constats du noyau
+
+**N18. Pointeurs de process et de thread utilisés hors du verrou, sans référence : usage après libération.**
+*Élevée ; probable (course rejouable), motif relu dans `sys_kill`.*
+
+* **Le motif :** `proc_get` ou `thread_find` sous `sched_lock`, puis le verrou est rendu, puis le pointeur sert
+  encore.
+* **Où :**
+  * `proc.c:294-302` (KILL) ;
+  * `signal.c:203-233` (SIG_SEND, envoi à un groupe) ;
+  * `thread.c:121-126` (THREAD_KILL) ;
+  * `mm.c:746-766` (VM_STATS) ;
+  * `signal.c:64-67`, `492-509` (alarmes, fin d'un fils).
+* **Aggravation :**
+  * `proc_finished` (`proc.c:210-234`) démonte `mm`, `vm`, `evq` et les poignées **avant** de vider `slot_of` ;
+  * `vm_destroy` ne remet pas `p->vm` à 0 ;
+  * `sched_reap` tourne sur plusieurs cœurs.
+* **Scénario :**
+  1. THREAD_EXIT de T2 pendant THREAD_KILL(T2).
+  2. Le thread libéré est réoccupé par un message de `CHAN_SEND` au contenu choisi.
+  3. `wake_locked` met un faux thread dans la file, et le noyau bascule sur un `arch_sp` choisi.
+* **Effet :** exécution en anneau 0.
+* **Correction :** agir sous le verrou, ou compter les références ; vider le slot d'abord dans `proc_finished`.
+* **Protège aussi des bugs :** oui (pannes aléatoires sous 8 cœurs).
+
+**N19. `SVC_MAP_CALLER` sur un appelant qui finit ou qui fait EXEC.** *Élevée ; probable.*
+
+* **Où :** `svc.c:389-409` épingle les pages de `caller->mm` et `caller->vm` hors verrou, alors que EXIT ou EXEC les
+  libèrent (`proc.c:687-695`).
+* **Scénario :**
+  1. Un service (fatfs, clipd) épingle 1 Mo, avec 257 fautes : la fenêtre est large.
+  2. Pendant ce temps, l'app fait EXEC.
+  3. Le service traduit des adresses par des tables de pages libérées, que l'app a reprises : il épingle et écrit une
+     page physique choisie.
+* **Effet :** lecture et écriture de toute la RAM.
+* **Correction :** une référence sur `mm` et `vm`, attendue par EXIT et EXEC.
+
+**N20. `CHAN_SEND` : messages sans borne, cycles, récursion sans fin.** *Élevée ; certain, (a) relu (`ipc.c:596-597`).*
+
+* **(a) Messages vides :** un message de 0 octet n'est pas compté dans l'anneau et peut porter 256 poignées. La file
+  devient infinie et épuise le tas du noyau.
+* **(b) Cycles :** des bouts de canaux envoyés l'un dans l'autre ne sont jamais libérés (pas de ramasse-miettes).
+* **(c) Chaînes :** une chaîne de 2 000 canaux imbriqués fait descendre `put_locked` et `free_msg` en récursion, sous
+  `ipc_lock`. La pile du noyau (16 Ko, sans page de garde) déborde sur le tas.
+* **Correction :**
+  * un coût minimal par message ;
+  * un plafond de poignées en transit par process ;
+  * une libération itérative ;
+  * un refus des bouts qui en contiennent d'autres, ou un ramasse-miettes.
+
+**N21. Débordement de la génération des pids.** *Moyenne à élevée ; certain (relu, `proc.c:62`), long à atteindre.*
+
+* **Mécanisme :**
+  * `generation * 65536 + s + 1` devient négatif quand la génération atteint 32 768 ;
+  * `proc_create` libère alors `p` sans vider `slot_of[s]` ;
+  * le slot reste pour toujours sur de la mémoire libérée, que PROCLIST copie chez l'appelant ;
+  * une fois réoccupée, `proc_get` rend un faux process : lecture arbitraire par VM_STATS.
+* **Coût :** environ 65 000 process vivants (pas de quota), puis quelques heures de lancements.
+* **Correction :** des pids sur 64 bits ; un slot vidé en cas d'échec.
+* Le point « pids à génération » du §8 est à nuancer.
+
+**N22.** `ws_proc_exit` fait `kfree(p->evq)` sans `sched_lock` pendant que `WS_POST` y écrit (`ws.c:248` contre
+`ws.c:101-113`). *Moyenne.* Corrigé avec N18.
+
+**N23.** Signal 64 : `BIT(64)` est un comportement indéfini, et la livraison lit `p->act[-1]`, qui contient des données
+du process (`signal.c:23`). *Faible*, le process reste dans son propre uid.
+
+**N24.** Chevauchements de l'espace d'adresses (`image.c:29-31`, `ws.c:27`, `svc.c:42`) :
+
+* les fenêtres d'image n° 1 et suivantes recouvrent `WS_FB_VA` et `MAPC_BASE` ;
+* `dma_next` et `dev_next` croissent sans borne ;
+* `vm_map_page` écrase une entrée présente sans rien dire.
+
+*Faible* (process à droits seulement). Protège aussi des bugs.
+
+**N25.** `PROC_STATS` sur tout pid donne un canal auxiliaire : on suit le rythme des lectures de login, authd ou sudo
+pendant la saisie d'un mot de passe. *Faible.*
+
+**N26.** `MEMBARRIER` envoie une interruption à tous les cœurs à chaque appel, sans limite de débit. *Faible.*
+
+**N27.** L'envoi d'un signal à un groupe s'arrête à 64 process : un `kill -9 -pgid` laisse vivre une bombe de fork.
+Un process d'uid 0 **sans droits** (app élevée, ftpd) peut envoyer SIGSTOP à vfs. *Faible.*
+
+**N28.** `SETPGID` accepte un groupe qui n'existe pas dans la session (`signal.c:438-441`). *Faible.*
+
+**N29.** Kits :
+
+* `kits.c:78` : `vaddr + memsz` peut déborder, et l'écriture part loin dans la RAM (R ou initrd seulement) ;
+* `map_into` hors verrou.
+
+*Faible.*
+
+## 13. Démarrage, installation et mises à jour
+
+| # | Gravité | Constat | Où | Correction |
+|---|---|---|---|---|
+| B1 | critique | **Les partitions KORIN OS et KORIN HOME sont des « basic data » FAT32/exFAT, sans attribut** : tout compte Windows, même non admin, écrit `\korin\kernel.elf`, `\sys\svc\*`, `\etc\elevate.ini`, et lit `shadow.ini`, `machine.key` et tous les homes | `osinstall.c:1548-1549`, `gpt.h:28`, `korin.ps1:62-82` | attributs GPT « pas de lettre » et « cachée », ou un type GUID propre à Korin ; à terme, chiffrement |
+| B2 | élevée | **Aucune intégrité au démarrage** : Secure Boot coupé, le chargeur ne vérifie que l'en-tête ELF. `local.tar` passe avant l'initrd et peut fournir `init`, `init.txt` ou `nvme.txt`, sans appartenir à aucun paquet. `/boot` se monte par `VFS_BOOT_BEGIN`, ouvert à tous | `bootx64.asm:217-330`, `menu.inc:369-380`, `initrd.c:97-107`, `vfs.c:1059` | empreintes signées vérifiées par le chargeur ; `local.tar` sans exécutables ; à terme shim et MOK, Secure Boot actif |
+| B3 | élevée | **L'installation à côté de Windows ouvre en écriture l'ESP de Windows** (`write = guid=<ESP>, type=efi`, relu), contrairement au commentaire de `policy.c`. Avec P1 ou `VFS_BOOT_BEGIN`, on remplace `bootmgfw.efi` : bootkit Windows depuis Korin | `osinstall.c:1800`, `nvme/policy.c:18-21` | n'ouvrir que `\korin` et `\EFI\Korin`, ou une ESP propre ; `VFS_BOOT_BEGIN` réservé à l'uid 0 |
+| B4 | élevée | **La console de secours (Elegant tombé 3 fois, ou ws muet 20 s) donne un shell sans mot de passe**, sous le premier compte (ou en uid 0 avec A1), sans regarder si une session a été ouverte | `init2.c:270-276`, `815-820`, `console.c:109`, `users.c:124-151` | demander compte et mot de passe (`AUTH_VERIFY`) ; jamais d'uid 0 |
+| B5 | élevée | **Mise à jour du noyau ni atomique ni réversible** : `.old` puis copie d'un volume à l'autre (effacer, copier, effacer), `korin.efi` et `initrd.tar` effacés avant d'être recopiés, aucune entrée « version précédente », pas de nouvelle vérification SHA-256 au commit | `pkglib.h:1428-1446`, `stat.c:398-412` | `.new` puis renommage dans le volume ; A/B avec compteur d'essais ; SHA-256 au commit |
+| B6 | moyenne à élevée | **`CR0.WP` n'est jamais posé** (relu, `cpu.c:167-170`) : il vaut 0 sur les cœurs secondaires. `copy_to_user` peut donc écrire, après une course, dans une page partagée en lecture seule (code d'un programme uid 0 préchargé) | `cpu.c:167-170`, `smp_trampoline.asm:52-54` | `cr0 \|= 1<<16`, prérequis de SMEP et SMAP |
+| B7 | moyenne | Clé de machine scellée dans le TPM sans PCR ni autorisation : Windows (TBS) ou une clé USB la descelle | `tpm.c:322`, `359` | autorisation propre à l'objet ; PCR 7 après B2 |
+| B8 | moyenne | osinstall installe les paquets de la clé sans `index.sig` ni SHA-256, contrairement à INSTALLATEUR.md | `osinstall.c:587-610`, `719-727` | passer par `pkg --root … add` |
+| B9 | moyenne | Le moniteur du noyau (`run` avec droits, sans authentification) s'ouvre par l'option `monitor`, par un initrd sans `init` (B5), ou si `/` manque 45 s | `monitor.c:67-89`, `pc_main.c:303-312`, `412` | en secours, seulement `info`, `reboot` et `poweroff` |
+| B10 | moyenne | Valeurs par défaut d'osinstall : `autologin = yes`, `admin = yes`, `passwords = none`. `access` reste en `log`. Le retour de `getrandom` est ignoré pour les GUID et les sels | `osinstall.c:1418-1425`, `258-261` | mot de passe imposé à un admin ; `enforce` ; vérifier `getrandom` |
+| B11 | moyenne | **Pas d'IOMMU, même pas détectée** (aucune trace de DMAR). `PCI_OP_RESCAN` est ouvert à tous, et un périphérique Thunderbolt ou PCIe qui se dit NVMe obtient un pilote à droits et le bus master | `pcid.c:473` | VT-d avec domaines par fonction ; confirmation avant d'annoncer une fonction branchée à chaud |
+| B12 | moyenne | Pas de journal d'audit persistant : un anneau de 64 Ko en RAM, `PRINT` ouvert à tous, un refus noté une seule fois sur 32 | `sys.c:169`, `access.c` | `/var/log/auth.log` en ajout seulement, tenu par un service uid 0 |
+| B13 | faible | Le menu cherche « Windows » sur tous les volumes, clés USB comprises, ce qui contourne le verrou de démarrage USB du firmware | `menu.inc:818-824` | seulement le disque de démarrage |
+| B14 | faible | `BLK_PLAN` sans contrôle : dans la session live, toute app peut effacer le disque interne | `blkserv.c:748-760` | réservé à l'uid 0 |
+| B15 | faible | Ni bit MOR ni effacement des clés à l'arrêt (attaque de démarrage à froid) | — | MOR ; effacer les clés du coffre |
+| B16 | info | Les pages du trampoline SMP (PML4 provisoire RWX) restent sous 1 Mo, atteignables seulement par DMA | `smp.c:174-186` | les effacer après `smp_start` |
+
+**Ce qui est correct :**
+
+* NX est actif avant le premier process ;
+* la mémoire du firmware est rendue proprement ;
+* `kernel_option` est ignorée avant `BOOT_READY`, et aucune option ne coupe une protection ;
+* le menu ne permet pas d'éditer la ligne de commande ;
+* les mots de passe ne passent jamais en clair à l'installation.
+
+## 14. Services et kits restants
+
+**Transverse (D2).** AppKit demande `rights` pour tout fichier de `/sys` (`appkit.c:1320`). Elegant, qui a `rights`,
+lance la session : voronoy, menubar, panel, notifyd, quickmenu, soundmenu, stickies, clockd et printd tournent donc
+**avec `rights` sous l'uid de l'utilisateur**. *Probable fort.* Toute faille mémoire de ces programmes est une faille
+du noyau (N15), et keyvault croit sans empreinte le chemin d'un process à `rights` (`keyvault.c:910`). **Correction :**
+`spawn_session` lance sans `rights` ; `rights` seulement pour une liste fermée de services et pilotes.
+
+| # | Gravité | Constat | Où | Correction |
+|---|---|---|---|---|
+| D1 | élevée | **vterm : n'importe quel process, de n'importe quel compte, s'attache à l'esclave de n'importe quel pty** (relu) : il lit les lignes tapées (mot de passe de sudo), écrit un faux invite, rallume l'écho et occupe le pty | `vterm.c:831-841`, `posix/tty.c:341` | retenir l'uid du créateur ; `VT_SLAVE` au même uid ou aux process de la session |
+| D2 | élevée | Programmes de session avec `rights` (ci-dessus), par exemple voronoy qui décode le fond d'écran de `HOME` | `voronoy.c:78-80` | voir ci-dessus |
+| D3 | moyenne (élevée avec D2) | **Décodeur PNG de UIKit** : largeur et hauteur non bornées, `rsize = (pitch+1)*h` déborde (relu), puis `png_unfilter` écrit des données choisies hors du tas. Index de palette PNG et BMP non bornés, IHDR lu même si trop court. Touche Fichiers, les aperçus, voronoy et Courier | `uk_image.c:662-673`, `564`, `165` | IHDR de 13 octets, `bits` valides, `w` et `h` ≤ 16384, multiplication contrôlée, index < taille de la palette |
+| D4 | moyenne | **vterm envoie des signaux en uid 0 à n'importe quel groupe** : `VT_SPGRP` accepte tout pgid, puis `^C`, `^Z` ou `VT_CLOSE` le signalent au nom de vterm, ce qui arrête par exemple un `sudo pkg` en cours | `vterm.c:973-979`, `286` | groupe de la session du pty seulement |
+| D5 | moyenne | 16 pty pour tout le système : 16 `VT_OPEN` bloquent Terminal, telnet et la console | `vterm.c:97` | plafond par uid |
+| D6 | moyenne | **printd est partagé et tourne sous l'uid du premier qui imprime** : `PD_SUBMIT` écrit un PDF à la place d'un fichier quelconque de ce compte, `PD_CANCEL` accepte tout id, `/var/spool/print` est en 0777, `PD_ADD` sert de SSRF et analyse IPP avec `rights` | `printerkit.c:370`, `main.cpp:392-613` | une instance par uid ; `output` limité au home de l'appelant |
+| D7 | moyenne | **keyvault prend « illisible » pour « absent »** et crée un nouveau coffre en effaçant l'ancien. `KV_SET` n'a pas de plafond : une app fait grossir `<uid>.db` jusqu'à l'échec de lecture, et tous les secrets du compte disparaissent. L'écriture n'est pas atomique (`unlink` puis `rename`) | `keyvault.c:647`, `293` | créer seulement sur ENOENT ; plafonds ; renommage atomique |
+| D8 | moyenne | **`KV_UNLOCK` sert d'oracle du mot de passe de session** (celui de sudo pour un admin), et Argon2id plus `SLEEP 1000` sur l'unique fil bloque le coffre de tous | `keyvault.c:1123-1131`, `1094`, `1268` | réservé à authd et à la carte ; compteur d'échecs sans dormir |
+| D9 | moyenne | init2 `SVC_STOP` et `SVC_START` acceptent `uid <= 0` : un demandeur mort passe, et arrête vfs, authd ou netd | `init2.c:620` | `uid == 0` strict |
+| D10 | moyenne | **login ouvre la session sans mot de passe si authd ne répond pas** (relu) : une erreur de `AUTH_HASPW` vaut « pas de mot de passe », et `shadow.ini` illisible rend 0 | `login.c:496-501`, `authd.c:719` | une erreur vaut « mot de passe demandé » |
+| D11 | moyenne | `/tmp` est partagé sans propriétaire : `mkstemp` en 0600 n'a aucun effet, `O_EXCL` est émulé par `stat` puis `open`, `tempname.c` retombe sur `rand()` | `access.c:5`, `posix/file.c:84` | `TMPDIR=/tmp/<uid>` protégé ; `O_EXCL` atomique dans vfs |
+| D12 | moyenne | smbfs ne filtre pas les noms du serveur (`a/../../.bashrc`, caractères de contrôle) | `smbfs.c:698` | comme `korin_name` de gdrivefs |
+| D13 | faible | Le Mixer se lance **en uid 0 depuis l'écran de connexion** (réglages rapides, puis son, puis Mixer…) | `soundmenu.c:250` | ne rien lancer avant la connexion |
+| D14 | faible | acpid `PROFILE` et `RELOAD` ouverts à tous (réécriture de `/etc/power.ini` par l'uid 0) ; i2chid `OP_STOP` ouvert à tous | `acpid.c:592`, `i2chid.c:690` | contrôle d'uid |
+| D15 | faible | busd : `korin.power.button` forgé ouvre l'extinction, `korin.clock.offset` fausse les alarmes ; sujets et abonnés jamais rendus | `panel.c:596` | préfixes réservés, plafond par pid |
+| D16 | faible | `WS_OP_DROP_GET` : le dernier glisser-déposer est lisible par tous | `uikit_ops.c:844` | réservé à la fenêtre cible |
+| D17 | faible | keyvault : en-tête (`mkib`, `t`, `lanes`) lu sans borne ; pas d'anti-rejeu du `.db` ; mot de passe différé non effacé par `expire()` ; cache d'empreintes par (chemin, mtime à la seconde, taille) | — | bornes, HMAC de l'en-tête, `OPENSSL_cleanse` |
+| D18 | faible | gdrivefs : `api_url` lu dans `HOME:/gdrive/drives.ini`, donc le jeton Bearer peut partir vers n'importe quel hôte | `gdrivefs.c:617` | seulement `*.googleapis.com` |
+| D19 | correct | Le Terminal avale OSC, DCS, APC et PM, et ne répond qu'à DA et DSR avec un contenu fixe : pas d'injection d'entrée. À garder ainsi | `vt.c:450`, `772-815` | — |
+| D20 | info | À l'arrêt, init2 épargne les process par **nom** | `init2_x86_64.c:37` | — |
+
+**Correct :**
+
+* Elegant ne décode aucune image ;
+* la cryptographie de keyvault (IV GCM aléatoire, données associées, HKDF, `OPENSSL_cleanse`, `KVF_PARENT` et le
+  gestionnaire vérifiés) ;
+* libposix : `system()` et `popen()` sans shell, `mkstemp` par `getrandom` ;
+* les noms de gdrivefs ;
+* DocumentKit ;
+* les bornes d'ArchiveKit ;
+* mapsvc, imgblk, hda, ps2kbd et rtsx sans IPC à eux.
+
+## 15. Erreurs de la première passe, corrigées ci-dessus
+
+* **Gravité et portée :**
+  * N3 côté `image.c` : projection d'une page choisie, pas une #GP ;
+  * P1 : DMA direct en RAM ;
+  * F3 : lecture seulement ;
+  * F4 : usurpation de vfs par le nom du process.
+* **Faits inexacts :**
+  * sudo : pas de `BASH_ENV` ;
+  * ArchiveKit : pas une traversée ;
+  * F5 : ext4 n'est pas monté automatiquement.
+* **Lignes :** `elf.c:45` (et non 46), `vm_fork` aux lignes `vm.c:243-259`, `deliver` à `signal.c:244`, appelé sous
+  verrou aux lignes 314 et 327.
+
+## 16. Pour `sectest`
+
+En plus des essais du §9, chacun doit être refusé :
+
+* **IPC et noyau :**
+  * `ATTACH` déclaré plus grand que le tampon ;
+  * `CHAN_SEND` de 0 octet en boucle ;
+  * chaîne de 2 000 canaux imbriqués ;
+  * THREAD_KILL pendant THREAD_EXIT ;
+  * `CHUNK_FREE` d'un morceau encore lié ;
+  * objet `/file-*` pré-créé ;
+  * `BUF_MAP` d'une surface de Jet par un autre process.
+* **Terminal :** `/dev/pts/N` d'un autre compte ; `VT_SPGRP` vers un pgid étranger.
+* **Données :** PNG `2³¹+23170 × 2³¹−23170`.
+* **Services :** `KV_UNLOCK` en boucle ; `SVC_STOP` suivi de la sortie immédiate du demandeur ; `AUTH_HASPW` avec
+  authd arrêté.
+
+## 17. Plan révisé (remplace le §9)
+
+L'ordre suit la gravité, puis le coût. « Bugs » indique que la correction protège aussi des bugs.
+
+**Vague 0 : avant de publier une version (un jour), ce qui ne coûte presque rien.**
+
+1. **Ne jamais livrer `access = log` avec des données réelles.** Tant que les vagues 1 à 3 ne sont pas faites, le
+   dire dans la documentation et à l'installation.
+2. Corrections de quelques lignes :
+   * B1 : attributs GPT ;
+   * B3 : règle d'ESP restreinte, `VFS_BOOT_BEGIN` réservé à l'uid 0 ;
+   * J4 : `web-probe.js` retiré de la version publiée ;
+   * L4 : clé publique de pkg compilée dans pkglib ;
+   * D10 : `HASPW` en erreur vaut « mot de passe demandé ».
+
+**Vague 1 : quelques heures, une ligne à dix lignes chacune.**
+
+| Correction | Constat | Bugs |
+|---|---|---|
+| refus de `op >= 0xFFF0` dans `SVC_CALL` et `SVC_FORWARD`, et `REQ_SIGNAL-1` vérifié dans les services | I1 | oui |
+| `SHM_TRUNC` traité comme `SET_SIZE(0)` | N1 | oui |
+| bornes de `elf.c`, `image.c` et `kits.c`, adresses canoniques | N3, N6, N29 | oui |
+| `FMASK` avec NT, `CR0.WP` | N5, B6 | oui |
+| taille réelle du tampon et propriétaire dans `op_attach` | P1 | oui |
+| `CHUNK_FREE` qui délie la PPGTT | J7 | oui |
+| messages vides comptés | N20a | oui |
+| deux bornes d'Elegant | G2 | oui |
+| bornes du PNG | D3 | oui |
+| casse dans `access.c` | F3 | oui |
+| `uid == 0` strict dans init2 | D9, M2 | oui |
+| signal 64 | N23 | oui |
+
+**Vague 2 : les contrôles d'appelant (un à deux jours).**
+
+1. Un en-tête commun `caller_uid()` et `caller_has_rights()`, avec `rights` par pid dans le noyau.
+2. vfs : `PATHMAP`, `MOUNT`, `UNMOUNT` (F1, F2) ; `fs.*` et `blk.*` liés au pid de vfs donné par le noyau, pas par
+   son nom (F4, P1, B14).
+3. Pilotes : pcid, usbd, hwmanager, netd, hidmanager (P2, P6-P8, G1, B11).
+4. Son, wifisvc, acpid, i2chid (P11, P12, D14) ; init2 `REBOOT` et `LAUNCH` (M1, M2).
+5. Elegant : capture, couches, menus, glisser-déposer (G3-G5, D16) ; presse-papiers (N12, clipd).
+6. vterm : uid du créateur, pgid de la session, plafond par uid (D1, D4, D5).
+7. Services par uid : oauthd (O1), printd (D6) ; keyvault `UNLOCK` (D8).
+8. Surfaces de Jet accordées à deux pid (J6) ; noms SHM avec propriétaire, cache `/file-*` créé par vfs (N11, X1).
+
+**Vague 3 : identité, session et noyau (quelques jours).**
+
+1. **Noyau :**
+   * références sur les process, les threads et les espaces d'adresses ;
+   * ordre de `proc_finished` ;
+   * N2 et N8 ;
+   * pids sur 64 bits.
+
+   Constats : N18, N19, N21, N22, N2, N8. Bugs : oui (pannes SMP).
+2. **Images :** réservées aux process de confiance (N4) ; identité des scripts posée par le noyau (A6).
+3. **Session :**
+   * session hors de `/tmp` (A1) ;
+   * `startup.txt` du bon compte (A4) ;
+   * console de secours authentifiée (B4) ;
+   * `rights` retiré aux programmes de session (D2) ;
+   * Mixer avant la connexion (D13).
+4. **authd :** portée calculée et liée à l'empreinte de `/bin/sudo` (A2) ; terminal exigé sans mot de passe (A3) ;
+   compteur d'échecs ; Argon2id (A7).
+5. **Paquets :** téléchargement hors de `/tmp` et extraction depuis le fd (K1) ; numéro de série de l'index (K2) ;
+   `forbidden()` étendu (L4) ; vérification à l'installation (B8).
+6. **keyvault :** pas de création sur une erreur, plafonds (D7).
+7. **Installation :** valeurs par défaut sûres (B10).
+8. **Puis `access = enforce` par défaut.**
+
+**Vague 4 : robustesse, Wi-Fi, réseau, démarrage.**
+
+* **Parseurs :** ext4 et ramfs, boucles FAT et exFAT, usbhid, noms venus des disques et des serveurs (F5, P9, D12).
+* **Wi-Fi :** EAPOL et nonces (P3, P4, P13).
+* **netd :** R1 à R9.
+* **Noyau :**
+  * quotas par uid (N13) ;
+  * aléa (N14) ;
+  * IPC (N20b, N20c) ;
+  * NX sur la carte physique, `SPEC_CTRL` et eIBRS (N9).
+* **Démarrage :** mise à jour A/B (B5) ; journal d'audit (B12) ; moniteur de secours (B9) ; `TMPDIR` par compte
+  (D11).
+
+**Vague 5 : le plan de SECURITE.md**, sur ces bases :
+
+* SMEP, SMAP et UMIP (prérequis : B6 et la table d'exceptions de N7) ;
+* `unveil` et `pledge` de WebContent selon le §11 ;
+* ASLR (après N14), puis JIT W^X (J2) ;
+* cookies chiffrés par le coffre (J3) ;
+* cdmhost lancé par l'UI et vérifié (J5) ;
+* intégrité du démarrage et Secure Boot (B2, B7) ;
+* VT-d (N15, B11).
+
+**Avant d'allumer un serveur d'accès à distance :** S1 à S5, A1 et R1.

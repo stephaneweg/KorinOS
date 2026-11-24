@@ -21,3 +21,10 @@ avis du noyau forgeables (`sys_svc_call` ne refuse pas `op >= 0xFFF0`), services
 PATHMAP/MOUNT, fs.*, blk.*, pcid, usbd, hidmanager, Elegant, oauthd), `/tmp/session.ini` qui décide de l'uid,
 failles noyau (SHM_TRUNC, ELF offset+filesz, IMAGE_CREATE ouvert, FMASK sans NT). Plan en 5 vagues au §9 ; `enforce`
 n'a de sens qu'après les vagues 1 à 3.
+
+**24/11, seconde passe** (même fichier, §10-§17, plan révisé §17 qui remplace §9) : chaînes C1-C8 (C3 : anneau 0 en
+4 appels même en enforce par blkserv op_attach, fenêtre déclarée > tampon -> DMA en RAM) ; Jet : WebContent sans
+cloisonnement, cookies.db en clair, /etc/web-probe.js injecté partout, intelgpu CHUNK_FREE sans unbind ; cache
+/file-* de libposix empoisonnable entre comptes ; démarrage : partitions visibles de Windows, ESP de Windows en
+écriture, CR0.WP jamais posé, console de secours sans mot de passe ; vterm /dev/pts ouvert à tous. L'utilisateur fera
+les corrections après le portage de Blender (24/11).
