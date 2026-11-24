@@ -66,5 +66,12 @@ test/features.py OK sous QEMU. Publié : blender 0.7 + pc 2026.11.104 (vkkit.so 
 faute dans le fil de soumission d'anv quand l'anneau plein rendait le verrou). Piège récurrent : macros _L _N _S… de
 ctype.h de newlib dans le code tiers.
 
+**24/11 (soir)** : blender 0.8 (bande de titre KUI_TOP_BAND 36 px : surface Vulkan décalée, coordonnées GHOST
+décalées, couleurs du thème) et 0.9 (libposix : /proc/self/exe d'une app lancée par le bureau = /apps/<nom>.app/main ;
+sans ça, Blender lancé par l'icône ne trouvait pas 5.2/, Python mourait). Confirmé par l'utilisateur : se lance depuis
+l'icône. Reste : faute à la fermeture (code -11, fil de soumission d'anv ; attendre la ligne du noyau avec
+--disable-crash-handler), lavapipe sous QEMU, suite du jalon 4 (numpy, son, FFmpeg). Barre de menus globale : juste
+une question de l'utilisateur, pas demandée.
+
 **How to apply:** JOBS=6 (12 Go) dans WSL (9 Go). Lancer les scripts par `wsl -- sh tools/blender/…` (pas `wsl bash -c '…$X…'` :
 les $ sont développés avant ; Git Bash : MSYS_NO_PATHCONV=1 pour les chemins /home). Voir [[armpi-godot]], [[armpi-cpython]], [[armpi-devtools]], [[armpi-cao]].

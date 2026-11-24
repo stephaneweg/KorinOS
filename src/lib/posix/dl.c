@@ -24,7 +24,7 @@ extern char *__posix_progname;
 
 /* Le chemin du programme : le noyau ne le garde pas, il est deduit d'argv[0] au premier appel.
    Un nom seul est cherche dans PATH ; un argv[0] relatif est lu depuis le dossier courant
-   d'alors ; rien de trouve : argv[0] tel quel. */
+   d'alors ; puis /apps/<nom>.app/main (une app lancee par le bureau) ; rien de trouve : argv[0] tel quel. */
 static char s_path[PATH_MAX];
 
 /* (env.c) deja connu : l'hote .NET lance pour une DLL garde le nom du programme en argv[0] */
@@ -63,6 +63,24 @@ const char *__posix_exe_path (void)
 			}
 		}
 		p = e != 0 ? e + 1 : 0;
+	}
+	/* Lance par le dock, le panneau ou la barre de menus (SYS_SPAWN de /apps/<nom>.app/main, sans
+	   arguments) : argv[0] est le nom du process, celui du dossier de l'app (env.c, own_name).
+	   24/11 : Blender ne trouvait pas son dossier de donnees, a cote de l'executable. */
+	{
+		char c[PATH_MAX];
+		struct stat st;
+		if (strlen (a) + sizeof "/apps/.app/main" <= sizeof c)
+		{
+			strcpy (c, "/apps/");
+			strcat (c, a);
+			strcat (c, ".app/main");
+			if (stat (c, &st) == 0 && S_ISREG (st.st_mode))
+			{
+				strcpy (s_path, c);
+				return s_path;
+			}
+		}
 	}
 	strncpy (s_path, a, sizeof s_path - 1);
 	return s_path;
