@@ -199,6 +199,30 @@ def run(a):
                 t.s.sendall(c[6:].encode("utf-8") + b"\r\n")
                 print("lancé :", c[6:], flush=True)
                 continue
+            if c.startswith("watch:"):  # watch:SECONDES:CAPTURE:COMMANDE : tout ce qu'elle écrit pendant ce temps,
+                #                             puis une capture (CAPTURE : un nom, ou vide) et Ctrl+C (une app qui ne
+                #                             rend pas la main : on voit ses messages au fil de l'eau)
+                secs, shot, cmd = c[6:].split(":", 2)
+                t.s.sendall(cmd.encode("utf-8") + b"\r\n")
+                end = time.time() + float(secs)
+                while time.time() < end:
+                    t.s.settimeout(max(0.1, end - time.time()))
+                    try:
+                        d = t.s.recv(65536)
+                    except OSError:
+                        continue
+                    if not d:
+                        break
+                    t.buf += d.replace(b"\xff\xf1", b"")
+                print("$ (%s s) %s\n%s" % (secs, cmd, rem.nettoyer(t.buf)), flush=True)
+                t.buf = b""
+                if shot:
+                    f = os.path.join(W, shot + ".png").replace("\\", "/")
+                    q.cmd("screendump", filename=f, format="png")
+                    print("capture :", f, flush=True)
+                t.s.sendall(b"\x03")
+                time.sleep(2)
+                continue
             if c.startswith("fresh:"):  # une commande dans une autre session telnet (la première tient une app lancée)
                 t2 = None
                 for _ in range(5):  # (une machine très chargée, llvmpipe par exemple, tarde à ouvrir la session)

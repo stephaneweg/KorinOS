@@ -46,5 +46,13 @@ de l'utilisateur : blender 5.2.4-0.1** (PC, Release, 113 Mo, main 0ea5dbbd ; too
 --tree build/pc/blender-pkg) pour l'essayer sur le ZBook (vrai GPU Intel). lavapipe : LLVM 21 pour Korin en cours
 (tools/mesa/build-llvm-korin.sh), présentation par copie écrite (tools/mesa/lvp/korin_lvp_wsi.c).
 
+**24/11 (matin)** : paquets d'essai 5.2.4-0.2 à 0.5 publiés (external_memory coupé, assertions coupées, tables RNA
+refaites par des outils de l'hôte de la MÊME configuration — hosttools.sh CONFIG=gui, sinon arguments nommés au
+mauvais rang —, icône, SKILL.md). lavapipe pour QEMU : LLVM 21 pour Korin (build-llvm-korin.sh, PIC), lié en
+statique (build-lvp.sh, link-lvp.sh ; kit impossible : 71 Mo > 64 Mo des tampons d'AppKit), pile 8 Mo des fils de
+Mesa (korin-lvp.patch) ; vktest --win OK. Blender sur lavapipe : fenêtre + Vulkan, puis attente sans dessin
+(interblocage, CPU oisifs) : à chercher. ZBook : 5.2.4-0.1 avait trouvé le GPU puis l'assertion ; 0.4+ pas encore
+essayé. Essais : pctest watch:/fresh:/rips:, `. ~/korin-cloud/env.sh`, `wsl -u root`, `--qemu "-accel kvm"`.
+
 **How to apply:** JOBS=6 (12 Go) dans WSL (9 Go). Lancer les scripts par `wsl -- sh tools/blender/…` (pas `wsl bash -c '…$X…'` :
 les $ sont développés avant ; Git Bash : MSYS_NO_PATHCONV=1 pour les chemins /home). Voir [[armpi-godot]], [[armpi-cpython]], [[armpi-devtools]], [[armpi-cao]].

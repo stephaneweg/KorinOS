@@ -11,7 +11,7 @@ de départ : ce que Blender demande, ce que Korin a déjà, le chemin par jalons
 | 0 | Source, versions, chaîne CMake de Korin, scripts `tools/blender` | **fait (23/11)** : `env.sh`, `korin.cmake`, `versions.py`, `fetch.sh` (Blender 5.2.4 et les sources de classe A) |
 | 1 | Les dépendances indispensables, croisées pour Korin PC (Python 3.13, OIIO, OCIO, OpenEXR, TBB, shaderc…) | **fait (24/11)**, construit seulement (rien lancé dans Korin) ; numpy reporté au jalon 4 |
 | 2 | **Blender sans écran** (`WITH_HEADLESS`) : `blender -b` charge un .blend, exécute du Python, rend par Cycles sur le processeur | **fait (24/11), sous QEMU PC (KVM)** : `SCENE OK` et `RENDU OK` (Cycles, 4 fils, 0,7 s) |
-| 3 | **GHOST de Korin** : fenêtres UIKit, entrées, presse-papier ; rendu par Vulkan (VkKit, WSI de Korin) | à faire |
+| 3 | **GHOST de Korin** : fenêtres UIKit, entrées, presse-papier ; rendu par Vulkan (VkKit, WSI de Korin) | **en cours (24/11)** : construit et publié en essai (paquet `blender` 5.2.4-0.5) ; sous QEMU (lavapipe) la fenêtre s'ouvre, Vulkan est choisi, puis Blender attend sans rien dessiner ; pas encore vu sur le ZBook |
 | 4 | Le reste : Embree, OpenSubdiv, Manifold, OpenVDB, son, vidéo, import/export (USD, Alembic…) | à faire |
 | 5 | Paquet `blender`, app (`app.txt`, icône, catégorie), compétence, essai sur le ZBook | à faire |
 
@@ -262,6 +262,37 @@ Ce qu'il a fallu, en plus du jalon 1 :
   (paquet d'essai par la mise à jour habituelle).
 * Critère : ouvrir Blender, l'écran de démarrage, le cube par défaut, tourner la vue, passer en Edit Mode, rendre
   une image par F12 (Cycles CPU, EEVEE sur le GPU).
+
+**État au 24/11 (matin).** Construire : `CONFIG=gui sh tools/blender/hosttools.sh` (outils de l'hôte de cette
+configuration), `CONFIG=gui sh tools/blender/build.sh` (`install-gui`), `sh tools/blender/stage.sh` puis
+`python tools/pkg/pub.py blender --tree build/pc/blender-pkg` (paquet).
+
+| Fait | Comment |
+|---|---|
+| GHOST de Korin (`tools/blender/ghost`) | fenêtres UIKit, clavier HID, souris, molette, curseurs standard, presse-papier texte, grab par pointeur verrouillé ; compilé du premier coup ; contexte Vulkan : surface headless + `VkKorinSurfaceInfo` (retouche de `GHOST_ContextVK`) |
+| Vulkan direct | VkKit : trampolines de tout `vulkan_core.h` (`tools/mesa/vkkit/gen_protos.py`) |
+| `external_memory` coupé sous Korin | le faux libdrm n'exporte pas la mémoire du GPU en descripteur |
+| assertions coupées | comme les versions officielles (`WITH_ASSERT_RELEASE` : le préréglage lite les allume) |
+| **outils de l'hôte de la même configuration** | `makesrna` génère les tables de l'API selon `WITH_CYCLES`, `WITH_VULKAN_BACKEND`… ; des outils construits autrement donnaient des arguments nommés au mauvais rang (`template_ID`, plantage) ; `hosttools.sh` vérifie `rna-options.txt` |
+| icône, compétence (`SKILL.md`), `app.txt` | paquet `blender` 5.2.4-0.5 (Release) |
+
+**Essais sous QEMU par lavapipe** (Vulkan sur le processeur : `tools/mesa/build-llvm-korin.sh`, `configure-lvp.sh`,
+`build-lvp.sh` ; lavapipe lié en statique, son kit de 71 Mo dépassant les 64 Mo des tampons d'AppKit et de
+`KIT_SLOT` ; `tools/blender/link-lvp.sh` ; `pctest.py prep --lvp`) :
+
+* `vktest` RÉUSSI sur llvmpipe (Vulkan 1.4, 175 extensions), `vktest --win` à 60 images/s, vu à l'écran ;
+* Blender : la fenêtre s'ouvre (titre « (Unsaved) - Blender 5.2.4 LTS »), le moteur Vulkan est choisi sur llvmpipe ;
+  un plantage dans llvmpipe (pile de 256 Ko des pthreads de libposix, trop petite pour les shaders compilés par LLVM)
+  corrigé dans `lvp/korin-lvp.patch` (8 Mo pour les fils de Mesa) ;
+* **reste** : Blender attend ensuite sans rien dessiner (processeurs oisifs : un interblocage, pas un calcul) ; à
+  chercher (fence ou image de la chaîne d'échange, fils de compilation des shaders). Pas d'outil pour voir les piles
+  des fils sous Korin.
+
+**Pas encore vu sur le ZBook** (vrai GPU, anv). Le premier essai (5.2.4-0.1) a trouvé le GPU puis s'est arrêté sur
+l'assertion du graphe de rendu ; les corrections ci-dessus (assertions, tables de l'API) sont dans 5.2.4-0.4 et plus.
+
+À voir aussi : la pile par défaut des pthreads de libposix (256 Ko, contre 8 Mo sous Linux) pourrait gêner d'autres
+fils de Blender ou d'anv ; la passer à 8 Mo (peuplée à la demande) serait plus sûr pour tous les ports.
 
 ### Jalon 4 : les fonctions (au fil des besoins)
 
