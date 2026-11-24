@@ -90,6 +90,19 @@ static struct gctx *ctxs;
 static uint32_t nctxs;
 static uint32_t *syncs;			/* numero de lot par syncobj (0 : signale) */
 static uint32_t nsyncs;
+/* un syncobj chronologique : ses points en attente (point, lot), du plus ancien au plus recent, et le plus
+ * grand point atteint. Les lots finissent dans l'ordre : un point est atteint quand son lot est fini. Blender
+ * ne libere ses ressources qu'a la valeur lue (vkGetSemaphoreCounterValue) : elle doit avancer pendant que des
+ * lots plus recents tournent encore (24/11 : avant, 0 tant que le dernier lot n'etait pas fini -> la memoire
+ * du GPU epuisee en quelques secondes de dessin continu). */
+#define TL_PENDING 32
+struct tl {
+	uint64_t reached;
+	uint32_t n;
+	struct { uint64_t pt; uint32_t seq; } p[TL_PENDING];
+};
+static struct tl *tls;			/* (a cote de syncs) */
+static void sync_signal (uint32_t h, uint64_t pt, uint32_t seq);
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static int dry, soft, debug, drm_fd = -1, lost;
 static long jobs, chan = -1;
@@ -551,6 +564,7 @@ static int bind_flush (uint32_t vm, struct ig_bind *e, int n)
 static void signal_fences (struct drm_i915_gem_execbuffer2 *x, uint32_t seq)
 {
 	struct drm_i915_gem_exec_fence *f = NULL;
+	uint64_t *v = NULL;		/* les points (syncobj chronologiques ; 0 : binaire) */
 	uint32_t n = 0;
 	if (x->flags & I915_EXEC_FENCE_ARRAY) {
 		f = (void *) (uintptr_t) x->cliprects_ptr;
@@ -561,13 +575,14 @@ static void signal_fences (struct drm_i915_gem_execbuffer2 *x, uint32_t seq)
 			if (u->name == DRM_I915_GEM_EXECBUFFER_EXT_TIMELINE_FENCES) {
 				struct drm_i915_gem_execbuffer_ext_timeline_fences *t = (void *) u;
 				f = (void *) (uintptr_t) t->handles_ptr;
+				v = (void *) (uintptr_t) t->values_ptr;
 				n = (uint32_t) t->fence_count;
 			}
 	}
 	/* les attentes : tout passe dans l'ordre sur le seul moteur de rendu, deja satisfaites */
 	for (uint32_t i = 0; i < n; i++)
-		if ((f[i].flags & I915_EXEC_FENCE_SIGNAL) && f[i].handle < nsyncs)
-			syncs[f[i].handle] = seq;
+		if (f[i].flags & I915_EXEC_FENCE_SIGNAL)
+			sync_signal (f[i].handle, v ? v[i] : 0, seq);
 }
 
 static int execbuf (struct drm_i915_gem_execbuffer2 *x)
@@ -679,6 +694,7 @@ static int sync_new (uint32_t flags, uint32_t *h)
 	if (i >= nsyncs) {
 		uint32_t n = nsyncs ? nsyncs * 2 : 256;
 		syncs = realloc (syncs, n * sizeof *syncs);
+		tls = realloc (tls, n * sizeof *tls);
 		for (uint32_t k = nsyncs; k < n; k++)
 			syncs[k] = UINT32_MAX;	/* libre */
 		if (!nsyncs)
@@ -687,54 +703,152 @@ static int sync_new (uint32_t flags, uint32_t *h)
 	}
 	(void) flags;
 	syncs[i] = 0;			/* signale (et tant qu'aucun lot ne le signale) */
+	memset (&tls[i], 0, sizeof tls[i]);
 	*h = i;
 	return 0;
 }
 
-static uint32_t sync_seq (uint32_t h)
+static int sync_ok (uint32_t h)
 {
-	return h < nsyncs && syncs[h] != UINT32_MAX ? syncs[h] : 0;
+	return h && h < nsyncs && syncs[h] != UINT32_MAX;
 }
 
-/* timeout absolu (CLOCK_MONOTONIC) ; all : tous -> 0, -ETIME */
-static int sync_wait (const uint32_t *h, uint32_t n, int64_t abs_ns, int all, uint32_t *first)
+static uint32_t sync_seq (uint32_t h)
 {
-	int64_t rel = abs_ns <= 0 ? 0 : abs_ns - (int64_t) now_ns ();
-	if (abs_ns == INT64_MAX)
-		rel = -1;
-	else if (rel < 0)
-		rel = 0;
-	if (all) {
-		for (uint32_t i = 0; i < n; i++) {
-			uint64_t t0 = now_ns ();
-			int r = wait_seq (sync_seq (h[i]), rel);
-			if (r)
-				return r;
-			if (rel > 0) {
-				rel -= (int64_t) (now_ns () - t0);
-				if (rel < 0)
-					rel = 0;
-			}
-		}
-		if (first)
-			*first = 0;
+	return sync_ok (h) ? syncs[h] : 0;
+}
+
+/* les points dont le lot est fini passent a « atteint » */
+static void tl_retire (struct tl *t)
+{
+	uint32_t k = 0;
+	while (k < t->n && done (t->p[k].seq)) {
+		if (t->p[k].pt > t->reached)
+			t->reached = t->p[k].pt;
+		k++;
+	}
+	if (k) {
+		memmove (t->p, t->p + k, (t->n - k) * sizeof t->p[0]);
+		t->n -= k;
+	}
+}
+
+/* le syncobj h signale par le lot seq (0 : tout de suite, par l'hote), au point pt (0 : binaire) */
+static void sync_signal (uint32_t h, uint64_t pt, uint32_t seq)
+{
+	if (!sync_ok (h))
+		return;
+	syncs[h] = seq;
+	if (!pt)
+		return;
+	struct tl *t = &tls[h];
+	tl_retire (t);
+	if (done (seq)) {
+		if (pt > t->reached)
+			t->reached = pt;
+		return;
+	}
+	if (t->n == TL_PENDING) {	/* le plus ancien s'en va : son point sera atteint avec le suivant */
+		memmove (t->p, t->p + 1, (TL_PENDING - 1) * sizeof t->p[0]);
+		t->n--;
+	}
+	t->p[t->n].pt = pt;
+	t->p[t->n].seq = seq;
+	t->n++;
+}
+
+static uint64_t sync_value (uint32_t h)
+{
+	if (!sync_ok (h))
+		return 0;
+	tl_retire (&tls[h]);
+	return tls[h].reached;
+}
+
+/* le lot a attendre pour le point pt de h (pt 0 : binaire, son dernier lot) ; 1 : point pas encore soumis */
+static int sync_target (uint32_t h, uint64_t pt, uint32_t *seq)
+{
+	*seq = 0;
+	if (!sync_ok (h))
+		return 0;
+	if (!pt) {
+		*seq = syncs[h];
 		return 0;
 	}
-	/* le premier fini : les lots finissent dans l'ordre, donc celui de plus petit numero */
-	uint32_t best = 0;
-	for (uint32_t i = 0; i < n; i++) {
-		if (done (sync_seq (h[i]))) {
-			if (first)
-				*first = i;
+	struct tl *t = &tls[h];
+	tl_retire (t);
+	if (pt <= t->reached)
+		return 0;
+	for (uint32_t k = 0; k < t->n; k++)
+		if (t->p[k].pt >= pt) {
+			*seq = t->p[k].seq;
 			return 0;
 		}
-		if ((int32_t) (sync_seq (h[i]) - sync_seq (h[best])) < 0)
-			best = i;
+	return 1;
+}
+
+/* timeout absolu (CLOCK_MONOTONIC) ; pts : les points (NULL : binaires) ; all : tous -> 0, -ETIME. Un point pas
+ * encore soumis (attente avant soumission) : on regarde de nouveau toutes les millisecondes. */
+static int sync_wait (const uint32_t *h, const uint64_t *pts, uint32_t n, int64_t abs_ns, int all, uint32_t *first)
+{
+	for (;;) {
+		int64_t rel = abs_ns <= 0 ? 0 : abs_ns - (int64_t) now_ns ();
+		if (abs_ns == INT64_MAX)
+			rel = -1;
+		else if (rel < 0)
+			rel = 0;
+		int ready = 1, later = 0, have = 0;
+		uint32_t target = 0;
+		for (uint32_t i = 0; i < n; i++) {
+			uint32_t seq;
+			if (sync_target (h[i], pts ? pts[i] : 0, &seq)) {
+				later = 1;
+				ready = 0;
+				continue;
+			}
+			if (done (seq)) {
+				if (!all) {
+					if (first)
+						*first = i;
+					return 0;
+				}
+				continue;
+			}
+			ready = 0;
+			/* tous : n'importe lequel des restants ; le premier : le plus petit numero (fini avant les autres) */
+			if (!have || (!all && (int32_t) (seq - target) < 0))
+				target = seq;
+			have = 1;
+		}
+		if (all && ready) {
+			if (first)
+				*first = 0;
+			return 0;
+		}
+		if (!have && !later)
+			return -EINVAL;		/* (aucun syncobj) */
+		if (rel == 0)
+			return -ETIME;
+		int64_t step = later && (rel < 0 || rel > 1000000) ? 1000000 : rel;
+		if (have) {
+			int r = wait_seq (target, step);
+			if (r && r != -ETIME)
+				return r;
+		} else {
+			pthread_mutex_unlock (&lock);
+			usleep ((useconds_t) (step / 1000));
+			pthread_mutex_lock (&lock);
+		}
 	}
-	int r = wait_seq (sync_seq (h[best]), rel);
-	if (!r && first)
-		*first = best;
-	return r;
+}
+
+/* le point sp de s (0 : binaire) recopie au point dp de d */
+static void sync_transfer (uint32_t d, uint64_t dp, uint32_t s, uint64_t sp)
+{
+	uint32_t seq;
+	if (sync_target (s, sp, &seq))
+		seq = sync_seq (s);	/* (pas encore soumis : son dernier lot, au mieux) */
+	sync_signal (d, dp, seq);
 }
 
 /* -------- les ioctl --------------------------------------------------------------------------------- */
@@ -894,12 +1008,13 @@ static int ioctl_locked (unsigned long request, void *arg)
 	}
 	case DRM_IOCTL_SYNCOBJ_WAIT: {
 		struct drm_syncobj_wait *w = arg;
-		return sync_wait ((uint32_t *) (uintptr_t) w->handles, w->count_handles, w->timeout_nsec,
+		return sync_wait ((uint32_t *) (uintptr_t) w->handles, NULL, w->count_handles, w->timeout_nsec,
 				  (w->flags & DRM_SYNCOBJ_WAIT_FLAGS_WAIT_ALL) != 0, &w->first_signaled);
 	}
 	case DRM_IOCTL_SYNCOBJ_TIMELINE_WAIT: {
 		struct drm_syncobj_timeline_wait *w = arg;
-		return sync_wait ((uint32_t *) (uintptr_t) w->handles, w->count_handles, w->timeout_nsec,
+		return sync_wait ((uint32_t *) (uintptr_t) w->handles, (uint64_t *) (uintptr_t) w->points,
+				  w->count_handles, w->timeout_nsec,
 				  (w->flags & DRM_SYNCOBJ_WAIT_FLAGS_WAIT_ALL) != 0, &w->first_signaled);
 	}
 	case DRM_IOCTL_SYNCOBJ_QUERY: {
@@ -907,23 +1022,28 @@ static int ioctl_locked (unsigned long request, void *arg)
 		uint64_t *pts = (void *) (uintptr_t) a->points;
 		uint32_t *h = (void *) (uintptr_t) a->handles;
 		for (uint32_t i = 0; i < a->count_handles; i++)
-			pts[i] = done (sync_seq (h[i])) ? UINT64_MAX >> 1 : 0;
+			pts[i] = sync_value (h[i]);
 		return 0;
 	}
 	case DRM_IOCTL_SYNCOBJ_RESET:
-	case DRM_IOCTL_SYNCOBJ_SIGNAL:
-	case DRM_IOCTL_SYNCOBJ_TIMELINE_SIGNAL: {	/* un syncobj sans lot est tenu pour signale */
+	case DRM_IOCTL_SYNCOBJ_SIGNAL: {		/* un syncobj sans lot est tenu pour signale */
 		struct drm_syncobj_array *a = arg;
 		uint32_t *h = (void *) (uintptr_t) a->handles;
 		for (uint32_t i = 0; i < a->count_handles; i++)
-			if (h[i] && h[i] < nsyncs && syncs[h[i]] != UINT32_MAX)
-				syncs[h[i]] = 0;
+			sync_signal (h[i], 0, 0);
+		return 0;
+	}
+	case DRM_IOCTL_SYNCOBJ_TIMELINE_SIGNAL: {
+		struct drm_syncobj_timeline_array *a = arg;
+		uint32_t *h = (void *) (uintptr_t) a->handles;
+		uint64_t *pts = (void *) (uintptr_t) a->points;
+		for (uint32_t i = 0; i < a->count_handles; i++)
+			sync_signal (h[i], pts ? pts[i] : 0, 0);
 		return 0;
 	}
 	case DRM_IOCTL_SYNCOBJ_TRANSFER: {
 		struct drm_syncobj_transfer *t = arg;
-		if (t->dst_handle < nsyncs && syncs[t->dst_handle] != UINT32_MAX)
-			syncs[t->dst_handle] = sync_seq (t->src_handle);
+		sync_transfer (t->dst_handle, t->dst_point, t->src_handle, t->src_point);
 		return 0;
 	}
 	default:			/* perf, PRIME, fichiers de synchronisation : absents */
@@ -1086,7 +1206,7 @@ int drmSyncobjWait (int fd, uint32_t *h, unsigned n, int64_t t, unsigned f, uint
 {
 	(void) fd;
 	pthread_mutex_lock (&lock);
-	int r = sync_wait (h, n, t, (f & DRM_SYNCOBJ_WAIT_FLAGS_WAIT_ALL) != 0, first);
+	int r = sync_wait (h, NULL, n, t, (f & DRM_SYNCOBJ_WAIT_FLAGS_WAIT_ALL) != 0, first);
 	pthread_mutex_unlock (&lock);
 	return locked (r);
 }
@@ -1094,42 +1214,39 @@ int drmSyncobjImportSyncFile (int fd, uint32_t h, int s) { (void) fd; (void) h; 
 int drmSyncobjExportSyncFile (int fd, uint32_t h, int *s) { (void) fd; (void) h; *s = FAKE_FD; return 0; }
 int drmSyncobjFDToHandle (int fd, int o, uint32_t *h) { (void) fd; (void) o; (void) h; return -ENOSYS; }
 int drmSyncobjHandleToFD (int fd, uint32_t h, int *o) { (void) fd; (void) h; (void) o; return -ENOSYS; }
-int drmSyncobjReset (int fd, const uint32_t *h, uint32_t n)
+int drmSyncobjTimelineSignal (int fd, const uint32_t *h, uint64_t *p, uint32_t n)
 {
 	(void) fd;
 	pthread_mutex_lock (&lock);
 	for (uint32_t i = 0; i < n; i++)
-		if (h[i] && h[i] < nsyncs && syncs[h[i]] != UINT32_MAX)
-			syncs[h[i]] = 0;
+		sync_signal (h[i], p ? p[i] : 0, 0);
 	pthread_mutex_unlock (&lock);
 	return 0;
 }
-int drmSyncobjSignal (int fd, const uint32_t *h, uint32_t n) { return drmSyncobjReset (fd, h, n); }
-int drmSyncobjTimelineSignal (int fd, const uint32_t *h, uint64_t *p, uint32_t n)
-{
-	(void) p;
-	return drmSyncobjReset (fd, h, n);
-}
+int drmSyncobjReset (int fd, const uint32_t *h, uint32_t n) { return drmSyncobjTimelineSignal (fd, h, NULL, n); }
+int drmSyncobjSignal (int fd, const uint32_t *h, uint32_t n) { return drmSyncobjTimelineSignal (fd, h, NULL, n); }
 int drmSyncobjTimelineWait (int fd, uint32_t *h, uint64_t *p, unsigned n, int64_t t, unsigned f, uint32_t *first)
 {
-	(void) p;
-	return drmSyncobjWait (fd, h, n, t, f, first);
+	(void) fd;
+	pthread_mutex_lock (&lock);
+	int r = sync_wait (h, p, n, t, (f & DRM_SYNCOBJ_WAIT_FLAGS_WAIT_ALL) != 0, first);
+	pthread_mutex_unlock (&lock);
+	return locked (r);
 }
 int drmSyncobjQuery2 (int fd, uint32_t *h, uint64_t *p, uint32_t n, uint32_t f)
 {
 	(void) fd; (void) f;
 	pthread_mutex_lock (&lock);
 	for (uint32_t i = 0; i < n; i++)
-		p[i] = done (sync_seq (h[i])) ? UINT64_MAX >> 1 : 0;
+		p[i] = sync_value (h[i]);
 	pthread_mutex_unlock (&lock);
 	return 0;
 }
 int drmSyncobjTransfer (int fd, uint32_t d, uint64_t dp, uint32_t s, uint64_t sp, uint32_t f)
 {
-	(void) fd; (void) dp; (void) sp; (void) f;
+	(void) fd; (void) f;
 	pthread_mutex_lock (&lock);
-	if (d < nsyncs && syncs[d] != UINT32_MAX)
-		syncs[d] = sync_seq (s);
+	sync_transfer (d, dp, s, sp);
 	pthread_mutex_unlock (&lock);
 	return 0;
 }
