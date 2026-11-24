@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-24 20:25
+date = 2026-11-24 20:35
 abi = 629
 packages = 117
 board = pc
@@ -754,18 +754,18 @@ content = 9f3244bd42488815f7682ae113124deaad03bea4677881900b3e4fd5302ed6f4
 
 [arabesque]
 title = Arabesque
-version = 1.3.7
-category = Multimédia
+version = 1.3.8
+category = Musique
 author = Korin OS
 summary = 
-size = 291484
-installed = 602035
-sha256 = 2c6a89f83df5f369f658763e5d368cf635c8863a7732ee7183249ac622ea2fa8
-file = pkgs/arabesque-1.3.7.opk
+size = 291473
+installed = 602031
+sha256 = 11886df0b1ef02d44f2ca59a92347f8b6c9bc1109a7ca1cb063c97944f848ea1
+file = pkgs/arabesque-1.3.8.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 6a69066ad9ee63e42da5e8a7ef1719dae518af2bfb928043318d006b49492130
+content = c97b00ab2c25f2682008e94fa8663bac3106866f2e35911bed4362f463e49ea5
 
 [archiver]
 title = Archiveur
