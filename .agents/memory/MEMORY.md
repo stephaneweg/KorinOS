@@ -57,6 +57,7 @@
 - [3DS](armpi-3ds.md) — n3dsemu sur EmuKit et Mesa, ARM11 recompile ici ; dans main, deploye sur le Pi, 36 images/s sur le titre de Zelda, l'app attend un redemarrage
 - [Nom Korin OS](armpi-nom-korin.md) — nouveau nom de l'OS demandé le 3/11 ; board = armpi et le dépôt de paquets restent
 - [Idée PDF en MIT](armpi-idee-pdf-mit.md) — pour plus tard : remplacer MuPDF (AGPL) par PDFium ou un moteur maison
+- [Lecteur PDF](armpi-pdf-lecteur.md) — 24/11 : options FreeType d'Onyx qui cassaient les polices standard (pages vides), barre d'onglets sans VTF_MOVE (fenêtre fixe)
 - [Idée assistant IA](armpi-idee-assistant-ia.md) — inspiré de PockQI ; port fait : voir armpi-pocketqi
 - [Dépôt KorinOS](armpi-korinos-depot.md) — le dossier principal est ce dépôt (origin, main) ; historique privé armpi-historique supprimé le 4/11
 - [À faire](armpi-a-faire.md) — notes datées de l'utilisateur : mardi 17/11, la loupe de la barre d'adresse de Jet ne suit pas le redimensionnement

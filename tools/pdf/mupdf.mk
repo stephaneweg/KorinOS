@@ -64,3 +64,5 @@ $(foreach f,$(MU_OPJ),$(eval $(call mu_rule,opj,$(f),-DOPJ_STATIC -DOPJ_HAVE_INT
 $(foreach f,$(MU_JPG),$(eval $(call mu_rule,jpeg,$(f),-DFZ_HIDE_INTERNAL_JPEG -I$$(MU)/scripts/libjpeg -I$$(MU_JPEG))))
 $(foreach f,$(MU_Z),$(eval $(call mu_rule,z,$(f),-I$$(MU_ZLIB))))
 $(foreach f,$(MU_FTSRC),$(eval $(call mu_rule,ft,$(f),$$(MU_FTDEFS) -I$$(CONF) -I$$(MU_FT)/include)))
+# les options de FreeType sont dans CONF : les changer recompile FreeType
+$(foreach f,$(MU_FTSRC),$(call o,ft,$(f))): $(CONF)/armpi_ftoption.h $(CONF)/armpi_muftmodule.h
