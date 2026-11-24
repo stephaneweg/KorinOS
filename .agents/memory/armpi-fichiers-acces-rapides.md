@@ -40,4 +40,7 @@ Demande de l'utilisateur du 24/11/2026, branche claude/lucid-wright-6o2o4b, fusi
   **Piège du PC** : le noyau prend un kit dans korin/initrd.tar avant lib/, et à version de kit égale initrd_kits.py
   garde celui de l'initrd : une modification d'UIKit sans changement d'ABI doit remplacer uikit.so DANS l'initrd
   aussi (scratchpad initrd_put.py : ordre, noms, dates gardés ; pub.py --boot DOSSIER avec korin/initrd.tar).
+- 24/11 : accents de UIKit (uk_theme.c, uikit_theme.inc, applet Thème asm) choisis par l'utilisateur : vert
+  0x2E8B3E (Givre) / 0x57B65F (Onyx Noir), « Vert vif » renommé « Vert » ; jaune 0xE69A0F / 0xFFB52E (le « J3 » :
+  l'utilisateur l'a préféré aux jaunes moins saturés de même teinte). Fichiers redessine sur WEV_THEME.
 - Le Pi (armpi) n'est pas publié : son paquet a encore files.asm.

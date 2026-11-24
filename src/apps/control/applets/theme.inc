@@ -543,8 +543,8 @@ th_acc_noms:				; (les noms de uk_accents, UIKit)
 th_acc_coul:				; (leurs couleurs : Givre, Onyx Noir)
 	dw 0x002563D8, 0x002F72DC
 	dw 0x00CF3F0A, 0x00D04510
-	dw 0x005FBF12, 0x00A6E22E
-	dw 0x00F2B705, 0x00FFD02E
+	dw 0x002E8B3E, 0x0057B65F
+	dw 0x00E69A0F, 0x00FFB52E
 	dw 0x007340E0, 0x007E52E6
 	dw 0x00C2188F, 0x00D12A9C
 	dw 0x000B7F7A, 0x000D827C
@@ -552,7 +552,7 @@ th_acc_coul:				; (leurs couleurs : Givre, Onyx Noir)
 th_acc_lib	dw th_al0-th_acc_lib, th_al1-th_acc_lib, th_al2-th_acc_lib, th_al3-th_acc_lib, th_al4-th_acc_lib, th_al5-th_acc_lib, th_al6-th_acc_lib, th_al7-th_acc_lib
 th_al0	db 'Bleu',0
 th_al1	db 'Rouge orang',0xC3,0xA9,0
-th_al2	db 'Vert vif',0
+th_al2	db 'Vert',0
 th_al3	db 'Jaune',0
 th_al4	db 'Violet',0
 th_al5	db 'Fuchsia',0
