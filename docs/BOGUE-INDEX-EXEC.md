@@ -70,6 +70,19 @@ volume ext4, le bit `x` est celui de l'inode : vfs le demande et le règle par e
 Bénéfices : `git clone` et `pip install` sur `/home` gardent leurs bits `x` sans limite, `stat` montre le vrai mode
 d'un fichier ext4, et un dépôt cloné sous Korin puis copié ailleurs garde ses droits.
 
+## Plus tard, seulement si nécessaire : FAT et exFAT sans index
+
+ext4 est le système de fichiers par défaut de Korin, et ce qui compte aujourd'hui est la correction pour ext4
+ci-dessus. Si un jour les volumes FAT (clés USB, carte du Pi) demandent mieux que l'index, la piste retenue est
+celle d'UMSDOS : **un fichier de métadonnées caché par dossier** (par exemple `@korin`), une ligne par fichier qui a
+des propriétés (mode, puis propriétaire, liens symboliques, attributs étendus). fatfs le tient à jour dans la même
+opération (renommer, déplacer, effacer), le cache aux programmes et refuse ce nom ; attribut FAT « caché » pour
+Windows ; écrit par un temporaire puis un renommage ; lignes orphelines (fichier renommé ou effacé hors de Korin)
+ignorées puis nettoyées. Un fichier par dossier, pas un par fichier : sur FAT32, chaque fichier prend au moins un
+cluster (souvent 32 Ko). Pour exFAT, une entrée secondaire « Vendor Extension » (type 0xE0, GUID de Korin) peut porter
+les mêmes données. Écartés : un marqueur dans le nom (visible hors de Korin, recherches et unicité compliquées, chmod
+devenu renommage) ; un bit libre de `DIR_NTRes` (simple, mais rien d'autre que `x`).
+
 ## Reproduire
 
 Sur un volume ext4, remplir l'index puis demander un bit `x` :
