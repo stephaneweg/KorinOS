@@ -1,3 +1,48 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 141fdaf..be6fdc5 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -340,6 +340,15 @@ Enable building Blender against SDL for windowing rather than the native APIs"
+ )
+ mark_as_advanced(WITH_GHOST_SDL)
+ 
++# Korin OS : fenetres et evenements par UIKit (tools/blender/ghost), dessin par Vulkan (VkKit).
++# KORIN vient du fichier de chaine (tools/blender/korin.cmake).
++if(KORIN)
++  option(WITH_GHOST_KORIN "Enable building Blender against UIKit (Korin OS) for windowing" ON)
++else()
++  set(WITH_GHOST_KORIN OFF)
++endif()
++mark_as_advanced(WITH_GHOST_KORIN)
++
+ if(UNIX AND NOT (APPLE OR HAIKU))
+   option(WITH_GHOST_X11 "Enable building Blender against X11 for windowing" ON)
+   mark_as_advanced(WITH_GHOST_X11)
+@@ -1351,6 +1360,16 @@ if(UNIX AND NOT (APPLE OR HAIKU))
+   set_and_warn_incompatible(WITH_HEADLESS WITH_GHOST_X11 OFF)
+ endif()
+ set_and_warn_incompatible(WITH_HEADLESS WITH_GHOST_SDL OFF)
++set_and_warn_incompatible(WITH_HEADLESS WITH_GHOST_KORIN OFF)
++if(WITH_GHOST_KORIN)
++  # Korin OS : UIKit seul, Vulkan seul (pas d'OpenGL de bureau), ni IME ni OpenXR.
++  set_and_warn_incompatible(WITH_GHOST_KORIN WITH_GHOST_X11 OFF)
++  set_and_warn_incompatible(WITH_GHOST_KORIN WITH_GHOST_WAYLAND OFF)
++  set_and_warn_incompatible(WITH_GHOST_KORIN WITH_GHOST_SDL OFF)
++  set_and_warn_incompatible(WITH_GHOST_KORIN WITH_OPENGL_BACKEND OFF)
++  set_and_warn_incompatible(WITH_GHOST_KORIN WITH_INPUT_IME OFF)
++  set_and_warn_incompatible(WITH_GHOST_KORIN WITH_XR_OPENXR OFF)
++endif()
+ 
+ if(WITH_INPUT_IME)
+   set_and_warn_incompatible(WITH_HEADLESS WITH_INPUT_IME OFF)
+@@ -2553,6 +2572,7 @@ if(FIRST_RUN)
+   info_cfg_text("GHOST Options:")
+   info_cfg_option(WITH_GHOST_DEBUG)
+   info_cfg_option(WITH_GHOST_SDL)
++  info_cfg_option(WITH_GHOST_KORIN)
+   if(UNIX AND NOT APPLE)
+     info_cfg_option(WITH_GHOST_X11)
+     info_cfg_option(WITH_GHOST_WAYLAND)
 diff --git a/build_files/cmake/macros.cmake b/build_files/cmake/macros.cmake
 index fb0085a..fc8019f 100644
 --- a/build_files/cmake/macros.cmake
@@ -60,10 +105,23 @@ index f711326..11c25e8 100644
  # -----------------------------------------------------------------------------
  # Configure USD
 diff --git a/build_files/cmake/platform/platform_unix.cmake b/build_files/cmake/platform/platform_unix.cmake
-index 4719eb4..b3d16d6 100644
+index 4719eb4..b3228dc 100644
 --- a/build_files/cmake/platform/platform_unix.cmake
 +++ b/build_files/cmake/platform/platform_unix.cmake
-@@ -198,7 +198,7 @@ if(NOT WITH_SYSTEM_FREETYPE)
+@@ -161,6 +161,12 @@ if(WITH_VULKAN_BACKEND)
+ 
+     find_package_wrapper(Vulkan REQUIRED)
+     find_package_wrapper(ShaderC REQUIRED)
++  elseif(KORIN)
++    # Korin OS : VkKit (libvkkit.a, chargeur et trampolines) et shaderc de tools/blender/deps.sh
++    set(VULKAN_INCLUDE_DIRS ${KORIN_VULKAN_INCLUDE_DIRS})
++    set(VULKAN_LIBRARIES ${KORIN_VULKAN_LIBRARIES})
++    set(SHADERC_INCLUDE_DIRS ${KORIN_SHADERC_INCLUDE_DIRS})
++    set(SHADERC_LIBRARIES ${KORIN_SHADERC_LIBRARIES})
+   else()
+     # Use system libs
+     find_package(PkgConfig)
+@@ -198,7 +204,7 @@ if(NOT WITH_SYSTEM_FREETYPE)
      mark_as_advanced(freetype_DIR)
    endif()
  
@@ -72,7 +130,7 @@ index 4719eb4..b3d16d6 100644
      find_package_wrapper(Brotli REQUIRED)
  
      # NOTE: This is done on WIN32 & APPLE but fails on some Linux systems.
-@@ -600,6 +600,9 @@ add_bundled_libraries(hiprt/lib)
+@@ -600,6 +606,9 @@ add_bundled_libraries(hiprt/lib)
  # OpenSuse needs lutil, ArchLinux not, for now keep, can avoid by using --as-needed
  if(HAIKU)
    list(APPEND PLATFORM_LINKLIBS -lnetwork)
@@ -82,7 +140,7 @@ index 4719eb4..b3d16d6 100644
  else()
    list(APPEND PLATFORM_LINKLIBS -lutil -lc -lm)
  endif()
-@@ -1087,7 +1090,9 @@ function(configure_atomic_lib_if_needed)
+@@ -1087,7 +1096,9 @@ function(configure_atomic_lib_if_needed)
    endif()
  endfunction()
  
@@ -93,6 +151,171 @@ index 4719eb4..b3d16d6 100644
  
  if(PLATFORM_BUNDLED_LIBRARIES)
    # For the installed Python module and installed Blender executable, we set the
+diff --git a/intern/ghost/CMakeLists.txt b/intern/ghost/CMakeLists.txt
+index 8c3e57e..cf7bbd1 100644
+--- a/intern/ghost/CMakeLists.txt
++++ b/intern/ghost/CMakeLists.txt
+@@ -135,6 +135,24 @@ list(APPEND SRC
+ 
+ if(WITH_HEADLESS)
+   add_definitions(-DWITH_HEADLESS)
++elseif(WITH_GHOST_KORIN)
++  # Korin OS : GHOST sur UIKit (sources copiees de tools/blender/ghost par tools/blender/build.sh).
++  list(APPEND SRC
++    intern/GHOST_SystemKorin.cc
++    intern/GHOST_WindowKorin.cc
++    intern/ghost_korin_ui.c
++
++    intern/GHOST_SystemKorin.hh
++    intern/GHOST_WindowKorin.hh
++    intern/ghost_korin_ui.h
++  )
++  add_definitions(-DWITH_GHOST_KORIN)
++  list(APPEND INC_SYS
++    ${KORIN_UIKIT_INCLUDE_DIRS}
++  )
++  list(APPEND LIB
++    ${KORIN_UIKIT_LIBRARY}
++  )
+ elseif(WITH_GHOST_SDL)
+   list(APPEND SRC
+     intern/GHOST_ContextSDL.cc
+diff --git a/intern/ghost/intern/GHOST_ContextVK.cc b/intern/ghost/intern/GHOST_ContextVK.cc
+index 7ccfafa..9f47ab9 100644
+--- a/intern/ghost/intern/GHOST_ContextVK.cc
++++ b/intern/ghost/intern/GHOST_ContextVK.cc
+@@ -21,6 +21,10 @@
+ #  ifdef WITH_GHOST_WAYLAND
+ #    include <vulkan/vulkan_wayland.h>
+ #  endif
++#  ifdef WITH_GHOST_KORIN
++#    include <cstdint>
++#    include <vulkan/vulkan_korin.h> /* VkKit */
++#  endif
+ #endif
+ 
+ #include "vulkan/vk_ghost_api.hh"
+@@ -925,8 +929,9 @@ GHOST_TSuccess GHOST_ContextVK::swapBufferAcquire()
+     recreateSwapchain(use_hdr_swapchain);
+   }
+   else {
+-#ifdef WITH_GHOST_WAYLAND
+-    /* Wayland doesn't provide a WSI with windowing capabilities, therefore cannot detect whether
++#if defined(WITH_GHOST_WAYLAND) || defined(WITH_GHOST_KORIN)
++    /* (Korin : la surface headless ne connait pas non plus la taille de la fenetre)
++     * Wayland doesn't provide a WSI with windowing capabilities, therefore cannot detect whether
+      * the swap-chain needs to be recreated. But as a side effect we can recreate the swap-chain
+      * before presenting. */
+     if (wayland_window_info_) {
+@@ -1409,8 +1414,8 @@ GHOST_TSuccess GHOST_ContextVK::recreateSwapchain(bool use_hdr_swapchain)
+     int width = 0;
+     int height = 0;
+ 
+-#ifdef WITH_GHOST_WAYLAND
+-    /* Wayland doesn't provide a windowing API via WSI. */
++#if defined(WITH_GHOST_WAYLAND) || defined(WITH_GHOST_KORIN)
++    /* Wayland doesn't provide a windowing API via WSI (Korin : surface headless, de meme). */
+     if (wayland_window_info_) {
+       width = wayland_window_info_->size[0];
+       height = wayland_window_info_->size[1];
+@@ -1630,6 +1635,11 @@ const char *GHOST_ContextVK::getPlatformSpecificSurfaceExtension() const
+     case GHOST_kVulkanPlatformWayland:
+       return VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME;
+       break;
++#  endif
++#  ifdef WITH_GHOST_KORIN
++    case GHOST_kVulkanPlatformKorin:
++      return VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME;
++      break;
+ #  endif
+     case GHOST_kVulkanPlatformHeadless:
+       break;
+@@ -1657,6 +1667,12 @@ GHOST_TSuccess GHOST_ContextVK::initializeDrawingContext()
+     case GHOST_kVulkanPlatformWayland:
+       use_window_surface = (wayland_display_ != nullptr) && (wayland_surface_ != nullptr);
+       break;
++#  endif
++#  ifdef WITH_GHOST_KORIN
++    case GHOST_kVulkanPlatformKorin:
++      /* la poignee de la fenetre d'UIKit, passee par `window` */
++      use_window_surface = (window_ != nullptr);
++      break;
+ #  endif
+     case GHOST_kVulkanPlatformHeadless:
+       use_window_surface = false;
+@@ -1768,6 +1784,22 @@ GHOST_TSuccess GHOST_ContextVK::initializeDrawingContext()
+                  GHOST_kFailure);
+         break;
+       }
++#  endif
++#  ifdef WITH_GHOST_KORIN
++      case GHOST_kVulkanPlatformKorin: {
++        /* Korin OS (VkKit) : surface headless, la fenetre d'Elegant dans le pNext ; la WSI de Korin
++         * montre les images de la chaine dans la fenetre (wsi_common_korin.c). */
++        VkKorinSurfaceInfo korin_info = {};
++        korin_info.sType = VK_STRUCTURE_TYPE_KORIN_SURFACE_INFO;
++        korin_info.window = long(reinterpret_cast<intptr_t>(window_));
++        VkHeadlessSurfaceCreateInfoEXT surface_create_info = {};
++        surface_create_info.sType = VK_STRUCTURE_TYPE_HEADLESS_SURFACE_CREATE_INFO_EXT;
++        surface_create_info.pNext = &korin_info;
++        VK_CHECK(vkCreateHeadlessSurfaceEXT(
++                     instance_vk.vk_instance, &surface_create_info, nullptr, &surface_),
++                 GHOST_kFailure);
++        break;
++      }
+ #  endif
+       case GHOST_kVulkanPlatformHeadless: {
+         surface_ = VK_NULL_HANDLE;
+diff --git a/intern/ghost/intern/GHOST_ContextVK.hh b/intern/ghost/intern/GHOST_ContextVK.hh
+index 3a89cab..b259b74 100644
+--- a/intern/ghost/intern/GHOST_ContextVK.hh
++++ b/intern/ghost/intern/GHOST_ContextVK.hh
+@@ -58,6 +58,11 @@ enum GHOST_TVulkanPlatformType {
+ #ifdef WITH_GHOST_WAYLAND
+   GHOST_kVulkanPlatformWayland = 2,
+ #endif
++#ifdef WITH_GHOST_KORIN
++  /** Korin OS : surface headless + #VkKorinSurfaceInfo (VkKit). La poignee de la fenetre d'UIKit
++   * passe par le parametre `window`, la taille par `wayland_window_info`. */
++  GHOST_kVulkanPlatformKorin = 3,
++#endif
+ };
+ 
+ struct GHOST_ContextVK_WindowInfo {
+diff --git a/intern/ghost/intern/GHOST_ISystem.cc b/intern/ghost/intern/GHOST_ISystem.cc
+index fb5c5ae..58f702b 100644
+--- a/intern/ghost/intern/GHOST_ISystem.cc
++++ b/intern/ghost/intern/GHOST_ISystem.cc
+@@ -22,6 +22,8 @@
+ #  include "GHOST_SystemX11.hh"
+ #elif defined(WITH_GHOST_WAYLAND)
+ #  include "GHOST_SystemWayland.hh"
++#elif defined(WITH_GHOST_KORIN)
++#  include "GHOST_SystemKorin.hh"
+ #elif defined(WITH_GHOST_SDL)
+ #  include "GHOST_SystemSDL.hh"
+ #elif defined(WIN32)
+@@ -140,6 +142,20 @@ GHOST_TSuccess GHOST_ISystem::createSystem(bool verbose, [[maybe_unused]] bool b
+     else {
+       system_ = nullptr;
+     }
++#elif defined(WITH_GHOST_KORIN)
++    backends_attempted.push_back({"KORIN"});
++    try {
++      CLOG_INFO(&LOG, "Create Korin system");
++      system_ = new GHOST_SystemKorin();
++    }
++    catch (const std::runtime_error &e) {
++      /* (pas d'UIKit : le bureau Elegant ne tourne pas ; `blender -b` marche sans) */
++      if (verbose) {
++        backends_attempted.back().failure_msg = e.what();
++      }
++      delete system_;
++      system_ = nullptr;
++    }
+ #elif defined(WITH_GHOST_SDL)
+     backends_attempted.push_back({"SDL"});
+     try {
 diff --git a/source/blender/blenlib/BLI_build_config.h b/source/blender/blenlib/BLI_build_config.h
 index 113d6ac..1db959e 100644
 --- a/source/blender/blenlib/BLI_build_config.h

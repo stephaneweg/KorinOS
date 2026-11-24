@@ -29,6 +29,26 @@ if [ -f "$p" ] && ! cmp -s "$p" "$BSRC/.korin-patch"; then
 	(cd "$BSRC" && patch -p1 < "$p") && cp "$p" "$BSRC/.korin-patch"
 fi
 
+# L'interface (CONFIG=gui) : GHOST de Korin (sources nouvelles, hors de blender.patch), UIKit, VkKit, shaderc
+GUI=
+if [ "$CONFIG" != headless ]; then
+	for f in GHOST_SystemKorin.cc GHOST_SystemKorin.hh GHOST_WindowKorin.cc GHOST_WindowKorin.hh \
+		ghost_korin_ui.c ghost_korin_ui.h; do
+		cmp -s "$BL/ghost/$f" "$BSRC/intern/ghost/intern/$f" || cp "$BL/ghost/$f" "$BSRC/intern/ghost/intern/$f"
+	done
+	[ -f "$ROOT/build/pc/gcc/lib/libuikit.a" ] || { echo "build.sh : d'abord sh tools/pc/apps.sh (libuikit.a)" >&2; exit 1; }
+	[ -f "$ROOT/build/pc/mesa/lib/libvkkit.a" ] || { echo "build.sh : pas de libvkkit.a (tools/mesa/build-anv.sh)" >&2; exit 1; }
+	# les en-têtes de Vulkan de Blender (deps.sh : vulkan_headers) et celui de la surface de Korin (VkKit)
+	cmp -s "$VKINC/vulkan/vulkan_korin.h" "$DEPS/include/vulkan/vulkan_korin.h" ||
+		cp "$VKINC/vulkan/vulkan_korin.h" "$DEPS/include/vulkan/"
+	GUI="-DKORIN_UIKIT_INCLUDE_DIRS=$ROOT/build/pc/gcc/include/kits;$ROOT/src/kits/uikit/include
+-DKORIN_UIKIT_LIBRARY=$ROOT/build/pc/gcc/lib/libuikit.a
+-DKORIN_VULKAN_INCLUDE_DIRS=$DEPS/include
+-DKORIN_VULKAN_LIBRARIES=$ROOT/build/pc/mesa/lib/libvkkit.a
+-DKORIN_SHADERC_INCLUDE_DIRS=$DEPS/include
+-DKORIN_SHADERC_LIBRARIES=$DEPS/lib/libshaderc_combined.a"
+fi
+
 KORIN_POSIX=$POSIX KORIN_BLENDER_DEPS=$DEPS cmake -S "$BSRC" -B "$B" -G Ninja \
 	-C "$BL/config-$CONFIG.cmake" \
 	-DCMAKE_TOOLCHAIN_FILE="$BL/korin.cmake" -DCMAKE_BUILD_TYPE=Release \
@@ -46,7 +66,7 @@ KORIN_POSIX=$POSIX KORIN_BLENDER_DEPS=$DEPS cmake -S "$BSRC" -B "$B" -G Ninja \
 	-Dexpat_ROOT="$DEPS" -Dpystring_ROOT="$DEPS" -DImath_ROOT="$DEPS" -Dminizip-ng_ROOT="$DEPS" \
 	-Dminizip-ng_INCLUDE_DIR="$DEPS/include/minizip-ng/minizip" -Dminizip-ng_LIBRARY="$DEPS/lib/libminizip.a" \
 	-Dyaml-cpp_DIR="$DEPS/lib/cmake/yaml-cpp" \
-	-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -Wno-dev
+	-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -Wno-dev $GUI
 
 [ "$1" = configure ] && exit 0
 ninja -C "$B" -j "$JOBS" -k "${KEEP:-1}"	# KEEP=50 : continuer après des erreurs pour les voir ensemble

@@ -31,7 +31,7 @@ ARCH=$ARCH KORIN_POSIX=$POSIX cmake -G Ninja -S "$W/src/src/llvm-project/llvm" -
 	-DLLVM_ENABLE_LIBPFM=OFF -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_ENABLE_PLUGINS=OFF -DLLVM_TOOL_LTO_BUILD=OFF \
 	-DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_DOCS=OFF \
 	-DLLVM_ENABLE_PIC=ON -DLLVM_ENABLE_THREADS=ON -DLLVM_BUILD_TOOLS=ON >/dev/null
-ninja -C "$B" llvm-libraries llc opt llvm-mc llvm-config
+ninja -C "$B" ${JOBS:+-j "$JOBS"} llvm-libraries llc opt llvm-mc llvm-config	# (JOBS : limite, pour la mémoire)
 T=$ROOT/build/pc/rust/tests/llvm
 mkdir -p "$T"
 for t in llc opt llvm-mc llvm-config; do "${TC}strip" "$B/bin/$t" -o "$T/$t"; done
