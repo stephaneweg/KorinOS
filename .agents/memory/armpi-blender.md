@@ -79,5 +79,9 @@ i915_queue_exec_locked, vk_sync_dummy de la WSI resignalé) : anv l'ignore (kori
 ui_frame_glyphs ; build/pc/gcc/include/kits régénéré pour UIKit). Pas encore essayé par l'utilisateur. Toujours :
 git fetch + merge + push avant chaque publication (d'autres sessions publient pc).
 
+**24/11 (soir)** : Blender dans la catégorie **Création** (demande de l'utilisateur, comme Forge et Dessin) : app.txt et
+`[blender]` de packages-pc.ini (c'est lui qui donne la catégorie de l'index) ; publié blender 5.2.4-0.12 (0.11 avait
+encore Graphisme dans l'index).
+
 **How to apply:** JOBS=6 (12 Go) dans WSL (9 Go). Lancer les scripts par `wsl -- sh tools/blender/…` (pas `wsl bash -c '…$X…'` :
 les $ sont développés avant ; Git Bash : MSYS_NO_PATHCONV=1 pour les chemins /home). Voir [[armpi-godot]], [[armpi-cpython]], [[armpi-devtools]], [[armpi-cao]].
