@@ -6,12 +6,20 @@ Le **Terminal** est la console de Korin OS : un émulateur de terminal VT/xterm 
 
 ## La fenêtre
 
-Une seule zone de texte, sur fond sombre :
+En haut, une barre noire porte le nom de l'app ; le bouton à trois traits, à sa gauche, ouvre le menu des onglets. Dessous, une zone de texte sur fond sombre :
 
 - en haut, ce qui a déjà été affiché (les 1 000 lignes sorties par le haut sont gardées) ;
 - en bas, l'**invite** du shell : le dossier courant suivi de `>`, par exemple `HOME:> `.
 
-Au démarrage, le Terminal ouvre un pseudo-terminal et y lance `sh`, qui affiche « Korin OS - sh. Tapez help pour la liste des commandes. » Le Terminal n'a pas de menu propre : tout se fait au clavier. `exit` (ou Ctrl+D sur une ligne vide) termine le shell, et le Terminal se ferme avec lui.
+Au démarrage, le Terminal ouvre un pseudo-terminal et y lance `sh`, qui affiche « Korin OS - sh. Tapez help pour la liste des commandes. » `exit` (ou Ctrl+D sur une ligne vide) termine le shell et ferme son onglet ; avec le dernier onglet, le Terminal se ferme.
+
+### Les onglets
+
+Chaque onglet a son propre shell, sur son propre pseudo-terminal ; ceux qu'on ne voit pas continuent de tourner.
+
+- **Nouvel onglet** (menu à trois traits, menu Onglets de la barre, ou Ctrl+Maj+T) ouvre un shell de plus. Dès qu'il y a deux onglets, leur bande paraît sous la barre de titre.
+- Un clic sur un onglet le montre ; Ctrl+Page bas et Ctrl+Page haut passent au suivant, au précédent.
+- La croix d'un onglet, **Fermer l'onglet** ou Ctrl+Maj+W le ferment (son shell reçoit `SIGHUP`).
 
 La fenêtre se redimensionne (bords, bouton agrandir) : le nombre de lignes et de colonnes suit, et le programme en cours est prévenu de la nouvelle taille (`SIGWINCH`). Les lignes déjà écrites ne sont pas remises en forme : elles sont coupées, ou allongées de blancs.
 
@@ -101,6 +109,8 @@ Le même shell sert à distance (telnet, à activer dans [Réglages](help:contro
 | Ctrl+C | interrompt le programme en cours (à l'invite : abandonne la ligne) |
 | Ctrl+D | sur une ligne vide : fin de l'entrée (à l'invite : ferme le shell et le Terminal) |
 | Maj+Page haut, Maj+Page bas | font défiler la sortie |
+| Ctrl+Maj+T, Ctrl+Maj+W | ouvre, ferme un onglet |
+| Ctrl+Page bas, Ctrl+Page haut | onglet suivant, précédent |
 | Molette | fait défiler la sortie, trois lignes par cran |
 | Flèches, Début, Fin, Page haut, Page bas, F1-F12, Échap | envoyées au programme (séquences de xterm) |
 
