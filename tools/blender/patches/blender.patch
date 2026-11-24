@@ -181,21 +181,22 @@ index 8c3e57e..cf7bbd1 100644
    list(APPEND SRC
      intern/GHOST_ContextSDL.cc
 diff --git a/intern/ghost/intern/GHOST_ContextVK.cc b/intern/ghost/intern/GHOST_ContextVK.cc
-index 7ccfafa..9f47ab9 100644
+index 7ccfafa..7763727 100644
 --- a/intern/ghost/intern/GHOST_ContextVK.cc
 +++ b/intern/ghost/intern/GHOST_ContextVK.cc
-@@ -21,6 +21,10 @@
+@@ -21,6 +21,11 @@
  #  ifdef WITH_GHOST_WAYLAND
  #    include <vulkan/vulkan_wayland.h>
  #  endif
 +#  ifdef WITH_GHOST_KORIN
 +#    include <cstdint>
 +#    include <vulkan/vulkan_korin.h> /* VkKit */
++#  include "ghost_korin_ui.h"
 +#  endif
  #endif
  
  #include "vulkan/vk_ghost_api.hh"
-@@ -925,8 +929,9 @@ GHOST_TSuccess GHOST_ContextVK::swapBufferAcquire()
+@@ -925,8 +930,9 @@ GHOST_TSuccess GHOST_ContextVK::swapBufferAcquire()
      recreateSwapchain(use_hdr_swapchain);
    }
    else {
@@ -207,7 +208,7 @@ index 7ccfafa..9f47ab9 100644
       * the swap-chain needs to be recreated. But as a side effect we can recreate the swap-chain
       * before presenting. */
      if (wayland_window_info_) {
-@@ -1409,8 +1414,8 @@ GHOST_TSuccess GHOST_ContextVK::recreateSwapchain(bool use_hdr_swapchain)
+@@ -1409,8 +1415,8 @@ GHOST_TSuccess GHOST_ContextVK::recreateSwapchain(bool use_hdr_swapchain)
      int width = 0;
      int height = 0;
  
@@ -218,7 +219,7 @@ index 7ccfafa..9f47ab9 100644
      if (wayland_window_info_) {
        width = wayland_window_info_->size[0];
        height = wayland_window_info_->size[1];
-@@ -1630,6 +1635,11 @@ const char *GHOST_ContextVK::getPlatformSpecificSurfaceExtension() const
+@@ -1630,6 +1636,11 @@ const char *GHOST_ContextVK::getPlatformSpecificSurfaceExtension() const
      case GHOST_kVulkanPlatformWayland:
        return VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME;
        break;
@@ -230,7 +231,7 @@ index 7ccfafa..9f47ab9 100644
  #  endif
      case GHOST_kVulkanPlatformHeadless:
        break;
-@@ -1657,6 +1667,12 @@ GHOST_TSuccess GHOST_ContextVK::initializeDrawingContext()
+@@ -1657,6 +1668,12 @@ GHOST_TSuccess GHOST_ContextVK::initializeDrawingContext()
      case GHOST_kVulkanPlatformWayland:
        use_window_surface = (wayland_display_ != nullptr) && (wayland_surface_ != nullptr);
        break;
@@ -243,7 +244,7 @@ index 7ccfafa..9f47ab9 100644
  #  endif
      case GHOST_kVulkanPlatformHeadless:
        use_window_surface = false;
-@@ -1768,6 +1784,22 @@ GHOST_TSuccess GHOST_ContextVK::initializeDrawingContext()
+@@ -1768,6 +1785,23 @@ GHOST_TSuccess GHOST_ContextVK::initializeDrawingContext()
                   GHOST_kFailure);
          break;
        }
@@ -255,6 +256,7 @@ index 7ccfafa..9f47ab9 100644
 +        VkKorinSurfaceInfo korin_info = {};
 +        korin_info.sType = VK_STRUCTURE_TYPE_KORIN_SURFACE_INFO;
 +        korin_info.window = long(reinterpret_cast<intptr_t>(window_));
++        korin_info.y = KUI_TOP_BAND; /* (sous la bande de titre de la fenetre, ghost_korin_ui.h) */
 +        VkHeadlessSurfaceCreateInfoEXT surface_create_info = {};
 +        surface_create_info.sType = VK_STRUCTURE_TYPE_HEADLESS_SURFACE_CREATE_INFO_EXT;
 +        surface_create_info.pNext = &korin_info;

@@ -89,6 +89,11 @@ void kui_screen(int *w, int *h, int *bottom, int *top);
 long kui_window(int x, int y, int w, int h, const char *title, int kind);
 void kui_window_close(long win);
 void kui_window_title(long win, const char *title);
+/* Korin n'a pas de barre de titre : les boutons du cadre sont sur le contenu, en haut a droite, et
+ * les 32 px du haut deplacent la fenetre. Le contenu de Blender (la surface de Vulkan) commence donc
+ * KUI_TOP_BAND px plus bas ; la bande au-dessus porte le titre, aux couleurs du theme. */
+#define KUI_TOP_BAND 36
+void kui_title_band(long win, const char *title);
 /* la fenetre prend la taille demandee (son tampon suit) */
 void kui_window_resize(long win, int w, int h);
 void kui_window_size(long win, int *w, int *h);

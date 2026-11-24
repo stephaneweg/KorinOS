@@ -105,8 +105,9 @@ GHOST_WindowKorin::GHOST_WindowKorin(GHOST_SystemKorin *system,
   int screen_w, screen_h, usable_top, usable_h;
   system_->getScreenSize(screen_w, screen_h);
   system_->getUsableArea(usable_top, usable_h);
+  /* (la hauteur demandee est celle du contenu : la fenetre a en plus la bande de titre) */
   const int w = std::clamp(int(width), 1, std::max(screen_w, 1));
-  const int h = std::clamp(int(height), 1, std::max(usable_h, 1));
+  const int h = std::clamp(int(height) + KUI_TOP_BAND, KUI_TOP_BAND + 1, std::max(usable_h, 1));
   int x = int(left), y = int(top);
   if (x < 0 || x + w > screen_w) {
     x = std::max((screen_w - w) / 2, 0);
@@ -124,6 +125,7 @@ GHOST_WindowKorin::GHOST_WindowKorin(GHOST_SystemKorin *system,
   kui_window_size(kui_win_, &rw, &rh);
   setSize(rw > 0 ? rw : w, rh > 0 ? rh : h);
   refreshOrigin();
+  drawTitleBand();
 
   /* Le contexte de dessin (Vulkan) : apres la fenetre, sa surface en depend. */
   if (setDrawingContextType(type) == GHOST_kSuccess) {
@@ -196,8 +198,9 @@ GHOST_Context *GHOST_WindowKorin::newDrawingContext(GHOST_TDrawingContextType ty
 
 void GHOST_WindowKorin::setSize(int width, int height)
 {
+  /* width, height : la fenetre d'UIKit ; size_ : le contenu de Blender, sous la bande de titre */
   size_[0] = std::max(width, 1);
-  size_[1] = std::max(height, 1);
+  size_[1] = std::max(height - KUI_TOP_BAND, 1);
 #ifdef WITH_VULKAN_BACKEND
   /* GHOST_ContextVK refait la chaine d'echange au prochain swapBufferAcquire si la taille change. */
   vulkan_window_info_.size[0] = size_[0];
@@ -210,6 +213,12 @@ void GHOST_WindowKorin::handleResize(int width, int height)
   /* Elegant demande une taille (bord tire, bouton agrandir) : la fenetre la prend (son tampon suit). */
   kui_window_resize(kui_win_, width, height);
   setSize(width, height);
+  drawTitleBand();
+}
+
+void GHOST_WindowKorin::drawTitleBand()
+{
+  kui_title_band(kui_win_, title_.c_str());
 }
 
 void GHOST_WindowKorin::handleScreenSize(int width, int height)
@@ -218,6 +227,7 @@ void GHOST_WindowKorin::handleScreenSize(int width, int height)
     kui_window_place(kui_win_, 0, 0);
     kui_window_resize(kui_win_, width, height);
     setSize(width, height);
+    drawTitleBand();
     system_->pushEvent(std::make_unique<GHOST_Event>(
         system_->getMilliSeconds(), GHOST_kEventWindowSize, this));
   }
@@ -248,6 +258,7 @@ void GHOST_WindowKorin::setTitle(const char *title)
 {
   title_ = title ? title : "";
   kui_window_title(kui_win_, title_.c_str());
+  drawTitleBand();
 }
 
 std::string GHOST_WindowKorin::getTitle() const
@@ -265,9 +276,9 @@ void GHOST_WindowKorin::getWindowBounds(GHOST_Rect &bounds) const
 void GHOST_WindowKorin::getClientBounds(GHOST_Rect &bounds) const
 {
   bounds.l_ = origin_[0];
-  bounds.t_ = origin_[1];
+  bounds.t_ = origin_[1] + KUI_TOP_BAND;
   bounds.r_ = origin_[0] + size_[0];
-  bounds.b_ = origin_[1] + size_[1];
+  bounds.b_ = bounds.t_ + size_[1];
 }
 
 GHOST_TSuccess GHOST_WindowKorin::setClientWidth(uint32_t width)
@@ -288,9 +299,10 @@ GHOST_TSuccess GHOST_WindowKorin::setClientSize(uint32_t width, uint32_t height)
   int screen_w, screen_h;
   system_->getScreenSize(screen_w, screen_h);
   const int w = std::clamp(int(width), 1, std::max(screen_w, 1));
-  const int h = std::clamp(int(height), 1, std::max(screen_h, 1));
+  const int h = std::clamp(int(height) + KUI_TOP_BAND, KUI_TOP_BAND + 1, std::max(screen_h, 1));
   kui_window_resize(kui_win_, w, h);
   setSize(w, h);
+  drawTitleBand();
   /* (ui_resize ne repond pas par WEV_RESIZE : l'evenement de GHOST est pose ici) */
   system_->pushEvent(
       std::make_unique<GHOST_Event>(system_->getMilliSeconds(), GHOST_kEventWindowSize, this));
@@ -303,7 +315,7 @@ void GHOST_WindowKorin::screenToClient(int32_t inX,
                                        int32_t &outY) const
 {
   outX = inX - origin_[0];
-  outY = inY - origin_[1];
+  outY = inY - origin_[1] - KUI_TOP_BAND;
 }
 
 void GHOST_WindowKorin::clientToScreen(int32_t inX,
@@ -312,7 +324,7 @@ void GHOST_WindowKorin::clientToScreen(int32_t inX,
                                        int32_t &outY) const
 {
   outX = inX + origin_[0];
-  outY = inY + origin_[1];
+  outY = inY + origin_[1] + KUI_TOP_BAND;
 }
 
 GHOST_TSuccess GHOST_WindowKorin::setState(GHOST_TWindowState state)
@@ -332,6 +344,7 @@ GHOST_TSuccess GHOST_WindowKorin::setState(GHOST_TWindowState state)
       kui_window_resize(kui_win_, restore_rect_[2], restore_rect_[3]);
       kui_window_place(kui_win_, restore_rect_[0], restore_rect_[1]);
       setSize(restore_rect_[2], restore_rect_[3]);
+      drawTitleBand();
       break;
     case GHOST_kWindowStateMaximized:
       if (state == GHOST_kWindowStateNormal) {
@@ -360,11 +373,12 @@ GHOST_TSuccess GHOST_WindowKorin::setState(GHOST_TWindowState state)
       restore_rect_[0] = origin_[0];
       restore_rect_[1] = origin_[1];
       restore_rect_[2] = size_[0];
-      restore_rect_[3] = size_[1];
+      restore_rect_[3] = size_[1] + KUI_TOP_BAND; /* (la fenetre, pas le contenu) */
       kui_window_top(kui_win_, 1);
       kui_window_place(kui_win_, 0, 0);
       kui_window_resize(kui_win_, screen_w, screen_h);
       setSize(screen_w, screen_h);
+      drawTitleBand();
       break;
     case GHOST_kWindowStateNormal:
     default:

@@ -711,11 +711,13 @@ void GHOST_SystemKorin::processMouse(GHOST_WindowKorin *window,
     }
   }
   else if (window != nullptr) {
+    /* (x, y dans la fenetre d'UIKit ; le contenu de Blender commence sous la bande de titre) */
+    const int cy = ev.y - KUI_TOP_BAND;
     const bool moved = (pointer_window_ != window) || (pointer_xy_[0] != ev.x) ||
-                       (pointer_xy_[1] != ev.y);
+                       (pointer_xy_[1] != cy);
     pointer_window_ = window;
     pointer_xy_[0] = ev.x;
-    pointer_xy_[1] = ev.y;
+    pointer_xy_[1] = cy;
     /* (pendant une prise, la position absolue est figee : seuls les relatifs comptent) */
     if (moved && lock_window_ == nullptr) {
       pushCursorMove(window, event_ms);
@@ -832,8 +834,14 @@ void GHOST_SystemKorin::processEvent(const kui_event &ev)
        * GHOST_kEventDraggingDropDone avec GHOST_kDragnDropTypeFilenames). */
       break;
     }
+    case KUI_EV_THEME: {
+      /* (Blender a ses propres themes ; seule la bande de titre suit celui du bureau) */
+      for (GHOST_IWindow *iwin : window_manager_->getWindows()) {
+        static_cast<GHOST_WindowKorin *>(iwin)->drawTitleBand();
+      }
+      break;
+    }
     case KUI_EV_FRAME:
-    case KUI_EV_THEME: /* (Blender a ses propres themes) */
     case KUI_EV_PAD:   /* (pas de manette dans Blender) */
     default:
       break;

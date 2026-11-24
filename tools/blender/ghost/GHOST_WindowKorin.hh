@@ -49,6 +49,8 @@ class GHOST_WindowKorin : public GHOST_Window {
 
   /** Elegant a redimensionne la fenetre (KUI_EV_RESIZE) : la taille est acceptee et retenue. */
   void handleResize(int width, int height);
+  /** La bande de titre au-dessus du contenu (KUI_TOP_BAND), aux couleurs du theme. */
+  void drawTitleBand();
 
   /** L'ecran a change de taille (KUI_EV_SCREEN) : une fenetre plein ecran le suit. */
   void handleScreenSize(int width, int height);

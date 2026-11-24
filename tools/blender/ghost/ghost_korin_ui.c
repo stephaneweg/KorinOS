@@ -51,7 +51,8 @@ long kui_window(int x, int y, int w, int h, const char *title, int kind)
   long role = ROLE_DARK;
   switch (kind) {
     case KUI_WIN_RESIZABLE:
-      role |= WF_RESIZABLE;
+      /* (fenetre avec bande de titre : les boutons du cadre aux couleurs du theme, sur la bande) */
+      role = WF_RESIZABLE;
       break;
     case KUI_WIN_FULLSCREEN:
       role = WF_FRAMELESS | WF_TOP;
@@ -76,6 +77,34 @@ void kui_window_title(long win, const char *title)
 {
   ui_window_use(win);
   ui_title((long)(title ? title : ""));
+}
+
+void kui_title_band(long win, const char *title)
+{
+  if (win <= 0) {
+    return;
+  }
+  ui_window_use(win);
+  const unsigned *tok = (const unsigned *)ui_tokens(); /* (les couleurs du theme, jamais en dur) */
+  const long w = ui.w;
+  if (w <= 0 || ui.h < KUI_TOP_BAND) {
+    return;
+  }
+  ui_fill(0, 0, w, KUI_TOP_BAND, tok[TJ_FACE / 4] & 0xFFFFFF);
+  ui_fill(0, KUI_TOP_BAND - 1, w, 1, tok[TJ_LINE / 4] & 0xFFFFFF);
+  /* le titre centre, sans empieter sur les boutons du cadre (a droite, FRAME_CAP_W) */
+  const char *t = title ? title : "";
+  const long px = 14, room = w - 2 * (FRAME_CAP_W + 8);
+  if (*t && room > 40) {
+    long tw = ui_text_width((long)t, px, (long)ui.font);
+    if (tw > room) {
+      tw = room;
+    }
+    const long x = (w - tw) / 2;
+    ui_text_fit((long)t, x, (KUI_TOP_BAND + px) / 2 - 1, tok[TJ_TEXT1 / 4] & 0xFFFFFF, px,
+                (long)ui.font, room);
+  }
+  ui_update(0, 0, w, KUI_TOP_BAND);
 }
 
 void kui_window_resize(long win, int w, int h)
