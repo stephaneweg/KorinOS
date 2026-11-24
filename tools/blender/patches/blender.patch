@@ -363,6 +363,20 @@ index 13c4e1b..e7e9f34 100644
  /* Other modern unix OS's should probably use this also. */
  #  include <sys/statvfs.h>
  #  define USE_STATFS_STATVFS
+diff --git a/source/blender/gpu/intern/gpu_context.cc b/source/blender/gpu/intern/gpu_context.cc
+index f73af77..b559a46 100644
+--- a/source/blender/gpu/intern/gpu_context.cc
++++ b/source/blender/gpu/intern/gpu_context.cc
+@@ -501,7 +501,9 @@ bool GPU_backend_type_selection_detect()
+       }
+       return true;
+     }
++#ifndef __armpi__ /* Korin : Vulkan seul ; un moteur non compilé n'est pas un repli. */
+     G.f |= G_FLAG_GPU_BACKEND_FALLBACK;
++#endif
+   }
+ 
+   GPU_backend_type_selection_set(GPU_BACKEND_NONE);
 diff --git a/source/blender/gpu/vulkan/vk_backend.cc b/source/blender/gpu/vulkan/vk_backend.cc
 index 9045d46..ad2601a 100644
 --- a/source/blender/gpu/vulkan/vk_backend.cc
