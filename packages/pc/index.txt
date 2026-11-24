@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-24 20:38
+date = 2026-11-24 20:39
 abi = 629
 packages = 117
 board = pc
@@ -1294,18 +1294,18 @@ content = 38e2098b5e9c71e9f683804ad892202bdef442a5c9690bef71407a9698f547ee
 
 [music]
 title = Musique
-version = 1.0.11
-category = Multimédia
+version = 1.0.12
+category = Musique
 author = Korin OS
 summary = 
-size = 119692
-installed = 252028
-sha256 = a10b73a0638b0e1ef2d58e94bbe734718e87de20ca66c4912965ae19144134fc
-file = pkgs/music-1.0.11.opk
+size = 119676
+installed = 252024
+sha256 = 509b3fe6eea6d18300bd9d56449700b4b345fac694d109317441090f70ec23f8
+file = pkgs/music-1.0.12.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 0b0eafb839bb91c958c92fead8cb4d75558f4ec6508d8ff374b7d2695bde9661
+content = 8d392c2ee4e94d0d0c56fe8c356a5962259b93c08bb8b2d93db76e1a60018be4
 
 [n64emu]
 title = Nintendo 64
