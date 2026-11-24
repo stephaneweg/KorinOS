@@ -218,7 +218,23 @@ void GHOST_WindowKorin::handleResize(int width, int height)
 
 void GHOST_WindowKorin::drawTitleBand()
 {
-  kui_title_band(kui_win_, title_.c_str());
+  kui_title_band(kui_win_, title_.c_str(), titlebar_rgb_);
+}
+
+GHOST_TSuccess GHOST_WindowKorin::applyWindowDecorationStyle()
+{
+  /* Blender donne la couleur de sa barre du haut (son theme) : la bande de titre la prend, et se
+   * fond dans l'interface (WM_window_decoration_style_apply). */
+  if (window_decoration_style_flags_ & GHOST_kDecorationColoredTitleBar) {
+    const float *c = window_decoration_style_settings_.colored_titlebar_bg_color;
+    auto byte = [](float v) { return long(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f); };
+    titlebar_rgb_ = (byte(c[0]) << 16) | (byte(c[1]) << 8) | byte(c[2]);
+  }
+  else {
+    titlebar_rgb_ = -1;
+  }
+  drawTitleBand();
+  return GHOST_kSuccess;
 }
 
 void GHOST_WindowKorin::handleScreenSize(int width, int height)

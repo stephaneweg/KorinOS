@@ -79,7 +79,14 @@ void kui_window_title(long win, const char *title)
   ui_title((long)(title ? title : ""));
 }
 
-void kui_title_band(long win, const char *title)
+/* clair (1) ou fonce (0) : la luminance d'une couleur 0x00RRGGBB */
+static int kui_is_dark(unsigned rgb)
+{
+  const unsigned r = (rgb >> 16) & 255, g = (rgb >> 8) & 255, b = rgb & 255;
+  return (r * 299 + g * 587 + b * 114) / 1000 < 128;
+}
+
+void kui_title_band(long win, const char *title, long bg)
 {
   if (win <= 0) {
     return;
@@ -90,8 +97,23 @@ void kui_title_band(long win, const char *title)
   if (w <= 0 || ui.h < KUI_TOP_BAND) {
     return;
   }
-  ui_fill(0, 0, w, KUI_TOP_BAND, tok[TJ_FACE / 4] & 0xFFFFFF);
-  ui_fill(0, KUI_TOP_BAND - 1, w, 1, tok[TJ_LINE / 4] & 0xFFFFFF);
+  /* Le fond : celui de la barre de Blender (elle prolonge la bande) ou du theme ; le texte et les
+   * boutons du cadre en clair sur un fond fonce, en fonce sur un fond clair (TJ_TEXT1 d'un theme
+   * clair ou fonce, selon le cas, plutot qu'une couleur ecrite en dur). */
+  const unsigned face = bg >= 0 ? (unsigned)bg : (tok[TJ_FACE / 4] & 0xFFFFFF);
+  const int dark = kui_is_dark(face);
+  unsigned ink = tok[TJ_TEXT1 / 4] & 0xFFFFFF;
+  if (kui_is_dark(ink) == dark) {
+    ink = tok[TJ_FACE / 4] & 0xFFFFFF; /* (le texte du theme ne tranche pas : sa couleur de fond) */
+    if (kui_is_dark(ink) == dark) {
+      ink = dark ? 0xFFFFFF : 0x000000;
+    }
+  }
+  ui_fill(0, 0, w, KUI_TOP_BAND, face);
+  if (bg < 0) {
+    ui_fill(0, KUI_TOP_BAND - 1, w, 1, tok[TJ_LINE / 4] & 0xFFFFFF);
+  }
+  ui_frame_glyphs(dark ? 1 : 0);
   /* le titre centre, sans empieter sur les boutons du cadre (a droite, FRAME_CAP_W) */
   const char *t = title ? title : "";
   const long px = 14, room = w - 2 * (FRAME_CAP_W + 8);
@@ -101,7 +123,7 @@ void kui_title_band(long win, const char *title)
       tw = room;
     }
     const long x = (w - tw) / 2;
-    ui_text_fit((long)t, x, (KUI_TOP_BAND + px) / 2 - 1, tok[TJ_TEXT1 / 4] & 0xFFFFFF, px,
+    ui_text_fit((long)t, x, (KUI_TOP_BAND + px) / 2 - 1, ink, px,
                 (long)ui.font, room);
   }
   ui_update(0, 0, w, KUI_TOP_BAND);

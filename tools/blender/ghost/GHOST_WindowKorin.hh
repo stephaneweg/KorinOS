@@ -51,6 +51,8 @@ class GHOST_WindowKorin : public GHOST_Window {
   void handleResize(int width, int height);
   /** La bande de titre au-dessus du contenu (KUI_TOP_BAND), aux couleurs du theme. */
   void drawTitleBand();
+  /** La couleur de la barre du haut de Blender pour la bande de titre (#GHOST_kDecorationColoredTitleBar). */
+  GHOST_TSuccess applyWindowDecorationStyle() override;
 
   /** L'ecran a change de taille (KUI_EV_SCREEN) : une fenetre plein ecran le suit. */
   void handleScreenSize(int width, int height);
@@ -140,6 +142,8 @@ class GHOST_WindowKorin : public GHOST_Window {
   bool is_dialog_ = false;
 
   std::string title_;
+  /** Le fond de la bande de titre (0x00RRGGBB, donne par Blender), -1 : le theme du bureau. */
+  long titlebar_rgb_ = -1;
   int size_[2] = {0, 0};
   /** Coin du contenu sur l'ecran (ui_window_pos), relu par #refreshOrigin. */
   int origin_[2] = {0, 0};

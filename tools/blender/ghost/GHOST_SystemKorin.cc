@@ -412,8 +412,6 @@ GHOST_TCapabilityFlag GHOST_SystemKorin::getCapabilities() const
           GHOST_kCapabilityInputIME |
           /* Pas de pave tactile a gestes. */
           GHOST_kCapabilityTrackpadPhysicalDirection |
-          /* Le cadre est celui du theme d'Elegant. */
-          GHOST_kCapabilityWindowDecorationStyles |
           /* Pas de touche Hyper. */
           GHOST_kCapabilityKeyboardHyperKey |
           /* TODO : curseurs personnalises (bitmaps, RGBA, generes). */

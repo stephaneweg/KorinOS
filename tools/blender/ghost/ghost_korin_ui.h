@@ -93,7 +93,8 @@ void kui_window_title(long win, const char *title);
  * les 32 px du haut deplacent la fenetre. Le contenu de Blender (la surface de Vulkan) commence donc
  * KUI_TOP_BAND px plus bas ; la bande au-dessus porte le titre, aux couleurs du theme. */
 #define KUI_TOP_BAND 36
-void kui_title_band(long win, const char *title);
+/* bg : 0x00RRGGBB, la couleur de la barre du haut de Blender (son theme), ou -1 : celles du theme du bureau */
+void kui_title_band(long win, const char *title, long bg);
 /* la fenetre prend la taille demandee (son tampon suit) */
 void kui_window_resize(long win, int w, int h);
 void kui_window_size(long win, int *w, int *h);

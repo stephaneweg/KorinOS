@@ -421,3 +421,29 @@ index 23b375f..5b063cd 100644
     surface = vk_alloc2(&instance->alloc, pAllocator, sizeof *surface, 8,
                         VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
     if (surface == NULL)
+diff --git a/src/intel/vulkan/i915/anv_batch_chain.c b/src/intel/vulkan/i915/anv_batch_chain.c
+index 532ea12..b2135ad 100644
+--- a/src/intel/vulkan/i915/anv_batch_chain.c
++++ b/src/intel/vulkan/i915/anv_batch_chain.c
+@@ -24,6 +24,7 @@
+ #include "common/i915/intel_gem.h"
+ #include "i915/anv_batch_chain.h"
+ #include "anv_private.h"
++#include "vk_sync_dummy.h"
+ #include "anv_measure.h"
+ 
+ #include "perf/intel_perf.h"
+@@ -247,6 +248,13 @@ anv_execbuf_add_sync(struct anv_device *device,
+    if ((sync->flags & VK_SYNC_IS_TIMELINE) && value == 0)
+       return VK_SUCCESS;
+ 
++   /* Korin OS : la WSI pose un sync factice (vk_sync_dummy, toujours signale) dans la barriere ou le
++    * semaphore d'une image acquise, faute de dma-buf et de sync explicite. Une soumission qui l'attend
++    * ou le resignale (Blender en se fermant) ne doit rien en faire ; sinon vk_sync_as_drm_syncobj rend
++    * NULL et anv plante. */
++   if (sync->type == &vk_sync_dummy_type)
++      return VK_SUCCESS;
++
+    assert(vk_sync_type_is_drm_syncobj(sync->type));
+    struct vk_drm_syncobj *syncobj = vk_sync_as_drm_syncobj(sync);
+ 
