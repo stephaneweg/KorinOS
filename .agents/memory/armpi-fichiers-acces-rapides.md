@@ -56,4 +56,10 @@ Demande de l'utilisateur du 24/11/2026, branche claude/lucid-wright-6o2o4b, fusi
   glyph-place-public (le partage de GNOME) ; vfs est dans korin/initrd.tar seulement (pas sys/svc) : le remplacer là.
   **But de l'utilisateur** : à terme, un compte n'atteint /, /tmp et /home que par élévation, ses alias restant ouverts
   (« une sorte d'unveil au niveau user ») ; rien de fait.
+- 24/11 soir : Tous les volumes = « / » seul, nommé « Système » (glyph-place-drive, disque d'Adwaita) ; le reste est dans
+  son arborescence (demande de l'utilisateur). Lanceur de la vue d'ensemble (src/sys/panel/launcher.c) : la_pill_under
+  généralisé en la_box_under (rayon quelconque ; à r = h/2, octet pour octet l'ancienne pilule, vérifié sur l'hôte) ;
+  les cases de la grille et les flèches de page tracent l'icône et le texte puis glissent le voile dessous (le texte
+  se frangeait de sombre). La vue d'ensemble ne s'ouvre pas sous QEMU (clic sur « Korin OS », Super), même avec le pc
+  publié : pas vu en vrai.
 - Le Pi (armpi) n'est pas publié : son paquet a encore files.asm.

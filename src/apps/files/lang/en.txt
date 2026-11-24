@@ -161,3 +161,4 @@ Fichiers cachés = Hidden Files
 Tous les volumes = All Volumes
 Fichiers cachés montrés = Hidden files shown
 Fichiers cachés masqués = Hidden files hidden
+Système = System
