@@ -1,0 +1,8 @@
+# Manifeste de Blender, le logiciel de 3D (docs/etude/BLENDER.md)
+name     = Blender
+category = Graphisme
+description = Blender 5.2 LTS : modélisation, sculpture, animation et rendu 3D (Cycles sur le processeur, EEVEE sur le GPU par Vulkan).
+keywords = blender 3d modélisation sculpture animation rendu cycles eevee maillage modeling render
+help = Version d'essai pour Korin PC : l'interface dessine par Vulkan (GPU Intel). Sans GPU utilisable, Blender ne démarre pas.
+help = Rendu sans fenêtre, depuis le Terminal : /apps/blender.app/main -b fichier.blend -f 1 (Cycles sur le processeur).
+help = Scripts Python : /apps/blender.app/main -b --python script.py (l'API bpy de Blender, Python 3.13).
