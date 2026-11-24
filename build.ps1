@@ -154,7 +154,7 @@ foreach ($n in $sys_c) {
   if (Test-Path $f) { Copy-Item $f (Join-Path $sdroot "sys\$n") -Force }
 }
 # dossiers de l'utilisateur (vides : git ne les garde pas) : HOME:
-foreach ($d in @("documents","music","pictures","video")) {
+foreach ($d in @("documents","music","pictures","video","downloads","projects")) {
   New-Item -ItemType Directory -Force (Join-Path $sdroot "home\$d") | Out-Null
 }
 # FM Tracker : ses instruments, ses mots, et les morceaux d'exemple dans /home/public/music/fms (a tous les comptes)

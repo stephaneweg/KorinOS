@@ -6,7 +6,7 @@
 
 ## La fenêtre
 
-- **Le panneau de gauche** montre d'abord les **Accès rapides** (Applications, Documents, Musique, Images, Vidéos...), puis les **Volumes**. Chaque volume affiche son nom, sa place libre et sa taille (« 12,3 Go libres sur 29,7 Go ») avec une jauge de la place prise (rouge au-delà de 90 %) ; un volume dont la place n'est pas connue (certains partages) affiche son genre : **Carte SD**, **Clé USB**, **RAM**, **Serveur**… Une clé USB a un bouton d'éjection à droite de sa ligne. La liste des volumes se met à jour toute seule quand on branche ou retire une clé.
+- **Le panneau de gauche** montre d'abord les **Accès rapides** (Accueil, Musiques, Images, Téléchargements, Projets, Applications, Documents, Vidéos...), chacun avec son icône, puis les **Volumes**. Chaque volume affiche son nom, sa place libre et sa taille (« 12,3 Go libres sur 29,7 Go ») avec une jauge de la place prise (rouge au-delà de 90 %) ; un volume dont la place n'est pas connue (certains partages) affiche son genre : **Carte SD**, **Clé USB**, **RAM**, **Serveur**… Une clé USB a un bouton d'éjection à droite de sa ligne. La liste des volumes se met à jour toute seule quand on branche ou retire une clé.
 - **L'en-tête**, en haut à droite : les boutons ← (précédent), → (suivant) et ↑ (dossier parent), le **fil d'Ariane** (le chemin du dossier courant, un segment par dossier), et le choix de la vue : icônes ou liste.
 - **Le contenu** du dossier : les dossiers d'abord, puis les fichiers, par ordre alphabétique. Une application (un dossier `.app`) apparaît avec son icône et son nom.
 - **La ligne d'état**, en bas : le nombre d'éléments, ou le nom et la taille de l'élément choisi, ou le résultat de la dernière action (« Supprimé », « Volume démonté »...) ; à droite, la place libre du volume courant et sa jauge.
@@ -159,12 +159,12 @@ Au clavier, dans le contenu :
 La liste des accès rapides vient du fichier `/etc/places.ini`, une ligne par accès, dans l'ordre :
 
 ```sh
+Accueil = HOME:/
+Musiques = HOME:/music
 Applications = /apps
-Documents = HOME:/documents
-Musique = HOME:/music
 ```
 
-À gauche le nom affiché, à droite le dossier. Un dossier qui n'existe pas n'est pas montré. On peut modifier ce fichier dans l'Éditeur ; **Fichier > Actualiser** relit la liste.
+À gauche le nom affiché, à droite le dossier. Un dossier qui n'existe pas n'est pas montré. L'icône vient du dossier : une maison pour **HOME:/** (le dossier personnel), une note pour `music`, une image pour `pictures`, une flèche pour `downloads`, `</>` pour `projects`, une page pour `documents`, un film pour `video`, une grille pour **/apps**, un dossier pour les autres. Fichiers crée au démarrage ceux de ces dossiers personnels qui manquent. On peut modifier ce fichier dans l'Éditeur ; **Fichier > Actualiser** relit la liste.
 
 ## Astuces
 

@@ -96,7 +96,7 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define K_APP		2
 #define VMAX		8
 #define VE_SZ		56			/* entree de VFS_VOLUMES : nom 16, source 24, service 16 */
-#define PL_MAX		10
+#define PL_MAX		16
 #define PL_BUF		2048
 #define DCLICK_MS	600
 #define DRAG_PX		6			/* glisser un element : a partir de */
@@ -128,7 +128,7 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define ID_PASTE	12
 #define ID_PARENT	10
 #define ID_SD0		11
-#define ID_PLACE	20			/* 20 + rang de l'acces rapide */
+#define ID_PLACE	100			/* 100 + rang de l'acces rapide (PL_MAX : jusqu'a 115) */
 #define ID_EJECT	30
 #define ID_CONNECT	31
 #define ID_GDRIVE	32
@@ -1263,6 +1263,69 @@ static void hist_go (long d)
  *  Acces rapides (/etc/places.ini, « libelle = dossier », dans l'ordre ; seulement les
  *  dossiers presents)
  * --------------------------------------------------------------------------- */
+
+/* les dossiers types du dossier personnel (HOME:/<nom>) et leur glyphe (tools/icons/art.py, glyph-place-*) ; ceux
+ * qui manquent sont crees au demarrage, comme xdg-user-dirs de GNOME (24/11/2026) */
+static const char *const std_dirs[][2] = {
+	{ "music", "glyph-place-music" }, { "pictures", "glyph-place-pictures" }, { "downloads", "glyph-place-downloads" },
+	{ "projects", "glyph-place-projects" }, { "documents", "glyph-place-documents" }, { "video", "glyph-place-videos" },
+	{ "videos", "glyph-place-videos" } };
+#define STD_MAKE	6			/* (les 6 premiers sont crees ; « videos » n'est qu'un autre nom) */
+
+static void std_dirs_make (void)
+{
+	struct stat st;
+	char d[64];
+	if (stat ("HOME:/", &st) != 0 || !S_ISDIR (st.st_mode))
+		return;
+	for (int i = 0; i < STD_MAKE; i++)
+	{
+		snprintf (d, sizeof d, "HOME:/%s", std_dirs[i][0]);
+		if (stat (d, &st) != 0)
+			mkdir (d, 0755);
+	}
+}
+
+/* « HOME: » ou « HOME:/ » (sans casse) -> la longueur du prefixe avec sa barre (5 ou 6), sinon 0 */
+static long home_prefix (const char *p)
+{
+	if (strncasecmp (p, "HOME:", 5))
+		return 0;
+	return p[5] == '/' ? 6 : 5;
+}
+
+/* dossier d'un acces rapide -> le nom de son glyphe : le dossier personnel, /apps, un dossier type, sinon un dossier */
+static const char *place_glyph (const char *dir)
+{
+	long h = home_prefix (dir);
+	if (h)
+	{
+		const char *r = dir + h;
+		size_t n = strlen (r);
+		if (n && r[n - 1] == '/')
+			n--;
+		if (!n)
+			return "glyph-place-home";
+		for (size_t i = 0; i < sizeof std_dirs / sizeof std_dirs[0]; i++)
+			if (strlen (std_dirs[i][0]) == n && !strncasecmp (r, std_dirs[i][0], n))
+				return std_dirs[i][1];
+	}
+	if (!strcmp (dir, "/apps") || !strcmp (dir, "/apps/"))
+		return "glyph-place-apps";
+	return "glyph-place-folder";
+}
+
+/* deux dossiers egaux, sans casse et sans la barre de fin (« HOME: » = « HOME:/ », « /apps/ » = « /apps ») */
+static int same_dir (const char *a, const char *b)
+{
+	size_t la = strlen (a), lb = strlen (b);
+	if (la > 1 && a[la - 1] == '/')
+		la--;
+	if (lb > 1 && b[lb - 1] == '/')
+		lb--;
+	return la == lb && !strncasecmp (a, b, la);
+}
+
 static void places_load (void)
 {
 	pl_n = 0;
@@ -3883,7 +3946,7 @@ static void draw_sel (long x, long y, long w, long h)
 static long cur_hl (void)
 {
 	for (long i = 0; i < pl_n; i++)
-		if (!str_icmp (path, places[i].path))
+		if (same_dir (path, places[i].path))
 			return 0x200 + i;
 	return cur_vol ();
 }
@@ -3953,7 +4016,7 @@ static void draw_panel (void)
 			long y = i * PROW_H + y0;
 			if (hl == 0x200 + i)
 				draw_sel (6, y + 1, PAN_W - 13, PROW_H - 2);
-			draw_folder (14, y + 5, TOK (TJ_TEXT2), TOK (TJ_TEXT2));
+			ui_glyph ((long) place_glyph (places[i].path), 14, y + 4, 20, TOK (TJ_TEXT2));
 			text (places[i].lab, 42, y + 19, TOK (TJ_TEXT1), 13, ui.font, PAN_W - 50);
 		}
 		y0 = vol_y0 () - pan_scroll;
@@ -5018,6 +5081,7 @@ int main (int argc, char **argv)
 		return 0;
 	ui_min_size (480, 300);
 	ui_on_resize ((long) on_resize, 0);
+	std_dirs_make ();
 	places_load ();
 	menu_build ();
 	ui_menu ((long) menu_buf);		/* barre de menus globale */
