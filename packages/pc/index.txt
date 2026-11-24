@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-24 20:36
+date = 2026-11-24 20:37
 abi = 629
 packages = 117
 board = pc
@@ -994,18 +994,18 @@ content = 841a096866a9e30b5d9818a3f51deb47d71c28c87e9f66ec6583fd279c744e22
 
 [fmtracker]
 title = FM Tracker
-version = 1.0.11
-category = Multimédia
+version = 1.0.12
+category = Musique
 author = Korin OS
 summary = 
-size = 200527
-installed = 402962
-sha256 = 352d263e0fc1dccf2dfe731826306ab22b541ed8362f4036e1772ba6d5fe2e9c
-file = pkgs/fmtracker-1.0.11.opk
+size = 200514
+installed = 402958
+sha256 = b2c7d303961f58bb4a935712412fe2a461cef9ace70fbfe372567fa2f82fe9eb
+file = pkgs/fmtracker-1.0.12.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 792079d68767402d32b6552f4362830db0203ba1d457e4f365b9fd448337a48c
+content = e9dd41fa8e03bc795fc44bf2ffb20ef3b9136c1f9ce276ca2d5f61b06d4f4e74
 
 [forge]
 title = Forge
