@@ -28,7 +28,7 @@ set(WITH_BLENDER_THUMBNAILER OFF CACHE BOOL "" FORCE)
 set(WITH_DOC_MANPAGE         OFF CACHE BOOL "" FORCE)
 set(WITH_COMPILER_CCACHE     OFF CACHE BOOL "" FORCE)
 set(WITH_STRICT_BUILD_OPTIONS OFF CACHE BOOL "" FORCE)
-set(WITH_ASSERT_RELEASE      ON  CACHE BOOL "" FORCE)
+set(WITH_ASSERT_RELEASE      OFF CACHE BOOL "" FORCE)	# (comme les versions officielles : le préréglage lite les allume)
 
 # Python, sans numpy (jalon 4) ni les modules de pip
 set(WITH_PYTHON              ON  CACHE BOOL "" FORCE)

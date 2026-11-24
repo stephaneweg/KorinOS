@@ -15,13 +15,21 @@ set -eu
 TC=${KORIN_TOOLCHAINS:-/opt/toolchains}/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-
 POSIX=$ARMPI_ROOT/build/pc/posix
 OUT=$A/out-x86_64
-V=$OUT/anv
-K=$OUT/vkkit
+# VKKIT_DRIVER=lvp : le kit de lavapipe (build-lvp.sh) au lieu d'anv, sorties dans build/pc/mesa-lvp (pour les essais
+# sous QEMU) ; VKKIT_TLS : la zone par thread du programme pour le kit (anv : 1024)
+DRV=${VKKIT_DRIVER:-anv}
+SFX=
+[ "$DRV" = anv ] || SFX=-$DRV
+TLSA=${VKKIT_TLS:-1024}
+V=$OUT/$DRV
+K=$OUT/vkkit$SFX
 M=$ARMPI_ROOT/tools/mesa
 G=$M/glkit
-PM=$ARMPI_ROOT/build/pc/mesa
+PM=$ARMPI_ROOT/build/pc/mesa$SFX
 PCG=$ARMPI_ROOT/build/pc/gcc
-[ -f "$V/whole.txt" ] && [ -f "$V/korin_i915.o" ] || { echo "build-vkkit-pc.sh : d'abord sh tools/mesa/build-anv.sh" >&2; exit 1; }
+[ -f "$V/whole.txt" ] || { echo "build-vkkit-pc.sh : d'abord sh tools/mesa/build-$DRV.sh" >&2; exit 1; }
+# les objets du pilote liés au kit en plus des archives (anv : le faux libdrm et son identité)
+OBJS=$(cat "$V/objs.txt" 2>/dev/null || echo "$V/korin_i915.o $V/korin_vk_id.o")
 WHOLE=$(cat "$V/whole.txt")
 LIBS=$(cat "$V/libs.txt")
 mkdir -p "$K/src" "$K/gen" "$PM/lib" "$PM/sdroot/lib" "$PM/sdroot/bin" "$PM/include/vulkan"
@@ -32,8 +40,8 @@ for f in glkit.c glkit_x86_64.S glkit_x86_64.ld finish.py host/glkit_host.c host
 	n=$(basename "$f" | sed 's/glkit/vkkit/')
 	sed -e 's/glkit/vkkit/g' -e 's/GLKIT/VKKIT/g' -e 's/GlKit/VkKit/g' "$G/$f" > "$K/src/$n"
 done
-sed -i 's/^#define VKKIT_TLS_AREA 256\b.*/#define VKKIT_TLS_AREA 1024		\/* (anv : plus que GL) *\//' "$K/src/vkkit_host.c"
-grep -q "VKKIT_TLS_AREA 1024" "$K/src/vkkit_host.c" || { echo "build-vkkit-pc.sh : VKKIT_TLS_AREA pas trouve" >&2; exit 1; }
+sed -i "s/^#define VKKIT_TLS_AREA 256\b.*/#define VKKIT_TLS_AREA $TLSA		\/* (anv : plus que GL) *\//" "$K/src/vkkit_host.c"
+grep -q "VKKIT_TLS_AREA $TLSA" "$K/src/vkkit_host.c" || { echo "build-vkkit-pc.sh : VKKIT_TLS_AREA pas trouve" >&2; exit 1; }
 
 # ce que le kit exporte : l'interface d'un pilote de Vulkan (vk_icd*), le reste par vk_icdGetInstanceProcAddr
 EXPORTS="vk_icdGetInstanceProcAddr vk_icdNegotiateLoaderICDInterfaceVersion vk_icdGetPhysicalDeviceProcAddr"
@@ -47,15 +55,15 @@ link () {	# $1 : taille, $2 : alignement de la zone par thread du kit
 	${TC}gcc -c "$K/src/vkkit_x86_64.S" -o "$K/vkkit_s.o"
 	${TC}ld -shared --gc-sections -z now --hash-style=sysv -z max-page-size=0x1000 -z noexecstack \
 		-T "$K/src/vkkit_x86_64.ld" --version-script="$K/vkkit.ver" $U -o "$K/vkkit.elf" "$K/vkkit_s.o" "$K/vkkit.o" \
-		"$V/korin_i915.o" "$V/korin_vk_id.o" --whole-archive $WHOLE --no-whole-archive \
+		$OBJS --whole-archive $WHOLE --no-whole-archive \
 		--start-group $LIBS --end-group 2> "$K/link.log" \
 		|| { grep -v warning "$K/link.log" | head -20; exit 1; }
 	${TC}strip --strip-all -o "$K/vkkit.strip" "$K/vkkit.elf"
 	python3 "$K/src/finish.py" "$K/vkkit.strip" "$K/vkkit.so" "$K/gen"
 }
-link 1024 64			# (premier passage : les besoins par thread ne sont connus qu'apres)
+link "$TLSA" 64			# (premier passage : les besoins par thread ne sont connus qu'apres)
 read TS TA < "$K/gen/tls.txt"
-[ "$TS" -le 1024 ] || { echo "build-vkkit-pc.sh : anv veut $TS octets par thread, libvkkit.a en a 1024" >&2; exit 1; }
+[ "$TS" -le "$TLSA" ] || { echo "build-vkkit-pc.sh : $DRV veut $TS octets par thread, libvkkit.a en a $TLSA (VKKIT_TLS)" >&2; exit 1; }
 link "$TS" "$TA"
 cp "$K/vkkit.so" "$PM/sdroot/lib/vkkit.so"
 

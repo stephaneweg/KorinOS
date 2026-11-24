@@ -38,7 +38,7 @@ if [ ! -d "$S" ]; then
 fi
 
 # tools/cao/korin.cmake : Korin vu comme un « Linux » sans __linux__ ; X86 seul (llvmpipe : la cible native) ;
-# ni zlib, zstd, libxml2, terminfo ; les outils de l'hôte pour tblgen.
+# ni zlib, zstd, libxml2, terminfo ; les outils de l'hôte pour tblgen ; en PIC : il va dans un kit (un objet partagé).
 B=$W/build-x86_64
 ARCH=x86_64 KORIN_POSIX=$POSIX cmake -G Ninja -S "$S/llvm" -B "$B" \
 	-DCMAKE_TOOLCHAIN_FILE="$ROOT/tools/cao/korin.cmake" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$OUT" \
@@ -50,7 +50,7 @@ ARCH=x86_64 KORIN_POSIX=$POSIX cmake -G Ninja -S "$S/llvm" -B "$B" \
 	-DLLVM_ENABLE_TERMINFO=OFF -DLLVM_ENABLE_LIBPFM=OFF -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_ENABLE_PLUGINS=OFF \
 	-DLLVM_TOOL_LTO_BUILD=OFF -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF \
 	-DLLVM_INCLUDE_DOCS=OFF -DLLVM_BUILD_TOOLS=OFF -DLLVM_INCLUDE_TOOLS=ON -DLLVM_INCLUDE_UTILS=OFF \
-	-DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_THREADS=ON -DLLVM_ENABLE_PIC=OFF >/dev/null
+	-DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_THREADS=ON -DLLVM_ENABLE_PIC=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON >/dev/null
 ninja -C "$B" -j "$JOBS" llvm-libraries llvm-headers
 ninja -C "$B" -j "$JOBS" install-llvm-libraries install-llvm-headers install-cmake-exports >/dev/null 2>&1 ||
 	ninja -C "$B" install >/dev/null
@@ -66,7 +66,9 @@ case "\$*" in
 *--system-libs*) echo; exit 0 ;;
 *--host-target*) echo x86_64-unknown-linux-gnu; exit 0 ;;
 esac
-"$HOSTLLVM/bin/llvm-config" "\$@" | sed -e "s|$HOSTLLVM|$OUT|g" -e 's|-lLLVM-[0-9][0-9]*||g'
+# (Polly : seulement dans le LLVM d'Ubuntu, pas dans celui-ci)
+"$HOSTLLVM/bin/llvm-config" "\$@" | sed -e "s|$HOSTLLVM|$OUT|g" -e 's|-lLLVM-[0-9][0-9]*||g' \\
+	-e 's|[^ ]*libPolly[^ ]*||g' -e 's|-lPolly[A-Za-z]*||g'
 EOF
 chmod +x "$OUT/bin/llvm-config-korin"
 echo "build-llvm-korin : $(ls "$OUT"/lib/libLLVM*.a | wc -l) bibliothèques dans $OUT/lib"
