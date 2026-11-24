@@ -13,3 +13,5 @@ Signalé par l'utilisateur le 24/11/2026 avec un devis scanné (Adobe Scan : un 
 * **Déplacement** : en haut de la fenêtre il n'y a que le `ui_tabstrip`, et `UT_TABSTRIP` n'avait pas `VTF_MOVE`, donc l'appui allait aux onglets. Le drapeau est maintenant ajouté dans UIKit (C et asm), ce qui vaut aussi pour QBStudio et WebStudio.
 
 **How to apply:** pour reconstruire : `tools/kits/build_c.sh uikit`, `tools/pdf/build.sh` (et `ARCH=x86_64` pour le PC), `tools/office/build.sh pdf` / `tools/pc/apps.sh pdf`. À la publication, `--bump` monte pdf et le paquet système.
+
+**Publié le 24/11 depuis le cloud** (main 4425627) : PC seulement, **pdf 1.0.7** (seul `apps/pdf.app/main`, reconstruit par `ARCH=x86_64 tools/pdf/build.sh` et `tools/pc/apps.sh pdf`) et **pc 2026.11.103** (seul `uikit.so` remplacé, dans `lib/` et dans `korin/initrd.tar` : un octet, le drapeau ; l'initrd publié retouché en place, pas reconstruit). Pas essayé sous QEMU ni sur le ZBook. Le Pi n'est pas publié (son dépôt est resté à armpi 2026.11.30).
