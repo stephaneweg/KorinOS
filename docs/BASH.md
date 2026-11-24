@@ -45,7 +45,7 @@ interrompue par un signal ([POSIX.md](POSIX.md)). `getpwnam`, `wait3`/`waitpid` 
 | Fichier | Rôle |
 |---|---|
 | `/bin/bash` | le shell |
-| `/etc/bash.bashrc` | lu par tout bash interactif : l'invite `korin:\w\$` en couleur, l'historique, les alias `ls` (`--color=auto -C`), `ll` et `la` ([OUTILS.md](OUTILS.md)), et `command_not_found_handle` : un nom introuvable dans le `PATH` lance `/apps/<nom>.app/main` s'il existe (`paint`, `jet https://…` ; `paint &` rend la main au Terminal) |
+| `/etc/bash.bashrc` | lu par tout bash interactif : l'invite `korin:\w\$` en couleur, l'historique, les alias `ls` (`--color=auto -C`), `ll` et `la` ([OUTILS.md](OUTILS.md)), et `command_not_found_handle` : un nom introuvable dans le `PATH` lance `/apps/<nom>.app/main` s'il existe (`paint`, `jet https://…` ; `paint &` rend la main au Terminal), et Tab sur le premier mot propose aussi ces apps (`complete -I`) |
 | `/etc/termcap` | l'entrée `xterm-256color` du Terminal (et `dumb`) pour la bibliothèque termcap de bash : déplacements, effacements, touches |
 | `/etc/exec.txt` | les dossiers d'exécutables hors des règles ([FICHIERS.md](FICHIERS.md)) |
 | `~/.bashrc`, `~/.bash_history` | ceux de l'utilisateur (`HOME`, par défaut `/`) |

@@ -17,6 +17,17 @@ command_not_found_handle() {
 	echo "bash: $1: command not found" >&2
 	return 127
 }
+# Tab sur le premier mot : les commandes, et les apps de /apps ; un chemin (« ./ », « /… ») : la complétion de bash
+_korin_first_word() {
+	local cur="${COMP_WORDS[COMP_CWORD]}" d n
+	case "$cur" in */*|'~'*|'$'*) return 0 ;; esac
+	COMPREPLY=( $(compgen -c -- "$cur") )
+	for d in /apps/"$cur"*.app; do
+		[ -x "$d/main" ] || continue
+		n="${d##*/}"; COMPREPLY+=( "${n%.app}" )
+	done
+}
+complete -I -o bashdefault -o default -F _korin_first_word
 HISTSIZE=1000
 HISTCONTROL=ignoredups
 # ls en couleur et en colonnes sur un terminal (seul dans un tube : un nom par ligne, sans couleur)
