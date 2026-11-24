@@ -5719,6 +5719,8 @@ int main (int argc, char **argv)
 			on_key ();
 		else if (t == WEV_MENU)
 			on_menu (ui_ev_field (&ui, EV_CODE));
+		else if (t == WEV_THEME)
+			draw ();			/* (theme ou accent change : les dossiers en prennent la couleur) */
 		else if (t == WEV_DROP)
 			on_drop ();
 		else if (t == WEV_BUS)
