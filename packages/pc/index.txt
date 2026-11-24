@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-24 20:39
+date = 2026-11-24 20:42
 abi = 629
 packages = 117
 board = pc
@@ -1429,18 +1429,18 @@ content = c475ecdc71fe9c78eb342fd9bdc2aa557630e5658a9115e92859fba3063b82a8
 
 [piano]
 title = Piano
-version = 1.0.11
-category = Multimédia
+version = 1.0.12
+category = Musique
 author = Korin OS
 summary = 
-size = 114733
-installed = 243671
-sha256 = 200a246816e29c5393ff8252c0c85f86a195d2298c9b18c3e215484fa681038a
-file = pkgs/piano-1.0.11.opk
+size = 114720
+installed = 243667
+sha256 = 20d66b6b95ad92678cef241cf23a5480073018674123b8ba7f7ead8d7b9b3e9c
+file = pkgs/piano-1.0.12.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 95bda6d76bc5e0e0537915e17cd8621377fc067d415798b7ed46d49b75c03800
+content = 4e5ad62f31a9bf9a30e1b6b19418fea554b76be608788d7c01051abf6d0bc6b7
 
 [pinball]
 title = Pinball
