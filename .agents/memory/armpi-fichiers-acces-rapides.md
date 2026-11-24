@@ -10,7 +10,7 @@ Demande de l'utilisateur du 24/11/2026, branche claude/lucid-wright-6o2o4b, fusi
 - `skel/sd0/etc/places.ini` : Accueil (HOME:/), Musiques, Images, Téléchargements (HOME:/downloads), Projets
   (HOME:/projects), puis Applications, Documents, Vidéos.
 - Icônes : `tools/icons/art.py` (table PLACES) rend `glyph-place-{home,music,pictures,downloads,projects,documents,
-  videos,apps,folder}` (au trait, comme les icônes symboliques de Nautilus) ; `src/apps/files/main.c` `place_glyph`
+  videos,apps,folder}` (projects : équerre et crayon parallèle à l'hypoténuse, demandé le 24/11 ; au trait, comme les icônes symboliques de Nautilus) ; `src/apps/files/main.c` `place_glyph`
   choisit d'après le dossier et dessine par `ui_glyph` (20 px, jeton TEXT2) ; un dossier épinglé quelconque a
   `glyph-place-folder`.
 - Fichiers crée au démarrage les dossiers types manquants de HOME:/ (`std_dirs_make` : music, pictures, downloads,
