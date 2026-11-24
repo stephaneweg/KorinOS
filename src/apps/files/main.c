@@ -218,6 +218,15 @@ static struct place places[PL_MAX];
 static char pl_buf[PL_BUF];
 static char menu_buf[WS_MENU_MAX + 16];
 static char path[272], fullpath[600], tmpname[272], crbuf[272], stbuf[400], popbuf[400], cellbuf[272];
+
+/* Recents (24/11/2026, comme GNOME) : un dossier virtuel, « recent: », les fichiers ouverts (HOME:/etc/recent-files.txt,
+ * tenu par UIKit : ui_assoc_open, ui_file_open, ui_file_save), le plus recent d'abord ; le nom d'un element y est
+ * son chemin complet (ent_shown n'en montre que le nom, make_full le rend tel quel) */
+#define RECENT		"recent:"
+#define RECENT_FILE	"recent-files.txt"
+static int is_recent_p (const char *p) { return !strcmp (p, RECENT); }
+static int is_recent (void) { return is_recent_p (path); }
+static void recent_forget (void);
 static struct crumb crumbs[CR_MAX];
 static char (*hist)[HIST_SZ];			/* HIST_MAX dossiers (ceux de la vue en cours) */
 static long *order;				/* MAXE rangs -> entrees */
@@ -491,10 +500,25 @@ static char *fmt_size (unsigned long v, char *d)
 
 static struct ent *ent_ptr (long i) { return &ents[order[i]]; }
 
-static const char *ent_shown (struct ent *e) { return e->kind == K_APP ? e->label : e->name; }
+static const char *ent_shown (struct ent *e)
+{
+	if (e->kind == K_APP)
+		return e->label;
+	if (is_recent ())
+	{					/* (Recents : le nom seul) */
+		const char *b = strrchr (e->name, '/');
+		return b && b[1] ? b + 1 : e->name;
+	}
+	return e->name;
+}
 
 /* rang affiche -> chemin complet dans fullpath -> sa fin */
-static char *make_full (long i) { return path_join (fullpath, path, ent_ptr (i)->name); }
+static char *make_full (long i)
+{
+	if (is_recent ())
+		return str_cat (fullpath, ent_ptr (i)->name);	/* (Recents : deja complet) */
+	return path_join (fullpath, path, ent_ptr (i)->name);
+}
 
 static void set_scroll (long v)
 {
@@ -605,6 +629,12 @@ static long ent_cmp (long ia, long ib)
 /* tri par insertion de order[nents] */
 static void sort_ents (void)
 {
+	if (is_recent ())
+	{					/* (Recents : le plus recent d'abord, toujours) */
+		for (long i = 0; i < nents; i++)
+			order[i] = i;
+		return;
+	}
 	for (long i = 1; i < nents; i++)
 	{
 		long v = order[i], j = i;
@@ -802,6 +832,36 @@ static void *ls_thread (void *a)
 	DIR *d = 0;
 	if (!L->e)
 		L->err = -ENOMEM;
+	else if (is_recent_p (L->dir))
+	{					/* Recents : la liste de UIKit, les fichiers encore la */
+		char cp_[160], *buf = (char *) malloc (16384);
+		int fd = buf ? open (korin_conf_path (RECENT_FILE, cp_, sizeof cp_, 0), O_RDONLY) : -1;
+		long n = fd >= 0 ? read (fd, buf, 16383) : 0;
+		if (fd >= 0)
+			close (fd);
+		if (n < 0)
+			n = 0;
+		if (buf)
+			buf[n] = 0;
+		for (char *l = buf; l && *l && L->n < MAXE;)
+		{
+			char *e = strchr (l, 10);
+			if (e)
+				*e = 0;
+			struct stat st;
+			if (*l && strlen (l) < 256 && stat (l, &st) == 0 && !S_ISDIR (st.st_mode))
+			{
+				struct ent *en = &L->e[L->n++];
+				str_copy_n (en->name, l, 256);
+				en->kind = K_FILE;
+				en->size = (unsigned long) st.st_size;
+			}
+			if (!e)
+				break;
+			l = e + 1;
+		}
+		free (buf);
+	}
 	else if (!(d = opendir (L->dir)))
 		L->err = kerr (errno);
 	if (d)
@@ -887,6 +947,8 @@ static int ls_take (void)
 			order[i] = i;
 		}
 		sort_ents ();
+		if (is_recent () && !nents)
+			set_msg ("Aucun fichier récent : ceux que vous ouvrez viendront ici");
 	}
 	free (L);
 	if (ls_sel[0])
@@ -1315,6 +1377,8 @@ static const char *place_glyph (const char *dir)
 	}
 	if (!strcmp (dir, "/apps") || !strcmp (dir, "/apps/"))
 		return "glyph-place-apps";
+	if (is_recent_p (dir))
+		return "glyph-place-recent";
 	return "glyph-place-folder";
 }
 
@@ -1378,7 +1442,7 @@ static void places_load (void)
 			char *lab = ini_trim (line);	/* (casse gardee) */
 			char *dir = ini_trim (q + 1);
 			struct stat st;
-			if (*lab && *dir && stat (dir, &st) == 0 && S_ISDIR (st.st_mode))
+			if (*lab && *dir && (is_recent_p (dir) || (stat (dir, &st) == 0 && S_ISDIR (st.st_mode))))
 			{
 				if (pl_n >= PL_MAX)
 					return;
@@ -1832,12 +1896,12 @@ static long vol_poll (void)
 	}
 	vol_build ();
 	space_ask ();				/* (leur place, dans son thread) */
-	if (vfs_ch >= 0 && cur_vol () < 0)
+	if (vfs_ch >= 0 && cur_vol () < 0 && !is_recent ())
 	{					/* le volume du dossier courant a disparu */
 		go_sd0 ();
 		set_msg ("Volume retiré : retour à /");
 	}
-	if (vfs_ch >= 0 && dual && vol_of (panes[!curp].path) < 0)
+	if (vfs_ch >= 0 && dual && vol_of (panes[!curp].path) < 0 && !is_recent_p (panes[!curp].path))
 	{					/* celui de l'autre vue */
 		str_copy_n (panes[!curp].path, "/", sizeof panes[0].path);
 		panes[!curp].msg = TR ("Volume retiré : retour à /");
@@ -2645,6 +2709,13 @@ static void open_sel (void)
 		int x = posix_spawn (&pid, fullpath, 0, 0, argv, environ);
 		r = x ? kerr (x) : pid;
 	}
+	if (r >= 0 && en->kind == K_FILE && is_recent ())
+	{					/* (Recents : il passe en tete) */
+		char keep[600];
+		str_copy_n (keep, fullpath, sizeof keep);
+		load_dir ();
+		select_name (keep);
+	}
 	if (r < 0)
 		set_err (r);
 	else
@@ -2669,6 +2740,8 @@ static void open_with_sel (void)
 /* dossier parent (le dossier quitte reste selectionne) */
 static void go_parent (void)
 {
+	if (is_recent ())
+		return;
 	const char *last = path;
 	for (const char *p = path; *p; p++)
 		if (*p == '/')
@@ -2685,6 +2758,11 @@ static void go_parent (void)
 /* « Nouveau dossier », « Nouveau dossier 2 »... (le premier libre) */
 static void new_folder (void)
 {
+	if (is_recent ())
+	{
+		set_msg ("Impossible dans Récents");
+		return;
+	}
 	struct stat st;
 	for (long i = 1; i < 100; i++)
 	{
@@ -2720,6 +2798,11 @@ static void delete_many (void);
 
 static void delete_sel (void)
 {
+	if (is_recent ())
+	{					/* (Recents : retirer de la liste, le fichier reste) */
+		recent_forget ();
+		return;
+	}
 	if (nsel > 1)
 	{
 		delete_many ();
@@ -2852,6 +2935,11 @@ static int same_nocase (const char *a, const char *b)
  * volume : sans copie) ; la liste relue, l'entree renommee choisie */
 static void rename_sel (void)
 {
+	if (is_recent ())
+	{
+		set_msg ("Impossible dans Récents");
+		return;
+	}
 	if (cursel < 0)
 		return;
 	char old[256], nn[256], to[520];
@@ -3752,6 +3840,11 @@ static void clip_sel (int cut)
 static void to_other (int move)
 {
 	static char b[16384];
+	if (is_recent_p (panes[!act].path))
+	{
+		set_msg ("Impossible dans Récents");
+		return;
+	}
 	if (!dual || !sel_list (b, sizeof b))
 		return;
 	char dir[CP_PATH];
@@ -3763,6 +3856,11 @@ static void to_other (int move)
 /* Coller : dans le dossier courant */
 static void paste (void)
 {
+	if (is_recent ())
+	{
+		set_msg ("Impossible dans Récents");
+		return;
+	}
 	static char b[8192];
 	long cut = 0, n = uikit_call3 ((long (*) ()) ui_clip_get_files, (long) b, sizeof b, 0, 0, &cut, 0);
 	if (n <= 0)
@@ -3857,11 +3955,25 @@ static void place_pin (const char *dir, int pin)
  * Couper, Copier, Renommer..., Supprimer) ; dans le vide : Coller, Nouveau dossier */
 static void ctx_menu (long x, long y)
 {
-	enum { A_OPEN, A_WITH, A_CUT, A_COPY, A_RENAME, A_DELETE, A_PASTE, A_NEWDIR, A_COPYTO, A_MOVETO, A_PIN };
+	enum { A_OPEN, A_WITH, A_CUT, A_COPY, A_RENAME, A_DELETE, A_PASTE, A_NEWDIR, A_COPYTO, A_MOVETO, A_PIN, A_LOCATE,
+		A_FORGET };
 	static const char *const lab[] = { "Ouvrir", "Ouvrir avec…", "Couper", "Copier", "Renommer…", "Supprimer",
-		"Coller", "Nouveau dossier", "Copier vers « %s »", "Déplacer vers « %s »", "Épingler aux accès rapides" };
-	int act[12], n = 0;
-	if (cursel < 0 || !nsel)
+		"Coller", "Nouveau dossier", "Copier vers « %s »", "Déplacer vers « %s »", "Épingler aux accès rapides",
+		"Ouvrir l'emplacement", "Retirer des récents" };
+	int act[14], n = 0;
+	if (is_recent ())
+	{					/* Recents : ouvrir, copier, son dossier, retirer de la liste */
+		if (cursel < 0 || !nsel)
+			return;
+		act[n++] = A_OPEN;
+		if (nsel == 1)
+			act[n++] = A_WITH;
+		act[n++] = A_COPY;
+		if (nsel == 1)
+			act[n++] = A_LOCATE;
+		act[n++] = A_FORGET;
+	}
+	else if (cursel < 0 || !nsel)
 	{
 		act[n++] = A_PASTE;
 		act[n++] = A_NEWDIR;
@@ -3913,7 +4025,58 @@ static void ctx_menu (long x, long y)
 	case A_PASTE: paste (); break;
 	case A_NEWDIR: new_folder (); break;
 	case A_PIN: place_pin ((make_full (cursel), fullpath), 1); break;
+	case A_LOCATE:
+	{					/* son dossier, lui choisi */
+		char f[600];
+		str_copy_n (f, (make_full (cursel), fullpath), sizeof f);
+		str_copy_n (fullpath, f, sizeof fullpath);
+		path_parent (fullpath);
+		go_dir (fullpath);
+		select_name (base_name (f));
+		break;
 	}
+	case A_FORGET: recent_forget (); break;
+	}
+}
+
+/* Recents : la selection retiree de la liste (les fichiers restent) */
+static void recent_forget (void)
+{
+	if (!is_recent () || !nsel)
+		return;
+	char cp_[160];
+	static char raw[16384], out[16384];
+	int fd = open (korin_conf_path (RECENT_FILE, cp_, sizeof cp_, 0), O_RDONLY);
+	long n = fd >= 0 ? read (fd, raw, sizeof raw - 1) : 0;
+	if (fd >= 0)
+		close (fd);
+	if (n < 0)
+		n = 0;
+	raw[n] = 0;
+	long o = 0;
+	for (char *l = raw; *l;)
+	{
+		char *e = strchr (l, 10);
+		if (e)
+			*e = 0;
+		int drop = 0;
+		for (long i = 0; i < nents && !drop; i++)
+			if (is_sel (i) && !strcmp (ent_ptr (i)->name, l))
+				drop = 1;
+		if (*l && !drop && o + (long) strlen (l) + 2 < (long) sizeof out)
+			o += snprintf (out + o, sizeof out - (size_t) o, "%s\n", l);
+		if (!e)
+			break;
+		l = e + 1;
+	}
+	fd = open (korin_conf_path (RECENT_FILE, cp_, sizeof cp_, 1), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (fd >= 0)
+	{
+		write (fd, out, (size_t) o);
+		close (fd);
+	}
+	load_dir ();
+	set_msg ("Retiré des récents");
 }
 
 /* actualiser (dossier et volumes ; la selection est gardee) */
@@ -4187,6 +4350,13 @@ static void draw_dual (void)
  * segment reste le vrai */
 static void crumbs_make (void)
 {
+	if (is_recent ())
+	{					/* (Recents : un seul segment, son nom) */
+		crumbs[0].txt = TR ("Récents");
+		crumbs[0].end = 0;
+		cr_n = 1;
+		return;
+	}
 	str_copy_n (crbuf, path, 272);
 	char *start = crbuf;
 	long n = 0;
@@ -4571,7 +4741,7 @@ static void draw_banner (void)
 		ui_fill (vx0, y, w, 2, TOK (TJ_ACCENT));
 	ui_fill (vx0, y + BAN_H - 1, w, 1, TOK (TJ_LINE));
 	draw_folder (vx0 + 8, y + 3);
-	const char *nm = path[0] == '/' && !path[1] ? "/" : base_name (path);
+	const char *nm = is_recent () ? TR ("Récents") : path[0] == '/' && !path[1] ? "/" : base_name (path);
 	long x = vx0 + 34, right = vx1 - 10;
 	long v = vol_of (path);
 	const struct vspace *sp = v >= 0 ? space_of (&vols[v]) : 0;
@@ -4984,6 +5154,8 @@ static void drag_ghost (long i)
  * sur un meme volume, copies d'un volume a l'autre */
 static void on_drop (void)
 {
+	if (is_recent ())
+		return;				/* (rien ne se depose dans Recents) */
 	static char b[8192];
 	long kind = 0, n = uikit_drop_get (b, sizeof b - 1, &kind);
 	if (n <= 0 || kind != UDT_FILES)
@@ -5101,7 +5273,18 @@ static void loc_go (void)
 {
 	char p[600];
 	struct stat st;
-	loc_resolve ((const char *) ui_w_get_text (loc_w), p, sizeof p);
+	const char *txt = (const char *) ui_w_get_text (loc_w);
+	while (*txt == ' ')
+		txt++;
+	if (!strncasecmp (txt, RECENT, 7) && (!txt[7] || txt[7] == '/' || txt[7] == ' '))
+	{				/* « recent: » : la vue Recents */
+		loc_on = 0;
+		ui_w_show (loc_w, 0);
+		go_dir (RECENT);
+		draw ();
+		return;
+	}
+	loc_resolve (txt, p, sizeof p);
 	if (strlen (p) >= 256 || stat (p, &st) != 0)
 	{
 		static char m[300];

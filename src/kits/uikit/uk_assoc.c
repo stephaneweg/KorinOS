@@ -433,6 +433,71 @@ long ui_assoc_app(long path, long buf, long size)
 /* x0 = chemin -> x0 = pid du programme lancé (< 0 : erreur). Un dossier
  * s'ouvre dans Fichiers, un paquet .app et un programme (ELF) se lancent, un
  * fichier s'ouvre dans son application (ui_assoc_app). */
+/* uk_recent_add : les fichiers récents (24/11/2026, la vue « Récents » de Fichiers, comme GtkRecentManager de
+ * GNOME) : HOME:/etc/recent-files.txt, un chemin complet par ligne, le plus récent d'abord, UK_RC_MAX au plus.
+ * Appelée par ui_assoc_open (un document ouvert dans son application) et par les dialogues Ouvrir et Enregistrer
+ * (ui_file_open, ui_file_save) quand ils rendent un fichier. Un chemin relatif n'est pas gardé. */
+#define UK_RC_MAX 50
+#define UK_RC_BUF 12288
+static char uk_rc_in[UK_RC_BUF], uk_rc_out[UK_RC_BUF];
+
+static int uk_memcmp_n(const char *a, const char *b, long n)
+{
+	for (long k = 0; k < n; k++)
+		if (a[k] != b[k])
+			return 1;
+	return 0;
+}
+
+void uk_recent_add(long path)
+{
+	const char *p = (const char *)(uintptr_t)path;
+	long pl = 0, n, fd, o = 0, lines = 1, i, colon = 0;
+	if (!p || !p[0])
+		return;
+	while (p[pl]) {
+		if (p[pl] == 10 || p[pl] == 13)
+			return; /* (un nom avec une fin de ligne casserait la liste) */
+		if (p[pl] == ':')
+			colon = 1;
+		pl++;
+	}
+	if ((p[0] != '/' && !colon) || pl >= 512)
+		return;
+	fd = SYS2(SYS_OPEN, uk_conf_path("recent-files.txt", 0), O_READ);
+	n = 0;
+	if (fd >= 0) {
+		n = SYS3(SYS_READ, fd, S(uk_rc_in), UK_RC_BUF - 1);
+		SYS1(SYS_CLOSE, fd);
+		if (n < 0)
+			n = 0;
+	}
+	uk_rc_in[n] = 0;
+	for (i = 0; i < pl; i++) /* lui d'abord */
+		uk_rc_out[o++] = p[i];
+	uk_rc_out[o++] = 10;
+	for (i = 0; i < n && lines < UK_RC_MAX;) { /* puis les autres, sans lui */
+		long b = i, l;
+		while (i < n && uk_rc_in[i] != 10)
+			i++;
+		l = i - b;
+		i++;
+		if (l <= 0 || (l == pl && !uk_memcmp_n(uk_rc_in + b, p, pl)))
+			continue;
+		if (o + l + 1 >= UK_RC_BUF)
+			break;
+		for (long k = 0; k < l; k++)
+			uk_rc_out[o++] = uk_rc_in[b + k];
+		uk_rc_out[o++] = 10;
+		lines++;
+	}
+	fd = SYS2(SYS_OPEN, uk_conf_path("recent-files.txt", 1), O_WRITE | O_CREATE | O_TRUNC);
+	if (fd < 0)
+		return;
+	SYS3(SYS_WRITE, fd, S(uk_rc_out), o);
+	SYS1(SYS_CLOSE, fd);
+}
+
 long ui_assoc_open(long path)
 {
 	u8 st[16] __attribute__((aligned(16)));
@@ -459,6 +524,7 @@ long ui_assoc_open(long path)
 			return uk_fa_spawn(path, 0);
 	}
 	uk_fa_find(path);
+	uk_recent_add(path); /* un document : parmi les récents */
 	return uk_fa_spawn(uk_fa_apppath(UKA(fa_name), S(uk_fa_s_main)), path);
 }
 

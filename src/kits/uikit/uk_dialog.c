@@ -351,14 +351,20 @@ static long uk_file_dialog(long dir, long kind, long name, long buf, long size);
 /* x0 = dossier de départ (0 : /), x1 = tampon, x2 = sa taille -> x0 = 1 / 0 */
 long ui_file_open(long dir, long buf, long size)
 {
-	return uk_file_dialog(dir, 0, 0, buf, size);
+	long r = uk_file_dialog(dir, 0, 0, buf, size);
+	if (r == 1)
+		uk_recent_add(buf); /* (les fichiers récents : uk_assoc.c) */
+	return r;
 }
 
 /* x0 = dossier de départ, x1 = nom proposé (0 : aucun ; un chemin : son dossier
  * et son nom), x2 = tampon, x3 = taille -> x0 = 1 / 0 */
 long ui_file_save(long dir, long name, long buf, long size)
 {
-	return uk_file_dialog(dir, 1, name, buf, size);
+	long r = uk_file_dialog(dir, 1, name, buf, size);
+	if (r == 1)
+		uk_recent_add(buf);
+	return r;
 }
 
 /* x0 = types de fichiers montrés par les dialogues suivants (0 : tous) -> x0 inchangé */

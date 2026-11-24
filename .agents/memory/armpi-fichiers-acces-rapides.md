@@ -32,4 +32,12 @@ Demande de l'utilisateur du 24/11/2026, branche claude/lucid-wright-6o2o4b, fusi
   « ~ » tapés ; Tab complète, Entrée, Échap ; ~ = HOME:, relatif, . et ..) ; Ctrl+L n'actualise plus (F5, Ctrl+R),
   comme GNOME. vol_of : HOME: rattaché au volume de $HOME (avant : « Volume retiré : retour à / » à chaque changement
   des volumes quand on était dans HOME:). Essayé sous QEMU PC (captures t1..t8).
+- 24/11 : Récents (Favoris refusés par l'utilisateur : l'épinglage suffit). UIKit uk_recent_add (uk_assoc.c, sans
+  changer l'ABI) tient HOME:/etc/recent-files.txt (50, le plus récent d'abord) depuis ui_assoc_open (documents) et
+  ui_file_open/ui_file_save ; Fichiers : dossier virtuel « recent: » (places.ini « Récents = recent: »), noms = chemins
+  complets (ent_shown, make_full), pas de tri, Nouveau dossier/Coller/Renommer/Déposer refusés, Suppr = retirer de la
+  liste ; clic droit Ouvrir l'emplacement, Retirer des récents ; glyph-place-recent (horloge).
+  **Piège du PC** : le noyau prend un kit dans korin/initrd.tar avant lib/, et à version de kit égale initrd_kits.py
+  garde celui de l'initrd : une modification d'UIKit sans changement d'ABI doit remplacer uikit.so DANS l'initrd
+  aussi (scratchpad initrd_put.py : ordre, noms, dates gardés ; pub.py --boot DOSSIER avec korin/initrd.tar).
 - Le Pi (armpi) n'est pas publié : son paquet a encore files.asm.
