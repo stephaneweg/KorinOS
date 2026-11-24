@@ -60,9 +60,9 @@ struct block {
 	int used;
 };
 struct chunk {
-	long buf;			/* numero du tampon partage, -1 : a blanc */
+	long buf;			/* numero du (premier) tampon partage, -1 : a blanc */
 	uint8_t *va;
-	uint64_t bytes;
+	uint64_t bytes;			/* (plus de BUF_SLOT : des tampons de numeros consecutifs, buf, buf + 1...) */
 	struct block *blocks;
 };
 struct bo {
@@ -182,6 +182,36 @@ static int wait_seq (uint32_t seq, int64_t timeout)
 }
 
 /* -------- les morceaux ------------------------------------------------------------------------------ */
+/* plus de 64 Mo (BUF_SLOT, le plus grand tampon du noyau ; 24/11 : Blender en demande plus) : des tampons de
+ * numeros consecutifs, tous pleins sauf le dernier, que le noyau mappe bout a bout (BUF_VA_BASE + n x BUF_SLOT).
+ * Le noyau donne le plus petit numero libre : on en prend jusqu'a avoir une suite, puis on rend les autres.
+ * -> le premier numero, < 0 */
+static long bufs_run (uint64_t bytes)
+{
+	long k = (long) ((bytes + BUF_SLOT - 1) / BUF_SLOT), got[48], first = -1, run = 0;
+	uint64_t last = bytes - (uint64_t) (k - 1) * BUF_SLOT;
+	int ng = 0;
+	while (run < k && ng < 48) {
+		uint64_t sz = run == k - 1 ? last : BUF_SLOT;
+		long n = sys2 (SYS_BUF_CREATE, (long) sz, 0);
+		if (n < 0)
+			break;
+		got[ng++] = n;
+		if (run && n != first + run) {	/* suite cassee : un tampon plein en commence une autre */
+			first = sz == BUF_SLOT ? n : -1;
+			run = sz == BUF_SLOT;
+			continue;
+		}
+		if (!run)
+			first = n;
+		run++;
+	}
+	for (int i = 0; i < ng; i++)
+		if (run < k || got[i] < first || got[i] >= first + k)
+			sys2 (SYS_BUF_FREE, got[i], 0);
+	return run == k ? first : -1;
+}
+
 static struct chunk *chunk_new (uint64_t bytes)
 {
 	if (nchunks == MAX_CHUNKS)
@@ -195,13 +225,16 @@ static struct chunk *chunk_new (uint64_t bytes)
 		c->buf = -1;
 		c->va = p;
 	} else {
-		long n = sys2 (SYS_BUF_CREATE, (long) bytes, 0);
+		long n = bytes > BUF_SLOT ? bufs_run (bytes) : sys2 (SYS_BUF_CREATE, (long) bytes, 0);
 		if (n < 0)
 			return NULL;
-		if (sys2 (SYS_BUF_GRANT, n, info.pid) < 0 || call4 (IG_OP_CHUNK, n, 0, 0, 0, NULL) < 0) {
-			sys2 (SYS_BUF_FREE, n, 0);
-			return NULL;
-		}
+		long k = (long) ((bytes + BUF_SLOT - 1) / BUF_SLOT);
+		for (long i = 0; i < k; i++)
+			if (sys2 (SYS_BUF_GRANT, n + i, info.pid) < 0 || call4 (IG_OP_CHUNK, n + i, 0, 0, 0, NULL) < 0) {
+				for (long j = 0; j < k; j++)
+					sys2 (SYS_BUF_FREE, n + j, 0);
+				return NULL;
+			}
 		c->buf = n;
 		c->va = (uint8_t *) (BUF_VA_BASE + (unsigned long) n * BUF_SLOT);
 		if (debug)
@@ -280,7 +313,7 @@ static struct bo *lookup (uint32_t h)
 static int bo_create (uint64_t size, uint32_t *handle)
 {
 	uint64_t bytes = (size + PAGE - 1) & ~(PAGE - 1);
-	if (!bytes || bytes > BUF_SLOT)
+	if (!bytes || bytes > 16 * BUF_SLOT)	/* (1 Go : plus de 64 Mo, voir bufs_run) */
 		return -ENOMEM;
 	struct block *b = NULL;
 	struct chunk *c = NULL;
@@ -644,17 +677,23 @@ static int execbuf (struct drm_i915_gem_execbuffer2 *x)
 			continue;
 		if (!b->c || b->c->buf < 0)
 			return -EINVAL;	/* (une zone importee d'ailleurs : pas dans nos morceaux) */
-		e[ne].gpu = a;
-		e[ne].bytes = b->bytes;
-		e[ne].buf = (uint32_t) b->c->buf;
-		e[ne].pad = 0;
-		e[ne].off = b->b->off;
 		b->gpu = a;
 		b->vm = g->vm;
-		if (++ne == IG_BIND_MAX) {
-			if (bind_flush (g->vm, e, ne))
-				return -EINVAL;
-			ne = 0;
+		/* (un morceau de plusieurs tampons : une liaison par tampon touche) */
+		for (uint64_t at = 0; at < b->bytes;) {
+			uint64_t off = b->b->off + at, in = off % BUF_SLOT;
+			uint64_t len = b->bytes - at < BUF_SLOT - in ? b->bytes - at : BUF_SLOT - in;
+			e[ne].gpu = a + at;
+			e[ne].bytes = len;
+			e[ne].buf = (uint32_t) (b->c->buf + (long) (off / BUF_SLOT));
+			e[ne].pad = 0;
+			e[ne].off = in;
+			at += len;
+			if (++ne == IG_BIND_MAX) {
+				if (bind_flush (g->vm, e, ne))
+					return -EINVAL;
+				ne = 0;
+			}
 		}
 	}
 	if (bind_flush (g->vm, e, ne))
@@ -1723,8 +1762,9 @@ __attribute__ ((visibility ("default"))) int korin_wsi_present (long window, int
 	pthread_mutex_lock (&lock);
 	for (int i = 0; i < nchunks; i++)
 		if (chunks[i].buf >= 0 && p >= chunks[i].va && p < chunks[i].va + chunks[i].bytes) {
-			buf = chunks[i].buf;
 			off = (long) (p - chunks[i].va);
+			buf = chunks[i].buf + off / (long) BUF_SLOT;	/* (morceau de plusieurs tampons) */
+			off %= (long) BUF_SLOT;
 			break;
 		}
 	pthread_mutex_unlock (&lock);
