@@ -1,4 +1,27 @@
+diff --git a/src/c11/impl/threads_posix.c b/src/c11/impl/threads_posix.c
+index 6db8c42..aec1a51 100644
+--- a/src/c11/impl/threads_posix.c
++++ b/src/c11/impl/threads_posix.c
+@@ -252,7 +252,17 @@ thrd_create(thrd_t *thr, thrd_start_t func, void *arg)
+     if (!pack) return thrd_nomem;
+     pack->func = func;
+     pack->arg = arg;
++#ifdef __armpi__
++    /* Korin : la pile d'un pthread est de 256 Ko par defaut (libposix) ; les fils de llvmpipe et de la file
++     * Vulkan executent les shaders compiles par LLVM, qui en veulent bien plus : 8 Mo, comme Linux (peuplee a
++     * la demande). */
++    pthread_attr_t attr;
++    pthread_attr_init(&attr);
++    pthread_attr_setstacksize(&attr, 8u << 20);
++    if (pthread_create(thr, &attr, impl_thrd_routine, pack) != 0) {
++#else
+     if (pthread_create(thr, NULL, impl_thrd_routine, pack) != 0) {
++#endif
+         free(pack);
+         return thrd_error;
+     }
 diff --git a/src/gallium/frontends/lavapipe/lvp_device.c b/src/gallium/frontends/lavapipe/lvp_device.c
+index 980f26d..1c3c044 100644
 --- a/src/gallium/frontends/lavapipe/lvp_device.c
 +++ b/src/gallium/frontends/lavapipe/lvp_device.c
 @@ -62,7 +62,8 @@

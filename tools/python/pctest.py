@@ -200,13 +200,23 @@ def run(a):
                 print("lancé :", c[6:], flush=True)
                 continue
             if c.startswith("fresh:"):  # une commande dans une autre session telnet (la première tient une app lancée)
-                t2 = rem.Telnet("127.0.0.1", a.port, timeout=10)
-                if b"Mot de passe" in t2.read_until(b" : ", 15):
-                    t2.s.sendall(b"essai\r\n")
-                t2.s.sendall(b'echo @PR""ET\r\n')
-                t2.read_until(b"@PRET", 20)
-                t2.read_until(b"\n", 20)
-                out, code = t2.run(c[6:], 60)
+                t2 = None
+                for _ in range(5):  # (une machine très chargée, llvmpipe par exemple, tarde à ouvrir la session)
+                    try:
+                        t2 = rem.Telnet("127.0.0.1", a.port, timeout=30)
+                        if b"Mot de passe" in t2.read_until(b" : ", 30):
+                            t2.s.sendall(b"essai\r\n")
+                        t2.s.sendall(b'echo @PR""ET\r\n')
+                        t2.read_until(b"@PRET", 30)
+                        t2.read_until(b"\n", 30)
+                        break
+                    except (OSError, EOFError, TimeoutError):
+                        t2 = None
+                        time.sleep(5)
+                if t2 is None:
+                    print("(autre session : pas de réponse)", flush=True)
+                    continue
+                out, code = t2.run(c[6:], 120)
                 print("$ (autre session) %s\n%s[code %d]" % (c[6:], out, code), flush=True)
                 t2.close()
                 continue
