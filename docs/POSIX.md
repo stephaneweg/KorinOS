@@ -588,7 +588,8 @@ et la page n'envoyait pas le mot de passe ([WEBKIT.md](WEBKIT.md), « Connexion 
 * **Divers** : `dlopen` : section « dlopen » (un programme relié sans `-rdynamic` ne charge rien ;
   `dl_iterate_phdr` y voit le programme seul, en-têtes ELF gardés par `posix.ld`, `PT_GNU_EH_FRAME` par
   `--eh-frame-hdr` ; `dladdr` y rend le programme, sans nom de symbole) ; pas de `/proc`, sauf `readlink ("/proc/self/exe")`, déduit d'`argv[0]`
-  et de `PATH` (le noyau ne garde pas le chemin), et `access ("/proc")`, qui réussit : SDL et PhysicsFS le regardent d'abord ; `sched_getaffinity` : tous les cœurs,
+  et de `PATH` (le noyau ne garde pas le chemin), puis `/apps/<nom>.app/main` (une app lancée par le bureau a
+  pour `argv[0]` le seul nom du process), et `access ("/proc")`, qui réussit : SDL et PhysicsFS le regardent d'abord ; `sched_getaffinity` : tous les cœurs,
   `sched_setaffinity` sans effet ; `statfs` : celles de `statvfs` ; `syscall` : seulement
   `gettid`, `getrandom`, `membarrier` (numéros de Linux arm64, `ENOSYS` sinon) ; `fnmatch` (`fnmatch.c`) ; `timer_create` → `ENOSYS`, fuseau
   UTC seulement, une seule identité (uid 0).
