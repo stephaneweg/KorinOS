@@ -62,7 +62,7 @@ pile du plantage : addr2line sur install-gui/blender et out-x86_64/vkkit/vkkit.e
 
 **24/11 (après-midi), jalon 4 première vague** : OpenSubdiv, Manifold, GMP, FFTW3, Embree (deps.sh DEPS_B, pièges
 dans l'étude § jalon 4) + Freestyle, Mantaflow, remaillage, QuadriFlow, SLIM, Cineon ; libmv coupé (Ceres) ;
-test/features.py OK sous QEMU. Pas encore publié (blender 0.7 + pc avec vkkit.so : correction de la fermeture,
+test/features.py OK sous QEMU. Publié : blender 0.7 + pc 2026.11.104 (vkkit.so seul ; correction de la fermeture,
 faute dans le fil de soumission d'anv quand l'anneau plein rendait le verrou). Piège récurrent : macros _L _N _S… de
 ctype.h de newlib dans le code tiers.
 
