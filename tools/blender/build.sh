@@ -19,8 +19,8 @@ PYDEPS=${PYDEPS%;}
 [ -f "$PY/lib/libpython3.13.a" ] || { echo "build.sh : pas de Python (sh tools/blender/python.sh)" >&2; exit 1; }
 [ -f "$OBJ/openimageio/.fait" ] || { echo "build.sh : dépendances absentes (sh tools/blender/deps.sh)" >&2; exit 1; }
 # les outils de la construction (datatoc, shader_tool, makesdna, makesrna) pour l'hôte : hosttools.sh
-HOSTBIN=$K/host/blender/bin
-[ -x "$HOSTBIN/makesrna" ] || { echo "build.sh : pas d'outils pour l'hôte (sh tools/blender/hosttools.sh)" >&2; exit 1; }
+HOSTBIN=$K/host/blender-$CONFIG/bin	# (les outils de la même configuration : hosttools.sh)
+[ -x "$HOSTBIN/makesrna" ] || { echo "build.sh : pas d'outils pour l'hôte (CONFIG=$CONFIG sh tools/blender/hosttools.sh)" >&2; exit 1; }
 
 # Les retouches de Blender (tools/blender/patches/blender.patch), comme celles des dépendances.
 p=$BL/patches/blender.patch

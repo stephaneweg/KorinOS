@@ -1,0 +1,13 @@
+diff --git a/src/gallium/frontends/lavapipe/lvp_device.c b/src/gallium/frontends/lavapipe/lvp_device.c
+--- a/src/gallium/frontends/lavapipe/lvp_device.c
++++ b/src/gallium/frontends/lavapipe/lvp_device.c
+@@ -62,7 +62,8 @@
+     defined(VK_USE_PLATFORM_WIN32_KHR) || \
+     defined(VK_USE_PLATFORM_XCB_KHR) || \
+     defined(VK_USE_PLATFORM_XLIB_KHR) || \
+-    defined(VK_USE_PLATFORM_METAL_EXT)
++    defined(VK_USE_PLATFORM_METAL_EXT) || \
++    defined(__armpi__) /* Korin : la WSI de Korin (surface headless montree dans une fenetre d'Elegant) */
+ #define LVP_USE_WSI_PLATFORM
+ #endif
+ 

@@ -199,6 +199,17 @@ def run(a):
                 t.s.sendall(c[6:].encode("utf-8") + b"\r\n")
                 print("lancé :", c[6:], flush=True)
                 continue
+            if c.startswith("fresh:"):  # une commande dans une autre session telnet (la première tient une app lancée)
+                t2 = rem.Telnet("127.0.0.1", a.port, timeout=10)
+                if b"Mot de passe" in t2.read_until(b" : ", 15):
+                    t2.s.sendall(b"essai\r\n")
+                t2.s.sendall(b'echo @PR""ET\r\n')
+                t2.read_until(b"@PRET", 20)
+                t2.read_until(b"\n", 20)
+                out, code = t2.run(c[6:], 60)
+                print("$ (autre session) %s\n%s[code %d]" % (c[6:], out, code), flush=True)
+                t2.close()
+                continue
             if c.startswith("key:") or c.startswith("type:"):  # des touches (sendkey), ou un texte en AZERTY
                 ks = c[4:].split() if c.startswith("key:") else qp.azerty_keys(c[5:])[:-1]
                 for k in ks:

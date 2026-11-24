@@ -49,6 +49,12 @@ def prep(a):
     shutil.copytree(tree, os.path.join(TROOT, "apps", "blender"))
     t = os.path.join(TROOT, "home", "blender")
     shutil.copytree(os.path.join(HERE, "test"), t)
+    if a.lvp:
+        # Vulkan sur le processeur (QEMU n'a pas de GPU Intel) : le kit de lavapipe (tools/mesa/build-lvp.sh) à la
+        # place de celui d'anv, et son vktest ; un programme Vulkan doit alors être lié à build/pc/mesa-lvp
+        lv = os.path.join(PC, "mesa-lvp", "sdroot")
+        shutil.copy(os.path.join(lv, "lib", "vkkit.so"), os.path.join(TROOT, "lib", "vkkit.so"))
+        shutil.copy(os.path.join(lv, "bin", "vktest"), os.path.join(TROOT, "bin", "vktest"))
     etc = os.path.join(TROOT, "etc")
     open(os.path.join(etc, "remote.txt"), "w", encoding="ascii").write("password = essai\n")
     sv = os.path.join(etc, "services.txt")
@@ -68,6 +74,7 @@ def main():
     ap.add_argument("cmd", nargs="*")
     ap.add_argument("--mb", type=int, default=1500)
     ap.add_argument("--tree", default="~/korin-blender/x86_64/install-headless")
+    ap.add_argument("--lvp", action="store_true", help="le kit de lavapipe (Vulkan sur le processeur) et son vktest")
     ap.add_argument("--bin", default="")
     ap.add_argument("--port", type=int, default=2396)
     ap.add_argument("--hostfwd", action="append", default=[])

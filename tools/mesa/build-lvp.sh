@@ -43,4 +43,26 @@ LIBS="$LIBS $("$LLVM/bin/llvm-config-korin" --link-static --libfiles bitwriter c
 	mcdisassembler mcjit native scalaropts transformutils coroutines lto orcjit passes ipo)"
 echo "$WA" > "$V/whole.txt"
 echo "$LIBS" > "$V/libs.txt"
-VKKIT_DRIVER=lvp VKKIT_TLS=${VKKIT_TLS:-4096} sh "$M/build-vkkit-pc.sh"
+# Pas de kit : le fichier (71 Mo, LLVM compris) dépasse les 64 Mo des tampons partagés par lesquels AppKit lit un kit
+# (FC_IMAGE_MAX, BUF_SIZE_MAX) et la place d'un kit chez le noyau (KIT_SLOT). Les programmes d'essai lient donc
+# lavapipe en statique : le chargeur et les trampolines de VkKit (vkkit_loader.c, gen_protos.py), dont
+# vk_icdGetInstanceProcAddr est ici celle de lavapipe, puis lavapipe, ses objets à nous, Mesa et LLVM.
+PM=$ARMPI_ROOT/build/pc/mesa-lvp
+mkdir -p "$PM/lib" "$PM/sdroot/bin"
+HF="-specs=$POSIX/lib/posix.specs -O2 -g0 -fno-builtin"
+${TC}gcc $HF -I"$SRC/include" -c "$M/vkkit/vkkit_loader.c" -o "$V/vkkit_loader.o"
+python3 -I "$M/vkkit/gen_protos.py" "$SRC/include/vulkan/vulkan_core.h" "$V/vkkit_protos.c"
+${TC}gcc $HF -ffunction-sections -fdata-sections -I"$SRC/include" -c "$V/vkkit_protos.c" -o "$V/vkkit_protos.o"
+# lvp-static.txt : les arguments de liaison d'un programme (à la place de libvkkit.a), libstdc++ par g++
+echo "$V/vkkit_loader.o $V/vkkit_protos.o $(cat "$V/objs.txt") -Wl,--whole-archive $WA -Wl,--no-whole-archive" \
+	"-Wl,--start-group $LIBS -Wl,--end-group" > "$PM/lib/lvp-static.txt"
+# vktest (VKTEST_KIT : son --win, par UIKit) lié ainsi
+PCG=$ARMPI_ROOT/build/pc/gcc
+${TC}gcc -specs=$POSIX/lib/posix.specs -O2 -DVKTEST_KIT -I"$SRC/include" -I"$M/vkkit/include" -I"$PCG/include/kits" \
+	-I"$ARMPI_ROOT/src/kits/uikit/include" -c "$M/anv/vktest.c" -o "$V/vktest.o"
+${TC}g++ -specs=$POSIX/lib/posix.specs -Wl,--gc-sections "$V/vktest.o" $(cat "$PM/lib/lvp-static.txt") \
+	"$PCG/lib/libuikit.a" -o "$V/vktest" 2> "$V/link.log" ||
+	{ grep -E "undefined reference" "$V/link.log" | sed 's/.*undefined reference to//' | sort | uniq -c | sort -rn | head -40
+	  tail -3 "$V/link.log"; exit 1; }
+${TC}strip -o "$PM/sdroot/bin/vktest" "$V/vktest"
+ls -l "$PM/lib/lvp-static.txt" "$PM/sdroot/bin/vktest"

@@ -15,6 +15,9 @@ LLVM=${KORIN_LLVM:-$HOME/korin-llvm}/x86_64
 PATCH=$ARMPI_ROOT/tools/mesa/korin-pc.patch
 git -C "$SRC" apply --check -R "$PATCH" 2>/dev/null || git -C "$SRC" apply "$PATCH"
 cp "$ARMPI_ROOT/tools/mesa/wsi/wsi_common_korin.c" "$SRC/src/vulkan/wsi/"
+# lavapipe : sa WSI aussi sous Korin (comme ANV_USE_WSI_PLATFORM dans korin-pc.patch)
+LPATCH=$ARMPI_ROOT/tools/mesa/lvp/korin-lvp.patch
+git -C "$SRC" apply --check -R "$LPATCH" 2>/dev/null || git -C "$SRC" apply "$LPATCH"
 # le fichier croisé de configure-iris.sh, avec le llvm-config de Korin
 sed "s|^pkg-config = .*|&\nllvm-config = '$LLVM/bin/llvm-config-korin'|" "$OUT/cross.ini" > "$OUT/cross-lvp.ini"
 if [ -f "$P/zlib.pc" ]; then CACHE="-Dshader-cache=enabled -Dzlib=enabled"; else CACHE="-Dshader-cache=disabled -Dzlib=disabled"; fi
