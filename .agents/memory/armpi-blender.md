@@ -73,5 +73,11 @@ l'icône. Reste : faute à la fermeture (code -11, fil de soumission d'anv ; att
 --disable-crash-handler), lavapipe sous QEMU, suite du jalon 4 (numpy, son, FFmpeg). Barre de menus globale : juste
 une question de l'utilisateur, pas demandée.
 
+**24/11 (nuit)** : faute à la fermeture trouvée (ligne du noyau avec --disable-crash-handler : piège de GCC dans
+i915_queue_exec_locked, vk_sync_dummy de la WSI resignalé) : anv l'ignore (korin-pc.patch) ; publié pc 2026.11.108
+(vkkit.so seul) + blender 0.10 (bande à la couleur de la barre de Blender : GHOST_kCapabilityWindowDecorationStyles,
+ui_frame_glyphs ; build/pc/gcc/include/kits régénéré pour UIKit). Pas encore essayé par l'utilisateur. Toujours :
+git fetch + merge + push avant chaque publication (d'autres sessions publient pc).
+
 **How to apply:** JOBS=6 (12 Go) dans WSL (9 Go). Lancer les scripts par `wsl -- sh tools/blender/…` (pas `wsl bash -c '…$X…'` :
 les $ sont développés avant ; Git Bash : MSYS_NO_PATHCONV=1 pour les chemins /home). Voir [[armpi-godot]], [[armpi-cpython]], [[armpi-devtools]], [[armpi-cao]].
