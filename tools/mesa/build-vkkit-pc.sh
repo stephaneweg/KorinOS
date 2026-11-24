@@ -66,9 +66,13 @@ ${TC}gcc $HF -w -c "$K/gen/vkkit_imports.c" -o "$K/vkkit_imports.o"
 ${TC}gcc -c "$K/src/vkkit_lazy_x86_64.S" -o "$K/vkkit_lazy.o"
 ${TC}gcc -c "$K/gen/vkkit_stubs.S" -o "$K/vkkit_stubs.o"
 ${TC}gcc $HF -I"$SRC/include" -c "$M/vkkit/vkkit_loader.c" -o "$K/vkkit_loader.o"
+# les trampolines de toutes les fonctions de vulkan_core.h (programmes qui appellent Vulkan en direct : Blender),
+# une section par fonction : --gc-sections ne garde que celles qu'un programme appelle
+python3 -I "$M/vkkit/gen_protos.py" "$SRC/include/vulkan/vulkan_core.h" "$K/gen/vkkit_protos.c"
+${TC}gcc $HF -ffunction-sections -fdata-sections -I"$SRC/include" -c "$K/gen/vkkit_protos.c" -o "$K/vkkit_protos.o"
 rm -f "$PM/lib/libvkkit.a"
 ${TC}ar rcsD "$PM/lib/libvkkit.a" "$K/vkkit_stubs.o" "$K/vkkit_lazy.o" "$K/vkkit_host.o" "$K/vkkit_imports.o" \
-	"$K/vkkit_loader.o"
+	"$K/vkkit_loader.o" "$K/vkkit_protos.o"
 # les en-tetes pour les programmes (ceux de Mesa, la meme version que le pilote)
 cp "$SRC"/include/vulkan/*.h "$PM/include/vulkan/"
 cp -r "$SRC/include/vk_video" "$PM/include/" 2>/dev/null || true
