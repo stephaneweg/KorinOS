@@ -51,4 +51,9 @@ Demande de l'utilisateur du 24/11/2026, branche claude/lucid-wright-6o2o4b, fusi
   insécable car « %s sur %s » = « %s of %s » existe), glyphe réseau, chemin en 2e ligne.
 - Publié : pc 2026.11.107 (24/11 soir, main b591842) : Récents, accents, volumes, fichiers cachés, ↑ ; UIKit dans lib/ et
   dans korin/initrd.tar ; emporte aussi libposix /proc/self/exe (341c51b, autre session) par Fichiers et Réglages.
+- 24/11 soir : alias fixes de vfs PUBLIC:/ (/home/public) et APPS:/ (/apps) (alias_fixes, src/svc/vfs/path.c ;
+  statvfs de libposix ; vol_of de Fichiers) ; places.ini « Applications = APPS:/ », « Public = PUBLIC:/ » ; glyphe
+  glyph-place-public (le partage de GNOME) ; vfs est dans korin/initrd.tar seulement (pas sys/svc) : le remplacer là.
+  **But de l'utilisateur** : à terme, un compte n'atteint /, /tmp et /home que par élévation, ses alias restant ouverts
+  (« une sorte d'unveil au niveau user ») ; rien de fait.
 - Le Pi (armpi) n'est pas publié : son paquet a encore files.asm.

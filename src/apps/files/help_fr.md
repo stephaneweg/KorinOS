@@ -169,7 +169,7 @@ Musiques = HOME:/music
 Applications = /apps
 ```
 
-À gauche le nom affiché, à droite le dossier. Un dossier qui n'existe pas n'est pas montré. L'icône vient du dossier : une maison pour **HOME:/** (le dossier personnel), une note pour `music`, une image pour `pictures`, une flèche pour `downloads`, une équerre et un crayon pour `projects`, une page pour `documents`, un film pour `video`, une grille pour **/apps**, un dossier pour les autres. Fichiers crée au démarrage ceux de ces dossiers personnels qui manquent. Dans le dossier personnel, ils portent aussi leur icône sur le dossier, dans la vue en icônes ; les dossiers prennent la couleur d'accent du thème. On peut modifier ce fichier dans l'Éditeur ; **Fichier > Actualiser** relit la liste.
+À gauche le nom affiché, à droite le dossier. Un dossier qui n'existe pas n'est pas montré. L'icône vient du dossier : une maison pour **HOME:/** (le dossier personnel), une note pour `music`, une image pour `pictures`, une flèche pour `downloads`, une équerre et un crayon pour `projects`, une page pour `documents`, un film pour `video`, une grille pour **APPS:/** (`/apps`), des points reliés pour **PUBLIC:/** (`/home/public`, le dossier partagé), un dossier pour les autres. Fichiers crée au démarrage ceux de ces dossiers personnels qui manquent. Dans le dossier personnel, ils portent aussi leur icône sur le dossier, dans la vue en icônes ; les dossiers prennent la couleur d'accent du thème. On peut modifier ce fichier dans l'Éditeur ; **Fichier > Actualiser** relit la liste.
 
 ## Astuces
 

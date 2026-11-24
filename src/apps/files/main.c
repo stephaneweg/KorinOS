@@ -1359,8 +1359,9 @@ static void hist_go (long d)
 static const char *const std_dirs[][2] = {
 	{ "music", "glyph-place-music" }, { "pictures", "glyph-place-pictures" }, { "downloads", "glyph-place-downloads" },
 	{ "projects", "glyph-place-projects" }, { "documents", "glyph-place-documents" }, { "video", "glyph-place-videos" },
-	{ "videos", "glyph-place-videos" } };
-#define STD_MAKE	6			/* (les 6 premiers sont crees ; « videos » n'est qu'un autre nom) */
+	{ "videos", "glyph-place-videos" }, { "public", "glyph-place-public" } };
+#define STD_MAKE	6			/* (les 6 premiers sont crees ; « videos » n'est qu'un autre nom ; « public » : /home/public,
+					 * le dossier partage entre les comptes, il a son embleme quand HOME: est /home) */
 
 static void std_dirs_make (void)
 {
@@ -1385,6 +1386,8 @@ static long home_prefix (const char *p)
 }
 
 /* dossier d'un acces rapide -> le nom de son glyphe : le dossier personnel, /apps, un dossier type, sinon un dossier */
+static int same_dir (const char *a, const char *b);
+
 static const char *place_glyph (const char *dir)
 {
 	long h = home_prefix (dir);
@@ -1400,10 +1403,12 @@ static const char *place_glyph (const char *dir)
 			if (strlen (std_dirs[i][0]) == n && !strncasecmp (r, std_dirs[i][0], n))
 				return std_dirs[i][1];
 	}
-	if (!strcmp (dir, "/apps") || !strcmp (dir, "/apps/"))
+	if (same_dir (dir, "/apps") || same_dir (dir, "APPS:/"))
 		return "glyph-place-apps";
 	if (is_recent_p (dir))
 		return "glyph-place-recent";
+	if (same_dir (dir, "/home/public") || same_dir (dir, "PUBLIC:/"))
+		return "glyph-place-public";	/* (le dossier partage entre les comptes) */
 	return "glyph-place-folder";
 }
 
@@ -1671,6 +1676,12 @@ static long vol_of (const char *p)
 						 * HOME: passait pour un volume retire a chaque changement des volumes (retour a /) */
 		const char *hm = getenv ("HOME");
 		snprintf (hp, sizeof hp, "%s/%s", hm && *hm ? hm : "/home", p + h);
+		p = hp;
+	}
+	else if (!strncasecmp (p, "PUBLIC:", 7) || !strncasecmp (p, "APPS:", 5))
+	{					/* les alias fixes de vfs : leur dossier */
+		int pub = (p[0] | 0x20) == 'p';
+		snprintf (hp, sizeof hp, "%s/%s", pub ? "/home/public" : "/apps", p + (pub ? 7 : 5));
 		p = hp;
 	}
 	long best = -1;

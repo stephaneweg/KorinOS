@@ -34,7 +34,8 @@ Korin OS has **a single tree**, as on Unix: `/` is the system volume, and the ot
 | `/tmp/x` | the volume in memory (ramfs), wiped at shutdown: temporary files (`mkstemp`, `tmpfile`) go there |
 | `/media/usb0`, `/media/usb1`... | USB keys, mounted when plugged in |
 | `/net/net0`... | network shares |
-| `HOME:/x` | the only alias: `x` in the home folder of the current user (today `/home`) |
+| `HOME:/x` | `x` in the home folder of the current user (today `/home`) |
+| `PUBLIC:/x`, `APPS:/x` | `x` in `/home/public` (shared between the accounts), in `/apps` |
 | `x`, `./x`, `../x` | relative to the current folder (`chdir`, `getcwd`) |
 | `/dev/null`, `/dev/zero`, `/dev/urandom`, `/dev/random`, `/dev/stdin`, `/dev/stdout`, `/dev/stderr`, `/dev/tty` | pseudo-files |
 
