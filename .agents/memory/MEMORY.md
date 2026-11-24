@@ -149,3 +149,4 @@
 - [Ports Linux](armpi-linux-ports.md) — 23/11 : Koton, Arabesque, Budget, TerraCube (GLES 3 par EGL, souris prise Wayland) et Forge (OCCT 7.9 de Fedora, PlaneGCS) sous Linux (linux-ports/) : UIKit sur GTK 4, AudioKit sur FluidSynth, codes de touche physiques, binaires dans linux-ports/bin
 - [ClaudeCodeUI dans l'app Claude Code](armpi-claudecode-ui.md) — 23/11 : interface et moteur de ClaudeCodeUI (MIT) en egui sans Tauri, crates/{shared,core}, hôte dev Linux (--shot), QEMU PC ; branche claude/claudecode-ui
 - [Blender](armpi-blender.md) — 24/11 : 5.2 LTS, Vulkan seul, lavapipe ; jalons 0-2 faits : blender -b tourne dans Korin (QEMU+KVM : scène, rendu Cycles) ; suite : interface (GHOST Korin, VkKit)
+- [llama.cpp et OpenJarvis](armpi-llamacpp-openjarvis.md) — 24/11 : llama.cpp construit dans Korin PC (paquet llamacpp, tools/llamacpp), OpenJarvis natif (tools/openjarvis) ; pas de Qwen ; T1200 à venir
