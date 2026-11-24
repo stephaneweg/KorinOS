@@ -316,7 +316,9 @@ Les phases suivent l'ordre des dépendances ; à l'intérieur d'une phase, l'ord
   * `p->vm = 0` ;
   * références sur les process et les threads (KILL, SIG_SEND, THREAD_KILL, VM_STATS, alarmes,
     `signal.c:64,184,214,432,452,506`, `ws.c:102`, `mm.c:748`) ;
-  * référence sur `mm` et `vm` pendant `SVC_MAP_CALLER` (`svc.c:389-409`), attendue par EXIT et EXEC ;
+  * ~~référence sur `mm` et `vm` pendant `SVC_MAP_CALLER`~~ : **fait le 24/11 par 847c5a5f**. L'appelant est tenu
+    (`process.pins`) sous `svc_lock` ; `sched_reap` et `exec` attendent que `pins` revienne à 0. C'est le modèle
+    à suivre pour les autres références de cette étape ;
   * `ws_proc_exit` sous `sched_lock`.
 * **Non-régression :**
   * **Adaptation :** vider le slot d'abord ferait rendre `E_SRCH` à `wait`. C'est le cas de sh (`sh_run.c:994,1002`),
@@ -1185,7 +1187,7 @@ correct, ou information.
 | N8 | E03 | N9 | E09 | N10 | E46 |
 | N11 | E46 | N12 | E35 | N13 | E45 |
 | N14 | E44 | N15 | E34, E42, E75 | N16 | E16 |
-| N17 | E05 | N18 | E13 | N19 | E13 |
+| N17 | E05 | N18 | E13 | N19 | **fait** (847c5a5f) |
 | N20 | E03, E15 | N21 | E02 | N22 | E13 |
 | N23 | E02 | N24 | E06, E11 | N25 | E43 |
 | N26 | E43 | N27 | E14, E34 | N28 | E14 |

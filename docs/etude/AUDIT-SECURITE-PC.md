@@ -977,7 +977,8 @@ d'appel de type ptrace. Le noyau ne porte ni environnement ni cwd : ils passent 
 * **Correction :** agir sous le verrou, ou compter les références ; vider le slot d'abord dans `proc_finished`.
 * **Protège aussi des bugs :** oui (pannes aléatoires sous 8 cœurs).
 
-**N19. `SVC_MAP_CALLER` sur un appelant qui finit ou qui fait EXEC.** *Élevée ; probable.*
+**N19. `SVC_MAP_CALLER` sur un appelant qui finit ou qui fait EXEC.** *Élevée ; probable.* **Corrigé le 24/11
+(847c5a5f) :** l'appelant est tenu par `process.pins` pendant l'épinglage, et le faucheur comme `exec` attendent.
 
 * **Où :** `svc.c:389-409` épingle les pages de `caller->mm` et `caller->vm` hors verrou, alors que EXIT ou EXEC les
   libèrent (`proc.c:687-695`).
