@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-23 22:29
+date = 2026-11-24 00:07
 abi = 629
 packages = 117
 board = pc
@@ -174,18 +174,18 @@ content = 1ed897c3c1436c173dc1585ff0f13199a42ffae587eca0515ab9e2e50688aede
 
 [pkgman]
 title = Logiciels
-version = 1.0.22
+version = 1.0.23
 category = Système
 author = Korin OS
 summary = Les paquets : la commande pkg, le gestionnaire Logiciels (et son volet dans Réglages), le service pkgd
-size = 4615618
+size = 4616403
 installed = 11799195
-sha256 = 0899d16656fcc23b656c63b50bc7e57625ab1cd04fda586728112792d60ce5fa
-file = pkgs/pkgman-1.0.22.opk
+sha256 = 173b86fb4501148921dc68fe5d7dd914f102abaf72e6397552e2bac0ca820662
+file = pkgs/pkgman-1.0.23.opk
 needs = abi >= 626
 required = 1
 restart = 0
-content = 3ee4ea03346b32386f07096de142937fb87e16c99bc7182ca84cf0ebe98ac407
+content = 26fce4a13c9665292ac8c7cc24a6f09d42b121c5f5563630b4724021207714ce
 
 [soundfonts]
 title = Banque de sons General MIDI
@@ -250,18 +250,18 @@ content = 61c287d0a3e31caf3aabccdb926bd5efb45ca64df6dc188eb0e55f1555502fc6
 
 [make]
 title = Make et PiBuild
-version = 1.0.3
+version = 1.0.4
 category = Développement
 author = Korin OS
 summary = make et les règles de pibuild (/devtools/gcc/bin/make, /devtools/gcc/share/pibuild.mk) : l'assembleur
-size = 267355
-installed = 525371
-sha256 = 03dca8827838efdff99c3d87433f77097fa583e38aef685d67358e79a56c68ca
-file = pkgs/make-1.0.3.opk
+size = 267357
+installed = 525404
+sha256 = ec1e785696d26393a1792e8fb7b9c30b266d31d30d23c1fee1e8df3f9989cec9
+file = pkgs/make-1.0.4.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = c8d223c26bbb4833524f803e86ffc82ebf0a6159429c6bc68387c5d93cb72cd2
+content = 4259b1818b31091626122f5f497d46d96b1cf533c114b65ad0a200dfa752ca35
 
 [freebasic]
 title = FreeBASIC
@@ -724,18 +724,18 @@ content = abbe00f72f244a9ded8a32ece9a30d41e4882fa84f05b9a081019e35c1ec0163
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.94
+version = 2026.11.97
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 34194066
-installed = 100918089
-sha256 = 6b41b7aaf23affa4e1500a60d704d55bf9be5d0797aab1f8aaca50439aaaa4ad
-file = pkgs/pc-2026.11.94.opk
+size = 34199588
+installed = 100926602
+sha256 = 64ba7448b6e4d2fa35fec6491df80ec7b61878ce205d406d88e452b35f3cff15
+file = pkgs/pc-2026.11.97.opk
 needs = 
 required = 1
 restart = 1
-content = 25421fc9168af78cbadd92b0f53019b1d4e97af2f5302815bbc8ffc29883977e
+content = 21707e382574cd859a3eb2e619732cf76181162f6af85cd6e07c2b7fabb8e01f
 
 [2048]
 title = 2048
@@ -979,18 +979,18 @@ content = 25d4d247a2982b777ad62deb5d6390a1d27d074ff6ae8a6a9af8b40611be2302
 
 [disks]
 title = Disques
-version = 1.0.9
+version = 1.0.10
 category = Système
 author = Korin OS
 summary = 
-size = 125025
-installed = 257036
-sha256 = 9da58fab29b7333b7a6c58aa1af632559ef8366aa38a07363b056e9b16cf804b
-file = pkgs/disks-1.0.9.opk
+size = 127262
+installed = 261150
+sha256 = 61789e88c24345e4e5488214914cf226a3a0a29f8aeb0e16cc4e6134db9f3f7a
+file = pkgs/disks-1.0.10.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = acabfef7d64d48e7cb1755b53d9e275c632874b5b0d0eca24fd5c2e7aec38005
+content = 841a096866a9e30b5d9818a3f51deb47d71c28c87e9f66ec6583fd279c744e22
 
 [fmtracker]
 title = FM Tracker

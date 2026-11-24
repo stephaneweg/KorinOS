@@ -4,8 +4,9 @@
 name     = Terminal
 category = Système
 description = La console : un émulateur de terminal VT/xterm où tourne le shell sh, qui lance aussi les programmes de /bin et /apps.
-keywords = terminal console commande shell sh ligne invite ls cd ps kill programme lancer pty
+keywords = terminal onglet onglets console commande shell sh ligne invite ls cd ps kill programme lancer pty
 help = Le Terminal lance le shell sh sur un pseudo-terminal : help liste ses commandes (ls, cd, pwd, cat, mkdir, rm, cp, echo, ps, kill, mem, clear, exit).
 help = Tout autre nom lance un programme de /bin ou /apps ; Ctrl+C l'interrompt (SIGINT), Ctrl+D sur une ligne vide ferme le shell.
 help = Retour arrière, Ctrl+W, Ctrl+U éditent la ligne ; Maj+Page haut et Maj+Page bas font défiler la sortie ; les autres touches vont au programme.
+help = Onglets : le bouton à trois traits en haut à gauche (ou Ctrl+Maj+T) en ouvre un, chacun avec son shell ; Ctrl+Page haut / bas en change, Ctrl+Maj+W ou sa croix le ferme.
 help = La fenêtre se redimensionne (le programme reçoit SIGWINCH) ; les couleurs et séquences ANSI/VT des programmes sont comprises (le programme ansitest les montre).

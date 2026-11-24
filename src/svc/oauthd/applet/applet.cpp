@@ -8,6 +8,9 @@
  *     /etc/oauth/providers.ini, s'il y en a un ; pour GitHub, l'OAuth App de l'utilisateur, à créer dans Jet), son
  *     code secret (Google seulement : une « application de bureau » en a un ; vide : celui de Korin) et les
  *     permissions, puis la connexion ;
+ *   * Modifier… : la même fenêtre, pré-remplie (le nom ne change pas ; le code secret laissé vide est gardé, sauf
+ *     si le Client ID change) ; oauth_setup avec « merge = yes » : les clés que le volet ne montre pas (tenant,
+ *     redirect_path...) restent ; un autre client : les jetons d'avant ne servent plus, la connexion suit ;
  *   * Se connecter : par le code d'appareil (Microsoft, GitHub : un code à taper sur un téléphone ou dans Jet) ou
  *     par le navigateur (Google : Jet s'ouvre sur la page d'accord ; adresse de retour collée pour un autre
  *     appareil) ;
@@ -417,7 +420,7 @@ static void connect_acc (const char *acc, const char *prov)
 
 /* ---- ajouter un compte ---- */
 
-static struct { long prov, name, cid, secret, scope, note, newapp; int last; } dl;
+static struct { long prov, name, cid, secret, scope, note, newapp; int last, edit, had_secret, orig; } dl;
 
 static void dl_prov (int fill)
 {
@@ -427,7 +430,8 @@ static void dl_prov (int fill)
 	const Prov *p = &provs[k];
 	int korin = korin_client (p->id);
 	if (fill || k != dl.last) {
-		ui_w_set_text (dl.name, (long) p->account);
+		if (!dl.edit)			/* (Modifier : le nom du compte reste) */
+			ui_w_set_text (dl.name, (long) p->account);
 		ui_w_set_text (dl.scope, (long) p->scope);
 		ui_w_set_text (dl.cid, (long) "");
 		ui_w_set_text (dl.secret, (long) "");
@@ -437,8 +441,9 @@ static void dl_prov (int fill)
 	/* (le code secret : Google seulement, son « application de bureau » en a un ; Microsoft et GitHub : clients
 	   publics, sans secret) */
 	int google = !strcmp (p->id, "google");
-	ui_textbox_hint (dl.secret, (long) TR (!google ? "aucun pour ce fournisseur" : korin ? "celui de Korin"
-								  : "celui de votre Client ID"));
+	ui_textbox_hint (dl.secret, (long) TR (!google ? "aucun pour ce fournisseur"
+					   : dl.edit && dl.had_secret && k == dl.orig ? "inchangé (laisser vide)"
+					   : korin ? "celui de Korin" : "celui de votre Client ID"));
 	ui_w_enable (dl.secret, google);
 	static char note[700];
 	if (!korin && !strcmp (p->id, "github"))
@@ -474,13 +479,68 @@ static int name_ok (const char *s)
 	return 1;
 }
 
-static void on_add (long, long)
+/* « clé = valeur » d'oauth_info : la valeur propre au compte (« ... (Korin) » : celle du système, pas au compte) */
+static void info_value (const char *info, const char *key, char *out, size_t cap, int *korin)
+{
+	out[0] = 0;
+	if (korin)
+		*korin = 0;
+	size_t kl = strlen (key);
+	for (const char *l = info; *l;) {
+		const char *e = l + strcspn (l, "\n");
+		if ((size_t) (e - l) > kl + 2 && !strncmp (l, key, kl) && !strncmp (l + kl, " = ", 3)) {
+			const char *v = l + kl + 3;
+			size_t n = (size_t) (e - v);
+			const char *mk = " (Korin)";
+			if (n >= 8 && !strncmp (e - 8, mk, 8)) {
+				if (korin)
+					*korin = 1;
+				return;			/* (du système : rien au compte) */
+			}
+			snprintf (out, cap, "%.*s", (int) n, v);
+			return;
+		}
+		l = *e ? e + 1 : e;
+	}
+}
+
+/* la fenêtre d'un compte : ei < 0, Ajouter ; sinon Modifier le compte accs[ei] */
+static void account_dialog (int ei)
 {
 	enum { DW = 560, DH = 372, M = 16, LW = 120, CH = 30 };
 	static char name[64], cid[200], secret[200], scope[300];
 	int k = 0;
+	dl.edit = ei >= 0;
+	dl.had_secret = 0;
+	dl.orig = -1;
+	if (dl.edit) {			/* ce que le compte a lui-même (oauth_info, sans le secret) */
+		const Prov *p = prov_of (accs[ei].prov);
+		if (!p) {
+			ui_message ((long) TR ("Comptes en ligne"), (long) TR ("Ce compte se modifie par la commande oauth setup "
+				"(fournisseur sans réglages ici)."), UM_OK);
+			dl.edit = 0;
+			return;
+		}
+		k = dl.orig = (int) (p - provs);
+		snprintf (name, sizeof name, "%s", accs[ei].name);
+		long r = oauth_info ((long) name, (long) buf, sizeof buf - 1);
+		if (r < 0) {
+			fail ("Ce compte ne peut pas être lu", r);
+			name[0] = 0;
+			dl.edit = 0;
+			return;
+		}
+		buf[r < (long) sizeof buf ? r : (long) sizeof buf - 1] = 0;
+		char sv[64];
+		int ks;
+		info_value (buf, "client_id", cid, sizeof cid, 0);
+		info_value (buf, "scope", scope, sizeof scope, 0);
+		info_value (buf, "client_secret", sv, sizeof sv, &ks);
+		dl.had_secret = sv[0] != 0;	/* (« (défini) » : un secret au compte) */
+		secret[0] = 0;
+	}
 	for (;;) {
-		long d = ui_dialog_begin (DW, DH, (long) TR ("Ajouter un compte"));
+		long d = ui_dialog_begin (DW, DH, (long) TR (dl.edit ? "Modifier le compte" : "Ajouter un compte"));
 		if (!d)
 			return;
 		long y = 20, fw = DW - 2 * M - LW;
@@ -507,18 +567,22 @@ static void on_add (long, long)
 		dl.scope = ui_textbox (M + LW, y, fw, CH, 0);
 		y += 42;
 		dl.note = ui_label (M, y, DW - 2 * M, 60, (long) "", ULB_DIM | ULB_WRAP);
-		long b = ui_dialog_button (d, 0, (long) TR ("Ajouter et se connecter"), 1, UB_DEFAULT, DW - 12);
+		long b = ui_dialog_button (d, 0, (long) TR (dl.edit ? "Enregistrer" : "Ajouter et se connecter"), 1, UB_DEFAULT, DW - 12);
 		ui_dialog_button (d, 1, (long) TR ("Annuler"), 0, 0, b);
 		ui_dialog_cancel (d, 0);
 		dl.last = -1;
 		dl_prov (1);
-		if (name[0]) {			/* (un nouvel essai : les valeurs d'avant) */
+		if (name[0]) {			/* (un nouvel essai, ou Modifier : les valeurs d'avant) */
 			ui_w_set_text (dl.name, (long) name);
 			ui_w_set_text (dl.cid, (long) cid);
 			ui_w_set_text (dl.secret, (long) secret);
 			ui_w_set_text (dl.scope, (long) scope);
 		}
-		ui_w_focus (dl.name);
+		if (dl.edit) {
+			ui_w_enable (dl.name, 0);	/* (le nom ne change pas : les programmes le connaissent) */
+			dl_prov (0);			/* (l'indication du code secret : « inchangé ») */
+		}
+		ui_w_focus (dl.edit ? dl.cid : dl.name);
 		long r = ui_dialog_run (d, (long) dl_fn, 0);
 		k = (int) ui_w_get_value (dl.prov);
 		if (k < 0 || k >= NPROV)
@@ -531,8 +595,11 @@ static void on_add (long, long)
 		ui_w_draw (0);
 		if (r != 1) {
 			name[0] = secret[0] = 0;
+			dl.edit = 0;
 			return;
 		}
+		if (dl.edit)				/* (le champ grisé : le nom du compte) */
+			snprintf (name, sizeof name, "%s", accs[ei].name);
 		for (char *c = cid; *c; c++)	/* (un Client ID collé avec des blancs) */
 			if (*c == ' ' || *c == '\t')
 				memmove (c, c + 1, strlen (c)), c--;
@@ -546,17 +613,21 @@ static void on_add (long, long)
 				"plus, par exemple github ou gdrive/perso."), UM_OK);
 			continue;
 		}
-		if (oauth_status ((long) name) != E_NOENT_ &&
+		if (!dl.edit && oauth_status ((long) name) != E_NOENT_ &&
 		    !ui_message ((long) TR ("Comptes en ligne"), (long) TR ("Ce compte existe déjà : le remplacer ?"), UM_YESNO))
 			continue;
 		char conf[1000];
-		snprintf (conf, sizeof conf, "provider = %s\n%s%s%s%s%s%s%s%s%s", provs[k].id, cid[0] ? "client_id = " : "", cid,
-			  cid[0] ? "\n" : "", secret[0] ? "client_secret = " : "", secret, secret[0] ? "\n" : "",
-			  scope[0] ? "scope = " : "", scope, scope[0] ? "\n" : "");
+		if (dl.edit)		/* (merge : seulement ces clés ; vides : celles de Korin ; le secret absent : gardé) */
+			snprintf (conf, sizeof conf, "merge = yes\nprovider = %s\nclient_id = %s\nscope = %s\n%s%s%s", provs[k].id,
+				  cid, scope, secret[0] ? "client_secret = " : "", secret, secret[0] ? "\n" : "");
+		else
+			snprintf (conf, sizeof conf, "provider = %s\n%s%s%s%s%s%s%s%s%s", provs[k].id, cid[0] ? "client_id = " : "", cid,
+				  cid[0] ? "\n" : "", secret[0] ? "client_secret = " : "", secret, secret[0] ? "\n" : "",
+				  scope[0] ? "scope = " : "", scope, scope[0] ? "\n" : "");
 		long sr = oauth_setup ((long) name, (long) conf);
 		if (sr < 0) {
-			fail (cid[0] || korin_client (provs[k].id) ? "Ce compte ne peut pas être ajouté"
-								 : "Il faut un Client ID pour ce fournisseur", sr);
+			fail (!cid[0] && !korin_client (provs[k].id) ? "Il faut un Client ID pour ce fournisseur"
+				: dl.edit ? "Ce compte ne peut pas être modifié" : "Ce compte ne peut pas être ajouté", sr);
 			continue;
 		}
 		break;
@@ -565,7 +636,27 @@ static void on_add (long, long)
 	snprintf (acc, sizeof acc, "%s", name);
 	name[0] = secret[0] = 0;
 	load (acc);
-	connect_acc (acc, provs[k].id);
+	/* Modifier : la connexion seulement si les jetons d'avant ne servent plus (autre client, autre serveur) */
+	if (!dl.edit || oauth_status ((long) acc) == 0)
+		connect_acc (acc, provs[k].id);
+	else {
+		char m[200];
+		snprintf (m, sizeof m, "%s : %s", acc, TR ("modifié."));
+		status (m);
+	}
+	dl.edit = 0;
+}
+
+static void on_add (long, long)
+{
+	account_dialog (-1);
+}
+
+static void on_edit (long, long)
+{
+	int i = sel ();
+	if (i >= 0)
+		account_dialog (i);
 }
 
 static void on_connect (long, long)
@@ -656,10 +747,11 @@ static void ac_open (void)
 	ui_w_on (w_list, (long) on_list, 0);
 	long bx = x + pw - bw - 10, by = y + AC_CT;
 	button (g, bx, by, bw, "Ajouter…", on_add);
-	button (g, bx, by + 34, bw, "Se connecter", on_connect);
-	button (g, bx, by + 68, bw, "Se déconnecter", on_forget);
-	button (g, bx, by + 102, bw, "Retirer", on_remove);
-	button (g, bx, by + 150, bw, "Actualiser", on_refresh);
+	button (g, bx, by + 34, bw, "Modifier…", on_edit);
+	button (g, bx, by + 68, bw, "Se connecter", on_connect);
+	button (g, bx, by + 102, bw, "Se déconnecter", on_forget);
+	button (g, bx, by + 136, bw, "Retirer", on_remove);
+	button (g, bx, by + 184, bw, "Actualiser", on_refresh);
 	y += gh + 6;
 	w_info = top (ui_label (x, y, pw, 96, (long) "", ULB_DIM | ULB_WRAP));
 	y += 100;

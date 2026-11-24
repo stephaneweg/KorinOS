@@ -124,7 +124,7 @@ static void draw_run (long r, long c0, long c1, const struct cell *cells, uint32
 		}
 	}
 	*o = 0;
-	long x0 = col_x (c0), x1 = col_x (c1), y = r * LH + PAD;	/* rectangle de la plage */
+	long x0 = col_x (c0), x1 = col_x (c1), y = r * LH + top_y + PAD;	/* rectangle de la plage */
 	ui_fill (x0, y, x1 - x0, LH, bg);
 	if (ink)
 	{	/* texte decoupe a la plage : un accent ou une descente ne deborde pas sur la ligne voisine (qui
@@ -142,7 +142,7 @@ static void draw_run (long r, long c0, long c1, const struct cell *cells, uint32
 /* etend la zone a montrer (*y0 haut, *y1 bas) a la ligne r de l'ecran */
 static void yrange (long r, long *y0, long *y1)
 {
-	long y = r * LH + PAD;
+	long y = r * LH + top_y + PAD;
 	if (y < *y0)
 		*y0 = y;
 	if (y + LH > *y1)
@@ -151,17 +151,19 @@ static void yrange (long r, long *y0, long *y1)
 
 static int cell_eq (const struct cell *a, const struct cell *b) { return !memcmp (a, b, sizeof *a); }
 
-/* dessine ce qui a change depuis le dernier dessin (tout si full_redraw) */
+/* dessine ce qui a change depuis le dernier dessin (tout si full_redraw) ; seulement l'onglet actif */
 void term_draw (void)
 {
+	if (!term_active ())
+		return;
 	long y0, y1;
 	if (full_redraw)
 	{
 		full_redraw = 0;
-		ui_fill (0, 0, ui.w, ui.h, COL_BG);
+		ui_fill (0, top_y, ui.w, ui.h - top_y, COL_BG);	/* (le haut : main.c, hdr_draw) */
 		shadow_inval ();
 		lc_valid = 0;
-		y0 = 0;
+		y0 = top_y;
 		y1 = ui.h;
 	}
 	else
@@ -180,7 +182,7 @@ void term_draw (void)
 					s->cp = s->attr = 0xFFFFFFFF;
 				}
 				else			/* (apres la derniere colonne) */
-					ui_fill (col_x (lc_col), lc_row * LH + PAD, 2, LH, COL_BG);
+					ui_fill (col_x (lc_col), lc_row * LH + top_y + PAD, 2, LH, COL_BG);
 			}
 		}
 	}
@@ -212,7 +214,7 @@ void term_draw (void)
 		if ((unsigned long) r < (unsigned long) vt.rows)
 		{
 			long c = vt.cx + vt.wrap;
-			ui_fill (col_x (c), r * LH + PAD + 1, 2, LH - 2, COL_CURSOR);
+			ui_fill (col_x (c), r * LH + top_y + PAD + 1, 2, LH - 2, COL_CURSOR);
 			lc_row = r;
 			lc_col = c;
 			lc_valid = 1;

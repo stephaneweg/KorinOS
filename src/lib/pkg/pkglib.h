@@ -1111,7 +1111,7 @@ public:
 				if (!eq (q.part, p.name)) continue;
 				nparts++;
 				Inst *pi = db.find (q.name);
-				if (pi && !pi->missing && vcmp (q.version, pi->version ()) <= 0) continue;
+				if (!force && pi && !pi->missing && vcmp (q.version, pi->version ()) <= 0) continue;
 				int rc = install (q, r, force);
 				if (rc != OK) return rc;
 			}

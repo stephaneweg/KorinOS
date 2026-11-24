@@ -24,13 +24,25 @@ enum { ST_GROUND, ST_ESC, ST_ESCI, ST_CSI, ST_CSIP, ST_CSII, ST_CSIX, ST_STR };
 
 struct vt vt;
 struct cell *rowp_main[VT_MAXROWS], *rowp_alt[VT_MAXROWS];
-struct cell *vt_shadow, *vt_sb;
+struct cell *vt_shadow, *vt_sb, *vt_mem;
 
-/* -> 0 (< 0 : pas de memoire) */
+/* l'ombre (une pour la fenetre, partagee par les onglets) et la palette -> 0 (< 0 : pas de memoire) */
+int vt_shadow_init (void)
+{
+	vt_shadow = calloc ((size_t) VT_MAXROWS * VT_MAXCOLS, sizeof (struct cell));
+	if (!vt_shadow)
+		return -1;
+	pal_init ();
+	return 0;
+}
+
+/* un terminal neuf dans l'etat courant (vt, rowp_main, rowp_alt, vt_sb, scroll) : une seule allocation
+ * a zero (vt_mem, rendue par free a la fermeture de l'onglet) : principal, alternatif, historique.
+ * -> 0 (< 0 : pas de memoire) */
 int vt_init (void)
 {
 	size_t grid = (size_t) VT_MAXROWS * VT_MAXCOLS;
-	struct cell *m = calloc (3 * grid + (size_t) VT_SBMAX * VT_MAXCOLS, sizeof (struct cell));
+	struct cell *m = calloc (2 * grid + (size_t) VT_SBMAX * VT_MAXCOLS, sizeof (struct cell));
 	if (!m)
 		return -1;
 	for (int r = 0; r < VT_MAXROWS; r++)
@@ -38,11 +50,12 @@ int vt_init (void)
 		rowp_main[r] = m + (size_t) r * VT_MAXCOLS;
 		rowp_alt[r] = m + grid + (size_t) r * VT_MAXCOLS;
 	}
-	vt_shadow = m + 2 * grid;			/* ombre (ce qui est a l'ecran) */
-	vt_sb = m + 3 * grid;				/* historique */
+	vt_mem = m;
+	vt_sb = m + 2 * grid;				/* historique */
+	memset (&vt, 0, sizeof vt);
 	vt.tbl = rowp_main;
 	vt.modes = VM_DEFAULT;
-	pal_init ();
+	scroll = 0;
 	return 0;
 }
 

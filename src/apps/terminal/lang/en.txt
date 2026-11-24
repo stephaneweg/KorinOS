@@ -1,3 +1,8 @@
 # apps/terminal : anglais (cles : les textes du source ; un \ en fin de cle garde son espace final)
 Terminal : pas de pseudo-terminal (service vterm absent). = Terminal: no pseudo-terminal (vterm service missing).
 Terminal : /bin/sh ne se lance pas, erreur \ = Terminal: /bin/sh does not start, error 
+Onglets = Tabs
+Nouvel onglet = New tab
+Fermer l'onglet = Close tab
+Onglet suivant = Next tab
+Onglet précédent = Previous tab

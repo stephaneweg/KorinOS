@@ -137,6 +137,16 @@ def plan (sd, boot, ini, known = ()):
 			p["files"] = [f for f in card_files (r) if any (matches (f, pt) for pt in pats)]
 			p["src"] = { f: r for f in p["files"] }
 			p["offcard"] = True
+		# aucun de ses programmes nommes (bin/X, apps/X.app/main) dans l'arbre : le paquet n'est pas construit, meme si
+		# d'autres de ses fichiers y sont (bash : etc/bash.bashrc et etc/termcap viennent de skel/ ; sans ce test, la
+		# carte, la cle d'installation et le systeme installe le croyaient installe sans /bin/bash, et pkg aussi)
+		progs = [f for f in pats if not p.get ("offcard") and not any (c in f for c in "*?[") and not f.endswith ("/")
+			 and (f.startswith ("bin/") or (f.startswith ("apps/") and f.endswith (".app/main")))]
+		absent = [f for f in progs if f not in src]
+		if p["files"] and progs and len (absent) == len (progs):	# (aucun : un paquet d'essais partiel reste)
+			print ("mkrepo: [%s] : %s absent (pas construit ?), paquet saute" % (name, ", ".join (absent)), file = sys.stderr)
+			# (ses autres fichiers restent a lui : pas a [pc], qui prend le reste d'etc/)
+			p["files"] = []
 		# split = MOTIF MO : ses fichiers qui suivent le motif vont dans des paquets <nom>-data-1.. de moins de MO
 		# Mo chacun (GitHub refuse un fichier de plus de 100 Mo), dont il a besoin
 		sp = split (sec.get ("split", ""))
@@ -204,8 +214,21 @@ def manifest_text (p, version, abi):
 	if merge: lines.append ("merge = " + " ".join (merge))
 	return "\n".join (lines) + "\n", needs, cfgfiles
 
+# les fichiers dont tools/secrets.py remplit les marques @NOM@ (docs/OAUTH.md) : une archive ne part jamais avec une
+# marque non remplie (23/11/2026 : pc 2026.11.94, construit sans ../korin-secrets.ini, avait perdu le client Google)
+SECRET_FILES = { "etc/oauth/providers.ini" }
+SECRET_MARK = re.compile (rb"@[A-Z][A-Z0-9_]*@")
+
 def write_opk (path, p, manifest):
 	"""Un ZIP deterministe : memes fichiers, memes octets."""
+	for f in p["files"]:
+		if f in SECRET_FILES:
+			with open (os.path.join (p["src"][f], f), "rb") as fh:
+				m = SECRET_MARK.findall (fh.read ())
+			if m:
+				raise SystemExit ("mkrepo : %s a des marques non remplies (%s) : ../korin-secrets.ini (ou KORIN_SECRETS) manque "
+					"a cette construction ; reprendre le fichier de l'archive publiee (pub.py : ne pas le mettre dans --only), "
+					"jamais celui de skel/ (docs/OAUTH.md)" % (f, ", ".join (sorted (set (x.decode () for x in m)))))
 	tmp = path + ".part"
 	with zipfile.ZipFile (tmp, "w", zipfile.ZIP_DEFLATED, compresslevel = 9, allowZip64 = True) as z:
 		def add (name, data):

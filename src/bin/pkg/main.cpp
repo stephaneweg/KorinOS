@@ -4,6 +4,8 @@
 //   pkg list [-a] [filtre]       les paquets installes (-a : tout le depot)
 //   pkg info <nom>               un paquet : ses versions, sa taille, ses besoins, son mode
 //   pkg add <nom>...             installer (et ce qu'il lui faut) ; deja la : dit, rien de fait
+//   pkg add --force <nom>...     le reinstaller meme s'il est la, meme version (fichiers abimes ou effaces ;
+//                                aussi s'il tourne : le fermer apres)
 //   pkg add <fichier.opk>        installer un fichier de paquet (hors depot)
 //   pkg delete [-p] <nom>...     retirer (-p : les reglages changes aussi)
 //   pkg update <nom>... | -a     mettre a jour ceux-la (-a : tous, sauf ceux en mode never)
@@ -109,6 +111,9 @@ static int cmd_info (const char *name)
 	return OK;
 }
 
+static bool g_force;		// pkg add --force : les paquets nommes reinstalles meme s'ils sont la
+static const char *g_named;	// (le paquet nomme : lui seul est force, pas ses besoins)
+
 static int install_list (const Pkg **list, int n)
 {
 	int rc = OK;
@@ -117,7 +122,7 @@ static int install_list (const Pkg **list, int n)
 		Inst *in = M->db.find (list[i]->name);
 		if (in) R.sayf ("%s %s -> %s ...", list[i]->name, in->version (), list[i]->version);
 		else R.sayf ("%s %s ...", list[i]->name, list[i]->version);
-		int r = M->install (*list[i], R);
+		int r = M->install (*list[i], R, g_force && g_named && eq (list[i]->name, g_named));
 		if (r != OK) rc = r;
 	}
 	return rc;
@@ -127,19 +132,24 @@ static int cmd_add (int ac, char **av)
 {
 	int rc = OK; bool any = false;
 	for (int i = 0; i < ac; i++)
+		if (eq (av[i], "--force") || eq (av[i], "-f")) g_force = true;
+	for (int i = 0; i < ac; i++)
 	{
+		if (eq (av[i], "--force") || eq (av[i], "-f")) continue;
 		int l = (int) strlen (av[i]);
 		if (l > 4 && !strcmp (av[i] + l - 4, ".opk"))			// un fichier de paquet
 		{
 			int r = M->install_file (av[i], 0, 0, R); if (r != OK) rc = r; any = true; continue;
 		}
 		Inst *in = M->db.find (av[i]);
-		if (in && !in->missing) { printf (TR ("%s est déjà installé (%s)\n"), av[i], in->version ()); if (rc == OK) rc = E_ALREADY; continue; }
+		if (in && !in->missing && !g_force) { printf (TR ("%s est déjà installé (%s)\n"), av[i], in->version ()); if (rc == OK) rc = E_ALREADY; continue; }
 		if (!M->haveIndex && need_index () != OK) return 2;
 		const Pkg *list[32]; int err = 0;
 		int n = M->resolve (av[i], list, 32, &err, R);
 		if (!n) { rc = err ? err : E_NOTFOUND; continue; }
+		g_named = av[i];
 		int r = install_list (list, n); if (r != OK) rc = r; any = true;
+		g_named = 0;
 	}
 	return rc == OK ? 0 : rc == E_ALREADY && !any ? 1 : rc == E_ALREADY ? 0 : 2;
 }
@@ -461,7 +471,7 @@ int main (int argc, char **argv)
 	if (repo) cpy (m.repo, repo, sizeof m.repo);
 	if (argc - a0 < 1)
 	{
-		fputs (TR ("usage : pkg list [-a] [filtre] | info NOM | add NOM... | delete [-p] NOM... |\n"
+		fputs (TR ("usage : pkg list [-a] [filtre] | info NOM | add [--force] NOM... | delete [-p] NOM... |\n"
 			"        update NOM... | update -a | upgrade | check | mode NOM manual|auto|never | commit\n"
 			"        [-r DEPOT] avant la commande : un autre dépôt\n"
 			"        [--root RACINE] avant la commande : le système à gérer (osinstall : /media/tgt)\n"), stdout);

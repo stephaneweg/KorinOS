@@ -130,9 +130,9 @@ endif
 C_SRC := $(filter-out data/%,$(patsubst ./%,%,$(shell /bin/find . -name "*.c")))
 CXX_SRC := $(filter-out data/%,$(patsubst ./%,%,$(shell /bin/find . -name "*.cpp")))
 OBJ := $(addprefix $(O)/,$(C_SRC:.c=.o) $(CXX_SRC:.cpp=.o))
-INC := -I. -I/gcc/include -I/gcc/include/kits
+INC := -I. -I/devtools/gcc/include -I/devtools/gcc/include/kits
 FLAGS := -O2 -g0 -ffunction-sections -fdata-sections -MMD -MP $(INC)
-LIBS := -L/gcc/lib $(patsubst /devtools/gcc/lib/lib%.a,-l%,$(wildcard /devtools/gcc/lib/lib*.a))
+LIBS := -L/devtools/gcc/lib $(patsubst /devtools/gcc/lib/lib%.a,-l%,$(wildcard /devtools/gcc/lib/lib*.a))
 LD := $(if $(CXX_SRC),/devtools/gcc/bin/g++,/devtools/gcc/bin/gcc)
 
 all: $(O)/main

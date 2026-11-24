@@ -6,12 +6,20 @@ The **Terminal** is the Korin OS console: a VT/xterm terminal emulator running t
 
 ## The window
 
-A single text area, on a dark background:
+At the top, a black bar shows the app's name; the three-line button on its left opens the tab menu. Below it, a text area on a dark background:
 
 - at the top, what has already been shown (the 1,000 lines that left through the top are kept);
 - at the bottom, the shell **prompt**: the current folder followed by `>`, for example `HOME:> `.
 
-At startup, the Terminal opens a pseudo-terminal and starts `sh` on it, which shows its banner. The Terminal has no menu of its own: everything is done with the keyboard. `exit` (or Ctrl+D on an empty line) ends the shell, and the Terminal closes with it.
+At startup, the Terminal opens a pseudo-terminal and starts `sh` on it, which shows its banner. `exit` (or Ctrl+D on an empty line) ends the shell and closes its tab; with the last tab, the Terminal closes.
+
+### Tabs
+
+Each tab has its own shell, on its own pseudo-terminal; the hidden ones keep running.
+
+- **New tab** (three-line menu, Tabs menu of the menu bar, or Ctrl+Shift+T) opens one more shell. As soon as there are two tabs, their strip appears under the title bar.
+- Clicking a tab shows it; Ctrl+Page Down and Ctrl+Page Up go to the next, the previous one.
+- A tab's cross, **Close tab** or Ctrl+Shift+W close it (its shell gets `SIGHUP`).
 
 The window can be resized (edges, maximize button): the number of rows and columns follows, and the running program is told the new size (`SIGWINCH`). Lines already written are not reflowed: they are cut, or extended with blanks.
 
@@ -101,6 +109,8 @@ The same shell is used remotely (telnet, to enable in [Settings](help:control), 
 | Ctrl+C | interrupts the running program (at the prompt: drops the line) |
 | Ctrl+D | on an empty line: end of input (at the prompt: closes the shell and the Terminal) |
 | Shift+Page Up, Shift+Page Down | scroll the output |
+| Ctrl+Shift+T, Ctrl+Shift+W | open, close a tab |
+| Ctrl+Page Down, Ctrl+Page Up | next, previous tab |
 | Mouse wheel | scrolls the output, three lines per notch |
 | Arrows, Home, End, Page Up, Page Down, F1-F12, Esc | sent to the program (xterm sequences) |
 

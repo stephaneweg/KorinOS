@@ -68,6 +68,11 @@ tous les registres) et elles **attendent le réseau** (jusqu'à 20 s) : dans une
 
 Changer `client_id` ou l'adresse des jetons oublie les jetons du compte.
 
+`merge = yes` (23/11/2026 ; Réglages › Comptes en ligne › Modifier…, ou `oauth setup NOM merge=yes scope=…`) : seules
+les clés données changent (une clé vide est effacée : la valeur de Korin reprend), les autres restent (`tenant`,
+`redirect_path`…) ; le `client_secret`, s'il n'est pas donné, est gardé, sauf si le `client_id` du compte change. Sans
+`merge`, la configuration donnée remplace toute l'ancienne, comme avant.
+
 ### Les fournisseurs livrés avec Korin
 
 Comme Mail, qui livre son identifiant chez Microsoft (« Onyx Mail ») : l'utilisateur n'a **qu'à se connecter avec

@@ -31,7 +31,7 @@ typedef unsigned long u64;
 
 // ---- le dialogue avec vfs et les services de fichiers (src/inc/fs.inc) -----------------------------------------------
 enum { SYS_SVC_OPEN_ = 0x31, SYS_SVC_CALL_ = 0x32 };
-enum { VFS_MOUNT = 20, VFS_UNMOUNT = 21, VFS_VOLUMES = 22, FS_INFO = 19, FS_T_FAT32 = 1, FS_T_EXFAT = 2, FS_T_RAM = 3 };
+enum { VFS_MOUNT = 20, VFS_UNMOUNT = 21, VFS_VOLUMES = 22, FS_INFO = 19, FS_T_FAT32 = 1, FS_T_EXFAT = 2, FS_T_RAM = 3, FS_T_NET = 4, FS_T_EXT4 = 5 };
 static inline long sys_call (long n, long a = 0, long b = 0)
 {
 	return armpi_syscall (n, a, b, 0, 0, 0, 0);	// (Pi : svc 0 ; PC : syscall)
@@ -82,7 +82,16 @@ static void size_text (u64 b, char *o, int cap)			// « 14,9 Go »
 }
 static const char *type_text (const Volume &v)
 {
-	return v.ejected ? "" : v.type == FS_T_FAT32 ? "FAT32" : v.type == FS_T_EXFAT ? "exFAT" : v.type == FS_T_RAM ? "RAM" : "?";
+	if (v.ejected) return "";
+	switch (v.type)
+	{
+	case FS_T_FAT32: return "FAT32";
+	case FS_T_EXFAT: return "exFAT";
+	case FS_T_RAM: return "RAM";
+	case FS_T_NET: return TR ("Réseau");	// (smbfs, gdrivefs)
+	case FS_T_EXT4: return "ext4";		// (ext4fs : /home sur le ZBook)
+	default: return "?";
+	}
 }
 static void query_info (Volume &v)
 {

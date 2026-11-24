@@ -15,12 +15,24 @@
 #define PAD		6
 #define LH		18			/* hauteur de ligne */
 #define FONT_PX		15
+/* le haut de la fenetre : la barre de titre (menu a gauche, nom de l'app au milieu, boutons du cadre
+ * a droite), puis la bande des onglets s'il y en a plus d'un */
+#define HDR_H		32			/* barre de titre (= la zone qui deplace la fenetre) */
+#define TAB_H		30			/* bande des onglets */
+#define MENU_W		40			/* bouton du menu (trois traits) */
+#define TAB_MAX		16			/* onglets au plus */
+#define TAB_WMAX	200			/* largeur d'un onglet au plus */
+#define TAB_CLOSE_W	22			/* croix de fermeture d'un onglet */
 
 /* les couleurs du terminal : la palette par defaut d'un terminal (contenu, pas le chrome : comme l'asm,
  * elles ne suivent pas le theme) */
 #define COL_BG		0x001C2026u
 #define COL_TXT		0x00D8DEE6u
 #define COL_CURSOR	0x00F0C674u
+/* le haut, du meme noir que le contenu : barre de titre et onglet actif au fond du terminal, bande
+ * des onglets un peu plus sombre ; le trait sous l'onglet actif prend l'accent du theme */
+#define COL_TABS	0x0013161Au
+#define COL_TXT_DIM	0x008A929Cu
 #define MIN_W		320			/* taille minimale de la fenetre */
 #define MIN_H		160
 #define RD_MAX		32			/* lectures du maitre par passage */
@@ -96,12 +108,15 @@ extern struct vt vt;
 extern struct cell *rowp_main[VT_MAXROWS], *rowp_alt[VT_MAXROWS];
 extern struct cell *vt_shadow;			/* ce qui est a l'ecran (vt_draw.c) */
 extern struct cell *vt_sb;			/* l'historique : VT_SBMAX lignes de VT_MAXCOLS cellules */
+extern struct cell *vt_mem;			/* l'allocation du terminal courant (vt_init) */
+extern long top_y;				/* haut de la grille dans la fenetre (barre, onglets) */
 extern long scroll;				/* vue remontee de tant de lignes (0 : en bas) */
 extern long adv100;				/* avance de la police mono (x100) */
 extern long font_bold;
 extern long full_redraw;
 
 /* vt.c */
+int vt_shadow_init (void);
 int vt_init (void);
 void vt_resize (long cols, long rows);
 void term_putb (unsigned b);
@@ -116,5 +131,6 @@ void term_draw (void);
 int key_encode (unsigned code, unsigned ch, unsigned mods, unsigned char *buf);
 /* main.c */
 void term_reply_s (const char *s);
+int term_active (void);
 
 #endif
