@@ -39,5 +39,12 @@ Essai : `. ~/korin-cloud/env.sh` (fasm Linux, OVMF avec shell UEFI : celui d'Ubu
 `--qemu "-accel kvm"`, `chmod +x` du binaire. WSL passé à 12 Go (.wslconfig, accord de l'utilisateur).
 L'utilisateur m'a laissé continuer seul jusqu'au jalon 5 la nuit du 24/11.
 
+**24/11 (nuit) : interface construite** (CONFIG=gui : GHOST de Korin compilé du premier coup, lié avec UIKit, VkKit
+à trampolines, shaderc ; 162 Mo). Sous QEMU sans GPU : GHOST démarre, Vulkan « No Vulkan device », puis plantage dans
+GPU_context_create (DebugDraw::reset) au lieu d'un arrêt propre : à corriger. **Paquet d'essai publié à la demande
+de l'utilisateur : blender 5.2.4-0.1** (PC, Release, 113 Mo, main 0ea5dbbd ; tools/blender/stage.sh + pub.py --new
+--tree build/pc/blender-pkg) pour l'essayer sur le ZBook (vrai GPU Intel). lavapipe : LLVM 21 pour Korin en cours
+(tools/mesa/build-llvm-korin.sh), présentation par copie écrite (tools/mesa/lvp/korin_lvp_wsi.c).
+
 **How to apply:** JOBS=6 (12 Go) dans WSL (9 Go). Lancer les scripts par `wsl -- sh tools/blender/…` (pas `wsl bash -c '…$X…'` :
 les $ sont développés avant ; Git Bash : MSYS_NO_PATHCONV=1 pour les chemins /home). Voir [[armpi-godot]], [[armpi-cpython]], [[armpi-devtools]], [[armpi-cao]].
