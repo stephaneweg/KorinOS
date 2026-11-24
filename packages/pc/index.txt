@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-24 20:42
+date = 2026-11-24 20:44
 abi = 629
 packages = 117
 board = pc
@@ -205,14 +205,14 @@ arch = any
 
 [fmtracker-samples]
 title = Morceaux de FM Tracker
-version = 1.0.1
-category = Multimédia
+version = 1.0.2
+category = Musique
 author = Korin OS
 summary = Les morceaux d'exemple de FM Tracker, dans /home/public/music/fms (à tous les comptes)
-size = 28683
+size = 28677
 installed = 162157
-sha256 = 421fce78f06e45745b3d985dd22aa78aaeb8d07301dc26ee90e75a87da01250c
-file = pkgs/fmtracker-samples-1.0.1.opk
+sha256 = 958b9f1001e73fff870622c410b9f13be5721273b7abc0f3468777495915e439
+file = pkgs/fmtracker-samples-1.0.2.opk
 needs = fmtracker, abi >= 626
 required = 0
 restart = 0
