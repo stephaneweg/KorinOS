@@ -27,15 +27,14 @@ fi
 jetlibs() {
 	[ -n "$HOST" ] && return 0
 	mkdir -p "$DEPS/lib/pkgconfig" "$DEPS/include"
-	for l in z png16 png jpeg webp webpdemux webpmux sharpyuv freetype brotlidec brotlicommon; do
+	# (pas freetype ni brotli : celle de Jet n'a pas le cache FTC_* dont Blender a besoin : brotli, freetype ci-dessous)
+	for l in z png16 png jpeg webp webpdemux webpmux sharpyuv; do
 		[ -f "$JET/lib/lib$l.a" ] && cp "$JET/lib/lib$l.a" "$DEPS/lib/"
 	done
-	for h in zlib.h zconf.h png.h pngconf.h pnglibconf.h libpng16 jpeglib.h jconfig.h jerror.h jmorecfg.h webp \
-		freetype2 brotli; do
+	for h in zlib.h zconf.h png.h pngconf.h pnglibconf.h libpng16 jpeglib.h jconfig.h jerror.h jmorecfg.h webp; do
 		cp -R "$JET/include/$h" "$DEPS/include/"
 	done
-	for pc in zlib libpng libpng16 libjpeg libwebp libwebpdemux libwebpmux libsharpyuv freetype2 libbrotlidec \
-		libbrotlicommon; do
+	for pc in zlib libpng libpng16 libjpeg libwebp libwebpdemux libwebpmux libsharpyuv; do
 		[ -f "$JET/lib/pkgconfig/$pc.pc" ] && sed "s|$JET|$DEPS|g" "$JET/lib/pkgconfig/$pc.pc" > "$DEPS/lib/pkgconfig/$pc.pc"
 	done
 	return 0
@@ -108,6 +107,18 @@ shaderc() {
 spirv_reflect() { cmake_korin "$SRC/spirv_reflect" "$OBJ/spirv_reflect" -DSPIRV_REFLECT_EXECUTABLE=OFF \
 	-DSPIRV_REFLECT_STATIC_LIB=ON -DSPIRV_REFLECT_EXAMPLES=OFF; }
 vulkan_memory_allocator() { cmake_korin "$SRC/vulkan_memory_allocator" "$OBJ/vulkan_memory_allocator"; }
+# brotli : seulement les deux .a statiques dont freetype a besoin, installés ici (comme brotli.cmake de Blender) ;
+# BROTLI_EMSCRIPTEN=OFF : son test (un source vide sans __EMSCRIPTEN__) réussit à tort sans édition de liens
+brotli() {
+	TARGETS="brotlicommon-static brotlidec-static" cmake_korin "$SRC/brotli" "$OBJ/brotli" -DBROTLI_DISABLE_TESTS=ON \
+		-DBROTLI_BUNDLED_MODE=OFF -DBROTLI_EMSCRIPTEN=OFF || return 1
+	cp "$OBJ/brotli/libbrotlicommon-static.a" "$OBJ/brotli/libbrotlidec-static.a" "$DEPS/lib/"
+	mkdir -p "$DEPS/include" && cp -R "$SRC/brotli/c/include/brotli" "$DEPS/include/"
+}
+# freetype comme Blender (freetype.cmake) : brotli (WOFF2), zlib, sans PNG, bzip2 ni harfbuzz
+freetype() { cmake_korin "$SRC/freetype" "$OBJ/freetype" $ZLIB -DFT_DISABLE_BZIP2=ON -DFT_DISABLE_HARFBUZZ=ON \
+	-DFT_DISABLE_PNG=ON -DFT_REQUIRE_BROTLI=ON -DFT_REQUIRE_ZLIB=ON -DBROTLIDEC_INCLUDE_DIRS="$DEPS/include" \
+	-DBROTLIDEC_LIBRARIES="$DEPS/lib/libbrotlidec-static.a;$DEPS/lib/libbrotlicommon-static.a"; }
 eigen() { cmake_korin "$SRC/eigen" "$OBJ/eigen" -DBUILD_TESTING=OFF -DEIGEN_BUILD_DOC=OFF -DEIGEN_BUILD_BLAS=OFF \
 	-DEIGEN_BUILD_LAPACK=OFF -DEIGEN_BUILD_DEMOS=OFF; }
 zstd() { cmake_korin "$SRC/zstd/build/cmake" "$OBJ/zstd" -DZSTD_BUILD_PROGRAMS=OFF -DZSTD_BUILD_SHARED=OFF \
@@ -117,7 +128,7 @@ zstd() { cmake_korin "$SRC/zstd/build/cmake" "$OBJ/zstd" -DZSTD_BUILD_PROGRAMS=O
 # tant qu'on n'appelle pas GL) ; sans GLX, EGL ni X11.
 epoxy() { meson_korin "$SRC/epoxy" "$OBJ/epoxy" -Dtests=false -Dglx=no -Degl=no -Dx11=false; }
 
-ALL="jetlibs imath deflate openjph openexr tiff fmt robinmap expat yamlcpp pystring minizipng opencolorio tbb openimageio
+ALL="jetlibs brotli freetype imath deflate openjph openexr tiff fmt robinmap expat yamlcpp pystring minizipng opencolorio tbb openimageio
 vulkan_headers spirv_headers shaderc spirv_reflect vulkan_memory_allocator zstd epoxy eigen"
 
 # Les retouches de Korin (tools/blender/patches/<nom>.patch), posées une fois dans la source (marque .korin-patch).

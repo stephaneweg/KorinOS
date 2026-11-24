@@ -40,7 +40,7 @@ mkdir -p "$DL" "$SRC" "$DEPS" "$OBJ"
 # Les dépendances de classe A (étude § 3), dans l'ordre de construction : noms des variables de versions.cmake.
 DEPS_A="IMATH OPENEXR DEFLATE TIFF FMT ROBINMAP EXPAT YAMLCPP PYSTRING MINIZIPNG OPENCOLORIO OPENIMAGEIO TBB
 SHADERC SHADERC_GLSLANG SPIRV_HEADERS SPIRV_TOOLS SPIRV_REFLECT VULKAN_HEADERS VULKAN_MEMORY_ALLOCATOR PYTHON NUMPY
-JPEG ZSTD EPOXY OPENJPH EIGEN"
+JPEG ZSTD EPOXY OPENJPH EIGEN BROTLI FREETYPE"
 CPU="-march=tigerlake -mno-avx512f -mtune=tigerlake"	# (comme korin.cmake et Jet)
 
 # meson_korin <source> <obj> [options…] : la même chose pour une dépendance meson (fichier croisé fait ici).

@@ -2,13 +2,14 @@
 (disque NVMe d'essai, telnet, le lancement de tools/python/pctest.py), dans build/pc/blendertest.
 
   python3 -I tools/blender/pctest.py prep [--mb 1500] [--tree ~/korin-blender/x86_64/install-headless]
-      l'arbre d'essai build/pc/blendertest/root : une COPIE de build/pc/sysroot (jamais modifié), l'arbre portable
+      l'arbre d'essai ~/korin-blender/blendertest/root : une COPIE de build/pc/sysroot (jamais modifié), l'arbre portable
       de Blender dans /apps/blender (blender et 5.2/), les scripts d'essai de tools/blender/test dans /home/blender,
       telnetd et le mot de passe d'essai « essai » ; puis le disque build/pc/blendertest/disk.img
   python3 -I tools/blender/pctest.py run [--smp 4] [--mem 4G] "/apps/blender/blender -b --version" ...
       démarre QEMU (l'image en snapshot), lance les commandes par telnet, affiche leur sortie et leur code
 
-À lancer dans WSL (qemu-system-x86_64 et OVMF de la distribution) : `wsl -u root` pour KVM.
+À lancer dans WSL après `. ~/korin-cloud/env.sh` (fasm pour Linux, et OVMF avec le shell UEFI : les disques de
+mkkorindisk.py démarrent par startup.nsh ; docs/agents/CLOUD.md) ; `wsl -u root` et `--qemu "-accel kvm"` pour KVM.
 """
 import argparse
 import importlib.util
@@ -19,7 +20,9 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PC = os.path.join(ROOT, "build", "pc")
-W = os.path.join(PC, "blendertest")
+# dans WSL même (~/korin-blender/blendertest) : plus rapide que /mnt/c, et sans la limite de 260 caractères des
+# chemins de Windows (les site-packages de /devtools/python la dépassent)
+W = os.path.join(os.environ.get("KORIN_BLENDER", os.path.expanduser("~/korin-blender")), "blendertest")
 TROOT = os.path.join(W, "root")
 IMG = os.path.join(W, "disk.img")
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -40,7 +43,9 @@ def prep(a):
         raise SystemExit("absent : %s/blender (sh tools/blender/build.sh)" % tree)
     shutil.rmtree(TROOT, ignore_errors=True)
     os.makedirs(W, exist_ok=True)
-    shutil.copytree(os.path.join(PC, "sysroot"), TROOT)
+    # sans /devtools (GCC, .NET, Python 3.14… : inutiles à blender -b, et plus d'un Go)
+    shutil.copytree(os.path.join(PC, "sysroot"), TROOT,
+                    ignore=lambda d, names: ["devtools"] if os.path.samefile(d, os.path.join(PC, "sysroot")) else [])
     shutil.copytree(tree, os.path.join(TROOT, "apps", "blender"))
     t = os.path.join(TROOT, "home", "blender")
     shutil.copytree(os.path.join(HERE, "test"), t)

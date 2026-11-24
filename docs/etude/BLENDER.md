@@ -10,7 +10,7 @@ de départ : ce que Blender demande, ce que Korin a déjà, le chemin par jalons
 |---|---|---|
 | 0 | Source, versions, chaîne CMake de Korin, scripts `tools/blender` | **fait (23/11)** : `env.sh`, `korin.cmake`, `versions.py`, `fetch.sh` (Blender 5.2.4 et les sources de classe A) |
 | 1 | Les dépendances indispensables, croisées pour Korin PC (Python 3.13, OIIO, OCIO, OpenEXR, TBB, shaderc…) | **fait (24/11)**, construit seulement (rien lancé dans Korin) ; numpy reporté au jalon 4 |
-| 2 | **Blender sans écran** (`WITH_HEADLESS`) : `blender -b` charge un .blend, exécute du Python, rend par Cycles sur le processeur | à faire |
+| 2 | **Blender sans écran** (`WITH_HEADLESS`) : `blender -b` charge un .blend, exécute du Python, rend par Cycles sur le processeur | **fait (24/11), sous QEMU PC (KVM)** : `SCENE OK` et `RENDU OK` (Cycles, 4 fils, 0,7 s) |
 | 3 | **GHOST de Korin** : fenêtres UIKit, entrées, presse-papier ; rendu par Vulkan (VkKit, WSI de Korin) | à faire |
 | 4 | Le reste : Embree, OpenSubdiv, Manifold, OpenVDB, son, vidéo, import/export (USD, Alembic…) | à faire |
 | 5 | Paquet `blender`, app (`app.txt`, icône, catégorie), compétence, essai sur le ZBook | à faire |
@@ -214,6 +214,46 @@ Rien n'a encore tourné dans Korin : la vraie épreuve de ces bibliothèques est
 3. un script qui crée un objet, applique des modificateurs et enregistre un .blend, rouvert par Blender sous Windows.
 
 C'est la preuve que le moteur, Python et Cycles tournent ; tout ce qui suit est l'affichage.
+
+**Fait le 24/11.** Construire (WSL, depuis la racine du dépôt) :
+
+```sh
+sh tools/blender/deps.sh            # les dépendances (une fois)
+sh tools/blender/python.sh          # CPython 3.13 (une fois)
+sh tools/blender/hosttools.sh       # datatoc, shader_tool, makesdna, makesrna pour l'hôte (une fois)
+JOBS=6 sh tools/blender/build.sh    # Blender : ~/korin-blender/x86_64/install-headless (blender 148 Mo, arbre 254 Mo)
+```
+
+Essayer (KVM : `-u root`) : `. ~/korin-cloud/env.sh` (fasm pour Linux, OVMF avec le shell UEFI), puis
+`python3 -I tools/blender/pctest.py prep --mb 1200` et
+`python3 -I tools/blender/pctest.py run --qemu "-accel kvm" "chmod +x /apps/blender/blender" "@600 /apps/blender/blender -b --factory-startup --python-exit-code 1 --python /home/blender/scene.py" "@900 /apps/blender/blender -b --factory-startup --python-exit-code 1 --python /home/blender/render.py -- /tmp/cube.png 16"`.
+
+| Essai | Résultat (QEMU PC, KVM, 4 cœurs, 4 Go) |
+|---|---|
+| `blender -b --version` | `Blender 5.2.4 LTS` |
+| `test/scene.py` : singe, modificateurs, matériau, enregistré puis relu | `SCENE OK` (12 s, démarrage compris) ; la subdivision est sans effet (pas d'OpenSubdiv : jalon 4) |
+| `test/render.py` : Cycles sur le processeur, 320 × 240, 16 échantillons | `RENDU OK` : 0,7 s sur 4 fils, pixel central gris (0,545) |
+
+Ce qu'il a fallu, en plus du jalon 1 :
+
+* **Les outils de la construction** (`datatoc`, `shader_tool`, `makesdna`, `makesrna`) sont lancés par la construction
+  elle-même : compilés pour Korin, ils plantent sous Linux. `hosttools.sh` les construit pour l'hôte (dépendances
+  en `HOST=1`, `host-fix.cmake`), et la retouche de Blender met `${CMAKE_CROSSCOMPILING_EMULATOR}` devant leurs
+  appels ; `build.sh` y met `hosttool.sh`, qui lance l'outil de même nom de l'hôte.
+* **Retouches de Blender** (`patches/blender.patch`, tirée par `mkpatch.sh` de la source mise sous git) :
+  `OS_KORIN` dans `BLI_build_config.h` (POSIX générique), `statvfs` pour l'espace libre, pas de `-lc` ni de
+  `-latomic` (variable `KORIN` de `korin.cmake`), `oiiotool` facultatif, brotli cherché sous Korin.
+* **libposix** : `off64_t` (`sys/types.h`), `timespec_get` et `TIME_UTC` (`time.h`, `time.c`), `alloca` en mode
+  strict (`machine/stdlib.h`, vu aussi du `<cstdlib>` du C++) ; essai dans `posixtest` (groupe `time`), pas encore
+  lancé dans Korin.
+* **Dépendances de plus** : Zstd, Epoxy (meson croisé : `meson_korin`), Eigen, OpenJPH (OpenEXR la cite dans sa
+  config), brotli et FreeType 2.13.3 (celle de Jet n'a pas le cache `FTC_*`).
+* **Python** : les bibliothèques de ses modules intégrés (`lib/korin-deps` : mpdec, HACL, expat, sqlite, ffi,
+  OpenSSL) liées après `libpython3.13.a` ; deux symboles de l'expat de CPython renommés (`PyExpat_*`) pour ne pas
+  heurter celle d'OpenColorIO ; `pymodules.sh` pose les paquets purs que Blender livre (attrs, cattrs, requests…).
+* **OpenImageIO** : la mémoire physique par `sysconf(_SC_PHYS_PAGES)`.
+* **Essai** : le binaire copié sur la FAT demande `chmod +x` (comme Godot) ; l'arbre d'essai est dans WSL
+  (`~/korin-blender/blendertest`), les chemins de `/devtools` dépassant 260 caractères sous `/mnt/c`.
 
 ### Jalon 3 : l'interface
 

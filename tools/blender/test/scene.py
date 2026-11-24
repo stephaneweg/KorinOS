@@ -26,7 +26,10 @@ singe.data.materials.append(mat)
 dg = bpy.context.evaluated_depsgraph_get()
 n = len(singe.evaluated_get(dg).data.polygons)
 print("faces du singe après modificateurs :", n)
-assert n > 500 * 16, n		# 500 faces, subdivisées deux fois (× 16), puis biseautées
+# 500 faces ; subdivisées deux fois (× 16) si Blender a OpenSubdiv, puis biseautées (plus de faces dans tous les cas)
+osd = bpy.app.build_options.opensubdiv
+print("OpenSubdiv :", osd)
+assert n > (500 * 16 if osd else 500), n
 
 bpy.ops.wm.save_as_mainfile(filepath=out)
 print("enregistré :", out, os.path.getsize(out), "octets")

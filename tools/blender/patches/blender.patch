@@ -60,9 +60,18 @@ index f711326..11c25e8 100644
  # -----------------------------------------------------------------------------
  # Configure USD
 diff --git a/build_files/cmake/platform/platform_unix.cmake b/build_files/cmake/platform/platform_unix.cmake
-index 4719eb4..0e24418 100644
+index 4719eb4..b3d16d6 100644
 --- a/build_files/cmake/platform/platform_unix.cmake
 +++ b/build_files/cmake/platform/platform_unix.cmake
+@@ -198,7 +198,7 @@ if(NOT WITH_SYSTEM_FREETYPE)
+     mark_as_advanced(freetype_DIR)
+   endif()
+ 
+-  if(DEFINED LIBDIR)
++  if(DEFINED LIBDIR OR KORIN)  # Korin OS : la freetype de deps.sh, avec brotli statique
+     find_package_wrapper(Brotli REQUIRED)
+ 
+     # NOTE: This is done on WIN32 & APPLE but fails on some Linux systems.
 @@ -600,6 +600,9 @@ add_bundled_libraries(hiprt/lib)
  # OpenSuse needs lutil, ArchLinux not, for now keep, can avoid by using --as-needed
  if(HAIKU)

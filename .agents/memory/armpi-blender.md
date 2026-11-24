@@ -32,5 +32,12 @@ PYPATCH, STATIC_LIBPY) ; rien encore lancé dans Korin ; numpy reporté au jalon
 (`blender -b`, WITH_HEADLESS). Pièges : jamais -I vers le sysroot de Jet (copies des en-têtes de libposix) ;
 build/pc/posix peut retarder sur src/lib/posix.
 
-**How to apply:** JOBS=4 dans WSL (9 Go). Lancer les scripts par `wsl -- sh tools/blender/…` (pas `wsl bash -c '…$X…'` :
+**Jalon 2 FAIT (24/11, QEMU PC + KVM)** : `blender -b` 5.2.4 dans Korin : SCENE OK (créer, enregistrer, relire un
+.blend), RENDU OK (Cycles CPU 4 fils, 0,7 s). Outils de construction pour l'hôte (hosttools.sh + émulateur CMake),
+patches/blender.patch (mkpatch.sh, source sous git), libposix : off64_t, timespec_get, alloca (machine/stdlib.h).
+Essai : `. ~/korin-cloud/env.sh` (fasm Linux, OVMF avec shell UEFI : celui d'Ubuntu n'en a pas), `wsl -u root`,
+`--qemu "-accel kvm"`, `chmod +x` du binaire. WSL passé à 12 Go (.wslconfig, accord de l'utilisateur).
+L'utilisateur m'a laissé continuer seul jusqu'au jalon 5 la nuit du 24/11.
+
+**How to apply:** JOBS=6 (12 Go) dans WSL (9 Go). Lancer les scripts par `wsl -- sh tools/blender/…` (pas `wsl bash -c '…$X…'` :
 les $ sont développés avant ; Git Bash : MSYS_NO_PATHCONV=1 pour les chemins /home). Voir [[armpi-godot]], [[armpi-cpython]], [[armpi-devtools]], [[armpi-cao]].
