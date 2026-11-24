@@ -129,18 +129,18 @@ content = 9ca14cf952a7ce16b6f9600430ddc8543a279e09c8a83cb09ae45f5f626e3d2b
 
 [spotify]
 title = Spotify
-version = 1.1.0
-category = Multimédia
+version = 1.1.1
+category = Musique
 author = Korin OS
 summary = Spotify : le lecteur web de Spotify dans sa fenêtre (Widevine, sans Client ID), avec la carte de lecture
-size = 126132
-installed = 265555
-sha256 = 43c60642b4d0d2559c680cfd5d965d4c2cc28ad270c7855f92c844279e0acd78
-file = pkgs/spotify-1.1.0.opk
+size = 126127
+installed = 265551
+sha256 = 7f9a7dd3242d48835e65d380fb1734e1f919074ea95e242aad47bb81a6ab3c77
+file = pkgs/spotify-1.1.1.opk
 needs = jet, abi >= 626
 required = 0
 restart = 0
-content = b57a4a85cba3d597e4a7b3ba6596d9ba7219495472518734c6f2a061be2c554a
+content = c45a40982947947770e5e158e69a222ef41ad13dab9e4db2b961920226586572
 
 [win16]
 title = Windows 3.x
