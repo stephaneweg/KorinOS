@@ -1499,6 +1499,17 @@ static void group_time (void)
 	gettimeofday (&tv, 0);
 	long long d = ((long long) tv.tv_sec - a.tv_sec) * 1000000 + (tv.tv_usec - a.tv_nsec / 1000);
 	CHECK ("CLOCK_REALTIME agrees with gettimeofday and time", d >= 0 && d < 20000 && labs ((long) (time (0) - tv.tv_sec)) <= 1, "%lld us", d);
+	{
+		/* timespec_get (C11), off64_t (_GNU_SOURCE), alloca (machine/stdlib.h) : Blender */
+		struct timespec u;
+		int r = timespec_get (&u, TIME_UTC);
+		long long dd = ((long long) u.tv_sec - a.tv_sec);
+		CHECK ("timespec_get (TIME_UTC) gives the real time", r == TIME_UTC && dd >= 0 && dd <= 2 && timespec_get (&u, 2) == 0,
+			"r=%d d=%lld", r, dd);
+		off64_t o = (off64_t) 1 << 40;
+		char *p = alloca (64);
+		CHECK ("off64_t is 64-bit, alloca is declared", sizeof (off64_t) == 8 && o > 0 && p != 0, "%u", (unsigned) sizeof (off64_t));
+	}
 	if (!k_clock)
 		skip ("clock_info: the date is UTC with the kernel's zone", NOSYS);
 	else

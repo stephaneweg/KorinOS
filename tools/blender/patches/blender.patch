@@ -1,0 +1,159 @@
+diff --git a/build_files/cmake/macros.cmake b/build_files/cmake/macros.cmake
+index fb0085a..fc8019f 100644
+--- a/build_files/cmake/macros.cmake
++++ b/build_files/cmake/macros.cmake
+@@ -1115,7 +1115,7 @@ function(data_to_c
+ 
+   add_custom_command(
+     OUTPUT ${file_to}
+-    COMMAND "$<TARGET_FILE:datatoc>" ${file_from} ${file_to} ${symbol_name_override}
++    COMMAND  ${CMAKE_CROSSCOMPILING_EMULATOR} "$<TARGET_FILE:datatoc>" ${file_from} ${file_to} ${symbol_name_override}
+     DEPENDS ${file_from} datatoc)
+ 
+   set_source_files_properties(${file_to} PROPERTIES GENERATED TRUE)
+@@ -1139,7 +1139,7 @@ function(data_to_c_simple
+ 
+   add_custom_command(
+     OUTPUT  ${_file_to}
+-    COMMAND "$<TARGET_FILE:datatoc>" ${_file_from} ${_file_to}
++    COMMAND  ${CMAKE_CROSSCOMPILING_EMULATOR} "$<TARGET_FILE:datatoc>" ${_file_from} ${_file_to}
+     DEPENDS ${_file_from} datatoc)
+ 
+   set_source_files_properties(${_file_to} PROPERTIES GENERATED TRUE)
+@@ -1176,12 +1176,12 @@ function(glsl_to_c
+   add_custom_command(
+     OUTPUT  ${_file_tmp} ${_file_meta} ${_file_info} ${_file_dep}
+     DEPFILE ${_file_dep}
+-    COMMAND "$<TARGET_FILE:shader_tool>" ${_file_from} ${_file_tmp} ${_file_meta} ${_file_info} ${_file_dep} ${_inc_list}
++    COMMAND  ${CMAKE_CROSSCOMPILING_EMULATOR} "$<TARGET_FILE:shader_tool>" ${_file_from} ${_file_tmp} ${_file_meta} ${_file_info} ${_file_dep} ${_inc_list}
+     DEPENDS ${_file_from} shader_tool)
+ 
+   add_custom_command(
+     OUTPUT  ${_file_to}
+-    COMMAND "$<TARGET_FILE:datatoc>" ${_file_tmp} ${_file_to}
++    COMMAND  ${CMAKE_CROSSCOMPILING_EMULATOR} "$<TARGET_FILE:datatoc>" ${_file_tmp} ${_file_to}
+     DEPENDS ${_file_tmp} datatoc)
+ 
+   set_source_files_properties(${_file_tmp} PROPERTIES GENERATED TRUE)
+@@ -1214,7 +1214,7 @@ function(msgfmt_simple
+     make_directory ${_file_to_path}
+ 
+     COMMAND ${CMAKE_COMMAND} -E
+-    env ${PLATFORM_ENV_BUILD} "$<TARGET_FILE:msgfmt>" ${_file_from} ${_file_to}
++    env ${PLATFORM_ENV_BUILD}  ${CMAKE_CROSSCOMPILING_EMULATOR} "$<TARGET_FILE:msgfmt>" ${_file_from} ${_file_to}
+ 
+     DEPENDS msgfmt ${_file_from})
+ 
+diff --git a/build_files/cmake/platform/dependency_targets.cmake b/build_files/cmake/platform/dependency_targets.cmake
+index f711326..11c25e8 100644
+--- a/build_files/cmake/platform/dependency_targets.cmake
++++ b/build_files/cmake/platform/dependency_targets.cmake
+@@ -141,7 +141,9 @@ target_link_libraries(bf_deps_png INTERFACE ${PNG_LIBRARIES})
+ # Configure OpenImageIO
+ 
+ add_library(bf::dependencies::openimageio ALIAS OpenImageIO::OpenImageIO)
+-get_target_property(OPENIMAGEIO_TOOL OpenImageIO::oiiotool LOCATION)
++if(TARGET OpenImageIO::oiiotool)  # Korin : OIIO construit sans ses outils
++  get_target_property(OPENIMAGEIO_TOOL OpenImageIO::oiiotool LOCATION)
++endif()
+ 
+ # -----------------------------------------------------------------------------
+ # Configure USD
+diff --git a/build_files/cmake/platform/platform_unix.cmake b/build_files/cmake/platform/platform_unix.cmake
+index 4719eb4..0e24418 100644
+--- a/build_files/cmake/platform/platform_unix.cmake
++++ b/build_files/cmake/platform/platform_unix.cmake
+@@ -600,6 +600,9 @@ add_bundled_libraries(hiprt/lib)
+ # OpenSuse needs lutil, ArchLinux not, for now keep, can avoid by using --as-needed
+ if(HAIKU)
+   list(APPEND PLATFORM_LINKLIBS -lnetwork)
++elseif(KORIN)
++  # Korin OS : libposix (posix.specs) fournit la libc ; un -lc explicite y mêlerait celle de newlib.
++  list(APPEND PLATFORM_LINKLIBS -lm)
+ else()
+   list(APPEND PLATFORM_LINKLIBS -lutil -lc -lm)
+ endif()
+@@ -1087,7 +1090,9 @@ function(configure_atomic_lib_if_needed)
+   endif()
+ endfunction()
+ 
+-configure_atomic_lib_if_needed()
++if(NOT KORIN)  # Korin OS : pas de libatomic (le test réussit à tort : try_compile sans liaison)
++  configure_atomic_lib_if_needed()
++endif()
+ 
+ if(PLATFORM_BUNDLED_LIBRARIES)
+   # For the installed Python module and installed Blender executable, we set the
+diff --git a/source/blender/blenlib/BLI_build_config.h b/source/blender/blenlib/BLI_build_config.h
+index 113d6ac..1db959e 100644
+--- a/source/blender/blenlib/BLI_build_config.h
++++ b/source/blender/blenlib/BLI_build_config.h
+@@ -118,6 +118,9 @@
+ #  define OS_ASMJS 1
+ #elif defined(__MVS__)
+ #  define OS_ZOS 1
++#elif defined(__armpi__)
++/* Korin OS : newlib + libposix, ni __linux__ ni glibc. */
++#  define OS_KORIN 1
+ #else
+ #  error Please add support for your platform in BLI_build_config.h
+ #endif
+@@ -125,6 +128,9 @@
+ #if !defined(OS_AIX)
+ #  define OS_AIX 0
+ #endif
++#if !defined(OS_KORIN)
++#  define OS_KORIN 0
++#endif
+ #if !defined(OS_ASMJS)
+ #  define OS_ASMJS 0
+ #endif
+@@ -210,7 +216,7 @@
+  * \{ */
+ 
+ #if OS_AIX || OS_ANDROID || OS_ASMJS || OS_FREEBSD || OS_LINUX || OS_MAC || OS_NACL || \
+-    OS_NETBSD || OS_OPENBSD || OS_QNX || OS_SOLARIS
++    OS_NETBSD || OS_OPENBSD || OS_QNX || OS_SOLARIS || OS_KORIN
+ #  define OS_POSIX 1
+ #else
+ #  define OS_POSIX 0
+diff --git a/source/blender/blenlib/intern/storage.cc b/source/blender/blenlib/intern/storage.cc
+index 13c4e1b..e7e9f34 100644
+--- a/source/blender/blenlib/intern/storage.cc
++++ b/source/blender/blenlib/intern/storage.cc
+@@ -14,7 +14,8 @@
+ 
+ #include <sys/stat.h>
+ 
+-#if defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__) || defined(__HAIKU__)
++#if defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__) || defined(__HAIKU__) || \
++    defined(__armpi__)
+ /* Other modern unix OS's should probably use this also. */
+ #  include <sys/statvfs.h>
+ #  define USE_STATFS_STATVFS
+diff --git a/source/blender/makesdna/intern/CMakeLists.txt b/source/blender/makesdna/intern/CMakeLists.txt
+index 24a0639..3ab6754 100644
+--- a/source/blender/makesdna/intern/CMakeLists.txt
++++ b/source/blender/makesdna/intern/CMakeLists.txt
+@@ -106,7 +106,7 @@ add_custom_command(
+     ${CMAKE_CURRENT_BINARY_DIR}/dna_verify.cc
+   COMMAND
+     ${CMAKE_COMMAND} -E env ${PLATFORM_ENV_BUILD}
+-    "$<TARGET_FILE:makesdna>"
++     ${CMAKE_CROSSCOMPILING_EMULATOR} "$<TARGET_FILE:makesdna>"
+     ${CMAKE_CURRENT_BINARY_DIR}/dna.cc
+     ${CMAKE_CURRENT_BINARY_DIR}/dna_type_offsets.h
+     ${CMAKE_CURRENT_BINARY_DIR}/dna_verify.cc
+diff --git a/source/blender/makesrna/intern/CMakeLists.txt b/source/blender/makesrna/intern/CMakeLists.txt
+index da7857d..f8a4bbd 100644
+--- a/source/blender/makesrna/intern/CMakeLists.txt
++++ b/source/blender/makesrna/intern/CMakeLists.txt
+@@ -423,7 +423,7 @@ add_custom_command(
+   OUTPUT ${GENSRC}
+   COMMAND
+     ${CMAKE_COMMAND} -E env ${PLATFORM_ENV_BUILD}
+-    "$<TARGET_FILE:makesrna>" ${CMAKE_SOURCE_DIR}/source/blender/makesdna/ ${CMAKE_CURRENT_BINARY_DIR}/ ${CMAKE_CURRENT_BINARY_DIR}/../
++     ${CMAKE_CROSSCOMPILING_EMULATOR} "$<TARGET_FILE:makesrna>" ${CMAKE_SOURCE_DIR}/source/blender/makesdna/ ${CMAKE_CURRENT_BINARY_DIR}/ ${CMAKE_CURRENT_BINARY_DIR}/../
+   DEPENDS makesrna
+ )
+ 

@@ -9,6 +9,7 @@
 # Une dépendance déjà construite (marque $OBJ/<nom>/.fait) est sautée ; FORCE=1 la refait.
 set -e
 . "$(dirname "$0")/env.sh"
+if [ -z "$HOST" ]; then
 [ -f "$JET/lib/libz.a" ] || { echo "deps.sh : pas de $JET/lib/libz.a (ARCH=x86_64 sh tools/webkit/build-deps.sh)" >&2; exit 1; }
 [ -f "$POSIX/lib/libposix.a" ] || { echo "deps.sh : pas de $POSIX/lib/libposix.a (tools/posix/build.sh)" >&2; exit 1; }
 
@@ -17,8 +18,14 @@ set -e
 ZLIB="-DZLIB_LIBRARY=$DEPS/lib/libz.a -DZLIB_INCLUDE_DIR=$DEPS/include"
 PNG="-DPNG_LIBRARY=$DEPS/lib/libpng16.a -DPNG_PNG_INCLUDE_DIR=$DEPS/include"
 JPEG="-DJPEG_LIBRARY=$DEPS/lib/libjpeg.a -DJPEG_INCLUDE_DIR=$DEPS/include"
+CXXK="${TC}g++ $CPU -specs=$POSIX/lib/posix.specs" ARK=${TC}ar
+else
+ZLIB= PNG= JPEG=	# (ceux de la distribution)
+CXXK="g++ -fPIC" ARK=ar
+fi
 
 jetlibs() {
+	[ -n "$HOST" ] && return 0
 	mkdir -p "$DEPS/lib/pkgconfig" "$DEPS/include"
 	for l in z png16 png jpeg webp webpdemux webpmux sharpyuv freetype brotlidec brotlicommon; do
 		[ -f "$JET/lib/lib$l.a" ] && cp "$JET/lib/lib$l.a" "$DEPS/lib/"
@@ -37,9 +44,11 @@ jetlibs() {
 imath() { cmake_korin "$SRC/imath" "$OBJ/imath" -DBUILD_TESTING=OFF -DPYTHON=OFF; }
 deflate() { cmake_korin "$SRC/deflate" "$OBJ/deflate" -DLIBDEFLATE_BUILD_STATIC_LIB=ON -DLIBDEFLATE_BUILD_SHARED_LIB=OFF \
 	-DLIBDEFLATE_BUILD_GZIP=OFF; }
+openjph() { cmake_korin "$SRC/openjph" "$OBJ/openjph" -DOJPH_BUILD_TESTS=OFF -DOJPH_ENABLE_TIFF_SUPPORT=OFF \
+	-DOJPH_BUILD_EXECUTABLES=OFF; }
 openexr() { cmake_korin "$SRC/openexr" "$OBJ/openexr" -DBUILD_TESTING=OFF -DOPENEXR_INSTALL_TOOLS=OFF \
 	-DOPENEXR_BUILD_TOOLS=OFF -DOPENEXR_INSTALL_EXAMPLES=OFF -DOPENEXR_BUILD_EXAMPLES=OFF \
-	-DOPENEXR_FORCE_INTERNAL_DEFLATE=OFF -DOPENEXR_FORCE_INTERNAL_OPENJPH=ON -DBUILD_WEBSITE=OFF \
+	-DOPENEXR_FORCE_INTERNAL_DEFLATE=OFF -DOPENEXR_FORCE_INTERNAL_OPENJPH=OFF -Dopenjph_DIR="$DEPS/lib/cmake/openjph" -DBUILD_WEBSITE=OFF \
 	-DIEX_HAVE_CONTROL_REGISTER_SUPPORT=0 -DIEX_HAVE_SIGCONTEXT_H=0; }
 	# (le ucontext de libposix a la forme de Linux, mais pas sa sigaction : pas de pièges des flottants par signal)
 tiff() { cmake_korin "$SRC/tiff" "$OBJ/tiff" $ZLIB $JPEG -Dlzma=OFF -Djbig=OFF -Dzstd=OFF -Dwebp=OFF -Dlerc=OFF \
@@ -53,10 +62,9 @@ yamlcpp() { cmake_korin "$SRC/yamlcpp" "$OBJ/yamlcpp" -DYAML_CPP_BUILD_TESTS=OFF
 pystring() {
 	# pystring n'a pas de CMakeLists qui installe : deux fichiers, compilés à la main.
 	mkdir -p "$OBJ/pystring" "$DEPS/include/pystring" "$DEPS/lib"
-	${TC}g++ -march=tigerlake -mno-avx512f -specs="$POSIX/lib/posix.specs" -O2 -g0 -c "$SRC/pystring/pystring.cpp" \
-		-o "$OBJ/pystring/pystring.o"
+	$CXXK -O2 -g0 -c "$SRC/pystring/pystring.cpp" -o "$OBJ/pystring/pystring.o"
 	rm -f "$DEPS/lib/libpystring.a"
-	${TC}ar rcs "$DEPS/lib/libpystring.a" "$OBJ/pystring/pystring.o"
+	$ARK rcs "$DEPS/lib/libpystring.a" "$OBJ/pystring/pystring.o"
 	cp "$SRC/pystring/pystring.h" "$DEPS/include/pystring/"
 }
 minizipng() { cmake_korin "$SRC/minizipng" "$OBJ/minizipng" $ZLIB -DMZ_FETCH_LIBS=OFF -DMZ_LIBCOMP=OFF \
@@ -75,7 +83,7 @@ tbb() { cmake_korin "$SRC/tbb" "$OBJ/tbb" -DTBB_TEST=OFF -DTBBMALLOC_BUILD=ON -D
 openimageio() { cmake_korin "$SRC/openimageio" "$OBJ/openimageio" $ZLIB $PNG $JPEG \
 	-DUSE_PYTHON=OFF -DOIIO_BUILD_TOOLS=OFF -DOIIO_BUILD_TESTS=OFF -DBUILD_TESTING=OFF -DBUILD_DOCS=OFF \
 	-DINSTALL_DOCS=OFF -DSTOP_ON_WARNING=OFF -DOpenImageIO_BUILD_MISSING_DEPS="" -DLINKSTATIC=ON \
-	-DUSE_TBB=ON -DUSE_OPENCOLORIO=ON -DUSE_WEBP=ON -DUSE_FREETYPE=OFF -DUSE_OPENJPEG=OFF -DUSE_OPENJPH=OFF \
+	-DUSE_TBB=ON -DUSE_OPENCOLORIO=ON -DUSE_WEBP=${HOST:+OFF}${HOST:-ON} -DUSE_FREETYPE=OFF -DUSE_OPENJPEG=OFF -DUSE_OPENJPH=OFF \
 	-DUSE_LIBHEIF=OFF -DUSE_FFMPEG=OFF -DUSE_GIF=OFF -DUSE_LIBRAW=OFF -DUSE_JXL=OFF -DUSE_PTEX=OFF \
 	-DUSE_OPENVDB=OFF -DUSE_OPENCV=OFF -DUSE_QT=OFF -DUSE_DCMTK=OFF -DUSE_NUKE=OFF -DUSE_EXTERNAL_PUGIXML=OFF \
 	-DOpenColorIO_DIR="$DEPS/lib/cmake/OpenColorIO" $OCIODEPS -DTBB_ROOT="$DEPS" -DOpenEXR_ROOT="$DEPS" -DImath_ROOT="$DEPS" \
@@ -100,9 +108,17 @@ shaderc() {
 spirv_reflect() { cmake_korin "$SRC/spirv_reflect" "$OBJ/spirv_reflect" -DSPIRV_REFLECT_EXECUTABLE=OFF \
 	-DSPIRV_REFLECT_STATIC_LIB=ON -DSPIRV_REFLECT_EXAMPLES=OFF; }
 vulkan_memory_allocator() { cmake_korin "$SRC/vulkan_memory_allocator" "$OBJ/vulkan_memory_allocator"; }
+eigen() { cmake_korin "$SRC/eigen" "$OBJ/eigen" -DBUILD_TESTING=OFF -DEIGEN_BUILD_DOC=OFF -DEIGEN_BUILD_BLAS=OFF \
+	-DEIGEN_BUILD_LAPACK=OFF -DEIGEN_BUILD_DEMOS=OFF; }
+zstd() { cmake_korin "$SRC/zstd/build/cmake" "$OBJ/zstd" -DZSTD_BUILD_PROGRAMS=OFF -DZSTD_BUILD_SHARED=OFF \
+	-DZSTD_BUILD_STATIC=ON -DZSTD_BUILD_TESTS=OFF -DZSTD_LEGACY_SUPPORT=OFF -DZSTD_LZ4_SUPPORT=OFF \
+	-DZSTD_LZMA_SUPPORT=OFF -DZSTD_MULTITHREAD_SUPPORT=ON -DZSTD_ZLIB_SUPPORT=OFF; }
+# epoxy : le chargeur d'OpenGL ; inclus par le code commun de GHOST même sans le moteur OpenGL (rien n'est chargé
+# tant qu'on n'appelle pas GL) ; sans GLX, EGL ni X11.
+epoxy() { meson_korin "$SRC/epoxy" "$OBJ/epoxy" -Dtests=false -Dglx=no -Degl=no -Dx11=false; }
 
-ALL="jetlibs imath deflate openexr tiff fmt robinmap expat yamlcpp pystring minizipng opencolorio tbb openimageio
-vulkan_headers spirv_headers shaderc spirv_reflect vulkan_memory_allocator"
+ALL="jetlibs imath deflate openjph openexr tiff fmt robinmap expat yamlcpp pystring minizipng opencolorio tbb openimageio
+vulkan_headers spirv_headers shaderc spirv_reflect vulkan_memory_allocator zstd epoxy eigen"
 
 # Les retouches de Korin (tools/blender/patches/<nom>.patch), posées une fois dans la source (marque .korin-patch).
 patch_src() {

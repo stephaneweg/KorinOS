@@ -21,6 +21,11 @@
 extern "C" {
 #endif
 time_t timegm (struct tm *);
+/* timespec_get (C11, et std::timespec_get du C++17) : newlib ne l'a pas ; time.c, par clock_gettime */
+#ifndef TIME_UTC
+#define TIME_UTC 1
+#endif
+int timespec_get (struct timespec *__ts, int __base);
 /* timezone, daylight de POSIX (XSI) : newlib n'a que _timezone et _daylight ; meme symbole par
    une etiquette asm (une macro casserait struct timezone de sys/time.h) */
 #if __XSI_VISIBLE || __SVID_VISIBLE

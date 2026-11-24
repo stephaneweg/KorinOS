@@ -255,6 +255,14 @@ int clock_gettime (clockid_t c, struct timespec *ts)
 	return 0;
 }
 
+/* timespec_get (C11) : la seule base est TIME_UTC (l'horloge réelle) ; rend la base, 0 en cas d'échec */
+int timespec_get (struct timespec *ts, int base)
+{
+	if (base != TIME_UTC || ts == 0 || clock_gettime (CLOCK_REALTIME, ts) != 0)
+		return 0;
+	return base;
+}
+
 int clock_getres (clockid_t c, struct timespec *ts)
 {
 	if (!clock_ok (c))

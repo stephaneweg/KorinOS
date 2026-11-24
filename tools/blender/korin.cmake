@@ -4,6 +4,7 @@
 # CMake voit un « Linux » (UNIX), mais __linux__ n'est pas défini : le code tiers prend ses chemins POSIX génériques.
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR x86_64)
+set(KORIN ON)	# lu par les retouches de Blender (patches/blender.patch : pas de -lc ni de -latomic)
 if(DEFINED ENV{KORIN_TOOLCHAINS})
 	set(_tc "$ENV{KORIN_TOOLCHAINS}/x86_64-onyx-elf-14.2/bin/x86_64-onyx-elf-")
 else()
