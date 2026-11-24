@@ -2585,14 +2585,14 @@ content = 047ab8d16cdac1f315e08b2cd8f724ac08f024c6116ad132adc3b67225fc69a6
 
 [drums-samples]
 title = Rythmes de la Boîte à rythmes
-version = 1.0.0
-category = Multimédia
+version = 1.0.1
+category = Musique
 author = Korin OS
 summary = Vingt-cinq rythmes d'exemple pour la Boîte à rythmes (rock, funk, house, trap, jazz en 5/4, valse, blues en 12/8, samba, salsa, flamenco...), dans /home/public/DrumMachine (à tous les comptes)
-size = 8776
+size = 8771
 installed = 11319
-sha256 = 9a1dc646cb235da2246f3a864c05d972e42a911aae2593e49cb9d9e6dbe2eefe
-file = pkgs/drums-samples-1.0.0.opk
+sha256 = 27f649a4e8056d1d17c47af20d04d9b8bfab332841ff682052f66928f31da6e8
+file = pkgs/drums-samples-1.0.1.opk
 needs = drums, abi >= 629
 required = 0
 restart = 0
