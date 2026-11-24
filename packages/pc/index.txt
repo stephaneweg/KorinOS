@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-24 03:32
+date = 2026-11-24 04:05
 abi = 629
 packages = 117
 board = pc
@@ -2537,3 +2537,18 @@ needs = freetype-dev, harfbuzz-dev, libpng-dev, libwebp-dev, zlib-dev, abi >= 62
 required = 0
 restart = 0
 content = 418a715764c9ad3c4b05cb05742e4825b71ba8b241835e5e81def7245f3d657a
+
+[llamacpp]
+title = llama.cpp
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les modèles de langage GGUF sur le processeur, en local : llama-server (API compatible OpenAI, pour OpenJarvis, Vibe...) et llama-cli (le chat au terminal)
+size = 13686147
+installed = 31967632
+sha256 = 835a25503eb89b79d3b84218edf65526e7cf08c7f60d7d53dc261a844672528c
+file = pkgs/llamacpp-1.0.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+content = 95cd1955ebe8bf8d8c93fe14b028df6ce4a1c4c27de13a9ab9a0ef1b2c4719d1
