@@ -128,8 +128,64 @@ zstd() { cmake_korin "$SRC/zstd/build/cmake" "$OBJ/zstd" -DZSTD_BUILD_PROGRAMS=O
 # tant qu'on n'appelle pas GL) ; sans GLX, EGL ni X11.
 epoxy() { meson_korin "$SRC/epoxy" "$OBJ/epoxy" -Dtests=false -Dglx=no -Degl=no -Dx11=false; }
 
+# -------- classe B (jalon 4 : les fonctions) ------------------------------------------------------------------
+# autotools (FFTW, GMP) : configure voit Linux, comme Python (tools/python/build.sh)
+if [ -z "$HOST" ]; then
+	ACONF="--host=x86_64-unknown-linux-gnu --build=x86_64-pc-linux-gnu"
+	ACC="${TC}gcc $CPU -specs=$POSIX/lib/posix.specs" ACXX="${TC}g++ $CPU -specs=$POSIX/lib/posix.specs"
+	AAR=${TC}ar ARL=${TC}ranlib
+else
+	ACONF= ACC="gcc -fPIC" ACXX="g++ -fPIC" AAR=ar ARL=ranlib
+fi
+autotools_korin() {	# autotools_korin <source> <obj> [options…] : configure, make, make install dans $DEPS
+	_s=$1; _o=$2; shift 2
+	rm -rf "$_o"; mkdir -p "$_o"
+	(cd "$_o" && CC="$ACC" CXX="$ACXX" AR=$AAR RANLIB=$ARL CFLAGS="-O2 -g0" CXXFLAGS="-O2 -g0" \
+		"$_s/configure" $ACONF --prefix="$DEPS" --libdir="$DEPS/lib" --enable-static --disable-shared "$@" &&
+		make -j "$JOBS" && make install)
+}
+# OpenSubdiv : la subdivision (modificateur Subsurf). Blender lie aussi osdGPU (il en lit les sources des shaders et
+# les tables de patches) ; osdGPU veut les en-têtes d'OpenGL pour se construire : ceux de Mesa, et une bibliothèque
+# GL vide (son chargeur GL n'est jamais appelé sous Vulkan).
+osd_gl() {
+	mkdir -p "$DEPS/include/osd-gl"
+	cp -R "$MESA_SRC/include/GL" "$MESA_SRC/include/KHR" "$DEPS/include/osd-gl/"
+	printf '' > "$OBJ/nogl.c"
+	${HOST:+gcc}${HOST:-${TC}gcc} -c "$OBJ/nogl.c" -o "$OBJ/nogl.o" && rm -f "$DEPS/lib/libkorin_nogl.a" &&
+		${AAR} rcs "$DEPS/lib/libkorin_nogl.a" "$OBJ/nogl.o"
+	echo "-DOPENGL_INCLUDE_DIR=$DEPS/include/osd-gl -DOPENGL_opengl_LIBRARY=$DEPS/lib/libkorin_nogl.a
+-DOPENGL_glx_LIBRARY=$DEPS/lib/libkorin_nogl.a -DOPENGL_gl_LIBRARY=$DEPS/lib/libkorin_nogl.a"
+}
+opensubdiv() { cmake_korin "$SRC/opensubdiv" "$OBJ/opensubdiv" $(osd_gl) -DNO_LIB=OFF -DNO_EXAMPLES=ON \
+	-DNO_TUTORIALS=ON -DNO_REGRESSION=ON -DNO_PTEX=ON -DNO_DOC=ON -DNO_OMP=ON -DNO_TBB=OFF -DNO_CUDA=ON \
+	-DNO_OPENCL=ON -DNO_CLEW=ON -DNO_OPENGL=OFF -DNO_METAL=ON -DNO_DX=ON -DNO_TESTS=ON -DNO_GLTESTS=ON -DNO_GLEW=ON \
+	-DNO_GLFW=ON -DNO_GLFW_X11=ON -DNO_MACOS_FRAMEWORK=ON -DTBB_DIR="$DEPS/lib/cmake/TBB"; }
+# Manifold : les booléens rapides (solveur Manifold du modificateur Booléen, nœuds de géométrie)
+manifold() { cmake_korin "$SRC/manifold" "$OBJ/manifold" -DMANIFOLD_JSBIND=OFF -DMANIFOLD_CBIND=OFF \
+	-DMANIFOLD_PYBIND=OFF -DMANIFOLD_PAR=ON -DMANIFOLD_CROSS_SECTION=OFF -DMANIFOLD_EXPORT=OFF -DMANIFOLD_DEBUG=OFF \
+	-DMANIFOLD_TEST=OFF -DMANIFOLD_DOWNLOADS=OFF -DTBB_ROOT="$DEPS" -DTRACY_ENABLE=OFF; }
+# FFTW3 : double et simple précision (océan, compositeur)
+fftw() {
+	autotools_korin "$SRC/fftw" "$OBJ/fftw-double" --enable-threads --disable-fortran --enable-sse2 --enable-avx \
+		--enable-avx2 &&
+	autotools_korin "$SRC/fftw" "$OBJ/fftw-float" --enable-threads --disable-fortran --enable-float --enable-sse \
+		--enable-sse2 --enable-avx --enable-avx2
+}
+# GMP : les booléens exacts (solveur Exact), avec l'interface C++ ; --enable-fat : le code choisi selon le processeur
+gmp() { autotools_korin "$SRC/gmp" "$OBJ/gmp" --enable-cxx --with-pic --enable-fat; }
+# Embree : accélère le lancer de rayons de Cycles sur le processeur (sans ISPC ni SYCL), tâches par TBB. Il remplace
+# CMAKE_CXX_FLAGS (EMBREE_IGNORE_CMAKE_CXX_FLAGS : on garde ceux de korin.cmake, -specs compris) et compile en
+# -std=c++11 strict, où newlib cache M_PI : _GNU_SOURCE par CXXFLAGS, que CMake ajoute aux drapeaux initiaux
+embree() { (export CXXFLAGS=-D_GNU_SOURCE CFLAGS=-D_GNU_SOURCE
+	cmake_korin "$SRC/embree" "$OBJ/embree" -DEMBREE_ISPC_SUPPORT=OFF -DEMBREE_TUTORIALS=OFF \
+	-DEMBREE_STATIC_LIB=ON -DEMBREE_RAY_MASK=ON -DEMBREE_FILTER_FUNCTION=ON -DEMBREE_BACKFACE_CULLING=OFF \
+	-DEMBREE_BACKFACE_CULLING_CURVES=ON -DEMBREE_BACKFACE_CULLING_SPHERES=ON -DEMBREE_TASKING_SYSTEM=TBB \
+	-DEMBREE_TBB_ROOT="$DEPS" -DTBB_ROOT="$DEPS" -DEMBREE_MAX_ISA=AVX2 -DEMBREE_ZIP_MODE=OFF \
+	-DEMBREE_IGNORE_CMAKE_CXX_FLAGS=OFF); }
+
 ALL="jetlibs brotli freetype imath deflate openjph openexr tiff fmt robinmap expat yamlcpp pystring minizipng opencolorio tbb openimageio
-vulkan_headers spirv_headers shaderc spirv_reflect vulkan_memory_allocator zstd epoxy eigen"
+vulkan_headers spirv_headers shaderc spirv_reflect vulkan_memory_allocator zstd epoxy eigen
+opensubdiv manifold fftw gmp embree"
 
 # Les retouches de Korin (tools/blender/patches/<nom>.patch), posées une fois dans la source (marque .korin-patch).
 patch_src() {

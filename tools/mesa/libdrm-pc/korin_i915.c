@@ -706,6 +706,11 @@ static int execbuf (struct drm_i915_gem_execbuffer2 *x)
 		if (r != -11 || tries > 100)	/* E_AGAIN : l'anneau est plein, un peu d'attente */
 			break;
 		wait_seq (status[IGS_SUBMITTED] - 64, 100000000);
+		/* (le verrou a ete rendu pendant l'attente : le contexte peut avoir ete detruit, ou ctxs deplace par
+		 * realloc ; 24/11 : faute a la fermeture de Blender dans le fil de soumission d'anv) */
+		g = ctx_lookup ((uint32_t) x->rsvd1);
+		if (!g || ring >= SLOTS || g->hw[ring] < 0)
+			return -ENOENT;
 	}
 	if (r < 0) {
 		if (debug)
@@ -718,7 +723,8 @@ static int execbuf (struct drm_i915_gem_execbuffer2 *x)
 	uint32_t seq = (uint32_t) out[0];
 	for (uint32_t i = 0; i < n; i++) {
 		struct bo *b = lookup (o[i].handle);
-		b->last_seq = seq;
+		if (b)		/* (ferme pendant une attente de l'anneau plein) */
+			b->last_seq = seq;
 	}
 	signal_fences (x, seq);
 	return 0;

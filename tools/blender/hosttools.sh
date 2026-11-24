@@ -15,7 +15,7 @@ set -e
 export HOST=1
 . "$(dirname "$0")/env.sh"
 sh "$BL/deps.sh" imath deflate openjph openexr tiff fmt robinmap expat yamlcpp pystring minizipng opencolorio \
-	openimageio epoxy eigen
+	openimageio epoxy eigen tbb opensubdiv manifold fftw gmp embree
 CONFIG=${CONFIG:-headless}
 B=$OUT/blender-$CONFIG
 PY=$K/host-python
@@ -39,6 +39,8 @@ PKG_CONFIG_PATH="$PC${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" cmake -S "$BSRC" -B "
 	-DEPOXY_ROOT_DIR="$DEPS" -DOPENEXR_ROOT_DIR="$DEPS" -DOpenImageIO_ROOT="$DEPS" -DOpenColorIO_ROOT="$DEPS" \
 	-Dfmt_ROOT="$DEPS" -Dexpat_ROOT="$DEPS" -Dpystring_ROOT="$DEPS" -DImath_ROOT="$DEPS" -Dminizip-ng_ROOT="$DEPS" \
 	-Dminizip-ng_INCLUDE_DIR="$DEPS/include/minizip-ng/minizip" -Dminizip-ng_LIBRARY="$DEPS/lib/libminizip.a" \
+	-DOPENSUBDIV_ROOT_DIR="$DEPS" -DFFTW3_ROOT_DIR="$DEPS" -DGMP_ROOT_DIR="$DEPS" -DEMBREE_ROOT_DIR="$DEPS" \
+	-Dmanifold_DIR="$DEPS/lib/cmake/manifold" \
 	-Dyaml-cpp_DIR="$DEPS/lib/cmake/yaml-cpp" -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -Wno-dev
 # les options qui changent les tables de makesrna doivent être celles de la cible
 grep -E "^WITH_(CYCLES|VULKAN_BACKEND|OPENGL_BACKEND|IMAGE_WEBP|OPENSUBDIV|PYTHON|BULLET|FREESTYLE|INTERNATIONAL|USD|ALEMBIC|FFTW3|MOD_FLUID|MOD_OCEANSIM|CODEC_FFMPEG|INPUT_NDOF|XR_OPENXR|GMP|IMAGE_OPENJPEG|IMAGE_CINEON|OPENAL|SDL|JACK|PULSEAUDIO|EXPERIMENTAL_FEATURES):BOOL" \

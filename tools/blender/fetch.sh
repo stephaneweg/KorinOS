@@ -3,14 +3,18 @@
 # DEPS_A), avec les URL et les sommes de versions.cmake de Blender ; dépaquette le tout dans $SRC.
 #
 #   sh tools/blender/fetch.sh            (dans WSL, depuis la racine du dépôt)
-#   sh tools/blender/fetch.sh NOM…       (seulement ces dépendances, ex. TBB SHADERC)
+#   sh tools/blender/fetch.sh NOM…       (seulement ces dépendances, ex. TBB SHADERC ; jalon 4 : env.sh, DEPS_B)
 set -e
 . "$(dirname "$0")/env.sh"
 
 get() {	# get <fichier> <url> : télécharge si absent
 	[ -s "$DL/$1" ] && return 0
 	echo "téléchargement de $1"
-	curl -fL --retry 3 -o "$DL/$1.part" "$2"
+	curl -fL --retry 3 -o "$DL/$1.part" "$2" || case $2 in
+	https://gmplib.org/download/gmp/*)	# (gmplib.org refuse souvent : le miroir de GNU, même archive, même somme)
+		curl -fL --retry 3 -o "$DL/$1.part" "https://ftp.gnu.org/gnu/gmp/$1" ;;
+	*)	return 1 ;;
+	esac
 	mv "$DL/$1.part" "$DL/$1"
 }
 
@@ -29,7 +33,13 @@ check() {	# check <fichier> <somme> <type>
 unpack() {	# unpack <fichier> <dossier> : dépaquette l'archive dans $SRC/<dossier> (un seul niveau ôté)
 	[ -d "$SRC/$2" ] && return 0
 	mkdir -p "$SRC/$2.part"
-	tar -xf "$DL/$1" -C "$SRC/$2.part" --strip-components=1
+	case $1 in
+	*.zip)	# (Embree : un .zip ; un seul dossier au premier niveau, ôté)
+		unzip -q "$DL/$1" -d "$SRC/$2.zip"
+		mv "$SRC/$2.zip"/*/* "$SRC/$2.zip"/*/.[!.]* "$SRC/$2.part"/ 2>/dev/null || true
+		rm -rf "$SRC/$2.zip" ;;
+	*)	tar -xf "$DL/$1" -C "$SRC/$2.part" --strip-components=1 ;;
+	esac
 	mv "$SRC/$2.part" "$SRC/$2"
 }
 

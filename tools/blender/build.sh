@@ -66,6 +66,8 @@ KORIN_POSIX=$POSIX KORIN_BLENDER_DEPS=$DEPS cmake -S "$BSRC" -B "$B" -G Ninja \
 	-Dexpat_ROOT="$DEPS" -Dpystring_ROOT="$DEPS" -DImath_ROOT="$DEPS" -Dminizip-ng_ROOT="$DEPS" \
 	-Dminizip-ng_INCLUDE_DIR="$DEPS/include/minizip-ng/minizip" -Dminizip-ng_LIBRARY="$DEPS/lib/libminizip.a" \
 	-Dyaml-cpp_DIR="$DEPS/lib/cmake/yaml-cpp" \
+	-DOPENSUBDIV_ROOT_DIR="$DEPS" -DFFTW3_ROOT_DIR="$DEPS" -DGMP_ROOT_DIR="$DEPS" -DEMBREE_ROOT_DIR="$DEPS" \
+	-Dmanifold_DIR="$DEPS/lib/cmake/manifold" \
 	-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -Wno-dev $GUI
 
 [ "$1" = configure ] && exit 0

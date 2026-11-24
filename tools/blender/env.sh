@@ -41,6 +41,9 @@ mkdir -p "$DL" "$SRC" "$DEPS" "$OBJ"
 DEPS_A="IMATH OPENEXR DEFLATE TIFF FMT ROBINMAP EXPAT YAMLCPP PYSTRING MINIZIPNG OPENCOLORIO OPENIMAGEIO TBB
 SHADERC SHADERC_GLSLANG SPIRV_HEADERS SPIRV_TOOLS SPIRV_REFLECT VULKAN_HEADERS VULKAN_MEMORY_ALLOCATOR PYTHON NUMPY
 JPEG ZSTD EPOXY OPENJPH EIGEN BROTLI FREETYPE"
+# Classe B (jalon 4 : les fonctions) : subdivision, booléens, FFT (océan, compositeur), exact (GMP), Embree.
+DEPS_B="OPENSUBDIV MANIFOLD FFTW GMP EMBREE"
+MESA_SRC=$HOME/armpi-mesa/src/mesa-26.2.0	# (les en-têtes GL pour OpenSubdiv : tools/mesa/env.sh)
 CPU="-march=tigerlake -mno-avx512f -mtune=tigerlake"	# (comme korin.cmake et Jet)
 
 # meson_korin <source> <obj> [options…] : la même chose pour une dépendance meson (fichier croisé fait ici).
