@@ -45,4 +45,9 @@ struct dirent
 
 typedef struct __posix_dir DIR;
 
+/* Korin extension (24/11/2026): the FAT attributes of the entry readdir returned last (0x02 hidden, 0x04 system,
+ * 0x10 directory...), 0 before the first; Files hides the entries marked hidden */
+#define KORIN_ATTR_HIDDEN	0x02
+unsigned long long korin_readdir_attr (DIR *d);
+
 #endif /* _SYS_DIRENT_H */

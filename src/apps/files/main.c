@@ -112,6 +112,7 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define KEY_K_		0x0E
 #define KEY_L_		0x0F
 #define KEY_R_		0x15
+#define KEY_H_		0x0B
 #define KEY_ESC_	0x29
 #define KEY_TAB_	0x2B
 #define KEY_W_		0x1A
@@ -139,6 +140,8 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define ID_ICONS	40
 #define ID_LIST		41
 #define ID_DUAL		42			/* Affichage > Deux vues */
+#define ID_HIDDEN	43			/* Affichage > Fichiers caches (Ctrl+H) */
+#define ID_ALLVOL	44			/* Affichage > Tous les volumes */
 #define ID_COPYTO	13			/* Edition > Copier vers l'autre vue */
 #define ID_MOVETO	14
 #define ID_LOCATION	15			/* Aller > Aller a l'emplacement (Ctrl+L) */
@@ -207,6 +210,8 @@ static long vol_sub;				/* abonnement aux volumes (0 : pas de bus) */
 static const char *msg;				/* message d'etat (0 : aucun) */
 static long vfs_ch = -1;
 static long vraw_n = -1, vol_n, pl_n;
+static int show_hidden;			/* Affichage > Fichiers caches (« . » au debut, attribut cache de FAT) */
+static int show_allvol;			/* Affichage > Tous les volumes (sinon : amovibles et distants) */
 static long scr[4];
 static char errbuf[32];
 static struct svc_msg vmsg;
@@ -320,9 +325,23 @@ static void path_parent (char *p)
 	for (char *q = p; *q; q++)
 		if (*q == '/')
 			last = q;
+	if (last == p && *p != '/')
+		return;				/* « HOME: » : une racine, rien au-dessus */
 	if (last == p)				/* « /a » -> « / » ; « / » reste */
 		last++;
 	*last = 0;
+	if (last > p && last[-1] == ':')
+	{				/* « HOME:/a » -> « HOME:/ » (la racine du volume, avec sa barre) */
+		last[0] = '/';
+		last[1] = 0;
+	}
+}
+
+/* p est-il la racine d'un volume nomme (« HOME: », « HOME:/ ») ? */
+static int vol_root (const char *p)
+{
+	const char *c = strchr (p, ':'), *s = strchr (p, '/');
+	return c && (!s || s > c) && (!c[1] || (c[1] == '/' && !c[2]));
 }
 
 static char *fmt_dec (unsigned long v, char *d)
@@ -870,8 +889,10 @@ static void *ls_thread (void *a)
 		struct dirent *de;
 		while (L->n < MAXE && L->gen == ls_gen[L->pane] && (de = readdir (d)))
 		{
-			if (!de->d_name[0] || de->d_name[0] == '.')
-				continue;		/* caches : « .xxx » */
+			if (!de->d_name[0])
+				continue;
+			if (!show_hidden && (de->d_name[0] == '.' || (korin_readdir_attr (d) & KORIN_ATTR_HIDDEN)))
+				continue;		/* caches : « .xxx », attribut cache de FAT (Affichage > Fichiers caches) */
 			struct ent *e = &L->e[L->n];
 			str_copy_n (e->name, de->d_name, 256);
 			e->size = 0;
@@ -1121,9 +1142,9 @@ static void save_cfg (void)
 	pane_save (curp);
 	const struct pane *a = &panes[0], *o = &panes[1];
 	int n = snprintf (b, sizeof b, "vue = %s\ntaille = %ld\ntype = %ld\nvue2 = %s\ntaille2 = %ld\ntype2 = %ld\n"
-		"deux_vues = %d\nactive = %d\npartage = %ld\ndossier = %s\ndossier2 = %s\n",
+		"deux_vues = %d\nactive = %d\npartage = %ld\ndossier = %s\ndossier2 = %s\ncaches = %d\nvolumes = %d\n",
 		a->view ? "liste" : "icones", a->w_size, a->w_type, o->view ? "liste" : "icones", o->w_size, o->w_type,
-		dual, act, split_pm, a->path, o->path);
+		dual, act, split_pm, a->path, o->path, show_hidden, show_allvol);
 	if (n <= 0 || n >= (int) sizeof b)
 		return;
 	char cp_[160];
@@ -1196,6 +1217,10 @@ static void cfg_line (char *k, char *v)
 		str_copy_n (cfg_dir[0], v, sizeof cfg_dir[0]);
 	else if (!strcmp (k, "dossier2"))
 		str_copy_n (cfg_dir[1], v, sizeof cfg_dir[1]);
+	else if (!strcmp (k, "caches"))
+		show_hidden = *v == '1';
+	else if (!strcmp (k, "volumes"))
+		show_allvol = *v == '1';
 }
 
 /* nom : le selectionne s'il est dans la liste */
@@ -1488,6 +1513,9 @@ static void menu_build (void)
 		"I41\tListe\n"
 		"-\n"
 		"I42\tDeux vues\n"
+		"-\n"
+		"I43\tFichiers cachés\tCtrl+H\n"
+		"I44\tTous les volumes\n"
 		"MVolume\n"
 		"I31\tSe connecter à un serveur…\tCtrl+K\n";
 	static const char tail2[] = "-\n"
@@ -1511,6 +1539,8 @@ static void menu_build (void)
 static void menu_states (void)
 {
 	ui_menu_state (ID_DUAL, dual ? UMS_CHECKED : 0);
+	ui_menu_state (ID_HIDDEN, show_hidden ? UMS_CHECKED : 0);
+	ui_menu_state (ID_ALLVOL, show_allvol ? UMS_CHECKED : 0);
 	ui_menu_state (ID_COPYTO, dual ? 0 : UMS_DISABLED);
 	ui_menu_state (ID_MOVETO, dual ? 0 : UMS_DISABLED);
 }
@@ -1591,6 +1621,40 @@ static const char *vol_kind (struct vol *v)
 	else if (str_pre (v->src, "gdrive:"))
 		s = "Google Drive";
 	return TR (s);
+}
+
+/* le nom d'un volume dans le panneau (24/11/2026, comme GNOME) : « Google Drive » (« Google Drive (compte) » s'il y en a
+ * plusieurs), « partage sur hote » pour un partage « //hote/partage », sinon son point de montage -> buf */
+static const char *vol_title (struct vol *v, char *buf, size_t cap)
+{
+	if (str_pre (v->src, "gdrive:"))
+	{
+		long n = 0;
+		for (long i = 0; i < vol_n; i++)
+			n += str_pre (vols[i].src, "gdrive:");
+		if (n > 1)
+			snprintf (buf, cap, "Google Drive (%s)", v->src + 7);
+		else
+			snprintf (buf, cap, "Google Drive");
+		return buf;
+	}
+	if (str_pre (v->src, "//"))
+	{				/* « //hote/partage[/dossier] » */
+		char host[24], share[24];
+		const char *h = v->src + 2, *sl = strchr (h, '/');
+		if (sl && sl > h)
+		{
+			snprintf (host, sizeof host, "%.*s", (int) (sl - h), h);
+			const char *e = strchr (sl + 1, '/');
+			snprintf (share, sizeof share, "%.*s", (int) (e ? e - sl - 1 : (long) strlen (sl + 1)), sl + 1);
+			if (share[0])
+			{
+				snprintf (buf, cap, TR ("%s sur\u00A0%s"), share, host);	/* (espace insecable : une autre cle que « %s sur %s ») */
+				return buf;
+			}
+		}
+	}
+	return v->disp;
 }
 
 /* -> volume du dossier courant : le point de montage au plus long prefixe (-1 : aucun) */
@@ -2740,8 +2804,8 @@ static void open_with_sel (void)
 /* dossier parent (le dossier quitte reste selectionne) */
 static void go_parent (void)
 {
-	if (is_recent ())
-		return;
+	if (is_recent () || vol_root (path))
+		return;				/* (Recents, « HOME:/ » : rien au-dessus) */
 	const char *last = path;
 	for (const char *p = path; *p; p++)
 		if (*p == '/')
@@ -4197,6 +4261,18 @@ static const char *space_text (const struct vspace *sp, char *buf, long px, long
 static long vol_y0 (void) { return pl_n ? PAN_Y0 + pl_n * PROW_H + PL_GAP : PAN_Y0; }
 
 /* le panneau de gauche defile quand ses lignes ne tiennent pas (23/11/2026) : pan_scroll pixels, la molette sur lui */
+/* les volumes montres dans le panneau -> leur nombre, leurs rangs dans ix : tous (Affichage > Tous les volumes), sinon
+ * les amovibles et les distants (24/11/2026, comme GNOME : le systeme, /tmp... restent dans Tous les volumes) */
+static int is_net_src (const char *s);
+static long vol_shown (long *ix)
+{
+	long n = 0;
+	for (long i = 0; i < vol_n; i++)
+		if (show_allvol || vols[i].rem || is_net_src (vols[i].src))
+			ix[n++] = i;
+	return n;
+}
+
 static long pan_scroll;
 static long ptr_x;				/* x du pointeur (le dernier evenement de la souris) : la molette va au panneau */
 #define PAN_CLIP_Y	8			/* (en haut, le contenu defile sous rien : le panneau commence la) */
@@ -4204,7 +4280,8 @@ static long ptr_x;				/* x du pointeur (le dernier evenement de la souris) : la 
 /* -> le plus grand defilement du panneau (0 : tout tient) */
 static long pan_max (void)
 {
-	long h = vol_y0 () + vol_n * VROW_H + 8 - H_;
+	long ix[VMAX];
+	long h = vol_y0 () + vol_shown (ix) * VROW_H + 8 - H_;
 	return h > 0 ? h : 0;
 }
 
@@ -4237,10 +4314,13 @@ static void draw_panel (void)
 		}
 		y0 = vol_y0 () - pan_scroll;
 	}
-	text (TR ("Volumes"), 14, y0 - 10, TOK (TJ_TEXT2), 12, ui.font_b, 0);
-	for (long i = 0; i < vol_n; i++)
+	long vix[VMAX], vn = vol_shown (vix);
+	if (vn)
+		text (TR ("Volumes"), 14, y0 - 10, TOK (TJ_TEXT2), 12, ui.font_b, 0);
+	for (long k = 0; k < vn; k++)
 	{
-		long y = i * VROW_H + y0;	/* haut de la ligne */
+		long i = vix[k];
+		long y = k * VROW_H + y0;	/* haut de la ligne */
 		if (y + VROW_H <= PAN_CLIP_Y)
 			continue;
 		if (y >= H_)
@@ -4248,9 +4328,16 @@ static void draw_panel (void)
 		struct vol *v = &vols[i];
 		if (hl == i)
 			draw_sel (6, y + 1, PAN_W - 13, VROW_H - 2);
-		ui_rbox (14, y + 10, 20, 15, 3, TOK (TJ_TEXT2), TOK (TJ_TEXT2));	/* disque */
-		ui_fill (28, y + 19, 3, 3, TOK (TJ_SUNKEN));
-		text (v->disp, 42, y + 16, TOK (TJ_TEXT1), 13, ui.font_b, PAN_W - 42 - 36);	/* « /media/usb0 » */
+		if (is_net_src (v->src))
+			ui_glyph ((long) "glyph-tb-network", 14, y + 8, 20, TOK (TJ_TEXT2));	/* un volume du reseau */
+		else
+		{
+			ui_rbox (14, y + 10, 20, 15, 3, TOK (TJ_TEXT2), TOK (TJ_TEXT2));	/* disque */
+			ui_fill (28, y + 19, 3, 3, TOK (TJ_SUNKEN));
+		}
+		char tb[96];
+		const char *title = vol_title (v, tb, sizeof tb);
+		text (title, 42, y + 16, TOK (TJ_TEXT1), 13, ui.font_b, PAN_W - 42 - 36);	/* « /media/usb0 », « Google Drive » */
 		const struct vspace *sp = space_of (v);
 		if (sp)
 		{				/* sa place, et la jauge */
@@ -4259,8 +4346,8 @@ static void draw_panel (void)
 			text (space_text (sp, sb, 11, tw), 42, y + 31, TOK (TJ_TEXT2), 11, ui.font, tw);
 			draw_gauge (42, y + 36, tw, 5, sp);
 		}
-		else
-			text (vol_kind (v), 42, y + 31, TOK (TJ_TEXT2), 12, ui.font, PAN_W - 42 - 36);	/* genre */
+		else				/* le genre ; un volume nomme : son chemin (« Google Drive » dit deja son genre) */
+			text (title != v->disp ? v->disp : vol_kind (v), 42, y + 31, TOK (TJ_TEXT2), 12, ui.font, PAN_W - 42 - 36);
 		if (v->rem)
 			draw_eject (PAN_W - 22, y + 13);
 	}
@@ -4819,6 +4906,18 @@ static long on_resize (long w, long h)
  * --------------------------------------------------------------------------- */
 
 /* entree de menu choisie */
+/* Affichage > Fichiers caches (Ctrl+H) : le dossier relu (et celui de l'autre vue), la selection gardee */
+static void toggle_hidden (void)
+{
+	show_hidden = !show_hidden;
+	refresh ();
+	if (dual)
+		other_stale = 1;
+	menu_states ();
+	save_cfg ();
+	set_msg (show_hidden ? "Fichiers cachés montrés" : "Fichiers cachés masqués");
+}
+
 static void on_menu (long id)
 {
 	switch (id)
@@ -4844,6 +4943,13 @@ static void on_menu (long id)
 	case ID_COPYTO: to_other (0); break;
 	case ID_MOVETO: to_other (1); break;
 	case ID_LOCATION: loc_open (0); return;
+	case ID_HIDDEN: toggle_hidden (); break;
+	case ID_ALLVOL:
+		show_allvol = !show_allvol;
+		pan_clamp ();
+		menu_states ();
+		save_cfg ();
+		break;
 	default:
 		if ((unsigned long) (id - ID_PLACE) >= (unsigned long) pl_n)
 			return;
@@ -4974,8 +5080,10 @@ static void on_mouse (void)
 			if (py < y0)
 				return;
 			r = (py - y0) / VROW_H;
-			if (r >= vol_n)
+			long vix[VMAX], vn = vol_shown (vix);
+			if (r >= vn)
 				return;
+			r = vix[r];			/* (le rang dans vols) */
 			if (vols[r].rem && x >= PAN_W - 36)
 				eject (r);		/* bouton d'ejection */
 			else
@@ -5515,6 +5623,8 @@ static void on_key (void)
 		}
 		else if (k == KEY_R_)
 			refresh ();
+		else if (k == KEY_H_)
+			toggle_hidden ();
 		else if (k == KEY_W_)
 			quit ();
 		else if (k == KEY_K_)
