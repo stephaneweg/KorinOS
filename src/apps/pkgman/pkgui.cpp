@@ -311,7 +311,7 @@ static int banner () { return any_staged () && g_tab == T_UPDATES ? BANNER : 0; 
 
 // ---- les cartes des catégories (Installés, Disponibles), comme l'étape Logiciels de l'installateur -------------------------
 // l'ordre des cartes : celui de tools/pc/installkey.ini [categories], puis les autres par leur nom
-static const char *const CAT_ORDER[] = { "Système", "Accessoires", "Internet", "Bureautique", "Multimédia", "Création",
+static const char *const CAT_ORDER[] = { "Système", "Accessoires", "Internet", "Bureautique", "Multimédia", "Musique", "Création",
 					 "Développement", "Jeux", "Émulateurs" };
 enum { NCAT = 40, CARD_HEAD = 70, CARD_HEAD_OPEN = 48, CARD_GAP = 8, CARD_IN = 20 };
 struct Cat { char name[24]; int first, n; };	// (g_vis[first .. first + n - 1])

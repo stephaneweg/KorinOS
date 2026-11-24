@@ -1,6 +1,6 @@
 # Manifeste de Spotify (le lecteur web de Spotify sur le moteur de Jet : src/extra/onyxports/jet/webapp.cpp ; docs/etude/MUSIQUE.md)
 name     = Spotify
-category = Multimédia
+category = Musique
 description = Écouter Spotify : le lecteur web de Spotify dans sa propre fenêtre, avec votre compte (Widevine, Korin PC).
 keywords = musique spotify écouter playlist titres aimés podcast artiste album
 help = Au premier lancement, Spotify propose de télécharger le module Widevine de Google (contenus protégés) ; puis connectez-vous à votre compte Spotify dans la fenêtre, une fois : l'app garde sa session (à part de celle de Jet).

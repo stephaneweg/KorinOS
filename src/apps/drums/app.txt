@@ -1,6 +1,6 @@
 # Manifeste de Boîte à rythmes (lu par la barre de menus, le lanceur et PocketQI)
 name        = Boîte à rythmes
-category    = Multimédia
+category    = Musique
 opens       = drum
 description = Une boîte à rythmes : séquenceur de percussions à 16 ou 32 pas, jouée en MIDI par le synthé General MIDI (canal 10), kits de la SoundFont, export en fichier MIDI.
 keywords    = boîte à rythmes batterie drum machine rythme percussions séquenceur midi kit tempo

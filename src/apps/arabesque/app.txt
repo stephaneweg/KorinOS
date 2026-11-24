@@ -1,6 +1,6 @@
 # Manifeste d'Arabesque, la composition algorithmique par fractales
 name     = Arabesque
-category = Multimédia
+category = Musique
 opens    = ifs arb
 description = Arabesque compose de la musique à partir d'une image : un tracé fractal (IFS) parcourt l'image et la couleur de chaque point devient une note de l'une des dix parties General MIDI.
 keywords = musique composition algorithmique fractale ifs midi accords harmonie générer morceau art song wav mp3 mandelbrot julia image

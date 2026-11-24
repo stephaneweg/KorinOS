@@ -2,7 +2,7 @@
 # de menus. name : le nom affiche ; category : la categorie (tiroir du dock,
 # sous-menu du menu ARMPI). description, keywords, help : pour l'assistant PocketQI (src/apps/pocketqi/README.md).
 name     = Musique
-category = Multimédia
+category = Musique
 description = Un lecteur de musique qui joue les fichiers audio d'un dossier.
 keywords = musique audio chanson morceau écouter lecteur mp3 flac wav ogg midi fms
 help = Le bouton Dossier… choisit le dossier ; par défaut HOME:/music.

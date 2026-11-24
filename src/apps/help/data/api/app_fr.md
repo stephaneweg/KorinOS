@@ -44,7 +44,7 @@ help        = Le bouton Bonjour affiche un message.
 | Clé | Rôle |
 |---|---|
 | `name` | le nom affiché (menu Korin OS, lanceur, barre de menus), traduit par le dictionnaire du système |
-| `category` | la catégorie du lanceur et du menu Korin OS (Accessoires, Bureautique, Création, Développement, Internet, Jeux, Multimédia, Système) ; sans elle : Autres |
+| `category` | la catégorie du lanceur et du menu Korin OS (Accessoires, Bureautique, Création, Développement, Internet, Jeux, Multimédia, Musique, Système) ; sans elle : Autres |
 | `opens` | les extensions qu'elle ouvre (Fichiers lui passe le chemin en argument) |
 | `description`, `keywords`, `help` | ce que PocketQI sait de l'app : une phrase, des mots-clés, des lignes d'aide (plusieurs `help`) |
 | `llm.<action>`, `run.<action>` | une action que PocketQI peut lancer : sa description, puis les arguments donnés à l'app |

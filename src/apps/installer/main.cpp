@@ -749,7 +749,7 @@ struct Cat { char nom[32]; int first, n; bool ouvert; };
 enum { NPQ = 400, NCAT = 24 };
 static Pq g_pq[NPQ]; static int g_npq; static Cat g_cat[NCAT]; static int g_ncat;
 static long g_pview, g_pbandeau; static int s_ptop;
-static const char *ORDRE[24] = { "Système", "Accessoires", "Internet", "Bureautique", "Multimédia", "Création", "Développement", "Jeux", "Émulateurs", 0 };
+static const char *ORDRE[24] = { "Système", "Accessoires", "Internet", "Bureautique", "Multimédia", "Musique", "Création", "Développement", "Jeux", "Émulateurs", 0 };
 static const char *DEFAUT[24] = { "Système", "Accessoires", "Internet", "Bureautique", 0 };
 // /packages/pc/installer.ini (tools/pc/installkey.ini) : l'ordre des catégories et celles cochées d'office
 static void categories_lit ()
