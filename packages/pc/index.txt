@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-24 00:06
+date = 2026-11-24 00:07
 abi = 629
 packages = 117
 board = pc
@@ -724,18 +724,18 @@ content = abbe00f72f244a9ded8a32ece9a30d41e4882fa84f05b9a081019e35c1ec0163
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.96
+version = 2026.11.97
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 34195668
-installed = 100920844
-sha256 = 7e72399f338c075d70966aabd6f8ab4d5c6163c6662fe8e97098210205af298c
-file = pkgs/pc-2026.11.96.opk
+size = 34199588
+installed = 100926602
+sha256 = 64ba7448b6e4d2fa35fec6491df80ec7b61878ce205d406d88e452b35f3cff15
+file = pkgs/pc-2026.11.97.opk
 needs = 
 required = 1
 restart = 1
-content = d6236b7131212bda62fa57828e5ed00cdf0ca2787b67934fcf8bcb2bcd6a3e69
+content = 21707e382574cd859a3eb2e619732cf76181162f6af85cd6e07c2b7fabb8e01f
 
 [2048]
 title = 2048
