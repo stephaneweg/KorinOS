@@ -49,4 +49,6 @@ Demande de l'utilisateur du 24/11/2026, branche claude/lucid-wright-6o2o4b, fusi
   attribut FAT 0x02 par korin_readdir_attr (extension de libposix, sys/dirent.h ; libposix statique : relier
   l'app) ; volumes du réseau nommés (vol_title : « Google Drive », « partage sur hôte », clé TR avec une espace
   insécable car « %s sur %s » = « %s of %s » existe), glyphe réseau, chemin en 2e ligne.
+- Publié : pc 2026.11.107 (24/11 soir, main b591842) : Récents, accents, volumes, fichiers cachés, ↑ ; UIKit dans lib/ et
+  dans korin/initrd.tar ; emporte aussi libposix /proc/self/exe (341c51b, autre session) par Fichiers et Réglages.
 - Le Pi (armpi) n'est pas publié : son paquet a encore files.asm.
