@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-24 20:44
+date = 2026-11-24 20:45
 abi = 629
 packages = 117
 board = pc
@@ -235,14 +235,14 @@ content = f1aaefec3e903a7163903a0e9ea38e5de71356db08b2d6062d0c913d35dfaea0
 
 [arabesque-samples]
 title = Préréglages d'Arabesque
-version = 1.0.1
-category = Multimédia
+version = 1.0.2
+category = Musique
 author = Korin OS
 summary = Des morceaux d'exemple pour Arabesque (sonatine, ballade pour harpe, danse andalouse, rondo...), dans /home/public/arabesque (à tous les comptes)
-size = 17447
+size = 17443
 installed = 62395
-sha256 = 23e282f59a721ba55b33a04a6cda4c19ff346afcb33d1df13352d7a353a3987a
-file = pkgs/arabesque-samples-1.0.1.opk
+sha256 = 36cbd1f029763b3e8738fc6c6efa285bd054cf686c0fb70e09228241823f79ff
+file = pkgs/arabesque-samples-1.0.2.opk
 needs = arabesque, abi >= 626
 required = 0
 restart = 0
