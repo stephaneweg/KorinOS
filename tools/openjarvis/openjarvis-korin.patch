@@ -1,0 +1,25 @@
+diff --git a/src/openjarvis/cli/__init__.py b/src/openjarvis/cli/__init__.py
+index b730a41..907be2c 100644
+--- a/src/openjarvis/cli/__init__.py
++++ b/src/openjarvis/cli/__init__.py
+@@ -114,7 +114,19 @@ if not _DATA_BOUNDARY_BOOTSTRAP:
+     from openjarvis.cli.eval_cmd import eval_group
+     from openjarvis.cli.feedback_cmd import feedback_group
+     from openjarvis.cli.gateway_cmd import gateway
+-    from openjarvis.cli.gui_cmd import gui
++    try:
++        from openjarvis.cli.gui_cmd import gui
++    except ImportError as _gui_err:  # Korin OS : pas de psutil (ni de Node.js pour l'interface)
++        _gui_reason = str(_gui_err)
++
++        @click.command("gui", context_settings={"ignore_unknown_options": True})
++        @click.argument("args", nargs=-1, type=click.UNPROCESSED)
++        def gui(args: tuple[str, ...]) -> None:
++            """Interface graphique (indisponible sur ce système)."""
++            raise click.ClickException(
++                "« jarvis gui » n'est pas disponible ici : " + _gui_reason
++                + ". Utilisez « jarvis » (chat) ou « jarvis serve » (API)."
++            )
+     from openjarvis.cli.host_cmd import host
+     from openjarvis.cli.init_cmd import init
+     from openjarvis.cli.memory_cmd import memory

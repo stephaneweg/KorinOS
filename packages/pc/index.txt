@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-24 02:35
+date = 2026-11-24 04:05
 abi = 629
 packages = 117
 board = pc
@@ -724,18 +724,18 @@ content = abbe00f72f244a9ded8a32ece9a30d41e4882fa84f05b9a081019e35c1ec0163
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.98
+version = 2026.11.99
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 34200378
-installed = 100930634
-sha256 = 5a2ede1ade78928ce66aeb0efbf630716a91290da72e3f90a747482152555630
-file = pkgs/pc-2026.11.98.opk
+size = 34201205
+installed = 100931722
+sha256 = 0f973fd5f017e58fbecbbc7b4a72095cd863d0cca05f3b11f831d39f8ede65a1
+file = pkgs/pc-2026.11.99.opk
 needs = 
 required = 1
 restart = 1
-content = 2335d5a380ce088db5a65bd05c23c6a44175f96eba852e8aa7aa697976e1adc0
+content = cb8ab9bbbb72fdb873d04a2c1ad6326e5ece499f8b5268ff7f11d1c8d7e59273
 
 [2048]
 title = 2048
@@ -1789,18 +1789,18 @@ content = 06ef9c3108f787b8f653e000892fd1351830691d590a7a4f8c9e9c9151c75d53
 
 [tf1plus]
 title = TF1+
-version = 1.0.2
+version = 1.0.3
 category = Multimédia
 author = Korin OS
 summary = TF1+ : le site de TF1+ (direct et replay) dans sa fenêtre (Widevine), avec votre compte
-size = 129527
-installed = 272372
-sha256 = 522680febbcc3895ee52bb384735b21569c7d8ad202fda515be6814336a05572
-file = pkgs/tf1plus-1.0.2.opk
-needs = jet >= 1.4.2, abi >= 626
+size = 130161
+installed = 273145
+sha256 = 4058ebe6c05a3680a8f357e480a30c8d443b0da0eb46cf0b705ef1eef4b33f35
+file = pkgs/tf1plus-1.0.3.opk
+needs = jet >= 1.4.8, abi >= 626
 required = 0
 restart = 0
-content = 7e62bc9e9d7dbf11d87f5827bc5bd78907b90201abc438d4996b2a6806b7c009
+content = 223ff3bcde5c7f6bcba0d7b640cb1eb78181ddc2e06fde9040ce55427399d66e
 
 [primevideo]
 title = primevideo
@@ -2537,3 +2537,18 @@ needs = freetype-dev, harfbuzz-dev, libpng-dev, libwebp-dev, zlib-dev, abi >= 62
 required = 0
 restart = 0
 content = 418a715764c9ad3c4b05cb05742e4825b71ba8b241835e5e81def7245f3d657a
+
+[llamacpp]
+title = llama.cpp
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les modèles de langage GGUF sur le processeur, en local : llama-server (API compatible OpenAI, pour OpenJarvis, Vibe...) et llama-cli (le chat au terminal)
+size = 13686147
+installed = 31967632
+sha256 = 835a25503eb89b79d3b84218edf65526e7cf08c7f60d7d53dc261a844672528c
+file = pkgs/llamacpp-1.0.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+content = 95cd1955ebe8bf8d8c93fe14b028df6ce4a1c4c27de13a9ab9a0ef1b2c4719d1

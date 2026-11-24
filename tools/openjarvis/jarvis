@@ -1,0 +1,16 @@
+#!/bin/bash
+# jarvis : lance OpenJarvis installé par tools/openjarvis/install.sh (dossier de ce script) sur le Python de Korin.
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+
+# les paquets d'OpenJarvis et ses remplaçants pour Korin (jiter, SQLite sans WAL)
+export PYTHONUSERBASE="$ROOT/pyenv"
+# pas de rustc pour pip et les autres (README.md, « Pièges »)
+PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v '/devtools/rust' | paste -sd: -)"
+export PATH
+# /tmp refuse les noms longs : les temporaires vont sur le disque
+mkdir -p "$ROOT/.tmp"
+export TMPDIR="$ROOT/.tmp"
+# pas de mise à jour automatique : « jarvis self-update » réinstallerait des paquets qui ne se construisent pas ici
+export OPENJARVIS_NO_UPDATE_CHECK=1
+
+exec python3 "$ROOT/pyenv/bin/jarvis" "$@"
