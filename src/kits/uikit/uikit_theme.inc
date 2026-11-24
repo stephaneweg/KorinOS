@@ -65,10 +65,10 @@ uk_accents:
 	dw 0x00CF3F0A, 0x00D04510
 	db 'vert',0
 	times 15-4 db 0
-	dw 0x005FBF12, 0x00A6E22E
+	dw 0x002E8B3E, 0x0057B65F
 	db 'jaune',0
 	times 15-5 db 0
-	dw 0x00F2B705, 0x00FFD02E
+	dw 0x00E69A0F, 0x00FFB52E
 	db 'violet',0
 	times 15-6 db 0
 	dw 0x007340E0, 0x007E52E6

@@ -296,6 +296,7 @@ UK_STR(uk_s_go) UK_STR(uk_s_oct) UK_STR(uk_s_dir) UK_STR(uk_s_replace)
 UK_STR(uk_menu_title) /* uikit_frame.inc (uk_frame.c) : « menu » */
 #define S(n) ((long)(uintptr_t)(n))
 long uk_conf_path(const char *name, long write); /* uk_core.c : réglages personnels */
+void uk_recent_add(long path); /* uk_assoc.c : HOME:/etc/recent-files.txt */
 
 /* ---- AppKit (importé : fmt_dec, str_cat, lang_tr, lang_get, lang_load) -- */
 #define TR(x) lang_tr((long)(x))

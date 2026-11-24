@@ -56,7 +56,7 @@ static const char *const th_acc_names[TH_NACC] = {	/* (les noms de uk_accents, U
 	"bleu", "orange", "vert", "jaune", "violet", "fuchsia", "sarcelle", "graphite",
 };
 static const char *const th_acc_labels[TH_NACC] = {
-	"Bleu", "Rouge orang\xC3\xA9", "Vert vif", "Jaune", "Violet", "Fuchsia", "Sarcelle", "Graphite",
+	"Bleu", "Rouge orang\xC3\xA9", "Vert", "Jaune", "Violet", "Fuchsia", "Sarcelle", "Graphite",
 };
 /* les fonds, dans l'ordre de wallpaper.h (WP_*) */
 static const char *const th_wp_labels[WP_NMODES] = {

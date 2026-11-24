@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -110,6 +111,9 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define KEY_N_		0x11
 #define KEY_K_		0x0E
 #define KEY_L_		0x0F
+#define KEY_R_		0x15
+#define KEY_ESC_	0x29
+#define KEY_TAB_	0x2B
 #define KEY_W_		0x1A
 #define KEY_F2_		0x3B
 #define KEY_F5_		0x3E
@@ -137,6 +141,7 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define ID_DUAL		42			/* Affichage > Deux vues */
 #define ID_COPYTO	13			/* Edition > Copier vers l'autre vue */
 #define ID_MOVETO	14
+#define ID_LOCATION	15			/* Aller > Aller a l'emplacement (Ctrl+L) */
 
 #define HDR_H		24			/* en-tete des colonnes (vue liste) */
 #define CELL_W		96			/* case de la vue icones */
@@ -152,8 +157,6 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define S_TYPE		2
 
 /* les dossiers dessines ont leur couleur propre (comme l'asm : une icone, pas un element de l'interface) */
-#define COL_FOLDER	0x00E8B64C
-#define COL_FOLDER_D	0x00C99A35
 
 struct ent
 {
@@ -215,6 +218,15 @@ static struct place places[PL_MAX];
 static char pl_buf[PL_BUF];
 static char menu_buf[WS_MENU_MAX + 16];
 static char path[272], fullpath[600], tmpname[272], crbuf[272], stbuf[400], popbuf[400], cellbuf[272];
+
+/* Recents (24/11/2026, comme GNOME) : un dossier virtuel, « recent: », les fichiers ouverts (HOME:/etc/recent-files.txt,
+ * tenu par UIKit : ui_assoc_open, ui_file_open, ui_file_save), le plus recent d'abord ; le nom d'un element y est
+ * son chemin complet (ent_shown n'en montre que le nom, make_full le rend tel quel) */
+#define RECENT		"recent:"
+#define RECENT_FILE	"recent-files.txt"
+static int is_recent_p (const char *p) { return !strcmp (p, RECENT); }
+static int is_recent (void) { return is_recent_p (path); }
+static void recent_forget (void);
 static struct crumb crumbs[CR_MAX];
 static char (*hist)[HIST_SZ];			/* HIST_MAX dossiers (ceux de la vue en cours) */
 static long *order;				/* MAXE rangs -> entrees */
@@ -488,10 +500,25 @@ static char *fmt_size (unsigned long v, char *d)
 
 static struct ent *ent_ptr (long i) { return &ents[order[i]]; }
 
-static const char *ent_shown (struct ent *e) { return e->kind == K_APP ? e->label : e->name; }
+static const char *ent_shown (struct ent *e)
+{
+	if (e->kind == K_APP)
+		return e->label;
+	if (is_recent ())
+	{					/* (Recents : le nom seul) */
+		const char *b = strrchr (e->name, '/');
+		return b && b[1] ? b + 1 : e->name;
+	}
+	return e->name;
+}
 
 /* rang affiche -> chemin complet dans fullpath -> sa fin */
-static char *make_full (long i) { return path_join (fullpath, path, ent_ptr (i)->name); }
+static char *make_full (long i)
+{
+	if (is_recent ())
+		return str_cat (fullpath, ent_ptr (i)->name);	/* (Recents : deja complet) */
+	return path_join (fullpath, path, ent_ptr (i)->name);
+}
 
 static void set_scroll (long v)
 {
@@ -602,6 +629,12 @@ static long ent_cmp (long ia, long ib)
 /* tri par insertion de order[nents] */
 static void sort_ents (void)
 {
+	if (is_recent ())
+	{					/* (Recents : le plus recent d'abord, toujours) */
+		for (long i = 0; i < nents; i++)
+			order[i] = i;
+		return;
+	}
 	for (long i = 1; i < nents; i++)
 	{
 		long v = order[i], j = i;
@@ -799,6 +832,36 @@ static void *ls_thread (void *a)
 	DIR *d = 0;
 	if (!L->e)
 		L->err = -ENOMEM;
+	else if (is_recent_p (L->dir))
+	{					/* Recents : la liste de UIKit, les fichiers encore la */
+		char cp_[160], *buf = (char *) malloc (16384);
+		int fd = buf ? open (korin_conf_path (RECENT_FILE, cp_, sizeof cp_, 0), O_RDONLY) : -1;
+		long n = fd >= 0 ? read (fd, buf, 16383) : 0;
+		if (fd >= 0)
+			close (fd);
+		if (n < 0)
+			n = 0;
+		if (buf)
+			buf[n] = 0;
+		for (char *l = buf; l && *l && L->n < MAXE;)
+		{
+			char *e = strchr (l, 10);
+			if (e)
+				*e = 0;
+			struct stat st;
+			if (*l && strlen (l) < 256 && stat (l, &st) == 0 && !S_ISDIR (st.st_mode))
+			{
+				struct ent *en = &L->e[L->n++];
+				str_copy_n (en->name, l, 256);
+				en->kind = K_FILE;
+				en->size = (unsigned long) st.st_size;
+			}
+			if (!e)
+				break;
+			l = e + 1;
+		}
+		free (buf);
+	}
 	else if (!(d = opendir (L->dir)))
 		L->err = kerr (errno);
 	if (d)
@@ -884,6 +947,8 @@ static int ls_take (void)
 			order[i] = i;
 		}
 		sort_ents ();
+		if (is_recent () && !nents)
+			set_msg ("Aucun fichier récent : ceux que vous ouvrez viendront ici");
 	}
 	free (L);
 	if (ls_sel[0])
@@ -1312,6 +1377,8 @@ static const char *place_glyph (const char *dir)
 	}
 	if (!strcmp (dir, "/apps") || !strcmp (dir, "/apps/"))
 		return "glyph-place-apps";
+	if (is_recent_p (dir))
+		return "glyph-place-recent";
 	return "glyph-place-folder";
 }
 
@@ -1324,6 +1391,22 @@ static int same_dir (const char *a, const char *b)
 	if (lb > 1 && b[lb - 1] == '/')
 		lb--;
 	return la == lb && !strncasecmp (a, b, la);
+}
+
+/* nom d'un dossier type du dossier personnel -> son glyphe, sinon 0 */
+static const char *std_glyph (const char *name)
+{
+	for (size_t i = 0; i < sizeof std_dirs / sizeof std_dirs[0]; i++)
+		if (!strcasecmp (name, std_dirs[i][0]))
+			return std_dirs[i][1];
+	return 0;
+}
+
+/* le dossier courant est-il le dossier personnel (« HOME:/ », ou son vrai chemin : $HOME) ? */
+static int path_is_home (void)
+{
+	const char *h = getenv ("HOME");
+	return same_dir (path, "HOME:/") || same_dir (path, "HOME:") || (h && *h && same_dir (path, h));
 }
 
 static void places_load (void)
@@ -1359,7 +1442,7 @@ static void places_load (void)
 			char *lab = ini_trim (line);	/* (casse gardee) */
 			char *dir = ini_trim (q + 1);
 			struct stat st;
-			if (*lab && *dir && stat (dir, &st) == 0 && S_ISDIR (st.st_mode))
+			if (*lab && *dir && (is_recent_p (dir) || (stat (dir, &st) == 0 && S_ISDIR (st.st_mode))))
 			{
 				if (pl_n >= PL_MAX)
 					return;
@@ -1384,7 +1467,7 @@ static void menu_build (void)
 		"I7\tRenommer…\tF2\n"
 		"I3\tSupprimer\tSuppr\n"
 		"-\n"
-		"I4\tActualiser\tCtrl+L\n"
+		"I4\tActualiser\tF5\n"
 		"-\n"
 		"I5\tFermer\tCtrl+W\n"
 		"MÉdition\n"
@@ -1396,6 +1479,7 @@ static void menu_build (void)
 		"I14\tDéplacer vers l'autre vue\n"
 		"MAller\n"
 		"I10\tDossier parent\tRetour\n"
+		"I15\tAller à l'emplacement…\tCtrl+L\n"
 		"-\n";
 	static const char tail[] = "-\n"
 		"I11\tSD0:\n"
@@ -1516,6 +1600,15 @@ static long cur_vol (void) { return vol_of (path); }
 /* le volume qui contient le chemin p (le point de montage le plus long), -1 */
 static long vol_of (const char *p)
 {
+	char hp[600];
+	long h = home_prefix (p);
+	if (h)
+	{					/* « HOME:/x » : dans le volume du vrai dossier personnel ($HOME) ; sans cela, un dossier de
+						 * HOME: passait pour un volume retire a chaque changement des volumes (retour a /) */
+		const char *hm = getenv ("HOME");
+		snprintf (hp, sizeof hp, "%s/%s", hm && *hm ? hm : "/home", p + h);
+		p = hp;
+	}
 	long best = -1;
 	size_t bl = 0;
 	for (long i = 0; i < vol_n; i++)
@@ -1803,12 +1896,12 @@ static long vol_poll (void)
 	}
 	vol_build ();
 	space_ask ();				/* (leur place, dans son thread) */
-	if (vfs_ch >= 0 && cur_vol () < 0)
+	if (vfs_ch >= 0 && cur_vol () < 0 && !is_recent ())
 	{					/* le volume du dossier courant a disparu */
 		go_sd0 ();
 		set_msg ("Volume retiré : retour à /");
 	}
-	if (vfs_ch >= 0 && dual && vol_of (panes[!curp].path) < 0)
+	if (vfs_ch >= 0 && dual && vol_of (panes[!curp].path) < 0 && !is_recent_p (panes[!curp].path))
 	{					/* celui de l'autre vue */
 		str_copy_n (panes[!curp].path, "/", sizeof panes[0].path);
 		panes[!curp].msg = TR ("Volume retiré : retour à /");
@@ -2616,6 +2709,13 @@ static void open_sel (void)
 		int x = posix_spawn (&pid, fullpath, 0, 0, argv, environ);
 		r = x ? kerr (x) : pid;
 	}
+	if (r >= 0 && en->kind == K_FILE && is_recent ())
+	{					/* (Recents : il passe en tete) */
+		char keep[600];
+		str_copy_n (keep, fullpath, sizeof keep);
+		load_dir ();
+		select_name (keep);
+	}
 	if (r < 0)
 		set_err (r);
 	else
@@ -2640,6 +2740,8 @@ static void open_with_sel (void)
 /* dossier parent (le dossier quitte reste selectionne) */
 static void go_parent (void)
 {
+	if (is_recent ())
+		return;
 	const char *last = path;
 	for (const char *p = path; *p; p++)
 		if (*p == '/')
@@ -2656,6 +2758,11 @@ static void go_parent (void)
 /* « Nouveau dossier », « Nouveau dossier 2 »... (le premier libre) */
 static void new_folder (void)
 {
+	if (is_recent ())
+	{
+		set_msg ("Impossible dans Récents");
+		return;
+	}
 	struct stat st;
 	for (long i = 1; i < 100; i++)
 	{
@@ -2691,6 +2798,11 @@ static void delete_many (void);
 
 static void delete_sel (void)
 {
+	if (is_recent ())
+	{					/* (Recents : retirer de la liste, le fichier reste) */
+		recent_forget ();
+		return;
+	}
 	if (nsel > 1)
 	{
 		delete_many ();
@@ -2823,6 +2935,11 @@ static int same_nocase (const char *a, const char *b)
  * volume : sans copie) ; la liste relue, l'entree renommee choisie */
 static void rename_sel (void)
 {
+	if (is_recent ())
+	{
+		set_msg ("Impossible dans Récents");
+		return;
+	}
 	if (cursel < 0)
 		return;
 	char old[256], nn[256], to[520];
@@ -3723,6 +3840,11 @@ static void clip_sel (int cut)
 static void to_other (int move)
 {
 	static char b[16384];
+	if (is_recent_p (panes[!act].path))
+	{
+		set_msg ("Impossible dans Récents");
+		return;
+	}
 	if (!dual || !sel_list (b, sizeof b))
 		return;
 	char dir[CP_PATH];
@@ -3734,6 +3856,11 @@ static void to_other (int move)
 /* Coller : dans le dossier courant */
 static void paste (void)
 {
+	if (is_recent ())
+	{
+		set_msg ("Impossible dans Récents");
+		return;
+	}
 	static char b[8192];
 	long cut = 0, n = uikit_call3 ((long (*) ()) ui_clip_get_files, (long) b, sizeof b, 0, 0, &cut, 0);
 	if (n <= 0)
@@ -3828,11 +3955,25 @@ static void place_pin (const char *dir, int pin)
  * Couper, Copier, Renommer..., Supprimer) ; dans le vide : Coller, Nouveau dossier */
 static void ctx_menu (long x, long y)
 {
-	enum { A_OPEN, A_WITH, A_CUT, A_COPY, A_RENAME, A_DELETE, A_PASTE, A_NEWDIR, A_COPYTO, A_MOVETO, A_PIN };
+	enum { A_OPEN, A_WITH, A_CUT, A_COPY, A_RENAME, A_DELETE, A_PASTE, A_NEWDIR, A_COPYTO, A_MOVETO, A_PIN, A_LOCATE,
+		A_FORGET };
 	static const char *const lab[] = { "Ouvrir", "Ouvrir avec…", "Couper", "Copier", "Renommer…", "Supprimer",
-		"Coller", "Nouveau dossier", "Copier vers « %s »", "Déplacer vers « %s »", "Épingler aux accès rapides" };
-	int act[12], n = 0;
-	if (cursel < 0 || !nsel)
+		"Coller", "Nouveau dossier", "Copier vers « %s »", "Déplacer vers « %s »", "Épingler aux accès rapides",
+		"Ouvrir l'emplacement", "Retirer des récents" };
+	int act[14], n = 0;
+	if (is_recent ())
+	{					/* Recents : ouvrir, copier, son dossier, retirer de la liste */
+		if (cursel < 0 || !nsel)
+			return;
+		act[n++] = A_OPEN;
+		if (nsel == 1)
+			act[n++] = A_WITH;
+		act[n++] = A_COPY;
+		if (nsel == 1)
+			act[n++] = A_LOCATE;
+		act[n++] = A_FORGET;
+	}
+	else if (cursel < 0 || !nsel)
 	{
 		act[n++] = A_PASTE;
 		act[n++] = A_NEWDIR;
@@ -3884,7 +4025,58 @@ static void ctx_menu (long x, long y)
 	case A_PASTE: paste (); break;
 	case A_NEWDIR: new_folder (); break;
 	case A_PIN: place_pin ((make_full (cursel), fullpath), 1); break;
+	case A_LOCATE:
+	{					/* son dossier, lui choisi */
+		char f[600];
+		str_copy_n (f, (make_full (cursel), fullpath), sizeof f);
+		str_copy_n (fullpath, f, sizeof fullpath);
+		path_parent (fullpath);
+		go_dir (fullpath);
+		select_name (base_name (f));
+		break;
 	}
+	case A_FORGET: recent_forget (); break;
+	}
+}
+
+/* Recents : la selection retiree de la liste (les fichiers restent) */
+static void recent_forget (void)
+{
+	if (!is_recent () || !nsel)
+		return;
+	char cp_[160];
+	static char raw[16384], out[16384];
+	int fd = open (korin_conf_path (RECENT_FILE, cp_, sizeof cp_, 0), O_RDONLY);
+	long n = fd >= 0 ? read (fd, raw, sizeof raw - 1) : 0;
+	if (fd >= 0)
+		close (fd);
+	if (n < 0)
+		n = 0;
+	raw[n] = 0;
+	long o = 0;
+	for (char *l = raw; *l;)
+	{
+		char *e = strchr (l, 10);
+		if (e)
+			*e = 0;
+		int drop = 0;
+		for (long i = 0; i < nents && !drop; i++)
+			if (is_sel (i) && !strcmp (ent_ptr (i)->name, l))
+				drop = 1;
+		if (*l && !drop && o + (long) strlen (l) + 2 < (long) sizeof out)
+			o += snprintf (out + o, sizeof out - (size_t) o, "%s\n", l);
+		if (!e)
+			break;
+		l = e + 1;
+	}
+	fd = open (korin_conf_path (RECENT_FILE, cp_, sizeof cp_, 1), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (fd >= 0)
+	{
+		write (fd, out, (size_t) o);
+		close (fd);
+	}
+	load_dir ();
+	set_msg ("Retiré des récents");
 }
 
 /* actualiser (dossier et volumes ; la selection est gardee) */
@@ -3910,12 +4102,36 @@ static void text (const char *s, long x, long base, unsigned c, long px, const u
 
 static long text_w (const char *s, long px, const unsigned char *font) { return ui_text_width ((long) s, px, (long) font); }
 
-/* petit dossier (20 x 17) */
-static void draw_folder (long x, long y, unsigned tab, unsigned body)
+/* les dossiers a la maniere d'Adwaita (24/11/2026) : deux masques de tools/icons (glyph-folder-back : le fond et son
+ * onglet ; glyph-folder-front : la face, qui redescend a gauche sous l'onglet), colories d'apres l'accent du theme ;
+ * un dossier type du dossier personnel porte en plus son glyphe (place_glyph) en embleme */
+
+/* c eclairci vers le blanc de t/256 */
+static unsigned tint (unsigned c, unsigned t)
 {
-	ui_fill (x, y + 1, 8, 3, tab);
-	ui_fill (x, y + 3, 20, 14, body);
+	unsigned r = 0;
+	for (int sh = 0; sh < 24; sh += 8)
+	{
+		unsigned v = (c >> sh) & 255;
+		r |= (v + (255 - v) * t / 256) << sh;
+	}
+	return r;
 }
+
+static unsigned folder_back (void) { return tint (TOK (TJ_ACCENT), 31); }	/* le fond, l'embleme */
+
+/* dossier de cote side (20, 48) ; edge : son epaisseur sous la face (un trait plus fonce) */
+static void draw_folder_s (long x, long y, long side, int edge)
+{
+	unsigned a = TOK (TJ_ACCENT);
+	ui_glyph ((long) "glyph-folder-back", x, y, side, folder_back ());
+	if (edge)
+		ui_glyph ((long) "glyph-folder-front", x, y + 1, side, tint (a, 77));
+	ui_glyph ((long) "glyph-folder-front", x, y, side, tint (a, 148));
+}
+
+/* petit dossier (20 x 20) */
+static void draw_folder (long x, long y) { draw_folder_s (x, y, 20, 0); }
 
 /* page (14 x 18) */
 static void draw_doc (long x, long y)
@@ -4134,6 +4350,13 @@ static void draw_dual (void)
  * segment reste le vrai */
 static void crumbs_make (void)
 {
+	if (is_recent ())
+	{					/* (Recents : un seul segment, son nom) */
+		crumbs[0].txt = TR ("Récents");
+		crumbs[0].end = 0;
+		cr_n = 1;
+		return;
+	}
 	str_copy_n (crbuf, path, 272);
 	char *start = crbuf;
 	long n = 0;
@@ -4225,6 +4448,17 @@ static void draw_crumbs (void)
 
 /* en-tete : precedent, suivant, parent, fil d'Ariane, choix de la vue ; rien dans les FRAME_CAP_W
  * de droite (boutons de la fenetre) */
+/* le champ d'emplacement (24/11/2026) : un ui_textbox par-dessus le fil d'Ariane, ouvert par Ctrl+L, un clic dans le
+ * fil d'Ariane, ou « / » et « ~ » tapes dans la vue ; Entree y va, Echap le ferme, Tab complete le dernier nom */
+static long loc_w;				/* le champ (0 : pas encore cree) */
+static int loc_on;				/* montre */
+static void loc_open (const char *init);
+
+static void loc_place (void)
+{
+	ui_w_move (loc_w, CR_X0 - 8, NAV_Y, W_ - CR_R - CR_X0 + 16, NAV_H);
+}
+
 static void draw_top (void)
 {
 	ui_fill (PAN_W, 0, W_ - PAN_W, TOP_H, TOK (TJ_SURFACE));
@@ -4235,7 +4469,10 @@ static void draw_top (void)
 		draw_nav (h);
 	draw_dual ();
 	draw_seg ();
-	draw_crumbs ();
+	if (loc_on)
+		loc_place ();			/* (le champ est dessine a la fin de draw, par-dessus) */
+	else
+		draw_crumbs ();
 }
 
 /* x, y -> element de l'en-tete sous ce point (H_*, 0 : aucun ; le dernier segment n'en est pas un,
@@ -4335,7 +4572,7 @@ static void draw_rows (void)
 			draw_sel (vx0 + 4, y + 1, vx1 - (vx0 + 8), ROW_H - 2);
 		struct ent *e = ent_ptr (i);
 		if (e->kind == K_DIR)
-			draw_folder (vx0 + 12, y + 4, COL_FOLDER_D, COL_FOLDER);
+			draw_folder (vx0 + 12, y + 3);
 		else if (e->kind == K_APP)
 			ui_icon ((long) e->icon, vx0 + 12, y + 3, 20);
 		else
@@ -4363,10 +4600,12 @@ static void draw_rows (void)
 }
 
 /* grand dossier (48 x 44) */
-static void draw_folder_big (long x, long y)
+/* grand dossier (ICON_S) ; emb : son embleme (glyph-place-*, 0 : aucun), au milieu de la face */
+static void draw_folder_big (long x, long y, const char *emb)
 {
-	ui_rbox (x + 2, y + 4, 20, 10, 3, COL_FOLDER_D, COL_FOLDER_D);
-	ui_rbox (x, y + 9, ICON_S, 35, 4, COL_FOLDER, COL_FOLDER);
+	draw_folder_s (x, y, ICON_S, 1);
+	if (emb)
+		ui_glyph ((long) emb, x + ICON_S / 2 - 8, y + ICON_S * 5 / 8 - 8, 16, folder_back ());
 }
 
 /* grande page (32 x 44, centree dans 48) */
@@ -4426,6 +4665,7 @@ static void draw_grid (void)
 {
 	ui_fill (vx0, vtop, vx1 - vx0, H_ - (vtop + SB_H), TOK (TJ_SURFACE));
 	long gx = grid_x0 ();
+	int home = path_is_home ();		/* (ses dossiers types ont leur embleme) */
 	for (long c = 0; c < rows * cols; c++)
 	{
 		long i = scroll_ * cols + c;	/* rang */
@@ -4437,7 +4677,7 @@ static void draw_grid (void)
 		struct ent *e = ent_ptr (i);
 		long ix = x + (CELL_W - ICON_S) / 2, iy = y + 5;
 		if (e->kind == K_DIR)
-			draw_folder_big (ix, iy);
+			draw_folder_big (ix, iy, home ? std_glyph (e->name) : 0);
 		else if (e->kind == K_APP)
 			ui_icon ((long) e->icon, ix, iy, ICON_S);
 		else
@@ -4500,8 +4740,8 @@ static void draw_banner (void)
 	if (on)
 		ui_fill (vx0, y, w, 2, TOK (TJ_ACCENT));
 	ui_fill (vx0, y + BAN_H - 1, w, 1, TOK (TJ_LINE));
-	draw_folder (vx0 + 8, y + 6, COL_FOLDER_D, COL_FOLDER);
-	const char *nm = path[0] == '/' && !path[1] ? "/" : base_name (path);
+	draw_folder (vx0 + 8, y + 3);
+	const char *nm = is_recent () ? TR ("Récents") : path[0] == '/' && !path[1] ? "/" : base_name (path);
 	long x = vx0 + 34, right = vx1 - 10;
 	long v = vol_of (path);
 	const struct vspace *sp = v >= 0 ? space_of (&vols[v]) : 0;
@@ -4559,6 +4799,8 @@ static void draw (void)
 	if (dual)
 		draw_split ();
 	draw_status ();
+	if (loc_on)
+		ui_w_draw (loc_w);
 	ui_update_all ();
 }
 
@@ -4601,6 +4843,7 @@ static void on_menu (long id)
 	case ID_DUAL: dual_set (!dual); menu_states (); break;
 	case ID_COPYTO: to_other (0); break;
 	case ID_MOVETO: to_other (1); break;
+	case ID_LOCATION: loc_open (0); return;
 	default:
 		if ((unsigned long) (id - ID_PLACE) >= (unsigned long) pl_n)
 			return;
@@ -4744,6 +4987,11 @@ static void on_mouse (void)
 	if (y < TOP_H)
 	{					/* en-tete */
 		long h = head_at (x, y);
+		if (!h && x >= CR_X0 - 8 && x < W_ - CR_R + 8 && y >= NAV_Y && y < NAV_Y + NAV_H)
+		{				/* le fil d'Ariane hors d'un segment : le chemin s'edite */
+			loc_open (0);
+			return;
+		}
 		if (!h)
 			return;
 		head_click (h);
@@ -4906,6 +5154,8 @@ static void drag_ghost (long i)
  * sur un meme volume, copies d'un volume a l'autre */
 static void on_drop (void)
 {
+	if (is_recent ())
+		return;				/* (rien ne se depose dans Recents) */
 	static char b[8192];
 	long kind = 0, n = uikit_drop_get (b, sizeof b - 1, &kind);
 	if (n <= 0 || kind != UDT_FILES)
@@ -4929,16 +5179,341 @@ static void on_drop (void)
 	draw ();
 }
 
+/* ---- le champ d'emplacement ---- */
+
+/* init : le texte de depart, curseur a la fin (« / », « ~/ ») ; 0 : le dossier courant, tout choisi */
+static void loc_open (const char *init)
+{
+	if (!loc_w)
+		loc_w = ui_textbox (CR_X0, NAV_Y, 100, NAV_H, 0);
+	if (!loc_w)
+		return;
+	ui_w_set_text (loc_w, (long) (init ? init : path));
+	long n = ui_w_text_len (loc_w);
+	ui_w_show (loc_w, 1);
+	loc_on = 1;
+	loc_place ();
+	ui_w_focus (loc_w);
+	ui_textbox_select (loc_w, init ? n : 0, n);
+	draw ();
+}
+
+static void loc_close (void)
+{
+	if (!loc_on)
+		return;
+	loc_on = 0;
+	ui_w_show (loc_w, 0);
+	draw ();
+}
+
+/* texte du champ -> chemin complet dans d (« ~ » : HOME:, relatif : depuis le dossier courant ; « . » et « .. »
+ * resolus, « / » doubles et de fin retires) */
+static void loc_resolve (const char *in, char *d, size_t cap)
+{
+	char t[600];
+	while (*in == ' ')
+		in++;
+	if (in[0] == '~' && (!in[1] || in[1] == '/'))
+		snprintf (t, sizeof t, "HOME:/%s", in[1] ? in + 2 : "");
+	else if (in[0] == '/' || home_prefix (in) || strchr (in, ':'))
+		snprintf (t, sizeof t, "%s", in);
+	else
+		path_join (t, path, in);
+	size_t n = strlen (t);
+	while (n && t[n - 1] == ' ')
+		t[--n] = 0;
+	/* la racine (« / » ou « VOLUME: ») puis les noms */
+	char *r = t, out[600];
+	size_t o = 0;
+	char *colon = strchr (t, ':'), *slash = strchr (t, '/');
+	if (colon && (!slash || colon < slash))
+	{
+		o = (size_t) (colon - t) + 1;
+		memcpy (out, t, o);
+		r = colon + 1;
+	}
+	out[o++] = '/';
+	size_t root = o;
+	for (char *seg = r; *seg;)
+	{
+		while (*seg == '/')
+			seg++;
+		char *e = seg;
+		while (*e && *e != '/')
+			e++;
+		size_t l = (size_t) (e - seg);
+		if (l == 1 && seg[0] == '.')
+			;
+		else if (l == 2 && seg[0] == '.' && seg[1] == '.')
+		{				/* le nom d'avant s'en va (jamais la racine) */
+			if (o > root)
+			{
+				o--;
+				while (o > root && out[o - 1] != '/')
+					o--;
+			}
+		}
+		else if (l && o + l + 2 < sizeof out)
+		{
+			memcpy (out + o, seg, l);
+			o += l;
+			out[o++] = '/';
+		}
+		seg = e;
+	}
+	if (o > root)
+		o--;				/* (pas de « / » a la fin, sauf la racine) */
+	out[o] = 0;
+	snprintf (d, cap, "%s", out);
+}
+
+/* Entree : un dossier -> on y va ; un fichier -> son dossier, lui choisi ; sinon le message, le champ reste */
+static void loc_go (void)
+{
+	char p[600];
+	struct stat st;
+	const char *txt = (const char *) ui_w_get_text (loc_w);
+	while (*txt == ' ')
+		txt++;
+	if (!strncasecmp (txt, RECENT, 7) && (!txt[7] || txt[7] == '/' || txt[7] == ' '))
+	{				/* « recent: » : la vue Recents */
+		loc_on = 0;
+		ui_w_show (loc_w, 0);
+		go_dir (RECENT);
+		draw ();
+		return;
+	}
+	loc_resolve (txt, p, sizeof p);
+	if (strlen (p) >= 256 || stat (p, &st) != 0)
+	{
+		static char m[300];
+		snprintf (m, sizeof m, TR ("Introuvable : %s"), p);
+		msg = m;
+		draw ();
+		return;
+	}
+	loc_on = 0;
+	ui_w_show (loc_w, 0);
+	if (S_ISDIR (st.st_mode))
+		go_dir (p);
+	else
+	{				/* un fichier : son dossier, et lui choisi */
+		char dir[600];
+		snprintf (dir, sizeof dir, "%s", p);
+		path_parent (dir);
+		go_dir (dir);
+		const char *b = base_name (p);
+		for (long i = 0; i < nents; i++)
+			if (!strcmp (ent_ptr (i)->name, b))
+			{
+				sel_one (i);
+				keep_visible ();
+				break;
+			}
+	}
+	draw ();
+}
+
+/* Tab : le dernier nom complete d'apres son dossier (le plus long debut commun ; un seul dossier : « / » apres) */
+static void loc_complete (void)
+{
+	char txt[600], dir[600], best[256];
+	snprintf (txt, sizeof txt, "%s", (const char *) ui_w_get_text (loc_w));
+	char *last = strrchr (txt, '/');
+	const char *pre = last ? last + 1 : txt;
+	size_t pl = strlen (pre);
+	if (last)
+	{				/* le dossier : le texte jusqu'au dernier « / » */
+		char c = last[1];
+		last[1] = 0;
+		loc_resolve (txt, dir, sizeof dir);
+		last[1] = c;
+	}
+	else
+		snprintf (dir, sizeof dir, "%s", path);
+	DIR *dp = opendir (dir);
+	if (!dp)
+		return;
+	long found = 0;
+	int isdir = 0;
+	size_t bl = 0;
+	struct dirent *de;
+	while ((de = readdir (dp)))
+	{
+		const char *nm = de->d_name;
+		if (nm[0] == '.' && (!pl || pre[0] != '.'))
+			continue;			/* (les caches seulement si on les demande) */
+		if (strncasecmp (nm, pre, pl))
+			continue;
+		if (!found++)
+		{
+			snprintf (best, sizeof best, "%s", nm);
+			bl = strlen (best);
+		}
+		else
+		{				/* le debut commun (sans casse) */
+			size_t k = 0;
+			while (k < bl && nm[k] && tolower ((unsigned char) nm[k]) == tolower ((unsigned char) best[k]))
+				k++;
+			bl = k;
+		}
+		if (found == 1)
+		{
+			char fp[600];
+			struct stat st;
+			path_join (fp, dir, nm);
+			isdir = stat (fp, &st) == 0 && S_ISDIR (st.st_mode);
+		}
+	}
+	closedir (dp);
+	if (!found || (bl <= pl && found > 1))
+		return;				/* (rien, ou plusieurs sans rien de plus en commun) */
+	best[bl] = 0;
+	size_t head = (size_t) (pre - txt);
+	snprintf (txt + head, sizeof txt - head, "%s%s", best, found == 1 && isdir ? "/" : "");
+	ui_w_set_text (loc_w, (long) txt);
+	long n = ui_w_text_len (loc_w);
+	ui_textbox_select (loc_w, n, n);
+	ui_w_draw (loc_w);
+}
+
+/* un evenement pendant l'edition -> 1 s'il est pris (le champ, Entree, Echap, Tab, un clic ailleurs le ferme) */
+static int loc_event (long t)
+{
+	if (t == WEV_KEY && ui_ev_field (&ui, EV_KIND))
+	{
+		long k = ui_ev_field (&ui, EV_CODE);
+		if (k == KEY_ESC_)
+		{
+			loc_close ();
+			return 1;
+		}
+		if (k == KEY_TAB_ && !(ui_ev_field (&ui, EV_MODS) & UI_MOD_CTRL))
+		{
+			loc_complete ();
+			return 1;
+		}
+	}
+	if (t == WEV_MOUSE && ui_ev_field (&ui, EV_KIND) == 1)
+	{				/* un clic hors du champ : ferme, puis le clic sert */
+		long x = ui_ev_field (&ui, EV_X), y = ui_ev_field (&ui, EV_Y);
+		if (y < NAV_Y || y >= NAV_Y + NAV_H || x < CR_X0 - 8 || x >= W_ - CR_R + 8)
+		{
+			loc_close ();
+			return 0;
+		}
+	}
+	long code = 0, taken = 0;
+	long wid = uikit_w_event (&code, &taken);
+	if (wid == loc_w && code == UN_ACTIVATE)
+	{
+		loc_go ();
+		return 1;
+	}
+	if (t == WEV_KEY)
+		return 1;			/* (les touches restent au champ : Suppr n'efface pas un fichier) */
+	return taken != 0;
+}
+
+/* ---- aller a un element en tapant son nom (24/11/2026) : les lettres tapees a moins d'une seconde
+ * d'intervalle s'ajoutent ; le premier element dont le nom commence ainsi est choisi ; la meme lettre
+ * repetee passe au suivant qui commence par elle ---- */
+static char ta_buf[64];
+static long ta_len, ta_time;
+static char ta_msg[120];
+
+/* point de code -> UTF-8 dans d -> octets */
+static int utf8_put (long c, char *d)
+{
+	if (c < 0x80) { d[0] = (char) c; return 1; }
+	if (c < 0x800) { d[0] = (char) (0xC0 | (c >> 6)); d[1] = (char) (0x80 | (c & 63)); return 2; }
+	if (c < 0x10000) { d[0] = (char) (0xE0 | (c >> 12)); d[1] = (char) (0x80 | ((c >> 6) & 63)); d[2] = (char) (0x80 | (c & 63)); return 3; }
+	d[0] = (char) (0xF0 | (c >> 18)); d[1] = (char) (0x80 | ((c >> 12) & 63)); d[2] = (char) (0x80 | ((c >> 6) & 63));
+	d[3] = (char) (0x80 | (c & 63));
+	return 4;
+}
+
+static void type_ahead (long ch)
+{
+	long now = time_ms ();
+	if (now - ta_time > 1000)
+		ta_len = 0;
+	ta_time = now;
+	char u[4];
+	int n = utf8_put (ch, u);
+	if (ta_len + n >= (long) sizeof ta_buf)
+		return;
+	memcpy (ta_buf + ta_len, u, (size_t) n);
+	ta_len += n;
+	ta_buf[ta_len] = 0;
+	if (!nents)
+		return;
+	/* la meme lettre repetee (« aaa ») : le suivant qui commence par elle, en boucle */
+	int same = ta_len > n;
+	for (long k = n; same && k < ta_len; k++)
+		if (ta_buf[k] != ta_buf[k % n])
+			same = 0;
+	long start = 0, found = -1;
+	const char *want = ta_buf;
+	size_t wl = (size_t) ta_len;
+	if (same)
+	{
+		wl = (size_t) n;
+		start = cursel >= 0 ? cursel + 1 : 0;
+	}
+	for (long j = 0; j < nents && found < 0; j++)
+	{
+		long i = (start + j) % nents;
+		if (!strncasecmp (ent_shown (ent_ptr (i)), want, wl))
+			found = i;
+	}
+	if (same && found < 0)
+		return;
+	if (found < 0)
+	{				/* rien ne commence ainsi : le message, la selection ne bouge pas */
+		snprintf (ta_msg, sizeof ta_msg, "%s « %s »", TR ("Aucun élément ne commence par"), ta_buf);
+		msg = ta_msg;
+		draw ();
+		return;
+	}
+	sel_one (found);
+	keep_visible ();
+	snprintf (ta_msg, sizeof ta_msg, "%s « %.*s »", TR ("Aller à"), (int) wl, ta_buf);
+	msg = ta_msg;
+	draw ();
+}
+
 static void on_key (void)
 {
 	if (!ui_ev_field (&ui, EV_KIND))
 		return;				/* relache */
-	long k = ui_ev_field (&ui, EV_CODE);
-	if (ui_ev_field (&ui, EV_MODS) & UI_MOD_CTRL)
+	long k = ui_ev_field (&ui, EV_CODE), ch = ui_ev_field (&ui, EV_CHAR), mods = ui_ev_field (&ui, EV_MODS);
+	if (ch >= 0x20 && ch != 0x7F && ch < 0x110000 && (!(mods & UI_MOD_CTRL) || (mods & 0x40)))
+	{					/* un caractere (AltGr compris) : « / » et « ~ » ouvrent l'emplacement, le reste cherche */
+		if (ta_len && time_ms () - ta_time <= 1000)
+			;			/* (en cours de frappe : « / » ou « ~ » font partie du nom) */
+		else if (ch == '/' || ch == '~')
+		{
+			loc_open (ch == '/' ? "/" : "~/");
+			return;
+		}
+		if (ch != ' ' || (ta_len && time_ms () - ta_time <= 1000))
+		{
+			type_ahead (ch);
+			return;
+		}
+	}
+	if (mods & UI_MOD_CTRL)
 	{
 		if (k == KEY_N_)
 			new_folder ();
 		else if (k == KEY_L_)
+		{
+			loc_open (0);		/* (comme GNOME : Ctrl+L, l'emplacement ; Actualiser : F5, Ctrl+R) */
+			return;
+		}
+		else if (k == KEY_R_)
 			refresh ();
 		else if (k == KEY_W_)
 			quit ();
@@ -5133,6 +5708,8 @@ int main (int argc, char **argv)
 			long code, taken;	/* (le kit prend la taille, puis on_resize) */
 			uikit_w_event (&code, &taken);
 		}
+		else if (loc_on && (t == WEV_KEY || t == WEV_MOUSE) && loc_event (t))
+			;				/* (le champ d'emplacement l'a pris) */
 		else if (t == WEV_MOUSE)
 		{
 			ptr_x = ui_ev_field (&ui, EV_X);
@@ -5142,6 +5719,8 @@ int main (int argc, char **argv)
 			on_key ();
 		else if (t == WEV_MENU)
 			on_menu (ui_ev_field (&ui, EV_CODE));
+		else if (t == WEV_THEME)
+			draw ();			/* (theme ou accent change : les dossiers en prennent la couleur) */
 		else if (t == WEV_DROP)
 			on_drop ();
 		else if (t == WEV_BUS)

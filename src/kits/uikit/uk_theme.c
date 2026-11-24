@@ -63,8 +63,8 @@ struct uk_accent_ent {
 static const struct uk_accent_ent uk_accents[9] = {
 	{"bleu", {0x002563D8, 0x002F72DC}},
 	{"orange", {0x00CF3F0A, 0x00D04510}},
-	{"vert", {0x005FBF12, 0x00A6E22E}},
-	{"jaune", {0x00F2B705, 0x00FFD02E}},
+	{"vert", {0x002E8B3E, 0x0057B65F}},
+	{"jaune", {0x00E69A0F, 0x00FFB52E}},
 	{"violet", {0x007340E0, 0x007E52E6}},
 	{"fuchsia", {0x00C2188F, 0x00D12A9C}},
 	{"sarcelle", {0x000B7F7A, 0x000D827C}},

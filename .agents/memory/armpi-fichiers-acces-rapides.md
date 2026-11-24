@@ -19,4 +19,28 @@ Demande de l'utilisateur du 24/11/2026, branche claude/lucid-wright-6o2o4b, fusi
 - `PL_MAX` 16, `ID_PLACE` passé de 20 à 100 (20 + 10 touchait ID_EJECT 30).
 - Piège : un HOME:/etc/places.ini personnel (créé dès qu'on épingle ou retire un accès) masque celui de /etc : il
   garde l'ancienne liste. Le supprimer (ou l'éditer) pour voir la nouvelle.
-- Pas essayé sous QEMU ni sur le Pi au moment de l'écriture ; paquets (armpi, pc) pas publiés.
+- Style Adwaita (24/11, demande de l'utilisateur) : glyph-place-* refaits sur la grille de 16 d'Adwaita, trait de 2
+  (fonction adw d'art.py) ; dossiers de la vue = masques glyph-folder-back (onglet aligné à gauche) et
+  glyph-folder-front (la face redescend à gauche sous l'onglet, courbe en S), coloriés d'après TJ_ACCENT (tint :
+  fond 31/256 vers le blanc, épaisseur 77, face 148) ; dans le dossier personnel (HOME:/ ou $HOME), les dossiers types
+  portent leur glyphe en emblème (16 px) dans la vue en icônes, pas dans la liste. Plus de COL_FOLDER (ambre) en dur.
+- Publié : pc 2026.11.105 (pub.py depuis le cloud, sur l'archive .104 extraite + les fichiers de Fichiers ; essayé
+  sous QEMU PC avec cet arbre comme disque d'essai : mkkorindisk --sysroot <arbre sans EFI/ ni korin/> --esp <ces
+  deux-là> --loader <esp>/EFI/Korin/korin.efi, ligne « /apps/files.app/main HOME:/ » ajoutée à etc/session de l'essai).
+- 24/11 suite : recherche en tapant (type_ahead, 1 s entre les touches, même lettre répétée = suivant) ; champ
+  d'emplacement (ui_textbox loc_w par-dessus le fil d'Ariane : Ctrl+L, clic dans le fil hors d'un segment, « / » et
+  « ~ » tapés ; Tab complète, Entrée, Échap ; ~ = HOME:, relatif, . et ..) ; Ctrl+L n'actualise plus (F5, Ctrl+R),
+  comme GNOME. vol_of : HOME: rattaché au volume de $HOME (avant : « Volume retiré : retour à / » à chaque changement
+  des volumes quand on était dans HOME:). Essayé sous QEMU PC (captures t1..t8).
+- 24/11 : Récents (Favoris refusés par l'utilisateur : l'épinglage suffit). UIKit uk_recent_add (uk_assoc.c, sans
+  changer l'ABI) tient HOME:/etc/recent-files.txt (50, le plus récent d'abord) depuis ui_assoc_open (documents) et
+  ui_file_open/ui_file_save ; Fichiers : dossier virtuel « recent: » (places.ini « Récents = recent: »), noms = chemins
+  complets (ent_shown, make_full), pas de tri, Nouveau dossier/Coller/Renommer/Déposer refusés, Suppr = retirer de la
+  liste ; clic droit Ouvrir l'emplacement, Retirer des récents ; glyph-place-recent (horloge).
+  **Piège du PC** : le noyau prend un kit dans korin/initrd.tar avant lib/, et à version de kit égale initrd_kits.py
+  garde celui de l'initrd : une modification d'UIKit sans changement d'ABI doit remplacer uikit.so DANS l'initrd
+  aussi (scratchpad initrd_put.py : ordre, noms, dates gardés ; pub.py --boot DOSSIER avec korin/initrd.tar).
+- 24/11 : accents de UIKit (uk_theme.c, uikit_theme.inc, applet Thème asm) choisis par l'utilisateur : vert
+  0x2E8B3E (Givre) / 0x57B65F (Onyx Noir), « Vert vif » renommé « Vert » ; jaune 0xE69A0F / 0xFFB52E (le « J3 » :
+  l'utilisateur l'a préféré aux jaunes moins saturés de même teinte). Fichiers redessine sur WEV_THEME.
+- Le Pi (armpi) n'est pas publié : son paquet a encore files.asm.
