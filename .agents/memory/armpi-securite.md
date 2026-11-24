@@ -28,3 +28,10 @@ cloisonnement, cookies.db en clair, /etc/web-probe.js injecté partout, intelgpu
 /file-* de libposix empoisonnable entre comptes ; démarrage : partitions visibles de Windows, ESP de Windows en
 écriture, CR0.WP jamais posé, console de secours sans mot de passe ; vterm /dev/pts ouvert à tous. L'utilisateur fera
 les corrections après le portage de Blender (24/11).
+
+**24/11, plan de correction** : docs/etude/PLAN-CORRECTIONS-SECURITE.md (E00-E75 en 12 phases, chaque étape avec son
+analyse de non-régression faite sur le code, règle de l'utilisateur : « avant toute implémentation, vérifier en
+profondeur qu'il n'y aura pas de régression »). §2 : 29 propositions du brouillon qui auraient cassé le système (avis
+= pid 0 et non REQ_SIGNAL-1, WS_SIGNAL, IMAGE_CREATE par uid, NXE au trampoline, 0xB2 batterie, DEV_MAP, rights de
+session et SVC_REGISTER, WF_TOP/GRAB d'UIKit, VFS_BOOT_BEGIN/pkglib, forbidden et paquet pc, NTP qui recule…).
+Règle Pi : E_NOSYS = uid 0 permis. Rien d'implémenté ; corrections après Blender ; E62 et E70 pas pendant Blender.
