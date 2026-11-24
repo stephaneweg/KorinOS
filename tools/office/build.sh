@@ -16,7 +16,7 @@ OUT=$ROOT/build/office
 JOBS=${JOBS:-8}
 # (terminal ... arkanoid : les apps passées de l'assembleur au C, docs/etude/PC-PILOTES.md « Apps asm en C » : leur main
 # remplace celui de l'asm sur la carte ; 2048 ... tetris : les apps d'Onyx refaites depuis leur source, « Apps d'Onyx en C/C++ » ; l'asm reste dans src/apps, assemblé par build.ps1, jusqu'à sa validation sur le Pi)
-[ $# -gt 0 ] || set -- letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram courier calendar notes paint pdf photos vector printd archiver iconedit disks pinball critters arabesque pocketqi help imageview screenshot budget 	terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano recorder targets bubbles arkanoid 	2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris weather asteroids jamendo relics morpho
+[ $# -gt 0 ] || set -- letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram courier calendar notes paint pdf photos vector printd archiver iconedit disks pinball critters arabesque pocketqi help imageview screenshot budget 	terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano recorder targets bubbles arkanoid 	2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris weather asteroids jamendo relics morpho drums
 mkdir -p "$OUT"
 sed -E "s#/[^ ]*/build/posix#$ROOT/build/posix#g" "$ROOT/build/posix/lib/posix.specs" > "$OUT/posix.specs"
 
@@ -99,5 +99,7 @@ for app; do
 	[ ! -d data ] || cp -r data/. "$A/"
 	# (les préréglages d'exemple d'Arabesque : HOME:/arabesque, le paquet arabesque-samples)
 	[ "$app" != arabesque ] || [ ! -d presets ] || { mkdir -p "$OUT/sdroot/home/public/arabesque"; cp presets/*.arb "$OUT/sdroot/home/public/arabesque/"; }
+	# (les rythmes d'exemple de la Boîte à rythmes : /home/public/DrumMachine, le paquet drums-samples)
+	[ "$app" != drums ] || { mkdir -p "$OUT/sdroot/home/public/DrumMachine"; cp models/*.drum "$OUT/sdroot/home/public/DrumMachine/"; }
 	ls -l "$A/main"
 done

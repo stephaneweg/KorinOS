@@ -6,6 +6,28 @@ PS1='\[\e[1;32m\]korin\[\e[0m\]:\[\e[1;34m\]\w\[\e[0m\]\$ '
 case ":$PATH:" in *:/sbin:*) ;; *) PATH="$PATH:/sbin" ;; esac
 # /devtools/rust/bin : cargo, puis rustc (docs/CARGO.md) ; le PATH par défaut de libposix l'a déjà
 case ":$PATH:" in *:/devtools/rust/bin:*) ;; *) PATH="$PATH:/devtools/rust/bin" ;; esac
+# une commande introuvable dans le PATH : l'app /apps/<nom>.app/main s'il y en a une (« paint » ouvre Paint),
+# dans le même ordre que le vfs pour un nom seul (/bin, puis /apps ; docs/BASH.md)
+command_not_found_handle() {
+	if [ -x "/apps/$1.app/main" ]; then
+		local app="$1"; shift
+		"/apps/$app.app/main" "$@"
+		return
+	fi
+	echo "bash: $1: command not found" >&2
+	return 127
+}
+# Tab sur le premier mot : les commandes, et les apps de /apps ; un chemin (« ./ », « /… ») : la complétion de bash
+_korin_first_word() {
+	local cur="${COMP_WORDS[COMP_CWORD]}" d n
+	case "$cur" in */*|'~'*|'$'*) return 0 ;; esac
+	COMPREPLY=( $(compgen -c -- "$cur") )
+	for d in /apps/"$cur"*.app; do
+		[ -x "$d/main" ] || continue
+		n="${d##*/}"; COMPREPLY+=( "${n%.app}" )
+	done
+}
+complete -I -o bashdefault -o default -F _korin_first_word
 HISTSIZE=1000
 HISTCONTROL=ignoredups
 # ls en couleur et en colonnes sur un terminal (seul dans un tube : un nom par ligne, sans couleur)
