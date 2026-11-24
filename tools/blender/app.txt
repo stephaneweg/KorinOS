@@ -1,6 +1,6 @@
 # Manifeste de Blender, le logiciel de 3D (docs/etude/BLENDER.md)
 name     = Blender
-category = Graphisme
+category = Création
 description = Blender 5.2 LTS : modélisation, sculpture, animation et rendu 3D (Cycles sur le processeur, EEVEE sur le GPU par Vulkan).
 keywords = blender 3d modélisation sculpture animation rendu cycles eevee maillage modeling render
 help = Version d'essai pour Korin PC : l'interface dessine par Vulkan (GPU Intel). Sans GPU utilisable, Blender ne démarre pas.

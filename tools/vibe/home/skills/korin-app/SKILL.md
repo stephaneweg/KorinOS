@@ -63,7 +63,7 @@ help        = Le bouton ajoute un au compteur.
 | Clé | Rôle |
 |---|---|
 | `name` | le nom affiché (en français : le dictionnaire du système le traduit) |
-| `category` | catégorie du lanceur, **en français**, l'une de : Accessoires, Bureautique, Création, Développement, Internet, Jeux, Multimédia, Système (sans elle : Autres) |
+| `category` | catégorie du lanceur, **en français**, l'une de : Accessoires, Bureautique, Création, Développement, Internet, Jeux, Multimédia, Musique, Système (sans elle : Autres) |
 | `opens` | extensions ouvertes (`txt png`) : Fichiers passe le chemin en `argv[1]` |
 | `description`, `keywords`, `help` | ce que l'assistant PocketQI sait de l'app (plusieurs `help` possibles) |
 

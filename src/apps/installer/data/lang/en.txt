@@ -233,6 +233,7 @@ Système = System
 Accessoires = Accessories
 Bureautique = Office
 Multimédia = Multimedia
+Musique = Music
 Création = Creation
 Développement = Development
 Jeux = Games

@@ -31,7 +31,7 @@ ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab 
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
 screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu gcemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
 recorder targets bubbles arkanoid pkgman pkg pkgd webd smbd smbfs oauthd keyvault gdrivefs webstudio koton llm vibe claude mai forge
-2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris installer weather asteroids parkingjam jamendo spotify netflix disneyplus tf1plus primevideo terracube relics win16 morpho"
+2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris installer weather asteroids parkingjam jamendo spotify netflix disneyplus tf1plus primevideo terracube relics win16 morpho drums"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
 : > "$OUT/status.new"
@@ -419,6 +419,8 @@ build_one () { # nom
 		fi
 	fi
 	[ "$app" != arabesque ] || [ ! -d presets ] || { mkdir -p "$OUT/sdroot/home/public/arabesque"; cp presets/*.arb "$OUT/sdroot/home/public/arabesque/"; }
+	# (les rythmes d'exemple de la Boîte à rythmes : /home/public/DrumMachine, le paquet drums-samples)
+	[ "$app" != drums ] || { mkdir -p "$OUT/sdroot/home/public/DrumMachine"; cp models/*.drum "$OUT/sdroot/home/public/DrumMachine/"; }
 	# (FM Tracker : instruments et mots dans l'app, morceaux d'exemple dans /home/public/music/fms, comme build.ps1)
 	if [ "$app" = fmtracker ]; then
 		cp -r ins lang "$D/"
