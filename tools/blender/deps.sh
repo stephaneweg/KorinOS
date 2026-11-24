@@ -135,7 +135,7 @@ if [ -z "$HOST" ]; then
 	ACC="${TC}gcc $CPU -specs=$POSIX/lib/posix.specs" ACXX="${TC}g++ $CPU -specs=$POSIX/lib/posix.specs"
 	AAR=${TC}ar ARL=${TC}ranlib
 else
-	ACONF= ACC="gcc -fPIC" ACXX="g++ -fPIC" AAR=ar ARL=ranlib
+	ACONF= ACC="gcc -fPIC -std=gnu17" ACXX="g++ -fPIC" AAR=ar ARL=ranlib	# (GMP 6.3 : pas en C23, le défaut de GCC 15)
 fi
 autotools_korin() {	# autotools_korin <source> <obj> [options…] : configure, make, make install dans $DEPS
 	_s=$1; _o=$2; shift 2
@@ -174,14 +174,24 @@ fftw() {
 # GMP : les booléens exacts (solveur Exact), avec l'interface C++ ; --enable-fat : le code choisi selon le processeur
 gmp() { autotools_korin "$SRC/gmp" "$OBJ/gmp" --enable-cxx --with-pic --enable-fat; }
 # Embree : accélère le lancer de rayons de Cycles sur le processeur (sans ISPC ni SYCL), tâches par TBB. Il remplace
-# CMAKE_CXX_FLAGS (EMBREE_IGNORE_CMAKE_CXX_FLAGS : on garde ceux de korin.cmake, -specs compris) et compile en
-# -std=c++11 strict, où newlib cache M_PI : _GNU_SOURCE par CXXFLAGS, que CMake ajoute aux drapeaux initiaux
-embree() { (export CXXFLAGS=-D_GNU_SOURCE CFLAGS=-D_GNU_SOURCE
+# CMAKE_CXX_FLAGS (EMBREE_IGNORE_CMAKE_CXX_FLAGS : on garde ceux de korin.cmake, -specs et _GNU_SOURCE compris). Il
+# compile chaque noyau pour SSE2, SSE4.2, AVX, AVX2 et range le code selon __AVX2__… : pas de -march=tigerlake
+# (KORIN_CPU), sinon tout tombe dans l'espace avx2 et les symboles sse42 manquent à la liaison
+embree() { (export KORIN_CPU="-march=x86-64 -mtune=tigerlake"
 	cmake_korin "$SRC/embree" "$OBJ/embree" -DEMBREE_ISPC_SUPPORT=OFF -DEMBREE_TUTORIALS=OFF \
 	-DEMBREE_STATIC_LIB=ON -DEMBREE_RAY_MASK=ON -DEMBREE_FILTER_FUNCTION=ON -DEMBREE_BACKFACE_CULLING=OFF \
 	-DEMBREE_BACKFACE_CULLING_CURVES=ON -DEMBREE_BACKFACE_CULLING_SPHERES=ON -DEMBREE_TASKING_SYSTEM=TBB \
 	-DEMBREE_TBB_ROOT="$DEPS" -DTBB_ROOT="$DEPS" -DEMBREE_MAX_ISA=AVX2 -DEMBREE_ZIP_MODE=OFF \
-	-DEMBREE_IGNORE_CMAKE_CXX_FLAGS=OFF); }
+	-DEMBREE_IGNORE_CMAKE_CXX_FLAGS=OFF) && embree_merge; }
+# ses bibliothèques statiques se citent en boucle (embree4 <-> embree_sse42…) : toutes réunies dans libembree4.a,
+# où l'éditeur de liens de GNU résout les cycles (les autres .a restent : rien n'y est plus pris)
+embree_merge() {
+	_m=$OBJ/embree/merge; rm -rf "$_m"; mkdir -p "$_m"
+	for l in embree4 embree_sse42 embree_avx embree_avx2 lexers math simd sys tasking; do
+		mkdir "$_m/$l" && (cd "$_m/$l" && $AAR x "$DEPS/lib/lib$l.a")
+	done
+	rm -f "$DEPS/lib/libembree4.a" && $AAR qcs "$DEPS/lib/libembree4.a" "$_m"/*/*.o	# (qcs : des objets de même nom)
+}
 
 ALL="jetlibs brotli freetype imath deflate openjph openexr tiff fmt robinmap expat yamlcpp pystring minizipng opencolorio tbb openimageio
 vulkan_headers spirv_headers shaderc spirv_reflect vulkan_memory_allocator zstd epoxy eigen

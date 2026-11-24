@@ -31,10 +31,11 @@ Le démarrage prend quelques secondes. Écris tes scripts dans le dossier de l'u
 
 | Marche | Manque encore (pas dans cette version) |
 |---|---|
-| objets, maillages, modificateurs (biseau, miroir, réseau, booléen en solveur `FAST`…), matériaux, caméras, lumières | **subdivision** (OpenSubdiv : le modificateur Subsurf est sans effet) ; booléen `EXACT` (GMP) |
-| enregistrer et ouvrir des `.blend` | numpy (`import numpy` échoue) |
-| rendu **Cycles sur le processeur** en PNG, JPEG, EXR, TIFF, WebP | rendu EEVEE et Workbench sans fenêtre (ils demandent le GPU) |
-| import/export **OBJ, PLY, STL** (`bpy.ops.wm.obj_export` …) | FBX, glTF, USD, Alembic, vidéo (FFmpeg), son |
+| objets, maillages, modificateurs : **subdivision** (OpenSubdiv), **booléens** (solveurs `EXACT`, `MANIFOLD`, `FAST`), biseau, miroir, réseau, **océan**, remaillage… | suivi de mouvement (libmv) |
+| matériaux, caméras, lumières ; simulation de fluides (Mantaflow) | numpy (`import numpy` échoue) |
+| enregistrer et ouvrir des `.blend` | rendu EEVEE et Workbench sans fenêtre (ils demandent le GPU) |
+| rendu **Cycles sur le processeur** (accéléré par Embree), Freestyle, en PNG, JPEG, EXR, TIFF, WebP, Cineon/DPX | FBX, glTF, USD, Alembic, vidéo (FFmpeg), son |
+| import/export **OBJ, PLY, STL** (`bpy.ops.wm.obj_export` …) | |
 
 ## 3. Exemples
 

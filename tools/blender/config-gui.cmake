@@ -67,8 +67,8 @@ set(WITH_IO_PLY              ON  CACHE BOOL "" FORCE)
 set(WITH_IO_STL              ON  CACHE BOOL "" FORCE)
 set(WITH_IMAGE_WEBP          ON  CACHE BOOL "" FORCE)
 
-# Jalon 4 : allumé ci-dessous ce qui est dans extern/ (FREESTYLE, LIBMV, MOD_FLUID, MOD_REMESH, QUADRIFLOW, UV_SLIM,
-# IMAGE_CINEON) et ce que deps.sh construit (OPENSUBDIV, MANIFOLD, FFTW3 + MOD_OCEANSIM, GMP, CYCLES_EMBREE) ;
+# Jalon 4 : allumé ci-dessous ce qui est dans extern/ (FREESTYLE, MOD_FLUID, MOD_REMESH, QUADRIFLOW, UV_SLIM,
+# IMAGE_CINEON ; pas LIBMV : il demande Ceres) et ce que deps.sh construit (OPENSUBDIV, MANIFOLD, FFTW3 + MOD_OCEANSIM, GMP, CYCLES_EMBREE) ;
 # le reste plus tard
 set(WITH_ALEMBIC             OFF CACHE BOOL "" FORCE)
 set(WITH_AUDASPACE           OFF CACHE BOOL "" FORCE)
@@ -89,7 +89,7 @@ set(WITH_INTERNATIONAL       OFF CACHE BOOL "" FORCE)
 set(WITH_IO_GREASE_PENCIL    OFF CACHE BOOL "" FORCE)
 set(WITH_IO_FBX              OFF CACHE BOOL "" FORCE)
 set(WITH_JACK                OFF CACHE BOOL "" FORCE)
-set(WITH_LIBMV               ON  CACHE BOOL "" FORCE)
+set(WITH_LIBMV               OFF CACHE BOOL "" FORCE)
 set(WITH_LLVM                OFF CACHE BOOL "" FORCE)
 set(WITH_MANIFOLD            ON  CACHE BOOL "" FORCE)
 set(WITH_MATERIALX           OFF CACHE BOOL "" FORCE)

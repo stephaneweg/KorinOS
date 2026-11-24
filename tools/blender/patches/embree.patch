@@ -1,0 +1,22 @@
+# Korin OS : setAffinity sans effet (thread.cpp ne connaît que Windows, Linux, FreeBSD, macOS, WASM)
+diff -ru a/common/sys/thread.cpp b/common/sys/thread.cpp
+--- a/common/sys/thread.cpp	2026-11-24 14:31:31.493325942 +0100
++++ b/common/sys/thread.cpp	2026-11-24 14:31:31.509326103 +0100
+@@ -311,6 +311,17 @@
+ #endif
+ 
+ ////////////////////////////////////////////////////////////////////////////////
++/// Korin OS (__armpi__) : pas d'affinite des fils
++////////////////////////////////////////////////////////////////////////////////
++
++#if defined(__armpi__)
++namespace embree
++{
++  void setAffinity(ssize_t affinity) {}
++}
++#endif
++
++////////////////////////////////////////////////////////////////////////////////
+ /// MacOSX Platform
+ ////////////////////////////////////////////////////////////////////////////////
+ 
