@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-23 23:49
+date = 2026-11-24 00:06
 abi = 629
 packages = 117
 board = pc
@@ -250,18 +250,18 @@ content = 61c287d0a3e31caf3aabccdb926bd5efb45ca64df6dc188eb0e55f1555502fc6
 
 [make]
 title = Make et PiBuild
-version = 1.0.3
+version = 1.0.4
 category = Développement
 author = Korin OS
 summary = make et les règles de pibuild (/devtools/gcc/bin/make, /devtools/gcc/share/pibuild.mk) : l'assembleur
-size = 267355
-installed = 525371
-sha256 = 03dca8827838efdff99c3d87433f77097fa583e38aef685d67358e79a56c68ca
-file = pkgs/make-1.0.3.opk
+size = 267357
+installed = 525404
+sha256 = ec1e785696d26393a1792e8fb7b9c30b266d31d30d23c1fee1e8df3f9989cec9
+file = pkgs/make-1.0.4.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = c8d223c26bbb4833524f803e86ffc82ebf0a6159429c6bc68387c5d93cb72cd2
+content = 4259b1818b31091626122f5f497d46d96b1cf533c114b65ad0a200dfa752ca35
 
 [freebasic]
 title = FreeBASIC
