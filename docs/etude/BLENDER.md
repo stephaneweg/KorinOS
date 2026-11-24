@@ -11,7 +11,7 @@ de départ : ce que Blender demande, ce que Korin a déjà, le chemin par jalons
 | 0 | Source, versions, chaîne CMake de Korin, scripts `tools/blender` | **fait (23/11)** : `env.sh`, `korin.cmake`, `versions.py`, `fetch.sh` (Blender 5.2.4 et les sources de classe A) |
 | 1 | Les dépendances indispensables, croisées pour Korin PC (Python 3.13, OIIO, OCIO, OpenEXR, TBB, shaderc…) | **fait (24/11)**, construit seulement (rien lancé dans Korin) ; numpy reporté au jalon 4 |
 | 2 | **Blender sans écran** (`WITH_HEADLESS`) : `blender -b` charge un .blend, exécute du Python, rend par Cycles sur le processeur | **fait (24/11), sous QEMU PC (KVM)** : `SCENE OK` et `RENDU OK` (Cycles, 4 fils, 0,7 s) |
-| 3 | **GHOST de Korin** : fenêtres UIKit, entrées, presse-papier ; rendu par Vulkan (VkKit, WSI de Korin) | **en cours (24/11)** : construit et publié en essai (paquet `blender` 5.2.4-0.5) ; sous QEMU (lavapipe) la fenêtre s'ouvre, Vulkan est choisi, puis Blender attend sans rien dessiner ; pas encore vu sur le ZBook |
+| 3 | **GHOST de Korin** : fenêtres UIKit, entrées, presse-papier ; rendu par Vulkan (VkKit, WSI de Korin) | **en cours (24/11)** : construit et publié en essai (paquet `blender` 5.2.4-0.6, avec `pc` 2026.11.101 pour VkKit) ; sur le ZBook l'interface s'affiche puis plantait au premier mouvement (voir plus bas) ; sous QEMU (lavapipe) Blender attend sans rien dessiner |
 | 4 | Le reste : Embree, OpenSubdiv, Manifold, OpenVDB, son, vidéo, import/export (USD, Alembic…) | à faire |
 | 5 | Paquet `blender`, app (`app.txt`, icône, catégorie), compétence, essai sur le ZBook | à faire |
 
@@ -288,8 +288,15 @@ configuration), `CONFIG=gui sh tools/blender/build.sh` (`install-gui`), `sh tool
   chercher (fence ou image de la chaîne d'échange, fils de compilation des shaders). Pas d'outil pour voir les piles
   des fils sous Korin.
 
-**Pas encore vu sur le ZBook** (vrai GPU, anv). Le premier essai (5.2.4-0.1) a trouvé le GPU puis s'est arrêté sur
-l'assertion du graphe de rendu ; les corrections ci-dessus (assertions, tables de l'API) sont dans 5.2.4-0.4 et plus.
+**Sur le ZBook** (vrai GPU, anv). 5.2.4-0.1 : le GPU trouvé, puis l'assertion du graphe de rendu (corrigé en 0.4 :
+assertions, tables de l'API). 5.2.4-0.5 : l'interface s'affiche, puis plante au premier mouvement :
+`GEM_CREATE_EXT` refusé pour un tampon de plus de 64 Mo (le plus grand tampon partagé du noyau), puis faute dans
+`cmd_buffer_accumulate_barrier_bits` d'anv (une image sans mémoire). Corrigé dans le faux libdrm
+(`tools/mesa/libdrm-pc/korin_i915.c`, `pc` 2026.11.101) : au-delà de 64 Mo, un BO est fait de tampons du noyau de
+numéros consécutifs (mappés bout à bout), liés au GPU tranche par tranche ; et les syncobj chronologiques rendent
+leur vrai point atteint (avant : 0 tant que le dernier lot tournait, si bien que Blender ne libérait rien en dessin
+continu). Le message « Failed to load using Vulkan, using OpenGL instead » était faux (le moteur OpenGL non compilé
+compté comme repli) : retiré en 0.6. **À essayer : 0.6 + pc 2026.11.101.**
 
 À voir aussi : la pile par défaut des pthreads de libposix (256 Ko, contre 8 Mo sous Linux) pourrait gêner d'autres
 fils de Blender ou d'anv ; la passer à 8 Mo (peuplée à la demande) serait plus sûr pour tous les ports.

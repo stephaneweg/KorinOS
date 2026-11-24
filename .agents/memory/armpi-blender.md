@@ -54,5 +54,11 @@ Mesa (korin-lvp.patch) ; vktest --win OK. Blender sur lavapipe : fenêtre + Vulk
 (interblocage, CPU oisifs) : à chercher. ZBook : 5.2.4-0.1 avait trouvé le GPU puis l'assertion ; 0.4+ pas encore
 essayé. Essais : pctest watch:/fresh:/rips:, `. ~/korin-cloud/env.sh`, `wsl -u root`, `--qemu "-accel kvm"`.
 
+**24/11 (midi), ZBook** : 0.5 affiche l'interface puis plante au premier mouvement : BO > 64 Mo refusé (BUF_SLOT du
+noyau), image sans mémoire, faute dans une barrière d'anv. Corrigé dans korin_i915.c (BO > 64 Mo = tampons du noyau
+consécutifs ; vrais points des syncobj chronologiques) publié dans **pc 2026.11.101** (--only lib/vkkit.so), et
+blender 0.6 (faux message « using OpenGL instead » retiré). Pas encore essayé. Journal utile : KORIN_DRM_DEBUG=1 ;
+pile du plantage : addr2line sur install-gui/blender et out-x86_64/vkkit/vkkit.elf (kit chargé vers 0x501c000000).
+
 **How to apply:** JOBS=6 (12 Go) dans WSL (9 Go). Lancer les scripts par `wsl -- sh tools/blender/…` (pas `wsl bash -c '…$X…'` :
 les $ sont développés avant ; Git Bash : MSYS_NO_PATHCONV=1 pour les chemins /home). Voir [[armpi-godot]], [[armpi-cpython]], [[armpi-devtools]], [[armpi-cao]].
