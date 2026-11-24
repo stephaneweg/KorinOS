@@ -60,5 +60,11 @@ consécutifs ; vrais points des syncobj chronologiques) publié dans **pc 2026.1
 blender 0.6 (faux message « using OpenGL instead » retiré). **Essayé par l'utilisateur : ne plante plus.** Journal utile : KORIN_DRM_DEBUG=1 ;
 pile du plantage : addr2line sur install-gui/blender et out-x86_64/vkkit/vkkit.elf (kit chargé vers 0x501c000000).
 
+**24/11 (après-midi), jalon 4 première vague** : OpenSubdiv, Manifold, GMP, FFTW3, Embree (deps.sh DEPS_B, pièges
+dans l'étude § jalon 4) + Freestyle, Mantaflow, remaillage, QuadriFlow, SLIM, Cineon ; libmv coupé (Ceres) ;
+test/features.py OK sous QEMU. Pas encore publié (blender 0.7 + pc avec vkkit.so : correction de la fermeture,
+faute dans le fil de soumission d'anv quand l'anneau plein rendait le verrou). Piège récurrent : macros _L _N _S… de
+ctype.h de newlib dans le code tiers.
+
 **How to apply:** JOBS=6 (12 Go) dans WSL (9 Go). Lancer les scripts par `wsl -- sh tools/blender/…` (pas `wsl bash -c '…$X…'` :
 les $ sont développés avant ; Git Bash : MSYS_NO_PATHCONV=1 pour les chemins /home). Voir [[armpi-godot]], [[armpi-cpython]], [[armpi-devtools]], [[armpi-cao]].

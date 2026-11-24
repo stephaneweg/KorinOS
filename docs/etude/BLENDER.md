@@ -12,7 +12,7 @@ de départ : ce que Blender demande, ce que Korin a déjà, le chemin par jalons
 | 1 | Les dépendances indispensables, croisées pour Korin PC (Python 3.13, OIIO, OCIO, OpenEXR, TBB, shaderc…) | **fait (24/11)**, construit seulement (rien lancé dans Korin) ; numpy reporté au jalon 4 |
 | 2 | **Blender sans écran** (`WITH_HEADLESS`) : `blender -b` charge un .blend, exécute du Python, rend par Cycles sur le processeur | **fait (24/11), sous QEMU PC (KVM)** : `SCENE OK` et `RENDU OK` (Cycles, 4 fils, 0,7 s) |
 | 3 | **GHOST de Korin** : fenêtres UIKit, entrées, presse-papier ; rendu par Vulkan (VkKit, WSI de Korin) | **en cours (24/11)** : construit et publié en essai (paquet `blender` 5.2.4-0.6, avec `pc` 2026.11.101 pour VkKit) ; **sur le ZBook, l'interface marche sans planter (24/11, 0.6 + pc 2026.11.101)** ; sous QEMU (lavapipe) Blender attend sans rien dessiner |
-| 4 | Le reste : Embree, OpenSubdiv, Manifold, OpenVDB, son, vidéo, import/export (USD, Alembic…) | à faire |
+| 4 | Le reste : Embree, OpenSubdiv, Manifold, OpenVDB, son, vidéo, import/export (USD, Alembic…) | **en cours (24/11)** : première vague faite (OpenSubdiv, Manifold, GMP, FFTW3, Embree, et Freestyle, Mantaflow, remaillage, QuadriFlow, SLIM, Cineon d'`extern/`), essayée sous QEMU ; reste numpy, son, FFmpeg, OpenVDB, formats d'échange, libmv (Ceres) |
 | 5 | Paquet `blender`, app (`app.txt`, icône, catégorie), compétence, essai sur le ZBook | à faire |
 
 **Cible : Korin PC (x86-64, le ZBook) seulement.** Le Pi n'a ni Vulkan (v3dv écarté, [MESA.md](../MESA.md)) ni OpenGL
@@ -305,6 +305,25 @@ fils de Blender ou d'anv ; la passer à 8 Mo (peuplée à la demande) serait plu
 
 Embree et OpenSubdiv d'abord (vitesse), puis Manifold, FFTW3, OIDN, le son sur AudioKit, FFmpeg, OpenVDB, puis les
 formats d'échange. Chacun ajouté sans casser les autres.
+
+**Première vague (24/11), faite.** `deps.sh` construit la classe B (`env.sh` : `DEPS_B`, `fetch.sh` sait les `.zip`
+et prend le miroir de GNU pour GMP), pour Korin et pour l'hôte (les outils de l'hôte doivent avoir les mêmes
+options) :
+
+| Bibliothèque | Piège |
+|---|---|
+| OpenSubdiv 3.7 | Blender lie `osdGPU` : en-têtes GL de Mesa et une bibliothèque GL vide (`osd_gl`) |
+| Manifold 3.5.2 | `_S` est une macro de `ctype.h` de newlib : `patches/manifold.patch` |
+| FFTW 3.3.10 | double et simple précision (autotools, `--host` Linux comme Python) |
+| GMP 6.3 | `--enable-fat` ; sur l'hôte, `-std=gnu17` (GCC 15 compile en C23) |
+| Embree 4.4.1 | garde nos drapeaux (`EMBREE_IGNORE_CMAKE_CXX_FLAGS=OFF`) mais sans `-march=tigerlake` (`KORIN_CPU`), sinon tout tombe dans l'espace `avx2` ; `setAffinity` absent hors Linux (`patches/embree.patch`) ; ses `.a` réunies dans `libembree4.a` (références circulaires) |
+
+Allumés dans `config-gui.cmake` avec celles-ci : Freestyle, Mantaflow, remaillage, QuadriFlow, SLIM, Cineon/DPX
+(`extern/`). L'océan : `_L` et `_N` (macros de newlib) renommés dans `blender.patch`. **libmv coupé** : Blender 5.2
+demande Ceres. Essai `test/features.py` sous QEMU : subdivision (98 sommets), booléens Exact et Manifold, océan,
+Cycles + Freestyle, `FEATURES OK`.
+
+Suite : numpy (meson croisé), son (audaspace sur AudioKit ou SDL), FFmpeg, OpenVDB, OIDN, formats d'échange.
 
 ### Jalon 5 : la livraison
 
