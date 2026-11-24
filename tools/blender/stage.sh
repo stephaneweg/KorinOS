@@ -20,6 +20,15 @@ chmod +x "$A/main"
 cp -r "$I/${BLENDER_VER%.*}" "$A/"
 cp -r "$I/license" "$A/" 2>/dev/null || true
 cp "$BL/app.txt" "$A/app.txt"
+cp "$BL/SKILL.md" "$A/SKILL.md"	# (la compétence de l'app : clé skill de app.txt, lue par Claude Code et Vibe)
+# l'icône : celle de Blender pour Windows (release/windows/icons/winblender.ico, 256 x 256), au format de Korin
+# (tools/craft/icon_rgba.py ; PIL)
+python3 -c "
+import sys
+from PIL import Image
+im = Image.open(sys.argv[1]); im.size = (256, 256); im.load(); im.convert('RGBA').save(sys.argv[2])
+" "$BSRC/release/windows/icons/winblender.ico" "$OUT/blender-icon.png"
+python3 -E -P "$ROOT/tools/craft/icon_rgba.py" "$OUT/blender-icon.png" "$A/icon.rgba"
 # (pas de __pycache__ : Blender les refait au besoin)
 find "$A" -name __pycache__ -type d -prune -exec rm -rf {} +
 echo "stage.sh : $(find "$A" -type f | wc -l) fichiers, $(du -sh "$A" | cut -f1) dans $A"

@@ -6,3 +6,4 @@ keywords = blender 3d modélisation sculpture animation rendu cycles eevee maill
 help = Version d'essai pour Korin PC : l'interface dessine par Vulkan (GPU Intel). Sans GPU utilisable, Blender ne démarre pas.
 help = Rendu sans fenêtre, depuis le Terminal : /apps/blender.app/main -b fichier.blend -f 1 (Cycles sur le processeur).
 help = Scripts Python : /apps/blender.app/main -b --python script.py (l'API bpy de Blender, Python 3.13).
+skill    = SKILL.md
