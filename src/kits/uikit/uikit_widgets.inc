@@ -604,7 +604,7 @@ uk_vt:	uk_vt_row uk_vt, uk_vt, uk_vt, uk_vt, uk_vt, uk_vt, 0		; (0 : aucun)
 	uk_vt_row uk_pn_draw, uk_vt, uk_vt, uk_vt, uk_vt, uk_vt, 0
 	uk_vt_row uk_sg_draw, uk_sg_mouse, uk_sg_key, uk_vt, uk_vt, uk_vt, VTF_FOCUS or VTF_RING or VTF_MOVE
 	uk_vt_row uk_tabs_draw, uk_sg_mouse, uk_sg_key, uk_vt, uk_vt, uk_vt, VTF_FOCUS or VTF_MOVE
-	uk_vt_row uk_ts_draw, uk_ts_mouse, uk_vt, uk_ts_wheel, uk_vt, uk_vt, 0
+	uk_vt_row uk_ts_draw, uk_ts_mouse, uk_vt, uk_ts_wheel, uk_vt, uk_vt, VTF_MOVE
 	uk_vt_row uk_tbar_draw, uk_vt, uk_vt, uk_vt, uk_vt, uk_vt, 0
 	uk_vt_row uk_tool_draw, uk_tool_mouse, uk_vt, uk_vt, uk_vt, uk_vt, VTF_MOVE
 	uk_vt_row uk_im_draw, uk_vt, uk_vt, uk_vt, uk_vt, uk_vt, 0
