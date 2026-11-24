@@ -183,6 +183,9 @@ QKorinIntegration::QKorinIntegration(const QStringList &)
     // les polices du système (FreeType de Qt, sans fontconfig)
     if (!qEnvironmentVariableIsSet("QT_QPA_FONTDIR"))
         qputenv("QT_QPA_FONTDIR", kq_font_dir());
+    // Qt Quick Controls : Fusion, qui suit la palette (les jetons d'UIKit), plutôt que Basic (gris, sans thème)
+    if (!qEnvironmentVariableIsSet("QT_QUICK_CONTROLS_STYLE"))
+        qputenv("QT_QUICK_CONTROLS_STYLE", "Fusion");
 }
 
 QKorinIntegration::~QKorinIntegration()

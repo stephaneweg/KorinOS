@@ -68,7 +68,8 @@ for m in $MODS; do
 			-DCMAKE_PREFIX_PATH="$PREFIX" -DCMAKE_INSTALL_PREFIX="$QT_KORIN_PREFIX" \
 			-DCMAKE_STAGING_PREFIX="$PREFIX" -DQT_HOST_PATH="$HOSTQT" -DQT_FORCE_BUILD_TOOLS=ON \
 			-DQT_BUILD_EXAMPLES=OFF -DQT_BUILD_TESTS=OFF -DQT_GENERATE_SBOM=OFF \
-			-DQt6_DIR="$PREFIX/lib/cmake/Qt6" ${QTMOD_EXTRA:-}
+			-DQt6_DIR="$PREFIX/lib/cmake/Qt6" \
+			-DFEATURE_qml_jit=OFF ${QTMOD_EXTRA:-}	# (QML en interpréteur : l'assembleur de JSC ne connaît pas Korin)
 	fi
 	[ "$STEP" = configure ] && continue
 	ninja -C "$o" -j "$JOBS" ${NINJA_FLAGS:-}

@@ -13,6 +13,7 @@ target_link_libraries(qtwidgets_test PRIVATE Qt6::Widgets Qt6::GuiPrivate)
 
 find_package(Qt6 COMPONENTS Quick Qml)
 if(Qt6Quick_FOUND)
+    qt_policy(SET QTP0001 NEW)	# (le module sous qrc:/qt/qml, où loadFromModule le cherche)
     qt_add_executable(qtquick_test qtquick_test.cpp)
     qt_add_qml_module(qtquick_test URI KorinTest VERSION 1.0 QML_FILES Main.qml NO_PLUGIN)
     target_link_libraries(qtquick_test PRIVATE Qt6::Quick Qt6::Qml)

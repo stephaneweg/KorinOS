@@ -22,8 +22,8 @@ Décisions de l'utilisateur (24/11) :
 | 0 | Sources de Qt 6.10.2, scripts `tools/qt`, Qt pour l'hôte (moc, rcc, qsb, qmlcachegen) | **fait (24/11)** |
 | 1 | **qtbase** croisé pour Korin PC (statique) : Core, Gui, Widgets, Network (OpenSSL) ; `qtcore_test` sous QEMU | **fait (24/11), QEMU PC** : les 16 essais de `qtcore_test` passent (fichiers, regex, Unicode, JSON, fils, minuteries, réveil entre fils, `QProcess`) |
 | 2 | **QPA `korin`** sur UIKit : fenêtres, rendu raster, entrées, presse-papier, thème, barre de menus globale ; style `korin` ; `qtwidgets_test` sous QEMU | **fait (24/11), QEMU PC** : fenêtre à bande de titre, style korin (Givre), clic, saisie, liste déroulante (popup), **menus dans la barre globale** (choix, grisé, raccourcis) |
-| 3 | **Qt Quick** (qtshadertools, qtdeclarative, qtsvg) en rendu logiciel ; `qtquick_test` sous QEMU | à faire |
-| 4 | Paquets `qtbase-dev`, `qtshadertools-dev`, `qtdeclarative-dev`, `qtsvg-dev` (`/devtools/qt`), essai sur le ZBook | `stage.sh` écrit ; à publier |
+| 3 | **Qt Quick** (qtshadertools, qtdeclarative, qtsvg) en rendu logiciel ; `qtquick_test` sous QEMU | **fait (24/11), QEMU PC** : QML en interpréteur (sans JIT), Qt Quick logiciel, Qt Quick Controls (Fusion, aux couleurs du thème), animation ; curseur glissé, bouton, liste déroulante QML |
+| 4 | Paquets `qtbase-dev`, `qtshadertools-dev`, `qtdeclarative-dev`, `qtsvg-dev` (`/devtools/qt`), essai sur le ZBook | **prêts (24/11)** : `stage.sh`, motifs de `pkgfiles.py` dans `packages-pc.ini`, `pub.py --dry-run` de `qtbase-dev` bon ; **pas publiés** (clé du dépôt) ; construire une app Qt *dans* Korin pas encore essayé |
 | 5 | **MuseScore Studio** 4.7 : convertisseur sans écran, puis l'interface, son par AudioKit | à faire (étude à part) |
 
 **Cible : Korin PC (x86-64, le ZBook) d'abord**, comme Blender ; MuseScore demande 8 Go de mémoire. Le Pi pourra suivre
@@ -153,6 +153,11 @@ sélections ; métriques de `ui_metric` (densité tactile comprise). Les jetons 
 indications propres à Korin, `0x4B520001` les jetons, `0x4B520002` les métriques), sinon de la palette. Pas encore :
 QToolButton, QToolBar, QDockWidget, QDial, QCalendarWidget, QSplitter, QToolBox (Fusion, aux couleurs des jetons).
 
+**Qt Quick Controls** : la QPA met `QT_QUICK_CONTROLS_STYLE=Fusion` par défaut (Fusion suit la palette, donc les
+jetons d'UIKit ; Basic est gris et sans thème). Un style Qt Quick « korin » (comme celui de QWidgets) pourra suivre.
+**QML sans JIT** (`FEATURE_qml_jit=OFF`) : l'assembleur de JavaScriptCore ne connaît pas Korin ; à rouvrir si
+MuseScore est lent.
+
 **À faire** : glisser-déposer (`WEV_DROP`), image dans le presse-papiers, curseurs bitmap et curseur caché, pointeur
 pris, IME, tablette, molette horizontale, transparence (`WF_ALPHA`), état agrandi dit par Elegant, échelle
 (`ui_scale`), services (`openUrl` vers Jet), dialogues de fichiers natifs (`ui_file_*` d'UIKit).
@@ -168,8 +173,23 @@ pris, IME, tablette, molette horizontale, transparence (`WF_ALPHA`), état agran
 ## 5. Les paquets `<module>-dev`
 
 `sh tools/qt/stage.sh` range chaque module d'après son `install_manifest.txt` dans `build/pc/devtools/<module>-dev`
-(tout sous `devtools/qt`, licences dans `devtools/qt/share/doc/<module>`), puis
-`python3 tools/pkg/pub.py <module>-dev --new --tree build/pc/devtools/<module>-dev` (avec la clé du dépôt).
+(tout sous `devtools/qt`, licences dans `devtools/qt/share/doc/<module>`, outils dépouillés), puis
+`python3 tools/pkg/pub.py <module>-dev --new --tree build/pc/devtools/<module>-dev` (avec la clé du dépôt), **dans
+l'ordre** `qtbase-dev`, `qtshadertools-dev`, `qtsvg-dev`, `qtdeclarative-dev` (les besoins).
+
+| Paquet | Taille (non compressée) | Besoins |
+|---|---|---|
+| `qtbase-dev` | 160 Mo (3 608 fichiers) | zlib-dev, libpng-dev, brotli-dev, freetype-dev, harfbuzz-dev, openssl-dev |
+| `qtshadertools-dev` | 38 Mo | qtbase-dev |
+| `qtsvg-dev` | 2,3 Mo | qtbase-dev |
+| `qtdeclarative-dev` | 630 Mo (outils QML liés en statique : 20 à 40 Mo chacun) | qtbase-dev, qtshadertools-dev, qtsvg-dev |
+
+Tous les modules s'installent dans le même `/devtools/qt` : `mkrepo.plan` donne un fichier au **premier** paquet dont
+un motif le prend. `tools/qt/pkgfiles.py` écrit donc les motifs des modules (dossiers à eux seuls, sinon fichiers ou
+préfixes d'au moins la moitié du nom), placés **avant** `[qtbase-dev]`, qui prend le reste (`devtools/qt/`) ; il
+vérifie qu'aucun fichier de qtbase n'est pris. `qtbase-dev` et `qtdeclarative-dev` sont découpés (`split =
+devtools/qt/[bl]* 90` : `bin/`, `lib/`, `libexec/` en parties `-data-N`) et vont dans la Release (`release = 1`).
+On ne peut pas retirer d'outil du paquet : les fichiers CMake exportés par Qt vérifient que chacun existe.
 
 ## 6. MuseScore ensuite (jalon 5)
 

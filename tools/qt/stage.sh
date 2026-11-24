@@ -26,6 +26,10 @@ for m in ${*:-$QT_MODULES}; do
 		cp -L "$f" "$T/$r"
 		n=$((n + 1))
 	done < "$man"
+	# les outils pour Korin (moc, rcc, uic, qmake…) : liés en statique, sans leurs symboles de débogage
+	for f in "$T$QT_KORIN_PREFIX"/bin/* "$T$QT_KORIN_PREFIX"/libexec/*; do
+		[ -f "$f" ] && [ "$(head -c 4 "$f" | od -An -c | tr -d ' ')" = '177ELF' ] && ${TC}strip "$f"
+	done
 	d=$T${QT_KORIN_PREFIX}/share/doc/$m
 	mkdir -p "$d"
 	s=$(qt_src $m)

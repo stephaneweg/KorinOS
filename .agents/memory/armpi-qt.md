@@ -1,6 +1,6 @@
 ---
 name: armpi-qt
-description: "Qt 6.10.2 sur Korin PC (24/11) : qtbase croisé, QPA korin sur UIKit (barre de menus globale), style korin, essayés sous QEMU ; paquets <module>-dev dans /devtools/qt ; pour MuseScore ensuite"
+description: "Qt 6.10.2 sur Korin PC (24/11) : qtbase et Qt Quick croisés, QPA korin sur UIKit (barre de menus globale), style korin, essayés sous QEMU ; paquets <module>-dev prêts (pas publiés) ; pour MuseScore ensuite"
 metadata:
   type: project
   modified: 2026-11-24
@@ -25,7 +25,12 @@ casse le test x86intrin) ; FindWrapSystemFreetype ne liait pas brotli/png/z ; **
 (sinon les viewports des zones défilantes jamais recopiés) ; popups WF_NOFOCUS (sinon Qt les ferme) ; chmod +x des
 binaires sur la FAT ; shell de Korin sans & ni VAR=x : --qpadebug, --selftest, watch: de pctest.
 
-**Reste** : qtshadertools/qtdeclarative/qtsvg croisés + qtquick_test (jalon 3) ; publier les -dev (clé du dépôt) ;
+**Qt Quick fait (24/11, QEMU PC)** : qtshadertools, qtsvg, qtdeclarative croisés (QML sans JIT), qtquick_test
+interactif (Controls en Fusion par défaut, QT_QUICK_CONTROLS_STYLE mis par la QPA). Paquets prêts dans
+packages-pc.ini (pkgfiles.py, split [bl]*, release = 1), dry-run de qtbase-dev bon, **pas publiés** : ordre qtbase,
+qtshadertools, qtsvg, qtdeclarative. Hôte : qtsvg avant qtdeclarative (svgtoqml).
+
+**Reste** : publier les -dev (clé du dépôt) ; construire une app Qt dans Korin ;
 glisser-déposer, presse-papiers image, curseurs bitmap ; MuseScore (jalon 5).
 
 **How to apply:** `. ~/korin-cloud/env.sh` ; `sh tools/qt/host.sh`, `deps.sh`, `build.sh`, `test.sh`,
