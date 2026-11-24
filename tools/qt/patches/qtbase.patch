@@ -1,0 +1,164 @@
+diff --git a/cmake/FindWrapSystemFreetype.cmake b/cmake/FindWrapSystemFreetype.cmake
+index d0c27a9f..08b7eb04 100644
+--- a/cmake/FindWrapSystemFreetype.cmake
++++ b/cmake/FindWrapSystemFreetype.cmake
+@@ -48,6 +48,17 @@ if(WrapSystemFreetype_FOUND)
+     add_library(WrapSystemFreetype::WrapSystemFreetype INTERFACE IMPORTED)
+     target_link_libraries(WrapSystemFreetype::WrapSystemFreetype
+                           INTERFACE "${__freetype_target_name}")
++    # Korin OS : libfreetype.a du paquet freetype-dev a des dépendances privées (brotli, libpng, zlib : son
++    # freetype2.pc) que FindFreetype ne lie pas ; en statique, on les ajoute (tools/qt, docs/etude/QT.md)
++    if(FREETYPE_LIBRARY MATCHES "\\.a$" OR FREETYPE_LIBRARY_RELEASE MATCHES "\\.a$")
++        foreach(__ft_dep brotlidec png16 z)
++            find_library(__ft_dep_path NAMES ${__ft_dep})
++            if(__ft_dep_path)
++                target_link_libraries(WrapSystemFreetype::WrapSystemFreetype INTERFACE "${__ft_dep_path}")
++            endif()
++            unset(__ft_dep_path CACHE)
++        endforeach()
++    endif()
+ endif()
+ unset(__freetype_target_name)
+ unset(__freetype_found)
+diff --git a/mkspecs/korin-g++/qmake.conf b/mkspecs/korin-g++/qmake.conf
+new file mode 100644
+index 00000000..96f6da20
+--- /dev/null
++++ b/mkspecs/korin-g++/qmake.conf
+@@ -0,0 +1,22 @@
++#
++# qmake configuration for korin-g++ (Korin OS, https://github.com/stephaneweg/KorinOS : tools/qt)
++#
++
++MAKEFILE_GENERATOR      = UNIX
++QMAKE_PLATFORM          = korin
++
++include(../common/unix.conf)
++
++QMAKE_LIBS              =
++QMAKE_INCDIR            =
++QMAKE_LIBDIR            =
++QMAKE_LIBS_THREAD       =
++
++QMAKE_AR                = x86_64-onyx-elf-ar cqs
++QMAKE_OBJCOPY           = x86_64-onyx-elf-objcopy
++QMAKE_NM                = x86_64-onyx-elf-nm -P
++QMAKE_RANLIB            =
++
++include(../common/gcc-base-unix.conf)
++include(../common/g++-unix.conf)
++load(qt_config)
+diff --git a/mkspecs/korin-g++/qplatformdefs.h b/mkspecs/korin-g++/qplatformdefs.h
+new file mode 100644
+index 00000000..ec444885
+--- /dev/null
++++ b/mkspecs/korin-g++/qplatformdefs.h
+@@ -0,0 +1,43 @@
++// Korin OS : un Unix générique (newlib + libposix), pas Linux (tools/qt, docs/etude/QT.md).
++#ifndef QPLATFORMDEFS_H
++#define QPLATFORMDEFS_H
++
++#include "qglobal.h"
++
++#ifndef _GNU_SOURCE
++#  define _GNU_SOURCE
++#endif
++
++#include <unistd.h>
++#include <pthread.h>
++#include <dirent.h>
++#include <fcntl.h>
++#include <grp.h>
++#include <pwd.h>
++#include <signal.h>
++#include <dlfcn.h>
++
++#include <sys/types.h>
++#include <sys/ioctl.h>
++#include <sys/time.h>
++#include <sys/socket.h>
++#include <sys/stat.h>
++#include <sys/wait.h>
++#include <netinet/in.h>
++
++#include "../common/posix/qplatformdefs.h"
++
++#define QT_SOCKLEN_T        socklen_t
++#define QT_SNPRINTF         ::snprintf
++#define QT_VSNPRINTF        ::vsnprintf
++
++// (newlib ne le donne pas ; POSIX : 512 au moins)
++#include <limits.h>
++#ifndef _POSIX_PIPE_BUF
++#  define _POSIX_PIPE_BUF 512
++#endif
++
++#undef QT_OPEN_LARGEFILE
++#define QT_OPEN_LARGEFILE   0
++
++#endif // QPLATFORMDEFS_H
+diff --git a/src/corelib/CMakeLists.txt b/src/corelib/CMakeLists.txt
+index d3b6af0b..a0a3b479 100644
+--- a/src/corelib/CMakeLists.txt
++++ b/src/corelib/CMakeLists.txt
+@@ -1163,12 +1163,19 @@ qt_internal_extend_target(Core
+         io/qstorageinfo_unix.cpp
+ )
+ 
+-qt_internal_extend_target(Core CONDITION LINUX AND NOT ANDROID AND NOT VXWORKS
++qt_internal_extend_target(Core CONDITION LINUX AND NOT ANDROID AND NOT VXWORKS AND NOT KORIN
+     SOURCES
+         io/qstandardpaths_unix.cpp
+         io/qstorageinfo_linux.cpp
+ )
+ 
++# Korin OS : CMake y voit un Linux, mais ni /proc ni mountinfo (tools/qt, docs/etude/QT.md)
++qt_internal_extend_target(Core CONDITION KORIN
++    SOURCES
++        io/qstandardpaths_unix.cpp
++        io/qstorageinfo_stub.cpp
++)
++
+ qt_internal_extend_target(Core CONDITION QT_FEATURE_itemmodel
+     SOURCES
+         itemmodels/qabstractitemmodel.cpp itemmodels/qabstractitemmodel.h itemmodels/qabstractitemmodel_p.h
+diff --git a/src/corelib/global/qsystemdetection.h b/src/corelib/global/qsystemdetection.h
+index bd1ef8dd..b4b0fe5b 100644
+--- a/src/corelib/global/qsystemdetection.h
++++ b/src/corelib/global/qsystemdetection.h
+@@ -129,6 +129,9 @@
+ #  define Q_OS_VXWORKS
+ #elif defined(__HAIKU__)
+ #  define Q_OS_HAIKU
++#elif defined(__armpi__)
++/* Korin OS (newlib + libposix) : un Unix générique, sans __linux__ */
++#  define Q_OS_KORIN
+ #elif defined(__MAKEDEPEND__)
+ #else
+ #  error "Qt has not been ported to this OS - see http://www.qt-project.org/"
+diff --git a/src/plugins/platforms/CMakeLists.txt b/src/plugins/platforms/CMakeLists.txt
+index f30c27c2..564c8459 100644
+--- a/src/plugins/platforms/CMakeLists.txt
++++ b/src/plugins/platforms/CMakeLists.txt
+@@ -44,6 +44,9 @@ endif()
+ if(FREEBSD)
+     # add_subdirectory(bsdfb) # TODO: QTBUG-112768
+ endif()
++if(KORIN)
++    add_subdirectory(korin)	# Korin OS (tools/qt/qpa : recopiée par tools/qt/build.sh)
++endif()
+ if(HAIKU)
+     # add_subdirectory(haiku) # TODO: QTBUG-112768
+ endif()
+diff --git a/src/plugins/styles/CMakeLists.txt b/src/plugins/styles/CMakeLists.txt
+index b809042c..9494c578 100644
+--- a/src/plugins/styles/CMakeLists.txt
++++ b/src/plugins/styles/CMakeLists.txt
+@@ -10,3 +10,7 @@ endif()
+ if(QT_FEATURE_style_windowsvista)
+     add_subdirectory(modernwindows)
+ endif()
++
++if(KORIN)
++    add_subdirectory(korin)	# Korin OS (tools/qt/style : recopié par tools/qt/build.sh)
++endif()

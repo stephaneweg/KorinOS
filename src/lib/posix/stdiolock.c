@@ -1,7 +1,8 @@
 /*
  * stdiolock.c -- flockfile, ftrylockfile, funlockfile (POSIX) sur le verrou recursif que newlib
- * garde dans chaque FILE (_flockfile de <sys/stdio.h>) ; getgrnam_r, initgroups : une
- * seule identite (root, gid 0), comme getgrgid et getgrnam de misc.c. Ajoutes pour git (docs/GIT.md).
+ * garde dans chaque FILE (_flockfile de <sys/stdio.h>) ; getgrnam_r, getgrgid_r, initgroups : une
+ * seule identite (root, gid 0), comme getgrgid et getgrnam de misc.c. Ajoutes pour git (docs/GIT.md) ;
+ * getgrgid_r pour Qt (QFileInfo::group, docs/etude/QT.md).
  */
 #include <errno.h>
 #include <grp.h>
@@ -43,6 +44,14 @@ int getgrnam_r (const char *name, struct group *grp, char *buf, size_t len, stru
 	grp->gr_mem = s_none;
 	*res = grp;
 	return 0;
+}
+
+int getgrgid_r (gid_t gid, struct group *grp, char *buf, size_t len, struct group **res)
+{
+	*res = 0;
+	if (gid != 0)
+		return 0;
+	return getgrnam_r ("root", grp, buf, len, res);
 }
 
 int initgroups (const char *user, gid_t group)

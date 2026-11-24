@@ -152,3 +152,4 @@
 - [Blender](armpi-blender.md) — 24/11 : jalons 0-2 faits ; interface OK sur le ZBook (blender 0.6 + pc 2026.11.101 : BO > 64 Mo, syncobj chronologiques) ; reste lavapipe sous QEMU (interblocage) et jalon 4
 - [llama.cpp et OpenJarvis](armpi-llamacpp-openjarvis.md) — 24/11 : llama.cpp construit dans Korin PC (paquet llamacpp, tools/llamacpp), OpenJarvis natif (tools/openjarvis) ; pas de Qwen ; T1200 à venir
 - [Accès rapides de Fichiers](armpi-fichiers-acces-rapides.md) — 24/11 : Accueil, Musiques, Images, Téléchargements, Projets avant Applications, glyphes glyph-place-* à la GNOME, dossiers types créés au démarrage ; HOME:/etc/places.ini personnel masque /etc
+- [Qt 6](armpi-qt.md) — 24/11 : qtbase croisé, QPA korin sur UIKit (barre de menus globale), style korin, essayés sous QEMU PC ; paquets <module>-dev dans /devtools/qt ; Qt Quick puis MuseScore à suivre

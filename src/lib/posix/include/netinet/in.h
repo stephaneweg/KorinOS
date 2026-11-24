@@ -105,6 +105,16 @@ extern const struct in6_addr in6addr_loopback;
 #define IPV6_DROP_MEMBERSHIP	21
 #define IPV6_JOIN_GROUP		IPV6_ADD_MEMBERSHIP
 #define IPV6_LEAVE_GROUP	IPV6_DROP_MEMBERSHIP
+/* informations de paquet IPv6 (Linux, RFC 3542) : Qt les nomme (QUdpSocket) */
+#define IPV6_RECVPKTINFO	49
+#define IPV6_PKTINFO		50
+#define IPV6_RECVHOPLIMIT	51
+#define IPV6_HOPLIMIT		52
+struct in6_pktinfo
+{
+	struct in6_addr ipi6_addr;
+	unsigned int ipi6_ifindex;
+};
 struct ipv6_mreq
 {
 	struct in6_addr ipv6mr_multiaddr;
