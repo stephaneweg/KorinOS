@@ -43,4 +43,10 @@ Demande de l'utilisateur du 24/11/2026, branche claude/lucid-wright-6o2o4b, fusi
 - 24/11 : accents de UIKit (uk_theme.c, uikit_theme.inc, applet Thème asm) choisis par l'utilisateur : vert
   0x2E8B3E (Givre) / 0x57B65F (Onyx Noir), « Vert vif » renommé « Vert » ; jaune 0xE69A0F / 0xFFB52E (le « J3 » :
   l'utilisateur l'a préféré aux jaunes moins saturés de même teinte). Fichiers redessine sur WEV_THEME.
+- 24/11 : ↑ ne remonte plus au-dessus d'une racine nommée (vol_root : « HOME: », « HOME:/ » ; path_parent rend
+  « HOME:/ » et non « H ») ; panneau : volumes amovibles et du réseau seulement (vol_shown), Affichage > Tous les
+  volumes (files.ini « volumes = 1 ») ; Affichage > Fichiers cachés, Ctrl+H (files.ini « caches = 1 ») : « . » ou
+  attribut FAT 0x02 par korin_readdir_attr (extension de libposix, sys/dirent.h ; libposix statique : relier
+  l'app) ; volumes du réseau nommés (vol_title : « Google Drive », « partage sur hôte », clé TR avec une espace
+  insécable car « %s sur %s » = « %s of %s » existe), glyphe réseau, chemin en 2e ligne.
 - Le Pi (armpi) n'est pas publié : son paquet a encore files.asm.

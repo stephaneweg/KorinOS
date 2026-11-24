@@ -6,7 +6,7 @@
 
 ## La fenêtre
 
-- **Le panneau de gauche** montre d'abord les **Accès rapides** (Accueil, Musiques, Images, Téléchargements, Projets, Applications, Documents, Vidéos...), chacun avec son icône, puis les **Volumes**. Chaque volume affiche son nom, sa place libre et sa taille (« 12,3 Go libres sur 29,7 Go ») avec une jauge de la place prise (rouge au-delà de 90 %) ; un volume dont la place n'est pas connue (certains partages) affiche son genre : **Carte SD**, **Clé USB**, **RAM**, **Serveur**… Une clé USB a un bouton d'éjection à droite de sa ligne. La liste des volumes se met à jour toute seule quand on branche ou retire une clé.
+- **Le panneau de gauche** montre d'abord les **Accès rapides** (Accueil, Musiques, Images, Téléchargements, Projets, Applications, Documents, Vidéos...), chacun avec son icône, puis les **Volumes** : par défaut seulement les clés USB et les volumes du réseau (partages, Google Drive) ; **Affichage > Tous les volumes** montre aussi les autres (**/**, **/tmp**…). Un partage s'appelle « partage sur serveur », un Google Drive « Google Drive ». Chaque volume affiche son nom, sa place libre et sa taille (« 12,3 Go libres sur 29,7 Go ») avec une jauge de la place prise (rouge au-delà de 90 %) ; un volume dont la place n'est pas connue (certains partages) affiche son genre : **Carte SD**, **Clé USB**, **RAM**, **Serveur**… Une clé USB a un bouton d'éjection à droite de sa ligne. La liste des volumes se met à jour toute seule quand on branche ou retire une clé.
 - **L'en-tête**, en haut à droite : les boutons ← (précédent), → (suivant) et ↑ (dossier parent), le **fil d'Ariane** (le chemin du dossier courant, un segment par dossier), et le choix de la vue : icônes ou liste.
 - **Le contenu** du dossier : les dossiers d'abord, puis les fichiers, par ordre alphabétique. Une application (un dossier `.app`) apparaît avec son icône et son nom.
 - **La ligne d'état**, en bas : le nombre d'éléments, ou le nom et la taille de l'élément choisi, ou le résultat de la dernière action (« Supprimé », « Volume démonté »...) ; à droite, la place libre du volume courant et sa jauge.
@@ -141,7 +141,8 @@ Le Drive devient un volume **/net/net0** (genre « Google Drive ») et s'ouvre, 
 | Aller | Dossier parent | Retour arrière |
 | Aller | Aller à l'emplacement… | Ctrl+L |
 | Aller | les accès rapides, / | |
-| Affichage | Icônes, Liste, Deux vues | |
+| Affichage | Icônes, Liste, Deux vues, Tous les volumes | |
+| Affichage | Fichiers cachés (un nom qui commence par « . », ou l'attribut caché de FAT) | Ctrl+H |
 | Volume | Se connecter à un serveur… | Ctrl+K |
 | Volume | Se connecter à Google Drive… | |
 | Volume | Démonter le volume courant | |

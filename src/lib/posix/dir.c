@@ -82,6 +82,12 @@ DIR *fdopendir (int fd)
 	return d;
 }
 
+/* Korin : les attributs FAT de la derniere entree rendue par readdir (sys/dirent.h) */
+unsigned long long korin_readdir_attr (DIR *d)
+{
+	return d ? *(unsigned long long *) (d->k + ARMPI_DIRENT_ATTR) : 0;
+}
+
 struct dirent *readdir (DIR *d)
 {
 	if (d == 0 || d->h < 0)
