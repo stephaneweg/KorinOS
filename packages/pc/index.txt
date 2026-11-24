@@ -220,14 +220,14 @@ content = 45b6ee1ae2e6e881b0e56c37d734429b7ff8698b8507e7f9525c032157b11093
 
 [koton-demos]
 title = Exemples de Koton Studio
-version = 1.0.1
-category = Multimédia
+version = 1.0.2
+category = Musique
 author = Korin OS
 summary = Cinq morceaux d'exemple qui passent par tous les modules et greffons de Koton (aube, bossa, synthwave, rituel, valse) et la chanson d'essai, dans /home/public/koton (à tous les comptes)
-size = 17565
+size = 17561
 installed = 158885
-sha256 = ba050ac508b759881180cd15a2d04a323c71b0f4fb3a3d6e8f74ef075979ff51
-file = pkgs/koton-demos-1.0.1.opk
+sha256 = af270820bf91a360e07053cc58d2d64a197bb356385668ff5763809985cd4226
+file = pkgs/koton-demos-1.0.2.opk
 needs = koton, abi >= 626
 required = 0
 restart = 0
