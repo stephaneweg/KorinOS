@@ -70,6 +70,11 @@ struct process {
 	uint64_t cap_lo[4], cap_hi[4];
 	uint64_t cap_entry, cap_restorer;
 	uint64_t cap_nums[8]; /* 512 bits : numéros capturés */
+	/* SVC_MAP_CALLER en cours sur sa mémoire (core/svc.c) : un service épingle ses pages hors des
+	 * verrous ; tant qu'il y en a, sched_reap ne le détruit pas et exec ne change pas d'espace.
+	 * reaping : choisi par sched_reap (sous sched_lock), plus d'épinglage possible */
+	volatile int pins;
+	int reaping;
 	struct process *next;
 };
 

@@ -512,10 +512,12 @@ void sched_reap(void)
 	/* process finis dont plus aucun thread n'est dans la liste */
 	for (struct process **pp = proc_list_head(); *pp;) {
 		struct process *p = *pp;
-		int busy = p->state != P_ZOMBIE;
+		/* (pins : un service épingle encore ses pages, SVC_MAP_CALLER : au prochain passage) */
+		int busy = p->state != P_ZOMBIE || __atomic_load_n(&p->pins, __ATOMIC_ACQUIRE);
 		for (struct thread *t = threads; t && !busy; t = t->next)
 			busy = t->proc == p;
 		if (!busy) {
+			p->reaping = 1;
 			*pp = p->next;
 			p->next = gone;
 			gone = p;

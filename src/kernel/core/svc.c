@@ -374,7 +374,22 @@ int64_t sys_svc_map_caller(uint64_t num, uint64_t addr, uint64_t size, uint64_t 
 	for (int k = 0; k < MAPC_MAX && n < 0; k++)
 		if (!(mine & (1 << k)))
 			n = k;
+	/* l'appelant tenu (pins) sous svc_lock, avec la requête encore prise : ses pages sont épinglées hors
+	 * des verrous, et avant, rien ne l'empêchait de mourir pendant ce temps (SIGKILL d'un rustc que pip
+	 * lance pour son en-tête, pendant qu'ext4fs lui sert une lecture) : sched_reap rendait son mm, son
+	 * espace et le process lui-même, et mm_pin_page les lisait encore (le service tombait, et son volume
+	 * avec). Le faucheur et exec attendent maintenant que pins revienne à 0 (comme mc_quiesce du Pi) */
+	struct process *caller = 0;
 	if (caller_pid && slot >= 0 && n >= 0) {
+		uint64_t g = sched_lock_take();
+		caller = proc_get(caller_pid);
+		if (caller && (caller->reaping || !caller->vm || !caller->mm))
+			caller = 0;
+		if (caller)
+			__atomic_add_fetch(&caller->pins, 1, __ATOMIC_ACQ_REL);
+		sched_lock_give(g);
+	}
+	if (caller) {
 		mapcs[slot].pid = svc->pid; /* réservée */
 		mapcs[slot].num = num;
 		mapcs[slot].base = MAPC_BASE + (uint64_t)n * MAPC_STRIDE;
@@ -385,13 +400,12 @@ int64_t sys_svc_map_caller(uint64_t num, uint64_t addr, uint64_t size, uint64_t 
 		return E_PIPE;
 	if (slot < 0 || n < 0)
 		return E_BUSY;
+	if (!caller)
+		return E_PIPE;
 	struct mapc *m = &mapcs[slot];
-	f = sched_lock_take();
-	struct process *caller = proc_get(caller_pid);
-	sched_lock_give(f);
 	int write = (flags & MC_WRITE) != 0;
 	uint64_t first = ALIGN_DOWN(addr, PAGE_SIZE), end = ALIGN_UP(addr + size, PAGE_SIZE);
-	int64_t ret = caller && caller->vm ? 0 : E_PIPE;
+	int64_t ret = 0;
 	for (uint64_t va = first; ret == 0 && va < end; va += PAGE_SIZE) {
 		/* épinglée : elle reste tant que la vue existe (l'appelant dort dans SVC_CALL) */
 		uint64_t phys = mm_pin_page(caller, va, write);
@@ -407,6 +421,7 @@ int64_t sys_svc_map_caller(uint64_t num, uint64_t addr, uint64_t size, uint64_t 
 		}
 		m->pages++;
 	}
+	__atomic_sub_fetch(&caller->pins, 1, __ATOMIC_ACQ_REL); /* (ses pages ont leurs épingles) */
 	if (ret) {
 		f = spin_lock_irqsave(&svc_lock);
 		unmap_one(m, svc);

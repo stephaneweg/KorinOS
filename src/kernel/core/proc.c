@@ -684,6 +684,10 @@ static int64_t sys_exec_image(struct thread *t, struct process *p, uint64_t path
 			break;
 		sched_sleep(1);
 	}
+	/* un service épingle encore des pages de l'ancien espace (SVC_MAP_CALLER, core/svc.c) : il
+	 * finit ; les requêtes des threads morts sont abandonnées, il n'en commence plus */
+	while (__atomic_load_n(&p->pins, __ATOMIC_ACQUIRE))
+		sched_sleep(1);
 	struct vm_space *old_vm = p->vm;
 	struct mm *old_mm = p->mm;
 	f = sched_lock_take();
