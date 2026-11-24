@@ -363,6 +363,21 @@ index 13c4e1b..e7e9f34 100644
  /* Other modern unix OS's should probably use this also. */
  #  include <sys/statvfs.h>
  #  define USE_STATFS_STATVFS
+diff --git a/source/blender/gpu/vulkan/vk_backend.cc b/source/blender/gpu/vulkan/vk_backend.cc
+index 9045d46..ad2601a 100644
+--- a/source/blender/gpu/vulkan/vk_backend.cc
++++ b/source/blender/gpu/vulkan/vk_backend.cc
+@@ -572,7 +572,9 @@ void VKBackend::detect_workarounds(VKDevice &device)
+ #ifdef _WIN32
+   extensions.external_memory = device.supports_extension(
+       VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME);
+-#elif not defined(__APPLE__)
++#elif !defined(__APPLE__) && !defined(__armpi__)
++  /* (Korin OS : le faux libdrm de VkKit n'exporte pas la memoire du GPU en descripteur de fichier :
++   * anv rend VK_ERROR_TOO_MANY_OBJECTS a l'export ; pas d'interoperabilite, comme sous macOS.) */
+   extensions.external_memory = device.supports_extension(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME);
+ #else
+   extensions.external_memory = false;
 diff --git a/source/blender/makesdna/intern/CMakeLists.txt b/source/blender/makesdna/intern/CMakeLists.txt
 index 24a0639..3ab6754 100644
 --- a/source/blender/makesdna/intern/CMakeLists.txt
