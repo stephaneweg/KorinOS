@@ -7,7 +7,7 @@ QT_VER=6.10.2				# celle de MuseScore Studio 4.7
 QT_MINOR=${QT_VER%.*}
 QT_URL=https://download.qt.io/official_releases/qt/$QT_MINOR/$QT_VER/submodules
 # les modules, dans l'ordre de construction (qtbase d'abord ; qtshadertools et qtsvg avant qtdeclarative)
-QT_MODULES="qtbase qtshadertools qtsvg qtdeclarative"	# (qtsvg avant qtdeclarative : son outil svgtoqml)
+QT_MODULES="qtbase qtshadertools qtsvg qtdeclarative qt5compat qtnetworkauth"	# (qtsvg avant qtdeclarative : svgtoqml ; qt5compat et qtnetworkauth : MuseScore)
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 QTT=$ROOT/tools/qt

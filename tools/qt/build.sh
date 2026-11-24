@@ -49,7 +49,7 @@ for m in $MODS; do
 			-DFEATURE_xcb=OFF -DFEATURE_xlib=OFF -DFEATURE_wayland=OFF -DFEATURE_linuxfb=OFF \
 			-DFEATURE_vnc=OFF -DFEATURE_eglfs=OFF -DFEATURE_directfb=OFF -DFEATURE_vkkhrdisplay=OFF \
 			-DFEATURE_dbus=OFF -DFEATURE_glib=OFF -DFEATURE_icu=OFF -DFEATURE_fontconfig=OFF \
-			-DFEATURE_sql=OFF -DFEATURE_printsupport=OFF -DFEATURE_cups=OFF -DFEATURE_testlib=ON \
+			-DFEATURE_sql=OFF -DFEATURE_printsupport=ON -DFEATURE_cups=OFF -DFEATURE_testlib=ON \
 			-DFEATURE_openssl_linked=ON -DFEATURE_libudev=OFF -DFEATURE_evdev=OFF -DFEATURE_libinput=OFF \
 			-DFEATURE_tslib=OFF -DFEATURE_mtdev=OFF -DFEATURE_xkbcommon=OFF -DFEATURE_inotify=OFF \
 			-DFEATURE_systemsemaphore=OFF -DFEATURE_sharedmemory=OFF -DFEATURE_sysv_shm=OFF \

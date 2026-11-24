@@ -1,0 +1,4 @@
+src/framework/audio/driver/platform/korin/korinaudiodriver.cpp korinaudiodriver.cpp
+src/framework/audio/driver/platform/korin/korinaudiodriver.h korinaudiodriver.h
+src/framework/ui/internal/platform/korin/korinplatformtheme.cpp korinplatformtheme.cpp
+src/framework/ui/internal/platform/korin/korinplatformtheme.h korinplatformtheme.h
