@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-24 19:10
+date = 2026-11-24 20:24
 abi = 629
 packages = 117
 board = pc
@@ -2567,3 +2567,18 @@ needs = pc, abi >= 629
 required = 0
 restart = 0
 content = 966222a7c1dcf1ac9b81ecc1de5913b5bcbf707e1bf091284a61f0f5f16411ba
+
+[drums]
+title = Boîte à rythmes
+version = 1.0.0
+category = Multimédia
+author = Korin OS
+summary = Une boîte à rythmes : séquenceur pas à pas des 61 percussions du kit, joué en MIDI par le synthé General MIDI, kits de la SoundFont, export en fichier MIDI
+size = 157604
+installed = 354888
+sha256 = c16eddeb40aae4ae952acebc79792428c4f8a59ff382afe4af7cbc25eca579c5
+file = pkgs/drums-1.0.0.opk
+needs = soundfonts, abi >= 629
+required = 0
+restart = 0
+content = 9b3586a56f1ecfb5d7eeaaa483a0d6bbde222fb3867e0bb35245863cc416451a
