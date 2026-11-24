@@ -151,7 +151,7 @@ def main():
 
     premier_demarrage(out)
 
-    for d in ("documents", "music", "pictures", "video"):
+    for d in ("documents", "music", "pictures", "video", "downloads", "projects"):
         os.makedirs(os.path.join(out, "home", d), exist_ok=True)
 
     # la base : ce qui est sur la carte, rien de plus

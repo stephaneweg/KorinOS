@@ -6,7 +6,7 @@
 
 ## The window
 
-- **The left panel** first shows the **Quick Access** places (Applications, Documents, Music, Pictures, Videos...), then the **Volumes**. Each volume shows its name, its free space and its size ("12.3 GB free of 29.7 GB") with a gauge of the space used (red above 90%); a volume whose space is not known (some shares) shows its kind: **SD Card**, **USB Drive**, **RAM**, **Server**... A USB drive has an eject button at the right of its row. The volume list updates by itself when a drive is plugged in or removed.
+- **The left panel** first shows the **Quick Access** places (Home, Music, Pictures, Downloads, Projects, Applications, Documents, Videos...), each with its icon, then the **Volumes**. Each volume shows its name, its free space and its size ("12.3 GB free of 29.7 GB") with a gauge of the space used (red above 90%); a volume whose space is not known (some shares) shows its kind: **SD Card**, **USB Drive**, **RAM**, **Server**... A USB drive has an eject button at the right of its row. The volume list updates by itself when a drive is plugged in or removed.
 - **The header**, at the top right: the ← (back), → (forward) and ↑ (parent folder) buttons, the **breadcrumb** (the path of the current folder, one segment per folder), and the view choice: icons or list.
 - **The content** of the folder: folders first, then files, in alphabetical order. An application (a `.app` folder) shows with its icon and its name.
 - **The status line**, at the bottom: the number of items, or the name and size of the chosen item, or the result of the last action ("Deleted", "Volume unmounted"...); on the right, the free space of the current volume and its gauge.
@@ -160,12 +160,12 @@ With the keyboard, in the content:
 The quick access list comes from the file `/etc/places.ini`, one line per place, in order:
 
 ```sh
+Accueil = HOME:/
+Musiques = HOME:/music
 Applications = /apps
-Documents = HOME:/documents
-Musique = HOME:/music
 ```
 
-On the left the displayed name, on the right the folder. A folder that does not exist is not shown. You can edit this file in the Editor; **File > Refresh** reads the list again.
+On the left the displayed name, on the right the folder. A folder that does not exist is not shown. The icon comes from the folder: a house for **HOME:/** (the home folder), a note for `music`, a picture for `pictures`, an arrow for `downloads`, `</>` for `projects`, a page for `documents`, a film for `video`, a grid for **/apps**, a folder for the others. Files creates the missing ones among these home folders when it starts. You can edit this file in the Editor; **File > Refresh** reads the list again.
 
 ## Tips
 
