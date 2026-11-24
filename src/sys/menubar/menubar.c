@@ -192,11 +192,85 @@ static u32 tj(const u8 *t, long off)
 	return *(const u32 *)(t + off);
 }
 
-/* (barre claire) une pilule d'un voile de l'encre claire, transparence t, sur le fond transparent */
+/* (barre claire) une pilule d'un voile de l'encre claire, transparence t, sur le fond transparent. Le texte tracé sur
+ * un fond à demi transparent s'y frangeait de sombre (« il dégouline », 24/11/2026, comme les catégories de la grille) :
+ * les pilules sont notées ici, puis glissées SOUS le texte à la fin du dessin (clear_pills_under). */
+#define CLEAR_PILLS 8
+static struct {
+	long x, y, w, h, r;
+	u32 t;
+} clear_pills[CLEAR_PILLS];
+static long clear_npills;
 static void clear_pill(long x, long y, long w, long h, long r, u32 t)
 {
-	u32 c = ((u32)ui_ink(CLEAR_BG) & 0xFFFFFF) | t << 24;
-	ui_rbox(x, y, w, h, r, c, c);
+	if (clear_npills < CLEAR_PILLS)
+		clear_pills[clear_npills++] = (typeof(clear_pills[0])){x, y, w, h, r, t};
+}
+
+/* chaque pixel 0xTTRRGGBB (TT : transparence, couleur non prémultipliée) passe devant le voile ; coins lissés */
+static void clear_pills_under(void)
+{
+	/* d'abord, le texte et les icônes : leur tracé mêle le bord de chaque trait à la couleur du fond et rend le pixel
+	   opaque ; sur le fond transparent (noir), ces bords devenaient du gris foncé opaque. Un pixel opaque tracé sur
+	   ce noir vaut encre x couverture : il redevient l'encre, à cette couverture (la plus forte composante) */
+	for (long j = 0; j < bar_h && j < ui.h; j++) {
+		u32 *row = (u32 *)ui.surf + j * ui.w;
+		for (long i = 0; i < ui.w; i++) {
+			u32 d = row[i];
+			if (d >> 24)
+				continue; /* (transparent ou translucide : pas un trait) */
+			long r = (d >> 16) & 0xFF, g = (d >> 8) & 0xFF, b = d & 0xFF;
+			long m = r > g ? r : g;
+			if (b > m)
+				m = b;
+			if (!m) {
+				row[i] = 0xFF000000;
+				continue;
+			}
+			row[i] = (u32)(255 - m) << 24 | (u32)(r * 255 / m) << 16 | (u32)(g * 255 / m) << 8 | (u32)(b * 255 / m);
+		}
+	}
+	u32 ink = (u32)ui_ink(CLEAR_BG) & 0xFFFFFF;
+	for (long n = 0; n < clear_npills; n++) {
+		long x = clear_pills[n].x, y = clear_pills[n].y, w = clear_pills[n].w, h = clear_pills[n].h;
+		long r = clear_pills[n].r;
+		if (2 * r > h)
+			r = h / 2;
+		if (2 * r > w)
+			r = w / 2;
+		for (long j = 0; j < h; j++) {
+			if (y + j < 0 || y + j >= ui.h)
+				continue;
+			u32 *row = (u32 *)ui.surf + (y + j) * ui.w;
+			for (long i = 0; i < w; i++) {
+				long X = x + i;
+				if (X < 0 || X >= ui.w)
+					continue;
+				long cov = 256; /* couverture du pixel, sur 256 (en demi-pixels depuis le centre du coin) */
+				long cx = i < r ? r : i >= w - r ? w - r : -1, cy = j < r ? r : j >= h - r ? h - r : -1;
+				if (cx >= 0 && cy >= 0 && r > 0) {
+					long dx = 2 * i + 1 - 2 * cx, dy = 2 * j + 1 - 2 * cy;
+					long d2 = dx * dx + dy * dy, r2 = 4 * r * r;
+					if (d2 >= r2 + 4 * r)
+						continue;
+					if (d2 > r2 - 4 * r)
+						cov = (r2 + 4 * r - d2) * 256 / (8 * r);
+				}
+				long ap = (255 - (long)clear_pills[n].t) * cov / 256;
+				u32 d = row[X];
+				long ad = 255 - (long)(d >> 24);
+				long a = ad + ap * (255 - ad) / 255;
+				if (a <= 0)
+					continue;
+				long wp = ap * (255 - ad) / 255;
+				u32 o = 0;
+				for (int sh = 0; sh < 24; sh += 8)
+					o |= (u32)((((long)(d >> sh) & 0xFF) * ad + ((long)(ink >> sh) & 0xFF) * wp) / a) << sh;
+				row[X] = o | (u32)(255 - a) << 24;
+			}
+		}
+	}
+	clear_npills = 0;
 }
 static const u8 *tokens(void) { return (const u8 *)ui_tokens(); }
 static long spawn(const char *path, const char *args)
@@ -1324,6 +1398,7 @@ static void draw(void)
 	long bh = bar_h;
 	clear_bar = ov_shown && !poche; /* (la vue d'ensemble : la barre claire, sans verre) */
 	glass_set(bh, TJ_BAR, GLASS_EDGE_BOTTOM); /* le verre (glass.c), comme le panel ; bord en bas */
+	clear_npills = 0;
 	if (clear_bar)
 		ui_fill(0, 0, ui.w, bh, 0xFF000000);
 	else
@@ -1352,7 +1427,9 @@ static void draw(void)
 	ui_text((long)s_losange, 12, base, tj(k, TJ_ACCENT), MB_PX + 2, (long)ui.font, 0);
 	if (!poche)
 		ui_text((long)str_armpi, 31, base, text1, MB_PX, (long)ui.font_b, 0);
-	if (mb_serial) { /* menus de l'application active ? */
+	if (clear_bar) { /* la vue d'ensemble : ni les menus ni le titre de la fenêtre active (24/11/2026, demande de
+			    l'utilisateur) ; mb_shown reste 1 : seul « Korin OS » répond au clic */
+	} else if (mb_serial) { /* menus de l'application active ? */
 		draw_titles(end, base);
 	} else {
 		const char *t = active_title(); /* sinon, le titre de la fenêtre active */
@@ -1403,6 +1480,8 @@ static void draw(void)
 		pq_x = x;
 		pq_icon(x);
 	}
+	if (clear_bar) /* (les pilules sous le texte) */
+		clear_pills_under();
 	ui_update_all();
 }
 

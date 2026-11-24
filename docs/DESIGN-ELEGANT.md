@@ -1193,6 +1193,12 @@ l'a reçu en dernier (`hov_win`) reçoit, quand le pointeur la quitte (pour une 
 fond, la vue d'ensemble), un dernier `WEV_MOUSE` de genre 0 en (-1, -1) : le titre de menu de la barre, la
 zone d'état, une icône du dash ne restent plus en surbrillance.
 
+**La barre de menus en vue d'ensemble** (24/11/2026) : ni les menus ni le titre de la fenêtre active (seul « Korin OS »
+répond) ; ses pilules (« Korin OS », un titre survolé, la zone d'état) sont glissées sous le texte à la fin du dessin
+(`clear_pills_under`), après avoir rendu translucides les bords des traits : le tracé du texte (`ttf_blend`) mêle le
+bord à la couleur du fond et rend le pixel opaque, et sur le fond transparent (noir) ces bords devenaient du gris
+foncé opaque ; un pixel opaque redevient l'encre, à la couverture de sa plus forte composante.
+
 **Les pilules de catégories** de la grille sont dessinées texte d'abord, sur le fond transparent, puis le
 voile glissé **dessous** (`la_pill_under`, pixel par pixel, bords lissés) : le texte tracé sur un fond à
 demi transparent s'y frangeait de sombre (« il dégouline »).
