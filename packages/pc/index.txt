@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-24 20:45
+date = 2026-11-24 20:47
 abi = 629
 packages = 117
 board = pc
@@ -2555,18 +2555,18 @@ content = 95cd1955ebe8bf8d8c93fe14b028df6ce4a1c4c27de13a9ab9a0ef1b2c4719d1
 
 [blender]
 title = Blender
-version = 5.2.4-0.10
+version = 5.2.4-0.11
 category = Graphisme
 author = Korin OS
 summary = Blender 5.2 LTS (essai) : modélisation, animation et rendu 3D
-size = 121818352
+size = 121818351
 installed = 269824705
-sha256 = 080d4a2a38ea12a5c121aeedd8b67f391c68b071c62fd3dbc997b2740065b30a
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-blender-5.2.4-0.10.opk
+sha256 = 216f4552944e4ca3287431bb88468a5e9601a826d82b4b7d5f78bb5d0f4bca70
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-blender-5.2.4-0.11.opk
 needs = pc, abi >= 629
 required = 0
 restart = 0
-content = 966222a7c1dcf1ac9b81ecc1de5913b5bcbf707e1bf091284a61f0f5f16411ba
+content = 60107b519f2fd529811801ca2b82b8052398b4fce7d80041cb0188b598ed736f
 
 [drums]
 title = Boîte à rythmes
