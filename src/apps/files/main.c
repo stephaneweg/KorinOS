@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -110,6 +111,9 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define KEY_N_		0x11
 #define KEY_K_		0x0E
 #define KEY_L_		0x0F
+#define KEY_R_		0x15
+#define KEY_ESC_	0x29
+#define KEY_TAB_	0x2B
 #define KEY_W_		0x1A
 #define KEY_F2_		0x3B
 #define KEY_F5_		0x3E
@@ -137,6 +141,7 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define ID_DUAL		42			/* Affichage > Deux vues */
 #define ID_COPYTO	13			/* Edition > Copier vers l'autre vue */
 #define ID_MOVETO	14
+#define ID_LOCATION	15			/* Aller > Aller a l'emplacement (Ctrl+L) */
 
 #define HDR_H		24			/* en-tete des colonnes (vue liste) */
 #define CELL_W		96			/* case de la vue icones */
@@ -1398,7 +1403,7 @@ static void menu_build (void)
 		"I7\tRenommer…\tF2\n"
 		"I3\tSupprimer\tSuppr\n"
 		"-\n"
-		"I4\tActualiser\tCtrl+L\n"
+		"I4\tActualiser\tF5\n"
 		"-\n"
 		"I5\tFermer\tCtrl+W\n"
 		"MÉdition\n"
@@ -1410,6 +1415,7 @@ static void menu_build (void)
 		"I14\tDéplacer vers l'autre vue\n"
 		"MAller\n"
 		"I10\tDossier parent\tRetour\n"
+		"I15\tAller à l'emplacement…\tCtrl+L\n"
 		"-\n";
 	static const char tail[] = "-\n"
 		"I11\tSD0:\n"
@@ -1530,6 +1536,15 @@ static long cur_vol (void) { return vol_of (path); }
 /* le volume qui contient le chemin p (le point de montage le plus long), -1 */
 static long vol_of (const char *p)
 {
+	char hp[600];
+	long h = home_prefix (p);
+	if (h)
+	{					/* « HOME:/x » : dans le volume du vrai dossier personnel ($HOME) ; sans cela, un dossier de
+						 * HOME: passait pour un volume retire a chaque changement des volumes (retour a /) */
+		const char *hm = getenv ("HOME");
+		snprintf (hp, sizeof hp, "%s/%s", hm && *hm ? hm : "/home", p + h);
+		p = hp;
+	}
 	long best = -1;
 	size_t bl = 0;
 	for (long i = 0; i < vol_n; i++)
@@ -4263,6 +4278,17 @@ static void draw_crumbs (void)
 
 /* en-tete : precedent, suivant, parent, fil d'Ariane, choix de la vue ; rien dans les FRAME_CAP_W
  * de droite (boutons de la fenetre) */
+/* le champ d'emplacement (24/11/2026) : un ui_textbox par-dessus le fil d'Ariane, ouvert par Ctrl+L, un clic dans le
+ * fil d'Ariane, ou « / » et « ~ » tapes dans la vue ; Entree y va, Echap le ferme, Tab complete le dernier nom */
+static long loc_w;				/* le champ (0 : pas encore cree) */
+static int loc_on;				/* montre */
+static void loc_open (const char *init);
+
+static void loc_place (void)
+{
+	ui_w_move (loc_w, CR_X0 - 8, NAV_Y, W_ - CR_R - CR_X0 + 16, NAV_H);
+}
+
 static void draw_top (void)
 {
 	ui_fill (PAN_W, 0, W_ - PAN_W, TOP_H, TOK (TJ_SURFACE));
@@ -4273,7 +4299,10 @@ static void draw_top (void)
 		draw_nav (h);
 	draw_dual ();
 	draw_seg ();
-	draw_crumbs ();
+	if (loc_on)
+		loc_place ();			/* (le champ est dessine a la fin de draw, par-dessus) */
+	else
+		draw_crumbs ();
 }
 
 /* x, y -> element de l'en-tete sous ce point (H_*, 0 : aucun ; le dernier segment n'en est pas un,
@@ -4600,6 +4629,8 @@ static void draw (void)
 	if (dual)
 		draw_split ();
 	draw_status ();
+	if (loc_on)
+		ui_w_draw (loc_w);
 	ui_update_all ();
 }
 
@@ -4642,6 +4673,7 @@ static void on_menu (long id)
 	case ID_DUAL: dual_set (!dual); menu_states (); break;
 	case ID_COPYTO: to_other (0); break;
 	case ID_MOVETO: to_other (1); break;
+	case ID_LOCATION: loc_open (0); return;
 	default:
 		if ((unsigned long) (id - ID_PLACE) >= (unsigned long) pl_n)
 			return;
@@ -4785,6 +4817,11 @@ static void on_mouse (void)
 	if (y < TOP_H)
 	{					/* en-tete */
 		long h = head_at (x, y);
+		if (!h && x >= CR_X0 - 8 && x < W_ - CR_R + 8 && y >= NAV_Y && y < NAV_Y + NAV_H)
+		{				/* le fil d'Ariane hors d'un segment : le chemin s'edite */
+			loc_open (0);
+			return;
+		}
 		if (!h)
 			return;
 		head_click (h);
@@ -4970,16 +5007,330 @@ static void on_drop (void)
 	draw ();
 }
 
+/* ---- le champ d'emplacement ---- */
+
+/* init : le texte de depart, curseur a la fin (« / », « ~/ ») ; 0 : le dossier courant, tout choisi */
+static void loc_open (const char *init)
+{
+	if (!loc_w)
+		loc_w = ui_textbox (CR_X0, NAV_Y, 100, NAV_H, 0);
+	if (!loc_w)
+		return;
+	ui_w_set_text (loc_w, (long) (init ? init : path));
+	long n = ui_w_text_len (loc_w);
+	ui_w_show (loc_w, 1);
+	loc_on = 1;
+	loc_place ();
+	ui_w_focus (loc_w);
+	ui_textbox_select (loc_w, init ? n : 0, n);
+	draw ();
+}
+
+static void loc_close (void)
+{
+	if (!loc_on)
+		return;
+	loc_on = 0;
+	ui_w_show (loc_w, 0);
+	draw ();
+}
+
+/* texte du champ -> chemin complet dans d (« ~ » : HOME:, relatif : depuis le dossier courant ; « . » et « .. »
+ * resolus, « / » doubles et de fin retires) */
+static void loc_resolve (const char *in, char *d, size_t cap)
+{
+	char t[600];
+	while (*in == ' ')
+		in++;
+	if (in[0] == '~' && (!in[1] || in[1] == '/'))
+		snprintf (t, sizeof t, "HOME:/%s", in[1] ? in + 2 : "");
+	else if (in[0] == '/' || home_prefix (in) || strchr (in, ':'))
+		snprintf (t, sizeof t, "%s", in);
+	else
+		path_join (t, path, in);
+	size_t n = strlen (t);
+	while (n && t[n - 1] == ' ')
+		t[--n] = 0;
+	/* la racine (« / » ou « VOLUME: ») puis les noms */
+	char *r = t, out[600];
+	size_t o = 0;
+	char *colon = strchr (t, ':'), *slash = strchr (t, '/');
+	if (colon && (!slash || colon < slash))
+	{
+		o = (size_t) (colon - t) + 1;
+		memcpy (out, t, o);
+		r = colon + 1;
+	}
+	out[o++] = '/';
+	size_t root = o;
+	for (char *seg = r; *seg;)
+	{
+		while (*seg == '/')
+			seg++;
+		char *e = seg;
+		while (*e && *e != '/')
+			e++;
+		size_t l = (size_t) (e - seg);
+		if (l == 1 && seg[0] == '.')
+			;
+		else if (l == 2 && seg[0] == '.' && seg[1] == '.')
+		{				/* le nom d'avant s'en va (jamais la racine) */
+			if (o > root)
+			{
+				o--;
+				while (o > root && out[o - 1] != '/')
+					o--;
+			}
+		}
+		else if (l && o + l + 2 < sizeof out)
+		{
+			memcpy (out + o, seg, l);
+			o += l;
+			out[o++] = '/';
+		}
+		seg = e;
+	}
+	if (o > root)
+		o--;				/* (pas de « / » a la fin, sauf la racine) */
+	out[o] = 0;
+	snprintf (d, cap, "%s", out);
+}
+
+/* Entree : un dossier -> on y va ; un fichier -> son dossier, lui choisi ; sinon le message, le champ reste */
+static void loc_go (void)
+{
+	char p[600];
+	struct stat st;
+	loc_resolve ((const char *) ui_w_get_text (loc_w), p, sizeof p);
+	if (strlen (p) >= 256 || stat (p, &st) != 0)
+	{
+		static char m[300];
+		snprintf (m, sizeof m, TR ("Introuvable : %s"), p);
+		msg = m;
+		draw ();
+		return;
+	}
+	loc_on = 0;
+	ui_w_show (loc_w, 0);
+	if (S_ISDIR (st.st_mode))
+		go_dir (p);
+	else
+	{				/* un fichier : son dossier, et lui choisi */
+		char dir[600];
+		snprintf (dir, sizeof dir, "%s", p);
+		path_parent (dir);
+		go_dir (dir);
+		const char *b = base_name (p);
+		for (long i = 0; i < nents; i++)
+			if (!strcmp (ent_ptr (i)->name, b))
+			{
+				sel_one (i);
+				keep_visible ();
+				break;
+			}
+	}
+	draw ();
+}
+
+/* Tab : le dernier nom complete d'apres son dossier (le plus long debut commun ; un seul dossier : « / » apres) */
+static void loc_complete (void)
+{
+	char txt[600], dir[600], best[256];
+	snprintf (txt, sizeof txt, "%s", (const char *) ui_w_get_text (loc_w));
+	char *last = strrchr (txt, '/');
+	const char *pre = last ? last + 1 : txt;
+	size_t pl = strlen (pre);
+	if (last)
+	{				/* le dossier : le texte jusqu'au dernier « / » */
+		char c = last[1];
+		last[1] = 0;
+		loc_resolve (txt, dir, sizeof dir);
+		last[1] = c;
+	}
+	else
+		snprintf (dir, sizeof dir, "%s", path);
+	DIR *dp = opendir (dir);
+	if (!dp)
+		return;
+	long found = 0;
+	int isdir = 0;
+	size_t bl = 0;
+	struct dirent *de;
+	while ((de = readdir (dp)))
+	{
+		const char *nm = de->d_name;
+		if (nm[0] == '.' && (!pl || pre[0] != '.'))
+			continue;			/* (les caches seulement si on les demande) */
+		if (strncasecmp (nm, pre, pl))
+			continue;
+		if (!found++)
+		{
+			snprintf (best, sizeof best, "%s", nm);
+			bl = strlen (best);
+		}
+		else
+		{				/* le debut commun (sans casse) */
+			size_t k = 0;
+			while (k < bl && nm[k] && tolower ((unsigned char) nm[k]) == tolower ((unsigned char) best[k]))
+				k++;
+			bl = k;
+		}
+		if (found == 1)
+		{
+			char fp[600];
+			struct stat st;
+			path_join (fp, dir, nm);
+			isdir = stat (fp, &st) == 0 && S_ISDIR (st.st_mode);
+		}
+	}
+	closedir (dp);
+	if (!found || (bl <= pl && found > 1))
+		return;				/* (rien, ou plusieurs sans rien de plus en commun) */
+	best[bl] = 0;
+	size_t head = (size_t) (pre - txt);
+	snprintf (txt + head, sizeof txt - head, "%s%s", best, found == 1 && isdir ? "/" : "");
+	ui_w_set_text (loc_w, (long) txt);
+	long n = ui_w_text_len (loc_w);
+	ui_textbox_select (loc_w, n, n);
+	ui_w_draw (loc_w);
+}
+
+/* un evenement pendant l'edition -> 1 s'il est pris (le champ, Entree, Echap, Tab, un clic ailleurs le ferme) */
+static int loc_event (long t)
+{
+	if (t == WEV_KEY && ui_ev_field (&ui, EV_KIND))
+	{
+		long k = ui_ev_field (&ui, EV_CODE);
+		if (k == KEY_ESC_)
+		{
+			loc_close ();
+			return 1;
+		}
+		if (k == KEY_TAB_ && !(ui_ev_field (&ui, EV_MODS) & UI_MOD_CTRL))
+		{
+			loc_complete ();
+			return 1;
+		}
+	}
+	if (t == WEV_MOUSE && ui_ev_field (&ui, EV_KIND) == 1)
+	{				/* un clic hors du champ : ferme, puis le clic sert */
+		long x = ui_ev_field (&ui, EV_X), y = ui_ev_field (&ui, EV_Y);
+		if (y < NAV_Y || y >= NAV_Y + NAV_H || x < CR_X0 - 8 || x >= W_ - CR_R + 8)
+		{
+			loc_close ();
+			return 0;
+		}
+	}
+	long code = 0, taken = 0;
+	long wid = uikit_w_event (&code, &taken);
+	if (wid == loc_w && code == UN_ACTIVATE)
+	{
+		loc_go ();
+		return 1;
+	}
+	if (t == WEV_KEY)
+		return 1;			/* (les touches restent au champ : Suppr n'efface pas un fichier) */
+	return taken != 0;
+}
+
+/* ---- aller a un element en tapant son nom (24/11/2026) : les lettres tapees a moins d'une seconde
+ * d'intervalle s'ajoutent ; le premier element dont le nom commence ainsi est choisi ; la meme lettre
+ * repetee passe au suivant qui commence par elle ---- */
+static char ta_buf[64];
+static long ta_len, ta_time;
+static char ta_msg[120];
+
+/* point de code -> UTF-8 dans d -> octets */
+static int utf8_put (long c, char *d)
+{
+	if (c < 0x80) { d[0] = (char) c; return 1; }
+	if (c < 0x800) { d[0] = (char) (0xC0 | (c >> 6)); d[1] = (char) (0x80 | (c & 63)); return 2; }
+	if (c < 0x10000) { d[0] = (char) (0xE0 | (c >> 12)); d[1] = (char) (0x80 | ((c >> 6) & 63)); d[2] = (char) (0x80 | (c & 63)); return 3; }
+	d[0] = (char) (0xF0 | (c >> 18)); d[1] = (char) (0x80 | ((c >> 12) & 63)); d[2] = (char) (0x80 | ((c >> 6) & 63));
+	d[3] = (char) (0x80 | (c & 63));
+	return 4;
+}
+
+static void type_ahead (long ch)
+{
+	long now = time_ms ();
+	if (now - ta_time > 1000)
+		ta_len = 0;
+	ta_time = now;
+	char u[4];
+	int n = utf8_put (ch, u);
+	if (ta_len + n >= (long) sizeof ta_buf)
+		return;
+	memcpy (ta_buf + ta_len, u, (size_t) n);
+	ta_len += n;
+	ta_buf[ta_len] = 0;
+	if (!nents)
+		return;
+	/* la meme lettre repetee (« aaa ») : le suivant qui commence par elle, en boucle */
+	int same = ta_len > n;
+	for (long k = n; same && k < ta_len; k++)
+		if (ta_buf[k] != ta_buf[k % n])
+			same = 0;
+	long start = 0, found = -1;
+	const char *want = ta_buf;
+	size_t wl = (size_t) ta_len;
+	if (same)
+	{
+		wl = (size_t) n;
+		start = cursel >= 0 ? cursel + 1 : 0;
+	}
+	for (long j = 0; j < nents && found < 0; j++)
+	{
+		long i = (start + j) % nents;
+		if (!strncasecmp (ent_shown (ent_ptr (i)), want, wl))
+			found = i;
+	}
+	if (same && found < 0)
+		return;
+	if (found < 0)
+	{				/* rien ne commence ainsi : le message, la selection ne bouge pas */
+		snprintf (ta_msg, sizeof ta_msg, "%s « %s »", TR ("Aucun élément ne commence par"), ta_buf);
+		msg = ta_msg;
+		draw ();
+		return;
+	}
+	sel_one (found);
+	keep_visible ();
+	snprintf (ta_msg, sizeof ta_msg, "%s « %.*s »", TR ("Aller à"), (int) wl, ta_buf);
+	msg = ta_msg;
+	draw ();
+}
+
 static void on_key (void)
 {
 	if (!ui_ev_field (&ui, EV_KIND))
 		return;				/* relache */
-	long k = ui_ev_field (&ui, EV_CODE);
-	if (ui_ev_field (&ui, EV_MODS) & UI_MOD_CTRL)
+	long k = ui_ev_field (&ui, EV_CODE), ch = ui_ev_field (&ui, EV_CHAR), mods = ui_ev_field (&ui, EV_MODS);
+	if (ch >= 0x20 && ch != 0x7F && ch < 0x110000 && (!(mods & UI_MOD_CTRL) || (mods & 0x40)))
+	{					/* un caractere (AltGr compris) : « / » et « ~ » ouvrent l'emplacement, le reste cherche */
+		if (ta_len && time_ms () - ta_time <= 1000)
+			;			/* (en cours de frappe : « / » ou « ~ » font partie du nom) */
+		else if (ch == '/' || ch == '~')
+		{
+			loc_open (ch == '/' ? "/" : "~/");
+			return;
+		}
+		if (ch != ' ' || (ta_len && time_ms () - ta_time <= 1000))
+		{
+			type_ahead (ch);
+			return;
+		}
+	}
+	if (mods & UI_MOD_CTRL)
 	{
 		if (k == KEY_N_)
 			new_folder ();
 		else if (k == KEY_L_)
+		{
+			loc_open (0);		/* (comme GNOME : Ctrl+L, l'emplacement ; Actualiser : F5, Ctrl+R) */
+			return;
+		}
+		else if (k == KEY_R_)
 			refresh ();
 		else if (k == KEY_W_)
 			quit ();
@@ -5174,6 +5525,8 @@ int main (int argc, char **argv)
 			long code, taken;	/* (le kit prend la taille, puis on_resize) */
 			uikit_w_event (&code, &taken);
 		}
+		else if (loc_on && (t == WEV_KEY || t == WEV_MOUSE) && loc_event (t))
+			;				/* (le champ d'emplacement l'a pris) */
 		else if (t == WEV_MOUSE)
 		{
 			ptr_x = ui_ev_field (&ui, EV_X);

@@ -24,4 +24,12 @@ Demande de l'utilisateur du 24/11/2026, branche claude/lucid-wright-6o2o4b, fusi
   glyph-folder-front (la face redescend à gauche sous l'onglet, courbe en S), coloriés d'après TJ_ACCENT (tint :
   fond 31/256 vers le blanc, épaisseur 77, face 148) ; dans le dossier personnel (HOME:/ ou $HOME), les dossiers types
   portent leur glyphe en emblème (16 px) dans la vue en icônes, pas dans la liste. Plus de COL_FOLDER (ambre) en dur.
-- Pas essayé sous QEMU ni sur le Pi au moment de l'écriture ; paquets (armpi, pc) pas publiés.
+- Publié : pc 2026.11.105 (pub.py depuis le cloud, sur l'archive .104 extraite + les fichiers de Fichiers ; essayé
+  sous QEMU PC avec cet arbre comme disque d'essai : mkkorindisk --sysroot <arbre sans EFI/ ni korin/> --esp <ces
+  deux-là> --loader <esp>/EFI/Korin/korin.efi, ligne « /apps/files.app/main HOME:/ » ajoutée à etc/session de l'essai).
+- 24/11 suite : recherche en tapant (type_ahead, 1 s entre les touches, même lettre répétée = suivant) ; champ
+  d'emplacement (ui_textbox loc_w par-dessus le fil d'Ariane : Ctrl+L, clic dans le fil hors d'un segment, « / » et
+  « ~ » tapés ; Tab complète, Entrée, Échap ; ~ = HOME:, relatif, . et ..) ; Ctrl+L n'actualise plus (F5, Ctrl+R),
+  comme GNOME. vol_of : HOME: rattaché au volume de $HOME (avant : « Volume retiré : retour à / » à chaque changement
+  des volumes quand on était dans HOME:). Essayé sous QEMU PC (captures t1..t8).
+- Le Pi (armpi) n'est pas publié : son paquet a encore files.asm.

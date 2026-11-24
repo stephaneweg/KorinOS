@@ -18,6 +18,8 @@
 - **Go back, then forward**: the ← and → buttons. They are grayed out when there is nothing before or after.
 - **Jump to a folder of the path**: click a segment of the breadcrumb. A path that is too long is cut on the left; the "…" leads to the folder it replaces.
 - **Go to a quick access place or a volume**: click it in the left panel, or use the **Go** menu, which lists the quick access places and **/**.
+- **Type a path**: Ctrl+L (**Go > Go to Location…**), a click in the breadcrumb next to the names, or the **/** or **~** key in the view: the path becomes a field. Type `/apps`, `~/documents` (`~`: the home folder), `HOME:/music` or a name relative to the current folder (`..` goes up). **Tab** completes the last name, **Enter** goes there (a file: its folder opens, with it chosen), **Escape** or a click elsewhere closes the field.
+- **Jump to an item by typing its name**: in the view, type the beginning of the name, the item that starts that way is chosen (the status line shows what is typed). Letters typed less than a second apart add up; the same letter repeated goes to the next item that starts with it.
 
 ## Opening a file
 
@@ -131,12 +133,13 @@ The Drive becomes a volume **/net/net0** ("Google Drive") and opens, **readable 
 | File | New Folder | Ctrl+N |
 | File | Rename… | F2 |
 | File | Delete | Delete |
-| File | Refresh | Ctrl+L or F5 |
+| File | Refresh | F5 or Ctrl+R |
 | File | Close | Ctrl+W |
 | Edit | Cut | Ctrl+X |
 | Edit | Copy | Ctrl+C |
 | Edit | Paste | Ctrl+V |
 | Go | Parent Folder | Backspace |
+| Go | Go to Location… | Ctrl+L |
 | Go | the quick access places, / | |
 | View | Icons, List | |
 | Volume | Connect to Server… | Ctrl+K |
@@ -169,6 +172,6 @@ On the left the displayed name, on the right the folder. A folder that does not 
 
 ## Tips
 
-- **Refresh** (Ctrl+L or F5) reads the folder and the volumes again, without losing the chosen item: useful after copying a file from the [Terminal](help:terminal).
+- **Refresh** (F5 or Ctrl+R) reads the folder and the volumes again, without losing the chosen item: useful after copying a file from the [Terminal](help:terminal).
 - To copy many files chosen by a pattern (`*.jpg`), the `cp` command of the [Terminal](help:terminal) is still handy; Files copies one item at a time (a whole folder counts as one).
 - Installed applications are in **/apps** (the **Applications** quick access); [Software](help:pkgman) installs and removes them.

@@ -18,6 +18,8 @@
 - **Revenir en arrière, puis en avant** : les boutons ← et →. Ils sont grisés quand il n'y a rien avant ou après.
 - **Sauter à un dossier du chemin** : un clic sur un segment du fil d'Ariane. Un chemin trop long est coupé à gauche ; le « … » mène au dossier qu'il remplace.
 - **Aller à un accès rapide ou à un volume** : un clic dans le panneau de gauche, ou le menu **Aller**, qui liste les accès rapides et **/**.
+- **Taper un chemin** : Ctrl+L (**Aller > Aller à l'emplacement…**), un clic dans le fil d'Ariane à côté des noms, ou la touche **/** ou **~** dans la vue : le chemin devient un champ. On y tape `/apps`, `~/documents` (`~` : le dossier personnel), `HOME:/music` ou un nom relatif au dossier courant (`..` remonte). **Tab** complète le dernier nom, **Entrée** y va (un fichier : son dossier s'ouvre, lui choisi), **Échap** ou un clic ailleurs referme le champ.
+- **Aller à un élément en tapant son nom** : dans la vue, tapez le début du nom, l'élément qui commence ainsi est choisi (la ligne d'état rappelle ce qui est tapé). Les lettres tapées à moins d'une seconde d'intervalle s'ajoutent ; la même lettre répétée passe à l'élément suivant qui commence par elle.
 
 ## Ouvrir un fichier
 
@@ -129,13 +131,14 @@ Le Drive devient un volume **/net/net0** (genre « Google Drive ») et s'ouvre, 
 | Fichier | Nouveau dossier | Ctrl+N |
 | Fichier | Renommer… | F2 |
 | Fichier | Supprimer | Suppr |
-| Fichier | Actualiser | Ctrl+L ou F5 |
+| Fichier | Actualiser | F5 ou Ctrl+R |
 | Fichier | Fermer | Ctrl+W |
 | Édition | Couper | Ctrl+X |
 | Édition | Copier | Ctrl+C |
 | Édition | Coller | Ctrl+V |
 | Édition | Copier vers l'autre vue, Déplacer vers l'autre vue | |
 | Aller | Dossier parent | Retour arrière |
+| Aller | Aller à l'emplacement… | Ctrl+L |
 | Aller | les accès rapides, / | |
 | Affichage | Icônes, Liste, Deux vues | |
 | Volume | Se connecter à un serveur… | Ctrl+K |
@@ -168,6 +171,6 @@ Applications = /apps
 
 ## Astuces
 
-- **Actualiser** (Ctrl+L ou F5) relit le dossier et les volumes, sans perdre l'élément choisi : utile après avoir copié un fichier depuis le [Terminal](help:terminal).
+- **Actualiser** (F5 ou Ctrl+R) relit le dossier et les volumes, sans perdre l'élément choisi : utile après avoir copié un fichier depuis le [Terminal](help:terminal).
 - Pour copier beaucoup de fichiers choisis par un motif (`*.jpg`), la commande `cp` du [Terminal](help:terminal) reste pratique ; Fichiers copie un élément à la fois (un dossier entier compte pour un).
 - Les applications installées sont dans **/apps** (accès rapide **Applications**) ; [Logiciels](help:pkgman) les installe et les retire.
