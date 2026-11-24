@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-24 07:52
+date = 2026-11-24 09:02
 abi = 629
 packages = 117
 board = pc
@@ -2555,15 +2555,15 @@ content = 95cd1955ebe8bf8d8c93fe14b028df6ce4a1c4c27de13a9ab9a0ef1b2c4719d1
 
 [blender]
 title = Blender
-version = 5.2.4-0.4
+version = 5.2.4-0.5
 category = Graphisme
 author = Korin OS
 summary = Blender 5.2 LTS (essai) : modélisation, animation et rendu 3D
-size = 105294527
-installed = 225591345
-sha256 = 90a15cee9cc7056ea304570f4e12e6b4dde0d82fdae09f08ded6c13a11f41ba1
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-blender-5.2.4-0.4.opk
+size = 105315961
+installed = 225661505
+sha256 = 77cb5b467e1b2c24e7a0e739062b2cec487d9a3232daa199430fc8606c082619
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-blender-5.2.4-0.5.opk
 needs = pc, abi >= 629
 required = 0
 restart = 0
-content = d38c364b82acd9e411e75d26733213b7214f1279ba14f470b6322c51c939d143
+content = 749cbac1c64b22991be6076f9bf9e7ed51fc7a9eeb81dacddfe43aefde312b94
