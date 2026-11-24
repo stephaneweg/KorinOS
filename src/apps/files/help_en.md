@@ -165,7 +165,7 @@ Musiques = HOME:/music
 Applications = /apps
 ```
 
-On the left the displayed name, on the right the folder. A folder that does not exist is not shown. The icon comes from the folder: a house for **HOME:/** (the home folder), a note for `music`, a picture for `pictures`, an arrow for `downloads`, a set square and a pencil for `projects`, a page for `documents`, a film for `video`, a grid for **/apps**, a folder for the others. Files creates the missing ones among these home folders when it starts. You can edit this file in the Editor; **File > Refresh** reads the list again.
+On the left the displayed name, on the right the folder. A folder that does not exist is not shown. The icon comes from the folder: a house for **HOME:/** (the home folder), a note for `music`, a picture for `pictures`, an arrow for `downloads`, a set square and a pencil for `projects`, a page for `documents`, a film for `video`, a grid for **/apps**, a folder for the others. Files creates the missing ones among these home folders when it starts. In the home folder, they also carry their icon on the folder, in the icon view; folders take the accent color of the theme. You can edit this file in the Editor; **File > Refresh** reads the list again.
 
 ## Tips
 

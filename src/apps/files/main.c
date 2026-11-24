@@ -152,8 +152,6 @@ struct svc_msg					/* message de 512 octets (MSG_*) */
 #define S_TYPE		2
 
 /* les dossiers dessines ont leur couleur propre (comme l'asm : une icone, pas un element de l'interface) */
-#define COL_FOLDER	0x00E8B64C
-#define COL_FOLDER_D	0x00C99A35
 
 struct ent
 {
@@ -1324,6 +1322,22 @@ static int same_dir (const char *a, const char *b)
 	if (lb > 1 && b[lb - 1] == '/')
 		lb--;
 	return la == lb && !strncasecmp (a, b, la);
+}
+
+/* nom d'un dossier type du dossier personnel -> son glyphe, sinon 0 */
+static const char *std_glyph (const char *name)
+{
+	for (size_t i = 0; i < sizeof std_dirs / sizeof std_dirs[0]; i++)
+		if (!strcasecmp (name, std_dirs[i][0]))
+			return std_dirs[i][1];
+	return 0;
+}
+
+/* le dossier courant est-il le dossier personnel (« HOME:/ », ou son vrai chemin : $HOME) ? */
+static int path_is_home (void)
+{
+	const char *h = getenv ("HOME");
+	return same_dir (path, "HOME:/") || same_dir (path, "HOME:") || (h && *h && same_dir (path, h));
 }
 
 static void places_load (void)
@@ -3910,12 +3924,36 @@ static void text (const char *s, long x, long base, unsigned c, long px, const u
 
 static long text_w (const char *s, long px, const unsigned char *font) { return ui_text_width ((long) s, px, (long) font); }
 
-/* petit dossier (20 x 17) */
-static void draw_folder (long x, long y, unsigned tab, unsigned body)
+/* les dossiers a la maniere d'Adwaita (24/11/2026) : deux masques de tools/icons (glyph-folder-back : le fond et son
+ * onglet ; glyph-folder-front : la face, qui redescend a gauche sous l'onglet), colories d'apres l'accent du theme ;
+ * un dossier type du dossier personnel porte en plus son glyphe (place_glyph) en embleme */
+
+/* c eclairci vers le blanc de t/256 */
+static unsigned tint (unsigned c, unsigned t)
 {
-	ui_fill (x, y + 1, 8, 3, tab);
-	ui_fill (x, y + 3, 20, 14, body);
+	unsigned r = 0;
+	for (int sh = 0; sh < 24; sh += 8)
+	{
+		unsigned v = (c >> sh) & 255;
+		r |= (v + (255 - v) * t / 256) << sh;
+	}
+	return r;
 }
+
+static unsigned folder_back (void) { return tint (TOK (TJ_ACCENT), 31); }	/* le fond, l'embleme */
+
+/* dossier de cote side (20, 48) ; edge : son epaisseur sous la face (un trait plus fonce) */
+static void draw_folder_s (long x, long y, long side, int edge)
+{
+	unsigned a = TOK (TJ_ACCENT);
+	ui_glyph ((long) "glyph-folder-back", x, y, side, folder_back ());
+	if (edge)
+		ui_glyph ((long) "glyph-folder-front", x, y + 1, side, tint (a, 77));
+	ui_glyph ((long) "glyph-folder-front", x, y, side, tint (a, 148));
+}
+
+/* petit dossier (20 x 20) */
+static void draw_folder (long x, long y) { draw_folder_s (x, y, 20, 0); }
 
 /* page (14 x 18) */
 static void draw_doc (long x, long y)
@@ -4335,7 +4373,7 @@ static void draw_rows (void)
 			draw_sel (vx0 + 4, y + 1, vx1 - (vx0 + 8), ROW_H - 2);
 		struct ent *e = ent_ptr (i);
 		if (e->kind == K_DIR)
-			draw_folder (vx0 + 12, y + 4, COL_FOLDER_D, COL_FOLDER);
+			draw_folder (vx0 + 12, y + 3);
 		else if (e->kind == K_APP)
 			ui_icon ((long) e->icon, vx0 + 12, y + 3, 20);
 		else
@@ -4363,10 +4401,12 @@ static void draw_rows (void)
 }
 
 /* grand dossier (48 x 44) */
-static void draw_folder_big (long x, long y)
+/* grand dossier (ICON_S) ; emb : son embleme (glyph-place-*, 0 : aucun), au milieu de la face */
+static void draw_folder_big (long x, long y, const char *emb)
 {
-	ui_rbox (x + 2, y + 4, 20, 10, 3, COL_FOLDER_D, COL_FOLDER_D);
-	ui_rbox (x, y + 9, ICON_S, 35, 4, COL_FOLDER, COL_FOLDER);
+	draw_folder_s (x, y, ICON_S, 1);
+	if (emb)
+		ui_glyph ((long) emb, x + ICON_S / 2 - 8, y + ICON_S * 5 / 8 - 8, 16, folder_back ());
 }
 
 /* grande page (32 x 44, centree dans 48) */
@@ -4426,6 +4466,7 @@ static void draw_grid (void)
 {
 	ui_fill (vx0, vtop, vx1 - vx0, H_ - (vtop + SB_H), TOK (TJ_SURFACE));
 	long gx = grid_x0 ();
+	int home = path_is_home ();		/* (ses dossiers types ont leur embleme) */
 	for (long c = 0; c < rows * cols; c++)
 	{
 		long i = scroll_ * cols + c;	/* rang */
@@ -4437,7 +4478,7 @@ static void draw_grid (void)
 		struct ent *e = ent_ptr (i);
 		long ix = x + (CELL_W - ICON_S) / 2, iy = y + 5;
 		if (e->kind == K_DIR)
-			draw_folder_big (ix, iy);
+			draw_folder_big (ix, iy, home ? std_glyph (e->name) : 0);
 		else if (e->kind == K_APP)
 			ui_icon ((long) e->icon, ix, iy, ICON_S);
 		else
@@ -4500,7 +4541,7 @@ static void draw_banner (void)
 	if (on)
 		ui_fill (vx0, y, w, 2, TOK (TJ_ACCENT));
 	ui_fill (vx0, y + BAN_H - 1, w, 1, TOK (TJ_LINE));
-	draw_folder (vx0 + 8, y + 6, COL_FOLDER_D, COL_FOLDER);
+	draw_folder (vx0 + 8, y + 3);
 	const char *nm = path[0] == '/' && !path[1] ? "/" : base_name (path);
 	long x = vx0 + 34, right = vx1 - 10;
 	long v = vol_of (path);

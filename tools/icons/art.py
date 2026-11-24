@@ -1809,23 +1809,106 @@ glyph('trash')(lambda ic: strokes(ic, [('l', (3.5, 6.5), (20.5, 6.5)), ('l', (9,
 for _n, _s in TOOLS.items():
     _tool(_n, _s)
 
-# --- les dossiers des accès rapides de Fichiers (glyph-place-*, 24/11/2026) : au trait comme les icônes symboliques du
-# panneau de Nautilus, coloriés par le jeton du thème (src/apps/files/main.c, place_glyph)
+# --- les dossiers de Fichiers (24/11/2026, demande de l'utilisateur : « le même style que les icônes Adwaita ») ----------
+# Les glyphes des dossiers types (glyph-place-*) : à la manière des icônes symboliques d'Adwaita, sur leur grille de 16,
+# un trait de 2, coins et bouts ronds, des aplats pour les petits détails (porte, soleil, montagne, objectif). Ils vont
+# dans le panneau des accès rapides et, en emblème, sur les dossiers de la vue (src/apps/files/main.c, place_glyph).
+# l, L ligne (fermée) ; r contour arrondi x y l h rayon (axe du trait) ; c cercle (axe du trait) ; C disque ; P aplat
+# polygone ; R aplat arrondi x y l h rayon
+def adw(ic, spec):
+    u = 100 / 16
+    w = 2 * u
+    m = None
+    for e in spec:
+        k = e[0]
+        if k in 'lL':
+            q = [(x * u, y * u) for x, y in e[1:]]
+            if k == 'L':
+                q.append(q[0])
+            n = ic.line(q, w)
+        elif k == 'c':
+            n = ic.ring(e[1] * u, e[2] * u, e[3] * u, w)
+        elif k == 'C':
+            n = ic.circ(e[1] * u, e[2] * u, e[3] * u)
+        elif k == 'P':
+            n = ic.poly([(x * u, y * u) for x, y in e[1:]])
+        elif k == 'R':
+            x, y, l, h, r = [v * u for v in e[1:]]
+            n = ic.rr(x, y, l, h, r)
+        else:
+            x, y, l, h, r = [v * u for v in e[1:]]
+            n = sub(ic.rr(x - w / 2, y - w / 2, l + w, h + w, r + w / 2), ic.rr(x + w / 2, y + w / 2, l - w, h - w, max(0, r - w / 2)))
+        m = n if m is None else add(m, n)
+    ic.fill(m)
+
+
+def _pencil_square():
+    # l'équerre (contour d'un triangle rectangle) et un petit crayon parallèle à son hypoténuse, au-dessus à droite
+    # (choix de l'utilisateur du 24/11/2026)
+    ax, ay, cx, cy = 2, 4.5, 11.5, 14
+    L = math.hypot(cx - ax, cy - ay)
+    ux, uy = (cx - ax) / L, (cy - ay) / L
+    px, py = uy, -ux
+    off, hw, tip, t0, t1 = 4.6, 1.15, 2.3, 0.02, 0.98
+
+    def o(t, d):
+        return (ax + ux * t * L + px * (off + d), ay + uy * t * L + py * (off + d))
+    s1 = t1 - tip / L
+    return [('L', (ax, ay), (2, 14), (cx, cy)), ('L', o(t0, hw), o(s1, hw), o(t1, 0), o(s1, -hw), o(t0, -hw))]
+
+
 PLACES = {
-    'home': [('l', (3, 11.5), (12, 3.5), (21, 11.5)), ('l', (5.5, 9.5), (5.5, 20.5), (18.5, 20.5), (18.5, 9.5)),
-             ('l', (10, 20.5), (10, 15), (14, 15), (14, 20.5))],
-    'music': [('C', 6.5, 18, 3), ('C', 16.5, 16, 3), ('l', (9, 18), (9, 5.5), (19, 3.5), (19, 16)), ('l', (9, 9.5), (19, 7.5))],
-    'pictures': [('r', 3.5, 4.5, 17, 15, 2), ('C', 15.5, 9.5, 1.8), ('l', (3.5, 17), (9, 11.5), (13.5, 16), (16, 13.5), (20.5, 17.5))],
-    'downloads': [('l', (12, 3.5), (12, 15)), ('l', (7, 10), (12, 15), (17, 10)), ('l', (4, 15.5), (4, 20.5), (20, 20.5), (20, 15.5))],
-    # une équerre (évidée) et un petit crayon parallèle à son hypoténuse (choix de l'utilisateur du 24/11/2026)
-    'projects': [('L', (3, 7), (3, 21), (17, 21)), ('L', (6.4, 14.8), (6.4, 17.6), (9.2, 17.6)),
-                 ('L', (11.19, 2.17), (19.42, 10.41), (20.27, 13.81), (16.88, 12.96), (8.64, 4.72)), ('l', (19.42, 10.41), (16.88, 12.96))],
-    'documents': [('L', (6, 3), (14, 3), (19, 8), (19, 21), (6, 21)), ('l', (14, 3), (14, 8), (19, 8)),
-                  ('l', (9, 12.5), (16, 12.5)), ('l', (9, 16.5), (16, 16.5))],
-    'videos': [('r', 3.5, 5, 17, 14, 2), ('L', (9.5, 8.5), (16, 12), (9.5, 15.5))],
-    'apps': [('r', 4, 4, 6.5, 6.5, 1.5), ('r', 13.5, 4, 6.5, 6.5, 1.5), ('r', 4, 13.5, 6.5, 6.5, 1.5), ('r', 13.5, 13.5, 6.5, 6.5, 1.5)],
-    'folder': [('L', (3.5, 5), (9.5, 5), (11.5, 7.5), (20.5, 7.5), (20.5, 19.5), (3.5, 19.5))],
+    'home': [('L', (2, 7.4), (8, 2.2), (14, 7.4), (14, 15), (2, 15)), ('R', 6, 8, 4, 8, 1)],
+    'music': [('c', 3.5, 11.5, 2.5), ('c', 11.5, 11.5, 2.5),
+              ('l', (6, 11.5), (6, 4), (6.6, 2.6), (8, 2), (12, 2), (13.4, 2.6), (14, 4), (14, 11.5))],
+    'pictures': [('r', 2, 2, 12, 12, 2), ('C', 6, 6, 1.1), ('P', (4, 11), (6, 9), (7.5, 10), (9.5, 8), (12, 10.4), (12, 12), (4, 12))],
+    'downloads': [('l', (8, 1), (8, 11)), ('l', (4, 8), (8, 12), (12, 8)), ('R', 2, 14, 12, 2, 0)],
+    'projects': _pencil_square(),
+    'documents': [('L', (3, 2), (9.8, 2), (13, 5.2), (13, 15), (3, 15)), ('l', (10, 2.5), (10, 4.6), (12.5, 4.6))],
+    'videos': [('r', 5, 4, 10, 9, 2), ('P', (0, 4), (0.7, 4), (5, 8.5), (0.65, 13), (0, 13))],
+    'apps': [('r', 2, 2, 4, 4, 1), ('r', 10, 2, 4, 4, 1), ('r', 2, 10, 4, 4, 1), ('r', 10, 10, 4, 4, 1)],
+    'folder': [('L', (1, 2), (6.2, 2), (8, 4), (15, 4), (15, 14), (1, 14)), ('R', 1, 4, 8, 1, 0)],
 }
 
 for _n, _s in PLACES.items():
-    glyph('place-' + _n)(lambda ic, s=_s: strokes(ic, s))
+    glyph('place-' + _n)(lambda ic, s=_s: adw(ic, s))
+
+
+# Le dossier de la vue, à la manière d'Adwaita : deux masques que Fichiers colorie avec l'accent du thème. Le fond
+# (folder-back) porte l'onglet, aligné sur le bord gauche ; la face avant (folder-front) redescend à gauche, sous
+# l'onglet, par une courbe en S, et monte à droite. Dessinés sur une grille de 128 (x de 12 à 116, y de 12 à 118 : tout
+# le carré de l'icône).
+def _bez(p0, c1, c2, p3, n=12):
+    return [tuple((1 - t) ** 3 * a + 3 * (1 - t) ** 2 * t * b + 3 * (1 - t) * t * t * c + t ** 3 * d
+                  for a, b, c, d in zip(p0, c1, c2, p3)) for t in (i / n for i in range(1, n + 1))]
+
+
+def _corner(p0, k, p3):
+    # un coin arrondi de p0 à p3, le coin vrai en k (quart de cercle approché)
+    q = .5523
+    return _bez(p0, (p0[0] + (k[0] - p0[0]) * q, p0[1] + (k[1] - p0[1]) * q),
+                (p3[0] + (k[0] - p3[0]) * q, p3[1] + (k[1] - p3[1]) * q), p3)
+
+
+def _folder_pts(front):
+    if front:
+        p = [(66, 32)]
+        p += _bez((66, 32), (63.2, 32), (60.8, 33.1), (59, 34.9))
+        p += _bez((59, 34.9), (56.7, 37.1), (53.6, 40), (50.3, 40))
+        p += [(22, 40)] + _corner((22, 40), (12, 40), (12, 50))
+        p += [(12, 106)] + _corner((12, 106), (12, 116), (22, 116))
+        p += [(106, 116)] + _corner((106, 116), (116, 116), (116, 106))
+        p += [(116, 42)] + _corner((116, 42), (116, 32), (106, 32))
+    else:
+        p = [(22, 12)] + _corner((22, 12), (12, 12), (12, 22))
+        p += [(12, 108)] + _corner((12, 108), (12, 118), (22, 118))
+        p += [(106, 118)] + _corner((106, 118), (116, 118), (116, 108))
+        p += [(116, 36)] + _corner((116, 36), (116, 24), (104, 24))
+        p += [(58, 24)] + _bez((58, 24), (55.5, 24), (53.3, 22.6), (52.2, 20.4))
+        p += [(50.7, 17.4)] + _bez((50.7, 17.4), (49, 14.1), (45.7, 12), (42, 12))
+    sc = 100 / 106
+    return [((x - 12) * sc + (100 - 104 * sc) / 2, (y - 12) * sc) for x, y in p]
+
+
+glyph('folder-back')(lambda ic: ic.fill(ic.poly(_folder_pts(False))))
+glyph('folder-front')(lambda ic: ic.fill(ic.poly(_folder_pts(True))))
