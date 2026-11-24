@@ -62,4 +62,6 @@ Demande de l'utilisateur du 24/11/2026, branche claude/lucid-wright-6o2o4b, fusi
   les cases de la grille et les flèches de page tracent l'icône et le texte puis glissent le voile dessous (le texte
   se frangeait de sombre). La vue d'ensemble ne s'ouvre pas sous QEMU (clic sur « Korin OS », Super), même avec le pc
   publié : pas vu en vrai.
+- Publié : pc 2026.11.109 (24/11 soir, sur la .108 d'une autre session) : alias PUBLIC:/ APPS:/ (vfs dans l'initrd),
+  accès rapide Public, Système, lanceur (sys/panel) ; UIKit inchangé depuis la .107 (vérifié octet pour octet).
 - Le Pi (armpi) n'est pas publié : son paquet a encore files.asm.
