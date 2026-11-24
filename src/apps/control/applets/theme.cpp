@@ -485,9 +485,10 @@ static int th_click (long x, long y)
 {
 	long x0 = SIDE_W + AP_MARGIN + COL_W, y0 = AP_HEAD + 8;
 	long dx = x - x0, dy = y - y0;
-	if (dx < 0 || dx >= TH_PW)
+	if (dx < 0)
 		return 0;
-	if (dy >= TH_AY && dy < TH_AY + TH_AD)	/* un accent */
+	if (dy >= TH_AY && dy < TH_AY + TH_AD)	/* un accent (avant la largeur de l'aperçu : les huit pastilles vont
+						   jusqu'à 8 x TH_AP, au-delà de TH_PW ; la dernière ne répondait pas) */
 	{
 		long i = dx / TH_AP;
 		if (dx - i * TH_AP >= TH_AD || i >= TH_NACC)
@@ -495,6 +496,8 @@ static int th_click (long x, long y)
 		th_acc = i;
 		return 1;
 	}
+	if (dx >= TH_PW)
+		return 0;
 	if (dy >= TH_TY - 2 && dy < TH_TY + TH_TD + 2)	/* une teinte */
 	{
 		long i = dx / TH_TP;
