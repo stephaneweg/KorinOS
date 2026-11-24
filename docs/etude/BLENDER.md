@@ -11,7 +11,7 @@ de départ : ce que Blender demande, ce que Korin a déjà, le chemin par jalons
 | 0 | Source, versions, chaîne CMake de Korin, scripts `tools/blender` | **fait (23/11)** : `env.sh`, `korin.cmake`, `versions.py`, `fetch.sh` (Blender 5.2.4 et les sources de classe A) |
 | 1 | Les dépendances indispensables, croisées pour Korin PC (Python 3.13, OIIO, OCIO, OpenEXR, TBB, shaderc…) | **fait (24/11)**, construit seulement (rien lancé dans Korin) ; numpy reporté au jalon 4 |
 | 2 | **Blender sans écran** (`WITH_HEADLESS`) : `blender -b` charge un .blend, exécute du Python, rend par Cycles sur le processeur | **fait (24/11), sous QEMU PC (KVM)** : `SCENE OK` et `RENDU OK` (Cycles, 4 fils, 0,7 s) |
-| 3 | **GHOST de Korin** : fenêtres UIKit, entrées, presse-papier ; rendu par Vulkan (VkKit, WSI de Korin) | **en cours (24/11)** : construit et publié en essai (paquet `blender` 5.2.4-0.6, avec `pc` 2026.11.101 pour VkKit) ; sur le ZBook l'interface s'affiche puis plantait au premier mouvement (voir plus bas) ; sous QEMU (lavapipe) Blender attend sans rien dessiner |
+| 3 | **GHOST de Korin** : fenêtres UIKit, entrées, presse-papier ; rendu par Vulkan (VkKit, WSI de Korin) | **en cours (24/11)** : construit et publié en essai (paquet `blender` 5.2.4-0.6, avec `pc` 2026.11.101 pour VkKit) ; **sur le ZBook, l'interface marche sans planter (24/11, 0.6 + pc 2026.11.101)** ; sous QEMU (lavapipe) Blender attend sans rien dessiner |
 | 4 | Le reste : Embree, OpenSubdiv, Manifold, OpenVDB, son, vidéo, import/export (USD, Alembic…) | à faire |
 | 5 | Paquet `blender`, app (`app.txt`, icône, catégorie), compétence, essai sur le ZBook | à faire |
 
@@ -296,7 +296,7 @@ assertions, tables de l'API). 5.2.4-0.5 : l'interface s'affiche, puis plante au 
 numéros consécutifs (mappés bout à bout), liés au GPU tranche par tranche ; et les syncobj chronologiques rendent
 leur vrai point atteint (avant : 0 tant que le dernier lot tournait, si bien que Blender ne libérait rien en dessin
 continu). Le message « Failed to load using Vulkan, using OpenGL instead » était faux (le moteur OpenGL non compilé
-compté comme repli) : retiré en 0.6. **À essayer : 0.6 + pc 2026.11.101.**
+compté comme repli) : retiré en 0.6. **Essayé le 24/11 : 0.6 + pc 2026.11.101 ne plante plus.**
 
 À voir aussi : la pile par défaut des pthreads de libposix (256 Ko, contre 8 Mo sous Linux) pourrait gêner d'autres
 fils de Blender ou d'anv ; la passer à 8 Mo (peuplée à la demande) serait plus sûr pour tous les ports.

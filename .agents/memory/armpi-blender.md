@@ -1,6 +1,6 @@
 ---
 name: armpi-blender
-description: "23/11/2026 : chantier Blender sur Korin PC ouvert, étude docs/etude/BLENDER.md (Vulkan seul, GHOST sur UIKit, jalon 2 = blender -b) ; rien de construit"
+description: "Chantier Blender 5.2 sur Korin PC (docs/etude/BLENDER.md) : jalons 0-2 faits, interface OK sur le ZBook le 24/11 (0.6 + pc 2026.11.101) ; reste lavapipe sous QEMU et jalon 4"
 metadata:
   type: project
   modified: 2026-11-23
@@ -57,7 +57,7 @@ essayé. Essais : pctest watch:/fresh:/rips:, `. ~/korin-cloud/env.sh`, `wsl -u 
 **24/11 (midi), ZBook** : 0.5 affiche l'interface puis plante au premier mouvement : BO > 64 Mo refusé (BUF_SLOT du
 noyau), image sans mémoire, faute dans une barrière d'anv. Corrigé dans korin_i915.c (BO > 64 Mo = tampons du noyau
 consécutifs ; vrais points des syncobj chronologiques) publié dans **pc 2026.11.101** (--only lib/vkkit.so), et
-blender 0.6 (faux message « using OpenGL instead » retiré). Pas encore essayé. Journal utile : KORIN_DRM_DEBUG=1 ;
+blender 0.6 (faux message « using OpenGL instead » retiré). **Essayé par l'utilisateur : ne plante plus.** Journal utile : KORIN_DRM_DEBUG=1 ;
 pile du plantage : addr2line sur install-gui/blender et out-x86_64/vkkit/vkkit.elf (kit chargé vers 0x501c000000).
 
 **How to apply:** JOBS=6 (12 Go) dans WSL (9 Go). Lancer les scripts par `wsl -- sh tools/blender/…` (pas `wsl bash -c '…$X…'` :
