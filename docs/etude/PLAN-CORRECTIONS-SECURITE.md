@@ -12,7 +12,8 @@ Rédigé le 24/11/2026 à partir de [AUDIT-SECURITE-PC.md](AUDIT-SECURITE-PC.md)
 >   « `/media/../etc` » ; renommage d'un parent d'un chemin protégé ; sudo d'un compte sans mot de passe par la
 >   carte ; couche sûre et repère secret de la carte et de l'écran de connexion (E39) ; `/etc/web-probe.js`,
 >   `/etc/ca-bundle` protégés.
-> * **Décisions de l'utilisateur** : E33, E34 non ; JIT W^X plus tard.
+> * **Décisions de l'utilisateur** : E34 non ; JIT W^X plus tard ; **E33 accepté le 25/11** (tableau d'abord) ; E55
+>   remplacée par [MISES-A-JOUR-AB.md](MISES-A-JOUR-AB.md) ; autres décisions : [DECISIONS-SECURITE-25-11.md](DECISIONS-SECURITE-25-11.md).
 > * **Aussi** : E39 (couche sûre, repère), G3 (WF_GRAB au premier plan), E50-E51 pour K2 (numéro de série de l'index),
 >   L4, B10, B16, D8, P9, R6, R7.
 > * **Reste** : E11 (refus : essais de Jet, Godot et linuxhost d'abord), E42 et E64 (ZBook), E45, E47, E49,

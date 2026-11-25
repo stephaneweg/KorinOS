@@ -65,3 +65,10 @@ n'importe quel chemin : AppKit crée l'image dans le process qui lance, donc PEX
 (SPEC_CTRL si eIBRS), E10 (piles noyau gardées, PML4[384]), B10, B16, D8, L4 (forbidden canonique, sans casse),
 K2 (serial de l'index : mkrepo, pub.py, pkglib ; rien publié), P9 (usbhid), R6/R7, INQUIRY. La clé de publication
 est dans la variable ONYX_PKG_KEY (dit par l'utilisateur le 25/11) : ne publier qu'à sa demande.
+
+**25/11, nouvelles décisions de l'utilisateur** (docs/etude/DECISIONS-SECURITE-25-11.md, docs/etude/MISES-A-JOUR-AB.md) :
+E33 ACCEPTÉ (revient sur le non) : programmes de session sans droits de /sys, mais d'abord un tableau
+programme / opération / voie, montré à l'utilisateur avant de changer le code ; apps de qbasic/qbstudio dans
+HOME:/apps, puis /apps à l'uid 0 ; Réglages sans élévation pour réseau, Wi-Fi, clavier, énergie, par les services
+(caller_session_or_admin), system.ini protégé ensuite ; mises à jour A/B avec version de secours confirmée par root
+seulement (remplace E55) ; publication de l'index autorisée avec ONYX_PKG_KEY (effacer la clé temporaire après).
