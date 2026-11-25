@@ -493,7 +493,7 @@ int main(int argc, char **argv)
 	for (int i = 0; i < nacc; i++) {
 		if (!manuel && autologin[0] && str_eq(accs[i].name, autologin))
 			return ouvrir(&accs[i]); /* connexion automatique */
-		accs[i].haspw = auth_call(AUTH_HASPW, accs[i].name, 0) == 1;
+		accs[i].haspw = auth_call(AUTH_HASPW, accs[i].name, 0) != 0; /* (une erreur, authd absent : demandé, E40) */
 		if (manuel && autologin[0] && str_eq(accs[i].name, autologin))
 			sel = i; /* (le compte de la connexion automatique, choisi) */
 	}

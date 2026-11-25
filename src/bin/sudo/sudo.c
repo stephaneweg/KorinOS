@@ -197,13 +197,34 @@ int main(int argc, char **argv)
 		}
 		first = 2;
 	}
+	/* la ligne du programme lancé : un argument avec espace, guillemet ou « \ » (ou vide) entre guillemets,
+	 * avec \" et \\ (la règle de crt0 et de libposix) ; avant, « sudo rm 'mon fichier' » effaçait « mon » et
+	 * « fichier » en uid 0 (A7, E40) */
 	char *o = args;
 	for (int i = first; i < argc; i++) {
-		if ((u64)(o - args) + (u64)str_len(argv[i]) + 2 >= sizeof args)
-			break;
+		const char *a = argv[i];
+		int q = !*a;
+		for (const char *c = a; *c; c++)
+			q |= *c == ' ' || *c == '"' || *c == '\\' || *c == '\t';
+		u64 need = (u64)str_len(a) * 2 + 4;
+		if ((u64)(o - args) + need >= sizeof args) {
+			out("sudo : ligne de commande trop longue\n");
+			return 126;
+		}
 		if (o != args)
 			*o++ = ' ';
-		o = str_cat(o, argv[i]);
+		if (!q) {
+			o = str_cat(o, a);
+			continue;
+		}
+		*o++ = '"';
+		for (const char *c = a; *c; c++) {
+			if (*c == '"' || *c == '\\')
+				*o++ = '\\';
+			*o++ = *c;
+		}
+		*o++ = '"';
+		*o = 0;
 	}
 	long pid = ksys(SYS_SPAWN, (long)path, args[0] ? (long)args : 0, 0, 0, 0, 0);
 	if (pid < 0) {

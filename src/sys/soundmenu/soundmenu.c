@@ -247,6 +247,9 @@ static long click(long x, long y)
 	}
 	if (y < ui.h - FOOT) /* « Mixer… » : l'application */
 		return 0;
+	/* pas d'application lancée en uid 0 : à l'écran de connexion, soundmenu est celui du système (D13, E40) */
+	if (korin_sys0(SYS_GETUID) == 0)
+		return 0;
 	ksys(SYS_SPAWN, (long)p_mixer, 0, 0, 0, 0, 0);
 	return 3;
 }

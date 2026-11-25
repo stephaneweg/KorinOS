@@ -94,7 +94,8 @@
 #define GETPGID_SID_MASK (1L << 62)
 #define FS_DATA_MAX 464
 
-#define PTY_MAX 16
+#define PTY_MAX 64 /* (puissance de 2) ; 32 par compte, 2 gardés pour l'uid 0 (E37) */
+#define PTY_PER_UID 32
 #define PTY_RING 4096 /* (puissance de 2) */
 #define LINE_MAX 256  /* ligne en édition (mode canonique) */
 #define OWN_MAX 512   /* couples (poignée, pid) */
@@ -130,7 +131,8 @@ struct pty {          /* 128 octets, comme PT_* */
 	u32 markf;    /* 0 aucune, 1 fin (VEOF), 2 limite */
 	u32 lnext;    /* 1 : le prochain octet est pris tel quel */
 	u32 sid;      /* session dont c'est le terminal de contrôle (0 : aucune) */
-	u32 pad[3];
+	u32 uid;      /* du créateur (VT_OPEN) : seul son compte ouvre l'esclave par /dev/pts/N */
+	u32 pad[2];
 };
 
 struct owner {
@@ -794,9 +796,27 @@ static long bg_result(int r)
 
 /* ---- requêtes (msg, au nom de MSG_PID) -> résultat ; *deferred = 1 : différée */
 
+/* l'uid d'un pid (le Pi : E_NOSYS, 0 ; disparu : -1) */
+static long uid_of(u64 pid)
+{
+	long u = korin_sys1(SYS_PROC_UID, (long)pid);
+	return u == -38 ? 0 : u;
+}
+
 static long op_open(u64 pid)
 {
-	int num;
+	long uid = uid_of(pid);
+	if (uid < 0)
+		return E_NOENT;
+	int num, mine = 0, used = 0;
+	for (num = 0; num < PTY_MAX; num++) {
+		used += ptys[num].used != 0;
+		mine += ptys[num].used && ptys[num].uid == (u32)uid;
+	}
+	/* un compte n'en prend pas plus de PTY_PER_UID, et les 2 derniers restent à l'uid 0 (sa console,
+	 * sudo) : un programme qui ouvre des ptys sans fin ne prive plus les autres de terminal */
+	if (uid != 0 && (mine >= PTY_PER_UID || used >= PTY_MAX - 2))
+		return EMFILE;
 	for (num = 0; num < PTY_MAX; num++) /* un pty libre */
 		if (!ptys[num].used)
 			break;
@@ -805,6 +825,7 @@ static long op_open(u64 pid)
 	struct pty *p = &ptys[num];
 	memset(p, 0, sizeof *p);
 	p->used = 1;
+	p->uid = (u32)uid;
 	p->t = termios_default;
 	p->rows = 24;
 	p->cols = 80;
@@ -834,6 +855,12 @@ static long op_slave(u64 pid)
 	if (num >= PTY_MAX || !ptys[num].used || !ptys[num].n[0]) /* (sans maître : il ne revivra pas) */
 		return E_NOENT;
 	u64 h = pty_h(num, 1);
+	/* le compte du créateur, l'uid 0, ou un process qui tient déjà un bout de ce pty (exec 3</dev/pts/0
+	 * dans son shell) ; sinon un autre compte lisait et écrivait dans le terminal des autres (D1, E37) */
+	long uid = uid_of(pid);
+	if (uid != 0 && (uid < 0 || (u32)uid != ptys[num].uid) && !own_find((u32)h, (u32)pid) &&
+	    !own_find((u32)(h - 1), (u32)pid))
+		return VT_E_PERM;
 	if (!own_add(h, pid))
 		return EMFILE;
 	M64(MSG_A) = h;
@@ -970,14 +997,25 @@ static long ops(int *deferred)
 	case VT_GPGRP:
 		M64(MSG_A) = p->pgrp;
 		return 0;
-	case VT_SPGRP:
+	case VT_SPGRP: {
 		r = bg_ttou(p, side);
 		if (r)
 			return bg_result(r);
 		if ((long)M64(MSG_B) <= 0)
 			return E_INVAL;
-		p->pgrp = (u32)M64(MSG_B);
+		/* le groupe qui reçoit Ctrl+C, Ctrl+Z (vterm, d'uid 0, les envoie) : un groupe de la session du pty,
+		 * sinon un groupe du compte de l'appelant (D4, E37) ; un meneur déjà fini : permis (« echo a | cat ») */
+		long g = (long)M64(MSG_B), cu = uid_of(pid);
+		if (cu != 0) {
+			long gs = korin_sys1(SYS_GETPGID, g | GETPGID_SID_MASK);
+			long gu = uid_of((u64)g);
+			int ok = p->sid ? gs == (long)p->sid || gs < 0 : gu < 0 || gu == cu;
+			if (!ok || (gu >= 0 && gu != cu && gu != 0))
+				return VT_E_PERM;
+		}
+		p->pgrp = (u32)g;
 		return 0;
+	}
 	case VT_SCTTY: { /* TIOCSCTTY : meneur de session seulement ; le pty ne doit pas être à une autre session */
 		long s = korin_sys1(SYS_GETPGID, pid | GETPGID_SID_MASK);
 		if (s != (long)pid)

@@ -269,11 +269,18 @@ static int unhex(const char *s, u8 *out, int max)
 
 static char empreinte[200]; /* la ligne de shadow.ini du compte */
 
-/* l'empreinte du compte -> 1 (dans empreinte ; vide : pas de mot de passe) */
+/* l'empreinte du compte -> 1 (dans empreinte ; vide : pas de mot de passe), 0 : pas de ligne, -1 :
+ * shadow.ini illisible (autre chose qu'absent) : alors ni « pas de mot de passe », ni connexion (D10, E40) */
 static int empreinte_de(const char *name)
 {
-	char *p = lire("/etc/shadow.ini"), *l;
 	empreinte[0] = 0;
+	long fd = sys_open("/etc/shadow.ini", O_READ);
+	if (fd < 0)
+		return fd == E_NOENT ? 0 : -1;
+	sys_close(fd);
+	char *p = lire("/etc/shadow.ini"), *l;
+	if (!p)
+		return -1;
 	while (p && (l = ligne(&p))) {
 		char *v, *k = cle(l, &v);
 		if (k && str_eq(k, name)) {
@@ -287,7 +294,10 @@ static int empreinte_de(const char *name)
 /* le mot de passe est-il le bon pour le compte ? (pas de mot de passe : oui pour tout) */
 static int verifier(const char *name, const char *pw)
 {
-	if (!empreinte_de(name) || !empreinte[0])
+	int found = empreinte_de(name);
+	if (found < 0)
+		return 0; /* (illisible : refusé, pas « sans mot de passe ») */
+	if (!found || !empreinte[0])
 		return 1;
 	const char *e = empreinte;
 	const char *pre = "pbkdf2-sha256$";
@@ -663,7 +673,10 @@ static long traiter(void)
 			return 0;
 		if (retenu(uid, M64(msg, 8)))
 			return 1;
-		return empreinte_de(c.name) && empreinte[0] ? 2 : 1;
+		{
+			int e = empreinte_de(c.name);
+			return e < 0 || (e > 0 && empreinte[0]) ? 2 : 1; /* (illisible : un mot de passe, refusé) */
+		}
 	case AUTH_FORGET:
 		oublier(uid == 0 ? -1 : uid);
 		journal("oubli des elevations retenues", &c, pid, "fait");
@@ -732,8 +745,10 @@ static long traiter(void)
 		korin_sys1(SYS_SLEEP, 1000);
 		return E_ACCES;
 	}
-	case AUTH_HASPW: /* (ouvert à tous : l'écran de connexion le montre déjà, « Sans mot de passe ») */
-		return empreinte_de(data) && empreinte[0] ? 1 : 0;
+	case AUTH_HASPW: { /* (ouvert à tous : l'écran de connexion le montre déjà, « Sans mot de passe ») */
+		int e = empreinte_de(data);
+		return e < 0 ? E_IO : e && empreinte[0] ? 1 : 0;
+	}
 	case AUTH_SETPW: {
 		if (uid != 0)
 			return E_PERM;

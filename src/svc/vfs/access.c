@@ -22,11 +22,15 @@
 static const char *const secrets[] = {"/etc/shadow.ini", "/etc/wifi.txt", "/etc/wifi.bak", "/etc/remote.txt",
 				      "/etc/smbd.ini", "/etc/smbfs.ini", "/etc/web/certs", 0};
 /* refusés aux autres que l'uid 0 quel que soit le mode (sauf « off ») : les fichiers du coffre */
-static const char *const toujours[] = {"/var/keyvault", "/etc/keyvault", 0};
+static const char *const toujours[] = {"/var/keyvault", "/etc/keyvault", "/etc/shadow.ini", 0};
 /* en écriture, aux autres que l'uid 0, quel que soit le mode (sauf « off ») : les marques de session de /tmp,
  * écrites par login, Elegant et init2 (uid 0) ; lues par tous. /tmp/session.ini dit sous quel compte vont la
  * console, telnet et startup.txt : un compte qui l'écrivait y mettait l'uid 0 ou celui d'un autre (A1, E29) */
-static const char *const marques[] = {"/tmp/session.ini", "/tmp/login.halt", "/tmp/login.manual", 0};
+static const char *const marques[] = {"/tmp/session.ini", "/tmp/login.halt", "/tmp/login.manual",
+				      /* et les comptes : qui est qui, qui peut s'élever (useradd, usermod, userdel par sudo,
+				       * Réglages élevé, osinstall : tous en uid 0) ; en mode journal, un compte se donnait
+				       * l'uid 0 dans users.ini, ou effaçait shadow.ini (plus de mot de passe nulle part) */
+				      "/etc/users.ini", "/etc/elevate.ini", 0};
 
 /* le chemin commence-t-il par le dossier d (« /home » couvre « /home » et « /home/a », pas « /homex ») ?
  * Sans la casse : FAT32 et exFAT trouvent « /ETC/SHADOW.INI » comme « /etc/shadow.ini » (E24, F1) */
