@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-25 09:17
+date = 2026-11-25 09:18
 abi = 629
 packages = 117
 board = pc
@@ -2881,3 +2881,19 @@ required = 0
 restart = 0
 part = musescore
 content = b27b883210bd94fcb8234b6db06e9007b84a933be7152475391cc5fb9cf9893e
+
+[musescore-data-2]
+title = MuseScore Studio (2/2)
+version = 1.0.0
+category = Musique
+author = Korin OS
+summary = Les données de MuseScore Studio, partie 2 sur 2
+size = 49000169
+installed = 69964928
+sha256 = 0e0ba30b9974f86eb68e2b4122e5e0d96600454ecac3ee7f99905d98fe12b437
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-musescore-data-2-1.0.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+part = musescore
+content = 76b3d286e763df152b997c93f779fac7b01469bba0daa52e3f5223cc96f9136b
