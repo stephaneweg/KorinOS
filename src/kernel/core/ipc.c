@@ -84,6 +84,7 @@ struct shm {
 	int mapped;
 	int weak, pinned;
 	int id;
+	int owner_uid; /* nommé : le compte qui l'a créé, seul à l'ouvrir et à le délier (N11, X1, E46) */
 	char name[SHM_NAME]; /* vide : sans nom */
 };
 
@@ -963,6 +964,9 @@ int64_t sys_shm_open(uint64_t uname, uint64_t flags)
 	}
 	if (s && (flags & SHM_CREAT) && (flags & SHM_EXCL))
 		r = E_EXIST;
+	else if (s && s->owner_uid != me()->uid)
+		r = E_PERM; /* le nom d'un autre compte (uid 0 compris) : libposix fait alors une copie privée ; un
+			     * compte ne prépare plus /file-* pour qu'un autre y lise un faux contenu */
 	else if (!s && !(flags & SHM_CREAT))
 		r = E_NOENT;
 	else if (!s && slot < 0)
@@ -973,6 +977,7 @@ int64_t sys_shm_open(uint64_t uname, uint64_t flags)
 		s = fresh;
 		fresh = 0;
 		memcpy(s->name, name, SHM_NAME);
+		s->owner_uid = me()->uid;
 		s->weak = (flags & SHM_WEAK) != 0;
 		names[slot] = s;
 		/* la référence de création devient celle du nom ; un nom faible n'en tient pas */
@@ -1012,6 +1017,10 @@ int64_t sys_shm_unlink(uint64_t uname)
 	for (int i = 0; i < SHM_NAMES; i++)
 		if (names[i] && !strcmp(names[i]->name, name)) {
 			struct shm *s = names[i];
+			if (s->owner_uid != me()->uid) {
+				r = E_PERM;
+				break;
+			}
 			names[i] = 0;
 			s->name[0] = 0;
 			int strong = !s->weak;

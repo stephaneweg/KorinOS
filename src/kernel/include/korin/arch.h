@@ -74,6 +74,7 @@ void arch_set_tls(uint64_t v);
 uint64_t arch_get_tls(void); /* celui du thread courant */
 /* aléa du matériel (RDRAND…) : 1 si *v est rempli */
 int arch_hw_random(uint64_t *v);
+uint64_t arch_cycles(void); /* compteur de cycles (gigue pour l'aléa) */
 /* fréquence effective d'un cœur en MHz (0 : inconnue) ; *max : la plus haute demandée (0 : inconnue) */
 uint32_t arch_cpu_mhz(unsigned cpu, uint32_t *max);
 /* l'horloge du matériel (RTC) : secondes depuis 1970, 0 si inconnue */

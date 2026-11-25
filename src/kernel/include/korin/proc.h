@@ -38,5 +38,6 @@ int64_t sys_klog(uint64_t buf, uint64_t max);
 /* journal du noyau : chaque ligne avec son heure, 64 Ko au plus */
 void klog_write(const char *s);
 void random_mix(uint64_t v);
+void random_init(void); /* l'amorçage de l'aléa : avant le premier process */
 
 #endif

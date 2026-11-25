@@ -215,15 +215,32 @@ uint64_t arch_get_tls(void)
 	return rdmsr(MSR_FS_BASE);
 }
 
+/* aléa du processeur : RDSEED (entropie directe) s'il existe, sinon RDRAND ; chacun réessayé (le drapeau
+ * CF à 0 veut dire « pas encore prêt », pas « absent ») -> 1, 0 : rien (N14, E44) */
 int arch_hw_random(uint64_t *v)
 {
 	uint32_t r[4];
+	unsigned char ok = 0;
+	cpuid(0, 0, r);
+	if (r[0] >= 7) {
+		cpuid(7, 0, r);
+		if ((r[1] >> 18) & 1) /* RDSEED */
+			for (int i = 0; i < 16 && !ok; i++)
+				__asm__ volatile("rdseed %0; setc %1" : "=r"(*v), "=qm"(ok));
+		if (ok)
+			return 1;
+	}
 	cpuid(1, 0, r);
 	if (!((r[2] >> 30) & 1))
 		return 0;
-	unsigned char ok;
-	__asm__ volatile("rdrand %0; setc %1" : "=r"(*v), "=qm"(ok));
+	for (int i = 0; i < 10 && !ok; i++)
+		__asm__ volatile("rdrand %0; setc %1" : "=r"(*v), "=qm"(ok));
 	return ok;
+}
+
+uint64_t arch_cycles(void)
+{
+	return rdtsc();
 }
 
 int arch_elf_machine(void)

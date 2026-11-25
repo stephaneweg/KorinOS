@@ -8,6 +8,7 @@
 #include <korin/lib.h>
 #include <korin/initrd.h>
 #include <korin/pmm.h>
+#include <korin/proc.h>
 #include <korin/sched.h>
 #include <korin/signal.h>
 
@@ -420,6 +421,7 @@ void kmain(uint64_t bootinfo_phys)
 	console_color(CON_NORMAL);
 
 	smp_init_ipis();
+	random_init(); /* (l'aléa amorcé avant le premier process : authd tire sel et jetons au démarrage) */
 	smp_start();
 
 	struct thread *alarms = thread_create(&kernel_process, "alarmes", signal_alarm_thread, 0);

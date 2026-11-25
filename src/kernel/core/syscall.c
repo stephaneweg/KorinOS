@@ -68,11 +68,15 @@ static int64_t sys_proc_stats(int64_t pid, uint64_t buf, uint64_t places)
 	uint64_t w[129];
 	uint64_t n = places < 129 ? places : 129;
 	uint64_t f = sched_lock_take();
-	struct process *p = pid ? proc_get((int)pid) : sched_current()->proc;
+	struct process *me = sched_current()->proc;
+	struct process *p = pid ? proc_get((int)pid) : me;
 	if (p) {
+		/* les compteurs par appel système d'un autre compte : rien (le rythme des lectures de login, d'authd
+		 * ou de sudo pendant la saisie d'un mot de passe, N25, E43) ; le total reste */
+		int other = me->uid != 0 && p->uid != me->uid && !me->rights;
 		w[0] = p->svc_n;
 		for (uint64_t i = 1; i < n; i++)
-			w[i] = p->svc_tab[i - 1];
+			w[i] = other ? 0 : p->svc_tab[i - 1];
 	}
 	sched_lock_give(f);
 	if (!p)

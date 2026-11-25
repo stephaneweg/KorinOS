@@ -28,7 +28,7 @@ static uint16_t *generation; /* par emplacement */
 static struct process **slot_of;
 static int slot_hint;
 static struct {
-	int pid, parent, code;
+	int pid, parent, code, uid;
 } exits[EXITS];
 static int exit_next;
 static int wait_key; /* les threads de WAIT attendent sur cette adresse */
@@ -260,6 +260,7 @@ void proc_finished(struct process *p)
 	exits[exit_next].pid = p->pid;
 	exits[exit_next].parent = p->parent;
 	exits[exit_next].code = p->exit_code;
+	exits[exit_next].uid = p->uid;
 	exit_next = (exit_next + 1) % EXITS;
 	sched_lock_give(f);
 	sched_wake_all(&wait_key);
@@ -279,19 +280,28 @@ void proc_finished(struct process *p)
 int64_t sys_wait(int64_t pid, uint64_t opt, uint64_t out)
 {
 	int ext = (opt >> 32) == WAIT_EX_TAG;
+	struct process *me = sched_current()->proc;
 	for (;;) {
 		uint64_t f = sched_lock_take();
 		struct process *p = proc_get((int)pid);
-		int found = p != 0, code = 0, done = 0;
+		int found = p != 0, code = 0, done = 0, puid = p ? p->uid : -1, parent = p ? p->parent : 0;
 		if (!p)
 			for (int i = 0; i < EXITS; i++)
 				if (exits[i].pid == pid && pid > 0) {
 					found = done = 1;
 					code = exits[i].code;
+					puid = exits[i].uid;
+					parent = exits[i].parent;
 				}
 		if (!found) {
 			sched_lock_give(f);
 			return E_SRCH;
+		}
+		/* attendre un process (et lire son code de sortie) : son père, son compte, ou l'uid 0 ; un autre
+		 * compte suivait la fin de sudo, de login... (N25, E43) */
+		if (parent != me->pid && puid != me->uid && me->uid != 0) {
+			sched_lock_give(f);
+			return E_PERM;
 		}
 		if (done) {
 			sched_lock_give(f);
@@ -448,6 +458,12 @@ int64_t sys_proc_exe(int64_t pid, uint64_t out)
 		return E_NOMEM;
 	uint64_t f = sched_lock_take();
 	struct process *p = proc_get((int)pid);
+	struct process *me = sched_current()->proc;
+	if (p && me->uid != 0 && p->uid != me->uid && !me->rights) { /* (son compte, l'uid 0, les droits : E43) */
+		sched_lock_give(f);
+		kfree(x);
+		return E_PERM;
+	}
 	struct image *im = 0;
 	if (p && p->state != P_ZOMBIE) {
 		x->uid = (uint32_t)p->uid;

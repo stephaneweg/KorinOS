@@ -130,6 +130,44 @@ void random_mix(uint64_t v)
 	pool = (pool ^ v) * 0x9E3779B97F4A7C15ULL + (pool >> 29);
 }
 
+/* l'amorçage, avant le premier process (pc_main) : toute la clé ChaCha depuis l'aléa du processeur
+ * (RDSEED, RDRAND) et la gigue du compteur de cycles ; avant, la clé partait de zéro et ne recevait
+ * que 64 bits mélangés par appel : sous QEMU et en début de démarrage, la sortie se devinait (sel des
+ * mots de passe, jetons d'authd, TLS) (N14, E44) */
+void random_init(void)
+{
+	uint32_t acc[16] = {0};
+	for (int i = 0; i < 16; i++) {
+		uint64_t hw = 0;
+		if (arch_hw_random(&hw))
+			acc[i] ^= (uint32_t)hw ^ (uint32_t)(hw >> 32);
+	}
+	/* la gigue : la durée de petites tâches mesurée au cycle (caches, interruptions, bus) */
+	volatile uint64_t sink = 0;
+	for (int i = 0; i < 4096; i++) {
+		uint64_t t0 = arch_cycles();
+		for (int k = 0; k < (i & 31) + 1; k++)
+			sink += k * t0;
+		uint64_t d = arch_cycles() - t0;
+		acc[i & 15] = ROTL(acc[i & 15], 5) ^ (uint32_t)d ^ (uint32_t)(d >> 32);
+		if ((i & 255) == 255) { /* (un tour de ChaCha sur ce qui est amassé) */
+			uint32_t out[16];
+			chacha_block(acc, (uint64_t)i ^ sink, out);
+			for (int j = 0; j < 16; j++)
+				acc[j] ^= out[j];
+		}
+	}
+	uint64_t f = spin_lock_irqsave(&rnd_lock);
+	uint32_t out[16];
+	chacha_block(acc, pool ^ arch_cycles(), out);
+	for (int j = 0; j < 8; j++)
+		key[j] ^= out[j];
+	random_mix(((uint64_t)out[8] << 32) | out[9]);
+	spin_unlock_irqrestore(&rnd_lock, f);
+	memset(acc, 0, sizeof acc);
+	memset(out, 0, sizeof out);
+}
+
 int64_t sys_getrandom(uint64_t buf, uint64_t n)
 {
 	if (n > 65536)
@@ -142,6 +180,7 @@ int64_t sys_getrandom(uint64_t buf, uint64_t n)
 	arch_hw_random(&hw);
 	random_mix(hw);
 	random_mix(arch_ticks_ms());
+	random_mix(arch_cycles());
 	key[counter & 7] ^= (uint32_t)pool;
 	key[(counter + 3) & 7] ^= (uint32_t)(pool >> 32);
 	uint32_t k[8];
