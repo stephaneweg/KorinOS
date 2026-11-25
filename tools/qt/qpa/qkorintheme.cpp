@@ -360,7 +360,16 @@ struct MenuText {
             line += 'd';
         if (i->m_checkable && i->m_checked)
             line += 'c';
-        line += '\t' + (prefix + plainLabel(i->m_text)).toUtf8() + '\t' + korinShortcut(i->m_shortcut).toUtf8() + '\n';
+        // (« Libellé<tab>Ctrl+Shift+S » : un raccourci écrit dans le texte, comme ceux de Qt.labs.platform et de
+        // MuseScore, est montré à droite, à la manière de Korin)
+        QString label = i->m_text, shortcut = korinShortcut(i->m_shortcut);
+        const qsizetype tab = label.indexOf(u'\t');
+        if (tab >= 0) {
+            if (shortcut.isEmpty())
+                shortcut = korinShortcut(QKeySequence(label.mid(tab + 1).trimmed(), QKeySequence::PortableText));
+            label.truncate(tab);
+        }
+        line += '\t' + (prefix + plainLabel(label)).toUtf8() + '\t' + shortcut.toUtf8() + '\n';
         text += line;
         return id;
     }

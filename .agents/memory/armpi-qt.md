@@ -30,6 +30,8 @@ interactif (Controls en Fusion par défaut, QT_QUICK_CONTROLS_STYLE mis par la Q
 packages-pc.ini (pkgfiles.py, split [bl]*, release = 1), dry-run de qtbase-dev bon, **pas publiés** : ordre qtbase,
 qtshadertools, qtsvg, qtdeclarative. Hôte : qtsvg avant qtdeclarative (svgtoqml).
 
+**25/11** : qt5compat, qtnetworkauth, PrintSupport (MuseScore) ; base de polices Korin (alias, replis) ; FreeType 2.14.3 retouché (korin-transform-ppem.patch, deps.sh) ; Qt ne recopie plus une image de glyphe ratée ; raccourcis du texte des menus. Voir [[armpi-musescore]].
+
 **Reste** : publier les -dev (clé du dépôt) ; construire une app Qt dans Korin ;
 glisser-déposer, presse-papiers image, curseurs bitmap ; MuseScore (jalon 5).
 

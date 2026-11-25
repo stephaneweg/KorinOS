@@ -24,7 +24,7 @@ Décisions de l'utilisateur (24/11) :
 | 2 | **QPA `korin`** sur UIKit : fenêtres, rendu raster, entrées, presse-papier, thème, barre de menus globale ; style `korin` ; `qtwidgets_test` sous QEMU | **fait (24/11), QEMU PC** : fenêtre à bande de titre, style korin (Givre), clic, saisie, liste déroulante (popup), **menus dans la barre globale** (choix, grisé, raccourcis) |
 | 3 | **Qt Quick** (qtshadertools, qtdeclarative, qtsvg) en rendu logiciel ; `qtquick_test` sous QEMU | **fait (24/11), QEMU PC** : QML en interpréteur (sans JIT), Qt Quick logiciel, Qt Quick Controls (Fusion, aux couleurs du thème), animation ; curseur glissé, bouton, liste déroulante QML |
 | 4 | Paquets `qtbase-dev`, `qtshadertools-dev`, `qtdeclarative-dev`, `qtsvg-dev` (`/devtools/qt`), essai sur le ZBook | **prêts (24/11)** : `stage.sh`, motifs de `pkgfiles.py` dans `packages-pc.ini`, `pub.py --dry-run` de `qtbase-dev` bon ; **pas publiés** (clé du dépôt) ; construire une app Qt *dans* Korin pas encore essayé |
-| 5 | **MuseScore Studio** 4.7 : convertisseur sans écran, puis l'interface, son par AudioKit | à faire (étude à part) |
+| 5 | **MuseScore Studio** 4.7 : convertisseur sans écran, puis l'interface, son par AudioKit | **fait (25/11), QEMU PC** : [MUSESCORE.md](MUSESCORE.md) |
 
 **Cible : Korin PC (x86-64, le ZBook) d'abord**, comme Blender ; MuseScore demande 8 Go de mémoire. Le Pi pourra suivre
 pour Qt lui-même (tout est en C++ portable, la QPA ne dépend que d'UIKit).
@@ -137,6 +137,13 @@ adresse) ; un choix (`WEV_MENU`) émet `activated()` de l'entrée. Les mnémoniq
 écrits comme Korin (« Ctrl+Maj+S ») ; un sous-menu de sous-menu est aplati (« Exporter › PDF ») : la barre ne montre
 qu'un niveau. Limites : 16 Ko de texte (`WS_MENU_MAX`), 160 lignes par menu ; `aboutToShow` n'est pas émis (la barre
 ne dit pas quand un menu s'ouvre) : une app qui remplit un menu à son ouverture doit le tenir à jour d'avance.
+
+**Polices** (25/11) : la base FreeType de la QPA a des alias (Times New Roman → DejaVu Serif, Arial/Helvetica →
+DejaVu Sans, Courier → DejaVu Sans Mono…) et des replis selon le style puis Noto Symbols, Math et Emoji. **FreeType
+2.14.3** refusait les glyphes rendus sous une matrice (texte agrandi : `Raster_Overflow`) : retouche
+`tools/webkit/ports/freetype/korin-transform-ppem.patch`, et `tools/qt/deps.sh` reconstruit `libfreetype.a` retouché
+tant que `freetype-dev` n'est pas republié ; Qt ne recopie plus d'image quand le rendu échoue ([MUSESCORE.md](MUSESCORE.md) § 3).
+Les raccourcis écrits dans le texte d'une entrée de menu (« Libellé⇥Ctrl+N ») sont montrés à droite.
 
 **Presse-papiers** : texte seulement (`ui_clip_*`). **Curseurs** : formes `UC_*` d'UIKit.
 

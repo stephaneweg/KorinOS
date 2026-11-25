@@ -136,6 +136,26 @@ index bd1ef8dd..b4b0fe5b 100644
  #elif defined(__MAKEDEPEND__)
  #else
  #  error "Qt has not been ported to this OS - see http://www.qt-project.org/"
+diff --git a/src/gui/text/freetype/qfontengine_ft.cpp b/src/gui/text/freetype/qfontengine_ft.cpp
+index e331a4cc..13ef99be 100644
+--- a/src/gui/text/freetype/qfontengine_ft.cpp
++++ b/src/gui/text/freetype/qfontengine_ft.cpp
+@@ -1955,10 +1955,12 @@ QFontEngineFT::Glyph *QFontEngineFT::loadGlyph(QGlyphSet *set, uint glyph,
+     FT_Library_SetLcdFilter(slot->library, (FT_LcdFilter)lcdFilterType);
+ 
+     err = FT_Render_Glyph(slot, renderMode);
+-    if (err != FT_Err_Ok)
+-        qWarning("render glyph failed err=%x face=%p, glyph=%d", err, face, glyph);
+-
+     FT_Library_SetLcdFilter(slot->library, FT_LCD_FILTER_NONE);
++    if (err != FT_Err_Ok) {
++        // (Korin OS : sans image, ne rien recopier ; slot->bitmap.buffer peut être nul : plantage sinon)
++        qWarning("render glyph failed err=%x face=%p, glyph=%d", err, face, glyph);
++        return nullptr;
++    }
+ 
+     info.height = slot->bitmap.rows;
+     info.width = slot->bitmap.width;
 diff --git a/src/plugins/platforms/CMakeLists.txt b/src/plugins/platforms/CMakeLists.txt
 index f30c27c2..564c8459 100644
 --- a/src/plugins/platforms/CMakeLists.txt

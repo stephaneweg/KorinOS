@@ -67,6 +67,87 @@ index 169be219..97243443 100644
  elseif(OS_IS_WASM)
  
      add_custom_command(
+diff --git a/src/app/main.cpp b/src/app/main.cpp
+index 2ac78a89..77983e5e 100644
+--- a/src/app/main.cpp
++++ b/src/app/main.cpp
+@@ -57,6 +57,46 @@ static void crashCallback(int signum)
+ 
+ #endif
+ 
++#ifdef Q_OS_KORIN
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++// Korin OS : la langue du système (lang = xx de /etc/system.ini, fr sans clé, comme UIKit) dans LANG, avant Qt :
++// sans elle, QLocale ne voit que « C » et MuseScore reste en anglais
++static void korin_set_lang()
++{
++    // (une langue déjà dite est gardée ; « C » et « POSIX », la valeur par défaut d'une session, n'en sont pas)
++    const char* cur = getenv("LANG");
++    if (cur && *cur && strcmp(cur, "C") && strcmp(cur, "POSIX") && strncmp(cur, "C.", 2)) {
++        return;
++    }
++    char lang[16] = "fr";
++    if (FILE* f = fopen("/etc/system.ini", "r")) {
++        char line[256];
++        while (fgets(line, sizeof line, f)) {
++            char v[16];
++            if (sscanf(line, " lang = %15[A-Za-z_]", v) == 1) {
++                strcpy(lang, v);
++            }
++        }
++        fclose(f);
++    }
++    // fr -> fr_FR.UTF-8, en -> en_US.UTF-8, pt_BR -> pt_BR.UTF-8
++    char value[40];
++    if (strchr(lang, '_')) {
++        snprintf(value, sizeof value, "%s.UTF-8", lang);
++    } else {
++        const char* region = !strcmp(lang, "en") ? "US" : lang;
++        char up[8] = {};
++        for (int i = 0; region[i] && i < 7; i++) {
++            up[i] = (region[i] >= 'a' && region[i] <= 'z') ? char(region[i] - 'a' + 'A') : region[i];
++        }
++        snprintf(value, sizeof value, "%s_%s.UTF-8", lang, up);
++    }
++    setenv("LANG", value, 1);
++}
++#endif
++
+ static void app_init_qrc()
+ {
+     Q_INIT_RESOURCE(app);
+@@ -68,7 +108,10 @@ static void app_init_qrc()
+ 
+ int main(int argc, char** argv)
+ {
+-#ifndef MUSE_MODULE_DIAGNOSTICS_CRASHPAD_CLIENT
++#ifdef Q_OS_KORIN
++    korin_set_lang();
++#endif
++#if !defined(MUSE_MODULE_DIAGNOSTICS_CRASHPAD_CLIENT) && !defined(Q_OS_KORIN)	// (Korin : le noyau dit la faute)
+     signal(SIGSEGV, crashCallback);
+     signal(SIGILL, crashCallback);
+     signal(SIGFPE, crashCallback);
+diff --git a/src/appshell/internal/startupscenario.cpp b/src/appshell/internal/startupscenario.cpp
+index fad6a767..d71f67ab 100644
+--- a/src/appshell/internal/startupscenario.cpp
++++ b/src/appshell/internal/startupscenario.cpp
+@@ -268,7 +268,12 @@ void StartupScenario::showStartupDialogsIfNeed(StartupModeType modeType)
+         const bool shouldCheckForMuseSamplerUpdate = modeType == StartupModeType::StartEmpty
+                                                      || modeType == StartupModeType::StartWithNewScore;
+ 
+-        if (shouldShowWelcomeDialog(modeType)) {
++#ifdef Q_OS_KORIN
++        const bool showWelcome = false;	// (Korin OS : ses pages vantent Muse Sounds et MuseHub, absents)
++#else
++        const bool showWelcome = shouldShowWelcomeDialog(modeType);
++#endif
++        if (showWelcome) {
+             interactive()->open(WELCOME_DIALOG_URI).onResolve(this, [this, shouldCheckForMuseSamplerUpdate](const Val&) {
+                 configuration()->setWelcomeDialogLastShownVersion(configuration()->museScoreVersion());
+ 
 diff --git a/src/appshell/qml/MuseScore/AppShell/CMakeLists.txt b/src/appshell/qml/MuseScore/AppShell/CMakeLists.txt
 index 84f19f06..3226c3e3 100644
 --- a/src/appshell/qml/MuseScore/AppShell/CMakeLists.txt

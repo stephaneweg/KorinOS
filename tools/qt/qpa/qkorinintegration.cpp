@@ -21,6 +21,7 @@
 QT_BEGIN_NAMESPACE
 
 using namespace std::chrono;
+using namespace Qt::StringLiterals;
 
 // --- le curseur ------------------------------------------------------------------------------------------------
 
@@ -99,6 +100,55 @@ QWindow *QKorinScreen::topLevelAt(const QPoint &p) const
             return w;
     return nullptr;
 }
+
+// --- les polices --------------------------------------------------------------------------------------------
+//
+// La base de FreeType de Qt, sans fontconfig : ni alias ni repli. Une famille absente (« Times New Roman » d'une
+// partition de MuseScore 2) tombait alors sur n'importe quelle police, parfois une police de musique (b -> ♮). Ici :
+// les alias usuels vers les polices de /fonts, et des replis selon le style (puis les symboles et les émojis).
+
+class QKorinFontDatabase : public QFreeTypeFontDatabase
+{
+public:
+    QString resolveFontFamilyAlias(const QString &family) const override
+    {
+        static const QHash<QString, QString> alias = {
+            { u"times new roman"_s, u"DejaVu Serif"_s }, { u"times"_s, u"DejaVu Serif"_s },
+            { u"serif"_s, u"DejaVu Serif"_s }, { u"georgia"_s, u"DejaVu Serif"_s },
+            { u"liberation serif"_s, u"DejaVu Serif"_s }, { u"freeserif"_s, u"DejaVu Serif"_s },
+            { u"arial"_s, u"DejaVu Sans"_s }, { u"helvetica"_s, u"DejaVu Sans"_s },
+            { u"sans-serif"_s, u"DejaVu Sans"_s }, { u"sans serif"_s, u"DejaVu Sans"_s },
+            { u"sans"_s, u"DejaVu Sans"_s }, { u"verdana"_s, u"DejaVu Sans"_s },
+            { u"liberation sans"_s, u"DejaVu Sans"_s }, { u"segoe ui"_s, u"Inter"_s },
+            { u"courier new"_s, u"DejaVu Sans Mono"_s }, { u"courier"_s, u"DejaVu Sans Mono"_s },
+            { u"monospace"_s, u"DejaVu Sans Mono"_s }, { u"liberation mono"_s, u"DejaVu Sans Mono"_s },
+        };
+        const QString a = alias.value(family.toLower());
+        return a.isEmpty() ? QFreeTypeFontDatabase::resolveFontFamilyAlias(family) : a;
+    }
+
+    QStringList fallbacksForFamily(const QString &family, QFont::Style style, QFont::StyleHint hint,
+                                   QFontDatabasePrivate::ExtendedScript script) const override
+    {
+        QStringList l = QFreeTypeFontDatabase::fallbacksForFamily(family, style, hint, script);
+        switch (hint) {
+        case QFont::Serif:
+        case QFont::OldEnglish:
+            l << u"DejaVu Serif"_s;
+            break;
+        case QFont::TypeWriter:
+        case QFont::Monospace:
+            l << u"DejaVu Sans Mono"_s;
+            break;
+        default:
+            break;
+        }
+        l << u"DejaVu Sans"_s << u"Noto Sans Symbols"_s << u"Noto Sans Symbols2"_s << u"Noto Sans Math"_s
+          << u"Noto Emoji"_s;
+        l.removeDuplicates();
+        return l;
+    }
+};
 
 // --- la boucle d'événements ------------------------------------------------------------------------------------
 
@@ -237,7 +287,7 @@ QAbstractEventDispatcher *QKorinIntegration::createEventDispatcher() const
 QPlatformFontDatabase *QKorinIntegration::fontDatabase() const
 {
     if (!m_fontDatabase)
-        m_fontDatabase.reset(new QFreeTypeFontDatabase);
+        m_fontDatabase.reset(new QKorinFontDatabase);
     return m_fontDatabase.get();
 }
 
