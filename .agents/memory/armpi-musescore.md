@@ -39,6 +39,14 @@ Essais : tools/musescore/pctest.py --score, tools/python/pctest.py spawn2:, son 
 path=X.wav -device intel-hda -device hda-output,audiodev=snd0" (la chaîne QEMU divise par 4 : sontest 10000 -> 2500).
 Barre d'outils « au-dessus » des autres fenêtres : plus reproduit par l'utilisateur.
 
+**Glisser une barre d'outils (25/11)** : faute 0x40db4e1 CR2 8 sur le ZBook = KDDockWidgets
+StateDragging::handleMouseMove avec m_windowBeingDragged nul : la QPA vidait la file d'événements dans setVisible
+(flushWindowSystemEvents) pendant que KDDW montrait la fenêtre flottante -> SynchronousDelivery du seul focus/expose ;
+garde dans DragController.cpp. Popup d'UIKit (WF_TOP, sans focus) = Tool | Frameless | BypassWindowManagerHint
+seulement (les fenêtres flottantes de MuseScore : Tool | NoDropShadow | Frameless, dockmodule.cpp) : la barre
+détachée restait au premier plan (le « glitch » de l'utilisateur). Publiés qtbase-dev 6.10.2-2, musescore 4.7.7-0.4.
+Adresse d'une faute : addr2line -f -C -e ~/korin-mscore/x86_64/install/bin/mscore ADRESSE (binaire non dépouillé).
+
 **Reste** : paroles des partitions MuseScore 2 (police absente, quelques lettres fausses), essai sur le ZBook (vitesse,
 son réel), MIDI USB, dialogues de fichiers d'UIKit, publication.
 
