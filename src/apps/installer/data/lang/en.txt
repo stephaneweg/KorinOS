@@ -268,3 +268,4 @@ FAT32 (conseillé)|exFAT|ext4 (pas encore de journal) = FAT32 (recommended)|exFA
 Système de fichiers de / = File system of /
 FAT32 (conseillé)|exFAT|ext4 = FAT32 (recommended)|exFAT|ext4
 / en ext4 : pas encore de journal (voir plus haut) ; FAT32 reste le plus éprouvé pour le système. = / in ext4: no journal yet (see above); FAT32 remains the most proven for the system.
+Un compte qui administre cet ordinateur a un mot de passe : choisissez-le. = An account that administers this computer has a password: choose one.

@@ -266,8 +266,9 @@ bout de 5 minutes, au redémarrage, à chaque ouverture de session (`/sys/login`
 - authd n'accepte `AUTH_SUDO` que du vrai `/bin/sudo` (le chemin de son image et l'empreinte SHA-256 de son
   contenu) ; la portée de « retenir » est le père réel de sudo, lu par authd (`SVC_REQ_INFO`), et pour la carte,
   l'app élevée elle-même (son pid) et plus toute la session ;
-- un compte **sans mot de passe** ne s'élève plus par `sudo` seul : sudo ouvre la carte, où l'utilisateur clique
-  « Autoriser » (un terminal se fabrique, il ne prouvait la présence de personne) ;
+- un compte qui peut administrer **a un mot de passe** (décision du 25/11, suite) : sans, authd refuse toute
+  élévation (sudo comme carte) ; il s'en donne un d'abord (`passwd`, ou Réglages > Comptes pour le sien, sans
+  élévation) ; osinstall, l'installateur et Réglages refusent un administrateur sans mot de passe ;
 - trois mots de passe faux bloquent les essais 30 s, puis le double, 5 minutes au plus, par compte ; la connexion
   (login, telnetd, ftpd) a son compteur à elle ;
 - la carte et l'écran de connexion sont dans une **couche sûre** d'Elegant (au-dessus de tout, le clavier ne va

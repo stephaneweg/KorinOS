@@ -1040,7 +1040,7 @@ static void compte_maj ()
 	if (!s_usermain) { simple ((const char *) ui_w_get_text (g_anom), u, sizeof u); ui_w_set_text (g_auser, (long) u); ui_w_draw (g_auser); }
 	if (!s_pcmain && !((const char *) ui_w_get_text (g_apc))[0]) { ui_w_set_text (g_apc, (long) "korin-pc"); ui_w_draw (g_apc); }
 	const char *user = (const char *) ui_w_get_text (g_auser), *pw = (const char *) ui_w_get_text (g_apw), *pw2 = (const char *) ui_w_get_text (g_apw2);
-	bool admin = ui_w_get_value (g_aadmin) != 0, root = !admin || !pw[0];
+	bool admin = ui_w_get_value (g_aadmin) != 0, root = !admin;	// (un admin a un mot de passe : décision du 25/11/2026)
 	static int root_vu = -1;
 	ui_w_show (g_arootl, root); ui_w_show (g_arpw, root); ui_w_show (g_arpw2, root);
 	if (root != root_vu)	/* (un widget caché laisse son dessin : la zone est refaite) */
@@ -1052,6 +1052,7 @@ static void compte_maj ()
 	const char *msg = "";
 	static char m[200];
 	if (!user_ok (user)) msg = TR ("Nom d'utilisateur : minuscules et chiffres, une lettre d'abord ; ni system, ni root, ni admin, ni user.");
+	else if (admin && !pw[0]) msg = TR ("Un compte qui administre cet ordinateur a un mot de passe : choisissez-le.");
 	else if (pw2[0] && strcmp (pw, pw2)) msg = TR ("Les deux mots de passe sont différents.");
 	else if (root)
 	{
@@ -1061,7 +1062,7 @@ static void compte_maj ()
 		else if (!admin && pw[0] && eq (r, pw)) msg = TR ("Choisissez pour root un autre mot de passe que le vôtre.");
 	}
 	else if (!pw[0]) msg = TR ("Sans mot de passe, n'importe qui peut ouvrir votre session.");
-	bool ok = user_ok (user) && !(pw2[0] && strcmp (pw, pw2)) && (!pw[0] || eq (pw, pw2));
+	bool ok = user_ok (user) && !(pw2[0] && strcmp (pw, pw2)) && (!pw[0] || eq (pw, pw2)) && !(admin && !pw[0]);
 	if (root) { const char *r = (const char *) ui_w_get_text (g_arpw), *r2 = (const char *) ui_w_get_text (g_arpw2); ok = ok && r[0] && eq (r, r2) && !(!admin && pw[0] && eq (r, pw)); }
 	cpy (m, msg, sizeof m);
 	ui_w_set_text (g_amsg, (long) m); ui_w_draw (g_amsg);

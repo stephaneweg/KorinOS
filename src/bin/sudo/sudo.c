@@ -6,7 +6,7 @@
  *
  * Le mot de passe demandé est celui de l'utilisateur (décision du 16/11), vérifié par authd (service
  * « auth »), qui passe ce process en uid 0 ; la commande, lancée ensuite, hérite de cet uid. Les comptes qui
- * peuvent s'élever sont ceux de /etc/elevate.ini. Un compte sans mot de passe s'élève sans rien taper. Aucun
+ * peuvent s'élever sont ceux de /etc/elevate.ini, et ils ont un mot de passe (sans : refusé, décision du 25/11/2026). Aucun
  * droit sur le matériel n'est donné : seulement l'uid 0, donc l'écriture dans /. La commande est cherchée
  * dans /sbin, /bin, /devtools/gcc/bin puis /devtools/rust/bin (le PATH de system).
  *
@@ -18,19 +18,11 @@
 #define AUTH_CAN 1
 #define AUTH_SUDO 2
 #define AUTH_FORGET 11
-#define AUTH_ELEVATE 5
-#define AUTH_WAIT 7
 #ifndef E_AGAIN
 #define E_AGAIN -11
 #endif
 #ifndef E_PERM
 #define E_PERM -1
-#endif
-#ifndef E_BUSY
-#define E_BUSY -16
-#endif
-#ifndef E_CANCELED
-#define E_CANCELED -125
 #endif
 #define E_ACCES -13
 #define VT_TCGETS 5
@@ -104,30 +96,6 @@ static void read_line(char *buf, u64 cap)
 	buf[n] = 0;
 }
 
-/* la carte d'élévation d'authd (AUTH_ELEVATE, puis AUTH_WAIT tant qu'elle est ouverte), comme ui_elevate : un
- * compte sans mot de passe accepte à l'écran -> 0 (ce process est passé en uid 0), < 0 : refus */
-static long card(long ch, const char *what)
-{
-	char why[160] = "sudo ";
-	u64 k = 5;
-	for (; what && *what && k < sizeof why - 1; what++)
-		why[k++] = *what;
-	why[k] = 0;
-	u64 op = AUTH_ELEVATE;
-	for (;;) {
-		memset(m, 0, sizeof m);
-		m[0] = (long)op;
-		u64 n = (u64)str_len(why);
-		memcpy((u8 *)m + MSG_DATA, why, n);
-		((u32 *)m)[MSG_LEN / 4] = (u32)(n + 1);
-		long e = korin_sys2(SYS_SVC_CALL, ch, m);
-		long r = e < 0 ? e : m[0];
-		if (r != E_AGAIN)
-			return r;
-		op = AUTH_WAIT;
-	}
-}
-
 static long auth_call(long ch, u64 op, const char *pw, int keep)
 {
 	memset(m, 0, sizeof m);
@@ -191,18 +159,12 @@ int main(int argc, char **argv)
 		}
 		long r = E_ACCES;
 		long vt = tty_in();
-		if (can == 1) { /* retenu, ou un compte sans mot de passe : celui-ci passe par la carte d'élévation, que
-				 * l'utilisateur accepte à l'écran (authd refuse AUTH_SUDO sans mot de passe : A3) */
+		if (can == 1) { /* retenu, ou un compte sans mot de passe : celui-ci ne s'élève pas (décision du
+				 * 25/11/2026 : sudo demande toujours un mot de passe ; E_ACCES : retenu expiré, le mot de passe) */
 			r = auth_call(ch, AUTH_SUDO, "", 0);
-			if (r == E_PERM) { /* (sans mot de passe : la carte ; E_ACCES : retenu expiré, le mot de passe) */
-				r = card(ch, argv[1]);
-				if (r != 0) {
-					out(r == E_CANCELED ? "sudo : elevation refusee a l'ecran\n"
-					    : r == E_BUSY ? "sudo : une autre demande d'elevation est ouverte a l'ecran\n"
-							  : "sudo : elevation impossible (pas de carte d'elevation : session "
-							    "graphique absente ?)\n");
-					return 1;
-				}
+			if (r == E_PERM) {
+				out("sudo : ce compte n'a pas de mot de passe ; en choisir un d'abord (passwd)\n");
+				return 1;
 			}
 		}
 		int keep = -1; /* (demandé une fois, après le premier mot de passe) */

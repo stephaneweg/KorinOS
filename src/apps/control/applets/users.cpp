@@ -178,6 +178,27 @@ static long setpw (const char *name, const char *pw)
 }
 
 /* deux mots de passe -> 1 s'ils sont égaux (dans pw) */
+/* son propre mot de passe (AUTH_PASSWD : l'ancien, le nouveau), sans élévation : un compte administrateur sans mot
+ * de passe ne peut plus s'élever (décision du 25/11/2026), il s'en donne un ainsi -> 0 ou erreur */
+static long ownpw (const char *old, const char *pw)
+{
+	long ch = svc_open ("auth", 1000);
+	if (ch < 0)
+		return ch;
+	char m[512];
+	memset (m, 0, sizeof m);
+	*(long *) m = 4;	/* AUTH_PASSWD */
+	size_t o = strlen (old), p = strlen (pw);
+	if (o + p + 2 > 400)
+		return -22;
+	memcpy (m + 48, old, o + 1);
+	memcpy (m + 48 + o + 1, pw, p + 1);
+	*(unsigned *) (m + 40) = (unsigned) (o + p + 2);
+	long r = svc_call (ch, m);
+	memset (m, 0, sizeof m);
+	return r < 0 ? r : *(long *) m;
+}
+
 static int ask_pw (const char *title, char *pw, size_t cap)
 {
 	char a[128] = "", b[128] = "";
@@ -204,6 +225,10 @@ static void on_add (long, long)
 	int admin = ui_message ((long) TR ("Ajouter un compte"), (long) TR ("Ce compte peut-il administrer la machine (installer, changer les réglages du système) ?"), UM_YESNO) == 1;
 	char pw[128] = "";
 	ask_pw (TR ("Ajouter un compte"), pw, sizeof pw);
+	if (admin && !pw[0]) {	/* (décision du 25/11/2026) */
+		status (TR ("Un compte administrateur a un mot de passe."));
+		return;
+	}
 	unsigned me;
 	if (!elevate ("Réglages veut ajouter un compte.", &me))
 		return;
@@ -256,6 +281,18 @@ static void on_password (long, long)
 	char pw[128];
 	if (!ask_pw (TR ("Mot de passe"), pw, sizeof pw))
 		return;
+	if (accs[i].admin && !pw[0]) {
+		status (TR ("Un compte administrateur a un mot de passe."));
+		return;
+	}
+	if ((unsigned) accs[i].uid == (unsigned) getuid () && !accs[i].haspw) {	/* (le sien, sans mot de passe encore) */
+		long r = ownpw ("", pw);
+		memset (pw, 0, sizeof pw);
+		status (TR (r == 0 ? "Mot de passe changé." : "Le mot de passe n'a pas pu être changé."));
+		load ();
+		fill (i);
+		return;
+	}
 	unsigned me;
 	if (!elevate ("Réglages veut changer un mot de passe.", &me))
 		return;
@@ -272,6 +309,10 @@ static void on_admin (long, long)
 	int i = sel ();
 	if (i < 0)
 		return;
+	if (!accs[i].admin && !accs[i].haspw) {	/* (un administrateur a un mot de passe : décision du 25/11/2026) */
+		status (TR ("Donnez d'abord un mot de passe à ce compte."));
+		return;
+	}
 	unsigned me;
 	if (!elevate ("Réglages veut changer les droits d'un compte.", &me))
 		return;

@@ -507,3 +507,5 @@ Disposition de l'écran de connexion = Login screen layout
 Réglages de la machine non modifiés (refusé). = Machine settings not changed (refused).
 Réglages veut modifier l'heure ou le clavier de l'ordinateur (tous les comptes). = Settings wants to change the computer's time or keyboard (all accounts).
 Réglages veut garder cette résolution pour tous les comptes. = Settings wants to keep this resolution for all accounts.
+Un compte administrateur a un mot de passe. = An administrator account has a password.
+Donnez d'abord un mot de passe à ce compte. = Give this account a password first.

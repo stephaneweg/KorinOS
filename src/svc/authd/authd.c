@@ -571,6 +571,14 @@ static long elever(const struct compte *c, long pid, const char *raison)
 	}
 	if (c->uid == 0)
 		return 0; /* (déjà system) */
+	{ /* un compte qui gère le système a un mot de passe (décision du 25/11/2026) : sans, pas d'élévation ; il s'en
+	   * donne un d'abord (passwd, Réglages > Comptes : sans élévation pour son propre compte) */
+		int e = empreinte_de(c->name);
+		if (!(e > 0 && empreinte[0])) {
+			journal("elevation", c, pid, "refusee (compte sans mot de passe)");
+			return E_PERM;
+		}
+	}
 	if (retenu(c->uid, (u64)pid)) { /* (retenu pour cette app seulement, pas pour toutes celles du compte : A2) */
 		long r = korin_sys2(SYS_PROC_SETUID, pid, 0);
 		journal("elevation", c, pid, r ? "echec du changement d'uid" : "accordee (retenue)");
@@ -814,11 +822,11 @@ static long traiter(void)
 			journal("sudo", &c, pid, "accorde (retenu)");
 			return korin_sys2(SYS_PROC_SETUID, pid, 0);
 		}
-		if (uid != 0) { /* un compte sans mot de passe : la carte (AUTH_ELEVATE, « Autoriser » à l'écran) ; un
-				 * « terminal » se fabrique (un pty ouvert par une app), il ne prouvait personne (A3) */
+		if (uid != 0) { /* un compte sans mot de passe ne s'élève pas (décision du 25/11/2026 : sudo demande
+				 * toujours un mot de passe ; un « terminal » se fabrique, il ne prouvait personne : A3) */
 			int e = empreinte_de(c.name);
 			if (!(e > 0 && empreinte[0])) {
-				journal("sudo", &c, pid, "refuse sans mot de passe (la carte d'elevation)");
+				journal("sudo", &c, pid, "refuse (compte sans mot de passe)");
 				return E_PERM;
 			}
 		}

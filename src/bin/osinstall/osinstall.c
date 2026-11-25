@@ -1431,6 +1431,11 @@ int main(int argc, char **argv)
 	}
 	if (!rpw[0] && admin)
 		memcpy(rpw, upw, sizeof rpw);
+	{ /* un compte qui administre a un mot de passe (décision du 25/11/2026) ; une réinstallation garde les comptes */
+		char hv[8];
+		if (admin && !upw[0] && !ini("user", "hash", "", hv, sizeof hv)[0] && !reinst)
+			return fail(E_INVAL, "un compte administrateur doit avoir un mot de passe (passwords = stdin, ou hash)");
+	}
 
 	/* 1. le disque */
 	step(1, "Préparer le disque");
