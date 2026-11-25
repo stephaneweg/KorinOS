@@ -109,8 +109,15 @@ static long fail(const char *msg, const char *path)
 static char boot_dir[16];
 static const char *boot_root(void)
 {
-	if (!boot_dir[0])
-		str_cat(str_cat(boot_dir, vu_boot_begin()), "/");
+	if (!boot_dir[0]) {
+		const char *b = vu_boot_begin();
+		if (!b) { /* (refusé : jamais la racine à la place de /boot) */
+			static const char e[] = "mkinitramfs : /boot refusé par vfs (sudo mkinitramfs)\n";
+			sys_write(2, e, sizeof e - 1);
+			korin_sys1(SYS_EXIT, 1);
+		}
+		str_cat(str_cat(boot_dir, b), "/");
+	}
 	return boot_dir;
 }
 

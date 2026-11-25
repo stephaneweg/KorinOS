@@ -478,6 +478,38 @@ static char *mot_suivant(char *p)
 	return *p ? p : 0;
 }
 
+/* une source qu'un compte peut monter lui-même : amovible (clé USB, image) ou du réseau (smbfs,
+ * gdrivefs) ; jamais une partition interne (la partition système montée sur /media/x contournait toutes
+ * les règles d'accès, E26, chaîne C4) */
+static int source_amovible(const char *src)
+{
+	return !strncmp(src, "blk.usb", 7) || !strncmp(src, "blk.img", 7) || (src[0] == '/' && src[1] == '/') ||
+	       !strncmp(src, "smb:", 4) || !strncmp(src, "gdrive:", 7);
+}
+
+/* MOUNT d'un process d'uid autre que 0 : point sous /media/ ou /net/, source amovible ou du réseau, pas déjà
+ * servie par un autre volume -> 0 ou E_PERM */
+static long monter_permis(long pid, const char *vol, const char *src)
+{
+	if (pid_uid(pid) == 0)
+		return 0;
+	if (vol[0] == '/' ? strncmp(vol, "/media/", 7) && strncmp(vol, "/net/", 5)
+			  : !strncmp(vol, "boot", 4) || !strncmp(vol, "root", 4) || !strncmp(vol, "tmp", 3))
+		return E_PERM;
+	if (!source_amovible(src))
+		return E_PERM;
+	for (int i = 0; i < VOL_MAX; i++)
+		if (volumes[i].name[0] && !strcmp(volumes[i].src, src))
+			return E_PERM;
+	return 0;
+}
+
+/* UNMOUNT d'un process d'uid autre que 0 : un volume amovible ou du réseau seulement */
+static int demonter_permis(long pid, struct volume *v)
+{
+	return pid_uid(pid) == 0 || source_amovible(v->src);
+}
+
 /* « volume source service [rootpath] » (modifiée) -> 0 ou erreur */
 static long monter_ligne(char *line)
 {
@@ -490,6 +522,11 @@ static long monter_ligne(char *line)
 	char *root = mot_suivant(svc);
 	if (root)
 		mot_suivant(root); /* (un cinquième mot : ignoré) */
+	/* le service : un nom de /sys/svc, [a-z0-9] (fatfs, exfat, ext4fs, ramfs, smbfs, gdrivefs) : jamais
+	 * un chemin, qui ferait lancer n'importe quel programme avec les droits (E24, F2) */
+	for (const char *c = svc; *c; c++)
+		if (!((*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9')))
+			return E_INVAL;
 	return monter(line, src, svc, root, 0, 1); /* (thread principal) */
 }
 
@@ -714,6 +751,10 @@ static long boot_prendre(long pid)
  * demande, à rendre) ou « / » (a = 0 : pas de /boot décrit) ; ou l'erreur */
 static long boot_begin(long pid)
 {
+	/* /boot (le noyau, l'initrd, le chargeur, l'ESP) : l'uid 0 seulement (pkg élevé, mkinitramfs) ;
+	 * pkglib ne retombe plus sur la racine quand c'est refusé (E25) ; le Pi : uid 0 (E_NOSYS) */
+	if (pid_uid(pid) != 0)
+		return E_PERM;
 	struct volume *v = volume_de("boot", 0);
 	msg.a = 0;
 	if (v && !boot_auto) { /* monté par l'utilisateur (mount /boot) : tel quel */
@@ -1058,12 +1099,29 @@ static void traiter(long req)
 			r = ops_bouts();
 		} else if (op == VFS_MOUNT) { /* « volume source service » */
 			((u8 *)&msg)[MSG_SIZE - 1] = 0;
-			r = monter_ligne((char *)msg.data);
+			char vol[64], src[64];
+			const char *d = (const char *)msg.data;
+			u64 k = 0, j = 0;
+			while (*d == ' ')
+				d++;
+			while (*d && *d != ' ' && k < sizeof vol - 1)
+				vol[k++] = *d++;
+			vol[k] = 0;
+			while (*d == ' ')
+				d++;
+			while (*d && *d != ' ' && j < sizeof src - 1)
+				src[j++] = *d++;
+			src[j] = 0;
+			r = monter_permis(msg.pid, vol, src);
+			if (!r)
+				r = monter_ligne((char *)msg.data);
 		} else if (op == VFS_UNMOUNT) { /* données : « vol » (minuscules) ou son point de montage */
 			((u8 *)&msg)[MSG_SIZE - 1] = 0;
 			struct volume *v = volume_par_nom_ou_point((char *)msg.data);
 			r = E_NOENT;
-			if (v) {
+			if (v && !demonter_permis(msg.pid, v))
+				r = E_PERM; /* (la racine, /tmp, /boot, un /home : l'uid 0 seulement) */
+			else if (v) {
 				demonter(v, 0);
 				r = 0;
 			}

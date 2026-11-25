@@ -61,7 +61,8 @@ long pid_uid(long pid)
 		return 0;
 	if (!r->uid_known) {
 		long u = korin_sys1(SYS_PROC_UID, pid);
-		r->uid = u > 0 ? (u32)u : 0;
+		/* le Pi : E_NOSYS, uid 0 ; un process disparu (E_SRCH) : personne (pas l'uid 0) */
+		r->uid = u > 0 ? (u32)u : u == 0 || u == -38 ? 0 : 0x7FFFFFFFu;
 		r->uid_known = 1;
 	}
 	return r->uid;

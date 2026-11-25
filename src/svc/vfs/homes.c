@@ -136,6 +136,20 @@ static void charger(void)
 			session_uid = homes[i].uid;
 }
 
+/* a et b égaux sur n octets, sans la casse ASCII (FAT32, exFAT) */
+int nom_egal_n(const char *a, const char *b, u64 n)
+{
+	for (u64 i = 0; i < n; i++) {
+		char x = a[i] >= 'A' && a[i] <= 'Z' ? a[i] + 32 : a[i];
+		char y = b[i] >= 'A' && b[i] <= 'Z' ? b[i] + 32 : b[i];
+		if (x != y)
+			return 0;
+		if (!x)
+			return 1;
+	}
+	return 1;
+}
+
 static const char *home_de(long uid)
 {
 	for (int i = 0; i < nhomes; i++)
@@ -170,7 +184,7 @@ int home_autre(const char *p, long uid)
 		u64 n = strlen(h);
 		if (homes[i].uid == uid || homes[i].uid <= 0 || h[0] != '/' || n < 2)
 			continue; /* (system, et un « / » qui couvrirait tout) */
-		if (!strncmp(p, h, n) && (p[n] == 0 || p[n] == '/'))
+		if (nom_egal_n(p, h, n) && (p[n] == 0 || p[n] == '/'))
 			return 1;
 	}
 	return 0;
@@ -187,7 +201,7 @@ long home_proprio(const char *p)
 		u64 n = strlen(h);
 		if (homes[i].uid <= 0 || h[0] != '/' || n < 2 || n <= bn)
 			continue;
-		if (!strncmp(p, h, n) && (p[n] == 0 || p[n] == '/')) {
+		if (nom_egal_n(p, h, n) && (p[n] == 0 || p[n] == '/')) {
 			best = homes[i].uid;
 			bn = n;
 		}
@@ -200,6 +214,13 @@ long session_uid_de(void)
 {
 	a_jour();
 	return session_uid > 0 ? session_uid : 0;
+}
+
+/* uid -> le dossier de son compte (règles d'accès), 0 : pas de compte (ni l'uid 0, ni un uid inconnu) */
+const char *home_compte(long uid)
+{
+	a_jour();
+	return uid > 0 ? home_de(uid) : 0;
 }
 
 /* uid -> son dossier personnel, chemin externe (« /home », « /home/stephane ») */

@@ -180,7 +180,7 @@ extern "C" long __armpi_vfs_call (void *m);
 struct VfsMsg { long op, a, b, c, d; unsigned len, pid; unsigned char data[464]; };
 enum { VFS_BOOT_BEGIN_ = 50, VFS_BOOT_END_ = 51 };
 static char g_bootVol[8];
-static bool g_bootTaken, g_bootAsked;
+static bool g_bootTaken, g_bootAsked, g_bootFail;
 static inline const char *boot_volume ()
 {
 	if (!g_bootAsked)
@@ -188,7 +188,10 @@ static inline const char *boot_volume ()
 		VfsMsg m; memset (&m, 0, sizeof m); m.op = VFS_BOOT_BEGIN_;
 		long r = __armpi_vfs_call (&m);
 		g_bootAsked = true;
-		if (r < 0 || !m.data[0]) g_bootVol[0] = 0;		// (la racine du volume systeme)
+		// refus de vfs (pas l'uid 0, /boot absent ou indisponible) : les fichiers de demarrage ne vont PAS
+		// a la racine (un pkg non eleve y ecrivait le noyau, plan de securite E25) ; boot_refused () le dit
+		g_bootFail = r < 0;
+		if (r < 0 || !m.data[0]) g_bootVol[0] = 0;		// (la racine du volume systeme : pas de /boot decrit)
 		else { cpy (g_bootVol, (const char *) m.data, sizeof g_bootVol); g_bootTaken = m.a != 0; }
 	}
 	return g_bootVol;
@@ -199,6 +202,14 @@ static inline void boot_release ()
 	if (g_bootTaken) { VfsMsg m; memset (&m, 0, sizeof m); m.op = VFS_BOOT_END_; __armpi_vfs_call (&m); g_bootTaken = false; }
 	g_bootVol[0] = 0;
 	g_bootAsked = false;
+	g_bootFail = false;
+}
+// un fichier de demarrage (motifs boot =) a ecrire alors que vfs a refuse /boot ?
+static inline bool boot_refused (const char *bootPats, const char *rel)
+{
+	if (g_pkgroot[0] || !in_patterns (bootPats, rel)) return false;
+	boot_volume ();
+	return g_bootFail;
 }
 struct BootScope { ~BootScope () { boot_release (); } };
 // rel (chemin de la carte), motifs `boot =` du paquet -> "/boot/rel" ou "/rel"
@@ -1246,6 +1257,7 @@ public:
 				}
 			}
 			char dest[320], tmp[330];
+			if (!stage && boot_refused (bootPats, rel)) { rc = E_IO; r.sayf ("%s : %s : /boot refusé par vfs (élever pkg)", name, rel); break; }
 			if (!stage && in_patterns (bootPats, rel)) snprintf (dest, sizeof dest, "%s/%s", g_pkgroot[0] ? root : boot_volume (), target);
 			else snprintf (dest, sizeof dest, "%s/%s", root, target);
 			snprintf (tmp, sizeof tmp, stage ? "%s" : "%s.pkgtmp", dest);
@@ -1333,7 +1345,7 @@ public:
 				char hh[65];
 				if (old->is_config (old->ini.kv[i].key) && sha_file (card, hh) && !eq (hh, old->ini.kv[i].val)) continue;
 				if (stage) { snprintf (line, sizeof line, "%s = 1\n", old->ini.kv[i].key); if (!strstr (mv, "[remove]")) putm ("\n[remove]\n"); putm (line); }
-				else { unlink (card); prune (card); }
+				else if (!boot_refused (old->boot (), old->ini.kv[i].key)) { unlink (card); prune (card); }
 				gone++;
 			}
 		char dbp[200];
@@ -1408,6 +1420,7 @@ public:
 			char hh[65];
 			if ((!purge || user_tree (in->ini.kv[i].key)) && in->is_config (in->ini.kv[i].key) && sha_file (card, hh) && !eq (hh, in->ini.kv[i].val)) { kept++; continue; }
 			if (starts (in->ini.kv[i].key, "apps/")) appsChanged = true;
+			if (boot_refused (in->boot (), in->ini.kv[i].key)) continue;	// (pas le fichier de meme nom a la racine)
 			if (unlink (card) == 0) gone++;
 			prune (card);
 		}
@@ -1454,7 +1467,7 @@ public:
 				if (eq (st.kv[i].sec, "moves"))
 				{
 					char from[320], to[320]; snprintf (from, sizeof from, "%s/%s", dir, f); card_path (to, sizeof to, bootPats, f);
-					if (forbidden (f)) { failed++; continue; }
+					if (forbidden (f) || boot_refused (bootPats, f)) { failed++; continue; }
 					if (!exists (from)) { missing++; continue; }	// (deja la : un commit interrompu reprend)
 					if (boot_file (f, bootPats))
 					{
@@ -1464,7 +1477,7 @@ public:
 					}
 					if (move (from, to)) moved++; else failed++;
 				}
-				else if (eq (st.kv[i].sec, "remove") && !forbidden (f) && !db.owned_elsewhere (f, names[k])) { char c[320]; card_path (c, sizeof c, bootPats, f); unlink (c); prune (c); }
+				else if (eq (st.kv[i].sec, "remove") && !forbidden (f) && !boot_refused (bootPats, f) && !db.owned_elsewhere (f, names[k])) { char c[320]; card_path (c, sizeof c, bootPats, f); unlink (c); prune (c); }
 			}
 			if (failed) { r.sayf ("%s : %d fichiers non déplacés : laissé étagé", names[k], failed); left = true; continue; }
 			char dbp[200]; snprintf (dbp, sizeof dbp, PKG_DB "/%s.ini", names[k]);

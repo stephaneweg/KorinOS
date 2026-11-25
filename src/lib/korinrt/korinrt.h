@@ -406,7 +406,7 @@ long vu_mount(const char *name, const char *src, const char *srv); /* VFS_MOUNT 
 long vu_mount_root(const char *name, const char *src, const char *srv, const char *root);
 long vu_volinfo(const char *name, char *svc, char *root); /* VFS_VOLINFO : svc 16 o, root 64 o -> 0, < 0 */
 long vu_unmount(const char *name); /* VFS_UNMOUNT, puis 5 s au plus (vu_demonter) */
-const char *vu_boot_begin(void); /* -> « /boot » (monté à la demande) ou « » (la racine) */
+const char *vu_boot_begin(void); /* -> « /boot » (monté à la demande) ou « » (la racine) ; 0 : refusé */
 void vu_boot_end(void);           /* rendu (le dernier : /boot démonté) */
 void vu_err(long e);              /* texte traduit sur 2, sans fin de ligne */
 

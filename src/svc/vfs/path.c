@@ -419,6 +419,8 @@ const char *point_de(const char *vol)
  * E_INVAL, E_NOENT, E_NOSPC : monte ce dossier aussi sous ce chemin */
 long chemin_ajouter(void)
 {
+	if (pid_uid(msg.pid) != 0) /* (init2 seulement : un chemin de plus change tout l'arbre) */
+		return E_PERM;
 	((u8 *)&msg)[MSG_SIZE - 1] = 0;
 	char *v = (char *)msg.data;
 	if (v[0] != '/' || !v[1]) /* (« / » : seulement le volume système) */
@@ -760,8 +762,12 @@ long ops_chemins(void)
 	if (op == V_OPEN || op == V_MKDIR || op == V_UNLINK || op == V_UTIME || op == V_CHMOD) {
 		int ecrire = op != V_OPEN || (msg.a & (O_WRITE | O_CREATE | O_TRUNC | O_APPEND));
 		r = acces_verifier(pid, resolu, ecrire); /* règles d'accès (access.c ; étape 3 : journal) */
-		if (r)
+		if (r) {
+			/* un dossier qui existe déjà : E_EXIST d'abord (mkdir -p d'un dossier protégé) */
+			if (op == V_MKDIR && vers_volume(FS_STAT, resolu, 0, 0) >= 0)
+				return E_EXIST;
 			return r;
+		}
 		if (ecrire)
 			watch_touch(resolu); /* un nom change dans son dossier : les guets (watch.c) */
 	}

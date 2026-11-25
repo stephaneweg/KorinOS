@@ -24,13 +24,51 @@ static const char *const secrets[] = {"/etc/shadow.ini", "/etc/wifi.txt", "/etc/
 /* refusés aux autres que l'uid 0 quel que soit le mode (sauf « off ») : les fichiers du coffre */
 static const char *const toujours[] = {"/var/keyvault", "/etc/keyvault", 0};
 
-/* le chemin commence-t-il par le dossier d (« /home » couvre « /home » et « /home/a », pas « /homex ») ? */
+/* le chemin commence-t-il par le dossier d (« /home » couvre « /home » et « /home/a », pas « /homex ») ?
+ * Sans la casse : FAT32 et exFAT trouvent « /ETC/SHADOW.INI » comme « /etc/shadow.ini » (E24, F1) */
 static int sous(const char *p, const char *d)
 {
 	u64 n = strlen(d);
 	if (n == 1 && d[0] == '/')
 		return 1;
-	return !strncmp(p, d, n) && (p[n] == 0 || p[n] == '/');
+	return nom_egal_n(p, d, n) && (p[n] == 0 || p[n] == '/');
+}
+
+/* le chemin externe tel que les règles le lisent : chaque composant sans ses points ni ses espaces de
+ * fin (FAT et Windows les ignorent : « shadow.ini. ») ; un composant avec « ~ » sous /etc ou /var (un
+ * nom court 8.3 de FAT, « SHADOW~1.INI ») devient « ~ », que seules les règles de l'uid 0 laissent passer */
+static void normaliser(const char *p, char *o)
+{
+	char *d = o;
+	while (*p) {
+		if (*p == '/') {
+			*d++ = *p++;
+			continue;
+		}
+		char *c = d;
+		int tilde = 0;
+		while (*p && *p != '/') {
+			tilde |= *p == '~';
+			*d++ = *p++;
+		}
+		while (d > c && (d[-1] == '.' || d[-1] == ' '))
+			d--;
+		if (tilde) {
+			d = c;
+			*d++ = '~';
+		}
+	}
+	*d = 0;
+}
+
+static int court_protege(const char *p)
+{
+	if (!(sous(p, "/etc") || sous(p, "/var")))
+		return 0;
+	for (; *p; p++)
+		if (p[0] == '~' && (p[1] == 0 || p[1] == '/') && p[-1] == '/')
+			return 1;
+	return 0;
 }
 
 /* uid, chemin externe, écriture ? -> 1 permis */
@@ -44,13 +82,19 @@ static int permis(long uid, const char *p, int ecrire)
 	for (int i = 0; toujours[i]; i++)
 		if (sous(p, toujours[i]))
 			return 0;
+	if (court_protege(p))
+		return 0; /* un nom court 8.3 sous /etc ou /var : peut-être un secret */
 	if (sous(p, "/tmp") || sous(p, "/media") || sous(p, "/net") || sous(p, "/home/public"))
 		return 1;
-	const char *mine = home_externe(uid);
-	if (sous(p, mine))
+	if (sous(p, "/home/system"))
+		return 0; /* (le compte system : à l'uid 0) */
+	/* le dossier d'un autre compte d'abord : un compte dont le dossier est /home (images de
+	 * développement) ne passe pas par-dessus ceux des autres */
+	if (sous(p, "/home") && home_autre(p, uid))
+		return 0;
+	const char *mine = home_compte(uid); /* (un uid sans compte n'a pas de dossier à lui) */
+	if (mine && sous(p, mine))
 		return 1;
-	if (sous(p, "/home")) /* le dossier d'un autre compte (ou /home lui-même, s'il n'est pas le sien) */
-		return home_autre(p, uid) ? 0 : !ecrire;
 	return !ecrire;
 }
 
@@ -61,8 +105,9 @@ u64 acces_bits(const char *interne)
 {
 	if (acces_mode() == ACCESS_OFF)
 		return 0;
-	char p[PATH_MAX];
-	chemin_externe(interne, p);
+	char e[PATH_MAX], p[PATH_MAX];
+	chemin_externe(interne, e);
+	normaliser(e, p);
 	long owner = 0;
 	u64 kind = 0;
 	if (sous(p, "/tmp") || sous(p, "/media") || sous(p, "/net") || sous(p, "/home/public")) {
@@ -143,8 +188,9 @@ long acces_verifier(long pid, const char *interne, int ecrire)
 	long uid = pid_uid(pid);
 	if (uid == 0)
 		return 0;
-	char ext[PATH_MAX];
-	chemin_externe(interne, ext);
+	char brut[PATH_MAX], ext[PATH_MAX];
+	chemin_externe(interne, brut);
+	normaliser(brut, ext);
 	if (permis(uid, ext, ecrire))
 		return 0;
 	for (int i = 0; toujours[i]; i++)

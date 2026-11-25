@@ -390,15 +390,16 @@ long vu_unmount(const char *name)
  * dernière fin (ou à la fin du programme) ; sans cette ligne : « », la racine du volume système. */
 static int vu_boot_taken;
 
-/* -> « /boot » ou « » : le dossier où écrire les fichiers de démarrage (on y ajoute « /fichier ») */
+/* -> « /boot » ou « » : le dossier où écrire les fichiers de démarrage (on y ajoute « /fichier ») ;
+ * 0 : refusé par vfs (pas l'uid 0, ou /boot décrit mais pas montable) : rien à écrire à la racine */
 const char *vu_boot_begin(void)
 {
 	static char vol[8];
 	u8 m[MSG_SIZE] __attribute__((aligned(8)));
 	vfs_msg(m, VFS_BOOT_BEGIN, 0, 0, "", 0);
 	vol[0] = 0;
-	if (vfs_call(m) < 0) /* (/boot décrit mais pas montable) */
-		return vol;
+	if (vfs_call(m) < 0)
+		return 0;
 	if (*(u64 *)(m + MSG_A))
 		vu_boot_taken++;
 	m[MSG_DATA + 7] = 0;
