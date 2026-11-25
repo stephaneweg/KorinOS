@@ -1,6 +1,6 @@
 ---
 name: armpi-musescore
-description: "MuseScore Studio 4.7.7 sur Korin PC (24-25/11) : tools/musescore, Qt statique, son par AudioKit, menus dans la barre globale, en français ; converti, affiché et joué sous QEMU PC ; paquet musescore prêt, pas publié"
+description: "MuseScore Studio 4.7.7 sur Korin PC (24-25/11) : tools/musescore, Qt statique, son par AudioKit, menus dans la barre globale, en français ; converti, affiché et joué sous QEMU PC ; musescore 4.7.7-0.1 publié le 25/11"
 metadata:
   type: project
   modified: 2026-11-25
@@ -13,7 +13,8 @@ menus par la **barre de menus globale**. Étude et état : docs/etude/MUSESCORE.
 pctest, cmake/FindHarfBuzz.cmake, korin/ : pilote AudioKit, thème de plateforme), patches/musescore.patch (22 fichiers).
 Sous QEMU PC : convertisseur (PDF), interface en français, partition (Leland, Edwin), menus dans la barre globale,
 lecture (curseur et compteur avancent par le pilote AudioKit). App /apps/musescore.app (264 Mo), paquet
-[musescore] release = 1 dans packages-pc.ini, version 4.7.7-0.1, pas publié.
+[musescore] release = 1, **publié le 25/11** (4.7.7-0.1, catégorie Musique) : share/ dans musescore-data-1 et -2
+(split 90 : l'archive entière, 124,6 Mo, dépassait les 100 Mo d'une branche de transit).
 
 **Pièges** : FreeType 2.14.3 (régression amont : limite 10 x ppem sous FT_Set_Transform) -> korin-transform-ppem.patch
 (recette freetype-dev + tools/qt/deps.sh ; freetype-dev à republier) ; deux HarfBuzz si MuseScore télécharge le sien
