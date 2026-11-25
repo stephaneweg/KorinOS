@@ -679,3 +679,11 @@ remplacées par celle-ci (3 novembre 2026).
 
 Il n'y a pas de chiffrement : telnet et FTP font passer le mot de passe en clair. À garder sur un réseau de confiance.
 
+**Le mode comptes (25/11/2026, E70 du plan de sécurité).** Dès qu'un compte d'uid 1000 ou plus a un mot de passe
+(et que `/etc/remote.txt` ne dit pas `shared = 1`), telnet et FTP ne prennent plus le secret commun : telnet demande
+`Compte :` puis `Mot de passe :` (vérifié par authd) et ouvre le shell sous ce compte ; FTP prend `USER` et son mot de
+passe, et le client ne voit que le dossier du compte (`/` pour lui). Sans compte à mot de passe (le Pi, les images
+d'essai), le secret commun reste, comme avant. Après 5 mots de passe faux, un service refuse tout essai pendant 30 s,
+puis le double à chaque nouvel échec (une heure au plus). `tools/armpi_remote.py` : `ARMPI_REMOTE_USER` et
+`ARMPI_REMOTE_PW`. `/etc/remote.txt` ne s'écrit qu'en uid 0 (Réglages élevé). VNC et RDP gardent le secret commun.
+
