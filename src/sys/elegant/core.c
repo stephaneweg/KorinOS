@@ -1022,6 +1022,14 @@ void mouse(long x, long y, long buttons)
 
 	/* --- un menu ouvert capture toute la souris */
 	struct win *g = find_grab();
+	if (down) /* (G3) un menu dont la capture ne vaut plus (son app a perdu le premier plan) reçoit quand même le
+		   * clic fait hors de lui : il se ferme, comme avant */
+		for (long i = win_count; i;) {
+			struct win *o = win_z[--i];
+			if (o != g && !o->mini && (o->flags & WF_GRAB) &&
+			    !(cur_x >= o->x && cur_x < o->x + o->w && cur_y >= o->y && cur_y < o->y + o->h))
+				send_mouse(o, 1);
+		}
 	if (g) {
 		send_mouse(g, down ? 1 : up ? 2 : 0);
 		return;

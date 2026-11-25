@@ -544,10 +544,14 @@ static inline bool user_tree (const char *rel) { return starts (rel, "home/"); }
 static inline bool forbidden (const char *rel)
 {
 	if (!*rel || rel[0] == '/' || strchr (rel, ':') || strchr (rel, '\\')) return true;
+	// chaque composant : ni vide, ni « . » ni « .. », ni fini par un point ou une espace (FAT les ignore) :
+	// « ./etc/shadow.ini », « etc//keyvault », « etc./shadow.ini » passaient les comparaisons plus bas (L4)
 	for (const char *s = rel; s; )
 	{
-		if (s[0] == '.' && s[1] == '.' && (s[2] == '/' || !s[2])) return true;
-		s = strchr (s, '/'); if (s) s++;
+		const char *e = strchr (s, '/');
+		size_t n = e ? (size_t) (e - s) : strlen (s);
+		if (!n ? e != 0 : (s[n - 1] == '.' || s[n - 1] == ' ')) return true;	// (un « / » final : dossier, permis)
+		s = e ? e + 1 : 0;
 	}
 	// (les mots de passe, le coffre, le repère de la carte : aucun paquet ne les livre ; un paquet ne les écrase pas, L4)
 	// (sans casse : FAT n'en tient pas compte, « VAR/pkg/... » écrivait /var/pkg)

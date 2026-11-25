@@ -174,8 +174,18 @@ static int split_at(struct mm *mm, uint64_t a)
 		if (region_w(&hi))
 			ipc_shm_wmapped(hi.obj, 1, 0);
 	}
+	int r = insert_at(mm, i + 1, hi);
+	if (r) { /* (pas de place : la région reste entière, les comptes reviennent) */
+		if (hi.obj) {
+			if (region_w(&hi))
+				ipc_shm_wmapped(hi.obj, -1, 0);
+			ipc_shm_mapped(hi.obj, -1);
+			ipc_obj_put(hi.obj);
+		}
+		return r;
+	}
 	mm->r[i].end = a;
-	return insert_at(mm, i + 1, hi);
+	return 0;
 }
 
 /* recolle les régions anonymes voisines de mêmes droits */

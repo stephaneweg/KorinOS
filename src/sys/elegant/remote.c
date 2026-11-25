@@ -15,7 +15,9 @@
 
 /* ---- G4, G5 (E36) : les opérations sur les fenêtres des autres (lire leurs pixels, l'écran entier, la liste
  * complète avec titres et pids, les fermer, les déplacer, une commande de leur menu) : l'uid 0 et les programmes
- * de cette liste seulement, reconnus par le chemin de leur image (SYS_PROC_EXE). Ces chemins sont protégés en
+ * de cette liste seulement, reconnus par le chemin de leur image (SYS_PROC_EXE) ET l'empreinte de son contenu,
+ * comparée à celle du fichier (ws_same_file : un compte crée une image au chemin de son choix, IMAGE_CREATE). Ces
+ * chemins sont protégés en
  * écriture dans tous les modes de vfs (/sys, /bin ; /apps/screenshot.app et /apps/taskman.app ajoutés) ; un
  * programme lancé par un interprète (un script) n'en est pas. Le Pi (pas d'identité, E_NOSYS) : permis. */
 static const char *const ws_trusted_exe[] = {
@@ -23,6 +25,55 @@ static const char *const ws_trusted_exe[] = {
 	"/sys/svc/rdpd", "/sys/svc/vncd", "/bin/screenshot", "/bin/overlaytest", "/apps/screenshot.app/main",
 	"/apps/taskman.app/main", 0};
 static u8 ws_pex[296] __attribute__((aligned(8)));
+
+#include "../../svc/authd/pwhash.h" /* SHA-256 */
+
+/* l'image de ws_pex a-t-elle le contenu du fichier path ? Empreinte du fichier gardée par chemin ; relue si elle ne
+ * correspond pas (fichier mis à jour), au plus une fois toutes les 10 s par chemin (une fausse image ne fait pas
+ * relire le fichier à chaque appel) */
+#define WS_HASHES 24
+static struct {
+	char path[48];
+	u8 hash[32];
+	u64 at;
+	int have;
+} ws_hashes[WS_HASHES];
+static u8 ws_fbuf[4096];
+
+static int ws_same_file(const char *path)
+{
+	int k = -1, freek = -1;
+	for (int i = 0; i < WS_HASHES && k < 0; i++) {
+		if (ws_hashes[i].path[0] && str_eq(ws_hashes[i].path, path))
+			k = i;
+		else if (!ws_hashes[i].path[0] && freek < 0)
+			freek = i;
+	}
+	if (k < 0) {
+		if (freek < 0 || str_len(path) >= (long)sizeof ws_hashes[0].path)
+			return 0;
+		k = freek;
+		str_copy_n(ws_hashes[k].path, path, sizeof ws_hashes[k].path);
+	}
+	if (ws_hashes[k].have && !memcmp(ws_hashes[k].hash, ws_pex + 8, 32))
+		return 1;
+	u64 now = (u64)korin_sys0(SYS_TIME_MS);
+	if (ws_hashes[k].at && now - ws_hashes[k].at < 10000)
+		return 0;
+	ws_hashes[k].at = now ? now : 1;
+	long fd = sys_open(path, O_READ);
+	if (fd < 0)
+		return 0;
+	struct sha s;
+	sha_init(&s);
+	long n;
+	while ((n = sys_read(fd, ws_fbuf, sizeof ws_fbuf)) > 0)
+		sha_add(&s, ws_fbuf, (u64)n);
+	sys_close(fd);
+	sha_end(&s, ws_hashes[k].hash);
+	ws_hashes[k].have = 1;
+	return !memcmp(ws_hashes[k].hash, ws_pex + 8, 32);
+}
 
 static int ws_ieq(const char *a, const char *b)
 {
@@ -51,7 +102,7 @@ int ws_trusted(void)
 		e = c + 1;
 	for (int i = 0; ws_trusted_exe[i]; i++)
 		if (ws_ieq(e, ws_trusted_exe[i]))
-			return 1;
+			return ws_same_file(ws_trusted_exe[i]);
 	return 0;
 }
 
@@ -60,7 +111,7 @@ int ws_trusted(void)
 int ws_secure_caller(void)
 {
 	long pid = M32(msg, WM_PID);
-	if (korin_sys1(SYS_PROC_UID, pid) != 0)
+	if (korin_sys1(SYS_PROC_UID, pid) != 0) /* (uid 0 seulement : une fausse image en uid 0 est déjà tout) */
 		return 0;
 	if (korin_sys2(SYS_PROC_EXE, pid, ws_pex) < 0 || (*(u32 *)ws_pex & 5) != 1)
 		return 0;
@@ -70,7 +121,10 @@ int ws_secure_caller(void)
 		c++;
 	if (*c == ':' && c[1] == '/')
 		e = c + 1;
-	return ws_ieq(e, "/sys/authcard") || ws_ieq(e, "/sys/login");
+	/* (et ce que login lance en uid 0 : ses réglages rapides, l'extinction, le Wi-Fi, le son ; en couche normale,
+	 * ils passaient sous l'écran de connexion. Dans la session, ils tournent sous le compte : pas concernés) */
+	return ws_ieq(e, "/sys/authcard") || ws_ieq(e, "/sys/login") || ws_ieq(e, "/sys/quickmenu") ||
+	       ws_ieq(e, "/sys/shutdown") || ws_ieq(e, "/sys/wifimenu") || ws_ieq(e, "/sys/soundmenu");
 }
 
 /* G3 : les interfaces du système (panel, barre des menus, menus rapides...) ; /sys est protégé en écriture dans
@@ -88,10 +142,10 @@ int ws_sysui_caller(void)
 		c++;
 	if (*c == ':' && c[1] == '/')
 		e = c + 1;
-	const char *pre = "/sys/";
+	const char *pre = "/sys/", *full = e;
 	while (*pre && (*e | 0x20) == *pre)
 		e++, pre++;
-	return !*pre;
+	return !*pre && ws_same_file(full);
 }
 
 /* la fenêtre est-elle à l'appelant, ou l'appelant est-il de la liste ? */

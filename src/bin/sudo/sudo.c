@@ -23,6 +23,12 @@
 #ifndef E_AGAIN
 #define E_AGAIN -11
 #endif
+#ifndef E_PERM
+#define E_PERM -1
+#endif
+#ifndef E_BUSY
+#define E_BUSY -16
+#endif
 #ifndef E_CANCELED
 #define E_CANCELED -125
 #endif
@@ -188,12 +194,15 @@ int main(int argc, char **argv)
 		if (can == 1) { /* retenu, ou un compte sans mot de passe : celui-ci passe par la carte d'élévation, que
 				 * l'utilisateur accepte à l'écran (authd refuse AUTH_SUDO sans mot de passe : A3) */
 			r = auth_call(ch, AUTH_SUDO, "", 0);
-			if (r != 0)
+			if (r == E_PERM) { /* (sans mot de passe : la carte ; E_ACCES : retenu expiré, le mot de passe) */
 				r = card(ch, argv[1]);
-			if (r != 0) {
-				out(r == E_CANCELED ? "sudo : elevation refusee a l'ecran\n"
-						    : "sudo : elevation impossible (la carte d'elevation ne s'ouvre pas)\n");
-				return 1;
+				if (r != 0) {
+					out(r == E_CANCELED ? "sudo : elevation refusee a l'ecran\n"
+					    : r == E_BUSY ? "sudo : une autre demande d'elevation est ouverte a l'ecran\n"
+							  : "sudo : elevation impossible (pas de carte d'elevation : session "
+							    "graphique absente ?)\n");
+					return 1;
+				}
 			}
 		}
 		int keep = -1; /* (demandé une fois, après le premier mot de passe) */

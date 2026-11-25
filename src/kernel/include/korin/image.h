@@ -34,5 +34,6 @@ void image_proc_exit(struct process *p);
 #define IMAGE_PATH_MAX 256
 /* chemin déclaré (tronqué à n octets) et SHA-256 du contenu d'une image tenue (SYS_PROC_EXE) */
 void image_identity(struct image *im, char *path, uint64_t n, uint8_t hash[32]);
+int image_is_sys(const struct image *im); /* créée par un process aux droits de /sys (vfs) : SYS_PROC_EXE bit 3 */
 
 #endif

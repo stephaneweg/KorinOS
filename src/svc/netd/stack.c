@@ -1083,7 +1083,11 @@ found: /* connexion existante */
 		 * vrai bout répondra par un RST exact) : un RST deviné dans une fenêtre de 64 Ko coupait la connexion
 		 * d'un autre (R7) */
 		if (seq != s->rcv_nxt) {
-			if ((u32)(seq - s->rcv_nxt) < 0x10000 && s->state != TCP_SYN_RCVD)
+			static u64 ch_sec, ch_n; /* (RFC 5961 §7 : 10 ACK de défi par seconde au plus) */
+			u64 now = time_ms() / 1000;
+			if (now != ch_sec)
+				ch_sec = now, ch_n = 0;
+			if ((u32)(seq - s->rcv_nxt) < 0x10000 && s->state != TCP_SYN_RCVD && ch_n++ < 10)
 				tcp_send_ack(s);
 			return;
 		}

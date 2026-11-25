@@ -109,6 +109,13 @@ void image_hold(struct image *im)
 
 /* le chemin déclaré et l'empreinte SHA-256 du contenu (calculée une fois : les pages d'une image scellée ne
  * changent plus) ; l'appelant tient une référence */
+/* l'image vient-elle d'un créateur aux droits de /sys (vfs, qui charge le fichier à chaque exec) ? Une image
+ * créée par un compte (IMAGE_CREATE) au chemin de son choix : 0 */
+int image_is_sys(const struct image *im)
+{
+	return im->sys != 0;
+}
+
 void image_identity(struct image *im, char *path, uint64_t n, uint8_t hash[32])
 {
 	memcpy(path, im->path, n < PATH ? n : PATH);

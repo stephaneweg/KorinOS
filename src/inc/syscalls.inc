@@ -211,6 +211,7 @@ PEX_SIZE		= 296
 PEXF_IMAGE		= 1		; lance d'une image (sinon : pas de chemin ni d'empreinte)
 PEXF_RIGHTS		= 2		; droits de /sys
 PEXF_SCRIPT		= 4		; un script est declare
+PEXF_SYSIMG		= 8		; image chargee par le systeme (vfs, droits de /sys) ; 0 : creee par un compte (IMAGE_CREATE), chemin a son choix
 SYS_SYSCALL_CAPTURE	= 0x96		; (plages, n, entree, retour, numeros) -> 0 : capture de syscall (docs/etude/WIDEVINE.md 3.2) ;
 					; plages : n paires {debut, fin} (n <= CAPTURE_MAX, 0 : plus de capture) ; un syscall dont
 					; l'instruction est dans une plage (et dont le numero est dans la table de 512 bits « numeros »,

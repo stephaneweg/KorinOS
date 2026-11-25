@@ -90,7 +90,7 @@ static void sha_end(struct sha *s, u8 out[32])
 }
 
 /* HMAC-SHA-256 d'un message en deux morceaux (le sel et le numéro de bloc, pour PBKDF2) */
-static void hmac(const u8 *key, u64 klen, const u8 *m1, u64 n1, const u8 *m2, u64 n2, u8 out[32])
+__attribute__((unused)) static void hmac(const u8 *key, u64 klen, const u8 *m1, u64 n1, const u8 *m2, u64 n2, u8 out[32])
 {
 	u8 k[64], pad[64], t[32];
 	struct sha s;
@@ -117,7 +117,7 @@ static void hmac(const u8 *key, u64 klen, const u8 *m1, u64 n1, const u8 *m2, u6
 }
 
 /* PBKDF2-HMAC-SHA-256, un bloc de 32 octets */
-static void pbkdf2(const char *pw, const u8 *salt, u64 slen, u32 iter, u8 out[32])
+__attribute__((unused)) static void pbkdf2(const char *pw, const u8 *salt, u64 slen, u32 iter, u8 out[32])
 {
 	u8 u[32], blk[4] = {0, 0, 0, 1};
 	u64 plen = (u64)str_len(pw);

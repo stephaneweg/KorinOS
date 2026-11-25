@@ -482,6 +482,8 @@ int64_t sys_proc_exe(int64_t pid, uint64_t out)
 	}
 	if (im) {
 		image_identity(im, x->exe, sizeof x->exe, x->hash);
+		if (image_is_sys(im))
+			x->flags |= 8; /* (chargée par le système : le chemin déclaré est celui du fichier) */
 		image_put(im);
 		x->flags |= 1;
 	}
