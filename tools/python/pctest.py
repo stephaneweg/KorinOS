@@ -120,6 +120,7 @@ def run(a):
         if t is None:
             raise SystemExit("telnet : pas de réponse après %d s (journal : %s)" % (a.boot, log))
         print("telnet prêt après %.0f s" % (time.time() - t0))
+        kept = []  # (spawn2 : les autres sessions telnet, gardées ouvertes)
         for c in a.cmd:
             if c.startswith("shot:"):  # une capture de l'écran : build/pc/pytest/NOM.png
                 f = os.path.join(W, c[5:] + ".png").replace("\\", "/")
@@ -222,6 +223,18 @@ def run(a):
                     print("capture :", f, flush=True)
                 t.s.sendall(b"\x03")
                 time.sleep(2)
+                continue
+            if c.startswith("spawn2:"):  # une app lancée dans une autre session telnet, sans attendre : deux apps à
+                #                              l'écran (la session reste ouverte jusqu'à la fin de l'essai)
+                t2 = rem.Telnet("127.0.0.1", a.port, timeout=30)
+                if b"Mot de passe" in t2.read_until(b" : ", 30):
+                    t2.s.sendall(b"essai\r\n")
+                t2.s.sendall(b'echo @PR""ET\r\n')
+                t2.read_until(b"@PRET", 30)
+                t2.read_until(b"\n", 30)
+                t2.s.sendall(c[7:].encode("utf-8") + b"\r\n")
+                kept.append(t2)
+                print("lancé (autre session) :", c[7:], flush=True)
                 continue
             if c.startswith("fresh:"):  # une commande dans une autre session telnet (la première tient une app lancée)
                 t2 = None

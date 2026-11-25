@@ -161,6 +161,42 @@ index 84f19f06..3226c3e3 100644
      qt_target_qml_sources(appshell_qml 
          QML_FILES
              platform/linux/Main.qml
+diff --git a/src/appshell/qml/MuseScore/AppShell/platform/PlatformMenuBar.qml b/src/appshell/qml/MuseScore/AppShell/platform/PlatformMenuBar.qml
+index e163ea6d..8e6148e4 100644
+--- a/src/appshell/qml/MuseScore/AppShell/platform/PlatformMenuBar.qml
++++ b/src/appshell/qml/MuseScore/AppShell/platform/PlatformMenuBar.qml
+@@ -110,6 +110,7 @@ Item {
+         menuItem.checkable = itemInfo.checkable
+         menuItem.separator = !Boolean(itemInfo.title)
+         menuItem.role = itemInfo.role
++        menuItem.info = itemInfo
+     }
+ 
+     Component {
+@@ -164,8 +165,23 @@ Item {
+         id: menuItemComponent
+ 
+         PLATFORM.MenuItem {
++            id: platformItem
++
+             property string id: ""
+ 
++            // L'état (activée, cochée) suit l'entrée de MuseScore dès qu'elle change : une barre de menus globale
++            // qui n'émet pas aboutToShow (Korin OS) gardait sinon l'état du démarrage (Enregistrer grisé)
++            property var info: null
++            property Connections stateWatcher: Connections {
++                target: platformItem.info
++                ignoreUnknownSignals: true
++
++                function onStateChanged() {
++                    platformItem.enabled = platformItem.info.enabled
++                    platformItem.checked = platformItem.info.checked
++                }
++            }
++
+             onTriggered: {
+                 Qt.callLater(menuModel.handleMenuItem, id)
+             }
 diff --git a/src/framework/audio/driver/CMakeLists.txt b/src/framework/audio/driver/CMakeLists.txt
 index 950c7086..5166e97c 100644
 --- a/src/framework/audio/driver/CMakeLists.txt
