@@ -30,7 +30,15 @@ static const char *const marques[] = {"/tmp/session.ini", "/tmp/login.halt", "/t
 				      /* et les comptes : qui est qui, qui peut s'élever (useradd, usermod, userdel par sudo,
 				       * Réglages élevé, osinstall : tous en uid 0) ; en mode journal, un compte se donnait
 				       * l'uid 0 dans users.ini, ou effaçait shadow.ini (plus de mot de passe nulle part) */
-				      "/etc/users.ini", "/etc/elevate.ini", 0};
+				      "/etc/users.ini", "/etc/elevate.ini",
+				      /* ce qui décide de ce qui tourne en uid 0 ou avec les droits : le démarrage (init2,
+				       * pcid, hwmanager), les services, la session, l'accès à distance, les programmes du
+				       * système et les clés des paquets ; leurs écrivains sont pkg, osinstall et Réglages
+				       * élevé (A1, S5, chaînes C1 et C2 sans attendre « enforce ») */
+				      "/etc/init.txt", "/etc/services.txt", "/etc/services.off", "/etc/services.manual",
+				      "/etc/services.deps", "/etc/preload.txt", "/etc/drivers.txt", "/etc/exec.txt",
+				      "/etc/paths.txt", "/etc/session", "/etc/remote.txt", "/etc/pkg", "/etc/interpreters.ini",
+				      "/sys", "/sbin", "/bin", "/lib", "/korin", "/EFI", 0};
 
 /* le chemin commence-t-il par le dossier d (« /home » couvre « /home » et « /home/a », pas « /homex ») ?
  * Sans la casse : FAT32 et exFAT trouvent « /ETC/SHADOW.INI » comme « /etc/shadow.ini » (E24, F1) */
@@ -191,17 +199,30 @@ long acces_sbin(long pid, const char *interne)
 }
 
 /* pid, chemin interne résolu, écriture ? -> 0, ou E_ACCES (mode enforce) ; un refus est noté */
+/* les listes qui valent dans tous les modes (même « off » : /etc/system.ini, que Réglages écrit sans élévation,
+ * ne doit pas pouvoir tout ouvrir) : le coffre, shadow.ini, et en écriture les marques et fichiers du système */
+static int critique(const char *p, int ecrire)
+{
+	for (int i = 0; toujours[i]; i++)
+		if (sous(p, toujours[i]))
+			return 1;
+	for (int i = 0; ecrire && marques[i]; i++)
+		if (sous(p, marques[i]))
+			return 1;
+	return court_protege(p);
+}
+
 long acces_verifier(long pid, const char *interne, int ecrire)
 {
 	int mode = acces_mode();
-	if (mode == ACCESS_OFF)
-		return 0;
 	long uid = pid_uid(pid);
 	if (uid == 0)
 		return 0;
 	char brut[PATH_MAX], ext[PATH_MAX];
 	chemin_externe(interne, brut);
 	normaliser(brut, ext);
+	if (mode == ACCESS_OFF && !critique(ext, ecrire))
+		return 0;
 	if (permis(uid, ext, ecrire))
 		return 0;
 	for (int i = 0; toujours[i]; i++)
@@ -210,6 +231,8 @@ long acces_verifier(long pid, const char *interne, int ecrire)
 	for (int i = 0; ecrire && marques[i]; i++)
 		if (sous(ext, marques[i]))
 			mode = ACCESS_ENFORCE; /* (les marques de session aussi) */
+	if (court_protege(ext))
+		mode = ACCESS_ENFORCE; /* (un nom court 8.3 sous /etc ou /var : peut-être shadow.ini) */
 	if (!deja_note(uid, ext, ecrire)) {
 		char n[24], nom[64];
 		u64 info[8] = {0};

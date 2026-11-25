@@ -150,7 +150,20 @@ static int boot_get (void)
 	return on;
 }
 
+static int boot_set_raw (int on);
+
+/* l'élévation le temps d'écrire dans /etc (comme le volet Partages) : /etc/services.txt est à l'uid 0 */
 static int boot_set (int on)
+{
+	unsigned me;
+	if (ap_elevate (TR ("Réglages veut modifier le serveur web."), &me))
+		return -2;
+	int r = boot_set_raw (on);
+	ap_unelevate (me);
+	return r;
+}
+
+static int boot_set_raw (int on)
 {
 	static char buf[8192];
 	size_t n = 0;
@@ -324,7 +337,10 @@ static void on_stop (long, long)
 static void on_boot (long w, long)
 {
 	int on = ui_w_get_value (w) != 0;
-	if (boot_set (on) < 0)
+	int r = boot_set (on);
+	if (r == -2)
+		status (TR ("Autorisation refusée."));
+	else if (r < 0)
 		status (TR ("/etc/services.txt ne peut pas être écrit."));
 	else
 		status (TR (on ? "Le serveur démarrera avec Korin." : "Le serveur ne démarrera plus avec Korin."));
