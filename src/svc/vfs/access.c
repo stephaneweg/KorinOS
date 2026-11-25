@@ -42,7 +42,9 @@ static const char *const marques[] = {"/tmp/session.ini", "/tmp/login.halt", "/t
 				      "/sys", "/sbin", "/bin", "/lib", "/korin", "/EFI",
 				      /* les paquets : ce qui est étagé (/var/pkg/stage) est installé par init2 en uid 0 au
 				       * démarrage ; la base dit ce qui est installé (K1) */
-				      "/var/pkg", 0};
+				      "/var/pkg",
+				      /* les apps à qui Elegant montre les fenêtres des autres (G4, sys/elegant/remote.c) */
+				      "/apps/screenshot.app", "/apps/taskman.app", 0};
 
 /* le chemin commence-t-il par le dossier d (« /home » couvre « /home » et « /home/a », pas « /homex ») ?
  * Sans la casse : FAT32 et exFAT trouvent « /ETC/SHADOW.INI » comme « /etc/shadow.ini » (E24, F1) */

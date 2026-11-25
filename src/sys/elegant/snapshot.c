@@ -52,6 +52,8 @@ static void copy_rect(u8 *dst, long dp, const u8 *src, long sp, long n, long row
  * recopiée (64 bits chacun) */
 long req_snapshot(void)
 {
+	if (!ws_trusted()) /* (l'écran entier : la liste de remote.c, G4) */
+		return E_PERM;
 	long err;
 	struct snap_cli *c = snap_client(M32(msg, WM_PID), &err);
 	if (!c)
@@ -108,6 +110,8 @@ long req_snapshot(void)
  * place par moyenne de chaque bloc : le commutateur du mode poche (src/sys/switcher). */
 long req_win_thumb(void)
 {
+	if (!ws_trusted())
+		return E_PERM;
 	long err;
 	struct snap_cli *c = snap_client(M32(msg, WM_PID), &err);
 	if (!c)

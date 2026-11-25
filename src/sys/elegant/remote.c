@@ -13,6 +13,54 @@
 
 #define M16(m, off) (*(u16 *)((u8 *)(m) + (off)))
 
+/* ---- G4, G5 (E36) : les opérations sur les fenêtres des autres (lire leurs pixels, l'écran entier, la liste
+ * complète avec titres et pids, les fermer, les déplacer, une commande de leur menu) : l'uid 0 et les programmes
+ * de cette liste seulement, reconnus par le chemin de leur image (SYS_PROC_EXE). Ces chemins sont protégés en
+ * écriture dans tous les modes de vfs (/sys, /bin ; /apps/screenshot.app et /apps/taskman.app ajoutés) ; un
+ * programme lancé par un interprète (un script) n'en est pas. Le Pi (pas d'identité, E_NOSYS) : permis. */
+static const char *const ws_trusted_exe[] = {
+	"/sys/panel", "/sys/menubar", "/sys/dock", "/sys/home", "/sys/switcher", "/bin/korin-mcp",
+	"/sys/svc/rdpd", "/sys/svc/vncd", "/bin/screenshot", "/bin/overlaytest", "/apps/screenshot.app/main",
+	"/apps/taskman.app/main", 0};
+static u8 ws_pex[296] __attribute__((aligned(8)));
+
+static int ws_ieq(const char *a, const char *b)
+{
+	for (; *a && *b; a++, b++)
+		if ((*a | 0x20) != (*b | 0x20))
+			return 0;
+	return *a == *b;
+}
+
+int ws_trusted(void)
+{
+	long pid = M32(msg, WM_PID);
+	long u = korin_sys1(SYS_PROC_UID, pid);
+	if (u == 0 || u == E_NOSYS)
+		return 1;
+	long r = korin_sys2(SYS_PROC_EXE, pid, ws_pex);
+	if (r == E_NOSYS)
+		return 1;
+	if (r < 0 || (*(u32 *)ws_pex & 5) != 1) /* (image tenue, pas de script déclaré) */
+		return 0;
+	ws_pex[40 + 127] = 0;
+	const char *e = (const char *)ws_pex + 40, *c = e;
+	while (*c && *c != ':' && c - e < 8)
+		c++;
+	if (*c == ':' && c[1] == '/') /* (un nom de volume devant) */
+		e = c + 1;
+	for (int i = 0; ws_trusted_exe[i]; i++)
+		if (ws_ieq(e, ws_trusted_exe[i]))
+			return 1;
+	return 0;
+}
+
+/* la fenêtre est-elle à l'appelant, ou l'appelant est-il de la liste ? */
+static int ws_may(const struct win *w)
+{
+	return w->pid == M32(msg, WM_PID) || ws_trusted();
+}
+
 /* WS_OP_WIN_LIST : a première -> nombre de fenêtres ; msg a = id de la fenêtre qui reçoit le
  * clavier (0 : aucune) ; données : WE_PER_MSG entrées WE_* à partir de la première, dans l'ordre
  * d'affichage (couches fond, normale, dessus ; du fond vers l'avant), réduites comprises */
@@ -20,12 +68,13 @@ long req_win_list(void)
 {
 	struct win *kt = key_target(); /* fenêtre au clavier */
 	u64 first = M64(msg, WM_A);
+	long only = ws_trusted() ? -1 : (long)M32(msg, WM_PID); /* (hors liste : ses fenêtres seulement, G4) */
 	u8 *e = msg + WM_DATA; /* entrée suivante */
 	u64 n = 0;
 	for (long layer = 0; layer < WIN_LAYERS; layer++)
 		for (long i = 0; i < win_count; i++) {
 			struct win *w = win_z[i];
-			if (win_layer(w) != layer)
+			if (win_layer(w) != layer || (only >= 0 && (long)w->pid != only))
 				continue;
 			u64 k = n - first; /* dans la page demandée ? */
 			n++;
@@ -49,7 +98,7 @@ long req_win_list(void)
 			copy_title((char *)e + WE_TITLE, w->title, WE_SIZE - WE_TITLE);
 			e += WE_SIZE;
 		}
-	M64(msg, WM_A) = kt ? kt->id : 0;
+	M64(msg, WM_A) = kt && (only < 0 || (long)kt->pid == only) ? kt->id : 0;
 	M32(msg, WM_LEN) = (u32)(e - (msg + WM_DATA)); /* longueur des données */
 	return (long)n;
 }
@@ -111,6 +160,11 @@ long req_win_read(void)
 	if (!c)
 		return err;
 	u64 id = M64(msg, WM_A);
+	if (!ws_trusted()) { /* (hors liste : ses fenêtres seulement, pas le fond) */
+		struct win *mine = win_by_id(id, (long)M32(msg, WM_PID));
+		if (!mine)
+			return E_PERM;
+	}
 	u64 part = M64(msg, WM_B);
 	long nocaps = part == 3; /* 3 : sans les boutons */
 	if (part == 3)
@@ -192,6 +246,8 @@ long req_win_move(void)
 	struct win *w = win_by_id(M64(msg, WM_A), -1);
 	if (!w)
 		return E_BADF;
+	if (!ws_may(w))
+		return E_PERM;
 	if (w->flags & (WF_BACK | WF_TOP))
 		return E_INVAL;
 	if (pk_owns(w)) /* (mode poche : place tenue par Elegant) */
@@ -213,6 +269,8 @@ long req_win_close(void)
 	struct win *w = win_by_id(M64(msg, WM_A), -1);
 	if (!w)
 		return E_BADF;
+	if (!ws_may(w)) /* (la carte d'élévation d'un autre, par exemple : G5) */
+		return E_PERM;
 	for (int i = 0; i < 32; i++)
 		evbuf[i] = 0;
 	M32(evbuf, 0) = WEV_CLOSE;

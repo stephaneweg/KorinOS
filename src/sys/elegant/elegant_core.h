@@ -191,6 +191,7 @@ void snap_record(long x0, long y0, long x1, long y1);
 void snap_exit(long pid);
 /* remote.c */
 long req_win_list(void);
+int ws_trusted(void); /* (remote.c) l'appelant de msg : uid 0 ou un programme de la liste (G4) */
 long req_win_read(void);
 long req_win_move(void);
 long req_win_close(void);

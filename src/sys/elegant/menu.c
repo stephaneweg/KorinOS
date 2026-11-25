@@ -144,6 +144,8 @@ long req_menu_get(void)
  * fermeture). Pendant un dialogue modal, rien. */
 long req_menu_command(void)
 {
+	if (!ws_trusted()) /* (la barre des menus : une commande de l'app au premier plan, Supprimer, Envoyer : G5) */
+		return E_PERM;
 	struct win *w = menu_active();
 	if (!w)
 		return E_BADF;
