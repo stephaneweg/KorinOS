@@ -28,9 +28,15 @@ fasm src/kernel/arch/pc/boot/bootx64.asm "$ESP/EFI/BOOT/BOOTX64.EFI"
 # install ne copient pas ce fichier ; les essais du menu se font sur build/pc/esp-menu
 # (tools/pc/menu_esp.sh), ceux du démarrage complet sur un disque de tools/pc/mkkorindisk.py --sysroot.
 # Un boot.cfg fait par ce script avant l'option monitor (sans ligne cmdline) est refait.
+# Le moniteur n'est que dans les builds d'essai (KORIN_TEST=1 sh tools/pc/build.sh ; décision du 25/11/2026) : un
+# build ordinaire (celui des paquets publiés) n'en a pas, et son boot.cfg de QEMU n'a pas l'option.
 CFG="$ESP/korin/boot.cfg"
-if [ ! -f "$CFG" ] || { head -1 "$CFG" | grep -q '^# QEMU (tools/pc/build.sh)' && ! grep -q '^cmdline' "$CFG"; }; then
-	printf '# QEMU (tools/pc/build.sh) : pas de menu, le moniteur du noyau\ndefault = korin\ntimeout = 0\ncmdline = monitor\n' >"$CFG"
+if [ -n "$KORIN_TEST" ]; then
+	if [ ! -f "$CFG" ] || { head -1 "$CFG" | grep -q '^# QEMU (tools/pc/build.sh)' && ! grep -q '^cmdline' "$CFG"; }; then
+		printf '# QEMU (tools/pc/build.sh) : pas de menu, le moniteur du noyau\ndefault = korin\ntimeout = 0\ncmdline = monitor\n' >"$CFG"
+	fi
+elif [ ! -f "$CFG" ] || head -1 "$CFG" | grep -q '^# QEMU (tools/pc/build.sh)'; then
+	printf '# QEMU (tools/pc/build.sh) : pas de menu (build de publication : pas de moniteur)\ndefault = korin\ntimeout = 0\n' >"$CFG"
 fi
 
 # numéros des appels système : tirés de src/inc/syscalls.inc (seule source)
@@ -51,7 +57,7 @@ src/kernel/core/sched.c src/kernel/core/proc.c src/kernel/core/thread.c src/kern
 src/kernel/core/svc.c src/kernel/core/hw.c src/kernel/core/sys.c src/kernel/core/signal.c src/kernel/core/ipc.c
 src/kernel/core/image.c src/kernel/core/kits.c src/kernel/core/boot.c src/kernel/core/ws.c
 src/kernel/core/elf.c src/kernel/core/initrd.c src/kernel/core/syscall.c
-src/kernel/core/monitor.c src/kernel/core/sha256.c
+src/kernel/core/sha256.c
 src/kernel/arch/x86_64/gdt.c src/kernel/arch/x86_64/idt.c src/kernel/arch/x86_64/paging.c
 src/kernel/arch/x86_64/cpu.c src/kernel/arch/x86_64/vm.c src/kernel/arch/x86_64/sigframe.c
 src/kernel/arch/pc/acpi.c src/kernel/arch/pc/power.c src/kernel/arch/pc/apic.c src/kernel/arch/pc/msi.c src/kernel/arch/pc/ps2.c src/kernel/arch/pc/smp.c src/kernel/arch/pc/pstate.c
@@ -60,6 +66,10 @@ src/kernel/arch/pc/pc_main.c"
 CFLAGS="-std=gnu11 -O2 -g0 -Wall -Wextra -Werror -ffreestanding -fno-stack-protector -fno-pic -fno-pie
 -mcmodel=kernel -mno-red-zone -mgeneral-regs-only -fno-asynchronous-unwind-tables
 -fno-tree-loop-distribute-patterns -fno-omit-frame-pointer -Isrc/kernel/include -I$OUT/gen"
+if [ -n "$KORIN_TEST" ]; then # (le moniteur du noyau : builds d'essai seulement)
+	C="$C src/kernel/core/monitor.c"
+	CFLAGS="$CFLAGS -DKORIN_MONITOR"
+fi
 
 OBJS=""
 for f in $ASM; do

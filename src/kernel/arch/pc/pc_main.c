@@ -36,7 +36,19 @@ static int region_count;
 static int hypervisor;
 static char cpu_brand[49];
 
+#ifdef KORIN_MONITOR
 void monitor_run(void *arg);
+#else
+/* build de publication (décision du 25/11/2026) : pas de moniteur du noyau (des commandes avec les droits, sans
+ * authentification) ; rien à sa place */
+static void monitor_run(void *arg)
+{
+	(void)arg;
+	console_color(CON_WARN);
+	kprintf("Pas de moniteur du noyau dans ce build (seulement les builds d'essai : KORIN_TEST=1).\n");
+	console_color(CON_NORMAL);
+}
+#endif
 
 /* ---- interface arch.h */
 
@@ -412,7 +424,13 @@ void kmain(uint64_t bootinfo_phys)
 	 * ps2kbd, lancé par init2, et le noyau ne touche pas l'i8042 */
 	const void *img;
 	uint64_t size;
+#ifdef KORIN_MONITOR
 	int monitor = cmdline_has("monitor") || initrd_find("init", &img, &size) != 0;
+#else
+	int monitor = 0; /* (l'option « monitor » est ignorée ; sans init : le message de monitor_run) */
+	if (initrd_find("init", &img, &size) != 0)
+		monitor_run(0);
+#endif
 	if (monitor)
 		keyboard_start();
 

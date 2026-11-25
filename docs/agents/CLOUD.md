@@ -132,7 +132,8 @@ Après `. ~/korin-cloud/env.sh`, depuis la racine du dépôt (détail : [PC-PILO
 section « Construire » ; Pi : [CONSTRUIRE.md](../CONSTRUIRE.md)) :
 
 ```sh
-sh tools/pc/build.sh                          # noyau, initrd, kits, commandes, services (Pi et PC)
+sh tools/pc/build.sh                          # noyau, initrd, kits, commandes, services (Pi et PC) ; sans moniteur
+KORIN_TEST=1 sh tools/pc/build.sh             # build d'essai : avec le moniteur du noyau (run ktest...)
 ARCH=x86_64 sh tools/posix/build.sh           # libposix du PC
 ARCH=x86_64 sh tools/openssl/build.sh ; ARCH=x86_64 sh tools/pdf/build.sh
 sh tools/pc/apps.sh                           # apps C/C++ (build/pc/apps/status.txt)

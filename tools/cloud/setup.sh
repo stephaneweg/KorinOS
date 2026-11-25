@@ -457,7 +457,7 @@ step_verify () {
 	[ -n "${KORIN_FASM:-}" ] || die "lancer d'abord : sh tools/cloud/setup.sh base"
 	say "noyau du PC, kits, commandes et services (tools/pc/build.sh)"
 	t0=$(date +%s)
-	sh tools/pc/build.sh > "$LOGS/pc-build.log" 2>&1 || { tail -n 40 "$LOGS/pc-build.log"; die "tools/pc/build.sh"; }
+	KORIN_TEST=1 sh tools/pc/build.sh > "$LOGS/pc-build.log" 2>&1 || { tail -n 40 "$LOGS/pc-build.log"; die "tools/pc/build.sh"; }
 	tail -n 3 "$LOGS/pc-build.log"
 	ls -l build/pc/esp/korin/kernel.elf build/pc/esp/EFI/BOOT/BOOTX64.EFI
 	echo "construction : $(mins "$t0") min"
