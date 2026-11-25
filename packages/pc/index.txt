@@ -2613,3 +2613,19 @@ required = 0
 restart = 0
 part = qtbase-dev
 content = ccc7af9feab2a335404a719ba9bc0295c76ce4c869cc095fd5967f69dea9dff3
+
+[qtbase-dev-data-2]
+title = Qt (développement) (2/3)
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les données de Qt (développement), partie 2 sur 3
+size = 23268222
+installed = 80761135
+sha256 = 7a40ea5b60de31f08a25ed8bbd819a0617d993cb2841aaae17bd8818c22c6034
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtbase-dev-data-2-1.0.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+part = qtbase-dev
+content = ecdc0b004b8b0b213a1cdfa901281087521e88ae4fc390c424dd2c4dda03abf1
