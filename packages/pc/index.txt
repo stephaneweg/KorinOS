@@ -2675,3 +2675,18 @@ needs = qtbase-dev, abi >= 629
 required = 0
 restart = 0
 content = ede8ae784e72e1b18f630ae343c828298ba96e7e01fbb06bfa4b856f71344a3b
+
+[qtsvg-dev]
+title = Qt SVG (développement)
+version = 6.10.2
+category = Développement
+author = Korin OS
+summary = Qt 6.10.2 pour le GCC de l'OS : QtSvg, QtSvgWidgets, plugins d'images et d'icônes SVG, statiques, dans /devtools/qt (licences LGPL-3 / GPL)
+size = 544030
+installed = 1936529
+sha256 = 06bfac645106954117e411aab6b99243d407cc706d6668873c75e64a7604c5a0
+file = pkgs/qtsvg-dev-6.10.2.opk
+needs = qtbase-dev, abi >= 629
+required = 0
+restart = 0
+content = 30a141ddb9c8b61315dc2ab949018e82e64f56c7293eed131de3daec940c6a2e
