@@ -1,0 +1,97 @@
+# Release prune : retire de la Release « packages » les archives qu'aucun index publié ne cite plus (les anciennes
+# versions : pub.py y ajoute la nouvelle archive d'un paquet release = 1 sans retirer l'ancienne). Pour une
+# publication depuis le cloud, comme release-upload.yml : le proxy GitHub d'un agent refuse les suppressions.
+#   - les index lus sont ceux de main : packages/pc/index.txt (PC) et packages/index.txt (Pi) ;
+#   - gardées : les archives qu'ils citent (file = …/releases/download/packages/NOM), celles des motifs « keep »
+#     (le SDK de Jet, téléchargé par son nom : tools/webkit/jet-sdk-get.sh), et celles de moins de « min_age_hours »
+#     (une publication en cours : l'archive est dans la Release avant que l'index la cite) ;
+#   - « dry_run » (vrai par défaut) : la liste seulement, rien n'est supprimé.
+# Arrêt sans rien supprimer si un index ne se lit pas ou cite une archive absente de la Release.
+name: Release prune
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Seulement la liste (rien n'est supprimé)"
+        required: true
+        default: true
+        type: boolean
+      keep:
+        description: "Motifs gardés en plus des archives citées (séparés par des espaces)"
+        required: false
+        default: "jet-sdk-1.4.8-*.zip"
+        type: string
+      min_age_hours:
+        description: "Gardées si plus récentes que ce nombre d'heures"
+        required: false
+        default: "6"
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-upload
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DRY_RUN: ${{ inputs.dry_run }}
+      KEEP: ${{ inputs.keep }}
+      MIN_AGE: ${{ inputs.min_age_hours }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          sparse-checkout: |
+            packages/index.txt
+            packages/pc/index.txt
+          sparse-checkout-cone-mode: false
+
+      - name: Archives non citées
+        run: |
+          set -eu
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases/tags/packages" -q '.assets[] | "\(.id) \(.size) \(.created_at) \(.name)"' > assets.txt
+          for idx in packages/pc/index.txt packages/index.txt; do
+            [ -s "$idx" ] || { echo "::error::$idx absent ou vide" ; exit 1 ; }
+          done
+          grep -h -o 'releases/download/packages/[^[:space:]]*' packages/pc/index.txt packages/index.txt | sed 's#.*/##' | sort -u > cited.txt
+          n=$(wc -l < cited.txt)
+          [ "$n" -ge 10 ] || { echo "::error::seulement $n archives citées par les index : arrêt" ; exit 1 ; }
+          missing=0
+          while read -r c; do
+            grep -q " $c\$" assets.txt || { echo "::error::$c est cité mais absent de la Release" ; missing=1 ; }
+          done < cited.txt
+          [ "$missing" = 0 ] || exit 1
+          now=$(date -u +%s)
+          : > prune.txt
+          while read -r id size created name; do
+            grep -qx "$name" cited.txt && continue
+            keep=0
+            for k in $KEEP; do case "$name" in $k) keep=1 ;; esac; done
+            [ "$keep" = 0 ] || { echo "gardée (motif) : $name" ; continue ; }
+            age=$(( (now - $(date -u -d "$created" +%s)) / 3600 ))
+            [ "$age" -ge "$MIN_AGE" ] || { echo "gardée ($age h) : $name" ; continue ; }
+            echo "$id $size $name" >> prune.txt
+          done < assets.txt
+          total=$(awk '{s += $2} END {printf "%.0f", s / 1e6}' prune.txt)
+          echo "$(wc -l < assets.txt) archives, $n citées, $(wc -l < prune.txt) à retirer ($total Mo)"
+          awk '{printf "  %8.1f Mo  %s\n", $2 / 1e6, $3}' prune.txt
+          {
+            echo "### Release prune ($( [ "$DRY_RUN" = true ] && echo "à blanc" || echo "suppression" ))"
+            echo "$(wc -l < assets.txt) archives, $n citées, $(wc -l < prune.txt) à retirer ($total Mo)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Suppression
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          set -eu
+          while read -r id size name; do
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id"
+            echo "retirée : $name"
+          done < prune.txt
