@@ -124,3 +124,16 @@ quelques minutes). **forge 1.3.11 publié** (essayé sous QEMU : l'équerre, Esq
 de l'utilisateur) : clone --depth 1 du tag (OCCT V8_0_1 = b8f597c, FreeCAD 1.1.4 = 4fd3bf3, sparse planegcs), arbres
 posés dans ~/korin-cao/src aux noms de fetch.sh (git archive ne retombe pas sur le SHA-256 de GitHub), Eigen par
 GitLab (SHA bon) ; build-occt.sh 26 min sur 4 cœurs, build-planegcs.sh, apps.sh forge, pub.py forge.
+
+**25/11, publiés depuis le cloud** (pub.py --api --manual-upload, clé ONYX_PKG_KEY) : pc 2026.11.110 (printd dans
+etc/session : --only, arbre fait de la session PUBLIÉE plus la ligne, pour garder « dllpreload » de sysroot_dotnet.sh),
+freetype-dev 2.14.3-1, gcc 1.0.16 (libposix ; arbre = armpi/ seul + un fichier témoin sous libexec/, sinon le besoin
+gcc-data-1 manque et le content ne se recalcule pas), les Qt -dev et musescore (21 archives). Release par la branche de
+transit + workflow « Release upload », **lancé par curl** (`POST …/actions/workflows/release-upload.yml/dispatches`,
+il faut `-H "Content-Type: application/json"`, sinon 415) : script /tmp pubone.sh (pub.py en fond, attente de « pub:
+deposer », branche faite par git hash-object/mktree/commit-tree sans toucher au dossier, push, dispatch). Une archive
+de plus de 100 Mo ne passe pas par une branche : split. pub.py lit versions.ini dans HEAD (le commiter avant).
+**Workflow « Release prune »** (release-prune.yml, dry_run vrai par défaut, même groupe de concurrence que l'envoi) :
+retire les archives qu'aucun index de main ne cite (garde keep = jet-sdk-1.4.8-*.zip et celles de moins de 6 h) ;
+lancé à la demande de l'utilisateur le 25/11 : 131 archives retirées (5 Go), il en reste 74 (2,9 Go). Journaux d'un
+run : mcp__github__get_job_logs. Changer keep quand le SDK de Jet change de version (jet-sdk-get.sh).
