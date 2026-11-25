@@ -1,0 +1,14 @@
+# Boîte à rythmes de Korin OS
+tempo = 174
+swing = 0
+signature = 4/4
+bars = 2
+steps = 32
+kit = 26
+volume = 80
+track = 36 100 0 0 X.........X.......X..x....x.....
+track = 38 100 0 0 ....X.......X.......X..x....X...
+track = 42 100 0 0 x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.
+track = 51 100 0 0 ..x...x...x...x...x...x...x...x.
+track = 82 100 0 0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+track = 49 100 0 0 X...............................

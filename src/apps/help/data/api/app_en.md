@@ -44,7 +44,7 @@ help        = The Hello button shows a message.
 | Key | Role |
 |---|---|
 | `name` | the displayed name (Korin OS menu, launcher, menu bar), translated by the system dictionary |
-| `category` | the category of the launcher and of the Korin OS menu, in French as the system knows them (Accessoires, Bureautique, Création, Développement, Internet, Jeux, Multimédia, Système); without it: Autres (Other) |
+| `category` | the category of the launcher and of the Korin OS menu, in French as the system knows them (Accessoires, Bureautique, Création, Développement, Internet, Jeux, Multimédia, Musique, Système); without it: Autres (Other) |
 | `opens` | the extensions it opens (Files passes it the path as argument) |
 | `description`, `keywords`, `help` | what PocketQI knows about the app: one sentence, keywords, help lines (several `help`) |
 | `llm.<action>`, `run.<action>` | an action PocketQI can start: its description, then the arguments given to the app |

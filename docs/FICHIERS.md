@@ -9,7 +9,7 @@ ne lit plus **aucun** fichier, kits compris (décision de l'utilisateur à l'ét
 
 > **15/11/2026 : arbre unique.** Korin a quitté les chemins à volume (`SD0:/a`, `RAM0:/x`, `USB0:/y`) pour un seul
 > arbre à la Unix : `/` est le volume système, les autres volumes sont montés dans des dossiers (`/tmp`,
-> `/media/usb0`, `/media/sd1`, `/net/net0`, `/boot`), et le seul alias est `HOME:/`, le dossier personnel. La règle
+> `/media/usb0`, `/media/sd1`, `/net/net0`, `/boot`), et le seul alias est `HOME:/`, le dossier personnel (24/11/2026 : plus `PUBLIC:/` et `APPS:/`, section 4.5). La règle
 > du « volume courant » et les chemins virtuels de `/etc/paths.txt` ont disparu. La règle d'aujourd'hui est en
 > section 4.5 ; les journaux d'essais des sections 4 à 6 gardent les noms de leur date.
 
@@ -398,8 +398,9 @@ au lieu des chemins à volume. Écrit dans `src/svc/vfs/path.c` et `vfs.c`, suiv
 | Autres volumes | montés dans un dossier : `/tmp` (ramfs), `/media/usb0`, `/media/usb1`… (clés USB), `/media/sd1` (la partition personnelle du Pi, exFAT), `/media/img0`, `/media/img1` (images d'essai), `/net/net0`… (partages, smbfs), `/boot` (à la demande, section 4.4). N'importe quel volume peut aller dans n'importe quel dossier ; vfs crée le dossier du point s'il manque |
 | Table | `chemins_v` : un point de montage (forme externe, « `/media/usb0` ») et sa forme interne (« `/usb0` », ou « `/ram/sub` » pour un dossier monté ailleurs) ; 32 entrées ; **le plus long préfixe gagne** (composants entiers), « `/` » couvre tout |
 | Forme interne | « `/<volume>/a/b` », sans « `.` », « `..` » ni « `/` » final ; elle ne sort jamais de vfs : `V_GETCWD`, `V_EXEC`, les tubes nommés rendent la forme externe (`chemin_externe`) |
-| Chemin d'un programme | absolu (« `/a/b` »), relatif (dossier courant du pid), ou « `HOME:/a` ». **Aucun autre préfixe** « `NOM:` » : `E_NOENT` (`SD0:/a`, `RAM0:/x` sont refusés). `/x` est toujours absolu : plus de volume courant |
-| `HOME:/` | le seul alias, sans casse : le dossier personnel de l'utilisateur en cours, `/home` aujourd'hui ; plus tard `/home/<nom>` ou un partage, donné par login (`home_interne`). Les apps écrivent `HOME:/documents`… ; en POSIX, `HOME=/home` |
+| Chemin d'un programme | absolu (« `/a/b` »), relatif (dossier courant du pid), ou un alias (« `HOME:/a` », « `PUBLIC:/a` », « `APPS:/a` »). **Aucun autre préfixe** « `NOM:` » : `E_NOENT` (`SD0:/a`, `RAM0:/x` sont refusés). `/x` est toujours absolu : plus de volume courant |
+| `PUBLIC:/`, `APPS:/` | deux alias fixes (24/11/2026, `alias_fixes` de `src/svc/vfs/path.c`), sans casse : `/home/public` (le dossier partagé entre les comptes) et `/apps`. Les accès rapides de Fichiers y pointent. À terme (idée de l'utilisateur, une sorte d'unveil au niveau du compte) : un compte n'atteindrait `/`, `/tmp` et `/home` que par élévation, ses alias restant ouverts |
+| `HOME:/` | l'alias du compte, sans casse : le dossier personnel de l'utilisateur en cours, `/home` aujourd'hui ; plus tard `/home/<nom>` ou un partage, donné par login (`home_interne`). Les apps écrivent `HOME:/documents`… ; en POSIX, `HOME=/home` |
 | Chemins virtuels | supprimés : `/bin`, `/apps`, `/lib`, `/etc`, `/sys` sont des dossiers de `/`. Les outils de développement ont quitté la racine : `/devtools/gcc`, `/devtools/dotnet`, `/devtools/python`, `/devtools/rust` ; `PATH=/bin:/sbin:/devtools/gcc/bin:/devtools/rust/bin` (`/devtools/rust/bin` depuis le 21/11/2026, [CARGO.md](CARGO.md)). `/etc/paths.txt` ne sert plus qu'aux dossiers montés une seconde fois (section 4.1) |
 | `/etc/mounts.txt` | une ligne `POINT = source, service[, rootpath[, ondemand]]` : `/tmp = ram:1024M, ramfs`, `/media/sd1 = blk.sd0p2, fatfs`. Un nom au lieu d'un point (`usb0 = …`) monte sur `/media/usb0`, `boot` sur `/boot`, `netN` sur `/net/netN` |
 | Nom interne | le dernier composant du point (`usb0`, `sd1`, `tmp`), suivi d'un chiffre s'il est pris ; il nomme le service (`fs.<nom>`) et le sujet du bus (`korin.storage.volume.<nom>`) |

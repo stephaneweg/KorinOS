@@ -36,8 +36,8 @@ a plus de préfixe de volume (`SD0:`, `RAM0:`, `USB0:`… sont refusés) ; `/x` 
 | `/net/net0`… | smbfs | les partages réseau |
 | `/boot` | FAT32 | la partition de démarrage, montée seulement le temps d'y écrire |
 
-**`HOME:/`** est le seul alias : le dossier personnel de l'utilisateur en cours (aujourd'hui `/home`, plus tard
-`/home/<nom>`). Les apps y rangent les documents (`HOME:/documents`…). `getcwd` et `pwd` rendent des chemins
+**`HOME:/`** est le dossier personnel de l'utilisateur en cours (aujourd'hui `/home`, plus tard
+`/home/<nom>`) ; deux autres alias : **`PUBLIC:/`** (`/home/public`, partagé) et **`APPS:/`** (`/apps`). Les apps y rangent les documents (`HOME:/documents`…). `getcwd` et `pwd` rendent des chemins
 ordinaires (`/home/x`, `/bin`). Les montages sont dans `/etc/mounts.txt` (`/tmp = ram:1024M, ramfs`).
 
 **Environnement** : `HOME=/home`, `PATH=/bin:/devtools/gcc/bin`, `TMPDIR=/tmp`, `TERM=xterm-256color`.

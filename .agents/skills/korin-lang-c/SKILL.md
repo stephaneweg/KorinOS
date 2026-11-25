@@ -54,7 +54,7 @@ description: Écrire un programme ou une app en C pour Korin OS et le construire
 
 **Les clés d'`app.txt`** (`clé = valeur` ; `#` commente, et il est interdit dans une valeur) :
 - `name` : le nom affiché.
-- `category` : Accessoires, Bureautique, Création, Développement, Internet, Jeux, Multimédia, Système ou Réglages.
+- `category` : Accessoires, Bureautique, Création, Développement, Internet, Jeux, Multimédia, Musique, Système ou Réglages.
 - `opens` : les extensions que l'app ouvre ; Fichiers lui passe le chemin en `argv`.
 - Pour PocketQI : `description`, `keywords`, `help` (plusieurs lignes possibles), `llm.<action>` et `run.<action>`.
 

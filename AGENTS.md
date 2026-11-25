@@ -22,8 +22,8 @@ Le langage dit **comment** appeler un kit ; la compétence du kit dit **quoi** a
 - **Un seul arbre, à la Unix** (depuis le 15/11/2026) : `/` est le volume système (FAT32), les autres volumes sont
   montés dans un dossier : `/tmp` (en mémoire), `/media/usb0`… (clés), `/media/sd1` (la partition exFAT des
   données de l'utilisateur, sur le Pi), `/net/…` (partages), `/boot` (monté à la demande). Plus de `SD0:` ni
-  d'autre `VOLUME:` : un seul alias, **`HOME:/`**, le dossier personnel de l'utilisateur en cours (`/home` tant
-  qu'il n'y a pas de comptes). Les outils de développement sont dans `/devtools` (`gcc`, `dotnet`, `python`).
+  d'autre `VOLUME:` : trois alias, **`HOME:/`**, le dossier personnel de l'utilisateur en cours (`/home` tant
+  qu'il n'y a pas de comptes), **`PUBLIC:/`** (`/home/public`, partagé entre les comptes) et **`APPS:/`** (`/apps`). Les outils de développement sont dans `/devtools` (`gcc`, `dotnet`, `python`).
   Voir `docs/FICHIERS.md` et `docs/etude/MULTI-UTILISATEUR.md`.
 - **Pas de liens symboliques**, pas de `/proc`, pas de `/usr/bin/env` (scripts en `#!/bin/bash`), IPv4 seulement,
   fuseau UTC, un seul utilisateur (pour l'instant), 64 fichiers ouverts par process.

@@ -5,8 +5,11 @@
  *    (« /tmp », « /media/usb0 », « /net/nas », « /boot »). Chemin d'un programme :
  *    absolu (« /a/b »), relatif (dossier courant du pid appelant), ou
  *    « HOME:/a » : le dossier personnel de l'utilisateur en cours (« /home »
- *    tant qu'il n'y a pas de comptes, « /home/<nom> » ensuite). Aucun autre
- *    « VOLUME: » n'est accepté.
+ *    tant qu'il n'y a pas de comptes, « /home/<nom> » ensuite). Deux alias fixes
+ *    (24/11/2026, alias_fixes) : « PUBLIC:/a » = « /home/public/a » (le dossier
+ *    partagé entre les comptes), « APPS:/a » = « /apps/a ». Aucun autre
+ *    « VOLUME: » n'est accepté. (À terme : un compte n'atteindrait /, /tmp et
+ *    /home que par élévation, ses alias restant ouverts : une sorte d'unveil.)
  *  * Table des points de montage (chemins_v) : un chemin externe (« /media/usb0 »),
  *    sa forme interne (« /usb0 », ou « /ram/sub » pour un dossier monté) ; le plus
  *    long préfixe gagne, « / » couvre tout.
@@ -191,6 +194,28 @@ static u64 prefixe_home(const char *p)
 	return 0;
 }
 
+/* les alias fixes : « NOM: » -> son dossier de l'arbre (HOME:, propre à chaque compte, est à part) */
+static const char *const alias_fixes[][2] = {
+	{"PUBLIC:", "/home/public"},
+	{"APPS:", "/apps"},
+};
+
+/* un alias fixe au début du chemin (sans casse) ? -> longueur du préfixe, son dossier dans *cible ; sinon 0 */
+static u64 prefixe_alias(const char *p, const char **cible)
+{
+	for (u64 k = 0; k < sizeof alias_fixes / sizeof alias_fixes[0]; k++) {
+		const char *a = alias_fixes[k][0];
+		u64 i = 0;
+		while (a[i] && (((u8)p[i] | 0x20) == ((u8)a[i] | 0x20) || (a[i] == ':' && p[i] == ':')))
+			i++;
+		if (!a[i]) {
+			*cible = alias_fixes[k][1];
+			return i;
+		}
+	}
+	return 0;
+}
+
 /* « NOM: » (lettres et chiffres) au début ? -> 1 : un ancien chemin à volume, refusé */
 static int prefixe_volume(const char *p)
 {
@@ -290,6 +315,17 @@ long resoudre(long pid, const char *path, char *out)
 		if (!path_normalize(dossier_defaut, tmp, out))
 			return E_INVAL;
 		return out[1] ? 0 : E_NOENT; /* (« .. » jusqu'au-dessus des volumes) */
+	}
+	const char *cible;
+	u64 a = prefixe_alias(path, &cible);
+	if (a) { /* « PUBLIC:/a », « APPS:/a » : leur dossier de l'arbre, puis comme un chemin absolu */
+		u64 n = strlen(cible), r = strlen(path + a);
+		if (n + r + 2 >= PATH_MAX)
+			return E_INVAL;
+		memcpy(tmp, cible, n);
+		tmp[n++] = '/';
+		memcpy(tmp + n, path + a, r + 1);
+		return resoudre(pid, tmp, out);
 	}
 	if (prefixe_volume(path)) /* (plus de « / », « /media/usb0 »... : l'arbre seulement) */
 		return E_NOENT;

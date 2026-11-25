@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-24 18:53
+date = 2026-11-24 20:52
 abi = 629
 packages = 117
 board = pc
@@ -129,18 +129,18 @@ content = 9ca14cf952a7ce16b6f9600430ddc8543a279e09c8a83cb09ae45f5f626e3d2b
 
 [spotify]
 title = Spotify
-version = 1.1.0
-category = Multimédia
+version = 1.1.1
+category = Musique
 author = Korin OS
 summary = Spotify : le lecteur web de Spotify dans sa fenêtre (Widevine, sans Client ID), avec la carte de lecture
-size = 126132
-installed = 265555
-sha256 = 43c60642b4d0d2559c680cfd5d965d4c2cc28ad270c7855f92c844279e0acd78
-file = pkgs/spotify-1.1.0.opk
+size = 126127
+installed = 265551
+sha256 = 7f9a7dd3242d48835e65d380fb1734e1f919074ea95e242aad47bb81a6ab3c77
+file = pkgs/spotify-1.1.1.opk
 needs = jet, abi >= 626
 required = 0
 restart = 0
-content = b57a4a85cba3d597e4a7b3ba6596d9ba7219495472518734c6f2a061be2c554a
+content = c45a40982947947770e5e158e69a222ef41ad13dab9e4db2b961920226586572
 
 [win16]
 title = Windows 3.x
@@ -205,14 +205,14 @@ arch = any
 
 [fmtracker-samples]
 title = Morceaux de FM Tracker
-version = 1.0.1
-category = Multimédia
+version = 1.0.2
+category = Musique
 author = Korin OS
 summary = Les morceaux d'exemple de FM Tracker, dans /home/public/music/fms (à tous les comptes)
-size = 28683
+size = 28677
 installed = 162157
-sha256 = 421fce78f06e45745b3d985dd22aa78aaeb8d07301dc26ee90e75a87da01250c
-file = pkgs/fmtracker-samples-1.0.1.opk
+sha256 = 958b9f1001e73fff870622c410b9f13be5721273b7abc0f3468777495915e439
+file = pkgs/fmtracker-samples-1.0.2.opk
 needs = fmtracker, abi >= 626
 required = 0
 restart = 0
@@ -220,14 +220,14 @@ content = 45b6ee1ae2e6e881b0e56c37d734429b7ff8698b8507e7f9525c032157b11093
 
 [koton-demos]
 title = Exemples de Koton Studio
-version = 1.0.1
-category = Multimédia
+version = 1.0.2
+category = Musique
 author = Korin OS
 summary = Cinq morceaux d'exemple qui passent par tous les modules et greffons de Koton (aube, bossa, synthwave, rituel, valse) et la chanson d'essai, dans /home/public/koton (à tous les comptes)
-size = 17565
+size = 17561
 installed = 158885
-sha256 = ba050ac508b759881180cd15a2d04a323c71b0f4fb3a3d6e8f74ef075979ff51
-file = pkgs/koton-demos-1.0.1.opk
+sha256 = af270820bf91a360e07053cc58d2d64a197bb356385668ff5763809985cd4226
+file = pkgs/koton-demos-1.0.2.opk
 needs = koton, abi >= 626
 required = 0
 restart = 0
@@ -235,14 +235,14 @@ content = f1aaefec3e903a7163903a0e9ea38e5de71356db08b2d6062d0c913d35dfaea0
 
 [arabesque-samples]
 title = Préréglages d'Arabesque
-version = 1.0.1
-category = Multimédia
+version = 1.0.2
+category = Musique
 author = Korin OS
 summary = Des morceaux d'exemple pour Arabesque (sonatine, ballade pour harpe, danse andalouse, rondo...), dans /home/public/arabesque (à tous les comptes)
-size = 17447
+size = 17443
 installed = 62395
-sha256 = 23e282f59a721ba55b33a04a6cda4c19ff346afcb33d1df13352d7a353a3987a
-file = pkgs/arabesque-samples-1.0.1.opk
+sha256 = 36cbd1f029763b3e8738fc6c6efa285bd054cf686c0fb70e09228241823f79ff
+file = pkgs/arabesque-samples-1.0.2.opk
 needs = arabesque, abi >= 626
 required = 0
 restart = 0
@@ -724,18 +724,18 @@ content = abbe00f72f244a9ded8a32ece9a30d41e4882fa84f05b9a081019e35c1ec0163
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.107
+version = 2026.11.109
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 34251418
-installed = 101550537
-sha256 = 8d2e50069525610e4e1ed0ce15ccfbbd69f24d33ba6f9303d7603b1ffbcf7405
-file = pkgs/pc-2026.11.107.opk
+size = 34259571
+installed = 101649696
+sha256 = b7965ff78a827fdaa4e5ab0cfd20b5ce9993cd000b2a6de39c92bf315be455fc
+file = pkgs/pc-2026.11.109.opk
 needs = 
 required = 1
 restart = 1
-content = 53d65178d6befa562b7193516990b9f63ae6a38c66462a9e05c5771228784a03
+content = ddc15dcb7805892bc5c2f02373fc83d5f1dac03719ad37a547965588dc98e5d8
 
 [2048]
 title = 2048
@@ -754,18 +754,18 @@ content = 9f3244bd42488815f7682ae113124deaad03bea4677881900b3e4fd5302ed6f4
 
 [arabesque]
 title = Arabesque
-version = 1.3.7
-category = Multimédia
+version = 1.3.8
+category = Musique
 author = Korin OS
 summary = 
-size = 291484
-installed = 602035
-sha256 = 2c6a89f83df5f369f658763e5d368cf635c8863a7732ee7183249ac622ea2fa8
-file = pkgs/arabesque-1.3.7.opk
+size = 291473
+installed = 602031
+sha256 = 11886df0b1ef02d44f2ca59a92347f8b6c9bc1109a7ca1cb063c97944f848ea1
+file = pkgs/arabesque-1.3.8.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 6a69066ad9ee63e42da5e8a7ef1719dae518af2bfb928043318d006b49492130
+content = c97b00ab2c25f2682008e94fa8663bac3106866f2e35911bed4362f463e49ea5
 
 [archiver]
 title = Archiveur
@@ -994,18 +994,18 @@ content = 841a096866a9e30b5d9818a3f51deb47d71c28c87e9f66ec6583fd279c744e22
 
 [fmtracker]
 title = FM Tracker
-version = 1.0.11
-category = Multimédia
+version = 1.0.12
+category = Musique
 author = Korin OS
 summary = 
-size = 200527
-installed = 402962
-sha256 = 352d263e0fc1dccf2dfe731826306ab22b541ed8362f4036e1772ba6d5fe2e9c
-file = pkgs/fmtracker-1.0.11.opk
+size = 200514
+installed = 402958
+sha256 = b2c7d303961f58bb4a935712412fe2a461cef9ace70fbfe372567fa2f82fe9eb
+file = pkgs/fmtracker-1.0.12.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 792079d68767402d32b6552f4362830db0203ba1d457e4f365b9fd448337a48c
+content = e9dd41fa8e03bc795fc44bf2ffb20ef3b9136c1f9ce276ca2d5f61b06d4f4e74
 
 [forge]
 title = Forge
@@ -1204,18 +1204,18 @@ content = 9dcc6ae967cf3770ce2c99171be88fcde48a3415e593ca9e6fbeae8163173869
 
 [koton]
 title = Koton
-version = 1.0.11
-category = Multimédia
+version = 1.0.12
+category = Musique
 author = Korin OS
 summary = Le studio de musique
-size = 2116254
-installed = 4146779
-sha256 = 4afa6ed31a0c7dd5620965ef9f11d831eb7fa371ca2fa9935be7097bf89c0d82
-file = pkgs/koton-1.0.11.opk
+size = 2116239
+installed = 4146775
+sha256 = 9621f597dc5da3dbb413fe1d48cf0e7b3321d1a5a69b335cb24f34f038f601f1
+file = pkgs/koton-1.0.12.opk
 needs = llm, abi >= 626
 required = 0
 restart = 0
-content = 2e0e10da8ec61a2cbd1cfccce680eb41667da5c1a77d1be936e0b9bd7b0c9340
+content = becc3396c8a3a07b388ef22720b77a42c86388cf38417e3c7facc898e26d1732
 
 [letters]
 title = Letters
@@ -1294,18 +1294,18 @@ content = 38e2098b5e9c71e9f683804ad892202bdef442a5c9690bef71407a9698f547ee
 
 [music]
 title = Musique
-version = 1.0.11
-category = Multimédia
+version = 1.0.12
+category = Musique
 author = Korin OS
 summary = 
-size = 119692
-installed = 252028
-sha256 = a10b73a0638b0e1ef2d58e94bbe734718e87de20ca66c4912965ae19144134fc
-file = pkgs/music-1.0.11.opk
+size = 119676
+installed = 252024
+sha256 = 509b3fe6eea6d18300bd9d56449700b4b345fac694d109317441090f70ec23f8
+file = pkgs/music-1.0.12.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 0b0eafb839bb91c958c92fead8cb4d75558f4ec6508d8ff374b7d2695bde9661
+content = 8d392c2ee4e94d0d0c56fe8c356a5962259b93c08bb8b2d93db76e1a60018be4
 
 [n64emu]
 title = Nintendo 64
@@ -1429,18 +1429,18 @@ content = c475ecdc71fe9c78eb342fd9bdc2aa557630e5658a9115e92859fba3063b82a8
 
 [piano]
 title = Piano
-version = 1.0.11
-category = Multimédia
+version = 1.0.12
+category = Musique
 author = Korin OS
 summary = 
-size = 114733
-installed = 243671
-sha256 = 200a246816e29c5393ff8252c0c85f86a195d2298c9b18c3e215484fa681038a
-file = pkgs/piano-1.0.11.opk
+size = 114720
+installed = 243667
+sha256 = 20d66b6b95ad92678cef241cf23a5480073018674123b8ba7f7ead8d7b9b3e9c
+file = pkgs/piano-1.0.12.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 95bda6d76bc5e0e0537915e17cd8621377fc067d415798b7ed46d49b75c03800
+content = 4e5ad62f31a9bf9a30e1b6b19418fea554b76be608788d7c01051abf6d0bc6b7
 
 [pinball]
 title = Pinball
@@ -2555,15 +2555,45 @@ content = 95cd1955ebe8bf8d8c93fe14b028df6ce4a1c4c27de13a9ab9a0ef1b2c4719d1
 
 [blender]
 title = Blender
-version = 5.2.4-0.9
-category = Graphisme
+version = 5.2.4-0.12
+category = Création
 author = Korin OS
 summary = Blender 5.2 LTS (essai) : modélisation, animation et rendu 3D
-size = 121817944
+size = 121818352
 installed = 269824705
-sha256 = e4a206d2a8d7186ccbf3f5d604420cb23ad34ef474b462d3d7f33a27ce45c5a3
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-blender-5.2.4-0.9.opk
+sha256 = c97b2602ecc8ffef7b9ef4556017484379606e3bbad2e3b9ad6c283b91703000
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-blender-5.2.4-0.12.opk
 needs = pc, abi >= 629
 required = 0
 restart = 0
-content = df15795d73bb4a67a686fd5371cca2763fb40465d6dc2aa026944be76c5d1070
+content = 60107b519f2fd529811801ca2b82b8052398b4fce7d80041cb0188b598ed736f
+
+[drums]
+title = Boîte à rythmes
+version = 1.0.1
+category = Musique
+author = Korin OS
+summary = Une boîte à rythmes : séquenceur pas à pas des 61 percussions du kit, joué en MIDI par le synthé General MIDI, kits de la SoundFont, export en fichier MIDI
+size = 157598
+installed = 354884
+sha256 = 633efd1022144625735df088d3b50fa89e7eddf734b83c852378209b8ddb5f54
+file = pkgs/drums-1.0.1.opk
+needs = soundfonts, abi >= 629
+required = 0
+restart = 0
+content = 047ab8d16cdac1f315e08b2cd8f724ac08f024c6116ad132adc3b67225fc69a6
+
+[drums-samples]
+title = Rythmes de la Boîte à rythmes
+version = 1.0.1
+category = Musique
+author = Korin OS
+summary = Vingt-cinq rythmes d'exemple pour la Boîte à rythmes (rock, funk, house, trap, jazz en 5/4, valse, blues en 12/8, samba, salsa, flamenco...), dans /home/public/DrumMachine (à tous les comptes)
+size = 8771
+installed = 11319
+sha256 = 27f649a4e8056d1d17c47af20d04d9b8bfab332841ff682052f66928f31da6e8
+file = pkgs/drums-samples-1.0.1.opk
+needs = drums, abi >= 629
+required = 0
+restart = 0
+content = c37a4b0263ee33023c01b1bcc16a84e94cbbc6a7becdfdb7b8c3d9732c98bc7b

@@ -1359,8 +1359,9 @@ static void hist_go (long d)
 static const char *const std_dirs[][2] = {
 	{ "music", "glyph-place-music" }, { "pictures", "glyph-place-pictures" }, { "downloads", "glyph-place-downloads" },
 	{ "projects", "glyph-place-projects" }, { "documents", "glyph-place-documents" }, { "video", "glyph-place-videos" },
-	{ "videos", "glyph-place-videos" } };
-#define STD_MAKE	6			/* (les 6 premiers sont crees ; « videos » n'est qu'un autre nom) */
+	{ "videos", "glyph-place-videos" }, { "public", "glyph-place-public" } };
+#define STD_MAKE	6			/* (les 6 premiers sont crees ; « videos » n'est qu'un autre nom ; « public » : /home/public,
+					 * le dossier partage entre les comptes, il a son embleme quand HOME: est /home) */
 
 static void std_dirs_make (void)
 {
@@ -1385,6 +1386,8 @@ static long home_prefix (const char *p)
 }
 
 /* dossier d'un acces rapide -> le nom de son glyphe : le dossier personnel, /apps, un dossier type, sinon un dossier */
+static int same_dir (const char *a, const char *b);
+
 static const char *place_glyph (const char *dir)
 {
 	long h = home_prefix (dir);
@@ -1400,10 +1403,12 @@ static const char *place_glyph (const char *dir)
 			if (strlen (std_dirs[i][0]) == n && !strncasecmp (r, std_dirs[i][0], n))
 				return std_dirs[i][1];
 	}
-	if (!strcmp (dir, "/apps") || !strcmp (dir, "/apps/"))
+	if (same_dir (dir, "/apps") || same_dir (dir, "APPS:/"))
 		return "glyph-place-apps";
 	if (is_recent_p (dir))
 		return "glyph-place-recent";
+	if (same_dir (dir, "/home/public") || same_dir (dir, "PUBLIC:/"))
+		return "glyph-place-public";	/* (le dossier partage entre les comptes) */
 	return "glyph-place-folder";
 }
 
@@ -1625,8 +1630,14 @@ static const char *vol_kind (struct vol *v)
 
 /* le nom d'un volume dans le panneau (24/11/2026, comme GNOME) : « Google Drive » (« Google Drive (compte) » s'il y en a
  * plusieurs), « partage sur hote » pour un partage « //hote/partage », sinon son point de montage -> buf */
+static int vol_is_root (const struct vol *v);
 static const char *vol_title (struct vol *v, char *buf, size_t cap)
 {
+	if (vol_is_root (v))
+	{				/* « / » : le Systeme */
+		snprintf (buf, cap, "%s", TR ("Système"));
+		return buf;
+	}
 	if (str_pre (v->src, "gdrive:"))
 	{
 		long n = 0;
@@ -1671,6 +1682,12 @@ static long vol_of (const char *p)
 						 * HOME: passait pour un volume retire a chaque changement des volumes (retour a /) */
 		const char *hm = getenv ("HOME");
 		snprintf (hp, sizeof hp, "%s/%s", hm && *hm ? hm : "/home", p + h);
+		p = hp;
+	}
+	else if (!strncasecmp (p, "PUBLIC:", 7) || !strncasecmp (p, "APPS:", 5))
+	{					/* les alias fixes de vfs : leur dossier */
+		int pub = (p[0] | 0x20) == 'p';
+		snprintf (hp, sizeof hp, "%s/%s", pub ? "/home/public" : "/apps", p + (pub ? 7 : 5));
 		p = hp;
 	}
 	long best = -1;
@@ -4261,14 +4278,16 @@ static const char *space_text (const struct vspace *sp, char *buf, long px, long
 static long vol_y0 (void) { return pl_n ? PAN_Y0 + pl_n * PROW_H + PL_GAP : PAN_Y0; }
 
 /* le panneau de gauche defile quand ses lignes ne tiennent pas (23/11/2026) : pan_scroll pixels, la molette sur lui */
-/* les volumes montres dans le panneau -> leur nombre, leurs rangs dans ix : tous (Affichage > Tous les volumes), sinon
- * les amovibles et les distants (24/11/2026, comme GNOME : le systeme, /tmp... restent dans Tous les volumes) */
+/* les volumes montres dans le panneau -> leur nombre, leurs rangs dans ix : les amovibles et les distants (24/11/2026,
+ * comme GNOME) ; Affichage > Tous les volumes ajoute « / » seul, nomme « Systeme » (les autres, /tmp, /home..., sont
+ * dans son arborescence) */
 static int is_net_src (const char *s);
+static int vol_is_root (const struct vol *v) { return !strcmp (v->low, "root") || !strcmp (v->disp, "/"); }
 static long vol_shown (long *ix)
 {
 	long n = 0;
 	for (long i = 0; i < vol_n; i++)
-		if (show_allvol || vols[i].rem || is_net_src (vols[i].src))
+		if (vols[i].rem || is_net_src (vols[i].src) || (show_allvol && vol_is_root (&vols[i])))
 			ix[n++] = i;
 	return n;
 }
@@ -4330,6 +4349,8 @@ static void draw_panel (void)
 			draw_sel (6, y + 1, PAN_W - 13, VROW_H - 2);
 		if (is_net_src (v->src))
 			ui_glyph ((long) "glyph-tb-network", 14, y + 8, 20, TOK (TJ_TEXT2));	/* un volume du reseau */
+		else if (vol_is_root (v))
+			ui_glyph ((long) "glyph-place-drive", 14, y + 8, 20, TOK (TJ_TEXT2));	/* le Systeme : un disque */
 		else
 		{
 			ui_rbox (14, y + 10, 20, 15, 3, TOK (TJ_TEXT2), TOK (TJ_TEXT2));	/* disque */

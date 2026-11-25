@@ -36,7 +36,7 @@ qtshadertools, qtsvg, qtdeclarative. Hôte : qtsvg avant qtdeclarative (svgtoqml
 de printd, QPrintDialog -> dialogue de PrinterKit (crochet `qt_korin_print_dialog` faible dans qprintdialog_unix.cpp,
 qtbase.patch), moteur vers PrinterKit (texte en contours). L'imprimante « PDF » vers un fichier : le PDF de Qt
 (KORIN_PRINT_KIT=1 force printd). printd du PC : `sh tools/pc/apps.sh printd` (absent du sysroot sans PC_APPS ; les
-pctest l'ajoutent) ; dans skel/pc/etc/session depuis le 25/11 (paquet pc 2026.11.108). Essai qtprint_test --direct/--kit/--dialog ; sortir un fichier de QEMU : hexdump + parse.
+pctest l'ajoutent) ; dans skel/pc/etc/session depuis le 25/11 (paquet pc 2026.11.110). Essai qtprint_test --direct/--kit/--dialog ; sortir un fichier de QEMU : hexdump + parse.
 
 **Reste** : publier les -dev (clé du dépôt) ; construire une app Qt dans Korin ;
 glisser-déposer, presse-papiers image, curseurs bitmap ; MuseScore (jalon 5).

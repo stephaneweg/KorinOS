@@ -154,3 +154,4 @@
 - [Accès rapides de Fichiers](armpi-fichiers-acces-rapides.md) — 24/11 : Accueil, Musiques, Images, Téléchargements, Projets avant Applications, glyphes glyph-place-* à la GNOME, dossiers types créés au démarrage ; HOME:/etc/places.ini personnel masque /etc
 - [Qt 6](armpi-qt.md) — 24/11 : qtbase et Qt Quick croisés, QPA korin sur UIKit (barre de menus globale), style korin, impression par PrinterKit (25/11), essayés sous QEMU PC ; paquets <module>-dev prêts, pas publiés ; MuseScore à suivre
 - [MuseScore](armpi-musescore.md) — 25/11 : MuseScore Studio 4.7.7 sur Qt de Korin, son par AudioKit, menus dans la barre globale, français ; converti, affiché, joué sous QEMU PC ; paquet prêt, pas publié
+- [Boîte à rythmes](armpi-drums.md) — 24/11 : app drums (MIDI canal 10, 61 percussions comme Koton, mesures et signatures), paquets PC drums et drums-samples 1.0.0 publiés ; Pi pas publié

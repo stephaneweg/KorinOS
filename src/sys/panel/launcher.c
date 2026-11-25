@@ -381,6 +381,7 @@ static void la_scroll_to(long r)
 
 static u32 la_grid_ink(void);
 static void la_soft_box(long x, long y, long w, long h, long r, u32 t);
+static void la_box_under(long x, long y, long w, long h, long r, u32 t);
 
 /* (la_grid) -> pages de la_res, page montrée */
 static long la_pages(void)
@@ -431,14 +432,14 @@ static void la_pages_draw(void)
 		la_soft_box(x, y - 4, 8, 8, 4, p == cur ? 0x10 : 0xA0);
 	long gy = la_gy + la_rows * la_cellh / 2;
 	u32 ink = la_grid_ink();
-	if (cur > 0) { /* ‹ */
-		la_soft_box(8, gy - 22, LA_ARROW_W, 44, 22, 0xD8);
+	if (cur > 0) { /* ‹ (le caractère d'abord, le voile glissé dessous : sinon il s'y frange de sombre) */
 		ui_text((long)"\xE2\x80\xB9", 8 + LA_ARROW_W / 2 - 5, gy + 9, ink, 26, (long)ui.font_b, 0);
+		la_box_under(8, gy - 22, LA_ARROW_W, 44, 22, 0xD8);
 	}
 	if (cur < n - 1) { /* › */
 		long ax = la_geom[1] - 8 - LA_ARROW_W;
-		la_soft_box(ax, gy - 22, LA_ARROW_W, 44, 22, 0xD8);
 		ui_text((long)"\xE2\x80\xBA", ax + LA_ARROW_W / 2 - 5, gy + 9, ink, 26, (long)ui.font_b, 0);
+		la_box_under(ax, gy - 22, LA_ARROW_W, 44, 22, 0xD8);
 	}
 }
 
@@ -469,11 +470,9 @@ static void la_cell_draw(long i, long show)
 	long x = c * cw + (la_grid ? la_grid_x : la_gx) + la_xoff;
 	long app = la_res[i];
 	u32 ink = la_grid ? la_grid_ink() : tok(TJ_TEXT1);
-	if (la_grid) { /* sur le fond de la vue : transparent, survol d'un voile clair */
+	if (la_grid) /* sur le fond de la vue : transparent ; le voile du survol est glissé dessous à la fin */
 		ui_fill(x, y, cw, ch, 0xFF000000);
-		if (la_hover == i || la_sel == i)
-			la_soft_box(x + LA_HI_X, y + LA_HI_Y, cw - 2 * LA_HI_X, ch - 2 * LA_HI_Y, 14, 0xD8);
-	} else {
+	else {
 		ui_fill(x, y, cw, ch, tok(TJ_FACE));
 		if (la_hover == i || la_sel == i) { /* survol, sélection */
 			u32 hi = (u32)ui_mix(tok(TJ_FACE), tok(TJ_LINE), 128);
@@ -489,6 +488,8 @@ static void la_cell_draw(long i, long show)
 		tw = maxw;
 	ui_text_fit((long)label, x + (long)((u64)(cw - (long)tw) >> 1), y + ic + LA_ICON_Y + 16, ink,
 		    LA_LBL_PX, (long)ui.font, (long)maxw);
+	if (la_grid && (la_hover == i || la_sel == i)) /* survol, sélection : le voile sous l'icône et le nom */
+		la_box_under(x + LA_HI_X, y + LA_HI_Y, cw - 2 * LA_HI_X, ch - 2 * LA_HI_Y, 14, 0xD8);
 	if (show)
 		ui_update(x, y, cw, ch);
 }
@@ -628,24 +629,28 @@ static long la_cell_at(long x, long y)
 	return (long)i;
 }
 
-/* (la_grid) une pilule du voile clair (transparence t) glissée SOUS ce qui est déjà dessiné (le texte) : chaque pixel
- * 0xTTRRGGBB (TT : transparence, couleur non prémultipliée) passe devant le voile ; bords lissés sur un pixel */
-static void la_pill_under(long x, long y, long w, long h, u32 t)
+/* (la_grid) une boîte arrondie (rayon r ; r = h / 2 : une pilule) du voile clair (transparence t) glissée SOUS ce qui
+ * est déjà dessiné (le texte, l'icône) : chaque pixel 0xTTRRGGBB (TT : transparence, couleur non prémultipliée) passe
+ * devant le voile ; bords lissés sur un pixel. (Tracé sur un voile à demi transparent, le texte s'y frangeait de
+ * sombre : les onglets d'abord, les cases de la grille depuis le 24/11/2026.) */
+static void la_box_under(long x, long y, long w, long h, long r, u32 t)
 {
 	u32 ink = la_grid_ink() & 0xFFFFFF;
-	long r = h / 2;
+	if (r > h / 2)
+		r = h / 2;
 	for (long j = 0; j < h; j++) {
 		if (y + j < 0 || y + j >= ui.h)
 			continue;
 		u32 *row = (u32 *)ui.surf + (y + j) * ui.w;
-		long dy2 = 2 * j + 1 - h; /* (en demi-pixels, depuis l'axe) */
+		long cy = j < r ? r : j >= h - r ? h - r : -1; /* (le centre du coin, en ligne ; -1 : hors des coins) */
+		long dy2 = 2 * j + 1 - 2 * cy; /* (en demi-pixels) */
 		for (long i = 0; i < w; i++) {
 			long X = x + i;
 			if (X < 0 || X >= ui.w)
 				continue;
-			long cov = 256; /* couverture du pixel par la pilule, sur 256 */
+			long cov = 256; /* couverture du pixel par la boîte, sur 256 */
 			long cx = i < r ? r : i >= w - r ? w - r : -1;
-			if (cx >= 0) {
+			if (cx >= 0 && cy >= 0) {
 				long dx2 = 2 * i + 1 - 2 * cx;
 				long d2 = dx2 * dx2 + dy2 * dy2, r2 = 4 * r * r;
 				if (d2 >= r2 + 4 * r)
@@ -681,9 +686,9 @@ static void la_tab_draw(long t, long show)
 			    (long)(sel ? ui.font_b : ui.font), w - 20);
 		/* le voile glissé sous le texte (le texte tracé sur un fond à demi transparent s'y frangeait de sombre) */
 		if (sel)
-			la_pill_under(x, y, w, h, la_zone == 2 ? 0x70 : 0xA0);
+			la_box_under(x, y, w, h, h / 2, la_zone == 2 ? 0x70 : 0xA0);
 		else if (la_tab_hover == t)
-			la_pill_under(x, y, w, h, 0xD0);
+			la_box_under(x, y, w, h, h / 2, 0xD0);
 		if (show)
 			ui_update(x, y, w, h);
 		return;

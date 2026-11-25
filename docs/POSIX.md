@@ -66,7 +66,8 @@ le volume système, les autres volumes sont montés dans des dossiers, et vfs r�
 | `/devtools/gcc`, `/devtools/dotnet`, `/devtools/python`, `/devtools/rust` | les outils de développement (`PATH=/bin:/sbin:/devtools/gcc/bin:/devtools/rust/bin`) |
 | `/tmp` | le volume en mémoire (ramfs) : `mkstemp`, `tmpfile`, `TMPDIR` |
 | `/media/usb0`, `/media/sd1`, `/net/net0`, `/boot` | les autres volumes, montés là (`/etc/mounts.txt`) |
-| `HOME:/a` | le seul alias : le dossier personnel de l'utilisateur en cours (`/home` aujourd'hui) ; `HOME=/home` |
+| `HOME:/a` | le dossier personnel de l'utilisateur en cours (`/home` aujourd'hui) ; `HOME=/home` |
+| `PUBLIC:/a`, `APPS:/a` | les deux alias fixes de vfs : `/home/public/a`, `/apps/a` (`statvfs` les connaît aussi) |
 | `/dev/null`, `/dev/zero`, `/dev/urandom`, `/dev/random`, `/dev/stdin`, `/dev/stdout`, `/dev/stderr`, `/dev/tty` | pseudo-fichiers (`fd.c`) |
 
 * **`getcwd`** rend la forme ordinaire (« `/home/x` », « `/apps/x.app` ») : c'est celle que vfs donne.

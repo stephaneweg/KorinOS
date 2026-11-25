@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """pub.py -- publier un seul paquet de Korin OS, a partir de son archive publiee (docs/PAQUETS.md, « Publier un paquet »).
 
-    python tools/pkg/pub.py NOM [--pi] [--tree DOSSIER] [--dry-run] [--yes] [--only MOTIF...] [--add-new] [--drop MOTIF...] [--new] [--abi N]
+    python tools/pkg/pub.py NOM [--pi] [--tree DOSSIER] [--dry-run] [--yes] [--only MOTIF...] [--add-new] [--drop MOTIF...] [--new] [--abi N] [--meta]
+
+--meta : une nouvelle version sans fichier change, pour ce que packages.ini dit du paquet (categorie, titre...).
 
 --new : un paquet absent de l'index publie (pas d'archive de base) : tous ses fichiers sont pris dans l'arbre,
 (release = 1 dans packages-pc.ini : son archive va dans la Release),
@@ -224,6 +226,7 @@ def main ():
 	ap.add_argument ("--add-new", action = "store_true", help = "ajouter les fichiers du paquet absents de l'archive")
 	ap.add_argument ("--drop", nargs = "+", default = [], help = "retirer de l'archive les fichiers de ces motifs (que packages.ini ne donne plus au paquet)")
 	ap.add_argument ("--new", action = "store_true", help = "un paquet absent de l'index publie : tous ses fichiers, pris dans l'arbre")
+	ap.add_argument ("--meta", action = "store_true", help = "une nouvelle version meme sans fichier change : le titre, la categorie... de packages.ini (24/11/2026, categorie Musique)")
 	ap.add_argument ("--abi", type = int, help = "le besoin abi >= N du manifeste (defaut : celui du publie)")
 	ap.add_argument ("--force", action = "store_true", help = "continuer si le content publie ne se recalcule pas")
 	ap.add_argument ("--key", help = "la cle privee (defaut : ONYX_PKG_KEY_FILE, %s, OnyxPkgKey ou ONYX_PKG_KEY)" % DEFAULT_KEY)
@@ -403,7 +406,7 @@ def main ():
 			changed = [c for c in changed if c[0] != "etc/pkg/abi"] + [("etc/pkg/abi", ("%d\n" % level).encode (), False, tree_path ("etc/pkg/abi"))]
 	# (--abi seul, autre que celui du manifeste publie : une nouvelle version sans fichier change, pour un paquet publie
 	# avec un abi que le systeme n'a pas encore ; rust 1.97.1-2, 21/11/2026)
-	if not changed and not added and not dropped and not (a.abi and a.abi != base_abi):
+	if not changed and not added and not dropped and not (a.abi and a.abi != base_abi) and not a.meta:
 		shutil.rmtree (TMP, ignore_errors = True)
 		say ("pub: rien n'a change dans %s : rien a publier" % name)
 		return

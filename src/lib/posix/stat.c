@@ -679,6 +679,13 @@ int statvfs (const char *path, struct statvfs *s)
 		snprintf (t, sizeof t, "%s%s", h && h[0] == '/' ? h : "/home", abs + 5);
 		strcpy (abs, t);
 	}
+	else if (!strncmp (abs, "PUBLIC:", 7) || !strncmp (abs, "APPS:", 5))
+	{					/* les alias fixes de vfs (src/svc/vfs/path.c) : leur dossier */
+		char t[POSIX_PATH_MAX];
+		int pub = abs[0] == 'P';
+		snprintf (t, sizeof t, "%s%s", pub ? "/home/public" : "/apps", abs + (pub ? 7 : 5));
+		strcpy (abs, t);
+	}
 	struct __armpi_msg m;
 	if (vol_of (abs, name) != 0 || vol_info (name, &m) < 0)
 		return 0;

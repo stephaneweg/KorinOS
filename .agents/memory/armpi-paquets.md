@@ -102,6 +102,14 @@ content recalculé vérifié, seuls les fichiers changés remplacés, commit par
 calendar, pc (rien à publier), claude et python (115 paquets bons). Piège vu : bin/python3 de build/pc/sysroot (19/11 21:34)
 diffère du python 1.0.3 publié, plus récent : la date affichée sert à voir un arbre pas à jour.
 
+**Catégorie Musique (24/11)** : demande de l'utilisateur, les apps de musique à part de Multimédia : arabesque, drums,
+fmtracker, koton, music, piano, spotify et leurs paquets d'exemples (fmtracker-samples, koton-demos, arabesque-samples,
+drums-samples ; soundfonts reste Multimédia, archive partagée avec le Pi). Publiés sur le PC par `pub.py --tree` d'un
+arbre fait des seuls app.txt publiés (catégorie changée), pas de build/pc/sysroot (ancien). `pub.py --meta` (nouveau) : une
+version sans fichier changé, pour la catégorie ou le titre de packages-pc.ini (l'index prend la catégorie de packages-pc.ini
+quand le paquet y a une section, sinon de app.txt). Le Pi : packages.ini changé, rien de publié. Listes de catégories en
+dur : installer/main.cpp, pkgman/pkgui.cpp, tools/pc/installkey.ini, skel/sd0/etc/dock.ini (pas encore republiés).
+
 **weather 1.0.1 PC (20/11, main 34ea92e)** : publié depuis le cloud par `pub.py weather --tree build/pc/apps/sdroot
 --only apps/weather.app/main` après `setup.sh root`, `base toolchains` (18 min sur 4 cœurs), `ARCH=x86_64
 tools/posix/build.sh`, `tools/pc/apps.sh weather`. Dans cet environnement du cloud, la clé est dans **`ONYX_PKG_KEY`**
