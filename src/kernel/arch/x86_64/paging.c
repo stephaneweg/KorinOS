@@ -6,6 +6,10 @@
  * Les tables viennent d'une réserve dans le BSS du noyau, pour ne toucher à
  * aucune page de l'UEFI tant que ses tables sont encore en service. */
 #include <korin/lib.h>
+#include <korin/kheap.h>
+#include <korin/pmm.h>
+#include <korin/sched.h>
+#include <korin/spinlock.h>
 
 #include "cpu.h"
 #include "paging.h"
@@ -57,6 +61,78 @@ static int has_1g_pages(void)
 		return 0;
 	cpuid(0x80000001, 0, r);
 	return (r[3] >> 26) & 1;
+}
+
+/* ---- piles du noyau avec pages de garde (E10) : une place de 32 Ko par pile, 16 Ko non projetés puis la pile
+ * (KSTACK_SIZE, 16 Ko) ; un débordement touche la garde : faute de page, puis #DF sur sa pile IST, lisible, au
+ * lieu d'écraser le tas. Une pile rendue garde ses pages et reste projetée (liste des libres) : rien n'est
+ * jamais retiré, donc pas d'invalidation des TLB des autres cœurs */
+#define KSTK_BASE 0xFFFFC00000000000ULL /* PML4[384] */
+#define KSTK_SLOT (8 * 4096ULL)
+#define KSTK_MAX 32768 /* (un PD : 1 Go) */
+static uint64_t *kstk_pd;
+static uint64_t kstk_nx;
+static spinlock_t kstk_lock;
+static uint32_t kstk_next;
+static void *kstk_free;
+
+void *arch_kstack_alloc(void)
+{
+	uint64_t f = spin_lock_irqsave(&kstk_lock);
+	void *s = kstk_free;
+	if (s) {
+		kstk_free = *(void **)s;
+		spin_unlock_irqrestore(&kstk_lock, f);
+		return s;
+	}
+	if (!kstk_pd) { /* (avant paging_init) */
+		spin_unlock_irqrestore(&kstk_lock, f);
+		return kmalloc(KSTACK_SIZE);
+	}
+	if (kstk_next >= KSTK_MAX) {
+		spin_unlock_irqrestore(&kstk_lock, f);
+		return 0;
+	}
+	uint64_t va = KSTK_BASE + (uint64_t)kstk_next * KSTK_SLOT + KSTK_SLOT - KSTACK_SIZE;
+	uint64_t pages[KSTACK_SIZE / 4096];
+	unsigned n = 0;
+	for (; n < KSTACK_SIZE / 4096; n++)
+		if (!(pages[n] = pmm_alloc()))
+			break;
+	unsigned pdi = (unsigned)((va >> 21) & 511);
+	if (n == KSTACK_SIZE / 4096 && !kstk_pd[pdi]) {
+		uint64_t pt = pmm_alloc();
+		if (pt) {
+			memset(arch_phys_to_virt(pt), 0, 4096);
+			kstk_pd[pdi] = pt | PTE_P | PTE_W;
+		}
+	}
+	if (n < KSTACK_SIZE / 4096 || !kstk_pd[pdi]) {
+		spin_unlock_irqrestore(&kstk_lock, f);
+		while (n)
+			pmm_free(pages[--n]);
+		return 0;
+	}
+	kstk_next++;
+	uint64_t *pt = arch_phys_to_virt(kstk_pd[pdi] & 0x000FFFFFFFFFF000ULL);
+	for (unsigned i = 0; i < n; i++)
+		pt[((va >> 12) & 511) + i] = pages[i] | PTE_P | PTE_W | PTE_G | kstk_nx;
+	spin_unlock_irqrestore(&kstk_lock, f);
+	return (void *)va;
+}
+
+void arch_kstack_free(void *s)
+{
+	if (!s)
+		return;
+	if ((uint64_t)s < KSTK_BASE || (uint64_t)s >= KSTK_BASE + KSTK_MAX * KSTK_SLOT) { /* (kmalloc : avant paging_init) */
+		kfree(s);
+		return;
+	}
+	uint64_t f = spin_lock_irqsave(&kstk_lock);
+	*(void **)s = kstk_free;
+	kstk_free = s;
+	spin_unlock_irqrestore(&kstk_lock, f);
 }
 
 void paging_init(uint64_t kernel_phys, uint64_t kernel_virt, uint64_t kernel_size,
@@ -122,6 +198,14 @@ void paging_init(uint64_t kernel_phys, uint64_t kernel_virt, uint64_t kernel_siz
 		}
 		kpd[((kernel_virt >> 21) & 511) + i / 512] = kv2p(pt) | PTE_P | PTE_W;
 	}
+
+	/* les piles du noyau (E10) : PML4[384] -> un PDPT -> un PD (1 Go) ; les PT viennent plus tard
+	 * (arch_kstack_alloc), l'entrée PML4 est là dès maintenant : les espaces des process la recopient */
+	uint64_t *spdpt = pool_page();
+	kstk_pd = pool_page();
+	pml4[384] = kv2p(spdpt) | PTE_P | PTE_W;
+	spdpt[0] = kv2p(kstk_pd) | PTE_P | PTE_W;
+	kstk_nx = nx;
 
 	/* NX : les pages des process sans droit d'exécution, et celles du noyau ci-dessus */
 	if (nx_ok)

@@ -114,6 +114,16 @@ static void no_start(void *arg)
 	(void)arg;
 }
 
+__attribute__((weak)) void *arch_kstack_alloc(void)
+{
+	return kmalloc(KSTACK_SIZE);
+}
+
+__attribute__((weak)) void arch_kstack_free(void *stack)
+{
+	kfree(stack);
+}
+
 struct thread *thread_create_raw(struct process *p, const char *name)
 {
 	return thread_create(p, name, no_start, 0);
@@ -124,9 +134,10 @@ struct thread *thread_create(struct process *p, const char *name, void (*fn)(voi
 	struct thread *t = kzalloc(sizeof *t);
 	if (!t)
 		return 0;
-	void *stack = kmalloc(KSTACK_SIZE);
+	void *stack = arch_kstack_alloc();
 	if (!stack || arch_thread_init(t)) {
-		kfree(stack);
+		if (stack)
+			arch_kstack_free(stack);
 		kfree(t);
 		return 0;
 	}
@@ -534,7 +545,8 @@ void sched_reap(void)
 		struct thread *t = dead;
 		dead = t->next;
 		arch_thread_free(t);
-		kfree((void *)t->kstack);
+		if (t->kstack)
+			arch_kstack_free((void *)t->kstack);
 		kfree(t);
 	}
 	while (gone) {

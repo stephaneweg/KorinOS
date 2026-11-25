@@ -135,6 +135,26 @@ static int apply_profile(unsigned idx, int prof)
 }
 
 /* sur chaque cœur (le cœur 0 après la minuterie, les autres à leur démarrage) */
+/* Spectre v2 (N9, E09) : avec l'IBRS « amélioré » (ARCH_CAPABILITIES bit 1, IBRS_ALL), IBRS posé une fois
+ * protège le noyau des prédictions faites en mode utilisateur, sans coût à chaque entrée ; STIBP si présent (deux
+ * fils d'un cœur). Sans eIBRS, rien : l'IBRS posé en permanence ralentirait tout. Un MSR absent (QEMU, AMD sans
+ * ces bits) : la #GP est rattrapée */
+#define MSR_SPEC_CTRL 0x48
+#define MSR_ARCH_CAPABILITIES 0x10A
+static void spec_ctrl_cpu(uint32_t max_leaf)
+{
+	uint32_t r[4];
+	if (max_leaf < 7)
+		return;
+	cpuid(7, 0, r);
+	if (!(r[3] & (1u << 26)) || !(r[3] & (1u << 29))) /* IBRS/IBPB, ARCH_CAPABILITIES */
+		return;
+	uint64_t caps = 0;
+	if (rdmsr_safe(MSR_ARCH_CAPABILITIES, &caps) || !(caps & 2))
+		return;
+	wrmsr_safe(MSR_SPEC_CTRL, 1 | ((r[3] & (1u << 27)) ? 2 : 0));
+}
+
 void pstate_init_cpu(unsigned idx)
 {
 	uint32_t r[4];
@@ -142,6 +162,7 @@ void pstate_init_cpu(unsigned idx)
 	cpuid(0, 0, r);
 	intel = r[1] == 0x756E6547 && r[3] == 0x49656E69 && r[2] == 0x6C65746E; /* GenuineIntel */
 	uint32_t max_leaf = r[0];
+	spec_ctrl_cpu(max_leaf);
 	if (max_leaf < 6)
 		return;
 	cpuid(6, 0, r);

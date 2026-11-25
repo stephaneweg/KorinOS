@@ -66,6 +66,10 @@ struct thread;
 void arch_thread_setup(struct thread *t, void (*fn)(void *), void *arg);
 /* état propre à l'architecture d'un thread (FPU…) : création, libération */
 int arch_thread_init(struct thread *t);
+/* pile du noyau d'un thread (KSTACK_SIZE) : par défaut kmalloc (sched.c, faible) ; le PC : sous une zone non
+ * projetée, qui fait faute au débordement (E10) */
+void *arch_kstack_alloc(void);
+void arch_kstack_free(void *stack);
 void arch_thread_free(struct thread *t);
 /* bascule de prev vers next (interruptions coupées, verrou de l'ordonnanceur pris) */
 void arch_context_switch(struct thread *prev, struct thread *next);
