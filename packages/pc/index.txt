@@ -5,6 +5,7 @@ date = 2026-11-25 14:16
 abi = 629
 packages = 117
 board = pc
+serial = 1
 
 [avdemo]
 title = Avalonia
