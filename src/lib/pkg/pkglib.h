@@ -549,7 +549,11 @@ static inline bool forbidden (const char *rel)
 		if (s[0] == '.' && s[1] == '.' && (s[2] == '/' || !s[2])) return true;
 		s = strchr (s, '/'); if (s) s++;
 	}
-	return starts (rel, "var/") || !strcasecmp (rel, "var") || starts (rel, "etc/wifi") || starts (rel, "etc/remote");
+	// (les mots de passe, le coffre, le repère de la carte : aucun paquet ne les livre ; un paquet ne les écrase pas, L4)
+	// (sans casse : FAT n'en tient pas compte, « VAR/pkg/... » écrivait /var/pkg)
+	static const char *const no[] = { "var/", "etc/wifi", "etc/remote", "etc/shadow", "etc/keyvault", "etc/secure-mark", 0 };
+	for (int i = 0; no[i]; i++) if (!strncasecmp (rel, no[i], strlen (no[i]))) return true;
+	return !strcasecmp (rel, "var");
 }
 
 // ---- les paquets installes (/var/pkg/db) --------------------------------------------------------------------------------
