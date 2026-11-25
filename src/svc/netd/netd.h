@@ -9,6 +9,9 @@
 /* ---- src/inc/netd.inc */
 #define NET_OP_OPEN 1
 #define NET_OP_SOCKETS 25
+#define NET_OP_BIND_ADDR 26 /* a sd, b port, c ip (0 : toutes) (E68) */
+#define NET_OP_PEERNAME 27  /* a sd -> b ip, c port de l'autre bout */
+#define NET_OP_LAST 27
 #define NIF_ETHERNET 1
 #define NIF_WIFI 2
 #define NIF_USB 3
@@ -194,6 +197,7 @@ struct sock {
 	u64 state;
 	u64 owner;    /* pid propriétaire (0 : interne ou orphelin) */
 	u64 lport;
+	u32 lip;      /* adresse locale liée (0 : toutes ; 127.x : la boucle locale seulement) */
 	u32 rip;
 	u64 rport;
 	u8 *rxbuf;
@@ -354,6 +358,8 @@ static inline long sk_index(struct sock *s)
 long op_socket(u8 *m);
 long op_connect(u8 *m);
 long op_bind(u8 *m);
+long op_bind_addr(u8 *m);
+long op_peername(u8 *m);
 long op_listen(u8 *m);
 long op_accept(u8 *m);
 long op_send(u8 *m);

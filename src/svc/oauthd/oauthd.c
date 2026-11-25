@@ -1508,7 +1508,8 @@ static long op_browser_begin(struct account *a, long port, struct buf *out)
 		memset(&sa, 0, sizeof sa);
 		sa.sin_family = AF_INET;
 		sa.sin_port = htons((uint16_t)try_port);
-		sa.sin_addr.s_addr = htonl(INADDR_ANY); /* (netd n'écoute pas sur une seule adresse) */
+		sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK); /* (127.0.0.1 : le navigateur de cette machine seulement ;
+							     * un voisin du réseau ne livre plus de faux code, E68) */
 		if (bind(fd, (struct sockaddr *)&sa, sizeof sa) == 0 && listen(fd, 4) == 0)
 			p = try_port;
 		else if (port)

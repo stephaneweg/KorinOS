@@ -655,12 +655,13 @@ static long op_stats(u8 *m)
 }
 
 typedef long (*op_fn)(u8 *);
-static const op_fn op_table[NET_OP_SOCKETS + 1] = {
+static const op_fn op_table[NET_OP_LAST + 1] = {
 	0, op_open, op_socket, op_connect, op_bind, op_listen, /* 0-5 */
 	op_accept, op_send, op_recv, op_close, op_sendto, /* 6-10 */
 	op_recv, /* 11 recvfrom */
 	op_resolve, op_ping, op_info, op_ifaces, op_time, op_ntp, op_poll, op_ring, /* 12-19 (18 : poll, 19 : anneau) */
 	op_if_register, op_if_state, op_doorbell, op_stats, op_shutdown, op_sockets, /* 20-25 */
+	op_bind_addr, op_peername, /* 26-27 */
 };
 
 /* message -> 1 : répondre (résultat en +0) */
@@ -683,7 +684,7 @@ static int dispatch(u8 *m)
 		return 0;
 	}
 	long r = E_INVAL;
-	if (op <= NET_OP_SOCKETS && op_table[op])
+	if (op <= NET_OP_LAST && op_table[op])
 		r = op_table[op](m);
 	W64(m, 0) = (u64)r;
 	return 1;

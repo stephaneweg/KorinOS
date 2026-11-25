@@ -13,6 +13,7 @@
 #include "caller.h"
 
 #define E_ACCES_NET -13
+#define E_ADDRNOTAVAIL_NET -99
 
 /* descripteur, pid -> son couple (0 : aucun) */
 static u32 *sko_find(u64 sd, u64 pid)
@@ -220,6 +221,33 @@ long op_bind(u8 *m)
 	}
 	s->lport = port;
 	nl_drop();
+	return 0;
+}
+
+/* 26 bind_addr(a sd, b port, c ip) : comme bind ; ip 127.x : n'écoute que la boucle locale, ip = la nôtre :
+ * seulement elle, 0 : toutes (E68 : l'aperçu de WebStudio, le retour d'OAuth ne s'ouvrent plus au réseau) */
+long op_bind_addr(u8 *m)
+{
+	u32 ip = (u32)W64(m, MSG_C);
+	if (ip && (ip >> 24) != 127 && ip != net_ip)
+		return E_ADDRNOTAVAIL_NET;
+	long r = op_bind(m);
+	if (r)
+		return r;
+	struct sock *s = sk_get(W64(m, MSG_A), W32(m, MSG_PID));
+	if (s)
+		s->lip = (ip >> 24) == 127 ? 0x7F000001 : ip;
+	return 0;
+}
+
+/* 27 peername(a sd) -> b ip, c port de l'autre bout (0 : pas connecté) */
+long op_peername(u8 *m)
+{
+	struct sock *s = sk_get(W64(m, MSG_A), W32(m, MSG_PID));
+	if (!s)
+		return E_BADF;
+	W64(m, MSG_B) = s->rip;
+	W64(m, MSG_C) = s->rport;
 	return 0;
 }
 

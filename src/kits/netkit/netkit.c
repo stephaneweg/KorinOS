@@ -37,6 +37,8 @@
 #define NET_OP_STATS 23
 #define NET_OP_SHUTDOWN 24
 #define NET_OP_SOCKETS 25
+#define NET_OP_BIND_ADDR 26
+#define NET_OP_PEERNAME 27
 #define NIF_ENT 64
 #define NET_ZONE 8192
 #define NET_ZONES 16
@@ -236,6 +238,20 @@ long net_connect(long sd, long ip, long port)
 long net_bind(long sd, long port)
 {
 	return simple(NET_OP_BIND, sd, port, 0, 0);
+}
+
+/* liée à une adresse (E68) : 127.x n'écoute que la boucle locale ; un vieux netd (E_INVAL) : le port seul */
+long net_bind_addr(long sd, long port, long ip)
+{
+	return simple(NET_OP_BIND_ADDR, sd, port, ip, 0);
+}
+
+/* l'autre bout d'un socket connecté -> ip | port << 32 */
+long net_peername(long sd)
+{
+	msg_t m = {NET_OP_PEERNAME, (uint64_t)sd};
+	long r = ncall(m);
+	return r < 0 ? r : (long)(m[2] | (m[3] << 32));
 }
 
 long net_listen(long sd, long backlog)

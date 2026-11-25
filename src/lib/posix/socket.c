@@ -59,6 +59,19 @@ static long nk (unsigned rank, long a, long b, long c, long d, long e)
 	return f (a, b, c, d, e);
 }
 
+/* bind au port, et a l'adresse si elle n'est pas 0.0.0.0 (E68 : 127.0.0.1 n'ecoute que la boucle locale) ; un
+   NetKit ou un netd plus ancien (pas de fonction, E_NOSYS, E_INVAL) : le port seul, comme avant */
+static long nk_bind (long h, unsigned port, unsigned ip)
+{
+	if (ip && __armpi_netkit (NK_NET_BIND_ADDR))
+	{
+		long k = nk (NK_NET_BIND_ADDR, h, port, ip, 0, 0);
+		if (k != -38 && k != -22)
+			return k;
+	}
+	return nk (NK_NET_BIND, h, port, 0, 0, 0);
+}
+
 static struct __posix_ofd *sock_get (int fd)
 {
 	struct __posix_ofd *d = __posix_fd_get (fd);
@@ -204,11 +217,11 @@ int bind (int fd, const struct sockaddr *addr, socklen_t len)
 			for (int i = 0; i < 16384 && k == NK_EADDRINUSE; i++)
 			{
 				port = 49152 + (__atomic_fetch_add (&s_next, 1, __ATOMIC_RELAXED) % 16384);
-				k = nk (NK_NET_BIND, d->h, port, 0, 0, 0);
+				k = nk_bind (d->h, port, ip);
 			}
 		}
 		else
-			k = nk (NK_NET_BIND, d->h, port, 0, 0, 0);
+			k = nk_bind (d->h, port, ip);
 		if (k < 0)
 			r = POSIX_SYS (k);
 		else
@@ -285,7 +298,23 @@ int accept4 (int fd, struct sockaddr *addr, socklen_t *len, int flags)
 	n->connected = 1;
 	n->lip = lip;				/* l'adresse locale : celle de l'ecoute */
 	n->lport = lport;
-	to_addr (addr, len, 0, 0);		/* (NetKit ne donne pas l'autre bout) */
+	/* l'autre bout (NetKit en C : net_peername ; sinon 0.0.0.0:0 comme avant) */
+	unsigned pip = 0, pport = 0;
+	if (__armpi_netkit (NK_NET_PEERNAME))
+	{
+		long pn = nk (NK_NET_PEERNAME, sd, 0, 0, 0, 0);
+		if (pn >= 0)
+		{
+			pip = (unsigned) pn;
+			pport = (unsigned) (pn >> 32) & 0xFFFF;
+		}
+	}
+	if (pip)
+	{
+		socklen_t pl = sizeof n->peer;
+		to_addr ((struct sockaddr *) n->peer, &pl, pip, pport);
+	}
+	to_addr (addr, len, pip, pport);
 	return __posix_fd_install (n, 0, (flags & SOCK_CLOEXEC) != 0);
 }
 

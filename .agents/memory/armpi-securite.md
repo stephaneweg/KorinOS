@@ -35,3 +35,11 @@ profondeur qu'il n'y aura pas de régression »). §2 : 29 propositions du broui
 = pid 0 et non REQ_SIGNAL-1, WS_SIGNAL, IMAGE_CREATE par uid, NXE au trampoline, 0xB2 batterie, DEV_MAP, rights de
 session et SVC_REGISTER, WF_TOP/GRAB d'UIKit, VFS_BOOT_BEGIN/pkglib, forbidden et paquet pc, NTP qui recule…).
 Règle Pi : E_NOSYS = uid 0 permis. Rien d'implémenté ; corrections après Blender ; E62 et E70 pas pendant Blender.
+
+**25/11, branche `security-fix`** (session cloud, depuis main 1068ab7) : faites et poussées E01-E26 (sauf E10
+pages de garde, E11 refus, E09 SPEC_CTRL), E29 réduite (marques de /tmp à l'uid 0 même en log), E30-E32, E35,
+E37, E40-E41, E43-E44, E46 (1er volet), E63, E66, E67, E69 ; shadow.ini, users.ini, elevate.ini protégés même en
+mode log. Essais : ktest, bureau complet et essais en uid 1000 (sectest.sh), réseau usb-net, identiques à main.
+**Décisions de l'utilisateur (25/11)** : E70 : comptes + repli secret commun ; E33/E34 : NON (les programmes de
+session gardent `rights`, pas de sudo pour les façades) ; E68 : webd --dev local par défaut, option réseau ;
+JIT W^X : plus tard.

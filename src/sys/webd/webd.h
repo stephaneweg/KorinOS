@@ -84,6 +84,7 @@ extern volatile unsigned g_reload_gen;	/* --dev : chaque enregistrement de WebSt
 extern pthread_mutex_t g_reload_mu;
 extern pthread_cond_t g_reload_cv;
 extern int g_dev;
+extern int g_dev_lan; /* --dev --lan : l'aperçu ouvert au réseau local */
 void reload_pages (void);
 int listeners_start (struct conf *c, struct listener *ls, int *nls, int dev_port_auto);
 void listeners_stop (struct listener *ls, int nls);

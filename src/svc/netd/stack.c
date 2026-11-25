@@ -397,6 +397,8 @@ static void udp_input(u8 *p, u64 len, u32 src, u32 dst)
 	struct sock *s = sock_find_port(SOCK_UDP, dport);
 	if (!s)
 		return;
+	if (s->lip && ((s->lip >> 24) == 127 ? (dst >> 24) != 127 : dst != s->lip))
+		return; /* liée à une autre adresse (E68) */
 	/* enregistrement : longueur(2) port(2) ip(4) données, si la place suffit */
 	u64 room = SK_RING - (s->rxhead - s->rxtail);
 	u64 n = ul - 8;
@@ -983,6 +985,8 @@ static void tcp_input(u8 *seg, u64 len, u32 sip, u32 dip)
 	if (s)
 		goto found;
 	s = sock_find_port(SOCK_TCP, lport); /* socket en écoute ? */
+	if (s && s->lip && ((s->lip >> 24) == 127 ? (dip >> 24) != 127 : dip != s->lip))
+		s = 0; /* liée à une autre adresse (127.0.0.1 : la boucle locale seulement, E68) */
 	if (s)
 		goto listen;
 

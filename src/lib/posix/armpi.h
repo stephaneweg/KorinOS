@@ -119,6 +119,8 @@ void *__armpi_netkit (unsigned rank);		/* une fonction de NetKit (0 : pas de Net
 #define NK_NET_TIME		17		/* (&{utc, ntp, ms}) -> secondes UTC (0 : inconnue) */
 #define NK_NET_FORK_CHILD	32		/* () : dans le fils d'un fork, le tampon du pere oublie */
 #define NK_NET_POLL		46		/* (entrees {u32 sd, u32 ev}, n, ms) -> prets ; netd en C seulement (poll.c) */
+#define NK_NET_BIND_ADDR	47		/* (sd, port, ip) : liee a une adresse (127.x : la boucle locale) ; netd en C */
+#define NK_NET_PEERNAME		48		/* (sd) -> ip | port << 32 de l'autre bout ; netd en C */
 #define NK_MIN_VERSION		18
 #define ARMPI_NET_FOREVER	(~0UL)		/* attente de NetKit : sans limite */
 

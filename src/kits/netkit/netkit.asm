@@ -968,6 +968,11 @@ oauth_info:
 	mov	x0,-38
 	ret
 
+; net_bind_addr, net_peername : seulement dans le NetKit en C (netd en C, ops 26, 27)
+net_bind_addr:	mov	x0,-38
+		ret
+net_peername:	mov	x0,-38
+		ret
 ; net_poll : seulement dans le NetKit en C (netd en C, op 18) ; libposix retombe sur ses sondes
 net_poll:	mov	x0,-38
 	ret

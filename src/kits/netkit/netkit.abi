@@ -50,4 +50,6 @@ kit_fn oauth_list		; x0 = tampon, x1 = taille -> octets : une ligne par compte (
 kit_fn oauth_remove		; x0 = compte -> 0 : compte retire (configuration et jetons)
 kit_fn oauth_info		; x0 = compte, x1 = tampon, x2 = taille -> octets : la configuration (sans le secret)
 kit_fn net_poll		; x0 = entrees {u32 sd, u32 evenements} (rendus a la place), x1 = nombre (56 au plus), x2 = ms -> sockets prets (1 lire, 4 ecrire, 8 erreur, 16 fin, 32 inconnu ; poll de libposix)
+kit_fn net_bind_addr	; x0 = sd, x1 = port, x2 = ip (0 : toutes ; 127.x : la boucle locale seulement) -> 0 (netd en C seulement, E_NOSYS sinon)
+kit_fn net_peername	; x0 = sd -> ip | port << 32 de l'autre bout ; < 0 : erreur (netd en C seulement, E_NOSYS sinon)
 kit_end

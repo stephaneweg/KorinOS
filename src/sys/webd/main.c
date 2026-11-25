@@ -72,7 +72,8 @@ static int usage (void)
 {
 	fputs ("webd " WEBD_VERSION " -- le serveur web de Korin (docs/WEB.md)\n"
 		"  webd                           le service (/etc/web/sites.ini)\n"
-		"  webd --dev DOSSIER [--port N]  un dossier, pour WebStudio (port libre à partir de 8080)\n"
+		"  webd --dev DOSSIER [--port N] [--lan]  un dossier, pour WebStudio (port libre à partir de 8080 ;\n"
+		"                                 localhost seulement, --lan : aussi le réseau local)\n"
 		"  webd stop | reload | status | check\n"
 		"  webd site list | add NOM DOSSIER [LIAISON...] | remove NOM | enable NOM | disable NOM\n"
 		"           | bind NOM add|remove LIAISON | listing NOM 0|1\n"
@@ -160,6 +161,8 @@ static int dev (int argc, char **argv)
 	for (int i = 0; i < argc; i++) {
 		if (!strcmp (argv[i], "--port") && i + 1 < argc)
 			port = atoi (argv[++i]);
+		else if (!strcmp (argv[i], "--lan"))
+			g_dev_lan = 1; /* (l'aperçu ouvert au réseau local : un téléphone ; sinon 127.0.0.1 seulement, E68) */
 		else if (!dir)
 			dir = argv[i];
 	}

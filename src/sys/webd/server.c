@@ -28,6 +28,7 @@ volatile unsigned g_reload_gen;
 pthread_mutex_t g_reload_mu = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t g_reload_cv = PTHREAD_COND_INITIALIZER;
 int g_dev;
+int g_dev_lan;
 static int g_nconns;
 
 #define HEAD_MAX	16384
@@ -720,7 +721,7 @@ int listeners_start (struct conf *c, struct listener *ls, int *nls, int dev_auto
 				continue;
 			int fd = -1, port = b->port;
 			for (int tries = dev_auto ? 100 : 1; tries > 0 && fd < 0; tries--, port++)
-				fd = open_port (port, s->dev);
+				fd = open_port (port, s->dev && !g_dev_lan);
 			if (fd < 0) {
 				log_msg ("port %d indisponible (déjà pris ?) : liaison de « %s » ignorée", b->port, s->name);
 				continue;
