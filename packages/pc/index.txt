@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-25 08:58
+date = 2026-11-25 09:12
 abi = 629
 packages = 117
 board = pc
@@ -420,18 +420,18 @@ content = 6e383e1368410c76b4274d27494a60f8c24590b9df39c8dc04160cbd4c85c46e
 
 [gcc]
 title = GCC et G++
-version = 1.0.15
+version = 1.0.16
 category = Développement
 author = Korin OS
 summary = Le compilateur C et C++ de Korin OS, les relais des kits et les outils (/devtools/gcc)
-size = 16475468
-installed = 54787824
-sha256 = 55efef0fd029e58ae07be641e0fb87efeefc5d83f06f04add6159c88447dc3b3
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-gcc-1.0.15.opk
+size = 16478927
+installed = 54794204
+sha256 = 2ea473ae69243daf5da4358371005a2caaf9c5361a1db77ae46b574f74c21f54
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-gcc-1.0.16.opk
 needs = make, gcc-data-1, abi >= 626
 required = 0
 restart = 0
-content = 09b8c440249b727479120594807083d571e8b8f42bf3c91a7b1850c1ce0b8680
+content = 5b808022d5af60463a80cd27a352a82f5bb967db04bb0ffed94eb7c7df87e2e2
 
 [avalonia]
 title = Avalonia
@@ -2597,3 +2597,176 @@ needs = drums, abi >= 629
 required = 0
 restart = 0
 content = c37a4b0263ee33023c01b1bcc16a84e94cbbc6a7becdfdb7b8c3d9732c98bc7b
+
+[qtbase-dev-data-1]
+title = Qt (développement) (1/3)
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les données de Qt (développement), partie 1 sur 3
+size = 23497603
+installed = 73697054
+sha256 = 6aca48fcb1779726468a4bd241317ffbe80988e87dd9f6f14e3a387bdf52d294
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtbase-dev-data-1-1.0.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+part = qtbase-dev
+content = ccc7af9feab2a335404a719ba9bc0295c76ce4c869cc095fd5967f69dea9dff3
+
+[qtbase-dev-data-2]
+title = Qt (développement) (2/3)
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les données de Qt (développement), partie 2 sur 3
+size = 23268222
+installed = 80761135
+sha256 = 7a40ea5b60de31f08a25ed8bbd819a0617d993cb2841aaae17bd8818c22c6034
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtbase-dev-data-2-1.0.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+part = qtbase-dev
+content = ecdc0b004b8b0b213a1cdfa901281087521e88ae4fc390c424dd2c4dda03abf1
+
+[qtbase-dev-data-3]
+title = Qt (développement) (3/3)
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les données de Qt (développement), partie 3 sur 3
+size = 9786079
+installed = 27618088
+sha256 = 8f097109cedcb43b5b1f854ff447601a3c3f526d43cc457cef6d6d2aeaeb450e
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtbase-dev-data-3-1.0.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+part = qtbase-dev
+content = 388c8e48a673928a390d6d815b44c3eb3bb19a4eb2eea81f0c12a10b8f3967cd
+
+[qtbase-dev]
+title = Qt (développement)
+version = 6.10.2
+category = Développement
+author = Korin OS
+summary = Qt 6.10.2 pour le GCC de l'OS : QtCore, QtGui, QtWidgets, QtNetwork (OpenSSL), la plateforme korin (UIKit, barre de menus globale) et le style korin, statiques, avec moc, rcc, uic, qmake, qt-cmake pour Korin, dans /devtools/qt (licences LGPL-3 / GPL)
+size = 4354767
+installed = 15695389
+sha256 = 0a364354d883b25ec5e007bf3ad4cb43dc147e0abbe90acd039ca249c8a219a8
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtbase-dev-6.10.2.opk
+needs = zlib-dev, libpng-dev, brotli-dev, freetype-dev, harfbuzz-dev, openssl-dev, qtbase-dev-data-1, qtbase-dev-data-2, qtbase-dev-data-3, abi >= 629
+required = 0
+restart = 0
+content = e42044a66cf122476e8eb5b52d7e00f7eaa01aeaa6f7df4a7996e7a18b35c1fc
+
+[qtshadertools-dev]
+title = Qt Shader Tools (développement)
+version = 6.10.2
+category = Développement
+author = Korin OS
+summary = Qt 6.10.2 pour le GCC de l'OS : QtShaderTools (qsb, glslang, SPIRV-Cross), statique, dans /devtools/qt (licences LGPL-3 / GPL)
+size = 13651377
+installed = 43104942
+sha256 = 8f7603979743238f3a0a7ee0369a51c4b518923dc40d09c5ee923f1668a89244
+file = pkgs/qtshadertools-dev-6.10.2.opk
+needs = qtbase-dev, abi >= 629
+required = 0
+restart = 0
+content = ede8ae784e72e1b18f630ae343c828298ba96e7e01fbb06bfa4b856f71344a3b
+
+[qtsvg-dev]
+title = Qt SVG (développement)
+version = 6.10.2
+category = Développement
+author = Korin OS
+summary = Qt 6.10.2 pour le GCC de l'OS : QtSvg, QtSvgWidgets, plugins d'images et d'icônes SVG, statiques, dans /devtools/qt (licences LGPL-3 / GPL)
+size = 544030
+installed = 1936529
+sha256 = 06bfac645106954117e411aab6b99243d407cc706d6668873c75e64a7604c5a0
+file = pkgs/qtsvg-dev-6.10.2.opk
+needs = qtbase-dev, abi >= 629
+required = 0
+restart = 0
+content = 30a141ddb9c8b61315dc2ab949018e82e64f56c7293eed131de3daec940c6a2e
+
+[qtdeclarative-dev-data-1]
+title = Qt Quick et QML (développement) (1/10)
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les données de Qt Quick et QML (développement), partie 1 sur 10
+size = 30051588
+installed = 78258944
+sha256 = a90d908a62e7a09e92a760de14ff54903400c10b1f7234ce6f6b5b79470754c2
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtdeclarative-dev-data-1-1.0.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+part = qtdeclarative-dev
+content = 8aaeaccafb55d1a8ac0e395551be014abec7210879cfcb61dba56b3ffe64eb88
+
+[qtdeclarative-dev-data-2]
+title = Qt Quick et QML (développement) (2/10)
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les données de Qt Quick et QML (développement), partie 2 sur 10
+size = 30014188
+installed = 78172040
+sha256 = a5a05dc3b431fde9f0cff977510b319cb1139309360983d7b7eb67375f68c342
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtdeclarative-dev-data-2-1.0.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+part = qtdeclarative-dev
+content = 24a064ca7762472242302d3fb6cd8402f082725791ccf63c7b43b112b8cbb2ce
+
+[qtdeclarative-dev-data-3]
+title = Qt Quick et QML (développement) (3/10)
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les données de Qt Quick et QML (développement), partie 3 sur 10
+size = 23540581
+installed = 64906840
+sha256 = 3ba9613271551a27db943b47873b2d4b410d52608114c1e2ac4e89dcea557a77
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtdeclarative-dev-data-3-1.0.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+part = qtdeclarative-dev
+content = 19ed3a388173469748909192b498426e870c34e9f2d2aa794abbc19a0673c11c
+
+[qtdeclarative-dev-data-4]
+title = Qt Quick et QML (développement) (4/10)
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les données de Qt Quick et QML (développement), partie 4 sur 10
+size = 32321881
+installed = 81837160
+sha256 = 66cbae4b63462adf7076e0cdd0d4ed789e13677a65e00de5a643034e28237039
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtdeclarative-dev-data-4-1.0.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+part = qtdeclarative-dev
+content = c6d94b70249d2f10726f378c2187f361738595841491d51b07f9109f22032798
+
+[qtdeclarative-dev-data-5]
+title = Qt Quick et QML (développement) (5/10)
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les données de Qt Quick et QML (développement), partie 5 sur 10
+size = 23109011
+installed = 73484272
+sha256 = e1f6637ebd480d251a00cb402400c39cf37c3b2e57a1f7252ec418fce0424fc2
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtdeclarative-dev-data-5-1.0.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+part = qtdeclarative-dev
+content = 4ae844cc1cdfe274f7be951aba31302d23e717780ffac4e5ff61bfa0b48bd71f

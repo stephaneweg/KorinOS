@@ -1,6 +1,6 @@
 # Manifeste de MuseScore Studio, l'éditeur de partitions (docs/etude/MUSESCORE.md)
 name     = MuseScore Studio
-category = Multimédia
+category = Musique
 description = MuseScore Studio 4.7 : écrire, mettre en page, écouter et imprimer des partitions (son par AudioKit, SoundFont MS Basic).
 keywords = musescore partition musique notation composition solfège midi musicxml score music sheet
 help = Version d'essai pour Korin PC : interface en Qt Quick (rendu logiciel), menus dans la barre de menus de Korin.
