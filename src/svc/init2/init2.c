@@ -496,7 +496,9 @@ static long launch_request(void)
 	u64 want = M64(msg, 24);
 	if (uid == 0 && (want >> 32) == (INIT_LAUNCH_UID_TAG >> 32))
 		uid = (long)(u32)want;
-	if (sys_path_ok(launch_path)) { /* AppKit : droits (vfs : ATTR_SYS ; le noyau : init2 les a) */
+	if (uid < 0 && uid != E_NOSYS)
+		r = -3; /* E_SRCH (demandeur disparu, ou erreur : jamais lancé en uid 0 à sa place, E18) */
+	else if (sys_path_ok(launch_path)) { /* AppKit : droits (vfs : ATTR_SYS ; le noyau : init2 les a) */
 		r = uid > 0 ? ksys(SYS_SPAWN_AS, (long)launch_path, (long)args, uid, 0, 0, 0) : E_NOSYS;
 		if (r == E_NOSYS) /* (uid 0, ou AppKit sans SPAWN_AS) */
 			r = spawn(launch_path, args);
@@ -617,7 +619,7 @@ static long service_request(u64 op)
 	u64 who = M32(msg, 44);
 	long uid = korin_sys1(SYS_PROC_UID, (long)who);
 	long r = E_PERM;
-	if (uid <= 0) {
+	if (uid == 0 || uid == E_NOSYS) { /* (uid 0, ou le Pi ; E_SRCH : refusé) */
 		struct surv *found = 0; /* la place de cette ligne qui tourne */
 		for (int i = 0; i < SURV_MAX; i++)
 			if (surv[i].pid && same_line(surv[i].ligne, launch_path)) {
@@ -771,10 +773,11 @@ static void startup_si_ouverte(void)
 		return;
 	startup_attendu = 0;
 	session_uid = 1;
-	long n = list_load(conf_path("session.off", 0), sess_list, sizeof sess_list / 2); /* désactivés, puis manuels */
+	long su = user_session_uid(); /* (les fichiers du compte ouvert, pas ceux du HOME: d'init2, E30) */
+	long n = list_load(conf_path_uid(su, "session.off"), sess_list, sizeof sess_list / 2); /* désactivés, puis manuels */
 	sess_list[n] = 10;
-	list_load(conf_path("session.manual", 0), sess_list + n + 1, (long)sizeof sess_list - n - 1);
-	lancer_fichier(conf_path("startup.txt", 0), 0, sess_list, 0);
+	list_load(conf_path_uid(su, "session.manual"), sess_list + n + 1, (long)sizeof sess_list - n - 1);
+	lancer_fichier(conf_path_uid(su, "startup.txt"), 0, sess_list, 0);
 	session_uid = 0;
 }
 

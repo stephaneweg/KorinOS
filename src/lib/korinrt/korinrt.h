@@ -413,6 +413,7 @@ void vu_err(long e);              /* texte traduit sur 2, sans fin de ligne */
 /* ---- réglages personnels (conf.c, docs/etude/MULTI-UTILISATEUR.md §2.5) : lus dans
  * HOME:/etc/<nom>, sinon HOME:/.config/korin/<nom> (15/11), sinon /etc/<nom> ; écrits dans HOME:/etc/<nom> */
 const char *conf_path(const char *name, int write); /* tampon commun */
+const char *conf_path_uid(long uid, const char *name); /* (lecture) pour ce compte, pas pour HOME: de l'appelant */
 /* ce qu'on ne lance pas au démarrage (conf.c, docs/DEMARRAGE.md) : /etc/services.off, session.off */
 long list_load(const char *path, char *buf, long size); /* -> octets lus (0 : absent, buf vide) */
 int list_has(const char *list, const char *line);       /* 1 si la ligne (blancs autour ignorés) y est */
@@ -420,6 +421,8 @@ int list_has(const char *list, const char *line);       /* 1 si la ligne (blancs
 /* ---- comptes (users.c, docs/etude/MULTI-UTILISATEUR.md §2.1) : /etc/users.ini */
 long user_uid(const char *name);  /* uid du compte (name = 0 : le premier d'uid >= 1000), -1 : aucun */
 long user_session_uid(void);      /* le compte de la session (autologin de system.ini, sinon le premier) */
+int user_home(long uid, char *out, long cap); /* son dossier (users.ini) -> 1, 0 : aucun */
+int user_name(long uid, char *out, long cap); /* son nom (section de users.ini) -> 1, 0 : aucun */
 long spawn_session(const char *path, const char *args); /* spawn avec l'uid de la session (sinon spawn) */
 void spawn_session_next(void);    /* le prochain lancement (spawn_stdio...) avec l'uid de la session */
 

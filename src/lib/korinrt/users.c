@@ -97,6 +97,71 @@ long user_uid(const char *name)
 	return -1;
 }
 
+static void us_copy(char *d, const char *s, long cap)
+{
+	long n = 0;
+	while (s[n] && n < cap - 1) {
+		d[n] = s[n];
+		n++;
+	}
+	d[n] = 0;
+}
+
+/* le compte d'uid uid de users.ini : son nom (section) et son dossier (« home = ») -> 1, 0 : aucun */
+static int user_info(long uid, char *name, long ncap, char *out, long cap)
+{
+	char *p = us_load("/etc/users.ini");
+	if (out)
+		out[0] = 0;
+	if (name)
+		name[0] = 0;
+	if (!p || uid < 0)
+		return 0;
+	char home[160] = "", sec[64] = "";
+	long cur = -2;
+	char *l;
+	for (;;) {
+		l = us_line(&p);
+		if (!l || *l == '[') { /* fin d'une section : la bonne ? */
+			if (cur == uid && sec[0]) {
+				if (out)
+					us_copy(out, home, cap);
+				if (name)
+					us_copy(name, sec, ncap);
+				return 1;
+			}
+			if (!l)
+				return 0;
+			cur = -2;
+			home[0] = 0;
+			long n = 0;
+			for (l++; *l && *l != ']' && n < 63; l++)
+				sec[n++] = *l;
+			sec[n] = 0;
+			continue;
+		}
+		char *v, *k = us_kv(l, &v);
+		if (!k)
+			continue;
+		if (str_eq(k, "uid"))
+			cur = (long)parse_dec(v);
+		else if (str_eq(k, "home"))
+			us_copy(home, v, sizeof home);
+	}
+}
+
+/* le dossier personnel (« home = » de users.ini) du compte d'uid uid dans out (cap octets) -> 1, 0 : aucun */
+int user_home(long uid, char *out, long cap)
+{
+	return user_info(uid, 0, 0, out, cap) && out[0] == '/';
+}
+
+/* le nom (la section de users.ini) du compte d'uid uid -> 1, 0 : aucun */
+int user_name(long uid, char *out, long cap)
+{
+	return user_info(uid, out, cap, 0, 0);
+}
+
 /* spawn d'un programme de la session : avec l'uid du compte (SYS_SPAWN_AS d'AppKit, réservé à l'uid 0) ;
  * sans compte, sans uid dans le noyau (le Pi) ou appelant d'un autre uid : spawn ordinaire, l'uid du père */
 long spawn_session(const char *path, const char *args)
@@ -128,8 +193,12 @@ long user_session_uid(void)
 	char *l;
 	while (p && (l = us_line(&p))) {
 		char *v, *k = us_kv(l, &v);
-		if (k && str_eq(k, "uid"))
-			return (long)parse_dec(v);
+		if (k && str_eq(k, "uid")) {
+			long u = (long)parse_dec(v);
+			if (u > 0) /* (jamais l'uid 0 : la session est celle d'une personne) */
+				return u;
+			break;
+		}
 	}
 	p = us_load("/etc/system.ini");
 	while (p && (l = us_line(&p))) {

@@ -23,6 +23,10 @@ static const char *const secrets[] = {"/etc/shadow.ini", "/etc/wifi.txt", "/etc/
 				      "/etc/smbd.ini", "/etc/smbfs.ini", "/etc/web/certs", 0};
 /* refusés aux autres que l'uid 0 quel que soit le mode (sauf « off ») : les fichiers du coffre */
 static const char *const toujours[] = {"/var/keyvault", "/etc/keyvault", 0};
+/* en écriture, aux autres que l'uid 0, quel que soit le mode (sauf « off ») : les marques de session de /tmp,
+ * écrites par login, Elegant et init2 (uid 0) ; lues par tous. /tmp/session.ini dit sous quel compte vont la
+ * console, telnet et startup.txt : un compte qui l'écrivait y mettait l'uid 0 ou celui d'un autre (A1, E29) */
+static const char *const marques[] = {"/tmp/session.ini", "/tmp/login.halt", "/tmp/login.manual", 0};
 
 /* le chemin commence-t-il par le dossier d (« /home » couvre « /home » et « /home/a », pas « /homex ») ?
  * Sans la casse : FAT32 et exFAT trouvent « /ETC/SHADOW.INI » comme « /etc/shadow.ini » (E24, F1) */
@@ -81,6 +85,9 @@ static int permis(long uid, const char *p, int ecrire)
 			return 0;
 	for (int i = 0; toujours[i]; i++)
 		if (sous(p, toujours[i]))
+			return 0;
+	for (int i = 0; ecrire && marques[i]; i++)
+		if (sous(p, marques[i]))
 			return 0;
 	if (court_protege(p))
 		return 0; /* un nom court 8.3 sous /etc ou /var : peut-être un secret */
@@ -196,6 +203,9 @@ long acces_verifier(long pid, const char *interne, int ecrire)
 	for (int i = 0; toujours[i]; i++)
 		if (sous(ext, toujours[i]))
 			mode = ACCESS_ENFORCE; /* (le coffre : refusé même en mode journal) */
+	for (int i = 0; ecrire && marques[i]; i++)
+		if (sous(ext, marques[i]))
+			mode = ACCESS_ENFORCE; /* (les marques de session aussi) */
 	if (!deja_note(uid, ext, ecrire)) {
 		char n[24], nom[64];
 		u64 info[8] = {0};

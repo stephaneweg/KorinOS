@@ -91,7 +91,7 @@ static void pk_init(void)
 	pk_start = (u64)korin_sys0(SYS_TIME_MS) + PK_GRACE;
 	/* le fond : korin.theme n'est publié qu'au changement de thème, theme.txt donne celui
 	 * du démarrage (« Onyx Noir » : sombre) */
-	read_key(conf_path("theme.txt", 0), "theme");
+	read_key(conf_path_uid(user_session_uid(), "theme.txt"), "theme");
 	pk_face = ini_val[0] == 'O' ? PK_FACE_DARK : PK_FACE_LIGHT;
 }
 

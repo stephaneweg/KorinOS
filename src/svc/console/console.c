@@ -50,6 +50,13 @@ static long master;      /* bout maître du pty du shell (0 : aucun) */
 static long sh_pid;
 static volatile u64 *ring; /* abonnement à hidmanager */
 static long rows = 24, cols = 80;
+/* secours (init2, le bureau perdu : plat_shell_lost) : le shell du compte de la session, jamais en uid 0, et
+ * après son mot de passe s'il en a un (B4, E31) */
+static int secours, locked, has_pw;
+static long sess_uid;
+static char sess_name[64];
+static char pw[128];
+static u64 pwn;
 static u8 m[MSG_SIZE] __attribute__((aligned(16)));
 
 static void print(const void *s, u64 n)
@@ -106,6 +113,12 @@ static long start_sh(void)
 	ML(m) = 0;
 	vt_call();
 	long fds[3] = {slave, slave, slave};
+	if (secours && sess_uid <= 0) { /* (pas de compte : pas de shell d'uid 0 en secours) */
+		vt_close(slave);
+		vt_close(master);
+		master = 0;
+		return -1;
+	}
 	spawn_session_next(); /* le shell : sous le compte de la session (users.ini), pas en uid 0 */
 	long pid = f_spawn_stdio("/bin/bash", 0, fds);
 	if (pid < 0) {
@@ -250,6 +263,37 @@ static u64 key_encode(u32 code, u32 ch, u32 mods, u8 *out)
 }
 
 /* les touches arrivées -> le bout maître ; 1 si une touche est passée */
+/* le mot de passe tapé : vérifié par authd (AUTH_VERIFY, la console est d'uid 0) */
+static void unlock_try(void)
+{
+	long a = korin_sys2(SYS_SVC_OPEN, "auth", 3000);
+	long r = -1;
+	if (a >= 0) {
+		static u8 am[MSG_SIZE] __attribute__((aligned(16)));
+		memset(am, 0, MSG_SIZE);
+		MW(am, 0) = 9; /* AUTH_VERIFY : nom, 0, mot de passe */
+		u64 k = 0;
+		for (const char *s = sess_name; *s && k < 63; s++)
+			am[MSG_DATA + k++] = (u8)*s;
+		am[MSG_DATA + k++] = 0;
+		for (u64 i = 0; i < pwn && k < 400; i++)
+			am[MSG_DATA + k++] = (u8)pw[i];
+		am[MSG_DATA + k++] = 0;
+		ML(am) = (u32)k;
+		r = korin_sys2(SYS_SVC_CALL, a, am);
+		memset(am, 0, MSG_SIZE);
+	}
+	memset(pw, 0, sizeof pw);
+	pwn = 0;
+	if (r == 0) {
+		locked = 0;
+		return;
+	}
+	print_str("\nmot de passe refusé\n");
+	sys_sleep(2000);
+	print_str("mot de passe : ");
+}
+
 static int keys(void)
 {
 	int any = 0;
@@ -261,10 +305,23 @@ static int keys(void)
 		__atomic_thread_fence(__ATOMIC_SEQ_CST);
 		r[1] = r[1] + 1;
 		any = 1;
-		if ((u32)e0 != EV_KEY || !pressed || !master)
+		if ((u32)e0 != EV_KEY || !pressed || (!master && !locked))
 			continue;
 		u8 out[16];
 		u64 n = key_encode((u32)code, (u32)(e0 >> 32), (u32)mods, out);
+		if (locked) { /* le mot de passe : rien au shell, rien à l'écran */
+			for (u64 i = 0; i < n; i++) {
+				if (out[i] == '\r' || out[i] == '\n') {
+					pw[pwn] = 0;
+					unlock_try();
+				} else if (out[i] == 0x7F || out[i] == 8) {
+					if (pwn)
+						pwn--;
+				} else if (out[i] >= 0x20 && pwn < sizeof pw - 1)
+					pw[pwn++] = out[i];
+			}
+			continue;
+		}
 		if (n)
 			to_master(out, n);
 	}
@@ -339,10 +396,26 @@ static int from_master(void)
 	return 1;
 }
 
+/* secours avec un mot de passe : attendu avant chaque shell */
+static void ask_password(void)
+{
+	if (!secours || !has_pw)
+		return;
+	locked = 1;
+	print_str("\nKorin OS : console de secours. Compte ");
+	print_str(sess_name);
+	print_str(", mot de passe : ");
+	while (locked)
+		if (!keys())
+			sys_sleep(20);
+	print_str("\n");
+}
+
 int main(int argc, char **argv)
 {
-	(void)argc;
-	(void)argv;
+	for (int i = 1; i < argc; i++)
+		if (!strcmp(argv[i], "secours"))
+			secours = 1;
 	long hid = korin_sys2(SYS_SVC_OPEN, "hid", 10000);
 	if (hid < 0) {
 		ak_puts("console : hidmanager absent\n");
@@ -361,6 +434,28 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	screen_size();
+	if (secours) {
+		sess_uid = user_session_uid();
+		if (sess_uid <= 0 || !user_name(sess_uid, sess_name, sizeof sess_name)) {
+			print_str("\nKorin OS : console de secours : pas de compte de session, pas de shell.\n");
+			for (;;)
+				sys_sleep(60000);
+		}
+		long a = korin_sys2(SYS_SVC_OPEN, "auth", 5000);
+		long has = -1;
+		if (a >= 0) {
+			memset(m, 0, MSG_SIZE);
+			MW(m, 0) = 10; /* AUTH_HASPW : nom -> 1 / 0 */
+			u64 k = 0;
+			for (const char *s = sess_name; *s && k < 63; s++)
+				m[MSG_DATA + k++] = (u8)*s;
+			m[MSG_DATA + k++] = 0;
+			ML(m) = (u32)k;
+			has = korin_sys2(SYS_SVC_CALL, a, m);
+		}
+		has_pw = has != 0; /* (un mot de passe, ou authd ne répond pas : demandé quand même) */
+		ask_password();
+	}
 	int fails = 0;
 	long started = 0;
 	for (;;) {
@@ -382,6 +477,7 @@ int main(int argc, char **argv)
 			vt_close(master);
 			master = 0;
 			print_str("\n[shell fini]\n");
+			ask_password(); /* (secours : de nouveau le mot de passe avant le shell suivant) */
 			if (sys_time_ms() - started < 2000)
 				sys_sleep(2000); /* (un shell qui s'arrête aussitôt : pas de relance en rafale) */
 			continue;

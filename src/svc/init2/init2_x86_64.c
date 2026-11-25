@@ -64,11 +64,13 @@ static long each_proc(long sig, const char *name)
 			e[24 + 31] = 0;
 			if (pid <= 0 || pid == me)
 				continue;
+			/* gardé : par son nom ET ses droits (un programme nommé « vfs » n'échappe pas à l'arrêt) */
+			int keep_it = kept(nm) && korin_sys1(SYS_PROC_RIGHTS, pid) == 1;
 			if (name) {
-				left += str_eq(nm, name) != 0;
+				left += str_eq(nm, name) && (!kept(name) || keep_it);
 				continue;
 			}
-			if (kept(nm))
+			if (keep_it)
 				continue;
 			left++;
 			if (sig > 0)
@@ -266,5 +268,5 @@ void plat_shell_lost(void)
 		return;
 	console_started = 1;
 	say("init2 : pas de bureau : console texte en secours\n");
-	lancer_ligne("/sys/svc/console", 1);
+	lancer_ligne("/sys/svc/console secours", 1); /* (mot de passe du compte, jamais d'uid 0 : E31) */
 }

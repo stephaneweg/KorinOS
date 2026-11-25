@@ -41,6 +41,26 @@ const char *conf_path(const char *name, int write)
 	return conf_buf;
 }
 
+/* comme conf_path (lecture), pour le compte d'uid uid et non pour HOME: de l'appelant : init2 et Elegant
+ * (uid 0, dont le HOME: est celui du compte par défaut) lisent startup.txt, session.off, theme.txt du compte
+ * réellement ouvert (A4, E30) ; uid <= 0 ou sans dossier : conf_path */
+static char conf_buf_uid[200];
+const char *conf_path_uid(long uid, const char *name)
+{
+	char home[160];
+	if (uid <= 0 || !user_home(uid, home, sizeof home))
+		return conf_path(name, 0);
+	long st[2];
+	str_cat(str_cat(str_cat(conf_buf_uid, home), "/etc/"), name);
+	if (sys_stat(conf_buf_uid, st) >= 0)
+		return conf_buf_uid;
+	str_cat(str_cat(str_cat(conf_buf_uid, home), "/.config/korin/"), name);
+	if (sys_stat(conf_buf_uid, st) >= 0)
+		return conf_buf_uid;
+	str_cat(str_cat(conf_buf_uid, "/etc/"), name);
+	return conf_buf_uid;
+}
+
 /* ---- les listes de ce qu'on ne lance pas au démarrage (volet Démarrage de Réglages, docs/DEMARRAGE.md) :
  * /etc/services.off (la machine : lignes de /etc/services.txt qu'init2 saute) et session.off (personnel,
  * conf_path : lignes de /etc/session, session.poche ou startup.txt qu'Elegant et init2 sautent). Une ligne par

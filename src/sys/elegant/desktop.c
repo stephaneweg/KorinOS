@@ -231,9 +231,10 @@ static char sess_off[4096];
 
 static void session_run_file(const char *file, const char *defaults)
 {
-	long k = list_load(conf_path("session.off", 0), sess_off, sizeof sess_off / 2);
+	long su = user_session_uid(); /* (le compte ouvert, pas le HOME: d'Elegant, E30) */
+	long k = list_load(conf_path_uid(su, "session.off"), sess_off, sizeof sess_off / 2);
 	sess_off[k] = 10;
-	list_load(conf_path("session.manual", 0), sess_off + k + 1, (long)sizeof sess_off - k - 1);
+	list_load(conf_path_uid(su, "session.manual"), sess_off + k + 1, (long)sizeof sess_off - k - 1);
 	if (voronoy_early && voronoy_pid > 0 && list_has(sess_off, "/sys/voronoy")) { /* (lancé sous la connexion) */
 		ksys(SYS_KILL, voronoy_pid, 0, 0, 0, 0, 0);
 		voronoy_pid = 0;
