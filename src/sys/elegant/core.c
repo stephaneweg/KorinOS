@@ -470,6 +470,8 @@ void compose_clip(void)
 			}
 			if (pk_veil == w) /* (mode poche : le voile sous le dialogue) */
 				veil_fill();
+			if (w == drag_win && drag_zone) /* l'aperçu de l'ancrage, sous la fenêtre glissée */
+				drag_preview();
 			draw_window(w);
 		}
 	}
@@ -899,6 +901,87 @@ static long apps_open(const struct win *w)
 	return n;
 }
 
+/* ---- l'ancrage au glisser (25/11/2026, comme GNOME) : le pointeur contre le haut (la barre de menus comprise) :
+ * agrandie ; contre le bord gauche ou droit : la moitié de ce côté. Un aperçu translucide montre la place pendant
+ * le geste ; au relâché, win_snap (uikit_ops.c). Une fenêtre agrandie ou ancrée qu'on glisse de plus de DRAG_UNSNAP
+ * pixels reprend sa taille d'avant, le pointeur à la même place en proportion. Seulement les fenêtres à cadre
+ * redimensionnables (ni barres, ni menus, ni dialogues de taille fixe). */
+#define DRAG_EDGE 4      /* pixels du bord de l'écran qui ancrent */
+#define DRAG_UNSNAP 10
+long drag_zone;            /* WR_MAX, WR_LEFT, WR_RIGHT sous le pointeur (0 : aucune) */
+static long drag_ox, drag_oy; /* la place de la fenêtre avant le geste */
+static long drag_px, drag_py; /* le pointeur à l'appui */
+static long drag_unsnap;      /* 1 : agrandie ou ancrée, pas encore rendue */
+
+void drag_begin(struct win *w, long x, long y)
+{
+	drag_win = w;
+	drag_dx[0] = x - w->x;
+	drag_dx[1] = y - w->y;
+	drag_ox = w->x;
+	drag_oy = w->y;
+	drag_px = x;
+	drag_py = y;
+	drag_unsnap = win_restore[w - windows][WR_ON] != 0;
+	drag_zone = 0;
+}
+
+/* -> la zone d'ancrage sous le pointeur (0 : aucune) */
+static long drag_zone_at(struct win *w, long x, long y)
+{
+	if ((w->flags & (WF_FRAMELESS | WF_RESIZABLE)) != WF_RESIZABLE || (w->flags & WF_MODAL))
+		return 0;
+	if (x < DRAG_EDGE)
+		return WR_LEFT;
+	if (x >= scr_w - DRAG_EDGE)
+		return WR_RIGHT;
+	if (y < area_top + DRAG_EDGE)
+		return WR_MAX;
+	return 0;
+}
+
+/* la zone change : l'ancien aperçu et le nouveau redessinés */
+static void drag_zone_set(long z)
+{
+	if (z == drag_zone)
+		return;
+	long x, y, wd, ht;
+	if (drag_zone) {
+		win_zone(drag_zone, &x, &y, &wd, &ht);
+		dirty(x, y, wd, ht);
+	}
+	drag_zone = z;
+	if (z) {
+		win_zone(z, &x, &y, &wd, &ht);
+		dirty(x, y, wd, ht);
+	}
+}
+
+/* (compose_clip) l'aperçu : un voile clair sur la place, un liseré plus clair, en retrait de 8 px */
+void drag_preview(void)
+{
+	long x, y, wd, ht;
+	win_zone(drag_zone, &x, &y, &wd, &ht);
+	x += 8;
+	y += 8;
+	wd -= 16;
+	ht -= 16;
+	for (long j = 0; j < ht; j++) {
+		long yy = y + j;
+		if (yy < clip_r.y0 || yy >= clip_r.y1)
+			continue;
+		u32 *row = (u32 *)((u8 *)bb + yy * bb_pitch);
+		long edge_y = j < 2 || j >= ht - 2;
+		for (long i = 0; i < wd; i++) {
+			long xx = x + i;
+			if (xx < clip_r.x0 || xx >= clip_r.x1)
+				continue;
+			u32 t = edge_y || i < 2 || i >= wd - 2 ? 70 : 165; /* (transparence du blanc : bord, dedans) */
+			row[xx] = blend(0x00FFFFFF, row[xx], t);
+		}
+	}
+}
+
 /* x, y, boutons */
 void mouse(long x, long y, long buttons)
 {
@@ -924,21 +1007,40 @@ void mouse(long x, long y, long buttons)
 			resize_end(x, y);
 		return;
 	}
-	/* --- déplacement d'une fenêtre en cours */
+	/* --- déplacement d'une fenêtre en cours (et l'ancrage aux bords : drag_zone) */
 	if (drag_win) {
 		struct win *w = drag_win;
 		if (!(buttons & 1)) {
+			long z = drag_zone;
+			drag_zone_set(0);
 			drag_win = 0;
+			if (z)
+				win_snap(w, z, drag_ox, drag_oy);
 			return;
+		}
+		if (drag_unsnap) { /* agrandie ou ancrée : rendue à sa taille d'avant dès que le pointeur s'éloigne */
+			if (x - drag_px < DRAG_UNSNAP && drag_px - x < DRAG_UNSNAP && y - drag_py < DRAG_UNSNAP && drag_py - y < DRAG_UNSNAP)
+				return;
+			drag_unsnap = 0;
+			long *r = win_restore[w - windows], ow = w->w > 0 ? w->w : 1, rw = r[WR_W];
+			long dx = drag_dx[0] * rw / ow; /* (le pointeur garde sa place, en proportion, dans la largeur) */
+			if (dx > rw - 40)
+				dx = rw - 40;
+			if (dx < 40)
+				dx = rw < 80 ? rw / 2 : 40;
+			drag_dx[0] = dx;
+			drag_ox = x - dx; /* (sa place d'avant, si on l'ancre de nouveau) */
+			drag_oy = y - drag_dx[1];
+			win_unsnap(w);
 		}
 		dirty_window(w);
 		long nx = x - drag_dx[0], ny = y - drag_dx[1];
-		long top = area_top + FRAME_TITLE_H; /* barre de titre sous la barre de menus */
-		if (ny < top)
-			ny = top;
+		if (ny < area_top) /* le haut du contenu : sous la barre de menus (l'ombre passe dessous) */
+			ny = area_top;
 		w->x = nx;
 		w->y = ny;
 		dirty_window(w);
+		drag_zone_set(drag_zone_at(w, x, y));
 		return;
 	}
 	/* --- capture : boutons tenus après un clic dans un contenu */
@@ -1005,9 +1107,7 @@ void mouse(long x, long y, long buttons)
 	}
 	switch (zone) {
 	case Z_TITLE:
-		drag_win = w;
-		drag_dx[0] = x - w->x;
-		drag_dx[1] = y - w->y;
+		drag_begin(w, x, y);
 		return;
 	case Z_MAXI:
 		win_maximize(w);

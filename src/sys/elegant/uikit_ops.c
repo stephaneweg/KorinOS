@@ -132,6 +132,13 @@ void win_maximize(struct win *w)
 	long *r = win_restore[w - windows];
 	long nw, nh;
 	dirty_window(w);
+	if (r[WR_ON] == WR_LEFT || r[WR_ON] == WR_RIGHT) { /* ancrée à une moitié : agrandie (sa place d'avant gardée) */
+		r[WR_ON] = WR_MAX;
+		win_zone(WR_MAX, &w->x, &w->y, &nw, &nh);
+		dirty_window(w);
+		resize_post(w, nw, nh);
+		return;
+	}
 	if (r[WR_ON]) { /* rendue */
 		r[WR_ON] = 0;
 		w->x = r[WR_X];
@@ -148,6 +155,47 @@ void win_maximize(struct win *w)
 	}
 	dirty_window(w);
 	resize_post(w, nw, nh);
+}
+
+/* ---- l'ancrage au glisser (25/11/2026, comme GNOME) : contre le haut, agrandie ; contre un côté, la moitié de ce
+ * côté, toute la hauteur ; une fenêtre agrandie ou ancrée qu'on glisse reprend sa taille d'avant (core.c, mouse) */
+
+void win_zone(long kind, long *x, long *y, long *wd, long *ht)
+{
+	screen_work(x, y, wd, ht);
+	if (kind == WR_LEFT || kind == WR_RIGHT) {
+		long half = *wd / 2;
+		if (kind == WR_RIGHT)
+			*x += *wd - half;
+		*wd = half;
+	}
+}
+
+void win_snap(struct win *w, long kind, long ox, long oy)
+{
+	long *r = win_restore[w - windows];
+	long nw, nh;
+	dirty_window(w);
+	if (!r[WR_ON]) { /* sa place d'avant le glisser, sa taille */
+		r[WR_X] = ox;
+		r[WR_Y] = oy;
+		r[WR_W] = w->w;
+		r[WR_H] = w->h;
+	}
+	r[WR_ON] = kind;
+	win_zone(kind, &w->x, &w->y, &nw, &nh);
+	dirty_window(w);
+	resize_post(w, nw, nh);
+}
+
+void win_unsnap(struct win *w)
+{
+	long *r = win_restore[w - windows];
+	if (!r[WR_ON])
+		return;
+	dirty_window(w);
+	r[WR_ON] = 0;
+	resize_post(w, r[WR_W], r[WR_H]);
 }
 
 /* ---- espaces de travail (WS_OP_DESK) : w->desk = l'espace d'une fenêtre + 1 ; celles d'un
@@ -229,9 +277,7 @@ long req_win_drag(void)
 	if (capture_win != w)
 		return E_INVAL;
 	capture_win = 0;
-	drag_win = w;
-	drag_dx[0] = cur_x - w->x;
-	drag_dx[1] = cur_y - w->y;
+	drag_begin(w, cur_x, cur_y);
 	return 0;
 }
 
