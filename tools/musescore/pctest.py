@@ -49,6 +49,8 @@ def prep(a):
     os.makedirs(t, exist_ok=True)
     for f in sorted(glob.glob(os.path.join(DEMOS, "*.mscz")))[:4] + [os.path.join(DEMOS, "Dawn.mscx")]:
         shutil.copy(f, os.path.join(t, os.path.basename(f).replace(" ", "_")))
+    for f in a.score:	# (--score FICHIER : une partition de plus, celle d'un retour de l'utilisateur)
+        shutil.copy(f, os.path.join(t, os.path.basename(f).replace(" ", "_")))
     # (les essais : le premier lancement passé, pas d'introduction ; HOME=/home sous telnet)
     cfg = os.path.join(TROOT, "home", ".config", "MuseScore")
     os.makedirs(cfg, exist_ok=True)
@@ -74,6 +76,7 @@ def prep(a):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--score", action="append", default=[])
     ap.add_argument("mode", choices=["prep", "run"])
     ap.add_argument("cmd", nargs="*")
     ap.add_argument("--mb", type=int, default=1200)

@@ -83,9 +83,9 @@ bool KorinAudioDriver::open(const Spec& spec, Spec* activeSpec)
     if (m_spec.output.audioChannelCount != 2) {
         m_spec.output.audioChannelCount = 2;	// (AudioKit : stéréo)
     }
-    if (m_spec.output.sampleRate != 44100 && m_spec.output.sampleRate != 48000) {
-        m_spec.output.sampleRate = 44100;
-    }
+    // 44,1 kHz : la fréquence d'AudioKit (copie directe dans le service sound) et celle de son synthé, qui joue
+    // la musique (korinfluidsynth.inc)
+    m_spec.output.sampleRate = 44100;
     m_stream = ak_open(long(m_spec.output.sampleRate), 2, 16, 0);
     if (m_stream < 0) {
         LOGE() << "AudioKit : pas de flux (service sound) : " << m_stream;
@@ -191,5 +191,5 @@ std::vector<samples_t> KorinAudioDriver::availableOutputDeviceBufferSizes() cons
 
 std::vector<sample_rate_t> KorinAudioDriver::availableOutputDeviceSampleRates() const
 {
-    return { 44100, 48000 };
+    return { 44100 };
 }

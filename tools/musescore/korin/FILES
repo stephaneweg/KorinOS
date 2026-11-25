@@ -2,3 +2,5 @@ src/framework/audio/driver/platform/korin/korinaudiodriver.cpp korinaudiodriver.
 src/framework/audio/driver/platform/korin/korinaudiodriver.h korinaudiodriver.h
 src/framework/ui/internal/platform/korin/korinplatformtheme.cpp korinplatformtheme.cpp
 src/framework/ui/internal/platform/korin/korinplatformtheme.h korinplatformtheme.h
+src/framework/audio/engine/internal/synthesizers/fluidsynth/korinaudiokit.h korinaudiokit.h
+src/framework/audio/engine/internal/synthesizers/fluidsynth/korinfluidsynth.inc korinfluidsynth.inc

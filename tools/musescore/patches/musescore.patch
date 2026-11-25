@@ -177,6 +177,78 @@ index 950c7086..5166e97c 100644
  elseif(OS_IS_WASM)
      target_sources(muse_audio_driver PRIVATE
          platform/web/webaudiodriver.cpp
+diff --git a/src/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsoundfontparser.cpp b/src/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsoundfontparser.cpp
+index 6993c32e..9a65aeac 100644
+--- a/src/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsoundfontparser.cpp
++++ b/src/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsoundfontparser.cpp
+@@ -31,8 +31,45 @@
+ using namespace muse;
+ using namespace muse::audio::synth;
+ 
++#ifdef __armpi__
++#include "korinaudiokit.h"
++#include <cstdint>
++#include <cstring>
++#endif
++
+ RetVal<SoundFontMeta> FluidSoundFontParser::parseSoundFont(const SoundFontPath& path)
+ {
++#ifdef __armpi__
++    // Korin OS : une seule SoundFont, celle du système qu'AudioKit joue (ak_sf_default) ; ses presets, sous le nom
++    // « MS Basic » que MuseScore prend par défaut (et que citent les partitions)
++    {
++        const auto& ak = muse::audio::korin::AudioKit::get();
++        const long sf = ak.ok() ? ak.sf_default() : 0;
++        SoundFontMeta meta;
++        meta.name = "MS Basic";
++        meta.path = path;
++        const long n = sf > 0 && ak.sf_presets ? ak.sf_presets(sf) : 0;
++        for (long i = 0; i < n; ++i) {
++            unsigned char buf[muse::audio::korin::AudioKit::AKSP_SIZE] = {};
++            if (ak.sf_preset(sf, i, buf) < 0) {
++                continue;
++            }
++            uint32_t bank = 0, program = 0;
++            std::memcpy(&bank, buf + muse::audio::korin::AudioKit::AKSP_BANK, 4);
++            std::memcpy(&program, buf + muse::audio::korin::AudioKit::AKSP_PROGRAM, 4);
++            const char* name = reinterpret_cast<const char*>(buf + muse::audio::korin::AudioKit::AKSP_NAME);
++            if (!std::strcmp(name, "EOP")) {
++                continue;	// (la fin de la liste des presets du fichier)
++            }
++            SoundFontPreset preset;
++            preset.program = midi::Program(bank, program);
++            preset.name = name;
++            meta.presets.emplace_back(std::move(preset));
++        }
++        return RetVal<SoundFontMeta>::make_ok(meta);
++    }
++#endif
++
+     fluid_settings_t* settings = nullptr;
+     fluid_sfloader_t* loader = nullptr;
+     fluid_sfont_t* sfont = nullptr;
+diff --git a/src/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsynth.cpp b/src/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsynth.cpp
+index c9f91f31..e5985673 100644
+--- a/src/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsynth.cpp
++++ b/src/framework/audio/engine/internal/synthesizers/fluidsynth/fluidsynth.cpp
+@@ -22,6 +22,11 @@
+ 
+ #include "fluidsynth.h"
+ 
++#ifdef __armpi__
++// Korin OS : le synthé d'AudioKit et la SoundFont du système (tools/musescore/korin/korinfluidsynth.inc)
++#include "korinfluidsynth.inc"
++#else
++
+ #include <fluidsynth.h>
+ 
+ #include "audio/common/audioerrors.h"
+@@ -514,3 +519,5 @@ int FluidSynth::setPitchBend(int channel, int pitchBend)
+ 
+     return fluid_synth_pitch_bend(m_fluid->synth, channel, pitchBend);
+ }
++
++#endif // __armpi__
 diff --git a/src/framework/audio/main/internal/audioconfiguration.cpp b/src/framework/audio/main/internal/audioconfiguration.cpp
 index babb868d..6e87d1ff 100644
 --- a/src/framework/audio/main/internal/audioconfiguration.cpp
@@ -227,6 +299,23 @@ index a612d4bf..86439c86 100644
 +    return std::make_shared<KorinAudioDriver>();
 +#endif
  }
+diff --git a/src/framework/audio/main/platform/general/generalsoundfontcontroller.cpp b/src/framework/audio/main/platform/general/generalsoundfontcontroller.cpp
+index dde65305..6a44c653 100644
+--- a/src/framework/audio/main/platform/general/generalsoundfontcontroller.cpp
++++ b/src/framework/audio/main/platform/general/generalsoundfontcontroller.cpp
+@@ -136,6 +136,12 @@ void GeneralSoundFontController::doLoadSoundFonts()
+ {
+     TRACEFUNC;
+ 
++#ifdef __armpi__
++    // Korin OS : pas de fichier à lire, la SoundFont est celle d'AudioKit (fluidsoundfontparser.cpp)
++    loadSoundFonts({ io::path_t("/res/soundfonts/MS Basic.sf2") });
++    return;
++#endif
++
+     static const std::vector<std::string> filters = { "*.sf2",  "*.sf3" };
+     io::paths_t dirs = configuration()->soundFontDirectories();
+ 
 diff --git a/src/framework/audio/thirdparty/fluidsynth/fluidsynth-2.3.3/src/external/portable_endian.h b/src/framework/audio/thirdparty/fluidsynth/fluidsynth-2.3.3/src/external/portable_endian.h
 index 3e549d58..73694c04 100644
 --- a/src/framework/audio/thirdparty/fluidsynth/fluidsynth-2.3.3/src/external/portable_endian.h

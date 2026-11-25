@@ -14,6 +14,10 @@ mkdir -p "$A"
 ${TC}strip --strip-all -o "$A/main" "$MINST/bin/mscore"
 chmod +x "$A/main"
 cp -r "$MINST"/share/mscore-*/ "$A/share"
+# (pas la SoundFont MS Basic, 51 Mo : MuseScore joue par le synthé d'AudioKit et la SoundFont du système,
+# /res/soundfonts ; korin/korinfluidsynth.inc)
+rm -f "$A"/share/sound/*.sf2 "$A"/share/sound/*.sf3
+rmdir "$A/share/sound" 2>/dev/null || true
 # les traductions : les .ts de la source compilés par le lrelease de l'hôte (qttools, sans LinguistTools pour
 # Korin), et ceux de Qt (qttranslations : qtbase_xx) ; MuseScore charge locale/*_<langue>.qm
 LREL=$K/host-obj/qttools/bin/lrelease
