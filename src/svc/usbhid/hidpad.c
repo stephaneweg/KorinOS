@@ -119,8 +119,12 @@ int pad_parse(const u8 *d, u32 len)
 static u32 pad_bits(const u8 *r, u32 pos, u32 n)
 {
 	u32 v = 0;
+	if (n > 32)
+		n = 32;
 	for (u32 i = 0; i < n; i++) {
 		u32 b = pos + i;
+		if ((b >> 3) >= hid_rep_len) /* (hors du rapport : 0, P9) */
+			break;
 		v |= (u32)((r[b >> 3] >> (b & 7)) & 1) << (i & 31);
 	}
 	return v;

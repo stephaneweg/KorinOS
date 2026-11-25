@@ -46,6 +46,9 @@ struct hid_fn {
 /* hidparse.c (hid.inc) */
 void hid_parse(struct hid_fn *f, const u8 *d, u32 len);
 void usb_report_parsed(struct hid_fn *f, const u8 *data);
+/* octets valables du rapport en cours (hiddrv.c le pose avant chaque rapport) : les positions et tailles venues du
+ * descripteur ne lisent pas au-delà (P9) */
+extern u32 hid_rep_len;
 void usb_report_kbd(struct hid_fn *f, const u8 *rep);
 void usb_report_mouse(const u8 *rep);
 void usb_report_tablet(const u8 *rep);

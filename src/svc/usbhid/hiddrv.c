@@ -225,6 +225,7 @@ int hid_driver_run(const char *name, int pad)
 		if (r <= 0)
 			continue; /* (attente trop longue : on redemande) */
 		const u8 *d = msg + 48;
+		hid_rep_len = (u64)r < sizeof msg - 48 ? (u32)r : (u32)(sizeof msg - 48);
 		switch (hf.kind) {
 		case HID_REPORT:
 			usb_report_parsed(&hf, d);

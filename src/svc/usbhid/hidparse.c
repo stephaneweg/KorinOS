@@ -197,11 +197,18 @@ void hid_parse(struct hid_fn *f, const u8 *d, u32 len)
 
 /* données, position (bits), taille -> valeur (bits au-delà de 64 perdus,
  * décalages modulo 64 comme lslv) */
+u32 hid_rep_len;
+
 static u64 hid_bits(const u8 *d, u64 pos, u64 n)
 {
 	u64 v = 0;
-	for (u64 i = 0; i < n; i++, pos++)
+	if (n > 64) /* (au-delà, les bits se perdaient ; un descripteur piégé faisait tourner des milliards de fois) */
+		n = 64;
+	for (u64 i = 0; i < n; i++, pos++) {
+		if ((pos >> 3) >= hid_rep_len) /* (hors du rapport : 0, P9) */
+			break;
 		v |= (u64)((d[pos >> 3] >> (pos & 7)) & 1) << (i & 63);
+	}
 	return v;
 }
 
@@ -233,7 +240,7 @@ void usb_report_parsed(struct hid_fn *f, const u8 *data)
 					hid_boot[k++] = (u8)v;
 			}
 		} else if (f->k_bmp >= 0) { /* table de bits */
-			for (u32 i = 0; i < (u32)f->k_bmpn && k < 8; i++)
+			for (u32 i = 0; i < (u32)f->k_bmpn && i < 256 && k < 8; i++)
 				if (hid_bits(data, (u32)(f->k_bmp + (i32)i), 1))
 					hid_boot[k++] = (u8)(f->k_bmpmin + (i32)i);
 		}
