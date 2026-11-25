@@ -193,6 +193,7 @@ void snap_exit(long pid);
 long req_win_list(void);
 int ws_trusted(void); /* (remote.c) l'appelant de msg : uid 0 ou un programme de la liste (G4) */
 int ws_secure_caller(void); /* (remote.c) l'appelant de msg : /sys/authcard ou /sys/login en uid 0 (A5) */
+int ws_sysui_caller(void); /* (remote.c) l'appelant de msg : uid 0, un programme de /sys ou de la liste (G3) */
 struct win *secure_top(void); /* (core.c) la fenêtre sûre visible la plus en avant, 0 : aucune */
 long req_win_read(void);
 long req_win_move(void);

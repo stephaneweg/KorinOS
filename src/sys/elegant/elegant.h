@@ -88,6 +88,8 @@ struct win {
 	u64 framep;  /* 1 : WEV_FRAME à envoyer */
 	u64 desk;    /* son espace de travail + 1 (0 : tous) */
 	u64 secure;  /* 1 : de /sys/authcard ou /sys/login en uid 0 (couche sûre, clavier gardé : A5) */
+	u64 sysui;   /* 1 : d'un programme du système (uid 0, /sys, la liste de remote.c) : sa capture (WF_GRAB)
+		      * vaut même quand le premier plan est à une autre app (G3) */
 };
 
 /* ---- la table d'un mode (mode.inc, POL_*) */

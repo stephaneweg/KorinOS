@@ -73,6 +73,27 @@ int ws_secure_caller(void)
 	return ws_ieq(e, "/sys/authcard") || ws_ieq(e, "/sys/login");
 }
 
+/* G3 : les interfaces du système (panel, barre des menus, menus rapides...) ; /sys est protégé en écriture dans
+ * tous les modes. Le Pi : 1 */
+int ws_sysui_caller(void)
+{
+	if (ws_trusted())
+		return 1;
+	long pid = M32(msg, WM_PID);
+	if (korin_sys2(SYS_PROC_EXE, pid, ws_pex) < 0 || (*(u32 *)ws_pex & 5) != 1)
+		return 0;
+	ws_pex[40 + 127] = 0;
+	const char *e = (const char *)ws_pex + 40, *c = e;
+	while (*c && *c != ':' && c - e < 8)
+		c++;
+	if (*c == ':' && c[1] == '/')
+		e = c + 1;
+	const char *pre = "/sys/";
+	while (*pre && (*e | 0x20) == *pre)
+		e++, pre++;
+	return !*pre;
+}
+
 /* la fenêtre est-elle à l'appelant, ou l'appelant est-il de la liste ? */
 static int ws_may(const struct win *w)
 {

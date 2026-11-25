@@ -681,13 +681,18 @@ struct win *key_target(void)
 }
 
 /* -> fenêtre visible qui capture (WF_GRAB, la plus en avant), 0 sinon ; une fenêtre sûre ouverte : seulement
- * une fenêtre sûre (la liste déroulante de l'écran de connexion) */
+ * une fenêtre sûre (la liste déroulante de l'écran de connexion). Sinon, la capture d'une app ne vaut que si
+ * elle est au premier plan (son menu ouvert) : une fenêtre de 1 point WF_GRAB ouverte par une app en arrière-plan
+ * recevait toutes les frappes destinées aux autres (G3) ; celles du système (panel, menus rapides) valent
+ * toujours */
 struct win *find_grab(void)
 {
 	int sec = secure_top() != 0;
 	for (long i = win_count; i;) {
 		struct win *w = win_z[--i];
-		if (!w->mini && (w->flags & WF_GRAB) && (!sec || w->secure))
+		if (w->mini || !(w->flags & WF_GRAB))
+			continue;
+		if (sec ? w->secure : (w->sysui || !win_focus || win_focus->pid == w->pid))
 			return w;
 	}
 	return 0;
@@ -1556,6 +1561,7 @@ long req_create(void)
 	w->framep = 0;
 	w->flags = role;
 	w->secure = (u64)ws_secure_caller();
+	w->sysui = w->secure || ((role & WF_GRAB) && ws_sysui_caller()); /* (seulement utile avec WF_GRAB) */
 	w->mini = ((role & (WF_OVERVIEW | WF_APPGRID)) && !ov_on) ? MINI_OVERVIEW : 0; /* (le dash, la grille :
 										   seulement dans la vue) */
 	w->desk = role & (WF_BACK | WF_TOP) ? 0 : (u64)desk_cur + 1; /* sur l'espace courant ; fond et
