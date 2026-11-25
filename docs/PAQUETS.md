@@ -258,7 +258,10 @@ seulement commite et pousse l'index. L'archive y va par le workflow « Release u
 (`.github/workflows/release-upload.yml`) : une branche sans historique commun `release-upload/NOM-VERSION` qui ne
 porte que `upload/<archive>.opk`, poussée, puis le workflow lancé (`workflow_dispatch`, entrée `branch`) ; il ajoute
 l'archive à la Release (jamais de remplacement) et supprime la branche (le proxy refuse aussi la suppression d'une
-branche). Le script :
+branche). Les anciennes versions restent dans la Release (pub.py ajoute la nouvelle archive sans retirer
+l'ancienne) : le workflow « Release prune » (`.github/workflows/release-prune.yml`, `dry_run` vrai par défaut) retire
+celles qu'aucun index de `main` (PC et Pi) ne cite plus, sauf les motifs `keep` (le SDK de Jet en cours, téléchargé par
+son nom) et celles de moins de `min_age_hours` (une publication en cours). Le script :
 
 1. `git fetch` ; la base est l'index d'**`origin/main`** (`packages/pc/index.txt`), jamais une archive plus ancienne
    que la dernière publiée ;
