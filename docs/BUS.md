@@ -137,8 +137,8 @@ chaque départ (longueur `BUS_DELETED`).
   1,5 s après, pour la taille finale : vfs ne voit pas la fin d'une écriture). Comme Nautilus de GNOME sur inotify.
 * Chaque fenêtre de Fichiers s'abonne à `korin.files.changed` et relit son dossier s'il est dans la
   liste (sauf la sienne, reconnue au pid) : un élément déposé d'une fenêtre dans l'autre disparaît
-  de la première. vfs ne signale pas les changements de fichiers : ceux d'un autre programme (le
-  shell) restent à Actualiser. Seule la dernière valeur est lisible : deux publications très
+  de la première. Les changements d'un autre programme (le shell) arrivent par le guet de vfs
+  (`korin.fs.watch.<pid>`, ci-dessus, depuis le 25/11/2026). Seule la dernière valeur est lisible : deux publications très
   rapprochées, la première peut être manquée.
 * usbstorage s'abonne au sujet de sa clé (`korin.usb.device.<n>`) et dort jusqu'à ce qu'usbd le
   retire, au lieu de demander chaque seconde si la clé est encore là.
