@@ -22,6 +22,7 @@
  * dans hwmanager_aarch64.c. */
 #include "hwmanager.h"
 #include "pci.h"
+#include "caller.h"
 
 #define HW_OP_USB 1
 #define HW_OP_USB_RETRAIT 2
@@ -431,10 +432,14 @@ next:;
 		u64 op = M64(msg, 0);
 		long r;
 		if (op == SVC_OP_END) { /* (avis) un process s'est arrêté */
-			driver_end(M64(msg, 8), (u32)M64(msg, 16));
+			if (svc_from_kernel(msg))
+				driver_end(M64(msg, 8), (u32)M64(msg, 16));
 			continue;
 		}
-		if (op == HW_OP_USB_RETRAIT) {
+		/* annonces et retraits : usbd et pcid (droits de /sys) ; une app ne fait lancer aucun pilote */
+		if ((op == HW_OP_USB_RETRAIT || op == HW_OP_USB || op == HW_OP_PCI) && !caller_rights(M32(msg, 44)))
+			r = E_PERM;
+		else if (op == HW_OP_USB_RETRAIT) {
 			say("hwmanager : usb "); /* (le pilote s'arrête de lui-même) */
 			say_dec((long)M64(msg, 8));
 			say(" retire\n");

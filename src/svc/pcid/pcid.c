@@ -25,6 +25,7 @@
  * leur servirait qu'avec une autre découverte (voir PC-PILOTES.md). */
 #include "korinrt.h"
 #include "pci.h"
+#include "caller.h"
 
 #define FUNC_MAX 256
 #define SEG_MAX 4
@@ -419,16 +420,56 @@ static void release_pid(int pid)
 		}
 }
 
+/* (E41) ce qu'un pilote peut écrire dans la configuration de sa fonction : une adresse MSI seulement
+ * dans la fenêtre des interruptions (celles que rend SYS_IRQ_MSI) : sinon le périphérique écrit, par
+ * une « interruption », où l'on veut en RAM ; une BAR seulement si elle vaut 0 (i2chid assigne une
+ * BAR0 que le micrologiciel a laissée vide) ; rien dans un pont (ses fenêtres) */
+static uint32_t merged(uint32_t cur, unsigned off, unsigned size, uint32_t v)
+{
+	unsigned sh = (off & 3) * 8;
+	uint32_t mask = size == 4 ? 0xFFFFFFFFu : size == 2 ? 0xFFFFu : 0xFFu;
+	return (cur & ~(mask << sh)) | ((v & mask) << sh);
+}
+
+static int cfg_write_ok(struct pci_info *f, unsigned off, unsigned size, uint32_t v)
+{
+	if ((f->hdr & 0x7F) != 0)
+		return 0;
+	unsigned d = off & 0xFFC; /* (une écriture alignée ne passe pas un mot de 32 bits, wr) */
+	if (d >= 0x10 && d < 0x28 && rd(f->addr, d, 4) != 0)
+		return 0; /* une BAR déjà assignée */
+	if (d == 0x30)
+		return 0; /* la ROM d'extension */
+	if (f->cap_msi) {
+		unsigned a = f->cap_msi + 4u;
+		if (d == a && (merged(rd(f->addr, a, 4), off, size, v) & 0xFFF00000u) != 0xFEE00000u)
+			return 0;
+		if (f->msi_64 && d == a + 4 && merged(rd(f->addr, a + 4, 4), off, size, v) != 0)
+			return 0;
+	}
+	return 1;
+}
+
 static void serve(long req)
 {
 	uint64_t *m = (uint64_t *)msg;
 	int pid = (int)*(uint32_t *)(msg + 44);
 	long r = E_INVAL;
 	struct pci_info *f;
+	if (m[0] >= 0xFFF0) { /* les avis : du noyau seulement (pid 0), sans réponse */
+		if (m[0] == SVC_OP_END && svc_from_kernel(msg))
+			release_pid((int)m[1]);
+		return;
+	}
+	/* prendre, rendre, écrire la configuration, relire le bus, annoncer : les pilotes et init2 (droits
+	 * de /sys) ; COUNT, INFO, FIND, CFG_READ restent ouverts (lspci) */
+	if ((m[0] == PCI_OP_CLAIM || m[0] == PCI_OP_RELEASE || m[0] == PCI_OP_CFG_WRITE || m[0] == PCI_OP_RESCAN ||
+	     m[0] == PCI_OP_ANNOUNCE) && !caller_rights(pid)) {
+		m[0] = (uint64_t)E_PERM;
+		korin_sys2(SYS_SVC_REPLY, req, msg);
+		return;
+	}
 	switch (m[0]) {
-	case SVC_OP_END:
-		release_pid((int)m[1]);
-		return; /* (avis : pas de réponse) */
 	case SVC_OP_SIGNAL:
 		return;
 	case PCI_OP_COUNT:
@@ -463,7 +504,7 @@ static void serve(long req)
 		f = func_of((uint32_t)m[1]);
 		if (!f || m[2] > 0xFFF || (m[3] != 1 && m[3] != 2 && m[3] != 4))
 			break;
-		if (f->owner != pid) {
+		if (f->owner != pid || !cfg_write_ok(f, (unsigned)m[2], (unsigned)m[3], (uint32_t)m[4])) {
 			r = E_PERM;
 			break;
 		}

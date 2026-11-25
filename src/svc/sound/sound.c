@@ -17,6 +17,7 @@
  * Ajout du C : op 20, d = volume de départ de la sortie quand sound.txt n'en retient pas
  * (0 : 100 ; l'asm l'ignore). */
 #include "korinrt.h"
+#include "caller.h"
 #include <stdint.h>
 
 /* src/inc/sound.inc (ce que korinrt.h n'a pas) */
@@ -1299,12 +1300,18 @@ static int dispatch(u64 *m)
 {
 	M32(m, WM_LEN) = 0;
 	u64 op = m[0];
-	if (op == SVC_OP_END) {
-		proc_gone(m[1]);
+	if (op >= 0xFFF0) { /* les avis : du noyau seulement (pid 0) */
+		if (op == SVC_OP_END && svc_from_kernel(m))
+			proc_gone(m[1]);
 		return 0;
 	}
-	if (op == SVC_OP_BIRTH)
-		return 0;
+	/* s'annoncer comme sortie ou entrée de son : les pilotes (hda, usbaudio, hdmiaudio : droits de
+	 * /sys), ou l'uid 0 (sontest par sudo) ; une app ne détourne ni n'écoute le son des autres */
+	if ((op == SND_OP_DRV_OUTPUT || op == SND_OP_DRV_INPUT || op == SND_OP_DRV_ALIVE) &&
+	    !caller_admin(M32(m, 44), 0)) {
+		m[0] = (u64)E_PERM;
+		return 1;
+	}
 	long r;
 	switch (op) {
 	case SND_OP_OPEN: r = op_open(m); break;

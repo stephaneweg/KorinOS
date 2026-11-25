@@ -208,6 +208,34 @@ void vm_unbind(int v, u64 gpu, u64 bytes)
 	}
 }
 
+/* toute entrée de l'espace v qui vise une page de [lo, hi) revient à la garde : un morceau rendu
+ * (CHUNK_FREE) n'est plus lisible ni inscriptible par le GPU, même s'il était encore lié (J7) */
+static long unbind_phys_level(u64 table, int level, u64 lo, u64 hi)
+{
+	u64 *t = pt_va(table);
+	long n = 0;
+	if (!t)
+		return 0;
+	for (int i = 0; i < 512; i++) {
+		u64 a = t[i] & PTE_ADDR;
+		if (level == 1) {
+			if ((t[i] & PTE_PRESENT) && a >= lo && a < hi) {
+				t[i] = pde(scratch[0]);
+				n++;
+			}
+		} else if (a != scratch[level - 1])
+			n += unbind_phys_level(a, level - 1, lo, hi);
+	}
+	return n;
+}
+
+long vm_unbind_phys(int v, u64 phys, u64 bytes)
+{
+	if (v <= 0 || v >= VM_MAX || !vms[v].used)
+		return 0;
+	return unbind_phys_level(vms[v].pml4, 4, phys, phys + bytes);
+}
+
 u64 vm_translate(u64 pml4, u64 gpu)
 {
 	u64 table = pml4;

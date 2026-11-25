@@ -40,6 +40,7 @@
  *    périphérique, qui prennent la requête suivante l'un après l'autre (recv) ; ses lectures
  *    vont au pilote sans le verrou de la couche, les écritures et le reste toujours une à la fois. */
 #include "blkserv.h"
+#include "caller.h"
 
 #define LOG_MAX 8 /* partitions logiques (p5 à p12) */
 #define PART_MAX (BLK_GPT_MAX > 4 + LOG_MAX ? BLK_GPT_MAX : 4 + LOG_MAX)
@@ -587,11 +588,16 @@ static int buf_in_use(long buf)
 
 static long op_attach(struct dev *d, struct msg *m)
 {
+	/* le tampon doit être à l'appelant, et la fenêtre ne pas dépasser sa taille réelle : sinon une
+	 * lecture du disque écrivait (par DMA, à l'adresse physique du tampon + décalage) au-delà, dans
+	 * la RAM de n'importe qui (chaîne C3 de l'audit) */
+	u64 info[BI_SIZE / 8];
+	if (korin_sys2(SYS_BUF_INFO, m->a, info) != 0 || (u32)info[2] != m->pid)
+		return E_PERM;
 	long va = korin_sys1(SYS_BUF_MAP, m->a); /* son tampon : mappé chez nous */
 	if (va < 0)
 		return va;
-	u64 info[BI_SIZE / 8];
-	u64 phys = korin_sys2(SYS_BUF_INFO, m->a, info) == 0 ? info[0] : 0; /* (pour le DMA) */
+	u64 phys = info[0]; /* (pour le DMA) */
 	u32 pid = m->pid;
 	cl_take();
 	long r = 0;
@@ -614,6 +620,8 @@ static long op_attach(struct dev *d, struct msg *m)
 		r = E_NOMEM;
 	} else {
 		u64 size = (u64)m->b > BUF_SLOT ? BUF_SLOT : (u64)m->b; /* une fenêtre au plus */
+		if (size > info[1])
+			size = info[1]; /* pas plus que le tampon créé */
 		c->start = (u64)va;
 		c->end = (u64)va + size;
 		c->phys = phys;
@@ -714,10 +722,21 @@ static THREAD_ENTRY void dev_thread(struct dev *d)
 		if (!req)
 			continue;
 		if (m.op == SVC_OP_SIGNAL) { /* (SVC_SIGNAL : pas de réponse) */
-			on_signal((u64)m.a);
+			if (svc_from_kernel(&m))
+				on_signal((u64)m.a);
 			continue;
 		}
 		long r;
+		/* ATTACH, READ_D, DMA, UHS, PLAN, RESCAN : les services de fichiers (lancés par vfs avec les
+		 * droits), les outils en uid 0 (mkfs, gpt, osinstall par sudo ou init2), setup ; une app n'y
+		 * touche pas (chaîne C3). READ et WRITE : seulement un client attaché (op_rw), donc déjà vu ici ;
+		 * INFO et STATS restent ouverts */
+		if ((m.op == BLK_ATTACH || m.op == BLK_READ_D || m.op == BLK_DMA || m.op == BLK_UHS ||
+		     m.op == BLK_PLAN || m.op == BLK_RESCAN) && !caller_admin(m.pid, req)) {
+			m.op = (u64)E_PERM;
+			korin_sys2(SYS_SVC_REPLY, req, &m);
+			continue;
+		}
 		switch (m.op) {
 		case BLK_INFO:
 			m.a = d->ro;

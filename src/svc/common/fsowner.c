@@ -15,6 +15,7 @@
  *  * tampon (ops 14-16) : un par process client, FS_BUFFER_SIZE octets, créé
  *    par le service et accordé à ce pid ; rendu à l'avis de fin. */
 #include "fsowner.h"
+#include "caller.h"
 
 long fs_canal;
 static long pid_vfs;     /* pid du service vfs (connu à sa première ouverture) */
@@ -38,6 +39,8 @@ long proprietaire(struct msg *m)
 	if (korin_sys2(SYS_PROC_INFO, pid, proclist) != 0)
 		return pid;
 	if (*(u32 *)(proclist + 24) != 0x00736676) /* « vfs », 0 */
+		return pid;
+	if (!caller_rights(pid)) /* (le nom se choisit au lancement : vfs a aussi les droits de /sys) */
 		return pid;
 	pid_vfs = pid;
 	return d;

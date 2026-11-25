@@ -43,6 +43,7 @@
  * Lancé de /bin/i2chid (sans droits) : relance /sys/svc/i2chid et recopie ses lignes du
  * journal (src/svc/common/sysfront.c). Pour le PC seulement (svc.conf : arch = x86_64). */
 #include "i2chid.h"
+#include "caller.h"
 
 #define E_INTR -4
 #define HID_OP_PILOTE 3 /* service « hid » (hidmanager) */
@@ -689,7 +690,10 @@ static int stop_now(long chan)
 	if (req <= 0)
 		return 0;
 	int stop = ((u64 *)msg)[0] == OP_STOP;
-	((u64 *)msg)[0] = stop ? 0 : (u64)E_INVAL;
+	long r = stop ? 0 : E_INVAL;
+	if (stop && !caller_admin(*(u32 *)(msg + 44), req)) /* (init2, ou « i2chid stop » relancé avec les droits) */
+		stop = 0, r = E_PERM;
+	((u64 *)msg)[0] = (u64)r;
 	korin_sys2(SYS_SVC_REPLY, req, msg);
 	return stop;
 }
@@ -929,6 +933,12 @@ int main(int argc, char **argv)
 		usage();
 		return 1;
 	}
+	if (cmd == 4 && korin_sys2(SYS_SVC_OPEN, "i2chid", 0) >= 0) {
+		slog("i2chid tourne déjà (i2chid stop d'abord)\n");
+		return 1;
+	}
+	if (!sysfront_rights()) /* (aussi « stop » : le service ne l'accepte que d'un process à droits) */
+		return sysfront_run("/sys/svc/i2chid", argc, argv, cmd == 4 ? " en service (" : 0);
 	if (cmd == 5) {
 		long s = korin_sys2(SYS_SVC_OPEN, "i2chid", 0);
 		if (s < 0) {
@@ -937,16 +947,10 @@ int main(int argc, char **argv)
 		}
 		static u8 msg[512] __attribute__((aligned(16)));
 		((u64 *)msg)[0] = OP_STOP;
-		korin_sys2(SYS_SVC_CALL, s, msg);
-		slog("arrêt demandé\n");
-		return 0;
+		long r = korin_sys2(SYS_SVC_CALL, s, msg);
+		slog(r == 0 ? "arrêt demandé\n" : "arrêt refusé\n");
+		return r == 0 ? 0 : 1;
 	}
-	if (cmd == 4 && korin_sys2(SYS_SVC_OPEN, "i2chid", 0) >= 0) {
-		slog("i2chid tourne déjà (i2chid stop d'abord)\n");
-		return 1;
-	}
-	if (!sysfront_rights())
-		return sysfront_run("/sys/svc/i2chid", argc, argv, cmd == 4 ? " en service (" : 0);
 
 	/* les réglages : le fichier, puis ceux de la ligne de commande */
 	read_config();

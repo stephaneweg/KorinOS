@@ -17,6 +17,7 @@
  * NetKit redemande).
  * Sur PC (x86-64), sans pilote réseau : la boucle locale seule (127.0.0.0/8). */
 #include "netd.h"
+#include "caller.h"
 
 long canal, canal_rx;
 volatile u64 net_long;   /* 1 : la pile dort sans minuterie à suivre */
@@ -384,11 +385,13 @@ void netif_choose(void)
 }
 
 /* NET_OP_IF_REGISTER (a type, b MAC, c priorité, d canal + 1 du pilote ; données : nom)
- * -> interface ; b = numéro du tampon de l'anneau. (Tout pid est accepté : le noyau
- * ne donne pas les droits dans le message, comme l'asm.) */
+ * -> interface ; b = numéro du tampon de l'anneau. Seulement un pilote (droits de /sys : iwl,
+ * usbnet, genet, wifi) : une app ne se fait pas passer pour une interface réseau. */
 static long op_if_register(u8 *m)
 {
 	u64 pid = W32(m, MSG_PID);
+	if (!caller_rights((long)pid))
+		return E_PERM;
 	long buf = korin_sys1(SYS_BUF_CREATE, NR_SIZE); /* l'anneau */
 	if (buf < 0)
 		return buf;
@@ -662,6 +665,8 @@ static int dispatch(u8 *m)
 {
 	W32(m, MSG_LEN) = 0;
 	u64 op = W64(m, 0);
+	if (op >= 0xFFF0 && !svc_from_kernel(m))
+		return 0; /* un avis du noyau qui ne vient pas du noyau : ignoré */
 	if (op == SVC_OP_END) { /* un process s'arrête */
 		if_gone(W64(m, MSG_A));
 		net_close_all(W64(m, MSG_A));

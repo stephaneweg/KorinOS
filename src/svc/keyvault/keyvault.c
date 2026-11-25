@@ -250,6 +250,9 @@ static u32 g_u32(const u8 *p)
 
 /* ---- fichiers */
 
+#define VAULT_FILE_MAX (4u << 20) /* un coffre : 4 Mio au plus */
+#define VAULT_RECS_MAX 4096        /* et ce nombre d'enregistrements */
+
 static u8 *file_read(const char *path, size_t *len)
 {
 	int fd = open(path, O_RDONLY);
@@ -259,7 +262,7 @@ static u8 *file_read(const char *path, size_t *len)
 	u8 t[4096];
 	ssize_t k;
 	while ((k = read(fd, t, sizeof t)) > 0)
-		if (b_add(&b, t, (size_t)k)) {
+		if (b.n + (size_t)k > VAULT_FILE_MAX || b_add(&b, t, (size_t)k)) {
 			close(fd);
 			b_free(&b);
 			return 0;
@@ -290,7 +293,8 @@ static int file_save(const char *path, const void *p, size_t n)
 		unlink(tmp);
 		return -1;
 	}
-	unlink(path);
+	/* rename remplace le fichier d'arrivée (fatfs.c, ext4) : plus d'unlink avant, qui laissait, sur
+	 * une coupure entre les deux, un compte sans coffre (recréé vide à l'ouverture suivante) */
 	return rename(tmp, path);
 }
 
@@ -607,6 +611,10 @@ static int header_read(const u8 *f, size_t n, struct header *h)
 	h->mkib = g_u32(f + 12);
 	h->t = g_u32(f + 16);
 	h->lanes = g_u32(f + 20);
+	/* (un fichier abîmé ou posé là : Argon2 borné, sinon des Go de mémoire ou des heures de calcul) */
+	if (h->mkib < 8 || h->mkib > (1u << 20) || h->t < 1 || h->t > 16 || h->lanes < 1 || h->lanes > 16 ||
+	    h->mkib < 8 * h->lanes)
+		return 0;
 	memcpy(h->salt, f + 24, 16);
 	memcpy(h->iv, f + 40, 12);
 	memcpy(h->tag, f + 52, 16);
@@ -645,6 +653,11 @@ static long vault_open(struct vault *v, const char *pw)
 	size_t n = 0;
 	u8 *f = file_read(p, &n);
 	if (!f) {
+		/* il ne naît que s'il n'existe pas : une erreur de lecture (support, fichier trop gros) ne
+		 * doit pas remplacer un coffre existant par un vide */
+		struct stat st;
+		if (stat(p, &st) == 0 || errno != ENOENT)
+			return fail(E_IO, "%s : illisible", p);
 		struct header h = {ARGON_MKIB, ARGON_T, ARGON_LANES, {0}, {0}, {0}, {0}};
 		vault_close(v);
 		if (RAND_bytes(v->mk, 32) != 1 || !wrap_mk(v->uid, v->mk, pw, &h) || !vault_save(v, &h)) {
@@ -674,6 +687,8 @@ static long vault_open(struct vault *v, const char *pw)
 	/* les enregistrements */
 	size_t o = HDR_SIZE;
 	u32 count = o + 4 <= n ? g_u32(f + o) : 0;
+	if (count > VAULT_RECS_MAX)
+		count = VAULT_RECS_MAX;
 	o += 4;
 	struct rec **tail = &v->recs;
 	int bad = 0;
@@ -736,6 +751,13 @@ static struct rec *rec_find(struct vault *v, int kind, const char *id, const cha
 static int rec_put(struct vault *v, int kind, const char *id, const char *name, const void *val, u32 len)
 {
 	struct rec *r = rec_find(v, kind, id, name);
+	if (!r) { /* (un enregistrement de plus : sous le plafond) */
+		u32 n = 0;
+		for (struct rec *x = v->recs; x; x = x->next)
+			n++;
+		if (n >= VAULT_RECS_MAX)
+			return 0;
+	}
 	u8 *nv = malloc(len + 1);
 	if (!nv)
 		return 0;
@@ -925,6 +947,10 @@ static long identify(long pid, struct ident *who)
 		if (!file_sha256(s, who->hash))
 			memset(who->hash, 0, 32);
 	} else {
+		/* un script déclaré par un programme qui n'est pas un interprète (PROC_SET_SCRIPT est ouvert :
+		 * le premier appel fixe l'identité) : refusé, plutôt que de prendre le nom de l'exécutable */
+		if (x.flags & PEXF_SCRIPT)
+			return fail(E_PERM, "%s : script déclaré par un programme qui n'est pas un interprète", exe);
 		snprintf(who->id, sizeof who->id, "%s", exe);
 		memcpy(who->hash, x.hash, 32);
 	}
@@ -1077,6 +1103,58 @@ static int parts(struct msg *m, const char **p, int max)
 }
 
 /* les opérations de service (authd, la carte, le compte lui-même) */
+/* Essais de mot de passe par compte : après 3 échecs, plus d'essai pendant 30 s, puis le double à
+ * chaque nouvel échec (une heure au plus) ; une réussite remet à zéro. Remplace un SLEEP de 1 s,
+ * qui arrêtait tout le service (un seul fil) et laissait 3600 essais par heure. */
+#define PW_SLOTS 16
+static struct {
+	int uid, fails;
+	u64 until;
+} pw_tries[PW_SLOTS];
+
+static int pw_slot(int uid)
+{
+	int free_i = -1, old_i = 0;
+	for (int i = 0; i < PW_SLOTS; i++) {
+		if (pw_tries[i].fails && pw_tries[i].uid == uid)
+			return i;
+		if (!pw_tries[i].fails && free_i < 0)
+			free_i = i;
+		if (pw_tries[i].until < pw_tries[old_i].until)
+			old_i = i;
+	}
+	int i = free_i >= 0 ? free_i : old_i;
+	pw_tries[i].uid = uid;
+	pw_tries[i].fails = 0;
+	pw_tries[i].until = 0;
+	return i;
+}
+
+static int pw_locked(int uid)
+{
+	for (int i = 0; i < PW_SLOTS; i++)
+		if (pw_tries[i].fails && pw_tries[i].uid == uid)
+			return now_ms() < pw_tries[i].until;
+	return 0;
+}
+
+static void pw_result(int uid, int ok)
+{
+	int i = pw_slot(uid);
+	if (ok) {
+		pw_tries[i].fails = 0;
+		pw_tries[i].until = 0;
+		return;
+	}
+	int f = ++pw_tries[i].fails;
+	if (f >= 3) {
+		u64 wait = 30000ull << (f - 3 < 7 ? f - 3 : 7);
+		if (wait > 3600000ull)
+			wait = 3600000ull;
+		pw_tries[i].until = now_ms() + wait;
+	}
+}
+
 static long admin_op(struct msg *m, int caller_uid)
 {
 	const char *p[3] = {"", "", ""};
@@ -1091,11 +1169,12 @@ static long admin_op(struct msg *m, int caller_uid)
 		if (m->b == 1)
 			res = E_CANCELED;
 		else if (card.mode == CARD_UNLOCK) {
+			if (pw_locked(card.uid))
+				return E_AGAIN; /* (trop d'échecs : la carte reste, essayer plus tard) */
 			res = v ? vault_open(v, p[0]) : E_NOMEM;
-			if (res == E_ACCES) {
-				ksys(SYS_SLEEP, 1000, 0, 0, 0);
+			pw_result(card.uid, res != E_ACCES);
+			if (res == E_ACCES)
 				return E_ACCES; /* (la carte reste) */
-			}
 		} else {
 			res = E_NOMEM;
 			if (v && v->open && rec_put(v, REC_PIN, card.id, "", card.hash, 32))
@@ -1122,11 +1201,12 @@ static long admin_op(struct msg *m, int caller_uid)
 	switch (m->op) {
 	case KV_UNLOCK: {
 		const char *pw = caller_uid == 0 && p[0][0] ? p[1] : p[0];
+		if (pw_locked(uid))
+			return fail(E_AGAIN, "coffre du compte %d : trop de mots de passe refusés, réessayer plus tard", uid);
 		long r = vault_open(v, pw);
-		if (r == E_ACCES) {
-			ksys(SYS_SLEEP, 1000, 0, 0, 0);
+		pw_result(uid, r != E_ACCES);
+		if (r == E_ACCES)
 			return fail(E_ACCES, "mot de passe refusé par le coffre");
-		}
 		if (r == 0)
 			say("coffre du compte %d ouvert", uid);
 		return r;
@@ -1266,8 +1346,13 @@ static long mgr_op(struct msg *m, int caller_uid)
 	if (uid != 0 && !granted(pid_cour, uid)) {
 		if (!p[2][0])
 			return fail(E_ACCES, "mot de passe demandé");
-		if (verify_pw(uid, p[2])) {
-			ksys(SYS_SLEEP, 1000, 0, 0, 0);
+		if (pw_locked(uid)) {
+			OPENSSL_cleanse(m->data, sizeof m->data);
+			return fail(E_AGAIN, "trop de mots de passe refusés, réessayer plus tard");
+		}
+		int bad = verify_pw(uid, p[2]) != 0;
+		pw_result(uid, !bad);
+		if (bad) {
 			OPENSSL_cleanse(m->data, sizeof m->data);
 			return fail(E_ACCES, "mot de passe refusé");
 		}
@@ -1412,6 +1497,7 @@ static void expire(long r_all)
 			memset(&out, 0, sizeof out);
 			out.op = r_all ? r_all : E_AGAIN;
 			ksys(SYS_SVC_REPLY, waits[i].req, (long)&out, 0, 0);
+			OPENSSL_cleanse(&out, sizeof out);
 			waits[i].req = 0;
 		}
 }

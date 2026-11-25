@@ -249,6 +249,7 @@ extern struct vm vms[VM_MAX];
 int pt_init(void);                     /* pages de garde, réserve -> 0 */
 int vm_create(int pid);                /* -> numéro, < 0 */
 void vm_destroy(int v);
+long vm_unbind_phys(int v, u64 phys, u64 bytes); /* entrées vers [phys, +bytes) -> la garde */
 int vm_bind(int v, u64 gpu, u64 phys, u64 bytes); /* contigu -> 0 */
 void vm_unbind(int v, u64 gpu, u64 bytes);
 u64 vm_translate(u64 pml4, u64 gpu); /* -> adresse physique, ~0 : hors de toute page à nous (simu, contrôle) */

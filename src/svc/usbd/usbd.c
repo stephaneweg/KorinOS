@@ -25,6 +25,7 @@
  *
  *	usbd [SSSS:BB:DD.F]   la fonction PCIe du xHCI (PC : donnée par hwmanager) */
 #include "usbd.h"
+#include "caller.h"
 
 #define DEV_MAX 16
 #define PIPE_MAX 16
@@ -294,10 +295,19 @@ static int request(long req)
 	long r = E_INVAL;
 	struct dev *d;
 	struct sbuf *b;
+	if (op >= 0xFFF0) { /* les avis : du noyau seulement (pid 0), sans réponse */
+		if (op == SVC_OP_END && svc_from_kernel(msg))
+			driver_ended((int)M(1));
+		return 1;
+	}
+	/* tout ce qui parle au matériel (CONTROL, BULK, INTR, ISO, ADD_CONTROLLER) : les pilotes (droits
+	 * de /sys) ; DESCRIPTORS reste ouvert (lsusb) */
+	if (op != USB_OP_DESCRIPTORS && !caller_rights(pid)) {
+		M(0) = (uint64_t)E_PERM;
+		korin_sys2(SYS_SVC_REPLY, req, msg);
+		return 0;
+	}
 	switch (op) {
-	case SVC_OP_END:
-		driver_ended((int)M(1));
-		return 1; /* (avis : pas de réponse) */
 	case USB_OP_DESCRIPTORS:
 		if (!(d = dev_of((long)M(1)))) {
 			r = E_NODEV;

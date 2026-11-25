@@ -12,6 +12,7 @@
  * dès que ses contextes ne sont plus sur le moteur, tout est rendu. */
 #include "igpu.h"
 #include "../svclib/svclib.h"
+#include "caller.h"
 
 #define CLIENT_MAX 64
 #define CHUNK_MAX 64
@@ -302,6 +303,12 @@ static long handle(long req, u64 *m)
 		for (int x = 0; x < CTX_MAX; x++)
 			if (ctxs[x].used && ctxs[x].owner == (int)pid && !eng_ctx_idle(x))
 				return E_BUSY;
+		/* délié de tous les espaces du client avant d'être rendu : sinon le GPU gardait l'accès à
+		 * des pages rendues, reprises ensuite par n'importe qui (J7) ; les TLB du GPU sont vidés au
+		 * début de chaque lot (PC_TLB_INV, engine.c), et aucun de ses contextes ne tourne */
+		for (int v = 1; v < VM_MAX; v++)
+			if (vms[v].used && vms[v].owner == (int)pid)
+				vm_unbind_phys(v, k->phys, k->bytes);
 		if (G.simu)
 			simu_forget(k->va);
 		korin_sys1(SYS_BUF_FREE, k->buf);
@@ -420,7 +427,9 @@ static long handle(long req, u64 *m)
 		M32(m, 40) = (u32)strlen(t);
 		return 0;
 	}
-	case IG_OP_STOP:
+	case IG_OP_STOP: /* (init2 à l'arrêt, ou « intelgpu stop » par sudo : pas une app) */
+		if (!caller_admin((long)pid, 0))
+			return E_PERM;
 		S.stop = 1;
 		return 0;
 	}

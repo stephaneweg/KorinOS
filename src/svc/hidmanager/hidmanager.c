@@ -31,6 +31,7 @@
  *    le pilote qui écrit (la tête) et hidmanager qui lit (la queue)
  *  HID_OP_PADMAP (4) -> 0 : relit /etc/gamepad.ini
  *  HID_OP_POINTER (5) -> 0 : relit /etc/pointer.ini (Réglages, Souris) */
+#include "caller.h"
 #include "../svclib/svclib.h"
 
 #define HID_OP_ABONNER 1
@@ -938,10 +939,15 @@ static void lire_pilotes(void)
 		seen++;
 		dmb();
 		volatile u64 *r = s->adr;
-		for (;;) {
+		for (u64 k = 0; k < ANNEAU_N; k++) { /* (au plus un anneau par passe : un pilote qui avance sa
+							* tête sans fin n'arrête pas les autres) */
 			u64 head = r[0], tail = r[1]; /* tête (pilote), queue (ici) */
 			if (head == tail)
 				break;
+			if (head - tail > ANNEAU_N) { /* tête hors de l'anneau : les plus anciens sont perdus */
+				r[1] = head - ANNEAU_N;
+				continue;
+			}
 			dmb(); /* l'événement après la tête */
 			volatile u64 *src = r + (ANNEAU_EV + (tail & (ANNEAU_N - 1)) * 32) / 8;
 			ev_pilote[0] = src[0]; /* copie (le pilote peut réécrire) */
@@ -1001,9 +1007,18 @@ int main(int argc, char **argv)
 		if (!req)
 			continue;
 		long r;
-		switch (M64(msg, 0)) {
+		u64 op = M64(msg, 0);
+		/* ABONNER (le flux de toutes les touches : Elegant, la console de secours) et PILOTE (injecter
+		 * des événements) : droits de /sys ; KEYMAP, PADMAP et POINTER restent ouverts */
+		if ((op == HID_OP_ABONNER || op == HID_OP_PILOTE) && !caller_rights(M32(msg, 44))) {
+			M64(msg, 0) = (u64)E_PERM;
+			korin_sys2(SYS_SVC_REPLY, req, msg);
+			continue;
+		}
+		switch (op) {
 		case SVC_OP_END: /* (avis) : un abonné de moins */
-			desabonner(M64(msg, 8));
+			if (svc_from_kernel(msg))
+				desabonner(M64(msg, 8));
 			continue;
 		case HID_OP_ABONNER:
 			r = abonner(M32(msg, 44), abonnes); /* pid de l'appelant */
@@ -1019,10 +1034,17 @@ int main(int argc, char **argv)
 		case HID_OP_PILOTE:
 			r = abonner(M32(msg, 44), pilotes);
 			break;
-		case HID_OP_KEYMAP:
-			msg[48 + 15] = 0; /* nom : 15 caractères au plus */
-			r = kb_load((char *)msg + 48) ? 0 : E_NOENT;
+		case HID_OP_KEYMAP: {
+			msg[48 + 15] = 0; /* nom : 15 caractères au plus, [A-Za-z0-9_-] (pas de chemin) */
+			r = msg[48] ? 0 : E_INVAL;
+			for (const u8 *c = msg + 48; *c && !r; c++)
+				if (!((*c >= 'A' && *c <= 'Z') || (*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9') ||
+				      *c == '_' || *c == '-'))
+					r = E_INVAL;
+			if (!r)
+				r = kb_load((char *)msg + 48) ? 0 : E_NOENT;
 			break;
+		}
 		default:
 			r = E_INVAL;
 		}
