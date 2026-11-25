@@ -17,13 +17,13 @@ fi
 case $op in
 save)
 	mkdir -p "$QTT/patches"
-	git add -A -- . ':!src/plugins/platforms/korin' ':!src/plugins/styles/korin'
+	git add -A -- . ':!src/plugins/platforms/korin' ':!src/plugins/printsupport/korin' ':!src/plugins/styles/korin'
 	git diff --cached --binary HEAD > "$p.tmp"
 	git reset -q
 	mv "$p.tmp" "$p"; echo "$p : $(grep -c '^diff --git' "$p") fichiers" ;;
 apply)
 	[ -f "$p" ] || exit 0
-	if git diff --quiet HEAD -- . ':!src/plugins/platforms/korin' ':!src/plugins/styles/korin' && [ -z "$(git ls-files -o --exclude-standard -- . ':!src/plugins/platforms/korin' ':!src/plugins/styles/korin')" ]; then
+	if git diff --quiet HEAD -- . ':!src/plugins/platforms/korin' ':!src/plugins/printsupport/korin' ':!src/plugins/styles/korin' && [ -z "$(git ls-files -o --exclude-standard -- . ':!src/plugins/platforms/korin' ':!src/plugins/printsupport/korin' ':!src/plugins/styles/korin')" ]; then
 		git apply "$p" && echo "$m : retouche appliquée"
 	fi ;;
 esac

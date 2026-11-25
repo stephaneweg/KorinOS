@@ -11,6 +11,12 @@ target_link_libraries(qtcore_test PRIVATE Qt6::Core)
 qt_add_executable(qtwidgets_test qtwidgets_test.cpp)
 target_link_libraries(qtwidgets_test PRIVATE Qt6::Widgets Qt6::GuiPrivate)
 
+find_package(Qt6 COMPONENTS PrintSupport)
+if(Qt6PrintSupport_FOUND)
+    qt_add_executable(qtprint_test qtprint_test.cpp)
+    target_link_libraries(qtprint_test PRIVATE Qt6::Widgets Qt6::PrintSupport)
+endif()
+
 qt_add_executable(qtfont_test qtfont_test.cpp)
 target_link_libraries(qtfont_test PRIVATE Qt6::Widgets)
 # (la police Edwin de MuseScore, si sa source est là : tools/musescore)

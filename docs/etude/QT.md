@@ -25,6 +25,7 @@ Décisions de l'utilisateur (24/11) :
 | 3 | **Qt Quick** (qtshadertools, qtdeclarative, qtsvg) en rendu logiciel ; `qtquick_test` sous QEMU | **fait (24/11), QEMU PC** : QML en interpréteur (sans JIT), Qt Quick logiciel, Qt Quick Controls (Fusion, aux couleurs du thème), animation ; curseur glissé, bouton, liste déroulante QML |
 | 4 | Paquets `qtbase-dev`, `qtshadertools-dev`, `qtdeclarative-dev`, `qtsvg-dev` (`/devtools/qt`), essai sur le ZBook | **prêts (24/11)** : `stage.sh`, motifs de `pkgfiles.py` dans `packages-pc.ini`, `pub.py --dry-run` de `qtbase-dev` bon ; **pas publiés** (clé du dépôt) ; construire une app Qt *dans* Korin pas encore essayé |
 | 5 | **MuseScore Studio** 4.7 : convertisseur sans écran, puis l'interface, son par AudioKit | **fait (25/11), QEMU PC** : [MUSESCORE.md](MUSESCORE.md) |
+| 6 | **PrintSupport sur PrinterKit** : imprimantes de printd, dialogue d'impression de Korin, moteur vers PrinterKit | **fait (25/11), QEMU PC** : § 3.1 |
 
 **Cible : Korin PC (x86-64, le ZBook) d'abord**, comme Blender ; MuseScore demande 8 Go de mémoire. Le Pi pourra suivre
 pour Qt lui-même (tout est en C++ portable, la QPA ne dépend que d'UIKit).
@@ -65,7 +66,7 @@ Le compilateur de Korin définit `__armpi__` et `__unix__`, **pas `__linux__`** 
 * CMake voit un « Linux » (`CMAKE_SYSTEM_NAME Linux`, comme Blender), avec `KORIN=ON` pour les retouches.
 
 Fonctions de Qt coupées (`build.sh`) : OpenGL, Vulkan, EGL, xcb, Wayland, linuxfb, D-Bus, glib, ICU, fontconfig, SQL,
-impression, mémoire partagée System V et POSIX, inotify, journald, syslog, backtrace.
+CUPS (l'impression passe par PrinterKit, § 3.1), mémoire partagée System V et POSIX, inotify, journald, syslog, backtrace.
 
 **Dépendances** : celles qui ont un paquet `<nom>-dev` publié (`packages/pc/pkgs`) sont prises là, dépaquetées par
 `tools/qt/deps.sh` dans `~/korin-qt/x86_64/devsys` (préfixe `/devtools/gcc`, comme dans Korin) : **zlib, libpng,
@@ -168,6 +169,32 @@ MuseScore est lent.
 **À faire** : glisser-déposer (`WEV_DROP`), image dans le presse-papiers, curseurs bitmap et curseur caché, pointeur
 pris, IME, tablette, molette horizontale, transparence (`WF_ALPHA`), état agrandi dit par Elegant, échelle
 (`ui_scale`), services (`openUrl` vers Jet), dialogues de fichiers natifs (`ui_file_*` d'UIKit).
+
+### 3.1 L'impression : PrintSupport sur PrinterKit (`tools/qt/printsupport`)
+
+Un plugin `printsupport` **korin** (statique, `DEFAULT_IF TRUE`, recopié par `build.sh` dans
+`qtbase/src/plugins/printsupport/korin`) remplace CUPS :
+
+* **Imprimantes** : `QKorinPrinterSupport` les demande à printd (`print_printers` de PrinterKit : l'imprimante PDF,
+  toujours là, et les imprimantes réseau IPP de `/etc/printers.ini`) ; `QKorinPrintDevice` donne leurs papiers (les noms
+  IPP `iso_a4_210x297mm` lus en millimètres ou en pouces, `print_printer_media`), la couleur, 300/600/1200 ppp.
+* **Dialogue** : `QPrintDialog::exec()` (retouche de `qprintdialog_unix.cpp` dans `qtbase.patch`) appelle
+  `qt_korin_print_dialog`, qui montre **le dialogue d'impression de Korin** (`print_dialog` : imprimante, pages,
+  papier, orientation, copies, couleur) et reporte le choix dans le `QPrinter`. Une app en pleine page
+  (`setFullPage`, MuseScore) garde son papier (`PRINT_DLG_OWN_PAPER`). Sans PrinterKit, le dialogue de Qt.
+* **Moteur** (`QKorinPrintEngine`, sur `QPdfPrintEngine` pour les propriétés) : chaque page part à PrinterKit
+  (`print_begin`, `print_page`, `print_end`) en millièmes de point : tracés à la règle non nulle (les tracés pair-impair
+  simplifiés d'abord), traits par `QPainterPathStroker`, **texte en contours** (les glyphes de la police de Qt :
+  printd n'a pas besoin des polices de l'app), images en ARGB32 (`PRINT_IMG_ALPHA`) ; pas de dégradé dans PrinterKit
+  (la couleur du milieu). printd fait ensuite le PWG Raster ou le PDF de l'imprimante réseau.
+* **L'imprimante PDF** vers un fichier connu (après le dialogue, ou `setOutputFileName`) : **le PDF de Qt lui-même**
+  (`QPdfPrintEngine` : texte gardé, polices incluses, 5 fois plus petit), écrit là où l'utilisateur l'a dit dans le
+  dialogue d'enregistrement de Korin. `KORIN_PRINT_KIT=1` fait passer quand même par PrinterKit et printd (l'essai du
+  chemin des imprimantes réseau) ; `KORIN_PRINT_DEBUG=1` : les traces du plugin.
+
+Essai : `qtprint_test --direct /tmp/a.pdf` (le PDF de Qt), `--kit` (le PDF de printd, deux pages justes : titre,
+filet, rectangle arrondi, ellipse, image, texte), `--dialog` (le dialogue de Korin, puis celui d'enregistrement). Sur le
+PC, printd est construit par `tools/pc/apps.sh printd` ; `tools/qt/pctest.py prep` l'ajoute au disque d'essai.
 
 ## 4. Essais (`tools/qt/test`, `tools/qt/pctest.py`)
 

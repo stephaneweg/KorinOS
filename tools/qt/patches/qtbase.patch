@@ -170,6 +170,17 @@ index f30c27c2..564c8459 100644
  if(HAIKU)
      # add_subdirectory(haiku) # TODO: QTBUG-112768
  endif()
+diff --git a/src/plugins/printsupport/CMakeLists.txt b/src/plugins/printsupport/CMakeLists.txt
+index 77366847..fa2b9e8d 100644
+--- a/src/plugins/printsupport/CMakeLists.txt
++++ b/src/plugins/printsupport/CMakeLists.txt
+@@ -4,3 +4,6 @@
+ if(QT_FEATURE_cups AND UNIX AND NOT APPLE)
+     add_subdirectory(cups)
+ endif()
++if(KORIN)
++    add_subdirectory(korin)	# Korin OS : PrinterKit (tools/qt/printsupport : recopié par tools/qt/build.sh)
++endif()
 diff --git a/src/plugins/styles/CMakeLists.txt b/src/plugins/styles/CMakeLists.txt
 index b809042c..9494c578 100644
 --- a/src/plugins/styles/CMakeLists.txt
@@ -182,3 +193,33 @@ index b809042c..9494c578 100644
 +if(KORIN)
 +    add_subdirectory(korin)	# Korin OS (tools/qt/style : recopié par tools/qt/build.sh)
 +endif()
+diff --git a/src/printsupport/dialogs/qprintdialog_unix.cpp b/src/printsupport/dialogs/qprintdialog_unix.cpp
+index bdaa5fa0..ccff9b80 100644
+--- a/src/printsupport/dialogs/qprintdialog_unix.cpp
++++ b/src/printsupport/dialogs/qprintdialog_unix.cpp
+@@ -980,8 +980,25 @@ void QPrintDialog::setVisible(bool visible)
+     QAbstractPrintDialog::setVisible(visible);
+ }
+ 
++#if defined(Q_OS_KORIN)
++// Korin OS : le dialogue d'impression de PrinterKit (le plugin printsupport korin, tools/qt/printsupport) ;
++// 1 imprimer, 0 abandon, -1 : le dialogue de Qt. Faible : sans le plugin, le dialogue de Qt.
++extern "C" int qt_korin_print_dialog(QPrintDialog *dialog) __attribute__((weak));
++#endif
++
+ int QPrintDialog::exec()
+ {
++#if defined(Q_OS_KORIN)
++    if (qt_korin_print_dialog) {
++        const int r = qt_korin_print_dialog(this);
++        if (r >= 0) {
++            setResult(r ? QDialog::Accepted : QDialog::Rejected);
++            if (r)
++                emit accepted(printer());
++            return result();
++        }
++    }
++#endif
+     return QAbstractPrintDialog::exec();
+ }
+ 

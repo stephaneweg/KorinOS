@@ -41,6 +41,10 @@ def prep(a):
     shutil.copytree(os.path.join(PC, "sysroot"), TROOT,
                     ignore=lambda d, names: ["devtools"] if os.path.samefile(d, os.path.join(PC, "sysroot")) else [])
     shutil.copytree(os.path.join(PKG, "apps"), os.path.join(TROOT, "apps"), dirs_exist_ok=True)
+    # (le service d'impression, pour Fichier > Imprimer : tools/pc/apps.sh printd ; PrinterKit le lance s'il manque)
+    pd = os.path.join(PC, "apps", "sdroot", "sys", "printd")
+    if os.path.isfile(pd) and not os.path.isfile(os.path.join(TROOT, "sys", "printd")):
+        shutil.copy(pd, os.path.join(TROOT, "sys", "printd"))
     t = os.path.join(TROOT, "home", "ms")
     os.makedirs(t, exist_ok=True)
     for f in sorted(glob.glob(os.path.join(DEMOS, "*.mscz")))[:4] + [os.path.join(DEMOS, "Dawn.mscx")]:

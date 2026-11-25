@@ -42,6 +42,10 @@ def prep(a):
     os.makedirs(W, exist_ok=True)
     shutil.copytree(os.path.join(PC, "sysroot"), TROOT,
                     ignore=lambda d, names: ["devtools"] if os.path.samefile(d, os.path.join(PC, "sysroot")) else [])
+    # (le service d'impression, pour PrintSupport : tools/pc/apps.sh printd ; PrinterKit le lance s'il manque)
+    pd = os.path.join(PC, "apps", "sdroot", "sys", "printd")
+    if os.path.isfile(pd) and not os.path.isfile(os.path.join(TROOT, "sys", "printd")):
+        shutil.copy(pd, os.path.join(TROOT, "sys", "printd"))
     t = os.path.join(TROOT, "home", "qt")
     os.makedirs(t, exist_ok=True)
     n = 0

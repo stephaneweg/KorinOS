@@ -29,6 +29,11 @@ for m in $MODS; do
 		for f in "$QTT"/qpa/*; do
 			cmp -s "$f" "$s/src/plugins/platforms/korin/${f##*/}" || cp "$f" "$s/src/plugins/platforms/korin/"
 		done
+		# l'impression sur PrinterKit (tools/qt/printsupport) : qtbase/src/plugins/printsupport/korin
+		mkdir -p "$s/src/plugins/printsupport/korin"
+		for f in "$QTT"/printsupport/*; do
+			cmp -s "$f" "$s/src/plugins/printsupport/korin/${f##*/}" || cp "$f" "$s/src/plugins/printsupport/korin/"
+		done
 		# le style korin de QWidgets (tools/qt/style) : qtbase/src/plugins/styles/korin
 		mkdir -p "$s/src/plugins/styles/korin"
 		for f in "$QTT"/style/*; do
@@ -44,6 +49,7 @@ for m in $MODS; do
 			-DQT_QMAKE_TARGET_MKSPEC=korin-g++ -DBUILD_SHARED_LIBS=OFF \
 			-DQT_BUILD_EXAMPLES=OFF -DQT_BUILD_TESTS=OFF -DQT_GENERATE_SBOM=OFF \
 			-DKORIN_UIKIT_INCLUDE_DIRS="$UIKIT_INC" -DKORIN_UIKIT_LIBRARY=uikit \
+			-DKORIN_PRINTERKIT_INCLUDE_DIR="$ROOT/src/kits/printerkit/include" \
 			-DQT_QPA_DEFAULT_PLATFORM=${QPA:-korin} \
 			-DINPUT_opengl=no -DFEATURE_vulkan=OFF -DFEATURE_egl=OFF \
 			-DFEATURE_xcb=OFF -DFEATURE_xlib=OFF -DFEATURE_wayland=OFF -DFEATURE_linuxfb=OFF \
