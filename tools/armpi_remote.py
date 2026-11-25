@@ -11,7 +11,8 @@
       une image de l'ecran (RFB 3.8, codage Raw, 32 ou 8 bits), apres des clics
       ou des touches
 Mot de passe de l'acces a distance (/etc/remote.txt) : variable ARMPI_REMOTE_PW, donnee a telnet
-quand il le demande (les cartes d'essai de QEMU : tools/mesa/testimage.py).
+quand il le demande (les cartes d'essai de QEMU : tools/mesa/testimage.py). Le mode comptes (un compte a
+un mot de passe, docs/RESEAU.md) : ARMPI_REMOTE_USER, le compte, et ARMPI_REMOTE_PW, son mot de passe.
 """
 import ftplib
 import os
@@ -173,7 +174,11 @@ def main():
     if what == "telnet":
         h, p = hostport(target, 23)
         t = Telnet(h, p)
-        if b"Mot de passe" in t.read_until(b" : ", 20):
+        first = t.read_until(b" : ", 20)
+        if b"Compte" in first:     # le mode comptes (E70) : ARMPI_REMOTE_USER, puis son mot de passe
+            t.s.sendall(os.environ.get("ARMPI_REMOTE_USER", "").encode("utf-8") + b"\r\n")
+            first = t.read_until(b" : ", 20)
+        if b"Mot de passe" in first:
             t.s.sendall(os.environ.get("ARMPI_REMOTE_PW", "").encode("utf-8") + b"\r\n")
         t.s.sendall(b'echo @PR""ET\r\n')        # le shell est pret (sh ou bash : invites differentes)
         t.read_until(b"@PRET", 20)
@@ -189,7 +194,8 @@ def main():
         h, p = hostport(target, 21)
         f = ftplib.FTP()
         f.connect(h, p, timeout=30)
-        f.login("armpi", "")
+        # le mode comptes (E70) : ARMPI_REMOTE_USER et son mot de passe ; sinon le secret commun
+        f.login(os.environ.get("ARMPI_REMOTE_USER", "armpi"), os.environ.get("ARMPI_REMOTE_PW", ""))
         op = sys.argv[3]
         if op == "ls":
             for l in f.nlst(sys.argv[4] if len(sys.argv) > 4 else ""):

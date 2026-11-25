@@ -99,6 +99,7 @@ static int serve (void)
 		printf ("webd: déjà en marche (%d)\n", other);
 		return 0;
 	}
+	mkdir ("/var/run", 0755);
 	FILE *pf = fopen (PID_FILE, "w");
 	if (pf) {
 		fprintf (pf, "%d\n", getpid ());

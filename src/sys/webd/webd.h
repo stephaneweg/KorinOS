@@ -17,7 +17,8 @@
 #define CONF_DIR	"/etc/web"
 #define CONF_FILE	CONF_DIR "/sites.ini"
 #define CERT_DIR	CONF_DIR "/certs"
-#define PID_FILE	"/tmp/webd.pid"
+#define PID_FILE	"/var/run/webd.pid"	/* (à l'uid 0 : dans /tmp, n'importe qui y mettait un pid que « webd stop »
+					 * élevé tuait, S9) */
 #define LOG_FILE	"/var/log/webd.log"
 #define LOG_MAX		(2 * 1024 * 1024)	/* au-delà : webd.log devient webd.log.old */
 

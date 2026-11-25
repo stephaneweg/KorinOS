@@ -42,6 +42,10 @@ struct session {
 	struct dirent dirent;
 	long st[6];         /* {taille, attributs} ; net_info : 32 o */
 	long auth;          /* 1 : bon PASS reçu */
+	long peer;          /* adresse du client (0 : inconnue) : PORT et PASV seulement vers lui (S7) */
+	char user[64];      /* USER (mode comptes) */
+	char root[160];     /* mode comptes : le dossier du compte, que le client voit comme « / » (S2) ;
+			     * vide : tout l'arbre (le secret commun : le Pi, les images d'essai) */
 	u8 buf[BLOC];       /* tampon de transfert */
 };
 
@@ -192,6 +196,11 @@ static void normalize(char *p)
 static long resolve(struct session *s, const char *arg)
 {
 	char *r = s->rep;
+	/* (bornes : cwd + « / » + argument dans rep, rep dans cwd et path ; avant, ils débordaient sur la
+	 * session, S10) */
+	u64 la = (u64)str_len(arg), lc = (u64)str_len(s->cwd);
+	if (la >= sizeof s->cwd - 1 || lc + 1 + la >= sizeof s->cwd - 1)
+		return 0;
 	if (arg[0] == '/') {
 		str_cpy(r, arg);
 	} else { /* relatif : dossier + « / » + argument */
@@ -199,8 +208,13 @@ static long resolve(struct session *s, const char *arg)
 		*d++ = '/';
 		str_cpy(d, arg);
 	}
-	normalize(r); /* « . », « .. », « // » */
-	str_cpy(s->path, r);
+	normalize(r); /* « . », « .. », « // » : jamais au-dessus de « / » */
+	if (s->root[0]) { /* mode comptes : sous son dossier seulement */
+		char *d = str_cpy(s->path, s->root);
+		if (r[1])
+			str_cpy(d, r);
+	} else
+		str_cpy(s->path, r);
 	return 1;
 }
 
@@ -231,9 +245,17 @@ static long data_open(struct session *s)
 			net_close(sd);
 		}
 	} else if (s->pasv >= 0) {
-		sd = net_accept(s->pasv, 20000);
-		if (sd >= 0)
-			goto ok;
+		/* le client seulement : un tiers qui se connecte le premier au port passif ne prend plus le
+		 * fichier (S7) ; refusé, on attend le bon */
+		for (int k = 0; k < 8; k++) {
+			sd = net_accept(s->pasv, 20000);
+			if (sd < 0)
+				break;
+			long pn = s->peer ? net_peername(sd) : -1;
+			if (!s->peer || pn < 0 || (u32)pn == (u32)s->peer)
+				goto ok;
+			net_close(sd);
+		}
 	}
 	say(s, r_425);
 	return -1;
@@ -279,8 +301,13 @@ static void rp_give(void)
 
 static int c_user(struct session *s, const char *a)
 {
-	(void)a;
 	s->auth = 0; /* (nouvelle connexion : PASS à refaire) */
+	u64 k = 0;
+	while (a[k] && k < sizeof s->user - 1) {
+		s->user[k] = a[k];
+		k++;
+	}
+	s->user[k] = 0;
 	say(s, r_user);
 	return 0;
 }
@@ -288,6 +315,18 @@ static int c_user(struct session *s, const char *a)
 static int c_pass(struct session *s, const char *a)
 {
 	rp_take(); /* (rp_pw commun aux sessions) */
+	if (rp_accounts()) { /* mode comptes (E70) : USER et son mot de passe, enfermé dans son dossier (S2) */
+		long uid = rp_account(s->user, a, s->root, sizeof s->root);
+		rp_give();
+		s->auth = uid > 0;
+		if (!s->auth)
+			s->root[0] = 0;
+		s->cwd[0] = '/';
+		s->cwd[1] = 0;
+		say(s, s->auth ? r_pass : r_530wrong);
+		return 0;
+	}
+	s->root[0] = 0;
 	if (!rp_read()) {
 		rp_give();
 		s->auth = 0;
@@ -356,7 +395,9 @@ static int c_pwd(struct session *s, const char *a)
 static int c_cwd(struct session *s, const char *a)
 {
 	long r = resolve(s, a);
-	if (r) { /* « / » : toujours là */
+	if (!r)
+		goto no; /* (trop long, S10) */
+	if (s->rep[1]) { /* « / » : toujours là */
 		long fd = sys_open(s->path, O_READ); /* existe ? */
 		if (fd < 0)
 			goto no;
@@ -365,6 +406,8 @@ static int c_cwd(struct session *s, const char *a)
 		if (sys_stat(s->path, s->st) >= 0 && !(s->st[1] & ATTR_DIR))
 			goto no;
 	}
+	if (str_len(s->rep) >= (long)sizeof s->cwd)
+		goto no; /* (S10) */
 	str_cpy(s->cwd, s->rep); /* nouveau dossier */
 	say(s, r_cwd);
 	return 0;
@@ -519,7 +562,13 @@ static int c_port(struct session *s, const char *a)
 		say(s, r_501);
 		return 0;
 	}
-	s->active_ip = (acc >> 16) & 0xFFFFFFFF; /* adresse */
+	u64 ip = (acc >> 16) & 0xFFFFFFFF; /* adresse */
+	/* vers le client seulement (et pas un port réservé) : sinon un rebond vers une autre machine (S7) */
+	if ((s->peer && ip != (u64)s->peer) || (acc & 0xFFFF) < 1024) {
+		say(s, r_501);
+		return 0;
+	}
+	s->active_ip = ip;
 	s->active_port = acc & 0xFFFF;
 	say(s, r_port);
 	return 0;
@@ -536,7 +585,10 @@ static int list(struct session *s, const char *a, int nlst)
 				break;
 		}
 	}
-	resolve(s, a);
+	if (!resolve(s, a)) {
+		say(s, r_550);
+		return 0;
+	}
 	long fd = sys_open(s->path, O_READ);
 	if (fd < 0) {
 		say(s, r_550);
@@ -684,8 +736,12 @@ NORETURN static void session(struct session *s)
 	s->active_ip = 0;
 	s->in_n = s->in_i = 0;
 	s->auth = 0;
+	s->root[0] = 0;
+	s->user[0] = 0;
 	s->cwd[0] = '/'; /* dossier : la racine */
 	s->cwd[1] = 0;
+	long pn = net_peername(s->ctrl); /* (E_NOSYS : un NetKit ancien, adresse inconnue) */
+	s->peer = pn > 0 ? (long)(u32)pn : 0;
 	ak_puts(m_session);
 	say(s, r_hello);
 	while (read_line(s) >= 0)

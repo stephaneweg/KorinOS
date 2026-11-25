@@ -360,6 +360,8 @@ static long messages(void)
 		case 2: /* SetEncodings : Raw toujours */
 			if (n < 4)
 				return 0;
+			if (be16(p + 2) > 64)
+				return -1; /* (une liste sans borne bloquait la connexion : client fautif, S11) */
 			len = (u64)be16(p + 2) * 4 + 4;
 			if (n < len)
 				return 0;

@@ -174,10 +174,31 @@ static void log_line (const char *line)
 	pthread_mutex_unlock (&log_mu);
 }
 
+/* une ligne du journal : un caractère de contrôle (%0d%0a décodé dans le chemin) devient « ? » : un client ne
+ * fabrique plus de fausses lignes (S11, E70) */
+static void log_clean (char *s)
+{
+	for (; *s; s++)
+		if ((unsigned char) *s < 0x20 && *s != '\n' && *s != '\t')
+			*s = '?';
+}
+
+static void log_field (char *d, size_t cap, const char *s)
+{
+	size_t k = 0;
+	for (; s && *s && k + 1 < cap; s++)
+		d[k++] = (unsigned char) *s < 0x20 || *s == 0x7F ? '?' : *s;
+	d[k] = 0;
+}
+
 void log_request (const char *site, const char *method, const char *path, int status, long long bytes, long ms,
 	const char *note)
 {
-	char line[1200], when[32];
+	char line[1200], when[32], cpath[700], cmeth[32];
+	log_field (cpath, sizeof cpath, path);
+	log_field (cmeth, sizeof cmeth, method);
+	path = cpath;
+	method = cmeth;
 	time_t t = time (NULL);
 	struct tm tm;
 	gmtime_r (&t, &tm);
@@ -190,6 +211,7 @@ void log_request (const char *site, const char *method, const char *path, int st
 		snprintf (line, sizeof line, "%s %s %s %s %d %lld %ldms%s%s\n", when, site, method, path, status, bytes, ms,
 			note && *note ? " " : "", note ? note : "");
 	}
+	log_clean (line);
 	log_line (line);
 }
 

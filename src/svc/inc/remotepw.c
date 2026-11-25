@@ -139,6 +139,32 @@ long rp_read(void)
 	return len;
 }
 
+/* ---- échecs (S3, E70) : après 5 mots de passe faux, plus d'essai pendant 30 s, puis le double à chaque
+ * nouvel échec (une heure au plus) ; un bon remet à zéro. Pour tout le service (toutes ses connexions) */
+static long rp_fails;
+static u64 rp_until;
+
+int rp_locked(void)
+{
+	return (u64)korin_sys0(SYS_TIME_MS) < rp_until;
+}
+
+static void rp_result(int ok)
+{
+	if (ok) {
+		rp_fails = 0;
+		rp_until = 0;
+		return;
+	}
+	long f = ++rp_fails;
+	if (f >= 5) {
+		u64 wait = 30000ull << (f - 5 < 7 ? f - 5 : 7);
+		if (wait > 3600000ull)
+			wait = 3600000ull;
+		rp_until = (u64)korin_sys0(SYS_TIME_MS) + wait;
+	}
+}
+
 /* saisie, sa longueur -> 1 si c'est le mot de passe de rp_pw (rp_read avant) ;
  * même durée quel que soit le premier octet faux (rp_egal) */
 int rp_equal(const void *in, u64 len)
@@ -147,10 +173,145 @@ int rp_equal(const void *in, u64 len)
 	u64 l = 0;
 	while (rp_pw[l])
 		l++;
-	if (!l)
-		return 0; /* aucun mot de passe : refusé */
+	if (!l || rp_locked())
+		return 0; /* aucun mot de passe, ou trop d'échecs : refusé */
 	u64 diff = l ^ len; /* longueurs différentes -> non nul */
 	for (u64 i = 0; i < l; i++)
 		diff |= (u8)rp_pw[i] ^ (i < len ? s[i] : 0);
+	rp_result(diff == 0);
 	return diff == 0;
+}
+
+/* ---- les comptes (authd) */
+
+#define RP_AUTH_VERIFY 9
+#define RP_AUTH_HASPW 10
+static u8 rp_am[512] __attribute__((aligned(16)));
+
+/* authd : op, données (deux chaînes au plus) -> résultat */
+static long rp_auth(long op, const char *a, const char *b)
+{
+	long ch = korin_sys2(SYS_SVC_OPEN, "auth", 2000);
+	if (ch < 0)
+		return ch;
+	memset(rp_am, 0, sizeof rp_am);
+	*(u64 *)rp_am = (u64)op;
+	u64 k = 48;
+	for (const char *s = a; *s && k < 48 + 64; s++)
+		rp_am[k++] = (u8)*s;
+	rp_am[k++] = 0;
+	for (const char *s = b; s && *s && k < 500; s++)
+		rp_am[k++] = (u8)*s;
+	rp_am[k++] = 0;
+	*(u32 *)(rp_am + 40) = (u32)(k - 48);
+	long r = korin_sys2(SYS_SVC_CALL, ch, rp_am);
+	memset(rp_am, 0, sizeof rp_am);
+	return r; /* (un numéro de service, pas une poignée : rien à fermer) */
+}
+
+/* /etc/users.ini : pour chaque compte (section, uid, home), fn -> 1 : arrêter */
+static long rp_users(int (*fn)(const char *name, long uid, const char *home, void *arg), void *arg)
+{
+	long fd = sys_open("/etc/users.ini", O_READ);
+	if (fd < 0)
+		return 0;
+	long n = sys_read(fd, rp_buf, RP_BUF - 1);
+	sys_close(fd);
+	if (n <= 0)
+		return 0;
+	rp_buf[n] = 0;
+	char name[64] = "", home[160] = "";
+	long uid = -1;
+	const char *p = rp_buf;
+	for (;;) {
+		const char *e = p;
+		while (*e && *e != 10)
+			e++;
+		int sect = *p == '[' || !*p;
+		if (sect && name[0] && uid >= 0 && fn(name, uid, home, arg))
+			return 1;
+		if (*p == '[') {
+			u64 k = 0;
+			for (const char *c = p + 1; c < e && *c != ']' && k < sizeof name - 1; c++)
+				name[k++] = *c;
+			name[k] = 0;
+			uid = -1;
+			home[0] = 0;
+		} else {
+			const char *v = rp_key(p, "uid");
+			if (v) {
+				uid = 0;
+				while (*v >= '0' && *v <= '9')
+					uid = uid * 10 + (*v++ - '0');
+			} else if ((v = rp_key(p, "home"))) {
+				u64 k = 0;
+				while (v + k < e && v[k] != 13 && k < sizeof home - 1) {
+					home[k] = v[k];
+					k++;
+				}
+				home[k] = 0;
+			}
+		}
+		if (!*e) /* la fin : la dernière section */
+			return name[0] && uid >= 0 && fn(name, uid, home, arg);
+		p = e + 1;
+	}
+}
+
+static int rp_has_pw(const char *name, long uid, const char *home, void *arg)
+{
+	(void)home;
+	(void)arg;
+	return uid >= 1000 && rp_auth(RP_AUTH_HASPW, name, 0) == 1;
+}
+
+int rp_accounts(void)
+{
+	long fd = sys_open(RP_FILE, O_READ);
+	if (fd >= 0) { /* « shared = 1 » : le secret commun, même avec des comptes */
+		long n = sys_read(fd, rp_buf, RP_BUF - 1);
+		sys_close(fd);
+		rp_buf[n > 0 ? n : 0] = 0;
+		for (const char *p = rp_buf; p && *p; p = rp_next(p)) {
+			const char *v = rp_key(p, "shared");
+			if (v && *v == '1')
+				return 0;
+		}
+	}
+	return rp_users(rp_has_pw, 0) == 1;
+}
+
+struct rp_find {
+	const char *name;
+	long uid;
+	char *home;
+	u64 cap;
+};
+
+static int rp_find_fn(const char *name, long uid, const char *home, void *arg)
+{
+	struct rp_find *f = arg;
+	if (strcmp(name, f->name))
+		return 0;
+	f->uid = uid;
+	u64 k = 0;
+	while (home[k] && k < f->cap - 1) {
+		f->home[k] = home[k];
+		k++;
+	}
+	f->home[k] = 0;
+	return 1;
+}
+
+long rp_account(const char *name, const char *pw, char *home, u64 cap)
+{
+	if (rp_locked())
+		return -1;
+	struct rp_find f = {name, -1, home, cap};
+	home[0] = 0;
+	/* un compte de personne (uid >= 1000) qui a un mot de passe : jamais system, jamais sans mot de passe */
+	int ok = name[0] && rp_users(rp_find_fn, &f) == 1 && f.uid >= 1000 && home[0] == '/' &&
+		 rp_auth(RP_AUTH_HASPW, name, 0) == 1 && rp_auth(RP_AUTH_VERIFY, name, pw) == 0;
+	rp_result(ok);
+	return ok ? f.uid : -1;
 }

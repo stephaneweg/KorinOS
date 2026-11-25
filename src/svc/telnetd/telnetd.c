@@ -57,6 +57,7 @@ struct session {
 	u8 *stk2;       /* pile de to_client */
 	long sbn;       /* octets de la sous-négociation en cours */
 	long rows, cols;
+	long uid;       /* le compte ouvert (E70 : mode comptes) ; 0 : celui de la session */
 	u8 sb[SB_MAX];  /* sous-négociation */
 };
 
@@ -165,10 +166,17 @@ static long start_sh(struct session *s)
 	long slave = MW(m, MSG_B);
 	s->master = MW(m, MSG_A);
 	long fds[3] = {slave, slave, slave}; /* sh : entrée, sortie, erreur = l'esclave */
-	spawn_session_next(); /* le shell : sous le compte de la session (users.ini), pas en uid 0 */
+	/* le shell : sous le compte qui s'est connecté (mode comptes), sinon celui de la session ; jamais l'uid 0 */
+	if (s->uid > 0)
+		ksys(SYS_SPAWN_AS, 0, 0, s->uid, 0, 0, 0);
+	else
+		spawn_session_next();
 	long pid = f_spawn_stdio("/bin/bash", 0, fds); /* bash s'il est sur la carte (comme le Terminal) */
 	if (pid < 0) {
-		spawn_session_next();
+		if (s->uid > 0)
+			ksys(SYS_SPAWN_AS, 0, 0, s->uid, 0, 0, 0);
+		else
+			spawn_session_next();
 		pid = f_spawn_stdio("/bin/sh", 0, fds);
 	}
 	if (pid >= 0) {
@@ -378,54 +386,83 @@ NORETURN static void to_sh(struct session *s)
 	thread_exit();
 }
 
-/* (thread) le mot de passe, puis sh et les deux threads de copie (celui-ci
- * devient to_sh) */
+/* une ligne tapée par le client -> 0, < 0 : parti ; *rd, *end : octets en attente dans pend */
+static long read_line(struct session *s, u8 *buf, u8 *pend, u64 *rd, u64 *end, u8 *line, u64 cap, u64 *plen)
+{
+	u64 len = 0; /* longueur de la ligne */
+	for (;;) {
+		if (*rd >= *end) {
+			long n = net_recv(s->sock, (long)buf, 512, 120000); /* 2 min pour taper */
+			if (n <= 0)
+				return -1; /* parti (E_AGAIN compris) */
+			*end = telnet_in(buf, (u64)n, pend, s);
+			*rd = 0;
+			continue;
+		}
+		u8 c = pend[(*rd)++];
+		if (c == 10 || c == 13) /* (Entrée : CR, telnet_in le garde) */
+			break;
+		if (c == 8 || c == 127) { /* (client en mode caractère) */
+			if (len)
+				len--;
+			continue;
+		}
+		if (c < 32) /* Ctrl+C, NUL... ignorés */
+			continue;
+		if (len < cap - 1)
+			line[len] = c;
+		if (len < 200) /* (trop long : jamais le bon) */
+			len++;
+	}
+	line[len < cap - 1 ? len : cap - 1] = 0;
+	*plen = len;
+	return 0;
+}
+
+/* (thread) le compte et son mot de passe (mode comptes, E70) ou le mot de passe commun, puis sh et les deux
+ * threads de copie (celui-ci devient to_sh) */
 static void auth(struct session *s)
 {
-	u8 buf[512], pend[512], line[128];
+	u8 buf[512], pend[512], line[128], who[64];
 	long tries = TRIES;
 	u64 rd = 0, end = 0; /* octets en attente dans pend */
-	if (!rp_check_empty()) { /* aucun mot de passe : refus */
+	rp_take();
+	int accounts = rp_accounts();
+	rp_give();
+	if (!accounts && !rp_check_empty()) { /* aucun mot de passe : refus */
 		send_tr(s, m_none);
 		goto refuse;
 	}
 	for (;;) {
+		u64 len = 0;
+		if (accounts) { /* « Compte : », écho rendu */
+			send_str(s, lang_tr("Compte : "));
+			if (read_line(s, buf, pend, &rd, &end, who, sizeof who, &len) < 0)
+				goto refuse;
+			send(s->sock, s_crlf, 2);
+		}
 		send_str(s, lang_tr(m_pw)); /* « Mot de passe : », écho coupé */
 		send_echo(s, T_WILL);
-		u64 len = 0; /* longueur de la ligne */
-		for (;;) {
-			if (rd >= end) {
-				long n = net_recv(s->sock, (long)buf, 512, 120000); /* 2 min pour taper */
-				if (n <= 0)
-					goto refuse; /* parti (E_AGAIN compris) */
-				end = telnet_in(buf, (u64)n, pend, s);
-				rd = 0;
-				continue;
-			}
-			u8 c = pend[rd++];
-			if (c == 10 || c == 13) /* (Entrée : CR, telnet_in le garde) */
-				break;
-			if (c == 8 || c == 127) { /* (client en mode caractère) */
-				if (len)
-					len--;
-				continue;
-			}
-			if (c < 32) /* Ctrl+C, NUL... ignorés */
-				continue;
-			if (len < 128)
-				line[len] = c;
-			if (len < 200) /* (trop long : jamais le bon) */
-				len++;
-		}
+		if (read_line(s, buf, pend, &rd, &end, line, sizeof line, &len) < 0)
+			goto refuse;
 		send_echo(s, T_WONT); /* écho rendu au client */
 		send(s->sock, s_crlf, 2);
+		int ok;
 		rp_take(); /* (rp_pw commun aux threads) */
-		if (!rp_read()) {
-			rp_give(); /* retiré entre-temps */
-			send_tr(s, m_none);
-			goto refuse;
+		if (accounts) {
+			char home[160];
+			long uid = rp_account((const char *)who, (const char *)line, home, sizeof home);
+			ok = uid > 0;
+			if (ok)
+				s->uid = uid;
+		} else {
+			if (!rp_read()) {
+				rp_give(); /* retiré entre-temps */
+				send_tr(s, m_none);
+				goto refuse;
+			}
+			ok = rp_equal(line, len);
 		}
-		int ok = rp_equal(line, len);
 		rp_give();
 		memset(line, 0, sizeof line); /* la saisie effacée */
 		if (ok)
