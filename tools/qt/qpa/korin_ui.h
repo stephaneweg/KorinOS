@@ -65,6 +65,7 @@ extern "C" {
 #define KQ_WIN_POPUP 2      /* sans cadre, au-dessus de tout (menus, listes, infobulles) */
 #define KQ_WIN_BORDERLESS 3 /* sans cadre */
 #define KQ_WIN_DIALOG 4     /* cadre, modale (WF_MODAL) */
+#define KQ_WIN_ALPHA 0x100  /* à ajouter : pixels transparents (WF_ALPHA, octet haut = transparence, 0 opaque) */
 
 /* Korin n'a pas de barre de titre : les boutons du cadre sont sur le contenu, en haut à droite, et le haut du
  * contenu déplace la fenêtre. Le contenu de Qt d'une fenêtre à cadre commence KQ_TOP_BAND px plus bas (comme

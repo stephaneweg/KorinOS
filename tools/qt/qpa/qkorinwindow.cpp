@@ -69,10 +69,13 @@ void QKorinWindow::create()
     // (le genre suit les drapeaux du moment : Qt peut faire la fenêtre de plateforme avant setFlags)
     m_kind = kind();
     m_band = (m_kind == KQ_WIN_POPUP || m_kind == KQ_WIN_BORDERLESS) ? 0 : KQ_TOP_BAND;
+    // une fenêtre sans cadre qui demande de l'alpha (fond transparent de QQuickView : la marge de l'ombre des
+    // popups de MuseScore) : WF_ALPHA, sinon ses pixels transparents sortent noirs
+    m_alpha = m_band == 0 && window()->format().hasAlpha();
     const QRect g = geometry();
     // x, y : le contenu d'UIKit (la bande comprise) sur l'écran
     m_win = kq_window(g.x(), g.y() - m_band, qMax(g.width(), 1), qMax(g.height(), 1) + m_band,
-                      m_title.toUtf8().constData(), m_kind);
+                      m_title.toUtf8().constData(), m_kind | (m_alpha ? KQ_WIN_ALPHA : 0));
     if (m_win <= 0) {
         m_win = 0;
         qWarning("qt.qpa.korin : fenêtre refusée par UIKit");
@@ -321,8 +324,27 @@ void QKorinBackingStore::flush(QWindow *window, const QRegion &region, const QPo
     const int sbpl = m_image.bytesPerLine();
     const uchar *s = m_image.constBits() + src.y() * sbpl + src.x() * 4;
     unsigned *d = dst + (tgt.y() + band) * dw + tgt.x();
+    const bool alpha = kw->alpha() && m_image.hasAlphaChannel();
     for (int y = 0; y < tgt.height(); y++) {
-        std::memcpy(d, s, size_t(tgt.width()) * 4);
+        if (!alpha) {
+            std::memcpy(d, s, size_t(tgt.width()) * 4);
+        } else {
+            // ARGB prémultiplié de Qt (alpha 255 : opaque) -> pixel de WF_ALPHA (octet haut : transparence,
+            // 0 opaque ; couleur non prémultipliée)
+            const unsigned *sp = reinterpret_cast<const unsigned *>(s);
+            for (int x = 0; x < tgt.width(); x++) {
+                const unsigned p = sp[x], a = p >> 24;
+                if (a == 255) {
+                    d[x] = p & 0xffffffu;
+                } else if (a == 0) {
+                    d[x] = 0xff000000u;
+                } else {
+                    const unsigned r = (((p >> 16) & 255) * 255 + a / 2) / a, g = (((p >> 8) & 255) * 255 + a / 2) / a,
+                                   b = ((p & 255) * 255 + a / 2) / a;
+                    d[x] = ((255 - a) << 24) | ((r > 255 ? 255 : r) << 16) | ((g > 255 ? 255 : g) << 8) | (b > 255 ? 255 : b);
+                }
+            }
+        }
         s += sbpl;
         d += dw;
     }

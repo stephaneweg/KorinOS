@@ -29,12 +29,12 @@ void kq_screen(int *w, int *h, int *bottom, int *top)
 
 long kq_window(int x, int y, int w, int h, const char *title, int kind)
 {
-	long role = 0;
-	switch (kind) {
-	case KQ_WIN_RESIZABLE: role = WF_RESIZABLE; break;
-	case KQ_WIN_POPUP: role = WF_FRAMELESS | WF_TOP | WF_NOLIST | WF_NOFOCUS; break;	/* (le clavier reste à la fenêtre de l'app : Qt lui donne le popup) */
-	case KQ_WIN_BORDERLESS: role = WF_FRAMELESS; break;
-	case KQ_WIN_DIALOG: role = WF_RESIZABLE | WF_MODAL; break;
+	long role = (kind & KQ_WIN_ALPHA) ? WF_ALPHA : 0;
+	switch (kind & 0xff) {
+	case KQ_WIN_RESIZABLE: role |= WF_RESIZABLE; break;
+	case KQ_WIN_POPUP: role |= WF_FRAMELESS | WF_TOP | WF_NOLIST | WF_NOFOCUS; break;	/* (le clavier reste à la fenêtre de l'app : Qt lui donne le popup) */
+	case KQ_WIN_BORDERLESS: role |= WF_FRAMELESS; break;
+	case KQ_WIN_DIALOG: role |= WF_RESIZABLE | WF_MODAL; break;
 	default: break;
 	}
 	return ui_window_ex(x, y, w, h, (long)(title ? title : "Qt"), role);

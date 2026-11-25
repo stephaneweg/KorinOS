@@ -36,6 +36,7 @@ public:
 
     long handle() const { return m_win; }
     int band() const { return m_band; }
+    bool alpha() const { return m_alpha; }
     QPoint origin() const { return m_origin; }	// le contenu de la fenêtre d'UIKit sur l'écran
     void refreshOrigin();			// relit la place (Elegant déplace les fenêtres)
     void handleResize(int w, int h);		// WEV_RESIZE : la taille de la fenêtre d'UIKit
@@ -56,6 +57,7 @@ private:
     int m_band = 0;
     int m_kind = KQ_WIN_RESIZABLE;
     bool m_active = false;
+    bool m_alpha = false;	// (WF_ALPHA : sans cadre, format avec alpha)
     QPoint m_origin;
     QString m_title;
     Qt::WindowStates m_state = Qt::WindowNoState;
