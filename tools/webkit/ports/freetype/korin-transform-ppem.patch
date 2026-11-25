@@ -1,0 +1,13 @@
+--- a/src/base/ftobjs.c	2026-11-25 00:09:13.006140457 +0000
++++ b/src/base/ftobjs.c	2026-11-25 00:09:13.007742967 +0000
+@@ -503,6 +503,10 @@
+                    pbox.xMin < -0x1000000 || pbox.xMax >= 0x1000000 ||
+                    pbox.yMin < -0x1000000 || pbox.yMax >= 0x1000000 ||
+              ( slot->face                                         &&
++               /* Korin OS : pas sous une matrice (FT_Set_Transform) : Qt */
++               /* rend le texte agrandi par une petite taille et une      */
++               /* matrice, l'image dépasse alors 10 fois le ppem          */
++               !( slot->face->internal->transform_flags & 1 )     &&
+                ( width  > 10 * slot->face->size->metrics.x_ppem ||
+                  height > 10 * slot->face->size->metrics.y_ppem ) ) );
+ 

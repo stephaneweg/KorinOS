@@ -1696,7 +1696,7 @@ Sur le PC, init2 lance Elegant (`shell=desktop`) et le bureau arrive (QEMU q35).
 | `tools/sys/compare.sh` | comparaison asm / C sur le Pi : cartes `build/card_ws_a` / `_c`, `run NOM SCRIPT` (script de `qemu_drive.py`, captures `build/wscmp/NOM_<a\|c>_*.png`), variantes `THEME="Onyx Noir"`, `SHELL_MODE=poche` ; au démarrage `bench`, `movebench` et les lignes datées du journal (`journal`) ; sans préchargement (`preload.txt` vide) |
 | `build.ps1` | `$sys_c` : les sept programmes C dans `/sys` à la place de l'asm |
 | `src/svc/init2/*` | `plat_shell_lost` : PC, la console texte si « ws » ne répond pas en 20 s ou si Elegant est abandonné après 3 relances ; Pi : rien (comme l'asm) |
-| `skel/pc/etc/session`, `system.ini` | session du PC (voronoy, menubar, panel, notifyd, clipd, clockd ; pas agenda, stickies, pkgd, printd) ; `shell=desktop` |
+| `skel/pc/etc/session`, `system.ini` | session du PC (voronoy, menubar, panel, notifyd, clipd, agenda, clockd, stickies, printd ; pkgd dans `services.txt`) ; `shell=desktop` |
 | `tools/pc/sysroot.sh` | construit `src/sys` (sauf `PC_QUICK=1`) ; met dans l'arbre `sys/<nom>`, `fonts/` (`ref/fonts`), `res/icons` (icônes sans app, de `tools/icons/rendered`), `res/lang` (`tools/lang/merge.py`), `etc/theme.txt`, `panel.ini`, `places.ini`, `fileassoc.ini`, `dock.ini` |
 | `src/kernel/core/svc.c` | **correction du noyau du PC** : la shootdown du TLB des vues d'une requête (`SVC_REPLY`, `SVC_FORWARD`, fin d'un process) se fait après avoir rendu `svc_lock` |
 
@@ -1895,7 +1895,7 @@ du PC après le pilote du GPU Intel).
 
 | App | Pourquoi |
 |---|---|
-| printd (`src/sys/printd`) | son `main.cpp` appelle le noyau par `svc 0` en asm : à passer à `<armpi/syscall.h>` (src/sys est au chantier d'Elegant) ; `apps.sh` le saute tant que la ligne y est |
+| printd (`src/sys/printd`) | **fait** : passé à `<armpi/syscall.h>` (532f7c27), construit par `apps.sh`, dans `/etc/session` du PC depuis le 25/11 |
 | vector | Skia, HarfBuzz, libxml2 du sysroot de WebKit (`tools/webkit/build-deps.sh`) : Skia à construire pour x86-64 (rendu processeur), avec WebKit |
 | koton | construit par `tools/webkit/build-koton.sh` sur le sysroot d'Onyx (FreeType…) ; ses lignes d'asm ont leur variante x86-64 (`ui/view.cpp`, `ui/audio.h`) ; reste son script pour le PC |
 | gcemu, n3dsemu | Mesa (GlKit) relié en statique, JIT AArch64, `gx_asm.asm` (FASMARM) pour gcemu : après le GPU ; l'interpréteur seul demandera de séparer le rendu GL |

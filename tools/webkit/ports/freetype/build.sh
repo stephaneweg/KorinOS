@@ -21,6 +21,12 @@ mkdir -p "$B/obj"
 onyx_install_deps
 [ -f "$ONYX_SYSROOT/lib/libpng16.a" ] || sh "$PORTS/libpng/build.sh"
 
+# la retouche de Korin : la limite « 10 x ppem » de FreeType 2.14.3 (ft_glyphslot_preset_bitmap) refusait les
+# glyphes rendus sous une matrice (FT_Set_Transform : le texte agrandi de Qt, MuseScore ; docs/etude/QT.md)
+if patch -N -p1 --dry-run -s -d "$SRC" < "$PORTS/freetype/korin-transform-ppem.patch" >/dev/null 2>&1; then
+	patch -N -p1 -s -d "$SRC" < "$PORTS/freetype/korin-transform-ppem.patch"
+fi
+
 FT_DEFS="-DFT2_BUILD_LIBRARY -DFT_CONFIG_MODULES_H=<onyx_ftmodule.h> -DFT_CONFIG_OPTION_SYSTEM_ZLIB \
  -DFT_CONFIG_OPTION_USE_PNG -DFT_CONFIG_OPTION_USE_BROTLI -DHAVE_UNISTD_H -DHAVE_FCNTL_H"
 SOURCES="base/ftsystem.c base/ftinit.c base/ftdebug.c base/ftbase.c base/ftbbox.c base/ftbitmap.c

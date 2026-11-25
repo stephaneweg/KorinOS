@@ -1,0 +1,576 @@
+diff --git a/SetupConfigure.cmake b/SetupConfigure.cmake
+index 501d10e8..9c056290 100644
+--- a/SetupConfigure.cmake
++++ b/SetupConfigure.cmake
+@@ -402,3 +402,11 @@ if (MUE_ENABLE_LOAD_QML_FROM_SOURCE)
+ endif()
+ 
+ configure_file(${CMAKE_CURRENT_LIST_DIR}/src/app/app_config.h.in app_config.h )
++
++###########################################
++# Korin OS (tools/musescore, docs/etude/MUSESCORE.md)
++###########################################
++if(KORIN)
++    # (pas de qttools pour Korin : les traductions .qm sont faites à part, par le lrelease de l'hôte)
++    set(QT_ADD_LINGUISTTOOLS OFF)
++endif()
+diff --git a/buildscripts/cmake/GetPlatformInfo.cmake b/buildscripts/cmake/GetPlatformInfo.cmake
+index 1676d898..8723f15d 100644
+--- a/buildscripts/cmake/GetPlatformInfo.cmake
++++ b/buildscripts/cmake/GetPlatformInfo.cmake
+@@ -22,7 +22,11 @@ if (PLATFORM_DETECTED)
+     return()
+ endif()
+ 
+-if(${CMAKE_CXX_COMPILER} MATCHES "/em\\+\\+(-[a-zA-Z0-9.])?$")
++if(KORIN)
++    # Korin OS (tools/musescore, docs/etude/MUSESCORE.md) : un Unix générique, ni Linux ni ALSA (la chaîne de
++    # Korin : tools/qt/korin.cmake met KORIN)
++    set(OS_IS_KORIN 1)
++elseif(${CMAKE_CXX_COMPILER} MATCHES "/em\\+\\+(-[a-zA-Z0-9.])?$")
+     set(OS_IS_WASM 1)
+ elseif(${CMAKE_HOST_SYSTEM_NAME} MATCHES "Windows")
+     set(OS_IS_WIN 1)
+diff --git a/buildscripts/cmake/SetupQt6.cmake b/buildscripts/cmake/SetupQt6.cmake
+index b4aa8aaa..bc08c433 100644
+--- a/buildscripts/cmake/SetupQt6.cmake
++++ b/buildscripts/cmake/SetupQt6.cmake
+@@ -18,7 +18,7 @@
+ # You should have received a copy of the GNU General Public License
+ # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ 
+-if (OS_IS_WASM)
++if (OS_IS_WASM OR OS_IS_KORIN)
+     set(QT_IS_STATIC ON)
+ endif()
+ 
+diff --git a/src/app/CMakeLists.txt b/src/app/CMakeLists.txt
+index 169be219..97243443 100644
+--- a/src/app/CMakeLists.txt
++++ b/src/app/CMakeLists.txt
+@@ -81,6 +81,9 @@ elseif(OS_IS_WASM)
+ 
+     set(EXECUTABLE_NAME MuseScoreStudio)
+ 
++elseif(OS_IS_KORIN)
++    # Korin OS : un exécutable statique (Qt et ses plugins liés), /apps/musescore.app/main (tools/musescore)
++
+ elseif(OS_IS_FBSD)
+     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L /usr/local/lib -lasound -lpthread")
+ 
+@@ -413,6 +416,8 @@ elseif(OS_IS_MAC)
+ ###########################################
+ # Wasm
+ ###########################################
++elseif(OS_IS_KORIN)
++    # (l'arbre installé : bin/mscore et share/ ; tools/musescore/stage.sh en fait l'app)
+ elseif(OS_IS_WASM)
+ 
+     add_custom_command(
+diff --git a/src/app/main.cpp b/src/app/main.cpp
+index 2ac78a89..77983e5e 100644
+--- a/src/app/main.cpp
++++ b/src/app/main.cpp
+@@ -57,6 +57,46 @@ static void crashCallback(int signum)
+ 
+ #endif
+ 
++#ifdef Q_OS_KORIN
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++// Korin OS : la langue du système (lang = xx de /etc/system.ini, fr sans clé, comme UIKit) dans LANG, avant Qt :
++// sans elle, QLocale ne voit que « C » et MuseScore reste en anglais
++static void korin_set_lang()
++{
++    // (une langue déjà dite est gardée ; « C » et « POSIX », la valeur par défaut d'une session, n'en sont pas)
++    const char* cur = getenv("LANG");
++    if (cur && *cur && strcmp(cur, "C") && strcmp(cur, "POSIX") && strncmp(cur, "C.", 2)) {
++        return;
++    }
++    char lang[16] = "fr";
++    if (FILE* f = fopen("/etc/system.ini", "r")) {
++        char line[256];
++        while (fgets(line, sizeof line, f)) {
++            char v[16];
++            if (sscanf(line, " lang = %15[A-Za-z_]", v) == 1) {
++                strcpy(lang, v);
++            }
++        }
++        fclose(f);
++    }
++    // fr -> fr_FR.UTF-8, en -> en_US.UTF-8, pt_BR -> pt_BR.UTF-8
++    char value[40];
++    if (strchr(lang, '_')) {
++        snprintf(value, sizeof value, "%s.UTF-8", lang);
++    } else {
++        const char* region = !strcmp(lang, "en") ? "US" : lang;
++        char up[8] = {};
++        for (int i = 0; region[i] && i < 7; i++) {
++            up[i] = (region[i] >= 'a' && region[i] <= 'z') ? char(region[i] - 'a' + 'A') : region[i];
++        }
++        snprintf(value, sizeof value, "%s_%s.UTF-8", lang, up);
++    }
++    setenv("LANG", value, 1);
++}
++#endif
++
+ static void app_init_qrc()
+ {
+     Q_INIT_RESOURCE(app);
+@@ -68,7 +108,10 @@ static void app_init_qrc()
+ 
+ int main(int argc, char** argv)
+ {
+-#ifndef MUSE_MODULE_DIAGNOSTICS_CRASHPAD_CLIENT
++#ifdef Q_OS_KORIN
++    korin_set_lang();
++#endif
++#if !defined(MUSE_MODULE_DIAGNOSTICS_CRASHPAD_CLIENT) && !defined(Q_OS_KORIN)	// (Korin : le noyau dit la faute)
+     signal(SIGSEGV, crashCallback);
+     signal(SIGILL, crashCallback);
+     signal(SIGFPE, crashCallback);
+diff --git a/src/appshell/internal/startupscenario.cpp b/src/appshell/internal/startupscenario.cpp
+index fad6a767..d71f67ab 100644
+--- a/src/appshell/internal/startupscenario.cpp
++++ b/src/appshell/internal/startupscenario.cpp
+@@ -268,7 +268,12 @@ void StartupScenario::showStartupDialogsIfNeed(StartupModeType modeType)
+         const bool shouldCheckForMuseSamplerUpdate = modeType == StartupModeType::StartEmpty
+                                                      || modeType == StartupModeType::StartWithNewScore;
+ 
+-        if (shouldShowWelcomeDialog(modeType)) {
++#ifdef Q_OS_KORIN
++        const bool showWelcome = false;	// (Korin OS : ses pages vantent Muse Sounds et MuseHub, absents)
++#else
++        const bool showWelcome = shouldShowWelcomeDialog(modeType);
++#endif
++        if (showWelcome) {
+             interactive()->open(WELCOME_DIALOG_URI).onResolve(this, [this, shouldCheckForMuseSamplerUpdate](const Val&) {
+                 configuration()->setWelcomeDialogLastShownVersion(configuration()->museScoreVersion());
+ 
+diff --git a/src/appshell/qml/MuseScore/AppShell/CMakeLists.txt b/src/appshell/qml/MuseScore/AppShell/CMakeLists.txt
+index 84f19f06..3226c3e3 100644
+--- a/src/appshell/qml/MuseScore/AppShell/CMakeLists.txt
++++ b/src/appshell/qml/MuseScore/AppShell/CMakeLists.txt
+@@ -123,7 +123,7 @@ elseif(OS_IS_WIN)
+             platform/win/AppTitleBar.qml
+             platform/win/Main.qml
+     )
+-elseif(OS_IS_LIN OR OS_IS_FREEBSD)
++elseif(OS_IS_LIN OR OS_IS_FREEBSD OR OS_IS_KORIN)
+     qt_target_qml_sources(appshell_qml 
+         QML_FILES
+             platform/linux/Main.qml
+diff --git a/src/framework/audio/driver/CMakeLists.txt b/src/framework/audio/driver/CMakeLists.txt
+index 950c7086..5166e97c 100644
+--- a/src/framework/audio/driver/CMakeLists.txt
++++ b/src/framework/audio/driver/CMakeLists.txt
+@@ -97,6 +97,11 @@ elseif(OS_IS_MAC)
+     find_library(AudioToolbox NAMES AudioToolbox)
+     find_library(CoreAudio NAMES CoreAudio)
+     target_link_libraries(muse_audio_driver PRIVATE ${AudioToolbox} ${CoreAudio})
++elseif(OS_IS_KORIN)
++    target_sources(muse_audio_driver PRIVATE
++        platform/korin/korinaudiodriver.cpp
++        platform/korin/korinaudiodriver.h
++    )
+ elseif(OS_IS_WASM)
+     target_sources(muse_audio_driver PRIVATE
+         platform/web/webaudiodriver.cpp
+diff --git a/src/framework/audio/main/internal/audioconfiguration.cpp b/src/framework/audio/main/internal/audioconfiguration.cpp
+index babb868d..6e87d1ff 100644
+--- a/src/framework/audio/main/internal/audioconfiguration.cpp
++++ b/src/framework/audio/main/internal/audioconfiguration.cpp
+@@ -65,6 +65,8 @@ void AudioConfiguration::init()
+     settings()->setDefaultValue(AUDIO_API_KEY, Val("ALSA"));
+ #elif defined(Q_OS_MACOS)
+     settings()->setDefaultValue(AUDIO_API_KEY, Val("CoreAudio"));
++#elif defined(Q_OS_KORIN)
++    settings()->setDefaultValue(AUDIO_API_KEY, Val("AudioKit"));
+ #endif
+     settings()->valueChanged(AUDIO_API_KEY).onReceive(nullptr, [this](const Val&) {
+         m_currentAudioApiChanged.notify();
+diff --git a/src/framework/audio/main/internal/audiodriverfactory.cpp b/src/framework/audio/main/internal/audiodriverfactory.cpp
+index a612d4bf..86439c86 100644
+--- a/src/framework/audio/main/internal/audiodriverfactory.cpp
++++ b/src/framework/audio/main/internal/audiodriverfactory.cpp
+@@ -51,6 +51,10 @@
+ #include "audio/driver/platform/web/webaudiodriver.h"
+ #endif
+ 
++#ifdef Q_OS_KORIN
++#include "audio/driver/platform/korin/korinaudiodriver.h"
++#endif
++
+ #include "log.h"
+ 
+ using namespace muse;
+@@ -95,6 +99,11 @@ std::vector<std::string> AudioDriverFactory::availableAudioDrivers() const
+     names.push_back("WASM");
+     return names;
+ #endif
++
++#ifdef Q_OS_KORIN
++    names.push_back("AudioKit");
++    return names;
++#endif
+ }
+ 
+ IAudioDriverPtr AudioDriverFactory::createDriver(const std::string& name) const
+@@ -151,4 +160,9 @@ IAudioDriverPtr AudioDriverFactory::createDriver(const std::string& name) const
+     UNUSED(name);
+     return std::shared_ptr<IAudioDriver>(new WebAudioDriver());
+ #endif
++
++#ifdef Q_OS_KORIN
++    UNUSED(name);
++    return std::make_shared<KorinAudioDriver>();
++#endif
+ }
+diff --git a/src/framework/audio/thirdparty/fluidsynth/fluidsynth-2.3.3/src/external/portable_endian.h b/src/framework/audio/thirdparty/fluidsynth/fluidsynth-2.3.3/src/external/portable_endian.h
+index 3e549d58..73694c04 100644
+--- a/src/framework/audio/thirdparty/fluidsynth/fluidsynth-2.3.3/src/external/portable_endian.h
++++ b/src/framework/audio/thirdparty/fluidsynth/fluidsynth-2.3.3/src/external/portable_endian.h
+@@ -20,7 +20,7 @@
+ #define _DEFAULT_SOURCE
+ #include <endian.h>
+ 
+-#elif defined(__linux__) || defined(__CYGWIN__)
++#elif defined(__linux__) || defined(__CYGWIN__) || defined(__armpi__)	/* (Korin OS : <endian.h> de libposix) */
+ 
+ #	include <endian.h>
+ 
+diff --git a/src/framework/global/internal/globalconfiguration.cpp b/src/framework/global/internal/globalconfiguration.cpp
+index 20440fe7..389f02d1 100644
+--- a/src/framework/global/internal/globalconfiguration.cpp
++++ b/src/framework/global/internal/globalconfiguration.cpp
+@@ -76,6 +76,10 @@ QString GlobalConfiguration::resolveAppDataPath() const
+     return dir.absolutePath() + "/";
+ #elif defined(Q_OS_WASM)
+     return "/files/share";
++#elif defined(Q_OS_KORIN)
++    // Korin OS : /apps/musescore.app/main et ses données dans /apps/musescore.app/share (tools/musescore/stage.sh)
++    QDir dir(QCoreApplication::applicationDirPath() + QString("/share"));
++    return dir.absolutePath() + "/";
+ #else
+     // Try relative path (needed for portable AppImage and non-standard installations)
+     QDir dir(QCoreApplication::applicationDirPath() + QString("/../share/" MUSE_APP_INSTALL_NAME));
+diff --git a/src/framework/global/runtime.cpp b/src/framework/global/runtime.cpp
+index 58a46326..feef7f7e 100644
+--- a/src/framework/global/runtime.cpp
++++ b/src/framework/global/runtime.cpp
+@@ -38,7 +38,7 @@ static thread_local std::string s_threadName;
+ void muse::runtime::setThreadName(const std::string& name)
+ {
+     s_threadName = name;
+-#if defined(Q_OS_LINUX) || defined(Q_OS_FREEBSD)
++#if defined(Q_OS_LINUX) || defined(Q_OS_FREEBSD) || defined(Q_OS_KORIN)
+     // Set thread name through pthreads to aid debuggers that display such names.
+     // Thread names are limited to 16 bytes on Linux, including the
+     // terminating null.
+diff --git a/src/framework/midi/internal/dummymidiinport.cpp b/src/framework/midi/internal/dummymidiinport.cpp
+index 9d486aff..47234474 100644
+--- a/src/framework/midi/internal/dummymidiinport.cpp
++++ b/src/framework/midi/internal/dummymidiinport.cpp
+@@ -21,6 +21,8 @@
+  */
+ #include "dummymidiinport.h"
+ 
++#include "log.h"
++
+ using namespace muse;
+ using namespace muse::midi;
+ 
+@@ -28,23 +30,31 @@ void DummyMidiInPort::init()
+ {
+ }
+ 
+-std::vector<MidiDevice> DummyMidiInPort::availableDevices() const
++void DummyMidiInPort::deinit()
++{
++}
++
++MidiDeviceList DummyMidiInPort::availableDevices() const
++{
++    return {};
++}
++
++async::Notification DummyMidiInPort::availableDevicesChanged() const
+ {
+-    MidiDevice d;
+-    d.id = "dummy";
+-    d.name = "Dummy";
+-    return { d };
++    return m_availableDevicesChanged;
+ }
+ 
+ Ret DummyMidiInPort::connect(const MidiDeviceID& deviceID)
+ {
+     m_deviceID = deviceID;
+-    return true;
++    m_deviceChanged.notify();
++    return make_ret(Ret::Code::Ok);
+ }
+ 
+ void DummyMidiInPort::disconnect()
+ {
+     m_deviceID.clear();
++    m_deviceChanged.notify();
+ }
+ 
+ bool DummyMidiInPort::isConnected() const
+@@ -57,6 +67,11 @@ MidiDeviceID DummyMidiInPort::deviceID() const
+     return m_deviceID;
+ }
+ 
++async::Notification DummyMidiInPort::deviceChanged() const
++{
++    return m_deviceChanged;
++}
++
+ async::Channel<tick_t, Event> DummyMidiInPort::eventReceived() const
+ {
+     return m_eventReceived;
+diff --git a/src/framework/midi/internal/dummymidiinport.h b/src/framework/midi/internal/dummymidiinport.h
+index 5432d905..8d035c60 100644
+--- a/src/framework/midi/internal/dummymidiinport.h
++++ b/src/framework/midi/internal/dummymidiinport.h
+@@ -22,26 +22,31 @@
+ #ifndef MUSE_MIDI_DUMMYMIDIINPORT_H
+ #define MUSE_MIDI_DUMMYMIDIINPORT_H
+ 
+-#include "imidiinport.h"
++#include "../imidiinport.h"
+ 
+ namespace muse::midi {
++// (un système sans MIDI : Korin OS pour l'instant ; tenu à jour avec IMidiInPort)
+ class DummyMidiInPort : public IMidiInPort
+ {
+ public:
+-
+     void init();
++    void deinit();
+ 
+-    std::vector<MidiDevice> availableDevices() const override;
++    MidiDeviceList availableDevices() const override;
++    async::Notification availableDevicesChanged() const override;
+ 
+     Ret connect(const MidiDeviceID& deviceID) override;
+     void disconnect() override;
+     bool isConnected() const override;
+     MidiDeviceID deviceID() const override;
++    async::Notification deviceChanged() const override;
+ 
+     async::Channel<tick_t, Event> eventReceived() const override;
+ 
+ private:
+     MidiDeviceID m_deviceID;
++    async::Notification m_availableDevicesChanged;
++    async::Notification m_deviceChanged;
+     async::Channel<tick_t, Event> m_eventReceived;
+ };
+ }
+diff --git a/src/framework/midi/internal/dummymidioutport.cpp b/src/framework/midi/internal/dummymidioutport.cpp
+index 0bffe86b..65563cbb 100644
+--- a/src/framework/midi/internal/dummymidioutport.cpp
++++ b/src/framework/midi/internal/dummymidioutport.cpp
+@@ -22,7 +22,6 @@
+ #include "dummymidioutport.h"
+ 
+ #include "log.h"
+-#include "midierrors.h"
+ 
+ using namespace muse;
+ using namespace muse::midi;
+@@ -31,30 +30,31 @@ void DummyMidiOutPort::init()
+ {
+ }
+ 
++void DummyMidiOutPort::deinit()
++{
++}
++
+ MidiDeviceList DummyMidiOutPort::availableDevices() const
+ {
+-    MidiDevice d;
+-    d.id = "dummy";
+-    d.name = "Dummy";
+-    return { d };
++    return {};
+ }
+ 
+ async::Notification DummyMidiOutPort::availableDevicesChanged() const
+ {
+-    return {};
++    return m_availableDevicesChanged;
+ }
+ 
+ Ret DummyMidiOutPort::connect(const MidiDeviceID& deviceID)
+ {
+-    LOGI() << "deviceID: " << deviceID;
+     m_connectedDeviceID = deviceID;
+-    return Ret(true);
++    m_deviceChanged.notify();
++    return make_ret(Ret::Code::Ok);
+ }
+ 
+ void DummyMidiOutPort::disconnect()
+ {
+-    LOGI() << "disconnect";
+     m_connectedDeviceID.clear();
++    m_deviceChanged.notify();
+ }
+ 
+ bool DummyMidiOutPort::isConnected() const
+@@ -67,16 +67,17 @@ MidiDeviceID DummyMidiOutPort::deviceID() const
+     return m_connectedDeviceID;
+ }
+ 
++async::Notification DummyMidiOutPort::deviceChanged() const
++{
++    return m_deviceChanged;
++}
++
+ bool DummyMidiOutPort::supportsMIDI20Output() const
+ {
+     return false;
+ }
+ 
+-Ret DummyMidiOutPort::sendEvent(const Event& e)
++Ret DummyMidiOutPort::sendEvent(const Event&)
+ {
+-    if (!isConnected()) {
+-        return make_ret(Err::MidiNotConnected);
+-    }
+-    LOGI() << e.to_string();
+-    return Ret(true);
++    return make_ret(Ret::Code::Ok);
+ }
+diff --git a/src/framework/midi/internal/dummymidioutport.h b/src/framework/midi/internal/dummymidioutport.h
+index daa43ec9..510e9742 100644
+--- a/src/framework/midi/internal/dummymidioutport.h
++++ b/src/framework/midi/internal/dummymidioutport.h
+@@ -25,11 +25,12 @@
+ #include "../imidioutport.h"
+ 
+ namespace muse::midi {
++// (un système sans MIDI : Korin OS pour l'instant ; tenu à jour avec IMidiOutPort)
+ class DummyMidiOutPort : public IMidiOutPort
+ {
+ public:
+-
+     void init();
++    void deinit();
+ 
+     MidiDeviceList availableDevices() const override;
+     async::Notification availableDevicesChanged() const override;
+@@ -38,6 +39,7 @@ public:
+     void disconnect() override;
+     bool isConnected() const override;
+     MidiDeviceID deviceID() const override;
++    async::Notification deviceChanged() const override;
+ 
+     bool supportsMIDI20Output() const override;
+ 
+@@ -45,6 +47,8 @@ public:
+ 
+ private:
+     MidiDeviceID m_connectedDeviceID;
++    async::Notification m_availableDevicesChanged;
++    async::Notification m_deviceChanged;
+ };
+ }
+ 
+diff --git a/src/framework/ui/CMakeLists.txt b/src/framework/ui/CMakeLists.txt
+index c463200d..50c3fe98 100644
+--- a/src/framework/ui/CMakeLists.txt
++++ b/src/framework/ui/CMakeLists.txt
+@@ -142,6 +142,11 @@ elseif(OS_IS_LIN)
+         internal/platform/linux/linuxplatformtheme.cpp
+         internal/platform/linux/linuxplatformtheme.h
+     )
++elseif(OS_IS_KORIN)
++    target_sources(muse_ui PRIVATE
++        internal/platform/korin/korinplatformtheme.cpp
++        internal/platform/korin/korinplatformtheme.h
++    )
+ else()
+     target_sources(muse_ui PRIVATE
+         internal/platform/stub/stubplatformtheme.cpp
+diff --git a/src/framework/ui/graphicsapiprovider.cpp b/src/framework/ui/graphicsapiprovider.cpp
+index ff936b90..8cbd29c8 100644
+--- a/src/framework/ui/graphicsapiprovider.cpp
++++ b/src/framework/ui/graphicsapiprovider.cpp
+@@ -63,6 +63,13 @@ static const std::vector<GraphicsApi > ALLOWED_APIS = {
+ };
+ #endif
+ 
++#ifdef Q_OS_KORIN
++// Korin OS : la QPA korin n'annonce pas RhiBasedRendering, Qt Quick dessine en logiciel (docs/etude/QT.md)
++static const std::vector<GraphicsApi > ALLOWED_APIS = {
++    GraphicsApi::Software
++};
++#endif
++
+ #ifdef Q_OS_WASM
+ static const std::vector<GraphicsApi > ALLOWED_APIS = {
+     GraphicsApi::OpenGL,
+diff --git a/src/framework/ui/uimodule.cpp b/src/framework/ui/uimodule.cpp
+index 7047c7e6..936e3da2 100644
+--- a/src/framework/ui/uimodule.cpp
++++ b/src/framework/ui/uimodule.cpp
+@@ -45,6 +45,9 @@
+ #elif defined(Q_OS_LINUX)
+ #include "internal/platform/linux/linuxplatformtheme.h"
+ #include "internal/windowscontroller.h"
++#elif defined(Q_OS_KORIN)
++#include "internal/platform/korin/korinplatformtheme.h"
++#include "internal/windowscontroller.h"
+ #else
+ #include "internal/platform/stub/stubplatformtheme.h"
+ #include "internal/windowscontroller.h"
+@@ -86,6 +89,9 @@ void UiModule::registerExports()
+     #elif defined(Q_OS_LINUX)
+     m_platformTheme = std::make_shared<LinuxPlatformTheme>();
+     m_windowsController = std::make_shared<WindowsController>();
++    #elif defined(Q_OS_KORIN)
++    m_platformTheme = std::make_shared<KorinPlatformTheme>();
++    m_windowsController = std::make_shared<WindowsController>();
+     #else
+     m_windowsController = std::make_shared<WindowsController>();
+     m_platformTheme = std::make_shared<StubPlatformTheme>();
+diff --git a/src/framework/ui/uimodule.h b/src/framework/ui/uimodule.h
+index 10ef06dd..9f3a5c7c 100644
+--- a/src/framework/ui/uimodule.h
++++ b/src/framework/ui/uimodule.h
+@@ -39,6 +39,8 @@ class MacOSPlatformTheme;
+ class WindowsPlatformTheme;
+ #elif defined(Q_OS_LINUX)
+ class LinuxPlatformTheme;
++#elif defined(Q_OS_KORIN)
++class KorinPlatformTheme;
+ #else
+ class StubPlatformTheme;
+ #endif
+@@ -72,6 +74,8 @@ private:
+     std::shared_ptr<WindowsPlatformTheme> m_platformTheme;
+     #elif defined(Q_OS_LINUX)
+     std::shared_ptr<LinuxPlatformTheme> m_platformTheme;
++    #elif defined(Q_OS_KORIN)
++    std::shared_ptr<KorinPlatformTheme> m_platformTheme;
+     #else
+     std::shared_ptr<StubPlatformTheme> m_platformTheme;
+     #endif
+diff --git a/src/notation/internal/engravingfontscontroller.cpp b/src/notation/internal/engravingfontscontroller.cpp
+index 7ab43750..5a857dd7 100644
+--- a/src/notation/internal/engravingfontscontroller.cpp
++++ b/src/notation/internal/engravingfontscontroller.cpp
+@@ -57,7 +57,7 @@ void EngravingFontsController::scanAllDirectories() const
+ #elif defined(Q_OS_MACOS)
+     // MacOS is correctly handled by Qt
+     QStringList globalFontsPaths = QStandardPaths::standardLocations(QStandardPaths::GenericDataLocation).first(2);
+-#elif defined(Q_OS_LINUX) || defined(Q_OS_FREEBSD)
++#elif defined(Q_OS_LINUX) || defined(Q_OS_FREEBSD) || defined(Q_OS_KORIN)
+     // On Unix systems, we want $XDG_DATA_HOME (user-specific) and $XDG_DATA_DIRS (system-wide)
+     QStringList globalFontsPaths { qgetenv("XDG_DATA_HOME") };
+     globalFontsPaths.append(QString::fromLocal8Bit(qgetenv("XDG_DATA_DIRS")).split(':'));
