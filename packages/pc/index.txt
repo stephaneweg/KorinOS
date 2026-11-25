@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-25 08:56
+date = 2026-11-25 08:58
 abi = 629
 packages = 117
 board = pc
@@ -2390,18 +2390,18 @@ content = e394ef4402015523150403064fafbdfd03324ff0e69cc62c13c2e3fd201f02d7
 
 [freetype-dev]
 title = FreeType (développement)
-version = 2.14.3
+version = 2.14.3-1
 category = Développement
 author = Korin OS
 summary = FreeType 2.14.3 : libfreetype.a, freetype2/ (licence FreeType)
-size = 718234
+size = 718230
 installed = 2340246
-sha256 = 3f16871f879a0615a2501ee7b8469c5e95a31e0c7809584ca621ec821947447c
-file = pkgs/freetype-dev-2.14.3.opk
+sha256 = dbb3be93367496570397283a4abe40a0127117a36fcbb1e309ac35ab19fbaff7
+file = pkgs/freetype-dev-2.14.3-1.opk
 needs = zlib-dev, libpng-dev, abi >= 629
 required = 0
 restart = 0
-content = 292eb2c930b1b089498a26f48d16b9a6c6b3e415bccab358f1b875509ad944fb
+content = a68eea6d3bf008d5a09ac9f661ac59c95f88c580d3ad72fab6990270f22fde70
 
 [icu-dev]
 title = ICU (développement)
