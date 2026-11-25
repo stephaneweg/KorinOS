@@ -82,7 +82,10 @@ typedef unsigned char u8;
 #define PKG_VAR		"/var/pkg"
 #define PKG_DB		"/var/pkg/db"
 #define PKG_STAGE	"/var/pkg/stage"
-#define PKG_DL		"/tmp/pkg"				// les telechargements (verifies, puis extraits)
+#define PKG_DL		"/tmp/pkg"				// les telechargements (verifies, puis extraits) hors uid 0
+#define PKG_DL0		"/tmp/0/pkg"				// en uid 0 (pkgd, sudo pkg) : /tmp/0, que vfs reserve a l'uid 0
+								// dans tous les modes ; /tmp/pkg, commun, laissait un compte
+								// remplacer l'archive verifiee avant son extraction (K1, E51)
 #define PKG_DL2		"/var/pkg/dl"			// (sans /tmp)
 #define PKG_COMMIT_LOG	"/var/pkg/commit.log"
 
@@ -1151,8 +1154,8 @@ public:
 			if (running (old->ini, "files", app, sizeof app)) { r.sayf ("%s tourne : le fermer, puis recommencer", app); return E_RUNNING; }
 		}
 		// l'archive : sa taille et son SHA-256 sont ceux de l'index signe, verifies avant toute ecriture sur la carte
-		const char *dl = PKG_DL;
-		mkdir (dl, 0777);
+		const char *dl = getuid () == 0 ? PKG_DL0 : PKG_DL;
+		mkdirs (dl);
 		if (!is_dir (dl)) { dl = PKG_DL2; mkdirs (dl); }
 		char opk[200]; snprintf (opk, sizeof opk, "%s/%s.opk", dl, p.name);
 		char h[65]; u64 got = 0;
@@ -1196,6 +1199,10 @@ public:
 		Ini man; man.parse (sdup ((const char *) ar_data (mb)));
 		ar_free (mb);
 		const char *name = man.get ("", "name"), *ver = man.get ("", "version");
+		bool name_ok = *name && strlen (name) < 40 && name[0] != '.';	// [a-z0-9._+-] : le nom fait des chemins
+		for (const char *c = name; *c; c++)				// (/var/pkg/stage/<nom>, db/<nom>.ini : K4)
+			if (!((*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9') || *c == '.' || *c == '_' || *c == '+' || *c == '-')) name_ok = false;
+		if (!name_ok) { ar_close (a); r.sayf ("%s : nom de paquet refusé", path); return E_BADPKG; }
 		if (!*name || (p && (!eq (name, p->name) || !eq (ver, p->version))))
 		{ ar_close (a); r.sayf ("%s : le manifeste ne correspond pas à l'index", path); return E_BADPKG; }
 		bool stage = !g_pkgroot[0] && eq (man.get ("", "restart", "0"), "1");	// (une autre racine : directement)

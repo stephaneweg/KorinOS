@@ -39,7 +39,10 @@ static const char *const marques[] = {"/tmp/session.ini", "/tmp/login.halt", "/t
 				      "/etc/init.txt", "/etc/services.txt", "/etc/services.off", "/etc/services.manual",
 				      "/etc/services.deps", "/etc/preload.txt", "/etc/drivers.txt", "/etc/exec.txt",
 				      "/etc/paths.txt", "/etc/session", "/etc/remote.txt", "/etc/pkg", "/etc/interpreters.ini",
-				      "/sys", "/sbin", "/bin", "/lib", "/korin", "/EFI", 0};
+				      "/sys", "/sbin", "/bin", "/lib", "/korin", "/EFI",
+				      /* les paquets : ce qui est étagé (/var/pkg/stage) est installé par init2 en uid 0 au
+				       * démarrage ; la base dit ce qui est installé (K1) */
+				      "/var/pkg", 0};
 
 /* le chemin commence-t-il par le dossier d (« /home » couvre « /home » et « /home/a », pas « /homex ») ?
  * Sans la casse : FAT32 et exFAT trouvent « /ETC/SHADOW.INI » comme « /etc/shadow.ini » (E24, F1) */
