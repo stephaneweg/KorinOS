@@ -194,7 +194,8 @@ Un plugin `printsupport` **korin** (statique, `DEFAULT_IF TRUE`, recopié par `b
 
 Essai : `qtprint_test --direct /tmp/a.pdf` (le PDF de Qt), `--kit` (le PDF de printd, deux pages justes : titre,
 filet, rectangle arrondi, ellipse, image, texte), `--dialog` (le dialogue de Korin, puis celui d'enregistrement). Sur le
-PC, printd est construit par `tools/pc/apps.sh printd` ; `tools/qt/pctest.py prep` l'ajoute au disque d'essai.
+PC, printd est construit par `tools/pc/apps.sh printd` (il entre dans `/sys` avec `PC_APPS=1`) et lancé par
+`/etc/session`, comme sur le Pi, depuis le 25/11 ; `tools/qt/pctest.py prep` l'ajoute au disque d'essai.
 
 ## 4. Essais (`tools/qt/test`, `tools/qt/pctest.py`)
 
