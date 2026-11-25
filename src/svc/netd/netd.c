@@ -22,6 +22,7 @@
 long canal, canal_rx;
 volatile u64 net_long;   /* 1 : la pile dort sans minuterie à suivre */
 volatile u64 net_asleep; /* 1 : la pile dort (lo_put la réveille) */
+int net_from_lo;          /* 1 : la trame en cours vient de la boucle locale (sous net_lock) */
 static u8 lo_ring[LO_SLOTS << LO_SHIFT] __attribute__((aligned(4096)));
 static volatile u64 lo_head, lo_tail;
 volatile long if_active = -1; /* interface active (-1 : aucune) */
@@ -193,7 +194,9 @@ static u64 lo_drain(void)
 		if (lo_head == t || n >= 32)
 			break;
 		u8 *slot = lo_ring + ((t & (LO_SLOTS - 1)) << LO_SHIFT);
+		net_from_lo = 1; /* (ip_input : une adresse 127.x ne vient que d'ici) */
 		net_input(slot + 8, *(u64 *)slot);
+		net_from_lo = 0;
 		lo_tail = t + 1;
 		n++;
 		net_stat(0);

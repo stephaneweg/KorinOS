@@ -451,6 +451,9 @@ static long tz_offset(u64 utc)
 
 /* ---- NTP */
 
+#define NTP_FLOOR 1767225600L /* 01/01/2026 : une heure plus ancienne est fausse (le recul reste permis : Windows
+			       * écrit l'horloge du PC en heure locale) */
+
 /* serveur -> secondes depuis 1970 (< 0 : erreur), *at = instant de la réponse
  * (ms du démarrage). Socket UDP interne, 3 essais de 2 s. */
 static long ntp_query(u32 ip, u64 *at)
@@ -460,6 +463,12 @@ static long ntp_query(u32 ip, u64 *at)
 		return E_HOSTUNREACH;
 	memset(q, 0, sizeof q); /* requête : 48 octets, LI 0, VN 4, mode 3 */
 	q[0] = 0x23;
+	/* horodatage d'émission aléatoire : le serveur le renvoie en « origine » ; une réponse qui ne le porte
+	 * pas vient d'un autre (R5, E66) */
+	for (int i = 40; i < 48; i += 4) {
+		u32 r = net_rand32();
+		memcpy(q + i, &r, 4);
+	}
 	nl_take();
 	struct sock *sk = sock_alloc();
 	if (!sk || (sk->type = SOCK_UDP, !sk_alloc_rings(sk, 0))) {
@@ -482,14 +491,17 @@ static long ntp_query(u32 ip, u64 *at)
 		if (sk->rxhead != sk->rxtail) {
 			sk_rx_read(sk, rep, 8);
 			u64 l = *(u16 *)rep; /* longueur */
+			u32 sport = *(u16 *)(rep + 2), sip = *(u32 *)(rep + 4);
 			u64 take = l <= 48 ? l : 48;
 			sk_rx_read(sk, rep, take);
 			sk->rxtail += l - take; /* reste à jeter */
 			nl_drop();
-			/* mode 4 (serveur), strate non nulle */
-			if (l < 48 || (rep[0] & 7) != 4 || !rep[1])
+			/* mode 4 (serveur), strate non nulle ; du serveur interrogé, qui renvoie notre horodatage */
+			if (l < 48 || (rep[0] & 7) != 4 || !rep[1] || sip != ip || sport != 123 || memcmp(rep + 24, q + 40, 8))
 				goto wait;
 			res = (long)((u64)ld32be(rep + 40) - NTP_1970); /* horodatage d'émission (secondes) */
+			if (res < NTP_FLOOR) /* (avant la construction de ce système : faux) */
+				goto wait;
 			*at = time_ms();
 			break;
 		}

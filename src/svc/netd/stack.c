@@ -132,9 +132,23 @@ static void arp_header(u8 *b, u32 op)
 	st32be(b + 28, net_ip);
 }
 
+/* les demandes ARP récentes : une réponse n'est prise que pour une adresse demandée (R4, E67) */
+#define ARP_PENDING 8
+static u32 arp_pend[ARP_PENDING];
+static u32 arp_pend_next;
+
+static int arp_known(u32 ip)
+{
+	for (int i = 0; i < ARP_ENTRIES; i++)
+		if (*(u32 *)arp_table[i] == ip && *(u16 *)(arp_table[i] + 10))
+			return 1;
+	return 0;
+}
+
 /* IP -> envoie une demande ARP */
 static void arp_request(u32 ip)
 {
+	arp_pend[arp_pend_next++ & (ARP_PENDING - 1)] = ip;
 	u8 *b = net_arpbuf;
 	memset(b, 0, 64);
 	memset(b, 0xFF, 6); /* diffusion */
@@ -151,10 +165,26 @@ static void arp_input(u8 *f, u64 len)
 	u8 *a = f + ETH_HDR;
 	if (ld16be(a) != 1 || ld16be(a + 2) != ETH_IP) /* matériel Ethernet, protocole IPv4 */
 		return;
-	arp_update(ld32be(a + 14), a + 8); /* IP émetteur -> cache */
-	if (ld16be(a + 6) != 1) /* réponse : déjà prise en compte */
+	/* ce qu'on apprend (R4, E67) : la réponse à une de nos demandes ; la demande d'un voisin qui nous vise
+	 * (il va nous parler : sa première trame trouve sa MAC) ; une annonce (ARP gratuit) seulement pour une
+	 * entrée connue ; jamais un changement de la passerelle tant que le bail tient */
+	u32 sip = ld32be(a + 14), tip = ld32be(a + 24), op = ld16be(a + 6);
+	int pending = 0;
+	for (int i = 0; i < ARP_PENDING; i++)
+		if (arp_pend[i] == sip && sip) {
+			pending = 1;
+			arp_pend[i] = 0;
+		}
+	int learn = op == 2 ? pending || arp_known(sip) : (net_ip && tip == net_ip) || arp_known(sip);
+	if (learn && sip == net_gw && arp_known(sip) && !pending)
+		learn = 0; /* (la passerelle : figée, sauf réponse à notre demande) */
+	if (sip == net_ip || (sip >> 24) == 127)
+		learn = 0;
+	if (learn)
+		arp_update(sip, a + 8); /* IP émetteur -> cache */
+	if (op != 1) /* réponse : déjà prise en compte */
 		return;
-	if (!net_ip || ld32be(a + 24) != net_ip) /* demande pour nous ? */
+	if (!net_ip || tip != net_ip) /* demande pour nous ? */
 		return;
 	/* réponse : émetteur = nous, cible = le demandeur (les octets 42-59 restent
 	 * ceux de la trame précédente, comme l'asm) */
@@ -245,8 +275,14 @@ static void ip_input(u8 *f, u64 len)
 	u32 me = net_ip;
 	if (dst != me && dst != 0xFFFFFFFF && (dst >> 24) != 127)
 		return;
-	if (me && !((src ^ me) & net_mask)) /* apprendre l'adresse MAC du voisin */
-		arp_update(src, f + 6);
+	/* adresses martiennes : 127.x (ou notre adresse comme source) seulement par la boucle locale ; sinon un
+	 * voisin du réseau parlait aux services qui n'écoutent que localhost (R9, E67) */
+	if (!net_from_lo && ((src >> 24) == 127 || (dst >> 24) == 127 || (me && src == me) || src == 0xFFFFFFFF))
+		return;
+	if (dst == 0xFFFFFFFF && ip[9] == PROTO_ICMP)
+		return; /* (pas d'écho vers la diffusion) */
+	/* (plus d'apprentissage de l'adresse MAC depuis les paquets IP : n'importe qui détournait ainsi le trafic
+	 * d'un voisin ; seulement l'ARP, ci-dessus, R4) */
 	u8 *pl = ip + hl; /* charge utile */
 	u64 n = tot - hl;
 	switch (ip[9]) { /* protocole */
@@ -408,7 +444,7 @@ void dhcp_timer(void)
 	u64 t = dhcp_tries++;
 	dhcp_next_ms = now + (t < 2 ? 500UL << t : 2000);
 	if (!t) /* (le même pour les renvois : une offre lente reste bonne) */
-		dhcp_xid = (u32)time_ms() ^ 0x41524D00; /* « ARM. » */
+		dhcp_xid = net_rand32(); /* (avant : l'heure, devinable) */
 	dhcp_send(1); /* DISCOVER */
 	dhcp_state = DHCP_SELECTING;
 }
@@ -460,7 +496,7 @@ static void dhcp_input(u8 *m, u64 len)
 	u32 yi = ld32be(m + 16);
 	u32 type = 0, mask = 0, router = 0, dns = 0, server = 0;
 	u8 *p = m + 240, *end = m + len;
-	while (p < end) { /* options */
+	while (p < end) { /* options (bornées par le paquet) */
 		u8 k = *p;
 		if (k == 255)
 			break;
@@ -468,20 +504,27 @@ static void dhcp_input(u8 *m, u64 len)
 			p++;
 			continue;
 		}
+		if (p + 2 > end)
+			break;
 		u8 l = p[1], *v = p + 2;
-		if (k == 53)
+		if (v + l > end)
+			break;
+		if (k == 53 && l >= 1)
 			type = v[0];
-		else if (k == 1)
+		else if (k == 1 && l >= 4)
 			mask = ld32be(v);
-		else if (k == 3)
+		else if (k == 3 && l >= 4)
 			router = ld32be(v);
-		else if (k == 6)
+		else if (k == 6 && l >= 4)
 			dns = ld32be(v);
-		else if (k == 54)
+		else if (k == 54 && l >= 4)
 			server = ld32be(v);
 		p = v + l;
 	}
 	u32 st = dhcp_state;
+	/* l'accusé (ou le refus) : du serveur de l'offre seulement (option 54), pas d'un autre du réseau */
+	if ((type == 5 || type == 6) && dhcp_server && server != dhcp_server)
+		return;
 	if (type == 2) { /* OFFER */
 		if (st != DHCP_SELECTING)
 			return;
@@ -568,9 +611,24 @@ struct sock *sock_find_port(u64 type, u64 port)
 	return 0;
 }
 
-/* -> port local éphémère */
+/* aléa du noyau ; avant : l'heure ou un compteur, que devinait un tiers (empoisonnement DNS, DHCP,
+ * injection TCP : R2, R3, R5, R7, E66) */
+u32 net_rand32(void)
+{
+	u32 v = 0;
+	if (korin_sys2(SYS_GETRANDOM, &v, 4) != 4)
+		v = (u32)arch_counter() * 0x9E3779B1u; /* (pas d'aléa : comme avant) */
+	return v;
+}
+
+/* -> port local éphémère : tiré au hasard parmi les libres (sous nl_take) */
 u32 sock_ephemeral(void)
 {
+	for (int k = 0; k < 32; k++) {
+		u32 p = EPHEMERAL + (net_rand32() & 0x3FFF);
+		if (!sock_find_port(SOCK_UDP, p) && !sock_find_port(SOCK_TCP, p))
+			return p;
+	}
 	u32 p = net_next_port;
 	net_next_port = (p + 1) & 0x3FFF;
 	return p + EPHEMERAL;
@@ -673,7 +731,8 @@ static void tcp_send_rst(u32 rip, u32 rport, u32 lport, u32 seq, u32 ack, u32 fl
 /* graine -> numéro de séquence initial */
 u32 tcp_iss(u32 seed)
 {
-	return (u32)(seed ^ arch_counter()) * 0x9E3779B1u;
+	(void)seed;
+	return net_rand32(); /* (aléatoire : un tiers ne devine plus la séquence pour injecter, R7) */
 }
 
 /* lit les options du segment (MSS, défaut 536 ; window scale) */
@@ -1391,7 +1450,7 @@ static long parse_dotted(const char *p)
 static long dns_parse_a(const u8 *m, u64 len)
 {
 	const u8 *end = m + len, *p;
-	if (m[3] & 0xF) /* RCODE */
+	if (len < 12 || (m[3] & 0xF)) /* RCODE */
 		return E_NOENT;
 	u32 an = (u32)m[6] << 8 | m[7]; /* ANCOUNT */
 	if (!an)
@@ -1418,10 +1477,10 @@ static long dns_parse_a(const u8 *m, u64 len)
 		SKIP_NAME();
 		if (p + 10 > end)
 			return E_NOENT;
-		u32 type = (u32)p[0] << 8 | p[1];
+		u32 type = (u32)p[0] << 8 | p[1], cls = (u32)p[2] << 8 | p[3];
 		u32 dl = (u32)p[8] << 8 | p[9]; /* longueur des données */
 		p += 10;
-		if (type == 1 && dl == 4)
+		if (type == 1 && cls == 1 && dl == 4 && p + 4 <= end)
 			return (long)ld32be(p);
 		p += dl;
 	}
@@ -1448,9 +1507,11 @@ long dns_resolve(const char *name)
 	u32 dns = net_dns;
 	if (!dns || !arp_resolve_wait(dns))
 		return E_HOSTUNREACH;
+	if (strlen(name) > 253) /* (un nom plus long débordait la requête) */
+		return E_INVAL;
 	/* requête : en-tête 12 octets + nom en étiquettes + type A + classe IN */
 	memset(q, 0, sizeof q);
-	st16be(q, (u32)time_ms() & 0xFFFF); /* identifiant */
+	st16be(q, net_rand32() & 0xFFFF); /* identifiant (aléatoire, R2) */
 	st16be(q + 2, 0x0100); /* récursion demandée */
 	st16be(q + 4, 1);
 	u8 *p = q + 12; /* étiquettes */
@@ -1502,13 +1563,27 @@ long dns_resolve(const char *name)
 		if (sk->rxhead != sk->rxtail) {
 			sk_rx_read(sk, rep, 8);
 			u64 l = *(u16 *)rep; /* longueur */
+			u32 sport = *(u16 *)(rep + 2), sip = *(u32 *)(rep + 4);
 			u64 take = l <= 248 ? l : 248;
 			sk_rx_read(sk, rep, take);
 			sk->rxtail += l - take; /* reste à jeter */
 			nl_drop();
-			if (*(u16 *)q != *(u16 *)rep) /* même identifiant ? */
+			/* du serveur DNS (adresse et port 53), une réponse (QR), même identifiant, même question
+			 * (sans la casse) : sinon un tiers du réseau répondait à sa place (R2, E66) */
+			if (sip != dns || sport != 53 || take < qlen || !(rep[2] & 0x80) || *(u16 *)q != *(u16 *)rep)
 				goto wait;
-			res = dns_parse_a(rep, 248);
+			int same = 1;
+			for (u64 i = 12; i < qlen && same; i++) {
+				u8 a = rep[i], b = q[i];
+				if (a >= 'A' && a <= 'Z')
+					a += 32;
+				if (b >= 'A' && b <= 'Z')
+					b += 32;
+				same = a == b;
+			}
+			if (!same)
+				goto wait;
+			res = dns_parse_a(rep, take);
 			break;
 		}
 		nl_drop();

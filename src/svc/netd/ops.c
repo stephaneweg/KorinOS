@@ -10,6 +10,9 @@
  * socket se ferme avec son dernier propriétaire. owner garde l'un d'eux
  * (netstat ; 0 : orphelin). */
 #include "netd.h"
+#include "caller.h"
+
+#define E_ACCES_NET -13
 
 /* descripteur, pid -> son couple (0 : aucun) */
 static u32 *sko_find(u64 sd, u64 pid)
@@ -202,6 +205,10 @@ long op_bind(u8 *m)
 		return E_BADF;
 	if (!port || port > 0xFFFF)
 		return E_INVAL;
+	/* un port réservé (< 1024 : 80, 443, telnet, ftp, smb...) : l'uid 0 seulement (le Pi : E_NOSYS, permis) ;
+	 * sinon une app prenait la place d'un serveur du système éteint (R6, E69) */
+	if (port < 1024 && caller_uid(W32(m, MSG_PID)) != 0)
+		return E_ACCES_NET;
 	nl_take();
 	for (int i = 0; i < MAX_SOCK; i++) { /* port déjà pris pour ce type ? */
 		struct sock *c = &sock_table[i];

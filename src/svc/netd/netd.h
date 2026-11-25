@@ -311,6 +311,8 @@ struct sock *sock_alloc(void);
 int sk_alloc_rings(struct sock *s, int tx);
 void sock_free(struct sock *s);
 u32 sock_ephemeral(void);
+u32 net_rand32(void);
+extern int net_from_lo; /* aléa du noyau (GETRANDOM) : identifiants, ports, numéros de séquence */
 void sk_rx_read(struct sock *s, u8 *dst, u64 n);
 u64 sk_rx_free(struct sock *s);
 int tcp_send(struct sock *s, u32 flags, u32 seq, u64 n);
