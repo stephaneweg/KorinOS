@@ -33,6 +33,9 @@ static constexpr bool STAFF_TO_MIDIOUT_CHANNEL = true;
 static constexpr int AK_DRUM_CHANNEL = 9;
 static constexpr int AK_CHANNELS = 16;
 static constexpr sample_rate_t AK_RATE = 44100;
+// gain du rendu d'AudioKit dans le mélangeur de MuseScore (FluidSynth y avait synth.gain = 4,8) : mesuré sous QEMU
+// (25/11) : Wait There (p, mp) sortait à -30 dBFS au gain 1 ; 3 la met vers -20 dBFS, et laisse de la marge à un tutti
+static constexpr float AK_GAIN = 3.0f;
 
 struct muse::audio::synth::Fluid {
     long synth = 0;
@@ -368,8 +371,8 @@ bool FluidSynth::processSequence(const FluidSequencer::EventSequence& sequence, 
     }
     korin::AudioKit::get().synth_render_f32(m_fluid->synth, m_fluid->l.data(), m_fluid->r.data(), long(samples));
     for (samples_t i = 0; i < samples; ++i) {
-        buffer[2 * i] = m_fluid->l[i];
-        buffer[2 * i + 1] = m_fluid->r[i];
+        buffer[2 * i] = m_fluid->l[i] * AK_GAIN;
+        buffer[2 * i + 1] = m_fluid->r[i] * AK_GAIN;
     }
     return true;
 }
