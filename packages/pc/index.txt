@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-25 09:45
+date = 2026-11-25 09:46
 abi = 629
 packages = 117
 board = pc
@@ -174,18 +174,18 @@ content = 1ed897c3c1436c173dc1585ff0f13199a42ffae587eca0515ab9e2e50688aede
 
 [pkgman]
 title = Logiciels
-version = 1.0.23
+version = 1.0.24
 category = Système
 author = Korin OS
 summary = Les paquets : la commande pkg, le gestionnaire Logiciels (et son volet dans Réglages), le service pkgd
-size = 4616403
+size = 4616567
 installed = 11799195
-sha256 = 173b86fb4501148921dc68fe5d7dd914f102abaf72e6397552e2bac0ca820662
-file = pkgs/pkgman-1.0.23.opk
+sha256 = e7060f9a134a539cfda70a66b76de8460f0e644d6e4364fb46e40d9ba7b3d9b8
+file = pkgs/pkgman-1.0.24.opk
 needs = abi >= 626
 required = 1
 restart = 0
-content = 26fce4a13c9665292ac8c7cc24a6f09d42b121c5f5563630b4724021207714ce
+content = ccf597646db410bb26d994a3d8274f5fd2ec0a449c2f7b2a9aa268aca064a565
 
 [soundfonts]
 title = Banque de sons General MIDI
