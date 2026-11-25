@@ -1073,6 +1073,39 @@ public:
 			Ini ii; ii.parse (sdup (ti.b));
 			const char *ib = ii.get ("repo", "board", "?");
 			if (!eq (ib, PKG_BOARD)) { r.sayf ("ce dépôt est pour la carte « %s », pas pour %s : refusé", ib, PKG_BOARD); return E_SIG; }
+			// (K2) le numéro de série de l'index, signé avec lui : jamais plus petit que le dernier vu pour ce dépôt ;
+			// un ancien index signé (un miroir, un dépôt local périmé) gelait les mises à jour de sécurité. Sans
+			// numéro : 0 (les index d'avant)
+			unsigned long long ser = strtoull (ii.get ("repo", "serial", "0"), 0, 10), last = 0;
+			char line[700]; snprintf (line, sizeof line, "%s = ", repo);
+			char *seen = read_file (RP (PKG_VAR "/serial.txt"));
+			for (char *l = seen; l && *l; )
+			{
+				char *e = strchr (l, '\n'); if (e) *e = 0;
+				if (starts (l, line)) last = strtoull (l + strlen (line), 0, 10);
+				l = e ? e + 1 : 0;
+			}
+			free (seen);
+			if (ser < last) { r.sayf ("l'index de ce dépôt (n° %llu) est plus ancien que le dernier vu (n° %llu) : refusé", ser, last); return E_SIG; }
+			if (ser > last)
+			{
+				u64 ol = 0;
+				char *old = read_file (RP (PKG_VAR "/serial.txt"), &ol);
+				char *out = (char *) malloc (ol + 800); size_t k = 0;
+				for (char *l = old; out && l && *l; )
+				{
+					char *e = strchr (l, '\n'); if (e) *e = 0;
+					if (*l && !starts (l, line)) { size_t n = strlen (l); memcpy (out + k, l, n); k += n; out[k++] = '\n'; }
+					l = e ? e + 1 : 0;
+				}
+				free (old);
+				if (out)
+				{
+					k += (size_t) snprintf (out + k, 790, "%s%llu\n", line, ser);
+					write_file (RP (PKG_VAR "/serial.txt"), out, k);
+					free (out);
+				}
+			}
 		}
 		write_file (RP (PKG_VAR "/index.txt"), ti.b, ti.n);
 		index.ini.parse (ti.take ()); index.build (); haveIndex = verified = true;

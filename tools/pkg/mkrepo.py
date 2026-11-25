@@ -347,7 +347,7 @@ def main ():
 	head = "# index des paquets de Korin OS pour PC" if PC else "# index des paquets d'ARMPI"
 	idx = [head + " -- tools/pkg/mkrepo.py (docs/PAQUETS.md)", "[repo]", "name = " + a.repo_name,
 	       "date = " + datetime.datetime.now (datetime.timezone.utc).strftime ("%Y-%m-%d %H:%M"), "abi = %d" % abi,
-	       "packages = %d", "board = " + BOARD, ""]
+	       "packages = %d", "board = " + BOARD, "serial = %d", ""]		# (serial : idx[7], posé plus bas, K2)
 	sizes, excluded, total = [], [], 0
 	kept = set ()
 	if a.keep_unbuilt:				# (les paquets publies mais pas construits ici : l'entree publiee, telle quelle)
@@ -406,7 +406,12 @@ def main ():
 	data = ("\n".join (idx)).encode ("utf-8")
 	ip = os.path.join (a.out, "index.txt")
 	oldtext = open (ip, "rb").read () if os.path.exists (ip) else b""
-	strip = lambda t: re.sub (rb"\ndate = [^\n]*", b"", t)
+	# le numéro de série de l'index (K2, E50) : celui de l'ancien + 1, signé avec lui ; pkg refuse un index plus
+	# ancien que le dernier vu (un vieil index signé gelait les mises à jour). Hors de la comparaison
+	m = re.search (rb"\nserial = (\d+)", oldtext)
+	idx[7] = "serial = %d" % ((int (m.group (1)) if m else 0) + 1)
+	data = ("\n".join (idx)).encode ("utf-8")
+	strip = lambda t: re.sub (rb"\n(date|serial) = [^\n]*", b"", t)
 	if strip (oldtext) == strip (data) and os.path.exists (os.path.join (a.out, "index.sig")):
 		print ("mkrepo: aucun paquet n'a change : index garde")
 	else:

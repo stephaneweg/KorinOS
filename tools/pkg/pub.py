@@ -468,6 +468,12 @@ def main ():
 		while e < len (lines) and lines[e] != "": e += 1
 		lines[s:e] = sec
 	r0 = lines.index ("[repo]")
+	# le numéro de série de l'index (K2, E50) : + 1 à chaque publication ; ajouté après « board » s'il manque
+	ser = [i for i in range (r0 + 1, len (lines)) if lines[i].startswith ("serial = ")]
+	if ser: lines[ser[0]] = "serial = %d" % (int (lines[ser[0]][9:]) + 1)
+	else:
+		b = [i for i in range (r0 + 1, len (lines)) if lines[i].startswith ("board = ")]
+		lines.insert ((b[0] if b else r0) + 1, "serial = 1")
 	for i in range (r0 + 1, len (lines)):
 		if lines[i].startswith ("["): break
 		if lines[i].startswith ("date = "): lines[i] = "date = " + datetime.datetime.now (datetime.timezone.utc).strftime ("%Y-%m-%d %H:%M")
