@@ -2770,3 +2770,19 @@ required = 0
 restart = 0
 part = qtdeclarative-dev
 content = 4ae844cc1cdfe274f7be951aba31302d23e717780ffac4e5ff61bfa0b48bd71f
+
+[qtdeclarative-dev-data-6]
+title = Qt Quick et QML (développement) (6/10)
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les données de Qt Quick et QML (développement), partie 6 sur 10
+size = 12163281
+installed = 84031805
+sha256 = e123402fd7035a9c52166d04fbd6d9fa850531c79597b5b138ca2b9edfc0523f
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtdeclarative-dev-data-6-1.0.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+part = qtdeclarative-dev
+content = d6a79469f4395867e378a1c1d7032397eadd2eac145db9a65e95011d434b5c00
