@@ -18,6 +18,14 @@
 #define AUTH_CAN 1
 #define AUTH_SUDO 2
 #define AUTH_FORGET 11
+#define AUTH_ELEVATE 5
+#define AUTH_WAIT 7
+#ifndef E_AGAIN
+#define E_AGAIN -11
+#endif
+#ifndef E_CANCELED
+#define E_CANCELED -125
+#endif
 #define E_ACCES -13
 #define VT_TCGETS 5
 #define VT_TCSETS 6
@@ -90,6 +98,30 @@ static void read_line(char *buf, u64 cap)
 	buf[n] = 0;
 }
 
+/* la carte d'élévation d'authd (AUTH_ELEVATE, puis AUTH_WAIT tant qu'elle est ouverte), comme ui_elevate : un
+ * compte sans mot de passe accepte à l'écran -> 0 (ce process est passé en uid 0), < 0 : refus */
+static long card(long ch, const char *what)
+{
+	char why[160] = "sudo ";
+	u64 k = 5;
+	for (; what && *what && k < sizeof why - 1; what++)
+		why[k++] = *what;
+	why[k] = 0;
+	u64 op = AUTH_ELEVATE;
+	for (;;) {
+		memset(m, 0, sizeof m);
+		m[0] = (long)op;
+		u64 n = (u64)str_len(why);
+		memcpy((u8 *)m + MSG_DATA, why, n);
+		((u32 *)m)[MSG_LEN / 4] = (u32)(n + 1);
+		long e = korin_sys2(SYS_SVC_CALL, ch, m);
+		long r = e < 0 ? e : m[0];
+		if (r != E_AGAIN)
+			return r;
+		op = AUTH_WAIT;
+	}
+}
+
 static long auth_call(long ch, u64 op, const char *pw, int keep)
 {
 	memset(m, 0, sizeof m);
@@ -153,14 +185,17 @@ int main(int argc, char **argv)
 		}
 		long r = E_ACCES;
 		long vt = tty_in();
-		/* sans mot de passe (ou retenu), seulement depuis un terminal : une app qui lançait « sudo » par popen
-		 * devenait uid 0 sans que personne ne l'ait demandé (A3, E38) ; une app passe par ui_elevate (la carte) */
-		if (can == 1 && !vt) {
-			out("sudo : pas de terminal (une app demande l'elevation par la carte, ui_elevate)\n");
-			return 1;
-		}
-		if (can == 1)
+		if (can == 1) { /* retenu, ou un compte sans mot de passe : celui-ci passe par la carte d'élévation, que
+				 * l'utilisateur accepte à l'écran (authd refuse AUTH_SUDO sans mot de passe : A3) */
 			r = auth_call(ch, AUTH_SUDO, "", 0);
+			if (r != 0)
+				r = card(ch, argv[1]);
+			if (r != 0) {
+				out(r == E_CANCELED ? "sudo : elevation refusee a l'ecran\n"
+						    : "sudo : elevation impossible (la carte d'elevation ne s'ouvre pas)\n");
+				return 1;
+			}
+		}
 		int keep = -1; /* (demandé une fois, après le premier mot de passe) */
 		for (int tries = 0; r == E_ACCES && tries < 3; tries++) {
 			char pw[128];

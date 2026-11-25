@@ -640,7 +640,8 @@ static long chemin_renommer(long pid)
 	r = resoudre(pid, d, nom_exec);
 	if (r)
 		return r;
-	if ((r = acces_verifier(pid, resolu, 1)) || (r = acces_verifier(pid, nom_exec, 1)))
+	if ((r = acces_verifier(pid, resolu, 1)) || (r = acces_verifier(pid, nom_exec, 1)) ||
+	    (r = acces_renommer(pid, resolu, nom_exec)))
 		return r; /* (règles d'accès, access.c) */
 	forget_resolu();
 	forget_chemin(nom_exec);

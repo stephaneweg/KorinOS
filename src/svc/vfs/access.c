@@ -44,7 +44,10 @@ static const char *const marques[] = {"/tmp/session.ini", "/tmp/login.halt", "/t
 				       * démarrage ; la base dit ce qui est installé (K1) */
 				      "/var/pkg",
 				      /* les apps à qui Elegant montre les fenêtres des autres (G4, sys/elegant/remote.c) */
-				      "/apps/screenshot.app", "/apps/taskman.app", 0};
+				      "/apps/screenshot.app", "/apps/taskman.app",
+				      /* Jet : un script injecté dans toutes les pages, la console ; les autorités de https
+				       * (une autorité ajoutée lisait tout le trafic chiffré) (J4) */
+				      "/etc/web-probe.js", "/etc/web-console", "/etc/ca-bundle", 0};
 
 /* le chemin commence-t-il par le dossier d (« /home » couvre « /home » et « /home/a », pas « /homex ») ?
  * Sans la casse : FAT32 et exFAT trouvent « /ETC/SHADOW.INI » comme « /etc/shadow.ini » (E24, F1) */
@@ -242,6 +245,37 @@ static int critique(const char *p, int ecrire)
 		if (sous(p, marques[i]))
 			return 1;
 	return court_protege(p);
+}
+
+/* V_RENAME, en plus des deux acces_verifier : renommer un dossier qui contient une entrée des listes (/etc, /var,
+ * /tmp, /etc/keyvault...) emportait ce qu'elles protègent sous un autre nom, où plus rien ne le protégeait
+ * (« rename /etc /e », puis /e/shadow.ini) ; de même vers un tel nom. Refusé aux autres que l'uid 0 dans tous
+ * les modes (sauf off) -> 0 ou E_ACCES */
+static int ancetre_de(const char *p, const char *const *liste)
+{
+	for (int i = 0; liste[i]; i++)
+		if (sous(liste[i], p))
+			return 1;
+	return 0;
+}
+
+long acces_renommer(long pid, const char *src, const char *dst)
+{
+	if (acces_mode() == ACCESS_OFF || pid_uid(pid) == 0)
+		return 0;
+	const char *ch[2] = {src, dst};
+	for (int k = 0; k < 2; k++) {
+		char brut[PATH_MAX], ext[PATH_MAX];
+		chemin_externe(ch[k], brut);
+		normaliser(brut, ext);
+		if (ancetre_de(ext, toujours) || ancetre_de(ext, marques) || ancetre_de(ext, secrets)) {
+			ak_puts("vfs : renommage refuse (contient un chemin protege) : ");
+			ak_puts(ext);
+			ak_puts("\n");
+			return E_ACCES;
+		}
+	}
+	return 0;
 }
 
 long acces_verifier(long pid, const char *interne, int ecrire)

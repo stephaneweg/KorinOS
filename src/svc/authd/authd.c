@@ -685,7 +685,7 @@ static int vrai_sudo(long pid)
 	return d == 0;
 }
 
-/* les mots de passe faux par compte et par origine : après 3, plus d'essai pendant 30 s, puis le double (une heure
+/* les mots de passe faux par compte et par origine : après 3, plus d'essai pendant 30 s, puis le double (cinq minutes
  * au plus) ; remplace un SLEEP de 1 s qui arrêtait tout authd (un seul fil) (A7, E38). L'origine : 0 pour sudo,
  * la carte et passwd (les programmes du compte), le pid du service pour AUTH_VERIFY (login, telnetd, ftpd) : des
  * essais à distance ne ferment pas l'écran de connexion */
@@ -729,7 +729,7 @@ static void resultat(long uid, long src, int ok)
 	long f = ++echecs[k].fails;
 	if (f >= 3) {
 		u64 w = 30000ull << (f - 3 < 7 ? f - 3 : 7);
-		echecs[k].until = (u64)korin_sys0(SYS_TIME_MS) + (w > 3600000ull ? 3600000ull : w);
+		echecs[k].until = (u64)korin_sys0(SYS_TIME_MS) + (w > 300000ull ? 300000ull : w);
 	}
 }
 
@@ -813,6 +813,14 @@ static long traiter(void)
 		if (uid != 0 && scope && retenu(uid, scope)) {
 			journal("sudo", &c, pid, "accorde (retenu)");
 			return korin_sys2(SYS_PROC_SETUID, pid, 0);
+		}
+		if (uid != 0) { /* un compte sans mot de passe : la carte (AUTH_ELEVATE, « Autoriser » à l'écran) ; un
+				 * « terminal » se fabrique (un pty ouvert par une app), il ne prouvait personne (A3) */
+			int e = empreinte_de(c.name);
+			if (!(e > 0 && empreinte[0])) {
+				journal("sudo", &c, pid, "refuse sans mot de passe (la carte d'elevation)");
+				return E_PERM;
+			}
 		}
 		if (!verifier_compte(&c, data)) {
 			journal("sudo", &c, pid, "mauvais mot de passe");

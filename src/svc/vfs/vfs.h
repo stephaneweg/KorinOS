@@ -153,6 +153,7 @@ long home_proprio(const char *p);        /* le compte dont le dossier contient p
 long session_uid_de(void);               /* le compte de la session, 0 : aucun */
 u64 acces_bits(const char *interne);     /* propriétaire et genre pour V_STATX (bits 32-57) */
 long acces_verifier(long pid, const char *interne, int ecrire); /* access.c : 0 ou E_ACCES */
+long acces_renommer(long pid, const char *src, const char *dst); /* access.c : un dossier qui contient un chemin protégé */
 /* ---- watch.c : le guet d'un dossier (VFS_WATCH) */
 long watch_op(void);
 void watch_touch(const char *interne);  /* un nom a changé : le guet de son dossier */

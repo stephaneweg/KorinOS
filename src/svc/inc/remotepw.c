@@ -140,7 +140,8 @@ long rp_read(void)
 }
 
 /* ---- échecs (S3, E70) : après 5 mots de passe faux, plus d'essai pendant 30 s, puis le double à chaque
- * nouvel échec (une heure au plus) ; un bon remet à zéro. Pour tout le service (toutes ses connexions) */
+ * nouvel échec (dix minutes au plus : un tiers du réseau ne ferme pas le service plus longtemps) ; un bon remet
+ * à zéro. Pour tout le service (toutes ses connexions) */
 static long rp_fails;
 static u64 rp_until;
 
@@ -159,8 +160,8 @@ static void rp_result(int ok)
 	long f = ++rp_fails;
 	if (f >= 5) {
 		u64 wait = 30000ull << (f - 5 < 7 ? f - 5 : 7);
-		if (wait > 3600000ull)
-			wait = 3600000ull;
+		if (wait > 600000ull)
+			wait = 600000ull;
 		rp_until = (u64)korin_sys0(SYS_TIME_MS) + wait;
 	}
 }

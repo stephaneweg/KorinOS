@@ -493,9 +493,19 @@ static long monter_permis(long pid, const char *vol, const char *src)
 {
 	if (pid_uid(pid) == 0)
 		return 0;
-	if (vol[0] == '/' ? strncmp(vol, "/media/", 7) && strncmp(vol, "/net/", 5)
+	/* le point tel que point_choisir le prendra (normalisé) : « /media/../sys » passait le test du texte
+	 * brut et montait la source d'un compte sur /sys ou /etc */
+	char pt[PATH_MAX];
+	for (const char *s = vol; *s; s++)
+		if (s[0] == '.' && s[1] == '.')
+			return E_PERM;
+	if (vol[0] == '/' && (!path_normalize("/", vol, pt) || strchr(pt, '\\')))
+		return E_PERM;
+	if (vol[0] == '/' ? strncmp(pt, "/media/", 7) && strncmp(pt, "/net/", 5)
 			  : !strncmp(vol, "boot", 4) || !strncmp(vol, "root", 4) || !strncmp(vol, "tmp", 3))
 		return E_PERM;
+	if (vol[0] == '/' && strchr(pt + (pt[1] == 'm' ? 7 : 5), '/'))
+		return E_PERM; /* (un seul composant sous /media/ ou /net/) */
 	if (!source_amovible(src))
 		return E_PERM;
 	for (int i = 0; i < VOL_MAX; i++)
