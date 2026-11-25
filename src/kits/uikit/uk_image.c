@@ -18,7 +18,8 @@ long uk_img_new(long w, long h)
 {
 	if (!w || !h)
 		return 0;
-	if (UGT(w, 16384) || UGT(h, 16384))
+	/* côté <= 65535 (panoramas), 2^28 pixels au plus (1 Gio) : w * h * 4 ne déborde pas */
+	if (UGT(w, 65535) || UGT(h, 65535) || UGT(w * h, 1L << 28))
 		return 0;
 	long p = uk_alloc(((w * h) << 2) + IMG_PIX);
 	if (!p)
@@ -101,6 +102,8 @@ long ui_image_decode(long a0, long a1)
 /* uk_bmp_decode : x0 = données, x1 = octets -> image (0 : non pris en charge) */
 static long bmp_decode(long data, long size)
 {
+	if (ULT(size, 54))                         /* en-tête de fichier + BITMAPINFOHEADER */
+		return 0;
 	long off = LDW(data, 10);                  /* début des pixels */
 	long hdr = LDW(data, 14);                  /* taille de l'en-tête */
 	long w = LDSW(data, 18);                   /* largeur */
@@ -117,17 +120,19 @@ static long bmp_decode(long data, long size)
 		h = -h;
 		topdown = 1;
 	}
-	if (w <= 0)
+	if (w <= 0 || !h || UGT(w, 65535) || UGT(h, 65535) || UGT(off, size) || UGT(hdr, size - 14))
+		return 0;                          /* (bornes : pas * h ne déborde pas) */
+	long pitch = LSR(w * bpp + 31, 5) << 2;    /* pas d'une ligne : multiple de 4 */
+	if (UGT(pitch * h, size - off))            /* tout dans le fichier ? */
 		return 0;
 	long img = uk_img_new(w, h);
 	if (!img)
 		return 0;
-	long pitch = LSR(w * bpp + 31, 5) << 2;    /* pas d'une ligne : multiple de 4 */
-	if (UGT(pitch * h + off, size)) {          /* tout dans le fichier ? */
-		uk_free(img);
-		return 0;
-	}
 	long pal = data + 14 + hdr;                /* palette (après l'en-tête) */
+	/* entrées de la palette dans le fichier : jusqu'aux pixels s'ils la suivent, sinon jusqu'à la
+	 * fin ; un indice au-delà donne du noir opaque */
+	long pal_end = UGT(off, 14 + hdr) ? off : size;
+	long npal = LSR(pal_end - 14 - hdr, 2);
 	for (long y = 0; ULT(y, h); y++) {
 		long fy = topdown ? y : h - 1 - y;     /* ligne du fichier */
 		long src = data + fy * pitch + off;
@@ -162,8 +167,7 @@ static long bmp_decode(long data, long size)
 				uk_free(img);                  /* (au premier pixel) */
 				return 0;
 			}
-			/* comme l'asm : indice non borné par la palette */
-			px = (u32)LDW(pal, idx << 2) | 0xFF000000u;
+			px = ULT(idx, npal) ? (u32)LDW(pal, idx << 2) | 0xFF000000u : 0xFF000000u;
 			STW(dst, x << 2, px);
 		}
 	}
@@ -460,6 +464,7 @@ static long be32(long p)
 #define PS_RAW 72
 #define PS_IMG 80
 #define PS_RAW_SIZE 88
+#define PS_PLTE_N 96                       /* entrées de PLTE */
 
 /* uk_png_unfilter : x0 = brut (lignes : filtre + pas octets), x1 = pas, x2 =
  * lignes, x3 = octets par pixel : défait les filtres sur place */
@@ -561,8 +566,11 @@ static void png_pixels(long st, long pitch)
 				if (!pal) {
 					px = 0xFF000000u;
 				} else {
-					long e = pal + (long)v * 3;   /* comme l'asm : indice non borné */
-					px = (u32)LDB(e, 2) | (u32)LDB(e, 1) << 8 | (u32)LDB(e, 0) << 16;
+					long e = pal + (long)v * 3;
+					if (ULT((long)v, LDX(st, PS_PLTE_N)))
+						px = (u32)LDB(e, 2) | (u32)LDB(e, 1) << 8 | (u32)LDB(e, 0) << 16;
+					else
+						px = 0;                /* indice hors de la palette : noir */
 					long tr = LDX(st, PS_TRNS);    /* alpha de la palette (tRNS) */
 					if (!tr || !ULT((long)v, LDX(st, PS_TRNS_LEN)))
 						px |= 0xFF000000u;
@@ -608,11 +616,12 @@ static long png_decode(long data, long size)
 	 * longueur tRNS, +56 idat, +64 longueur, +72 brut, +80 image, +88 taille
 	 * du brut. Comme l'asm, seuls +32..+88 sont mis à zéro ; +0..+24 (pile non
 	 * initialisée de l'asm sans IHDR) : à zéro ici, donc refusé. */
-	long sb[12];
+	long sb[13];
 	long st = (long)(uintptr_t)sb;
 	long end = data + size;
 	long img;
-	for (int i = 0; i < 12; i++)
+	long ihdr = 0;
+	for (int i = 0; i < 13; i++)
 		sb[i] = 0;
 	long idat = uk_alloc(size);                /* IDAT mis bout à bout (au plus la taille du fichier) */
 	if (!idat)
@@ -627,7 +636,9 @@ static long png_decode(long data, long size)
 		long d = c + 8;                        /* données */
 		if (UGT(d + len + 4, end))
 			break;
-		if (type == 0x52444849) {              /* IHDR */
+		if (type == 0x52444849) {              /* IHDR : 13 octets, le premier chunk seulement */
+			if (len != 13 || ihdr++)
+				goto fail;
 			STX(st, PS_W, be32(d));
 			STX(st, PS_H, be32(d + 4));
 			STX(st, PS_BITS, LDB(d, 8));
@@ -636,6 +647,7 @@ static long png_decode(long data, long size)
 				goto fail;
 		} else if (type == 0x45544C50) {       /* PLTE */
 			STX(st, PS_PLTE, d);
+			STX(st, PS_PLTE_N, len / 3);
 		} else if (type == 0x534E5274) {       /* tRNS */
 			STX(st, PS_TRNS, d);
 			STX(st, PS_TRNS_LEN, len);
@@ -648,10 +660,24 @@ static long png_decode(long data, long size)
 		c = d + len + 4;                       /* (CRC) */
 	}
 	long w = LDX(st, PS_W), h = LDX(st, PS_H); /* largeur, hauteur */
-	if (!w || !h)
-		goto fail;
+	if (!w || !h || UGT(w, 65535) || UGT(h, 65535) || UGT(w * h, 1L << 28))
+		goto fail;                         /* (bornes : pas * h ne déborde pas) */
 	long bits = LDX(st, PS_BITS);              /* bits par échantillon */
 	long color = LDX(st, PS_COLOR);            /* échantillons par pixel */
+	/* profondeurs permises par genre (PNG, 11.2.2) : png_bits et png_sample_at n'en lisent pas
+	 * d'autres ; tRNS assez long pour ce qu'en lit png_pixels */
+	int okb = 0;
+	if (color == 0)
+		okb = bits == 1 || bits == 2 || bits == 4 || bits == 8 || bits == 16;
+	else if (color == 3)
+		okb = bits == 1 || bits == 2 || bits == 4 || bits == 8;
+	else if (color == 2 || color == 4 || color == 6)
+		okb = bits == 8 || bits == 16;
+	if (!okb)
+		goto fail;
+	if ((color == 0 && ULT(LDX(st, PS_TRNS_LEN), 2)) || (color == 2 && ULT(LDX(st, PS_TRNS_LEN), 6)) ||
+	    color == 4 || color == 6)
+		STX(st, PS_TRNS, 0);               /* tRNS absent, trop court, ou sans objet */
 	long spp = 1;                              /* gris, palette : 1 */
 	if (color == 2)
 		spp = 3;                               /* RVB */

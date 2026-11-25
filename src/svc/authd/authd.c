@@ -324,10 +324,27 @@ static void hex(const u8 *b, int n, char *o)
 
 static char nouveau[FILE_MAX + 256];
 
+/* un nom de compte permis (la règle de useradd, uf_name_ok) : minuscules, chiffres, « - » et « _ »,
+ * 1 à 31 caractères, une lettre d'abord. Sinon un nom pourrait déborder ligne_cpt, ou ajouter des
+ * lignes à shadow.ini (« \n », « = »). */
+static int nom_ok(const char *n)
+{
+	if (!(n[0] >= 'a' && n[0] <= 'z'))
+		return 0;
+	u64 k = 0;
+	for (; n[k]; k++)
+		if (!((n[k] >= 'a' && n[k] <= 'z') || (n[k] >= '0' && n[k] <= '9') || n[k] == '-' || n[k] == '_') ||
+		    k >= 31)
+			return 0;
+	return 1;
+}
+
 /* le mot de passe du compte devient pw (vide : aucun) : shadow.ini récrit, les autres lignes gardées */
 static long ecrire_mdp(const char *name, const char *pw)
 {
 	char ligne_cpt[200];
+	if (!nom_ok(name))
+		return E_INVAL;
 	if (*pw) {
 		u8 salt[16], h[32];
 		if (korin_sys2(SYS_GETRANDOM, salt, sizeof salt) != (long)sizeof salt)
@@ -700,7 +717,7 @@ static long traiter(void)
 		if (uid != 0)
 			return E_PERM;
 		const char *who = data, *pw = data + str_len(data) + 1;
-		if ((const u8 *)pw >= msg + MSG_SIZE || !*who)
+		if ((const u8 *)pw >= msg + MSG_SIZE || !nom_ok(who))
 			return E_INVAL;
 		struct compte t;
 		memset(&t, 0, sizeof t);
@@ -721,7 +738,7 @@ static long traiter(void)
 		if (uid != 0)
 			return E_PERM;
 		const char *who = data, *nw = data + str_len(data) + 1;
-		if ((const u8 *)nw >= msg + MSG_SIZE || !*who)
+		if ((const u8 *)nw >= msg + MSG_SIZE || !nom_ok(who))
 			return E_INVAL;
 		long r = ecrire_mdp(who, nw);
 		if (!r && coffre(KV_SETPW, who, nw, 0) == 1)

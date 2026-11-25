@@ -133,7 +133,7 @@ long req_win_thumb(void)
 		tw = cw;
 	if (th > ch)
 		th = ch;
-	if (off + ((tw * th) << 2) > size || (off & 3)) /* la vignette tient au décalage ? */
+	if (off > size || ((tw * th) << 2) > size - off || (off & 3)) /* la vignette tient au décalage ? */
 		return E_INVAL;
 	/* contenu -> début du tampon (pas l * 4) */
 	copy_rect(c->adr, (long)cw << 2, (const u8 *)w->surf, w->w << 2, (long)cw, (long)ch);

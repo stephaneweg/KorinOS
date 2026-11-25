@@ -28,7 +28,7 @@ long req_clip_set(void)
 		clip_buf = (u8 *)r;
 	}
 	u64 off = M64(msg, WM_A), total = M64(msg, WM_B), n = M32(msg, WM_LEN);
-	if (total > WS_CLIP_MAX || n > WS_CLIP_PIECE || off + n > total)
+	if (total > WS_CLIP_MAX || n > WS_CLIP_PIECE || off > total || n > total - off)
 		return E_INVAL;
 	if (off == 0) { /* décalage 0 : nouveau contenu */
 		clip_len = (long)total;

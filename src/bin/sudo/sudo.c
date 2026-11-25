@@ -111,6 +111,8 @@ static int find(const char *name, char *o)
 {
 	static const char *const dirs[] = {"/sbin/", "/bin/", "/devtools/gcc/bin/", "/devtools/rust/bin/", 0};
 	long st[2];
+	if (str_len(name) > 200) /* (o : 256 octets, le plus long dossier compris) */
+		return 0;
 	for (const char *s = name; *s; s++)
 		if (*s == '/') {
 			str_cat(o, name);

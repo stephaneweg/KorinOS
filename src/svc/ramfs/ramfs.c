@@ -28,13 +28,15 @@ struct node {
 	u8 *data;
 	u64 capa; /* place réservée */
 	u64 mtime; /* dernière écriture (secondes UTC) */
-	u64 pad[3];
+	u64 gen;   /* monte à chaque réemploi de la place : une entrée ouverte sur un nœud effacé ne
+		    * voit pas le fichier créé ensuite à la même place */
+	u64 pad[2];
 };
 struct ouvert {
 	u64 node;
 	u64 owner; /* pid qui l'a ouvert (0 : entrée libre) */
 	i64 pos;   /* position (partagée après un fork) */
-	u64 pad;
+	u64 gen;   /* celle du nœud à l'ouverture */
 };
 
 static u64 limite = 16 << 20; /* taille du volume (« ram:16M ») */
@@ -113,6 +115,7 @@ static long creer(u64 parent, const char *name, u64 len, u64 attr)
 			continue;
 		n->parent = parent;
 		n->attr = attr;
+		n->gen++;
 		n->size = 0;
 		n->data = 0;
 		n->capa = 0;
@@ -208,6 +211,7 @@ static long op_ouvrir(struct msg *m)
 	if (!fo_own_add(e, owner))
 		return E_MFILE;
 	ouverts[e].node = node;
+	ouverts[e].gen = n->gen;
 	ouverts[e].owner = owner;
 	m->b = e;
 	ajouts[e] = (m->a & O_APPEND) != 0; /* O_APPEND : écrit à la fin réelle */
@@ -323,7 +327,7 @@ static long ouvert_de(struct msg *m, struct node **np)
 	if (r)
 		return r;
 	struct node *n = &noeuds[ouverts[num].node];
-	if (!n->attr)
+	if (!n->attr || n->gen != ouverts[num].gen)
 		return E_INVAL;
 	*np = n;
 	return num;
@@ -379,6 +383,8 @@ static long lire_noeud(struct node *n, u64 pos, u64 len, void *dst)
 /* nœud, position, octets, source -> octets écrits, ou E_NOSPC ; *size = nouvelle taille */
 static long ecrire_noeud(struct node *n, u64 pos, u64 len, const void *src, u64 *size)
 {
+	if (pos > limite || len > limite - pos) /* (pos + len ne déborde pas : le volume borne tout) */
+		return E_NOSPC;
 	u64 end = pos + len;
 	long r = agrandir(n, end);
 	if (r < 0)
