@@ -22,6 +22,15 @@ lecture (curseur et compteur avancent par le pilote AudioKit). App /apps/musesco
 korin_set_lang ; écran de bienvenue sauté ; raccourcis dans le texte des menus (QPA) ; HOME=/home sous telnet,
 premier lancement passé par ~/.config/MuseScore/MuseScore4.ini.
 
+**Retours du ZBook (25/11)** : partitions affichées ; l'engrenage de lecture ouvrait un popup qui disparaissait
+(PopupView = Qt::Tool sans cadre : UIKit lui donnait le focus, la fenêtre principale le reprenait, PopupViewCloseController
+le fermait) -> QPA : popup d'UIKit sans focus, focus de Qt à part, marge transparente (WF_ALPHA, format() de la fenêtre) ;
+« Play ne marche pas » pas reproduit sous QEMU (clic et espace jouent) : pilote AudioKit passé aux écritures partielles
+(ak_write prend ce qui tient) ; si ça reste, lire HOME:/.local/share/MuseScore/MuseScore4/logs/MuseScore_*.log
+(« playback not allowed » = sons pas chargés). Publiés : qtbase-dev 6.10.2-1 (--only libqkorin.a : les .a refaits
+diffèrent par leurs dates seulement), musescore 4.7.7-0.2. Vu : la fenêtre principale descend de 12 px au premier
+clic dans la partition (Elegant ?), pas encore regardé.
+
 **Reste** : paroles des partitions MuseScore 2 (police absente, quelques lettres fausses), essai sur le ZBook (vitesse,
 son réel), MIDI USB, dialogues de fichiers d'UIKit, publication.
 
