@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-25 14:14
+date = 2026-11-25 14:16
 abi = 629
 packages = 117
 board = pc
@@ -2900,16 +2900,16 @@ content = 76b3d286e763df152b997c93f779fac7b01469bba0daa52e3f5223cc96f9136b
 
 [musescore]
 title = MuseScore Studio
-version = 4.7.7-0.3
+version = 4.7.7-0.4
 category = Musique
 author = Korin OS
 summary = MuseScore Studio 4.7 (essai) : écrire, mettre en page, écouter et imprimer des partitions
-size = 60430468
-installed = 145878385
-sha256 = 76b07b91ba41c3093f67db9cefb6b4eb28806833964180c0b863e4e7f7210e1d
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-musescore-4.7.7-0.3.opk
+size = 60430466
+installed = 145882481
+sha256 = ddaa91ef3986ec0901e87c9a0f2c18dfb790853ea7a8fee23b83fe273b57b1a9
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-musescore-4.7.7-0.4.opk
 needs = pc, soundfonts, musescore-data-1, abi >= 629
 required = 0
 restart = 0
 replaces = musescore-data-2
-content = ae7135b1bde8ad2947eb82e871b4b460d24187e2e58f573565a16d5910bb0688
+content = e1e556c24685c18d0da25f310cade97f13f8f3e23e7aad4d91314502e43f903d
