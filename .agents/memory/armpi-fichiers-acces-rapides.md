@@ -89,5 +89,5 @@ Demande de l'utilisateur du 24/11/2026, branche claude/lucid-wright-6o2o4b, fusi
   glisser une agrandie ou ancrée de 10 px la rend à sa taille d'avant ; aperçu = voile blanc sous la fenêtre glissée.
   L'écart de 12 px sous la barre de menus venait du serrage « area_top + FRAME_TITLE_H » (FRAME_TITLE_H n'est plus
   qu'une ombre depuis le chrome sans barre) : serré à area_top. Essayé sous QEMU PC (Fichiers glissé par le haut de son
-  panneau). Pas publié (sys/elegant du paquet pc ; l'Elegant publié == main d'avant).
+  panneau). Publié dans pc 2026.11.112 (sys/elegant seul, 25/11).
 - Le Pi (armpi) n'est pas publié : son paquet a encore files.asm.
