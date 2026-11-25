@@ -32,6 +32,12 @@ qtshadertools, qtsvg, qtdeclarative. Hôte : qtsvg avant qtdeclarative (svgtoqml
 
 **25/11** : qt5compat, qtnetworkauth, PrintSupport (MuseScore) ; base de polices Korin (alias, replis) ; FreeType 2.14.3 retouché (korin-transform-ppem.patch, deps.sh) ; Qt ne recopie plus une image de glyphe ratée ; raccourcis du texte des menus. Voir [[armpi-musescore]].
 
+**Impression (25/11, QEMU PC)** : plugin printsupport korin (tools/qt/printsupport, recopié par build.sh) : imprimantes
+de printd, QPrintDialog -> dialogue de PrinterKit (crochet `qt_korin_print_dialog` faible dans qprintdialog_unix.cpp,
+qtbase.patch), moteur vers PrinterKit (texte en contours). L'imprimante « PDF » vers un fichier : le PDF de Qt
+(KORIN_PRINT_KIT=1 force printd). printd du PC : `sh tools/pc/apps.sh printd` (absent du sysroot sans PC_APPS ; les
+pctest l'ajoutent). Essai qtprint_test --direct/--kit/--dialog ; sortir un fichier de QEMU : hexdump + parse.
+
 **Reste** : publier les -dev (clé du dépôt) ; construire une app Qt dans Korin ;
 glisser-déposer, presse-papiers image, curseurs bitmap ; MuseScore (jalon 5).
 

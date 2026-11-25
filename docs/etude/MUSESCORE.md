@@ -13,6 +13,7 @@ AudioKit** ; les **menus dans la barre de menus globale** de Korin ; les dépend
 | Convertisseur sans fenêtre : `main -o grace.pdf Amazing_grace.mscz` | **fait (24/11), QEMU PC** : PDF de 50 Ko en 31 s (sans KVM) |
 | Interface : fenêtre, palettes, inspecteur, partition (Leland, Edwin), **menus dans la barre globale**, **en français** | **fait (25/11), QEMU PC** |
 | Lecture : **pilote AudioKit**, SoundFont MS Basic, curseur de lecture | **fait (25/11), QEMU PC** (le compteur avance ; le son lui-même n'est pas écouté sous QEMU) |
+| **Impression** (Fichier > Imprimer) : le dialogue de Korin, les imprimantes de printd (PrintSupport sur PrinterKit, [QT.md](QT.md) § 3.1) | **fait (25/11), QEMU PC** |
 | App `/apps/musescore.app` (264 Mo), paquet `musescore` (Release) | **prêts**, pas publiés |
 | Essai sur le ZBook (vitesse réelle, son) | à faire |
 
@@ -70,6 +71,9 @@ par `stage.sh` avec le `lrelease` de l'hôte (MuseScore, instruments, et `qtbase
 * Les raccourcis de MuseScore sont dans le texte des entrées (« Nouveau…⇥Ctrl+N ») : la QPA les sépare et les écrit
   comme Korin (« Ctrl+Maj+S »).
 * Polices absentes (« Times New Roman » des vieilles partitions) : la QPA a maintenant des alias et des replis.
+* **Impression** : MuseScore imprime en pleine page avec son papier (`setFullPage`) ; le dialogue de Korin ne propose
+  alors pas le papier (`PRINT_DLG_OWN_PAPER`). Vers l'imprimante PDF, le fichier est le PDF de Qt (texte et symboles
+  SMuFL gardés en police) ; vers une imprimante réseau, les pages passent par PrinterKit en contours.
 
 ## 4. Limites et suite
 
@@ -77,5 +81,5 @@ par `stage.sh` avec le `lrelease` de l'hôte (MuseScore, instruments, et `qtbase
   la migration vers Edwin ; le texte des partitions récentes est juste. À chercher dans le repli par caractère de
   MuseScore (`QFontProvider::inFont`, `QRawFont`).
 * Lent sous QEMU sans KVM (démarrage ≈ 3 min, la lecture n'y tient pas le temps réel) : à mesurer sur le ZBook.
-* Pas de MIDI (clavier USB), pas de Muse Sounds, pas de VST ; l'impression passe par PDF (pas de CUPS).
+* Pas de MIDI (clavier USB), pas de Muse Sounds, pas de VST.
 * Le dialogue d'ouverture de fichiers est celui de Qt (pas encore `ui_file_*` d'UIKit).
