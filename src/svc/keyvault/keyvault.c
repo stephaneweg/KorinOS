@@ -1149,8 +1149,8 @@ static void pw_result(int uid, int ok)
 	int f = ++pw_tries[i].fails;
 	if (f >= 3) {
 		u64 wait = 30000ull << (f - 3 < 7 ? f - 3 : 7);
-		if (wait > 3600000ull)
-			wait = 3600000ull;
+		if (wait > 300000ull) /* (5 min au plus : une app du compte bloquait son coffre une heure, D8) */
+			wait = 300000ull;
 		pw_tries[i].until = now_ms() + wait;
 	}
 }
@@ -1201,10 +1201,13 @@ static long admin_op(struct msg *m, int caller_uid)
 	switch (m->op) {
 	case KV_UNLOCK: {
 		const char *pw = caller_uid == 0 && p[0][0] ? p[1] : p[0];
-		if (pw_locked(uid))
+		/* (authd, uid 0, n'envoie qu'un mot de passe qu'il vient de vérifier à la connexion : pas compté, et pas
+		 * arrêté par les essais d'une app du compte, D8) */
+		if (caller_uid != 0 && pw_locked(uid))
 			return fail(E_AGAIN, "coffre du compte %d : trop de mots de passe refusés, réessayer plus tard", uid);
 		long r = vault_open(v, pw);
-		pw_result(uid, r != E_ACCES);
+		if (caller_uid != 0)
+			pw_result(uid, r != E_ACCES);
 		if (r == E_ACCES)
 			return fail(E_ACCES, "mot de passe refusé par le coffre");
 		if (r == 0)
