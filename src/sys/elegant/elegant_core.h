@@ -28,7 +28,7 @@ long read_key(const char *file, const char *key); /* -> 1 si trouvée (valeur da
 
 /* ---- core.c (core.inc) */
 
-#define WIN_LAYERS 5
+#define WIN_LAYERS 6
 void dirty(long x, long y, long w, long h);
 void dirty_all(void);
 void win_outer(const struct win *w, long *x, long *y, long *wd, long *ht); /* rectangle extérieur */
@@ -192,6 +192,8 @@ void snap_exit(long pid);
 /* remote.c */
 long req_win_list(void);
 int ws_trusted(void); /* (remote.c) l'appelant de msg : uid 0 ou un programme de la liste (G4) */
+int ws_secure_caller(void); /* (remote.c) l'appelant de msg : /sys/authcard ou /sys/login en uid 0 (A5) */
+struct win *secure_top(void); /* (core.c) la fenêtre sûre visible la plus en avant, 0 : aucune */
 long req_win_read(void);
 long req_win_move(void);
 long req_win_close(void);

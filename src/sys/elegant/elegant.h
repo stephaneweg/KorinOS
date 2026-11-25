@@ -87,6 +87,7 @@ struct win {
 	u64 *dmg;    /* en-tête WD_* en fin de tampon (ws_ext.inc) */
 	u64 framep;  /* 1 : WEV_FRAME à envoyer */
 	u64 desk;    /* son espace de travail + 1 (0 : tous) */
+	u64 secure;  /* 1 : de /sys/authcard ou /sys/login en uid 0 (couche sûre, clavier gardé : A5) */
 };
 
 /* ---- la table d'un mode (mode.inc, POL_*) */

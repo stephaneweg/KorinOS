@@ -425,6 +425,8 @@ static long ov_member(const struct win *w)
  * les menus, les volets (sans cadre, au-dessus, pas en plein écran) */
 long ov_top(const struct win *w)
 {
+	if (w->secure)
+		return 1; /* (la carte d'élévation : toujours montrée et touchée) */
 	if (!(w->flags & WF_FRAMELESS))
 		return 0;
 	long l = win_layer(w);

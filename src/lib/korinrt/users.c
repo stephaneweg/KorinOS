@@ -219,3 +219,40 @@ long user_session_uid(void)
 	}
 	return user_uid(0);
 }
+
+/* ---- le repère secret (A5, E39) : deux mots tirés une fois au hasard, que la carte d'élévation et l'écran de
+ * connexion montrent ; une app ne peut ni lire le fichier (vfs : uid 0 seulement, dans tous les modes) ni capturer
+ * l'écran (Elegant, G4) : une fausse carte ne le connaît pas */
+static const char *const sm_animals[16] = {"renard", "hibou", "loutre", "cerf", "lynx", "héron", "blaireau", "phoque",
+					   "colibri", "bison", "panda", "dauphin", "castor", "faucon", "tortue", "koala"};
+static const char *const sm_colors[16] = {"bleu", "rouge", "vert", "doré", "violet", "orange", "argenté", "noir",
+					  "blanc", "rose", "turquoise", "brun", "gris", "jaune", "pourpre", "corail"};
+
+int secure_mark(const char **animal, const char **color)
+{
+	char b[16];
+	long fd = sys_open("/etc/secure-mark", O_READ);
+	long n = fd >= 0 ? sys_read(fd, b, sizeof b - 1) : -1;
+	if (fd >= 0)
+		sys_close(fd);
+	if (n < 2) {
+		if (korin_sys0(SYS_GETUID) != 0)
+			return 0;
+		u8 r[2] = {0, 0};
+		if (korin_sys2(SYS_GETRANDOM, r, 2) != 2)
+			return 0;
+		b[0] = (char)('a' + (r[0] & 15));
+		b[1] = (char)('a' + (r[1] & 15));
+		b[2] = '\n';
+		fd = sys_open("/etc/secure-mark", O_WRITE | O_CREATE | O_TRUNC);
+		if (fd < 0)
+			return 0;
+		sys_write(fd, b, 3);
+		sys_close(fd);
+	}
+	if (b[0] < 'a' || b[0] > 'p' || b[1] < 'a' || b[1] > 'p')
+		return 0;
+	*animal = sm_animals[b[0] - 'a'];
+	*color = sm_colors[b[1] - 'a'];
+	return 1;
+}

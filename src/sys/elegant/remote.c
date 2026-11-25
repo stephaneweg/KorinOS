@@ -55,6 +55,24 @@ int ws_trusted(void)
 	return 0;
 }
 
+/* A5 : la carte d'élévation et l'écran de connexion, lancés en uid 0 par authd et init2 : la couche sûre. Le Pi
+ * (pas d'identité des programmes) n'en a pas */
+int ws_secure_caller(void)
+{
+	long pid = M32(msg, WM_PID);
+	if (korin_sys1(SYS_PROC_UID, pid) != 0)
+		return 0;
+	if (korin_sys2(SYS_PROC_EXE, pid, ws_pex) < 0 || (*(u32 *)ws_pex & 5) != 1)
+		return 0;
+	ws_pex[40 + 127] = 0;
+	const char *e = (const char *)ws_pex + 40, *c = e;
+	while (*c && *c != ':' && c - e < 8)
+		c++;
+	if (*c == ':' && c[1] == '/')
+		e = c + 1;
+	return ws_ieq(e, "/sys/authcard") || ws_ieq(e, "/sys/login");
+}
+
 /* la fenêtre est-elle à l'appelant, ou l'appelant est-il de la liste ? */
 static int ws_may(const struct win *w)
 {

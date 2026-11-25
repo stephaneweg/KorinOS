@@ -23,7 +23,8 @@
 static const char *const secrets[] = {"/etc/shadow.ini", "/etc/wifi.txt", "/etc/wifi.bak", "/etc/remote.txt",
 				      "/etc/smbd.ini", "/etc/smbfs.ini", "/etc/web/certs", 0};
 /* refusés aux autres que l'uid 0 quel que soit le mode (sauf « off ») : les fichiers du coffre */
-static const char *const toujours[] = {"/var/keyvault", "/etc/keyvault", "/etc/shadow.ini", 0};
+static const char *const toujours[] = {"/var/keyvault", "/etc/keyvault", "/etc/shadow.ini",
+				       "/etc/secure-mark", /* (le repère de la carte d'élévation : A5) */ 0};
 /* en écriture, aux autres que l'uid 0, quel que soit le mode (sauf « off ») : les marques de session de /tmp,
  * écrites par login, Elegant et init2 (uid 0) ; lues par tous. /tmp/session.ini dit sous quel compte vont la
  * console, telnet et startup.txt : un compte qui l'écrivait y mettait l'uid 0 ou celui d'un autre (A1, E29) */

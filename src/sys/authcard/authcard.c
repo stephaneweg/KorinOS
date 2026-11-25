@@ -10,7 +10,10 @@
  *
  * Mode coffre (docs/KEYVAULT.md) : « jeton|raison|compte|1|keyvault », lancée par le service keyvault : ouvrir
  * le coffre fermé d'un compte (mot de passe), ou laisser ses secrets à un programme qui a changé (sans mot de
- * passe) ; la réponse va à keyvault (KV_CARD), sans la case « Retenir ». */
+ * passe) ; la réponse va à keyvault (KV_CARD), sans la case « Retenir ».
+ *
+ * Elegant met ses fenêtres dans la couche sûre (au-dessus de tout, clavier gardé) et la carte montre le repère
+ * secret de l'ordinateur (/etc/secure-mark), qu'une app ne peut pas lire : une imitation ne l'a pas (A5, E39). */
 #include "sys_consts.h"
 #include "uikit_import.h"
 
@@ -89,7 +92,13 @@ int main(int argc, char **argv)
 		return 1;
 	ui_init((long)&ui);
 	enum { DW = 420, M = 20 };
-	long DH = need ? 280 : 190;
+	long DH = need ? 310 : 220;
+	/* le repère secret de cet ordinateur (A5) : une fausse carte ouverte par une app ne le connaît pas */
+	static char mark[128];
+	const char *ma, *mc;
+	mark[0] = 0;
+	if (secure_mark(&ma, &mc))
+		str_cat(str_cat(str_cat(str_cat(mark, TR("Repère : ")), TR(ma)), " · "), TR(mc));
 	int keep = 0; /* (gardée d'un essai à l'autre après un mauvais mot de passe) */
 	for (;;) {
 		long d = ui_dialog_begin(DW, DH, (long)TR(vault ? "Coffre à secrets" : "Autorisation"));
@@ -113,6 +122,9 @@ int main(int argc, char **argv)
 			}
 		}
 		w_msg = ui_label(M, y, DW - 2 * M, 20, (long)"", ULB_DIM);
+		y += 24;
+		if (mark[0])
+			ui_label(M, y, DW - 2 * M, 20, (long)mark, 0);
 		long e = ui_dialog_button(d, 0, (long)TR(vault && need ? "Ouvrir" : "Autoriser"), 1, UB_DEFAULT, DW - 12);
 		ui_dialog_button(d, 1, (long)TR("Annuler"), 0, 0, e);
 		ui_dialog_cancel(d, 0);

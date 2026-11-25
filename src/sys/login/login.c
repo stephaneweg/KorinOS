@@ -44,6 +44,7 @@ static int nacc, sel;
 static char autologin[32], machine[48] = "Korin OS", keyb[8] = "FR";
 static char pw[128];
 static int pwlen, show_pw, err, busy;
+static char g_mark[128]; /* le repère secret de l'ordinateur (A5 : un faux écran ne le connaît pas) */
 static long scr[4]; /* l'écran */
 static char buf[8192];
 
@@ -389,6 +390,15 @@ static void draw_prompt(void)
 		const char *t = TR("Mot de passe incorrect. Réessayez.");
 		tw = ui_text_width((long)t, 13, (long)ui.font);
 		ui_text((long)t, (W - tw) / 2, fy + FIELD_H + 30, ERR, 13, (long)ui.font, 0);
+	}
+	if (!g_mark[0]) {
+		const char *ma, *mc;
+		if (secure_mark(&ma, &mc))
+			str_cat(str_cat(str_cat(str_cat(g_mark, TR("Repère : ")), TR(ma)), " · "), TR(mc));
+	}
+	if (g_mark[0]) {
+		tw = ui_text_width((long)g_mark, 13, (long)ui.font);
+		ui_text((long)g_mark, (W - tw) / 2, fy + FIELD_H + 54, DIM, 13, (long)ui.font, 0);
 	}
 }
 

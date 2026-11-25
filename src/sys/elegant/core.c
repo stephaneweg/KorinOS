@@ -137,10 +137,13 @@ void dirty_window(struct win *w)
 /* fenêtre -> couche : 0 fond, 1 normale, 2 dessus, 3 plein écran (WF_TOP sans cadre, en 0,0, de
  * la taille de l'écran : un jeu, un émulateur ; au-dessus du panel, de la barre de menus et de
  * leurs bulles), 4 les menus (ui_popup : WF_TOP | WF_GRAB | WF_NOFOCUS), au-dessus de tout, plein
- * écran compris : la liste d'une liste déroulante de l'installateur, qui couvre l'écran) */
+ * écran compris : la liste d'une liste déroulante de l'installateur, qui couvre l'écran), 5 la couche
+ * sûre : la carte d'élévation et l'écran de connexion (A5), au-dessus de tout ce qu'une app peut ouvrir */
 long win_layer(const struct win *w)
 {
 	u64 f = w->flags;
+	if (w->secure)
+		return 5;
 	if (f & WF_HOME) /* (l'accueil du mode poche : au fond) */
 		return 0;
 	if (f & WF_BACK)
@@ -656,18 +659,35 @@ void do_input(void)
 }
 
 /* -> fenêtre qui reçoit le clavier : celle qui capture, sinon l'active */
-struct win *key_target(void)
-{
-	struct win *w = find_grab();
-	return w ? w : win_focus;
-}
-
-/* -> fenêtre visible qui capture (WF_GRAB, la plus en avant), 0 sinon */
-struct win *find_grab(void)
+struct win *secure_top(void)
 {
 	for (long i = win_count; i;) {
 		struct win *w = win_z[--i];
-		if (!w->mini && (w->flags & WF_GRAB))
+		if (!w->mini && w->secure)
+			return w;
+	}
+	return 0;
+}
+
+/* tant qu'une fenêtre sûre est ouverte, le clavier ne va qu'aux fenêtres sûres : une app qui se mettait au
+ * premier plan, ou ouvrait un menu (WF_GRAB), sous la carte recevait le mot de passe tapé dans la carte (A5) */
+struct win *key_target(void)
+{
+	struct win *w = find_grab();
+	if (w)
+		return w;
+	struct win *s = secure_top();
+	return s && !(win_focus && win_focus->secure) ? s : win_focus;
+}
+
+/* -> fenêtre visible qui capture (WF_GRAB, la plus en avant), 0 sinon ; une fenêtre sûre ouverte : seulement
+ * une fenêtre sûre (la liste déroulante de l'écran de connexion) */
+struct win *find_grab(void)
+{
+	int sec = secure_top() != 0;
+	for (long i = win_count; i;) {
+		struct win *w = win_z[--i];
+		if (!w->mini && (w->flags & WF_GRAB) && (!sec || w->secure))
 			return w;
 	}
 	return 0;
@@ -1535,6 +1555,7 @@ long req_create(void)
 	w->dmg = (u64 *)(va + ((content + 2 * frame + 7) & ~7ULL));
 	w->framep = 0;
 	w->flags = role;
+	w->secure = (u64)ws_secure_caller();
 	w->mini = ((role & (WF_OVERVIEW | WF_APPGRID)) && !ov_on) ? MINI_OVERVIEW : 0; /* (le dash, la grille :
 										   seulement dans la vue) */
 	w->desk = role & (WF_BACK | WF_TOP) ? 0 : (u64)desk_cur + 1; /* sur l'espace courant ; fond et

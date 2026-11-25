@@ -423,6 +423,9 @@ long user_uid(const char *name);  /* uid du compte (name = 0 : le premier d'uid 
 long user_session_uid(void);      /* le compte de la session (autologin de system.ini, sinon le premier) */
 int user_home(long uid, char *out, long cap); /* son dossier (users.ini) -> 1, 0 : aucun */
 int user_name(long uid, char *out, long cap); /* son nom (section de users.ini) -> 1, 0 : aucun */
+/* le repère secret de la machine (/etc/secure-mark, uid 0 seulement ; tiré au hasard s'il manque) : l'animal et
+ * la couleur en français (à traduire par ui_tr) -> 1, 0 : illisible (pas uid 0) */
+int secure_mark(const char **animal, const char **color);
 long spawn_session(const char *path, const char *args); /* spawn avec l'uid de la session (sinon spawn) */
 void spawn_session_next(void);    /* le prochain lancement (spawn_stdio...) avec l'uid de la session */
 
