@@ -2802,3 +2802,19 @@ required = 0
 restart = 0
 part = qtdeclarative-dev
 content = b9b86cc9d42bafdf944c741271597cb1a77e2ee3aefe8da367dd55a46402fc28
+
+[qtdeclarative-dev-data-8]
+title = Qt Quick et QML (développement) (8/10)
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les données de Qt Quick et QML (développement), partie 8 sur 10
+size = 18557512
+installed = 51499929
+sha256 = d80be891cd9d4b0c5631821b2ab81f09272a368de080a4d3f462ed08d83c611e
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtdeclarative-dev-data-8-1.0.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+part = qtdeclarative-dev
+content = 0bc552ebb6a0f2cd0612945b4a5cfd5633c545335bda602c48163c719c9bcafa
