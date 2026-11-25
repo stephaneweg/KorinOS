@@ -82,6 +82,7 @@ struct shm {
 	uint64_t npages;
 	int seals, sealable;
 	int mapped;
+	int wmapped; /* projections inscriptibles (partagées, pas en copie) : SEAL_WRITE refusé tant qu'il y en a (N10) */
 	int weak, pinned;
 	int id;
 	int owner_uid; /* nommé : le compte qui l'a créé, seul à l'ouvrir et à le délier (N11, X1, E46) */
@@ -1057,6 +1058,8 @@ int64_t sys_shm_ctl(uint64_t h, uint64_t op, uint64_t val)
 	} else if (op == SHM_ADD_SEALS) {
 		if (!s->sealable || (s->seals & SEAL_SEAL))
 			r = E_PERM;
+		else if ((val & SEAL_WRITE) && s->wmapped > 0)
+			r = E_BUSY; /* (une projection inscriptible : le sceau ne tiendrait pas, N10 ; comme Linux) */
 		else
 			s->seals |= (int)val;
 	} else if (op == SHM_PIN || op == SHM_UNPIN) {
@@ -1099,6 +1102,23 @@ void ipc_shm_mapped(struct ipc_obj *o, int delta)
 	spin_unlock_irqrestore(&ipc_lock, f);
 }
 
+/* une projection inscriptible de plus (delta > 0 : refusée, E_PERM, si l'objet est scellé en écriture) ou de
+ * moins (N10) */
+int64_t ipc_shm_wmapped(struct ipc_obj *o, int delta, int check)
+{
+	struct shm *s = (struct shm *)o;
+	int64_t r = 0;
+	uint64_t f = spin_lock_irqsave(&ipc_lock);
+	if (s->h.kind != K_SHM)
+		r = 0;
+	else if (check && delta > 0 && (s->seals & SEAL_WRITE))
+		r = E_PERM;
+	else
+		s->wmapped += delta;
+	spin_unlock_irqrestore(&ipc_lock, f);
+	return r;
+}
+
 int64_t sys_shm_map(uint64_t h, uint64_t addr, uint64_t size, uint64_t prot, uint64_t flags, uint64_t off)
 {
 	uint64_t f = spin_lock_irqsave(&ipc_lock);
@@ -1108,13 +1128,19 @@ int64_t sys_shm_map(uint64_t h, uint64_t addr, uint64_t size, uint64_t prot, uin
 		r = E_BADF;
 	else if ((s->seals & SEAL_WRITE) && (prot & PROT_WRITE) && !(flags & 0x200000))
 		r = E_PERM;
-	else
+	else {
 		s->h.refs++; /* la région en tiendra une */
+		if ((prot & PROT_WRITE) && !(flags & 0x200000))
+			s->wmapped++; /* (compté ici, sous le verrou du sceau : mm_map_shared ne le compte pas) */
+	}
 	spin_unlock_irqrestore(&ipc_lock, f);
 	if (r)
 		return r;
 	r = mm_map_shared(&s->h, addr, size, prot, flags, off);
-	if (r < 0)
+	if (r < 0) {
+		if ((prot & PROT_WRITE) && !(flags & 0x200000))
+			ipc_shm_wmapped(&s->h, -1, 0);
 		ipc_obj_put(&s->h);
+	}
 	return r;
 }

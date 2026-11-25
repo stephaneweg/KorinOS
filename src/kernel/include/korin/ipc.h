@@ -40,5 +40,7 @@ void ipc_obj_put(struct ipc_obj *o);
 /* page de l'objet à ce décalage (créée à zéro) ; 0 au-delà de la taille */
 uint64_t ipc_shm_page(struct ipc_obj *o, uint64_t off);
 void ipc_shm_mapped(struct ipc_obj *o, int delta);
+/* projections inscriptibles (N10) ; check et delta > 0 : E_PERM si scellé en écriture */
+int64_t ipc_shm_wmapped(struct ipc_obj *o, int delta, int check);
 
 #endif

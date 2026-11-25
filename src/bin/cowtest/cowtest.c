@@ -486,6 +486,24 @@ int main(int argc, char **argv)
 	ak_puts(" (2e moitie)\n");
 	check(lost2 < 16, "boucle fork + exec + wait : pas de fuite (2e moitie)");
 
+	/* --- sceaux d'une mémoire partagée (N10) : SEAL_WRITE refusé tant qu'une projection écrit, et ensuite ni
+	 * projection inscriptible ni VM_PROTECT en écriture */
+	{
+		long h = korin_sys2(SYS_SHM_CREATE, 4096, 1 /* IPC_SHM_SEALABLE */);
+		long m = ksys(SYS_SHM_MAP, h, 0, 4096, PROT_READ | PROT_WRITE, 0, 0);
+		check(h >= 0 && m > 0, "SHM : creation et projection inscriptible");
+		check(korin_sys3(SYS_SHM_CTL, h, 2, 8) == -16, "SHM : SEAL_WRITE refuse avec une projection inscriptible (N10)");
+		korin_sys2(SYS_VM_UNMAP, m, 4096);
+		long m2 = ksys(SYS_SHM_MAP, h, 0, 4096, PROT_READ, 0, 0);
+		check(m2 > 0 && korin_sys3(SYS_SHM_CTL, h, 2, 8) == 0, "SHM : SEAL_WRITE accepte sans projection inscriptible");
+		check(korin_sys3(SYS_VM_PROTECT, m2, 4096, PROT_READ | PROT_WRITE) == E_PERM,
+		      "SHM scelle : VM_PROTECT en ecriture refuse (N10)");
+		check(ksys(SYS_SHM_MAP, h, 0, 4096, PROT_READ | PROT_WRITE, 0, 0) == E_PERM,
+		      "SHM scelle : projection inscriptible refusee");
+		check(ksys(SYS_SHM_MAP, h, 0, 4096, PROT_READ | PROT_WRITE, 0x200000, 0) > 0,
+		      "SHM scelle : projection en copie (VM_COW) permise");
+	}
+
 	ak_puts("cowtest : "); /* résumé */
 	print_dec(n_pass);
 	ak_puts(" PASS, ");

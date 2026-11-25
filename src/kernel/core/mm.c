@@ -38,6 +38,12 @@ struct region {
 
 #define VM_COW_MAP 0x200000
 
+/* une projection d'objet partagé qui écrit dans l'objet (N10 : les sceaux en tiennent le compte) */
+static int region_w(const struct region *r)
+{
+	return r->obj && (r->prot & PROT_WRITE) && !r->cow;
+}
+
 struct mm {
 	spinlock_t lock;
 	struct region *r;
@@ -165,6 +171,8 @@ static int split_at(struct mm *mm, uint64_t a)
 		hi.off += a - mm->r[i].start;
 		ipc_obj_get(hi.obj);
 		ipc_shm_mapped(hi.obj, 1);
+		if (region_w(&hi))
+			ipc_shm_wmapped(hi.obj, 1, 0);
 	}
 	mm->r[i].end = a;
 	return insert_at(mm, i + 1, hi);
@@ -502,6 +510,8 @@ static int unmap_range(struct process *p, uint64_t s, uint64_t e, struct freelis
 	for (int i = 0; i < mm->n;) {
 		if (mm->r[i].start >= s && mm->r[i].end <= e && (mm->r[i].kind == VMK_ANON || mm->r[i].kind == VMK_SHARED)) {
 			if (mm->r[i].obj) {
+				if (region_w(&mm->r[i]))
+					ipc_shm_wmapped(mm->r[i].obj, -1, 0);
 				ipc_shm_mapped(mm->r[i].obj, -1);
 				ipc_obj_put(mm->r[i].obj);
 			}
@@ -650,6 +660,30 @@ int64_t sys_vm_protect(uint64_t addr, uint64_t size, uint64_t prot)
 	if (split_at(mm, addr) || split_at(mm, addr + len)) {
 		ret = E_INVAL;
 		goto out;
+	}
+	/* une projection partagée qui devient inscriptible : comptée, et refusée sur un objet scellé en écriture
+	 * (VM_PROTECT rendait inscriptible une mémoire partagée scellée, N10) */
+	for (int i = 0; i < mm->n; i++) { /* d'abord celles qui le deviennent (refus possible) */
+		struct region *g = &mm->r[i], nw = *g;
+		nw.prot = (uint32_t)prot;
+		if (g->start < addr || g->end > addr + len || !region_w(&nw) || region_w(g))
+			continue;
+		if (ipc_shm_wmapped(g->obj, 1, 1)) {
+			for (int j = 0; j < i; j++) { /* (défaire celles déjà comptées) */
+				struct region *h = &mm->r[j], hn = *h;
+				hn.prot = (uint32_t)prot;
+				if (h->start >= addr && h->end <= addr + len && region_w(&hn) && !region_w(h))
+					ipc_shm_wmapped(h->obj, -1, 0);
+			}
+			ret = E_PERM;
+			goto out;
+		}
+	}
+	for (int i = 0; i < mm->n; i++) { /* puis celles qui ne le sont plus */
+		struct region *g = &mm->r[i], nw = *g;
+		nw.prot = (uint32_t)prot;
+		if (g->start >= addr && g->end <= addr + len && region_w(g) && !region_w(&nw))
+			ipc_shm_wmapped(g->obj, -1, 0);
 	}
 	for (int i = 0; i < mm->n; i++)
 		if (mm->r[i].start >= addr && mm->r[i].end <= addr + len)
@@ -1045,6 +1079,8 @@ int mm_fork(struct process *parent, struct process *child)
 			if (cm->r[i].obj) {
 				ipc_obj_get(cm->r[i].obj);
 				ipc_shm_mapped(cm->r[i].obj, 1);
+				if (region_w(&cm->r[i]))
+					ipc_shm_wmapped(cm->r[i].obj, 1, 0);
 			}
 		cm->brk_start = pm->brk_start;
 		cm->brk = pm->brk;
@@ -1093,6 +1129,8 @@ void mm_free(struct mm *mm)
 		}
 	for (int i = 0; i < mm->n; i++)
 		if (mm->r[i].obj) {
+			if (region_w(&mm->r[i]))
+				ipc_shm_wmapped(mm->r[i].obj, -1, 0);
 			ipc_shm_mapped(mm->r[i].obj, -1);
 			ipc_obj_put(mm->r[i].obj);
 		}
