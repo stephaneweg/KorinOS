@@ -395,6 +395,7 @@ au lieu des chemins à volume. Écrit dans `src/svc/vfs/path.c` et `vfs.c`, suiv
 | Point | Choix |
 |---|---|
 | Racine | `/` est le **volume système** (nom interne `root`, service `fs.root`), monté par init : `vfs / blk.sd0p1 fatfs [rootpath]` |
+| `/tmp/<uid>` | le dossier temporaire d'un compte (25/11/2026, E27) : à lui seul, même en lecture, dans tous les modes de vfs ; libposix le crée et y met `TMPDIR` pour tout programme d'uid autre que 0. `/tmp` reste commun (les ports liés statiquement s'en servent) ; `/tmp/0` est celui de l'uid 0 (les téléchargements de pkg) |
 | Autres volumes | montés dans un dossier : `/tmp` (ramfs), `/media/usb0`, `/media/usb1`… (clés USB), `/media/sd1` (la partition personnelle du Pi, exFAT), `/media/img0`, `/media/img1` (images d'essai), `/net/net0`… (partages, smbfs), `/boot` (à la demande, section 4.4). N'importe quel volume peut aller dans n'importe quel dossier ; vfs crée le dossier du point s'il manque |
 | Table | `chemins_v` : un point de montage (forme externe, « `/media/usb0` ») et sa forme interne (« `/usb0` », ou « `/ram/sub` » pour un dossier monté ailleurs) ; 32 entrées ; **le plus long préfixe gagne** (composants entiers), « `/` » couvre tout |
 | Forme interne | « `/<volume>/a/b` », sans « `.` », « `..` » ni « `/` » final ; elle ne sort jamais de vfs : `V_GETCWD`, `V_EXEC`, les tubes nommés rendent la forme externe (`chemin_externe`) |

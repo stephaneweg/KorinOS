@@ -261,6 +261,20 @@ portée : la session graphique pour la carte, le shell qui lance sudo (son père
 l'élévation est accordée sans carte ni mot de passe. Le délai part de la saisie et ne s'allonge pas. Il est oublié au
 bout de 5 minutes, au redémarrage, à chaque ouverture de session (`/sys/login`, `AUTH_FORGET`) et par `sudo -k`.
 
+**Depuis le 25/11/2026 (corrections de sécurité, E38 et E39)** :
+
+- authd n'accepte `AUTH_SUDO` que du vrai `/bin/sudo` (le chemin de son image et l'empreinte SHA-256 de son
+  contenu) ; la portée de « retenir » est le père réel de sudo, lu par authd (`SVC_REQ_INFO`), et pour la carte,
+  l'app élevée elle-même (son pid) et plus toute la session ;
+- un compte **sans mot de passe** ne s'élève plus par `sudo` seul : sudo ouvre la carte, où l'utilisateur clique
+  « Autoriser » (un terminal se fabrique, il ne prouvait la présence de personne) ;
+- trois mots de passe faux bloquent les essais 30 s, puis le double, 5 minutes au plus, par compte ; la connexion
+  (login, telnetd, ftpd) a son compteur à elle ;
+- la carte et l'écran de connexion sont dans une **couche sûre** d'Elegant (au-dessus de tout, le clavier ne va
+  qu'à eux tant qu'ils sont ouverts) et montrent le **repère** de l'ordinateur, « Repère : phoque · bleu » par
+  exemple : deux mots tirés au hasard une fois (`/etc/secure-mark`, lisible par l'uid 0 seulement). Une app ne peut
+  ni lire ce fichier ni capturer l'écran : une carte sans le bon repère est une imitation.
+
 L'élévation **ne donne jamais les droits matériel** : seulement l'uid 0, donc l'écriture dans `/`.
 
 Il n'y a **pas de bit setuid** : aucun fichier ne peut le porter sur FAT. Tout passe par authd ou par un démon

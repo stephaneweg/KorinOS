@@ -1,7 +1,21 @@
 # Plan de correction des failles de sécurité de la version PC
 
-Rédigé le 24/11/2026 à partir de [AUDIT-SECURITE-PC.md](AUDIT-SECURITE-PC.md), sur `main` (df483dc6). **Rien n'est
-encore implémenté** : les corrections viennent après le portage de Blender.
+Rédigé le 24/11/2026 à partir de [AUDIT-SECURITE-PC.md](AUDIT-SECURITE-PC.md), sur `main` (df483dc6).
+
+> **État au 25/11/2026 (branche `security-fix`).**
+>
+> * **Fait** : E01-E27 (E11 : journal seulement), E29 réduite, E30-E32, E35, E36 (captures, liste, fermeture,
+>   menus, capture WF_GRAB d'une app au premier plan seulement), E37-E41, E43, E44, E46 (sceaux SHM compris), E48
+>   (oauthd), E51 (téléchargement en uid 0, `/var/pkg` protégé, noms et chemins interdits sans casse), E63 (sauf
+>   usbhid et usbstorage), E66-E70 (E70 : telnetd et ftpd par comptes), E09, E10.
+> * **Ajouté après une relecture de la branche** : `fs.*` ne répondent qu'à vfs (le fond de F4) ; montage par
+>   « `/media/../etc` » ; renommage d'un parent d'un chemin protégé ; sudo d'un compte sans mot de passe par la
+>   carte ; couche sûre et repère secret de la carte et de l'écran de connexion (E39) ; `/etc/web-probe.js`,
+>   `/etc/ca-bundle` protégés.
+> * **Décisions de l'utilisateur** : E33, E34 non ; JIT W^X plus tard.
+> * **Reste** : E11 (refus : essais de Jet, Godot et linuxhost d'abord), E42 et E64 (ZBook), E45, E47, E49, E50,
+>   E52-E62, E65, E70 (VNC, RDP, SMB), E72-E75. `/apps`, `/devtools` et `/etc/system.ini` restent inscriptibles
+>   jusqu'à `enforce` : qbasic et qbstudio écrivent `/apps`, Réglages écrit `system.ini`, sans élévation.
 
 **La règle de ce plan, posée par l'utilisateur.** Avant toute implémentation, on vérifie en profondeur, en lisant le
 code, qu'aucune correction ne casse le système. C'est fait ici pour chaque étape :
