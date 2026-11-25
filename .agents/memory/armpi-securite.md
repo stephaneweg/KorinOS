@@ -72,3 +72,10 @@ programme / opération / voie, montré à l'utilisateur avant de changer le code
 HOME:/apps, puis /apps à l'uid 0 ; Réglages sans élévation pour réseau, Wi-Fi, clavier, énergie, par les services
 (caller_session_or_admin), system.ini protégé ensuite ; mises à jour A/B avec version de secours confirmée par root
 seulement (remplace E55) ; publication de l'index autorisée avec ONYX_PKG_KEY (effacer la clé temporaire après).
+
+**25/11, décisions (suite)** (docs/etude/DECISIONS-SECURITE-25-11.md, fin) : date/heure/fuseau, affichage, disposition
+par défaut : par élévation ; disposition du compte chargée à son choix sur l'écran de connexion ; même nom /apps et
+HOME:/apps : les deux, « (u) » devant celle de l'utilisateur ; sudo toujours avec mot de passe, un compte admin doit en
+avoir un (osinstall, Réglages, authd) ; oauthd par compte (oauth.<uid>) ; moniteur du noyau seulement dans les builds
+de test ; / et /home en ext4 à l'installation ; préchargement seulement /apps par élévation, images partagées créées
+par le démarrage seul ; K3 pas maintenant ; E34 ACCEPTÉ (tuer/signaler hors de ses process : élévation).

@@ -49,3 +49,18 @@ But : les programmes de session (panel, menubar, voronoy, agenda, stickies, cloc
 - Gardent l'élévation : access=, autologin, shell, comptes, remote.txt, paquets.
 - Puis : sortir de system.ini ce qui est personnel, et protéger system.ini en écriture (uid 0) avant enforce (E72).
 
+
+## Décisions (suite, 25/11/2026)
+
+- Date, heure, fuseau horaire : par élévation (NTP de netd continue sans rien demander).
+- Affichage (résolution, échelle) : réglage de la machine, commun à tous les comptes, par élévation.
+- Écran de connexion : en cliquant sur un compte, sa disposition de clavier est chargée (lue dans son dossier, hidmanager KEYMAP). La disposition par défaut (avant le choix d'un compte) se change par élévation.
+- Même nom dans /apps et HOME:/apps : les deux sont affichées, celle de l'utilisateur précédée de « (u) » ; identités distinctes (notifyd, coffre, liste d'Elegant).
+- sudo : un mot de passe est toujours exigé, comme pour tout compte qui peut administrer (plus de sudo sans mot de passe, console comprise).
+- Un compte qui peut gérer le système (elevate.ini, groupe admin) doit avoir un mot de passe : imposé par osinstall, Réglages (création ou passage admin) et authd.
+- oauthd : un service par compte (oauth.<uid>), lancé à l'ouverture de la session de l'utilisateur, avec ses propres jetons.
+- Moniteur du noyau : seulement dans les builds de test (ktest…), exclu des builds « release », sans rien à la place.
+- Disques : / et /home en ext4 à l'installation (osinstall, installateur) ; FAT/exFAT réservés aux disques amovibles ; pas de chiffrement. Corriger CLAUDE.md, AGENTS.md, FICHIERS.md (« / est en FAT32 »).
+- Préchargement : seulement des apps de /apps, choisi par élévation ; seul le démarrage (init/vfs) crée des images partagées ; le noyau refuse SYS_IMAGE_CREATE d'une image partagée à tout autre process, et hors de /apps (avec E33 accepté).
+- K3 (clé de signature) : pas pour l'instant ; on continue d'utiliser la clé de l'utilisateur (ONYX_PKG_KEY).
+- E34 accepté : tuer ou signaler un process qui n'est pas à soi (autre compte, ou système : uid 0, services) demande l'élévation (sudo kill, ou la carte depuis le Gestionnaire des tâches) ; ses propres process restent libres. Avant d'implémenter : relire la section E34 du plan (constats D2, N27) et ce que font aujourd'hui le noyau (SYS_KILL, signaux de groupe) et sudo.
