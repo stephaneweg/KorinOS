@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-25 09:15
+date = 2026-11-25 09:16
 abi = 629
 packages = 117
 board = pc
@@ -2850,3 +2850,18 @@ required = 0
 restart = 0
 part = qtdeclarative-dev
 content = 4b6c4ca27b1eb5423b2161fb4a18c24b2a38010530c0eaa1fd3574b737a7759c
+
+[qtdeclarative-dev]
+title = Qt Quick et QML (développement)
+version = 6.10.2
+category = Développement
+author = Korin OS
+summary = Qt 6.10.2 pour le GCC de l'OS : QtQml (sans JIT), QtQuick, Qt Quick Controls, Layouts, Shapes, Dialogs… et leurs outils pour Korin (qmlcachegen, qmltyperegistrar, qmlimportscanner, qml), statiques, dans /devtools/qt (licences LGPL-3 / GPL)
+size = 7717621
+installed = 44104630
+sha256 = 26ee08cf89b6c972d04df0e00195c62b1fb78fbab35b26286f7e7444a1132ecb
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtdeclarative-dev-6.10.2.opk
+needs = qtbase-dev, qtshadertools-dev, qtsvg-dev, qtdeclarative-dev-data-1, qtdeclarative-dev-data-2, qtdeclarative-dev-data-3, qtdeclarative-dev-data-4, qtdeclarative-dev-data-5, qtdeclarative-dev-data-6, qtdeclarative-dev-data-7, qtdeclarative-dev-data-8, qtdeclarative-dev-data-9, qtdeclarative-dev-data-10, abi >= 629
+required = 0
+restart = 0
+content = 776b26502cc261c10ba64495173c198ea2f86947dd802bdccd6ad14bd9783aeb
