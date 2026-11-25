@@ -60,6 +60,9 @@ typedef uint8_t u8;
 #define SYS_SVC_NEXT 0x33
 #define SYS_SVC_REPLY 0x34
 #define SYS_SVC_MAP_CALLER 0x36
+#define SYS_GETUID_ 0x90
+#define SYS_PROC_UID_ 0x92
+#define SYS_PROC_RIGHTS_ 0x1D
 #define SVF_ENDS 1
 #define SVC_OP_END 0xFFFF
 #define SVC_OP_BIRTH 0xFFFE
@@ -1865,6 +1868,7 @@ int main(void)
 	canal = ksys(SYS_SVC_REGISTER, (long)"oauth", SVF_ENDS, 0, 0);
 	if (canal < 0) /* (déjà lancé : NetKit l'a lancé deux fois en même temps) */
 		return 0;
+	long my_uid = ksys(SYS_GETUID_, 0, 0, 0, 0);
 	for (;;) {
 		long req = ksys(SYS_SVC_NEXT, canal, (long)&msg, 60000, 0);
 		if (req < 0)
@@ -1883,7 +1887,14 @@ int main(void)
 			continue;
 		pid_cour = msg.pid;
 		msg.data[DATA_MAX - 1] = 0;
-		long r = handle(&msg);
+		/* les jetons d'un compte : à ses programmes, à l'uid 0 (gdrivefs) et aux droits de /sys ; un autre compte
+		 * ne reçoit plus le jeton de Drive ou de GitHub de celui-ci (O1, E48) ; oauthd en uid 0 : comme avant */
+		long cu = ksys(SYS_PROC_UID_, (long)msg.pid, 0, 0, 0);
+		long r;
+		if (my_uid > 0 && cu != my_uid && cu != 0 && cu != -38 && ksys(SYS_PROC_RIGHTS_, (long)msg.pid, 0, 0, 0) != 1)
+			r = -1; /* E_PERM */
+		else
+			r = handle(&msg);
 		memset(msg.data, 0, sizeof msg.data); /* (rien d'un compte ne repart dans la réponse) */
 		msg.op = r;
 		ksys(SYS_SVC_REPLY, req, (long)&msg, 0, 0);
