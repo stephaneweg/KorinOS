@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-25 09:08
+date = 2026-11-25 09:09
 abi = 629
 packages = 117
 board = pc
@@ -2706,3 +2706,19 @@ required = 0
 restart = 0
 part = qtdeclarative-dev
 content = 8aaeaccafb55d1a8ac0e395551be014abec7210879cfcb61dba56b3ffe64eb88
+
+[qtdeclarative-dev-data-2]
+title = Qt Quick et QML (développement) (2/10)
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les données de Qt Quick et QML (développement), partie 2 sur 10
+size = 30014188
+installed = 78172040
+sha256 = a5a05dc3b431fde9f0cff977510b319cb1139309360983d7b7eb67375f68c342
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtdeclarative-dev-data-2-1.0.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+part = qtdeclarative-dev
+content = 24a064ca7762472242302d3fb6cd8402f082725791ccf63c7b43b112b8cbb2ce
