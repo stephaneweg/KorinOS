@@ -6,6 +6,7 @@
 #include <qpa/qplatformwindow.h>
 #include <qpa/qplatformbackingstore.h>
 #include <QtGui/qimage.h>
+#include <QtGui/qwindow.h>
 
 #include "korin_ui.h"
 
@@ -37,6 +38,9 @@ public:
     long handle() const { return m_win; }
     int band() const { return m_band; }
     bool alpha() const { return m_alpha; }
+    // (le format demandé, alpha compris : QPlatformWindow::format() rend un format vide, et Qt prenait alors un
+    // tampon sans alpha pour le fond transparent d'un QQuickView)
+    QSurfaceFormat format() const override { return window()->requestedFormat(); }
     QPoint origin() const { return m_origin; }	// le contenu de la fenêtre d'UIKit sur l'écran
     void refreshOrigin();			// relit la place (Elegant déplace les fenêtres)
     void handleResize(int w, int h);		// WEV_RESIZE : la taille de la fenêtre d'UIKit

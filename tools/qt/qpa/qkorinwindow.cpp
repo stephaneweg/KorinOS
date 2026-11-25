@@ -71,7 +71,7 @@ void QKorinWindow::create()
     m_band = (m_kind == KQ_WIN_POPUP || m_kind == KQ_WIN_BORDERLESS) ? 0 : KQ_TOP_BAND;
     // une fenêtre sans cadre qui demande de l'alpha (fond transparent de QQuickView : la marge de l'ombre des
     // popups de MuseScore) : WF_ALPHA, sinon ses pixels transparents sortent noirs
-    m_alpha = m_band == 0 && window()->format().hasAlpha();
+    m_alpha = m_band == 0 && window()->requestedFormat().hasAlpha();
     const QRect g = geometry();
     // x, y : le contenu d'UIKit (la bande comprise) sur l'écran
     m_win = kq_window(g.x(), g.y() - m_band, qMax(g.width(), 1), qMax(g.height(), 1) + m_band,
