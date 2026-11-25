@@ -955,6 +955,21 @@ static inline void notify (const char *title, const char *msg)
 	if (n > 0 && n < 440) snprintf (m + 48 + n + 1, (size_t) (460 - n - 1), "%s", msg);
 	sys_call (SYS_SVC_CALL_, ch, (long) m);
 }
+// l'avis korin.apps.changed sur le bus (busd : docs/BUS.md ; BUS_OP_PUBLISH, valeur : l'heure en ms, pas gardee)
+// -> nombre d'abonnes prevenus (busd), 0 ou moins : personne, ou pas de busd
+static inline long apps_changed_notice ()
+{
+	long ch = sys_call (SYS_SVC_OPEN_, (long) "bus", 500);
+	if (ch < 0) return -1;
+	char m[512]; memset (m, 0, sizeof m);
+	*(long *) m = 1;				// BUS_OP_PUBLISH ; +8 drapeaux : aucun (pas gardee)
+	static const char topic[] = "korin.apps.changed";
+	memcpy (m + 48, topic, sizeof topic);
+	int n = snprintf (m + 48 + sizeof topic, 64, "%ld", sys_call (0x19, 0, 0));	// (SYS_TIME_MS)
+	*(long *) (m + 16) = n;				// la longueur de la valeur
+	*(unsigned *) (m + 40) = (unsigned) (sizeof topic + (size_t) n);
+	return sys_call (SYS_SVC_CALL_, ch, (long) m);
+}
 // la machine redemarre (INIT_OP_REBOOT d'init2)
 static inline void reboot_now ()
 {
@@ -1334,11 +1349,14 @@ public:
 		return OK;
 	}
 
-	// Une app ajoutee ou retiree : le panel (et la barre de menus) relus, comme relaunch du panneau de configuration
+	// Une app ajoutee ou retiree : l'avis korin.apps.changed (25/11/2026) ; le panel, la barre de menus et le lanceur
+	// relisent leur catalogue. Personne ne l'ecoute (un shell d'avant cet avis), ou pas de busd : relances, comme
+	// avant (le panneau de configuration fait de meme)
 	void refresh_desktop ()
 	{
 		if (!appsChanged || g_pkgroot[0]) return;	// (une autre racine : son bureau ne tourne pas)
 		appsChanged = false;
+		if (apps_changed_notice () > 0) return;
 		static const struct { const char *name, *path; } shell[] = { { "panel", "/sys/panel" }, { "menubar", "/sys/menubar" } };
 		for (auto &s : shell)
 		{

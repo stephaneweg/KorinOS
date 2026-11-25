@@ -9,6 +9,29 @@ static long run_seen; /* un premier tour fait */
 static u8 wlist[WL_PER_MSG * WL_SIZE];
 static u8 procs[APPRUN_PROCS * PE_SIZE];
 
+void apps_reload(void)
+{
+	static char old[AP_MAX][AP_NOM];
+	static long oldpid[AP_MAX];
+	long on = ap_n;
+	for (long i = 0; i < on; i++) {
+		str_copy_n(old[i], ap_nom[i], AP_NOM);
+		oldpid[i] = pids[i];
+	}
+	applis_load();
+	for (long i = 0; i < AP_MAX; i++) {
+		pids[i] = 0;
+		if (i >= ap_n)
+			continue;
+		for (long k = 0; k < on; k++)
+			if (str_eq(ap_nom[i], old[k])) {
+				pids[i] = oldpid[k];
+				break;
+			}
+	}
+	apps_running();
+}
+
 long apps_running(void)
 {
 	for (long i = 0; i < AP_MAX; i++) /* rien de trouvé encore */
