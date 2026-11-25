@@ -35,14 +35,13 @@ int QKorinWindow::kind() const
     const Qt::WindowType t = window()->type();
     if (t == Qt::Popup || t == Qt::ToolTip || t == Qt::SplashScreen || t == Qt::Drawer)
         return KQ_WIN_POPUP;
-    // une fenêtre outil sans cadre qui se dit hors du gestionnaire de fenêtres ou sans ombre : un popup fait à la
-    // main (PopupView de MuseScore : Tool | Frameless | BypassWindowManagerHint | NoDropShadowWindowHint, fermé dès
-    // que sa fenêtre perd le focus ; les indicateurs d'ancrage de KDDockWidgets). Comme un menu : sans le focus
-    // d'UIKit, au-dessus, là où Qt le met ; le focus de Qt lui est donné à part (isToolPopup). Une fenêtre flottante
-    // de KDDockWidgets (une barre d'outils détachée : Tool | Frameless seulement) reste une fenêtre ordinaire :
-    // en popup, elle restait au-dessus de toutes les autres fenêtres
-    if (t == Qt::Tool && (f & Qt::FramelessWindowHint)
-        && (f & (Qt::BypassWindowManagerHint | Qt::NoDropShadowWindowHint)))
+    // une fenêtre outil sans cadre hors du gestionnaire de fenêtres (BypassWindowManagerHint) : un popup fait à la
+    // main (PopupView de MuseScore : Tool | Frameless | Bypass | NoDropShadow, fermé dès que sa fenêtre perd le
+    // focus ; les indicateurs d'ancrage de KDDockWidgets). Comme un menu : sans le focus d'UIKit, au-dessus, là où
+    // Qt le met ; le focus de Qt lui est donné à part (isToolPopup). Une fenêtre flottante de KDDockWidgets (une
+    // barre d'outils détachée de MuseScore : Tool | Frameless | NoDropShadow, sans Bypass) reste une fenêtre
+    // ordinaire : en popup, elle restait au-dessus de toutes les autres fenêtres
+    if (t == Qt::Tool && (f & Qt::FramelessWindowHint) && (f & Qt::BypassWindowManagerHint))
         return KQ_WIN_POPUP;
     if (f & Qt::FramelessWindowHint)
         return KQ_WIN_BORDERLESS;
