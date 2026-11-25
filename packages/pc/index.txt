@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-25 09:06
+date = 2026-11-25 09:07
 abi = 629
 packages = 117
 board = pc
@@ -2629,3 +2629,19 @@ required = 0
 restart = 0
 part = qtbase-dev
 content = ecdc0b004b8b0b213a1cdfa901281087521e88ae4fc390c424dd2c4dda03abf1
+
+[qtbase-dev-data-3]
+title = Qt (développement) (3/3)
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les données de Qt (développement), partie 3 sur 3
+size = 9786079
+installed = 27618088
+sha256 = 8f097109cedcb43b5b1f854ff447601a3c3f526d43cc457cef6d6d2aeaeb450e
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtbase-dev-data-3-1.0.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+part = qtbase-dev
+content = 388c8e48a673928a390d6d815b44c3eb3bb19a4eb2eea81f0c12a10b8f3967cd
