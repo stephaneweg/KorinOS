@@ -1009,6 +1009,17 @@ listen: /* nouvelle connexion entrante */
 		return;
 	if (tcp_pending_count(s) >= s->backlog) /* place dans la file d'attente ? */
 		return;
+	{ /* (R6) les ouvertures à demi : un quart des places au plus, quatre par adresse ; un déluge de SYN ne
+	   * prend plus toutes les places (64 pour tout le système) */
+		int half = 0, from = 0;
+		for (int i = 0; i < MAX_SOCK; i++)
+			if (sock_table[i].type == SOCK_TCP && sock_table[i].state == TCP_SYN_RCVD) {
+				half++;
+				from += sock_table[i].rip == sip;
+			}
+		if (half >= MAX_SOCK / 4 || from >= 4)
+			return;
+	}
 	{
 		struct sock *c = sock_alloc();
 		if (!c)
@@ -1068,8 +1079,14 @@ found: /* connexion existante */
 		return;
 	}
 	if (fl & TH_RST) { /* RST : connexion réinitialisée */
-		if ((u32)(seq - s->rcv_nxt) >= 0x10000) /* numéro dans la fenêtre (approximation) */
+		/* RFC 5961 : seulement au numéro attendu exactement ; ailleurs dans la fenêtre, un ACK de défi (le
+		 * vrai bout répondra par un RST exact) : un RST deviné dans une fenêtre de 64 Ko coupait la connexion
+		 * d'un autre (R7) */
+		if (seq != s->rcv_nxt) {
+			if ((u32)(seq - s->rcv_nxt) < 0x10000 && s->state != TCP_SYN_RCVD)
+				tcp_send_ack(s);
 			return;
+		}
 		if (s->state == TCP_SYN_RCVD) { /* fils pas encore accepté : supprimé */
 			sock_free(s);
 			return;
@@ -1320,7 +1337,9 @@ int tcp_timers(void)
 		if (!s->rtx_at)
 			continue;
 		if (now >= s->rtx_at) {
-			if (++s->retries > 8) { /* trop d'essais : abandon */
+			/* trop d'essais : abandon ; une ouverture entrante (SYN-RCVD) après 3 SYN-ACK : un faux SYN ne
+			 * garde plus une place et ses anneaux une minute (R6) */
+			if (++s->retries > (s->state == TCP_SYN_RCVD ? 3 : 8)) {
 				s->flags |= F(SKF_TIMEOUT);
 				changed = 1;
 				tcp_send(s, TH_RST | TH_ACK, s->snd_nxt, 0);
