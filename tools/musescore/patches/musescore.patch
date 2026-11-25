@@ -365,6 +365,35 @@ index 3e549d58..73694c04 100644
  
  #	include <endian.h>
  
+diff --git a/src/framework/dockwindow/thirdparty/KDDockWidgets/src/private/DragController.cpp b/src/framework/dockwindow/thirdparty/KDDockWidgets/src/private/DragController.cpp
+index 9f5afc8c..1f4f4504 100644
+--- a/src/framework/dockwindow/thirdparty/KDDockWidgets/src/private/DragController.cpp
++++ b/src/framework/dockwindow/thirdparty/KDDockWidgets/src/private/DragController.cpp
+@@ -337,6 +337,12 @@ bool StateDragging::handleMouseButtonRelease(QPoint globalPos, int modifiers)
+ {
+     qCDebug(state) << "StateDragging: handleMouseButtonRelease";
+ 
++    if (!q->m_windowBeingDragged) {
++        // (pas de fenêtre : sa création a échoué, ou un événement arrive pendant qu'elle se fait ; Korin OS, 25/11)
++        Q_EMIT q->dragCanceled();
++        return true;
++    }
++
+     FloatingWindow *floatingWindow = q->m_windowBeingDragged->floatingWindow();
+     if (!floatingWindow) {
+         // It was deleted externally
+@@ -367,6 +373,11 @@ bool StateDragging::handleMouseButtonRelease(QPoint globalPos, int modifiers)
+ 
+ bool StateDragging::handleMouseMove(QPoint globalPos, int modifiers)
+ {
++    if (!q->m_windowBeingDragged) {
++        // (pas encore, ou plus, de fenêtre : un mouvement arrivé pendant que onEntry la crée ; Korin OS, 25/11)
++        return true;
++    }
++
+     FloatingWindow *fw = q->m_windowBeingDragged->floatingWindow();
+     if (!fw) {
+         qCDebug(state) << "Canceling drag, window was deleted";
 diff --git a/src/framework/global/internal/globalconfiguration.cpp b/src/framework/global/internal/globalconfiguration.cpp
 index 20440fe7..389f02d1 100644
 --- a/src/framework/global/internal/globalconfiguration.cpp
