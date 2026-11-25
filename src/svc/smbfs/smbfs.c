@@ -685,8 +685,8 @@ static int dir_load(struct ouvert *o, const char *sp)
 	o->ents = calloc((size_t)cap, sizeof *o->ents);
 	struct smb2dirent *e;
 	while (o->ents && (e = smb2_readdir(smb2, d))) {
-		if (!strcmp(e->name, ".") || !strcmp(e->name, ".."))
-			continue;
+		if (!e->name[0] || !strcmp(e->name, ".") || !strcmp(e->name, "..") || strchr(e->name, '/'))
+			continue; /* (le serveur ne fait pas sortir un chemin d'un dossier : E63) */
 		if (o->nents == cap) {
 			struct ent *n = realloc(o->ents, (size_t)cap * 2 * sizeof *n);
 			if (!n)
@@ -696,6 +696,9 @@ static int dir_load(struct ouvert *o, const char *sp)
 		}
 		struct ent *x = &o->ents[o->nents];
 		x->name = strdup(e->name);
+		for (char *c = x->name; c && *c; c++) /* (caractères de contrôle remplacés) */
+			if ((unsigned char)*c < 0x20 || *c == 0x7F)
+				*c = '_';
 		x->size = e->st.smb2_type == SMB2_TYPE_DIRECTORY ? 0 : e->st.smb2_size;
 		x->attr = attr_of(&e->st);
 		if (x->name)

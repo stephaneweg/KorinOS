@@ -157,6 +157,8 @@ u64 fat_next(struct vol *v, u64 cluster)
 	if (!b)
 		return 0;
 	u32 n = rd32(b + (cluster & 127) * 4) & FAT_MASK;
+	if (n < FAT_EOC && n >= v->nclust + 2)
+		return FAT_EOC; /* hors du volume (disque abîmé ou piégé) : fin, comme un libre */
 	return n >= 2 ? n : FAT_EOC; /* libre/réservé dans une chaîne : fin */
 }
 
@@ -246,6 +248,8 @@ static u8 *dir_next(struct it *it, u64 *sector)
 	u64 idx = it->index;
 	u64 mask = ((u64)1 << (v->cshift - 5)) - 1; /* entrées par cluster - 1 */
 	if ((idx & mask) == 0 && idx) { /* changement de cluster */
+		if ((idx >> (v->cshift - 5)) > v->nclust)
+			return 0; /* plus de clusters que le volume : une chaîne qui boucle (E63) */
 		u64 c = fat_next(v, it->cluster);
 		if (c >= FAT_EOC || !c)
 			return 0;

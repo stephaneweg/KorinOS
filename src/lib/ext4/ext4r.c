@@ -75,6 +75,13 @@ long ext4r_mount(struct ext4r *fs, ext4r_rd rd, void *ctx)
 	fs->bs = 1024u << log;
 	if (fs->isz > fs->bs || (fs->isz & (fs->isz - 1)))
 		return -22;
+	/* un groupe tient dans ses bitmaps d'un bloc (8 * bs blocs et inodes au plus), un descripteur entre 64 et
+	 * 1024 octets, puissance de 2 : sinon les bitmaps et la table des descripteurs se lisaient hors des blocs
+	 * (un disque piégé : F5, E63) ; mkfs les écrit toujours ainsi */
+	if (fs->bpg > 8u * fs->bs || fs->ipg > 8u * fs->bs)
+		return -22;
+	if (fs->descsz != 32 && (fs->descsz < 64 || fs->descsz > 1024 || (fs->descsz & (fs->descsz - 1))))
+		return -22;
 	fs->ngroups = (fs->blocks - fs->first_data + fs->bpg - 1) / fs->bpg;
 	return 0;
 }

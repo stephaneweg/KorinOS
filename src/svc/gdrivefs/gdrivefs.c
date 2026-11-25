@@ -572,6 +572,13 @@ static int url_parse(const char *s, struct url *u)
 		u->path[--n] = 0;
 	if (!u->tls && !private_host(u->host))
 		return -2;
+	/* le jeton (Bearer) ne part que chez Google : *.googleapis.com, ou un serveur d'essai du réseau local ;
+	 * drives.ini est dans le dossier de l'utilisateur, un programme l'aurait fait envoyer ailleurs (D18, E63) */
+	size_t hn = strlen(u->host);
+	const char *g = "googleapis.com";
+	int google = !strcasecmp(u->host, g) || (hn > 15 && !strcasecmp(u->host + hn - 15, ".googleapis.com"));
+	if (!google && !private_host(u->host))
+		return -2;
 	return 0;
 }
 

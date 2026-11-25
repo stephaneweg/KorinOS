@@ -426,6 +426,13 @@ static long op_lire_rep(struct msg *m)
 			return r < 0 ? E_IO : 0;
 		if (!o->path[0] && !strcmp(name, "lost+found"))
 			continue; /* (celui de mke2fs, à la racine : pas montré) */
+		/* un nom du disque : « . », « .. », vide ou avec « / » : sauté ; les caractères de contrôle remplacés
+		 * (un disque piégé faisait sortir un chemin d'un dossier, ou piégeait le terminal : E63) */
+		if (!name[0] || !strcmp(name, ".") || !strcmp(name, "..") || strchr(name, '/'))
+			continue;
+		for (char *c = name; *c; c++)
+			if ((unsigned char)*c < 0x20 || *c == 0x7F)
+				*c = '_';
 		if (o->drang++ == rang)
 			break;
 	}

@@ -707,7 +707,7 @@ long exfat_create(struct vol *v, u64 parent, const char *name, u64 attr, struct 
 			if (v->root != parent)
 				goto fail_free;
 			u64 last = (u32)parent; /* dernier cluster de la chaîne */
-			for (;;) {
+			for (u64 guard = v->nclust + 2; guard; guard--) { /* (une chaîne qui boucle : bornée) */
 				u64 n = fat_next(v, last);
 				if (n >= FAT_EOC)
 					break;

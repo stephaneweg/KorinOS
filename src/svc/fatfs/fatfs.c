@@ -682,9 +682,24 @@ static long vol_monter(struct vol *v, u64 first)
 	return fat_mount(v, first) || exfat_mount(v, first);
 }
 
+/* un nom venu du disque : « / » et les caractères de contrôle remplacés par « _ » (un disque piégé faisait
+ * sortir « ../x » ou « a/b » d'un dossier, ou piégeait le terminal) ; « . », « .. » et le nom vide : l'entrée
+ * est sautée (F5, E63) */
+static int nom_propre(char *n)
+{
+	for (char *c = n; *c; c++)
+		if ((u8)*c < 0x20 || *c == '/' || *c == 0x7F)
+			*c = '_';
+	return n[0] && !(n[0] == '.' && (!n[1] || (n[1] == '.' && !n[2])));
+}
+
 long vol_lire_rep(struct it *it, struct de *de)
 {
-	return it->vol->type == 2 ? exfat_dir_read(it, de) : dir_read(it, de);
+	for (;;) {
+		long r = it->vol->type == 2 ? exfat_dir_read(it, de) : dir_read(it, de);
+		if (r <= 0 || nom_propre(de->name))
+			return r;
+	}
 }
 
 /* le composant name (fin : 0 ou « / ») du répertoire dir -> 1 et *de, 0 absent : par l'index
