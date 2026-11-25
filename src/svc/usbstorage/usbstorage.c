@@ -201,6 +201,9 @@ static int prepare(void)
 		return 0;
 	ak_puts("usbstorage : ");
 	d[32] = 0; /* 8..15 fabricant, 16..31 produit */
+	for (int i = 8; i < 32; i++) /* (texte de la clé : pas de caractère de contrôle ni d'échappement à la console) */
+		if (d[i] && (d[i] < 0x20 || d[i] >= 0x7F))
+			d[i] = '?';
 	ak_puts((const char *)d + 8);
 	ak_puts("\n");
 	for (int tries = 20;;) { /* TEST UNIT READY (le support peut demander un peu de temps) */
