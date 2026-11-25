@@ -44,8 +44,10 @@ static const char *const marques[] = {"/tmp/session.ini", "/tmp/login.halt", "/t
 				      /* les paquets : ce qui est étagé (/var/pkg/stage) est installé par init2 en uid 0 au
 				       * démarrage ; la base dit ce qui est installé (K1) */
 				      "/var/pkg",
-				      /* les apps à qui Elegant montre les fenêtres des autres (G4, sys/elegant/remote.c) */
-				      "/apps/screenshot.app", "/apps/taskman.app",
+				      /* les apps du système : écrites par pkg (uid 0) ; celles de l'utilisateur vont dans
+				       * HOME:/apps, leurs données dans HOME:/.settings/<app> (décision du 25/11/2026) ; y
+				       * compris celles à qui Elegant montre les fenêtres des autres (G4) */
+				      "/apps",
 				      /* Jet : un script injecté dans toutes les pages, la console ; les autorités de https
 				       * (une autorité ajoutée lisait tout le trafic chiffré) (J4) */
 				      "/etc/web-probe.js", "/etc/web-console", "/etc/ca-bundle", 0};

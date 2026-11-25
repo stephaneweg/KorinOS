@@ -75,7 +75,8 @@ static const char *const s_colours[7] = { "yellow", "green", "blue", "pink", "pu
 static const char s_title[] = "Notes \xC3\xA9pingl\xC3\xA9" "es";
 static const char s_dir[] = "/Notes/";
 static const char s_ini_notes[] = "/Notes/notes.ini";
-static const char s_cfg[] = "/apps/notes.app/config.ini";
+static const char s_cfg[] = "/apps/notes.app/config.ini";       /* (l'ancienne place) */
+static const char s_cfg_u[] = "HOME:/.settings/notes/config.ini"; /* (celle de l'utilisateur, depuis le 25/11) */
 static const char p_notes[] = "/apps/notes.app/main";
 
 static u32 token(long off)
@@ -123,7 +124,8 @@ static const char *key_value(const char *l, const char *k)
 /* -> 1 si la configuration de Notes dit stickies = 0 */
 static int cfg_off(void)
 {
-	if (!read_file(s_cfg))
+	long st[2];
+	if (!read_file(sys_stat(s_cfg_u, st) >= 0 ? s_cfg_u : s_cfg))
 		return 0;
 	const char *p = fbuf;
 	for (;;) {

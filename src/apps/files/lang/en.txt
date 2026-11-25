@@ -162,3 +162,5 @@ Tous les volumes = All Volumes
 Fichiers cachés montrés = Hidden files shown
 Fichiers cachés masqués = Hidden files hidden
 Système = System
+Fichiers veut installer dans les applications du système (/apps) = Files wants to install into the system applications (/apps)
+Installation dans /apps refusée = Installation into /apps refused

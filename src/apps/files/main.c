@@ -3826,7 +3826,31 @@ static int del_enqueue (const char *p)
  * deplacer ») */
 static int drop_move;
 
+static int paste_list_do (char *list, int mode, const char *dir);
+
+/* vers /apps (écrit par le système seulement, décision du 25/11/2026) : la carte d'élévation d'abord, Fichiers
+ * passe en uid 0 le temps de copier, puis reprend son uid */
 static int paste_list (char *list, int mode, const char *dir)
+{
+	int apps = !strncasecmp (dir, "/apps", 5) && (dir[5] == 0 || dir[5] == '/');
+	apps |= !strncasecmp (dir, "APPS:", 5);
+	uid_t was = getuid ();
+	if (apps && was != 0)
+	{
+		long e = ui_elevate ((long) TR ("Fichiers veut installer dans les applications du système (/apps)"));
+		if (e != 0)
+		{
+			set_msg ("Installation dans /apps refusée");
+			return 0;
+		}
+	}
+	int r = paste_list_do (list, mode, dir);
+	if (apps && was != 0)
+		setuid (was);
+	return r;
+}
+
+static int paste_list_do (char *list, int mode, const char *dir)
 {
 	const char *title = mode == M_COPY ? "Copier" : mode == M_CUT ? "Déplacer" : "Déposer";
 	char msgb[700], first[256];

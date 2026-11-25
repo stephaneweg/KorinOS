@@ -409,7 +409,7 @@ int main (int argc, char **argv)
 		int ay = atoi_n (a, 4), am = atoi_n (a + 4, 2), ad = atoi_n (a + 6, 2);
 		if (am >= 1 && am <= 12 && ad >= 1 && ad <= 31) { g_anchor = days_from_civil (ay, am, ad); g_view = 0; }
 	}
-	mkdir (CAL_DIR, 0755);
+	(void) CAL_ICS;	// (le dossier de l'utilisateur, créé ; l'ancien calendrier repris)
 	load ();
 	long scr[4] = { 1024, 768, 0, 0 };
 	ui_screen ((long) scr);

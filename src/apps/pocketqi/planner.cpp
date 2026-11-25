@@ -41,7 +41,7 @@ std::string planner_add (int day, const std::string &title, int start, int end)
 		e.start = day * 1440 + start;
 		e.end = end > start ? day * 1440 + end : e.start + 60;
 	}
-	mkdir (CAL_DIR, 0755);
+	(void) CAL_ICS;	// (le dossier de l'utilisateur, créé : app.h)
 	int len = 0;
 	char *t = ics_write (&len);
 	bool ok = save_file (CAL_ICS, t, len);

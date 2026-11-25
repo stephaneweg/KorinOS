@@ -19,8 +19,18 @@
 #define NOTES_DIR      "/Notes"
 #define NOTES_INI      "/Notes/notes.ini"
 #define NOTES_TRASH    "/Notes/Corbeille"	// (a folder: notes_scan passes by it)
-#define NOTES_CFG      "/apps/notes.app/config.ini"
-#define NOTES_OPEN     "/apps/notes.app/open.txt"	// the note a second Notes hands to the running one
+// (HOME:/.settings/notes/ : the user's data, no longer in /apps/notes.app, written by the system only ; the old
+// files are taken over on first use : armpi/appdata.h)
+#include <armpi/appdata.h>
+static inline const char *notes_file (const char *f)
+{
+	static char b[2][200];
+	static int i;
+	char *p = b[i++ & 1];
+	return korin_app_data ("notes", f, p, 200, 1);
+}
+#define NOTES_CFG      notes_file ("config.ini")
+#define NOTES_OPEN     notes_file ("open.txt")	// the note a second Notes hands to the running one
 #define NOTE_MAX_BYTES 65536			// a note's text, at most (a read buffer: NOTE_MAX_BYTES + 1)
 #define NOTES_MAX      512			// the notes listed (the newest ones)
 #define NOTE_FILE      72			// a note's file name, its 0 included

@@ -13,10 +13,19 @@
 #include <sys/stat.h>
 #include <uikit.h>
 
-#define CAL_DIR		"/apps/calendar.app"
-#define CAL_ICS		CAL_DIR "/calendar.ics"
-#define AGENDA_TXT	CAL_DIR "/agenda.txt"
-#define REMIND_TXT	CAL_DIR "/reminders.txt"
+// les données de l'utilisateur : HOME:/.settings/calendar/ (plus /apps/calendar.app, écrit par le système ; les
+// fichiers de l'ancienne place sont repris à la première lecture : armpi/appdata.h)
+#include <armpi/appdata.h>
+static inline const char *cal_file (const char *f)
+{
+	static char b[4][200];
+	static int i;
+	char *p = b[i++ & 3];
+	return korin_app_data ("calendar", f, p, 200, 1);
+}
+#define CAL_ICS		cal_file ("calendar.ics")
+#define AGENDA_TXT	cal_file ("agenda.txt")
+#define REMIND_TXT	cal_file ("reminders.txt")
 
 static struct ui_vars ui;
 #define TR(s)	((const char *) ui_tr ((long) (s)))	// (data/lang-en.txt : le source est en francais)

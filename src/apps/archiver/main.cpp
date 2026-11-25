@@ -40,7 +40,10 @@ typedef unsigned long u64;
 #define TREE_W		210
 #define CTRL_H		28
 #define RECENT_MAX	8
-#define RECENT_FILE	"/apps/archiver.app/recent.txt"
+#include <armpi/appdata.h>
+// (HOME:/.settings/archiver/recent.txt ; l'ancienne place /apps/archiver.app/recent.txt est reprise : appdata.h)
+static const char *recent_file () { static char b[200]; return korin_app_data ("archiver", "recent.txt", b, sizeof b, 1); }
+#define RECENT_FILE	recent_file ()
 #define TMP_DIR		"/tmp/archiver"
 #define PATH_MAX_	400
 

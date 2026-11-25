@@ -1,6 +1,6 @@
 //
 // planner.h -- PocketQI : l'agenda du Calendrier, lu et écrit par le code du Calendrier lui-même (planner.cpp inclut
-// src/apps/calendar/model.h et agendafiles.h) : /apps/calendar.app/calendar.ics, puis agenda.txt et reminders.txt
+// src/apps/calendar/model.h et agendafiles.h) : HOME:/.settings/calendar/calendar.ics (avant le 25/11 : /apps/calendar.app), puis agenda.txt et reminders.txt
 // pour l'applet agenda du bureau, prévenue comme le fait le Calendrier. Le Calendrier ouvert relit le fichier changé.
 //
 // Les jours sont des numéros de jour (0 = 1970-01-01), les heures des minutes dans le jour.

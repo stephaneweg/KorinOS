@@ -40,8 +40,17 @@ static struct ev {
 
 static const char s_title[] = "Prochains rendez-vous";
 static const char s_cal[] = "Calendrier";
+/* les fichiers de Calendrier : HOME:/.settings/calendar/ (depuis le 25/11), sinon l'ancienne place */
 static const char s_agenda[] = "/apps/calendar.app/agenda.txt";
 static const char s_remind[] = "/apps/calendar.app/reminders.txt";
+static const char s_agenda_u[] = "HOME:/.settings/calendar/agenda.txt";
+static const char s_remind_u[] = "HOME:/.settings/calendar/reminders.txt";
+
+static const char *pick(const char *mine, const char *old)
+{
+	long st[2];
+	return sys_stat(mine, st) >= 0 ? mine : old;
+}
 static const char p_calendar[] = "/apps/calendar.app/main";
 static const char *const s_days[7] = { "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim" };
 static const char *const s_months[12] = { "janv.", "f\xC3\xA9vr.", "mars", "avr.", "mai", "juin",
@@ -144,7 +153,7 @@ static u64 read_file(const char *path)
 /* relit agenda.txt -> 1 si la liste change (ou le jour) */
 static int reload(void)
 {
-	u64 n = read_file(s_agenda);
+	u64 n = read_file(pick(s_agenda_u, s_agenda));
 	u64 today = today_key();
 	u32 h = 2166136261u; /* empreinte (FNV-1a) */
 	for (u64 i = 0; i < n; i++) {
@@ -188,7 +197,7 @@ static void reminders(void)
 	g_last = now;
 	if (last < 0 || now == last) /* (au lancement : le passé reste passé) */
 		return;
-	u64 n = read_file(s_remind);
+	u64 n = read_file(pick(s_remind_u, s_remind));
 	const char *p = fbuf, *end = fbuf + n;
 	while (p < end) {
 		const char *l = p;
