@@ -57,3 +57,11 @@ users.ini, elevate.ini, shadow.ini, coffre, web-probe.js, ca-bundle, /apps/scree
 (KV_UNLOCK), E49-E62, E64-E65, R6/R7, S4/S6/S8, E71-E75 ; /apps et /devtools inscriptibles jusqu'à enforce
 (qbasic et qbstudio écrivent /apps sans élévation : à adapter avant E72) ; /etc/system.ini écrit par Réglages sans
 élévation (E72). Harnais d'essai : un seul QEMU à la fois (la console série est partagée).
+
+**25/11 nuit** : aussi faits A5/E39 (couche sûre d'Elegant pour authcard, login et ce que login lance en uid 0 ;
+repère secret /etc/secure-mark montré par la carte et login), G3 (WF_GRAB d'une app seulement au premier plan),
+identité des programmes de confiance d'Elegant par chemin ET empreinte comparée au fichier (une image se crée à
+n'importe quel chemin : AppKit crée l'image dans le process qui lance, donc PEXF_SYSIMG ne sert pas), E09
+(SPEC_CTRL si eIBRS), E10 (piles noyau gardées, PML4[384]), B10, B16, D8, L4 (forbidden canonique, sans casse),
+K2 (serial de l'index : mkrepo, pub.py, pkglib ; rien publié), P9 (usbhid), R6/R7, INQUIRY. La clé de publication
+est dans la variable ONYX_PKG_KEY (dit par l'utilisateur le 25/11) : ne publier qu'à sa demande.
