@@ -2645,3 +2645,18 @@ required = 0
 restart = 0
 part = qtbase-dev
 content = 388c8e48a673928a390d6d815b44c3eb3bb19a4eb2eea81f0c12a10b8f3967cd
+
+[qtbase-dev]
+title = Qt (développement)
+version = 6.10.2
+category = Développement
+author = Korin OS
+summary = Qt 6.10.2 pour le GCC de l'OS : QtCore, QtGui, QtWidgets, QtNetwork (OpenSSL), la plateforme korin (UIKit, barre de menus globale) et le style korin, statiques, avec moc, rcc, uic, qmake, qt-cmake pour Korin, dans /devtools/qt (licences LGPL-3 / GPL)
+size = 4354767
+installed = 15695389
+sha256 = 0a364354d883b25ec5e007bf3ad4cb43dc147e0abbe90acd039ca249c8a219a8
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtbase-dev-6.10.2.opk
+needs = zlib-dev, libpng-dev, brotli-dev, freetype-dev, harfbuzz-dev, openssl-dev, qtbase-dev-data-1, qtbase-dev-data-2, qtbase-dev-data-3, abi >= 629
+required = 0
+restart = 0
+content = e42044a66cf122476e8eb5b52d7e00f7eaa01aeaa6f7df4a7996e7a18b35c1fc
