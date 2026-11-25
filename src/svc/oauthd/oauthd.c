@@ -1865,10 +1865,17 @@ static long handle(struct msg *m)
 
 int main(void)
 {
-	canal = ksys(SYS_SVC_REGISTER, (long)"oauth", SVF_ENDS, 0, 0);
+	/* un oauthd par compte, ses propres jetons (décision du 25/11/2026) : « oauth.<uid> » ; l'uid 0 (et le Pi) :
+	 * « oauth » ; NetKit (oa_name) ouvre celui de son compte */
+	long my_uid = ksys(SYS_GETUID_, 0, 0, 0, 0);
+	char svc[32];
+	if (my_uid > 0)
+		snprintf(svc, sizeof svc, "oauth.%ld", my_uid);
+	else
+		snprintf(svc, sizeof svc, "oauth");
+	canal = ksys(SYS_SVC_REGISTER, (long)svc, SVF_ENDS, 0, 0);
 	if (canal < 0) /* (déjà lancé : NetKit l'a lancé deux fois en même temps) */
 		return 0;
-	long my_uid = ksys(SYS_GETUID_, 0, 0, 0, 0);
 	for (;;) {
 		long req = ksys(SYS_SVC_NEXT, canal, (long)&msg, 60000, 0);
 		if (req < 0)

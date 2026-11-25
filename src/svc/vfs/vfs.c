@@ -372,6 +372,8 @@ static void point_preparer(const char *point)
  * source « blk.* » déjà montée par ce service le partage (jamais deux services sur
  * une partition) ; main = 1 : appelé par le thread principal (lancement local) -> 0
  * ou erreur (rootpath absent : E_NOENT, pas un dossier : E_NOTDIR, « .. » : E_INVAL) */
+static long mount_uid; /* (VFS_MOUNT) le compte qui demande le montage ; 0 : le système, mounts.txt */
+
 static long monter(const char *vol, const char *src, const char *svc, const char *rootp, struct volume *share,
 		   int main_thread)
 {
@@ -401,6 +403,10 @@ static long monter(const char *vol, const char *src, const char *svc, const char
 	} else {
 		str_cat(str_cat(chemin, "/sys/svc/"), svc);
 		str_cat(str_cat(str_cat(args, nom_vol), " "), src);
+		/* gdrivefs sert les données d'un compte : il tourne sous ce compte (celui qui monte), avec les jetons de
+		 * son oauthd (« oauth.<uid> », décisions du 25/11/2026) ; le prochain lancement d'AppKit prend cet uid */
+		if (mount_uid > 0 && !strcmp(svc, "gdrivefs"))
+			ksys(SYS_SPAWN_AS, 0, 0, mount_uid, 0, 0, 0);
 		/* un module de l'initramfs (services de démarrage), sinon le disque */
 		pid = korin_sys2(SYS_MOD_LAUNCH, svc, args);
 		if (pid < 0) {
@@ -409,6 +415,8 @@ static long monter(const char *vol, const char *src, const char *svc, const char
 			else
 				pid = ksys(SYS_SPAWN, (long)chemin, (long)args, 0, 0, 0, 0);
 		}
+		if (mount_uid > 0 && !strcmp(svc, "gdrivefs"))
+			ksys(SYS_SPAWN_AS, 0, 0, -1, 0, 0, 0); /* (pas consommé : un échec avant le lancement) */
 		chemin[0] = 0; /* (tampons rendus vides) */
 		args[0] = 0;
 		if (pid < 0)
@@ -1123,8 +1131,11 @@ static void traiter(long req)
 				src[j++] = *d++;
 			src[j] = 0;
 			r = monter_permis(msg.pid, vol, src);
-			if (!r)
+			if (!r) {
+				mount_uid = pid_uid(msg.pid);
 				r = monter_ligne((char *)msg.data);
+				mount_uid = 0;
+			}
 		} else if (op == VFS_UNMOUNT) { /* données : « vol » (minuscules) ou son point de montage */
 			((u8 *)&msg)[MSG_SIZE - 1] = 0;
 			struct volume *v = volume_par_nom_ou_point((char *)msg.data);

@@ -832,17 +832,41 @@ long wifi_country(const char *country)
 #define E_INVAL -22
 
 static long nk_oauth; /* canal du service oauth + 1 */
-static const char oa_svc[] = "oauth";
 static const char oa_bin[] = "/sys/svc/oauthd";
+
+/* le service d'oauthd d'un compte : « oauth.<uid> » (un oauthd par compte, ses propres jetons : décision du
+ * 25/11/2026) ; l'uid 0 (et le Pi, sans uid) : « oauth » */
+static void oa_name(char *o, long uid)
+{
+	const char *b = "oauth";
+	while (*b)
+		*o++ = *b++;
+	if (uid > 0) {
+		char t[16];
+		int k = 0;
+		*o++ = '.';
+		do
+			t[k++] = (char)('0' + uid % 10);
+		while ((uid /= 10) && k < 15);
+		while (k)
+			*o++ = t[--k];
+	}
+	*o = 0;
+}
 
 static long ocall(void *m)
 {
 	for (int tries = 0; tries < 2; tries++) {
 		if (!nk_oauth) {
-			long c = korin_sys2(SYS_SVC_OPEN, oa_svc, 0);
-			if (c < 0) { /* pas encore lancé */
+			long me = korin_sys0(SYS_GETUID);
+			if (me < 0)
+				me = 0; /* (le Pi) */
+			char name[32];
+			oa_name(name, me);
+			long c = korin_sys2(SYS_SVC_OPEN, name, 0);
+			if (c < 0) { /* pas encore lancé : celui de son compte */
 				f_spawn((long)oa_bin, 0);
-				c = korin_sys2(SYS_SVC_OPEN, oa_svc, 4000);
+				c = korin_sys2(SYS_SVC_OPEN, name, 4000);
 				if (c < 0)
 					return c;
 			}

@@ -82,6 +82,16 @@ static char **strings_copy (const char *s, unsigned n, const char **next)
 	return v;
 }
 
+/* lancé par vfs (un service de fichiers : gdrivefs, sous le compte qui monte, depuis le 25/11/2026) : vfs attend
+ * qu'il s'inscrive sans répondre à rien d'autre ; rien ici ne doit passer par vfs (users.ini, /tmp/<uid>) */
+static int parent_is_vfs (void)
+{
+	long e[ARMPI_PROCLIST_ENT / 8];
+	if (__armpi_sys2 (SYS_PROC_INFO, (long) getppid (), e) != 0)
+		return 0;
+	return !strncmp ((const char *) e + 24, "vfs", 4);
+}
+
 void __posix_env_init (void)
 {
 	s_blob = blob_map ();
@@ -119,7 +129,8 @@ void __posix_env_init (void)
 	 * vfs, et vfs qui monte un volume attend que son service s'inscrive (SVC_OPEN, 3 s) sans repondre : le
 	 * service (gdrivefs, smbfs) restait bloque, le montage echouait et le service s'inscrivait trop tard, orphelin.
 	 * HOME: (l'alias de vfs, selon l'uid) leur suffit. */
-	if (s_blob || getuid () != 0)
+	int by_vfs = getuid () != 0 && parent_is_vfs ();
+	if ((s_blob || getuid () != 0) && !by_vfs)
 	{
 		const char *h = getenv ("HOME");
 		if (h == 0 || strcmp (h, "/home") == 0)
@@ -136,7 +147,7 @@ void __posix_env_init (void)
 	/* le dossier temporaire du compte (E27) : /tmp/<uid>, que vfs reserve a ce compte ; /tmp, commun, laissait un
 	 * autre compte poser d'avance le fichier qu'on allait ouvrir. Cree ici s'il manque (une seule fois par
 	 * lignee : les fils heritent de TMPDIR). Pas pour l'uid 0 (les services : voir HOME plus haut). */
-	if (getuid () != 0)
+	if (getuid () != 0 && !by_vfs)
 	{
 		const char *t = getenv ("TMPDIR");
 		if (t == 0 || strcmp (t, "/tmp") == 0 || strcmp (t, "/tmp/") == 0)

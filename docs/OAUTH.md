@@ -8,7 +8,7 @@ Beaucoup de services en ligne refusent les mots de passe et demandent OAuth 2.0 
 à NetKit (`oauth_token`) et le met dans ses requêtes (`Authorization: Bearer …`).
 
 ```
-programme ──oauth_*──▶ NetKit ──requête (service « oauth »)──▶ oauthd ──HTTPS──▶ serveur d'autorisation
+programme ──oauth_*──▶ NetKit ──requête (service « oauth.<uid> »)──▶ oauthd ──HTTPS──▶ serveur d'autorisation
                          │                                       │
                          └── lance /sys/svc/oauthd au besoin     └── HOME:/oauth : accounts.ini, secrets, key
 ```
@@ -259,7 +259,10 @@ et une liste des programmes permis par compte.
 
 ## 6. Le service
 
-`src/svc/oauthd/oauthd.c` : C sur libposix et OpenSSL (comme smbfs), service « oauth », `/sys/svc/oauthd`.
+`src/svc/oauthd/oauthd.c` : C sur libposix et OpenSSL (comme smbfs), `/sys/svc/oauthd`. **Un oauthd par compte**
+(décision du 25/11/2026) : il s'inscrit sous « oauth.<uid> » (l'uid 0 et le Pi : « oauth »), avec ses propres jetons ;
+NetKit ouvre celui de l'uid de l'appelant et le lance sous ce compte s'il manque. gdrivefs, qui sert les données d'un
+compte, est lancé par vfs sous l'uid du compte qui monte : il a donc les jetons de ce compte.
 
 - **Lancé par NetKit** au premier appel d'une fonction `oauth_*` (`f_spawn`, puis `SVC_OPEN` avec 4 s d'attente,
   comme PrinterKit avec printd), puis il reste. S'il s'arrête, l'appel suivant le relance.
