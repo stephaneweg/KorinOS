@@ -196,6 +196,10 @@ void smp_start(void)
 		else
 			cpu_failed++;
 	}
+	/* les tables provisoires (identité des 2 premiers Mo en écriture et exécution) et le code : effacés une fois
+	 * tous les cœurs partis (B16) ; un cœur qui n'a pas répondu pourrait encore s'y réveiller : on les garde */
+	if (!cpu_failed)
+		memset(t, 0, 0x4000);
 	kprintf("SMP : %u cœur(s) en marche", arch_cpu_count());
 	if (cpu_failed)
 		kprintf(", %d sans réponse", cpu_failed);
