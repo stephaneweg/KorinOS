@@ -20,6 +20,7 @@
 - **Go to a quick access place or a volume**: click it in the left panel, or use the **Go** menu, which lists the quick access places and **/**.
 - **Find a recently opened file**: the **Recent** quick access lists the last files opened (by Files, by "Open With…" or by the Open or Save dialog of an application), the most recent first, 50 at most. Right-click: **Open Item Location** (its folder, with it chosen) or **Remove from Recent** (also the Delete key): the file itself stays. The list is `HOME:/etc/recent-files.txt`.
 - **Type a path**: Ctrl+L (**Go > Go to Location…**), a click in the breadcrumb next to the names, or the **/** or **~** key in the view: the path becomes a field. Type `/apps`, `~/documents` (`~`: the home folder), `HOME:/music` or a name relative to the current folder (`..` goes up). **Tab** completes the last name, **Enter** goes there (a file: its folder opens, with it chosen), **Escape** or a click elsewhere closes the field.
+- **Changes made by other programs**: what another program creates, deletes or renames in the shown folder (the Terminal, a save, a download) appears by itself, without Refresh.
 - **Jump to an item by typing its name**: in the view, type the beginning of the name, the item that starts that way is chosen (the status line shows what is typed). Letters typed less than a second apart add up; the same letter repeated goes to the next item that starts with it.
 
 ## Opening a file

@@ -83,6 +83,7 @@ VFS_VOLINFO	= 49			; donnees : volume -> donnees : volume du service (fs.<vol>),
 VFS_BOOT_BEGIN	= 50			; -> donnees « /boot » (a = 1 : monte a la demande, a rendre)
 					; ou « / » (pas de /boot dans mounts.txt)
 VFS_BOOT_END	= 51			; la demande rendue (la derniere : /boot demonte)
+VFS_WATCH	= 58			; a = rang (0..7) ; donnees : dossier (vide : retire) -> avis korin.fs.watch.<pid> du bus, valeur : les rangs changes
 FS_DATA_MAX	= 464
 ; vfs, chemins des programmes (docs/FICHIERS.md, 4.1) : chemin tel que le
 ; programme l'ecrit (« /a », « sd:a », relatif, « /a » = racine du volume

@@ -151,6 +151,12 @@ long home_proprio(const char *p);        /* le compte dont le dossier contient p
 long session_uid_de(void);               /* le compte de la session, 0 : aucun */
 u64 acces_bits(const char *interne);     /* propriétaire et genre pour V_STATX (bits 32-57) */
 long acces_verifier(long pid, const char *interne, int ecrire); /* access.c : 0 ou E_ACCES */
+/* ---- watch.c : le guet d'un dossier (VFS_WATCH) */
+long watch_op(void);
+void watch_touch(const char *interne);  /* un nom a changé : le guet de son dossier */
+void watch_pid_gone(long pid);
+long watch_flush(void);                 /* les avis dus -> ms jusqu'au prochain (-1 : aucun) */
+void bus_publier(const char *topic, const char *val); /* vfs.c : un avis (pas gardé), sans attendre busd */
 long pid_uid(long pid);                /* uid du process (0 : system, pid inconnu, noyau sans uid) */
 void pid_setuid(long pid, long uid);   /* avis SVC_OP_SETUID */
 void pid_stdio_drop(u64 handle);

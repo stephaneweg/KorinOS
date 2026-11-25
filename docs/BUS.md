@@ -124,12 +124,17 @@ chaque départ (longueur `BUS_DELETED`).
 | `korin.usb.device.<n>` | usbd, au branchement | `vvvv:pppp cc/ss/pp ...` : vendeur, produit, puis classe, sous-classe et protocole de chaque interface (`0627:0001 03/01/01`) |
 | `korin.storage.volume.<vol>` | vfs, au montage | `<source> <service>` (`blk.usb0p1 fatfs`, `ram:16M ramfs`) ; `<vol>` en minuscules |
 | `korin.files.changed` | Fichiers, après un déplacement, une copie, une suppression, un renommage, un nouveau dossier | `<pid>` puis les dossiers changés, une ligne chacun (gardée : `BUS_RETAIN`) |
+| `korin.fs.watch.<pid>` | vfs, 200 ms après qu'un nom a changé dans un dossier guetté par ce programme (`VFS_WATCH`, `src/svc/vfs/watch.c`) : création ou ouverture en écriture, `mkdir`, suppression, renommage (les deux dossiers), date, droits | les rangs des guets changés (`0`, `0 1`) ; pas gardée ; ne dit ni le dossier ni ce qui a changé |
+| `korin.apps.changed` | `pkg` (et Logiciels par `pkg ui-job`, `pkgd`), à la fin d'un ajout ou d'un retrait d'application | l'heure en ms ; pas gardée. Le panel, la barre de menus et le lanceur relisent leur catalogue ; personne ne l'écoute : `pkg` relance le panel et la barre de menus, comme avant |
 
 * vfs et usbd n'ont pas BusKit : ils parlent à busd directement (`src/svc/inc/buspub.inc`).
   vfs démarre avant busd : son thread des montages attend le bus, puis publie les volumes déjà
   montés (la carte, RAM0...).
 * Fichiers et Disques s'abonnent à `korin.storage.volume.*` et relisent la liste des volumes à
   chaque événement ; sans busd, ils la relisent chaque seconde comme avant.
+* Chaque vue de Fichiers guette son dossier (`VFS_WATCH`, rang = la vue) et s'abonne à `korin.fs.watch.<son pid>` :
+  ce qu'un autre programme y crée, supprime ou renomme apparaît seul (relu en gardant la sélection, puis encore
+  1,5 s après, pour la taille finale : vfs ne voit pas la fin d'une écriture). Comme Nautilus de GNOME sur inotify.
 * Chaque fenêtre de Fichiers s'abonne à `korin.files.changed` et relit son dossier s'il est dans la
   liste (sauf la sienne, reconnue au pid) : un élément déposé d'une fenêtre dans l'autre disparaît
   de la première. vfs ne signale pas les changements de fichiers : ceux d'un autre programme (le

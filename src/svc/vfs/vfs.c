@@ -770,6 +770,13 @@ static long boot_end(long pid, int all)
 	return 0;
 }
 
+/* un avis sur le bus (pas gardé : watch.c) ; busd pas encore là : rien */
+void bus_publier(const char *topic, const char *val)
+{
+	if (bp_open(0))
+		bp_publish(topic, val, 0);
+}
+
 /* (thread) les montages permanents de /etc/mounts.txt, puis le bus */
 static THREAD_ENTRY void montages_thread(void *arg)
 {
@@ -978,6 +985,9 @@ static THREAD_ENTRY void servir(void *arg)
 		mutex_lock(&big);
 		waits_tick(); /* lectures de tubes trop longues */
 		long wait = waits_any() ? 500 : 60000;
+		long wn = watch_flush(); /* les avis des guets (watch.c) ; le prochain dû */
+		if (wn >= 0 && wn < wait)
+			wait = wn + 1;
 		mutex_unlock(&big);
 		long req = korin_sys3(SYS_SVC_NEXT, canal, &msg, wait);
 		if (req < 0)
@@ -1004,6 +1014,7 @@ static void traiter(long req)
 			oublier_dossier(msg.a); /* son dossier courant est oublié */
 			ends_pid_gone(msg.a); /* ses bouts de tubes sont fermés */
 			pid_forget(msg.a); /* sa fiche est rendue */
+			watch_pid_gone(msg.a); /* ses guets */
 			return;
 		}
 		if (op == SVC_OP_BIRTH) { /* le fils reçoit le dossier du père, ses entrées / sorties */
@@ -1074,6 +1085,8 @@ static void traiter(long req)
 			r = lister_volumes();
 		} else if (op == VFS_MOUNTS) {
 			r = lister_points();
+		} else if (op == VFS_WATCH) { /* guetter un dossier (watch.c) */
+			r = watch_op();
 		} else {
 			r = E_INVAL;
 		}

@@ -377,6 +377,7 @@ void nt_err_text(long e);         /* texte traduit d'une erreur réseau, sur 2, 
 #define VFS_BOOT_BEGIN 50 /* -> données « /boot » (a = 1 : à rendre par VFS_BOOT_END) ou « » (la racine) */
 #define VFS_BOOT_END 51
 #define VFS_VOLINFO 49 /* données : volume -> données : volume du service (« fs.<vol> »), 0, rootpath, 0 */
+#define VFS_WATCH 58 /* a = rang ; données : dossier (vide : retiré) -> avis korin.fs.watch.<pid> (vfs/watch.c) */
 #define FS_DATA_MAX 464
 #define VU_MAX 8      /* volumes d'une réponse de vfs (464 / 56) */
 #define VU_ENT 56     /* entrée de VFS_VOLUMES : nom 16, source 24, service 16 */

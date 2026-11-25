@@ -39,7 +39,7 @@ static struct ui_vars ui;
 
 /* ---- appels systeme (src/inc/syscalls.inc) et service vfs (src/inc/fs.inc) ---- */
 enum { SYS_SLEEP_ = 0x17, SYS_TIME_MS_ = 0x19, SYS_SVC_OPEN_ = 0x31, SYS_SVC_CALL_ = 0x32 };
-enum { VFS_MOUNT_ = 20, VFS_UNMOUNT_ = 21, VFS_VOLUMES_ = 22, VFS_MOUNTS_ = 53 };
+enum { VFS_MOUNT_ = 20, VFS_UNMOUNT_ = 21, VFS_VOLUMES_ = 22, VFS_MOUNTS_ = 53, VFS_WATCH_ = 58 };
 static long sys3 (long n, long a, long b) { return armpi_syscall (n, a, b, 0, 0, 0, 0); }
 static long time_ms (void) { return sys3 (SYS_TIME_MS_, 0, 0); }
 
@@ -980,9 +980,12 @@ static int ls_take (void)
 	return 1;
 }
 
+static void watch_set (void);
+
 static void load_dir (void)
 {
 	hist_note ();
+	watch_set ();				/* (vfs previent quand un nom change dans ce dossier) */
 	nents = 0;
 	scroll_ = 0;
 	cursel = -1;
@@ -1937,6 +1940,85 @@ static const struct vspace *space_of (const struct vol *v)
 }
 
 static long vfs_call (void) { return sys3 (SYS_SVC_CALL_, vfs_ch, (long) &vmsg); }
+
+/* ---------------------------------------------------------------------------
+ *  Le guet du dossier montre (25/11/2026, comme Nautilus de GNOME sur inotify) : chaque vue demande a vfs de guetter
+ *  son dossier (VFS_WATCH, rang = la vue) ; quand un programme y cree, ecrit, supprime ou renomme un nom, vfs publie
+ *  « korin.fs.watch.<pid> » (les rangs changes, regroupes sur 200 ms) ; la vue relit son dossier en gardant
+ *  l'element choisi et le defilement, puis une seconde fois WATCH_AGAIN_MS plus tard (vfs ne voit pas la fin d'une
+ *  ecriture : la taille finale d'un fichier qu'on vient d'enregistrer). Un vfs plus ancien : E_INVAL, rien ne change.
+ * --------------------------------------------------------------------------- */
+#define WATCH_AGAIN_MS	1500
+static long watch_sub;				/* korin.fs.watch.<pid> */
+static long watch_again;			/* l'heure de la seconde relecture (0 : aucune) */
+static unsigned watch_again_mask;		/* ses vues */
+
+/* (load_dir) le dossier de la vue courante guette (Recents : aucun) */
+static void watch_set (void)
+{
+	if (vfs_ch < 0)
+		vfs_ch = sys3 (SYS_SVC_OPEN_, (long) "vfs", 0);
+	if (vfs_ch < 0)
+		return;
+	vmsg.op = VFS_WATCH_;
+	vmsg.a = curp;
+	size_t n = is_recent () ? 0 : strlen (path);
+	if (n >= sizeof vmsg.data)
+		n = 0;
+	memcpy (vmsg.data, path, n);
+	vmsg.data[n] = 0;
+	vmsg.len = (unsigned) n + 1;
+	vfs_call ();
+}
+
+/* la vue courante relue sur place : l'element choisi (sinon le defilement) garde */
+static void watch_reload (void)
+{
+	if (ls_loading || is_recent ())
+		return;
+	char keep[272];
+	keep[0] = 0;
+	if (cursel >= 0)
+		str_copy_n (keep, ent_ptr (cursel)->name, sizeof keep);
+	long sc = scroll_;
+	const char *m = msg;
+	load_dir ();
+	msg = m;				/* (le message d'etat reste) */
+	if (keep[0])
+		select_name (keep);
+	else if (!ls_loading)
+	{
+		scroll_ = sc;
+		keep_visible ();
+	}
+}
+
+/* les vues des rangs de mask relues (l'autre vue : a la prochaine boucle, other_stale) */
+static void watch_views (unsigned mask)
+{
+	if (mask & (1u << curp))
+		watch_reload ();
+	if (dual && (mask & (1u << !curp)))
+		other_stale = 1;
+}
+
+/* WEV_BUS de korin.fs.watch.<pid> : les rangs changes -> 1 (a redessiner) */
+static int watch_event (long topic)
+{
+	char v[64];
+	long n = bus_get_id (topic, (long) v, sizeof v - 1);
+	if (n <= 0)
+		return 0;
+	v[n < (long) sizeof v - 1 ? n : (long) sizeof v - 1] = 0;
+	unsigned mask = 0;
+	for (char *q = v; *q; q++)
+		if (*q >= '0' && *q <= '7')
+			mask |= 1u << (*q - '0');
+	watch_views (mask);
+	watch_again = time_ms () + WATCH_AGAIN_MS;
+	watch_again_mask |= mask;
+	return 1;
+}
 
 /* relit la liste -> 1 si elle a change (table vols refaite) */
 static long vol_poll (void)
@@ -5822,6 +5904,13 @@ int main (int argc, char **argv)
 	chg_sub = bus_subscribe ((long) BUS_TOPIC_CHANGED, 0);	/* les autres fenetres de Fichiers */
 	if (chg_sub < 0)
 		chg_sub = 0;
+	{					/* le guet de nos dossiers (vfs : korin.fs.watch.<pid>) */
+		char wt[48];
+		snprintf (wt, sizeof wt, "korin.fs.watch.%ld", (long) getpid ());
+		watch_sub = bus_subscribe ((long) wt, 0);
+		if (watch_sub < 0)
+			watch_sub = 0;
+	}
 	last_poll = time_ms ();
 	vol_poll ();
 	draw ();
@@ -5861,6 +5950,8 @@ int main (int argc, char **argv)
 				draw ();
 			else if (chg_sub && sub == chg_sub && chg_seen (ui_ev_field (&ui, BEV_TOPIC)))
 				draw ();
+			else if (watch_sub && sub == watch_sub && watch_event (ui_ev_field (&ui, BEV_TOPIC)))
+				draw ();
 		}
 		else if (t == WEV_WHEEL && ptr_x < PAN_W)
 		{				/* sur le panneau : ses lignes (40 px par cran) */
@@ -5880,6 +5971,14 @@ int main (int argc, char **argv)
 		if (ls_poll ())			/* (un dossier lu dans son thread) */
 		{
 			keep_visible ();
+			draw ();
+		}
+		if (watch_again && time_ms () >= watch_again)
+		{				/* (le guet : la seconde relecture, la taille finale) */
+			unsigned m = watch_again_mask;
+			watch_again = 0;
+			watch_again_mask = 0;
+			watch_views (m);
 			draw ();
 		}
 		if (other_stale)		/* (deux vues : l'autre a change) */

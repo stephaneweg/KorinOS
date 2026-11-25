@@ -405,7 +405,7 @@ au lieu des chemins à volume. Écrit dans `src/svc/vfs/path.c` et `vfs.c`, suiv
 | `/etc/mounts.txt` | une ligne `POINT = source, service[, rootpath[, ondemand]]` : `/tmp = ram:1024M, ramfs`, `/media/sd1 = blk.sd0p2, fatfs`. Un nom au lieu d'un point (`usb0 = …`) monte sur `/media/usb0`, `boot` sur `/boot`, `netN` sur `/net/netN` |
 | Nom interne | le dernier composant du point (`usb0`, `sd1`, `tmp`), suivi d'un chiffre s'il est pris ; il nomme le service (`fs.<nom>`) et le sujet du bus (`korin.storage.volume.<nom>`) |
 | Commandes | `mount POINT source service [rootpath]` ; `mount`, `eject`, `df`, `mkfs`, `fscache` prennent un point de montage (`/media/usb0`) ou un nom de volume (`usb0`) ; `VFS_UNMOUNT` accepte l'un ou l'autre |
-| Ops | `VFS_MOUNTS` 53 : par volume, nom interne et point de montage ; `VFS_VOLUMES` 22 inchangée ; `VFS_PATHLIST` 25 rend les points de montage |
+| Ops | `VFS_WATCH` 58 (25/11/2026, `watch.c`) : a = rang (0..7), données : un dossier (vide : retiré) ; le droit de lire est vérifié ; un changement de nom dedans -> avis `korin.fs.watch.<pid>` du bus (docs/BUS.md), regroupé sur 200 ms ; 32 guets en tout, rendus à la fin du programme. `VFS_MOUNTS` 53 : par volume, nom interne et point de montage ; `VFS_VOLUMES` 22 inchangée ; `VFS_PATHLIST` 25 rend les points de montage |
 | Limites | le chemin interne (« `/root/…` ») tient toujours dans `PATH_MAX` = 256 ; `rename` d'un point de montage à un autre : `E_XDEV` (un fichier est recopié par libposix) |
 
 ### 4.6 Plusieurs threads dans vfs (16/11/2026)

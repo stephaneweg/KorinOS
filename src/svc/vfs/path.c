@@ -643,6 +643,8 @@ static long chemin_renommer(long pid)
 	forget_resolu();
 	forget_chemin(nom_exec);
 	nc_flush(); /* (un dossier renommé : tout ce qu'il contient change de nom) */
+	watch_touch(resolu); /* les guets des deux dossiers (watch.c) */
+	watch_touch(nom_exec);
 	const char *target, *old;
 	struct volume *v = volume_de(nom_exec + 1, &target);
 	if (!v)
@@ -760,6 +762,8 @@ long ops_chemins(void)
 		r = acces_verifier(pid, resolu, ecrire); /* règles d'accès (access.c ; étape 3 : journal) */
 		if (r)
 			return r;
+		if (ecrire)
+			watch_touch(resolu); /* un nom change dans son dossier : les guets (watch.c) */
 	}
 	switch (op) {
 	case V_OPEN:

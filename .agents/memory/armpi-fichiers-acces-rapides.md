@@ -69,10 +69,16 @@ Demande de l'utilisateur du 24/11/2026, branche claude/lucid-wright-6o2o4b, fusi
   catalogue (apprun.c apps_reload : pids recasés par nom). Essayé sous QEMU PC (bureau classique, app factice
   « demo » dans var/pkg/db, pkg remove demo). Pas publié. Construire pkg du PC : ARCH=x86_64 sh tools/openssl/build.sh
   (pas tools/pc/thirdparty.sh, qui n'existe pas), puis tools/pc/apps.sh pkg pkgd pkgman.
-  Fichiers et les nouveaux fichiers d'autres programmes : modèle GNOME (inotify, un guet par dossier) proposé, pas fait.
 - 25/11 : la vraie cause du texte frangé (grille, pilules, toute fenêtre WF_ALPHA) : ttf_blend / ttf_blend8 d'UIKit
   mélangeaient le bord des glyphes avec la couleur du fond SANS sa transparence (noir du vide -> pixel gris opaque).
   ttf_mix_alpha (uk_ttf.c) compose sur un fond en partie transparent ; fond opaque : calcul inchangé. Vérifié sous
   QEMU (pixels de « Démo » et « Toutes »). La vue d'ensemble s'ouvre sous QEMU s'il y a une fenêtre (bureau vide :
   rien) : clic sur « Korin OS » (50,15), grille par (765,750). korin.apps.changed essayé aussi dans la grille.
+- 25/11 : le guet (VFS_WATCH 58, src/svc/vfs/watch.c, korinrt.h et fs.inc) : 32 guets, rang par programme, droit de
+  lire vérifié, touché par ops_chemins (écritures) et chemin_renommer (deux dossiers), avis korin.fs.watch.<pid>
+  (rangs) à 200 ms, envoyé par watch_flush dans servir (le délai de SVC_NEXT suit le prochain dû), rendu à
+  SVC_OP_END. Fichiers : watch_set dans load_dir (rang = vue), watch_reload (sélection et défilement gardés), seconde
+  relecture à 1,5 s. Essayé sous QEMU PC par un script de session (/bin/sh /etc/watchtest.sh : mkdir, cp, mv, mv dans
+  un dossier, rm, rmdir ; une capture toutes les 3 s) : tout suivi. Les fenêtres ne s'ouvrent pas toujours au même
+  endroit sous QEMU : éviter les clics pour les essais en plusieurs fenêtres. Pas publié (vfs dans l'initrd).
 - Le Pi (armpi) n'est pas publié : son paquet a encore files.asm.
