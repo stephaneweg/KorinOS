@@ -2690,3 +2690,19 @@ needs = qtbase-dev, abi >= 629
 required = 0
 restart = 0
 content = 30a141ddb9c8b61315dc2ab949018e82e64f56c7293eed131de3daec940c6a2e
+
+[qtdeclarative-dev-data-1]
+title = Qt Quick et QML (développement) (1/10)
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Les données de Qt Quick et QML (développement), partie 1 sur 10
+size = 30051588
+installed = 78258944
+sha256 = a90d908a62e7a09e92a760de14ff54903400c10b1f7234ce6f6b5b79470754c2
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtdeclarative-dev-data-1-1.0.0.opk
+needs = abi >= 629
+required = 0
+restart = 0
+part = qtdeclarative-dev
+content = 8aaeaccafb55d1a8ac0e395551be014abec7210879cfcb61dba56b3ffe64eb88
