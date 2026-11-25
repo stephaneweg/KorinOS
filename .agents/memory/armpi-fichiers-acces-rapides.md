@@ -81,4 +81,7 @@ Demande de l'utilisateur du 24/11/2026, branche claude/lucid-wright-6o2o4b, fusi
   relecture à 1,5 s. Essayé sous QEMU PC par un script de session (/bin/sh /etc/watchtest.sh : mkdir, cp, mv, mv dans
   un dossier, rm, rmdir ; une capture toutes les 3 s) : tout suivi. Les fenêtres ne s'ouvrent pas toujours au même
   endroit sous QEMU : éviter les clics pour les essais en plusieurs fenêtres. Pas publié (vfs dans l'initrd).
+- Publié (25/11) : pc 2026.11.111 (Fichiers et guet, vfs et UIKit dans l'initrd, UIKit dans lib, panel, menubar) et
+  pkgman 1.0.24 (bin/pkg, sys/pkgd : ils sont dans le paquet pkgman, pas pc ; pub.py pkgman --only bin/pkg sys/pkgd sur
+  l'archive extraite). Emporte libposix de 8640a76 (getgrgid_r, autre session, sans effet ici).
 - Le Pi (armpi) n'est pas publié : son paquet a encore files.asm.

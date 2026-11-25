@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-25 09:19
+date = 2026-11-25 09:46
 abi = 629
 packages = 117
 board = pc
@@ -174,18 +174,18 @@ content = 1ed897c3c1436c173dc1585ff0f13199a42ffae587eca0515ab9e2e50688aede
 
 [pkgman]
 title = Logiciels
-version = 1.0.23
+version = 1.0.24
 category = Système
 author = Korin OS
 summary = Les paquets : la commande pkg, le gestionnaire Logiciels (et son volet dans Réglages), le service pkgd
-size = 4616403
+size = 4616567
 installed = 11799195
-sha256 = 173b86fb4501148921dc68fe5d7dd914f102abaf72e6397552e2bac0ca820662
-file = pkgs/pkgman-1.0.23.opk
+sha256 = e7060f9a134a539cfda70a66b76de8460f0e644d6e4364fb46e40d9ba7b3d9b8
+file = pkgs/pkgman-1.0.24.opk
 needs = abi >= 626
 required = 1
 restart = 0
-content = 26fce4a13c9665292ac8c7cc24a6f09d42b121c5f5563630b4724021207714ce
+content = ccf597646db410bb26d994a3d8274f5fd2ec0a449c2f7b2a9aa268aca064a565
 
 [soundfonts]
 title = Banque de sons General MIDI
@@ -724,18 +724,18 @@ content = abbe00f72f244a9ded8a32ece9a30d41e4882fa84f05b9a081019e35c1ec0163
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.110
+version = 2026.11.111
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 34259627
-installed = 101649795
-sha256 = 7e02297491e3ba558b6f0bed2201b4cfc828daf6468a9989204380fa947e8b6e
-file = pkgs/pc-2026.11.110.opk
+size = 34262002
+installed = 101661708
+sha256 = fdd2ae80b8fbef4897652ae690aff6ed1ae84ec73b718081990ec7180f364d87
+file = pkgs/pc-2026.11.111.opk
 needs = 
 required = 1
 restart = 1
-content = 3f430af1918fdeb8dd439e938fc8bb7eeb378e8c3eda1cb2524017cb77e1af47
+content = f23ea10f1e22f26c62c1cceee5f638f431b45a231be2a8e07184b7235b1a857f
 
 [2048]
 title = 2048
