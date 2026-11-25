@@ -1312,6 +1312,11 @@ static int dispatch(u64 *m)
 		m[0] = (u64)E_PERM;
 		return 1;
 	}
+	/* le micro : le compte de la session, ou l'uid 0 (E32, P11) ; pas un autre compte qui écoute */
+	if (op == SND_OP_REC_OPEN && !caller_session_or_admin(M32(m, 44), 0)) {
+		m[0] = (u64)E_PERM;
+		return 1;
+	}
 	long r;
 	switch (op) {
 	case SND_OP_OPEN: r = op_open(m); break;

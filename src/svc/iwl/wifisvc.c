@@ -15,6 +15,7 @@
  * temps) passe dans le coffre au chargement, puis les deux sont réécrits sans elle. Une clé que le coffre refuse
  * reste dans le fichier (jamais perdue). Sans coffre : les clés dans wifi.txt, comme avant (et comme le Pi). */
 #include "iwl.h"
+#include "caller.h"
 #define KV_SYSCALL(n, a, b) korin_sys2((n), (a), (b))
 #include "../../lib/keyvault/keyvault.h"
 
@@ -771,6 +772,14 @@ static void srv_thread(void)
 		}
 		*(u32 *)(m + MSG_LEN) = 0;
 		long r;
+		/* rejoindre, quitter, oublier, priorité, pays : le compte de la session ou l'uid 0 (E32) ; l'état,
+		 * la recherche et les réseaux connus restent ouverts */
+		if ((op == OP_JOIN || op == OP_LEAVE || op == OP_FORGET || op == OP_PRIORITY || op == OP_COUNTRY) &&
+		    !caller_session_or_admin(*(u32 *)(m + 44), req)) {
+			*(long *)m = E_PERM;
+			korin_sys2(SYS_SVC_REPLY, req, m);
+			continue;
+		}
 		switch (op) {
 		case OP_STATUS: r = op_status(m); break;
 		case OP_SCAN: r = op_scan(m); break;

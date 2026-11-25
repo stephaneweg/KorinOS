@@ -138,6 +138,36 @@ static int app_valid(const char *name)
 	return 1;
 }
 
+/* l'app que dit l'expéditeur : crue d'un process d'uid 0 (notify -a, les services), ou si son exécutable est
+ * /apps/<app>.app/main ; sinon une app se faisait passer pour une autre (icône, nom, E35, D16) */
+static u8 pex[296] __attribute__((aligned(8)));
+static int app_from_sender(const char *app, long pid)
+{
+	if (korin_sys1(SYS_PROC_UID, pid) == 0)
+		return 1;
+	if (korin_sys2(SYS_PROC_EXE, pid, pex) < 0)
+		return korin_sys1(SYS_PROC_UID, pid) == -38; /* (le Pi : ni uid ni identité) */
+	pex[40 + 127] = 0;
+	const char *e = (const char *)pex + 40, *c = e;
+	while (*c && *c != ':' && c - e < 8)
+		c++;
+	if (*c == ':' && c[1] == '/') /* (un nom de volume devant : « APPS:/x.app/main ») */
+		e = c + 1;
+	const char *pre = "/apps/";
+	while (*pre && *e == *pre)
+		pre++, e++;
+	if (*pre)
+		return 0;
+	while (*app && *e == *app)
+		app++, e++;
+	if (*app)
+		return 0;
+	const char *suf = ".app/main";
+	while (*suf && *e == *suf)
+		suf++, e++;
+	return !*suf && !*e;
+}
+
 /* (msg) la notification reçue, en tête de l'historique (non lue) */
 static void history(void)
 {
@@ -153,8 +183,8 @@ static void history(void)
 	s = copy(h->text, s, sizeof h->text);
 	if (s < (const char *)msg + WS_MSG - 1 && *s) { /* l'app, si elle est dite */
 		copy(h->app, s, sizeof h->app);
-		if (app_valid(h->app)) /* (un vrai paquet : des expéditeurs laissent des restes
-					  après le texte) */
+		if (app_valid(h->app) && /* (un vrai paquet : des expéditeurs laissent des restes après le texte) */
+		    app_from_sender(h->app, *(u32 *)(msg + WM_PID)))
 			return;
 	}
 	h->app[0] = 0; /* sinon : le nom du process appelant */

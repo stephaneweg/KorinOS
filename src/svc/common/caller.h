@@ -63,4 +63,15 @@ static inline int caller_admin(long pid, long req)
 	return caller_rights(pid) || caller_uid_req(pid, req) == 0;
 }
 
+/* le compte de la session (celui qu'a ouvert l'écran de connexion), l'uid 0 ou les droits de /sys :
+ * éteindre la machine, choisir le Wi-Fi, le profil d'énergie, enregistrer le micro (E32) ; un autre compte
+ * (telnet d'un autre, ftpd, un programme lancé sous un autre uid) : non */
+static inline int caller_session_or_admin(long pid, long req)
+{
+	if (caller_rights(pid))
+		return 1;
+	long u = caller_uid_req(pid, req);
+	return u == 0 || (u > 0 && u == user_session_uid());
+}
+
 #endif

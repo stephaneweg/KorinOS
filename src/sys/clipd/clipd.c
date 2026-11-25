@@ -35,6 +35,7 @@ static u64 g_serial = 1; /* change à chaque modification de l'anneau */
 static long g_tell;      /* une notification à envoyer */
 static char tellbuf[96];
 static u8 msg[WS_MSG];
+static long my_uid;
 static struct entry g_fresh;
 static struct entry g_e[CLIP_RING + 1];
 
@@ -440,6 +441,7 @@ int main(int argc, char **argv)
 	long chan = korin_sys2(SYS_SVC_REGISTER, "clipboard", 0);
 	if (chan < 0) /* (un autre clipd tourne) */
 		return 0;
+	my_uid = korin_sys0(SYS_GETUID);
 	for (;;) {
 		long req = korin_sys3(SYS_SVC_NEXT, chan, msg, 60000);
 		if (req < 0)
@@ -448,6 +450,14 @@ int main(int argc, char **argv)
 			continue;
 		long r = 0;
 		long rank;
+		/* les copies d'un compte : à ses programmes (et à l'uid 0) ; un autre compte (son shell telnet, ftpd)
+		 * ne les lit ni ne les change (E35, G5) ; le Pi : pas d'uid */
+		long cu = korin_sys1(SYS_PROC_UID, (long)*(u32 *)(msg + 44));
+		if (my_uid > 0 && cu != -38 && cu != 0 && cu != my_uid) { /* (clipd en uid 0 : comme avant) */
+			MSGQ(WM_OP) = (u64)E_PERM;
+			korin_sys2(SYS_SVC_REPLY, req, msg);
+			continue;
+		}
 		switch (MSGQ(WM_OP)) {
 		case CLIP_PUT:
 			r = op_put(req);

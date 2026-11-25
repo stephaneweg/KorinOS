@@ -14,6 +14,7 @@
  * File d'événements pleine (64) : l'événement est perdu pour ce programme ;
  * la valeur, elle, reste lisible. */
 #include "../svclib/svclib.h"
+#include "caller.h"
 
 /* src/inc/bus.inc, src/kits/buskit/buskit.inc */
 #define BUS_OP_PUBLISH 1
@@ -34,6 +35,7 @@
 #define BUS_RETAIN 1
 #define BUS_DELETE 2
 #define BUS_CURRENT 1
+#define BUS_EPERM -1
 #define BUS_ENOENT -2
 #define BUS_ENOMEM -12
 #define BUS_EINVAL -22
@@ -156,12 +158,33 @@ static long unsubscribe(u64 pid, u64 id)
 	return n;
 }
 
+/* sujets du système : publiés (ou effacés) par l'uid 0 seulement (netd, acpid, sound, usbstorage...) ;
+ * sinon une app annonçait une fausse batterie, un faux réseau, une fausse clé (E35, D15). Restent ouverts :
+ * korin.clock.offset (Horloge), korin.shell.*, korin.notify.*, korin.media.*, korin.files.changed... */
+static const char *const reserved[] = {"korin.power.", "korin.net.", "korin.audio.", "korin.storage.", "korin.usb.", 0};
+#define PER_PID_MAX 64 /* abonnements, et sujets créés, par process d'un uid autre que 0 (menubar : une dizaine) */
+
+static int name_reserved(const char *n)
+{
+	for (int i = 0; reserved[i]; i++) {
+		const char *a = reserved[i], *b = n;
+		while (*a && *a == *b)
+			a++, b++;
+		if (!*a)
+			return 1;
+	}
+	return 0;
+}
+
 static long op_publish(void)
 {
 	char *name = (char *)msg + BUS_DATA;
 	long len = name_check(name, 0);
 	if (len < 0)
 		return BUS_EINVAL;
+	long uid = caller_uid(M32(msg, 44));
+	if (uid != 0 && name_reserved(name))
+		return BUS_EPERM;
 	u64 vlen = M64(msg, 16);
 	if (vlen > BUS_VALUE_MAX || (u64)len + 1 + vlen > BUS_DATA_MAX)
 		return BUS_EINVAL;
@@ -175,6 +198,13 @@ static long op_publish(void)
 		return n;
 	}
 	if (t < 0) {
+		if (uid != 0) { /* (un process ne prend pas toutes les places) */
+			long mine = 0;
+			for (long k = 0; k < TOPIC_MAX; k++)
+				mine += topics[k].used && topics[k].pid == M32(msg, 44);
+			if (mine >= PER_PID_MAX)
+				return BUS_ENOMEM;
+		}
 		t = topic_alloc();
 		if (t < 0)
 			return BUS_ENOMEM;
@@ -195,7 +225,11 @@ static long op_subscribe(void)
 	long len = name_check(pat, 1);
 	if (len < 0)
 		return BUS_EINVAL;
-	long i;
+	long i, mine = 0;
+	for (i = 0; i < SUB_MAX; i++)
+		mine += subs[i].pid == M32(msg, 44);
+	if (mine >= PER_PID_MAX && caller_uid(M32(msg, 44)) != 0)
+		return BUS_ENOMEM; /* (un process ne prend pas les 256 places) */
 	for (i = 0; i < SUB_MAX; i++)
 		if (!subs[i].pid)
 			break;
@@ -298,7 +332,7 @@ int main(int argc, char **argv)
 		long r;
 		switch (M64(msg, 0)) {
 		case SVC_OP_END: /* (avis, sans réponse) a = pid */
-			if (M64(msg, 8))
+			if (M64(msg, 8) && svc_from_kernel(msg))
 				unsubscribe(M64(msg, 8), 0);
 			continue;
 		case SVC_OP_SIGNAL:

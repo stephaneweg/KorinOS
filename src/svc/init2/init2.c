@@ -40,6 +40,7 @@
  *  * après startup.txt : init2 se relance avec l'argument « preload », qui
  *    précharge les exécutables de /etc/preload.txt et s'arrête. */
 #include "init2.h"
+#include "caller.h"
 
 #define BLK_DMA 5 /* (src/inc/blk.inc) */
 #define BLK_UHS 8
@@ -669,6 +670,12 @@ static void requete(long req)
 	if (op == INIT_OP_KIT_LOAD)
 		r = kit_request();
 	else if (op == INIT_OP_REBOOT) {
+		if (!caller_session_or_admin(M32(msg, 44), req)) { /* (le compte de la session, ou l'uid 0 : E32) */
+			M64(msg, 0) = (u64)E_PERM;
+			M32(msg, 40) = 0;
+			korin_sys2(SYS_SVC_REPLY, req, msg);
+			return;
+		}
 		sauver_heure();
 		reboot_request(req); /* (ne revient pas si tout va bien ; la réponse est déjà partie) */
 		return;

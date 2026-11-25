@@ -212,8 +212,18 @@ int64_t sys_screen_info(uint64_t out)
 
 /* ---- presse-papier */
 
+/* le presse-papier du noyau : au serveur graphique (et aux process à droits : wtest) ; les apps passent par
+ * Elegant et clipd. Avant : lisible et remplaçable par tout process de tout uid (N12, E35) */
+static int clip_allowed(void)
+{
+	struct process *p = sched_current()->proc;
+	return p->rights || (ws_pid && p->pid == ws_pid);
+}
+
 int64_t sys_clip_set(uint64_t buf, uint64_t len)
 {
+	if (!clip_allowed())
+		return E_PERM;
 	if (len > CLIP_MAX)
 		return E_INVAL;
 	char *c = len ? kmalloc(len) : 0;
@@ -234,6 +244,8 @@ int64_t sys_clip_set(uint64_t buf, uint64_t len)
 
 int64_t sys_clip_get(uint64_t buf, uint64_t max)
 {
+	if (!clip_allowed())
+		return E_PERM;
 	char *tmp = kmalloc(CLIP_MAX);
 	if (!tmp)
 		return E_NOMEM;

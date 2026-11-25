@@ -30,6 +30,7 @@
 #include "sysfront.h"
 
 #include "acpid.h"
+#include "caller.h"
 
 #define ACPID_OP_GET 1
 #define ACPID_OP_PROFILE 2
@@ -589,6 +590,9 @@ int main(int argc, char **argv)
 			*(u32 *)(m + MSG_LEN) = 0;
 			if (op == ACPID_OP_GET) {
 				answer_get(m);
+			} else if ((op == ACPID_OP_PROFILE || op == ACPID_OP_RELOAD) &&
+				   !caller_session_or_admin(*(u32 *)(m + 44), req)) {
+				M64(m, 0) = (u64)E_PERM; /* (le compte de la session, ou l'uid 0 : E32) */
 			} else if (op == ACPID_OP_PROFILE) {
 				long p = (long)M64(m, MSG_A);
 				if (p < -1 || p > 2)
