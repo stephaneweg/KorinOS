@@ -661,7 +661,7 @@ static long service_request(u64 op)
 
 /* ---- INIT_OP_SETTING (décision du 25/11/2026) : Réglages change, pour le compte de la session et sans élévation,
  * quelques clés de /etc/options.txt et /etc/system.ini ; init2 (uid 0) les écrit, les valeurs vérifiées. Le reste
- * (autologin, access, comptes, accès à distance) garde l'élévation */
+ * (autologin, access, comptes, accès à distance, fuseau, disposition par défaut, résolution) garde l'élévation */
 #define INIT_OP_SETTING 7
 
 static int set_ok(const char *v, const char *allowed, long max)
@@ -744,14 +744,10 @@ static long setting_request(long req)
 	const char *path = 0;
 	if (str_eq(f, "options")) {
 		path = "/etc/options.txt";
-		if (str_eq(k, "keyb"))
-			ok = set_ok(v, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-", 15);
-		else if (str_eq(k, "pays"))
+		/* (le pays du Wi-Fi ; le fuseau, la disposition par défaut et la résolution : par élévation, décision
+		 * du 25/11/2026) */
+		if (str_eq(k, "pays"))
 			ok = set_ok(v, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 2) && str_len(v) == 2;
-		else if (str_eq(k, "fuseau"))
-			ok = set_ok(v, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_/+-", 48);
-		else if (str_eq(k, "ecran"))
-			ok = set_ok(v, "0123456789x@.autoAUTO", 24);
 	} else if (str_eq(f, "system")) {
 		path = "/etc/system.ini";
 		if (str_eq(k, "lang"))

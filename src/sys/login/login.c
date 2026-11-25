@@ -42,6 +42,7 @@ static struct acc {
 } accs[ACC_MAX];
 static int nacc, sel;
 static char autologin[32], machine[48] = "Korin OS", keyb[8] = "FR";
+static char keyb_machine[8]; /* (keyb de /etc/options.txt : l'écran de connexion avant le choix d'un compte) */
 static char pw[128];
 static int pwlen, show_pw, err, busy;
 static char g_mark[128]; /* le repère secret de l'ordinateur (A5 : un faux écran ne le connaît pas) */
@@ -179,11 +180,48 @@ static void charger(void)
 		if (k && str_eq(k, "keyb") && *v)
 			str_copy_n(keyb, v, sizeof keyb);
 	}
+	str_copy_n(keyb_machine, keyb, sizeof keyb_machine);
+}
+
+/* la disposition du clavier : celle du compte (son HOME:/etc/keyboard.ini, « keyb = ») quand il est choisi, sinon
+ * celle de la machine (keyb de /etc/options.txt) ; chargée par hidmanager (décision du 25/11/2026) */
+static void layout_for(long uid)
+{
+	char want[16];
+	str_copy_n(want, keyb_machine[0] ? keyb_machine : "FR", sizeof want);
+	if (uid > 0) {
+		const char *p = conf_path_uid(uid, "keyboard.ini");
+		char *t = str_eq(p, "/etc/keyboard.ini") ? 0 : lire(p), *l;
+		while (t && (l = ligne(&t))) {
+			char *v, *k = cle(l, &v);
+			if (k && str_eq(k, "keyb") && *v)
+				str_copy_n(want, v, sizeof want);
+		}
+	}
+	for (const char *c = want; *c; c++) /* (un nom de /res/keyb) */
+		if (!((*c >= 'A' && *c <= 'Z') || (*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9') || *c == '-' || *c == '_'))
+			return;
+	static char applied[16]; /* (celle que hidmanager a reçue de nous ; vide : la précédente session peut-être) */
+	if (str_eq(want, applied))
+		return;
+	long ch = korin_sys2(SYS_SVC_OPEN, "hid", 500);
+	if (ch < 0)
+		return;
+	static u64 m[64];
+	memset(m, 0, sizeof m);
+	m[0] = 2; /* HID_OP_KEYMAP */
+	str_copy_n((char *)m + 48, want, 16);
+	((u32 *)m)[10] = (u32)str_len(want) + 1;
+	if (korin_sys2(SYS_SVC_CALL, ch, m) >= 0 && m[0] == 0) {
+		str_copy_n(keyb, want, sizeof keyb);
+		str_copy_n(applied, want, sizeof applied);
+	}
 }
 
 /* la session est ouverte pour ce compte : /tmp/session.ini, puis fin */
 static int ouvrir(const struct acc *a)
 {
+	layout_for(a->uid); /* (la connexion automatique : la disposition du compte aussi) */
 	char line[96] = "uid = ";
 	char *o = line + 6;
 	char t[24];
@@ -510,6 +548,7 @@ int main(int argc, char **argv)
 	if (nacc == 1 && !accs[0].haspw && !manuel)
 		return ouvrir(&accs[0]);
 	prompt = nacc == 1; /* (un seul compte : il est déjà choisi) */
+	layout_for(prompt ? accs[0].uid : 0);
 	ui_init((long)&ui);
 	ui_screen((long)scr);
 	/* tout l'écran, couche normale (pas WF_TOP : les réglages rapides et le dialogue d'extinction passent devant ; pas
@@ -584,11 +623,13 @@ int main(int argc, char **argv)
 			} else if (!prompt && h >= 0 && h < nacc) {
 				sel = h;
 				prompt = 1;
+				layout_for(accs[sel].uid); /* (sa disposition, pour taper son mot de passe) */
 				clear_pw();
 				hov = -1;
 				draw();
 			} else if (h == HV_BACK) {
 				prompt = 0;
+				layout_for(0); /* (celle de la machine) */
 				clear_pw();
 				hov = -1;
 				draw();

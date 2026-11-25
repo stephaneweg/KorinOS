@@ -48,7 +48,7 @@ enum
 	AP_FILE_MAX = 4096,
 	AP_WIN_W = SIDE_W + 700,		/* la fenêtre : le volet d'Onyx, 700 x 470 */
 	AP_WIN_H = AP_HEAD + 470,		/* sous le titre, si l'écran le permet */
-	FM_N = 4,				/* lignes de réglages */
+	FM_N = 5,				/* lignes de réglages */
 	FM_H = 48,				/* une ligne */
 	FM_LW = 194,				/* sa liste déroulante */
 	FM_LH = 30,

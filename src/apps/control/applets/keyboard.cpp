@@ -19,6 +19,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <netkit_abi.h>
+#include <armpi/userconf.h>
 #include "../control.h"
 
 enum
@@ -35,7 +36,9 @@ static const char cl_s_layout[] = "Disposition du clavier";
 static const char cl_s_lang[] = "Langue";
 static const char cl_s_country[] = "Pays (Wi-Fi)";
 static const char cl_s_zone[] = "Fuseau horaire (NTP)";
+static const char cl_s_default[] = "Disposition de l'\xC3\xA9" "cran de connexion";
 static const char cl_s_done[] = "Disposition appliqu\xC3\xA9" "e.";
+static const char cl_s_refused[] = "R\xC3\xA9glages de la machine non modifi\xC3\xA9s (refus\xC3\xA9).";
 static const char cl_s_error[] = "Disposition illisible.";
 
 /* les pays : code, libellé */
@@ -55,7 +58,9 @@ enum { CL_NREGION = sizeof cl_regions / sizeof cl_regions[0] };
 static const char *const cl_kb_names[][2] = { { "BE", "Belge (point)" }, { "BE-COMMA", "Belge (virgule)" },
 	{ "FR", "Fran\xC3\xA7" "ais" }, { "US", "US" } };	/* (BE / BE-COMMA : la touche décimale du pavé numérique) */
 
-static char cl_current[16];			/* keyb= (sans : FR, intégrée) */
+static char cl_current[16];			/* keyb= du compte (HOME:/etc/keyboard.ini ; sans : celle de la machine) */
+static char cl_default[16];			/* keyb= de la machine (/etc/options.txt : l'écran de connexion) */
+static char cl_zone_was[32];			/* (le fuseau lu : changé, il demande l'élévation) */
 static char cl_country_cur[4];			/* pays= (sans : FR) */
 static char cl_lang_cur[4];			/* lang= (sans : fr) */
 static char cl_zone_cur[32];			/* fuseau= (sans : Europe/Paris) */
@@ -231,6 +236,14 @@ static void cl_open (void)
 	copy_n (cl_lang_cur, "fr", sizeof cl_lang_cur);
 	ini_read (P_OPTIONS, cl_line);		/* disposition, pays, fuseau */
 	ini_read (P_SYSTEM, cl_line);		/* la langue : celle de tout le système (AppKit) */
+	copy_n (cl_default, cl_current, sizeof cl_default);
+	copy_n (cl_zone_was, cl_zone_cur, sizeof cl_zone_was);
+	{	/* la disposition du compte (décision du 25/11/2026 : chargée par l'écran de connexion à son choix) */
+		char cp[160];
+		struct stat st;
+		if (stat (korin_conf_path ("keyboard.ini", cp, sizeof cp, 0), &st) == 0 && strncmp (cp, "/etc/", 5))
+			ini_read (cp, cl_line);
+	}
 	fm_begin (cl_s_sub, cl_s_note);
 	fm_line (cl_s_layout);
 	cl_nlayouts = 0;
@@ -269,13 +282,49 @@ static void cl_open (void)
 	cl_list = ui_list (0, 0, 100, 100, 0);	/* (placée par cl_draw) */
 	ui_w_on (cl_list, (long) fm_change, 0);
 	cl_fill (region);
+	fm_line (cl_s_default);			/* la disposition de l'écran de connexion (élévation) */
+	for (long i = 0; i < cl_nlayouts; i++)
+		fm_item (4, cl_label (cl_layouts[i]), !strcmp (cl_layouts[i], cl_default));
 	ap.draw = cl_draw;
 	ap.close = cl_close;
 }
 
-/* Appliquer : la langue, le pays, le fuseau, puis la disposition tout de suite */
+/* Appliquer : la langue, le pays, le fuseau, puis la disposition tout de suite. Le fuseau et la disposition de
+ * l'écran de connexion sont des réglages de la machine : la carte d'élévation (décision du 25/11/2026) ; la
+ * disposition est celle du compte (HOME:/etc/keyboard.ini) */
 static void cl_apply (void)
 {
+	const char *zone = 0, *dflt = 0;
+	{
+		long z = ui_w_get_value (cl_list), data = 0;
+		if (z >= 0 && uikit_list_get (cl_list, z, &data) && strcmp ((const char *) data, cl_zone_was))
+			zone = (const char *) data;
+		long d = fm_value (4);
+		if (d >= 0 && d < cl_nlayouts && strcmp (cl_layouts[d], cl_default))
+			dflt = cl_layouts[d];
+	}
+	if (zone || dflt)
+	{
+		unsigned me;
+		if (ap_elevate (TR ("R\xC3\xA9glages veut modifier l'heure ou le clavier de l'ordinateur (tous les comptes)."), &me))
+		{
+			ap.msg = cl_s_refused;
+			return;
+		}
+		if (zone)
+		{
+			ini_set (P_OPTIONS, "fuseau", zone);
+			copy_n (cl_zone_was, zone, sizeof cl_zone_was);
+		}
+		if (dflt)
+		{
+			ini_set (P_OPTIONS, "keyb", dflt);
+			copy_n (cl_default, dflt, sizeof cl_default);
+		}
+		ap_unelevate (me);
+		if (zone)
+			net_ntp_sync (0);	/* (netd reprend l'heure : demande seule) */
+	}
 	long v = fm_value (1);			/* la langue : system.ini (AppKit) */
 	if (v >= 0)
 		sys_setting ("system", "lang", v == 0 ? "fr" : "en");
@@ -286,16 +335,6 @@ static void cl_apply (void)
 		sys_setting ("options", "pays", code);
 		wifi_country ((long) code);	/* (sans Wi-Fi : E_NODEV, sans effet) */
 	}
-	v = ui_w_get_value (cl_list);		/* le fuseau (la ville choisie) : options.txt, puis NTP */
-	if (v >= 0)
-	{
-		long data = 0;
-		if (uikit_list_get (cl_list, v, &data))	/* (sa donnée : le nom du fuseau) */
-		{
-			sys_setting ("options", "fuseau", (const char *) data);
-			net_ntp_sync (0);	/* (netd reprend l'heure : demande seule) */
-		}
-	}
 	v = fm_value (0);
 	if (v < 0)
 		return;
@@ -305,7 +344,10 @@ static void cl_apply (void)
 		ap.msg = cl_s_error;
 		return;
 	}
-	sys_setting ("options", "keyb", name);
+	{	/* (la disposition du compte) */
+		char cp[160];
+		ini_set (korin_conf_path ("keyboard.ini", cp, sizeof cp, 1), "keyb", name);
+	}
 	ap.msg = cl_s_done;
 }
 

@@ -498,7 +498,14 @@ static void ec_apply (void)
 		{
 			char value[EC_LABEL];
 			ec_size (value, w, h);
-			sys_setting ("options", "ecran", value);
+			unsigned me;	/* (la résolution de la machine, pour tous les comptes : élévation, 25/11/2026) */
+			if (ap_elevate (TR ("R\xC3\xA9glages veut garder cette r\xC3\xA9solution pour tous les comptes."), &me))
+				msg = ec_s_refused;
+			else
+			{
+				ini_set (P_OPTIONS, "ecran", value);
+				ap_unelevate (me);
+			}
 		}
 		ap.msg = msg;
 		ap_fit ();

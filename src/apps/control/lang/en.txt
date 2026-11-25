@@ -503,3 +503,7 @@ cycles = cycles
 Le service acpid ne répond pas : pas de gestion d'énergie sur cet ordinateur. = The acpid service does not answer: no power management on this computer.
 Réglages veut modifier les réglages d'énergie. = Settings wants to change the power settings.
 /etc/power.ini non modifié = /etc/power.ini not changed
+Disposition de l'écran de connexion = Login screen layout
+Réglages de la machine non modifiés (refusé). = Machine settings not changed (refused).
+Réglages veut modifier l'heure ou le clavier de l'ordinateur (tous les comptes). = Settings wants to change the computer's time or keyboard (all accounts).
+Réglages veut garder cette résolution pour tous les comptes. = Settings wants to keep this resolution for all accounts.
