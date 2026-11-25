@@ -595,6 +595,7 @@ int main(int argc, char **argv)
 	/* le bouton d'alimentation du PC (acpid, docs/etude/BATTERIE-PC.md) : le dialogue d'extinction */
 	long power_sub = bus_subscribe((long)"korin.power.button", 0);
 	long mode_sub = bus_subscribe((long)"korin.shell.desktop", 0); /* (les Réglages changent le bureau) */
+	long apps_sub = bus_subscribe((long)"korin.apps.changed", 0); /* (pkg : une app installée ou retirée) */
 	say("panel : bureau prêt\n"); /* au journal, avec son heure : le repère du démarrage (docs/BOOT.md) */
 	for (;;) {
 		long t = ui_event(1000);
@@ -623,6 +624,15 @@ int main(int argc, char **argv)
 				ksys(SYS_SPAWN, (long)"/sys/shutdown", 0, 0, 0, 0, 0);
 			if (mode_sub > 0 && *(u32 *)(ui.ev + BEV_SUB) == (u32)mode_sub)
 				panel_respawn();
+			if (apps_sub > 0 && *(u32 *)(ui.ev + BEV_SUB) == (u32)apps_sub) { /* le catalogue relu, le dash refait */
+				dg_slot = -1;
+				dg_on = 0;
+				hover_set(-1);
+				apps_reload();
+				apps_sort();
+				relayout();
+				say("panel : catalogue relu (korin.apps.changed)\n");
+			}
 			continue;
 		}
 		if (t != WEV_MOUSE)

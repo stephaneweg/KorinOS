@@ -124,6 +124,7 @@ static char argbuf[24];
 static long bar_h = 30;
 static long hov;            /* titre survolé + 1 (0 : aucun) */
 static long ov_sub;         /* korin.shell.overview (Elegant : la vue d'ensemble) */
+static long apps_sub;       /* korin.apps.changed (pkg : une app installée ou retirée) : le catalogue relu */
 static long ov_shown;       /* 1 : la vue d'ensemble est ouverte (« Korin OS » allumé) */
 static long ov_mode;        /* 1 : le bureau est en vue d'ensemble (desktop=overview) ; 0 : le bureau classique */
 static long tray_x0 = 1 << 30; /* zone d'état (heure, batterie, réseau, son) : début ; un clic : réglages rapides */
@@ -1544,6 +1545,9 @@ static void on_bus(void)
 		net_refresh();
 	} else if (sub == (u64)bat_sub) { /* korin.power.battery : la batterie */
 		bat_read();
+	} else if (sub == (u64)apps_sub) { /* korin.apps.changed : le menu Korin se refait d'après lui au clic */
+		applis_load();
+		return;
 	} else if (sub == (u64)ov_sub) { /* korin.shell.overview : « Korin OS » allumé ou non */
 		char v[8];
 		long n = bus_get((long)s_t_overview, (long)v, sizeof v - 1);
@@ -1612,6 +1616,7 @@ int main(int argc, char **argv)
 		clock_from_bus();
 	snd_poll();
 	bat_sub = subscribe(s_bat_topic, 0); /* la batterie (acpid du PC) */
+	apps_sub = subscribe("korin.apps.changed", 0);
 	bat_read();
 	if (!poche) { /* la vue d'ensemble d'Elegant (ou le bureau classique) */
 		overview_query();

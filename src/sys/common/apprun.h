@@ -20,6 +20,10 @@ extern long pids[AP_MAX]; /* pid de chaque application (0 : ne tourne pas) */
 /* pids des applications qui tournent (tous les process, par morceaux) -> nombre de
  * changements (0 : rien) */
 long apps_running(void);
+/* le catalogue relu (applis_load, korin.apps.changed : une app installée ou retirée), les pids recasés par nom
+ * (une application ouverte ne passe pas pour une qui démarre), puis apps_running ; à l'appelant de retrier
+ * (apps_sort) et de refaire sa disposition */
+void apps_reload(void);
 /* ramène la fenêtre de l'application (réduite aussi), ou la lance */
 void app_open(long app);
 
