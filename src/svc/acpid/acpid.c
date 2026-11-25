@@ -24,6 +24,7 @@
  *                     lids, power_button, sleep_button, ec, events)
  *   ACPID_OP_PROFILE 2 (a : -1 automatique, 0..2 profil fixe) -> 0 ; écrit dans /etc/power.ini
  *   ACPID_OP_RELOAD 3 -> 0 : relit /etc/power.ini
+ *   ACPID_OP_SET 4 (a : 1 saver, 2 shutdown, 3 power_button ; b : la valeur) -> 0 : écrit dans /etc/power.ini
  * Événements (SCI lié au canal du service, events = 1) : Notify de la batterie ou du secteur -> relecture
  * aussitôt ; couvercle -> « korin.power.lid » ; bouton d'alimentation -> « korin.power.button » (le panel
  * ouvre le dialogue d'extinction ; power_button = dialog|shutdown|nothing) ; requêtes de l'EC dans acpi.c. */
@@ -35,6 +36,7 @@
 #define ACPID_OP_GET 1
 #define ACPID_OP_PROFILE 2
 #define ACPID_OP_RELOAD 3
+#define ACPID_OP_SET 4
 #define SVC_OP_SIGNAL 0xFFFD
 #define INIT_OP_REBOOT 3 /* (init2) flags bit 1 : éteindre */
 #define POWER_PROFILE_OP 3
@@ -165,8 +167,8 @@ static void conf_load(void)
 	}
 }
 
-/* « profile = … » remplacé (ou ajouté) dans /etc/power.ini, le reste gardé */
-static void conf_save_profile(int fixed)
+/* « key = val » remplacé (ou ajouté) dans /etc/power.ini, le reste gardé */
+static void conf_save_key(const char *key, const char *val)
 {
 	static char in[4096], out[4400];
 	long n = 0, fd = sys_open(CONF, O_READ);
@@ -177,7 +179,7 @@ static void conf_save_profile(int fixed)
 	if (n < 0)
 		n = 0;
 	in[n] = 0;
-	const char *val = fixed < 0 ? "auto" : prof_name[fixed];
+	long kl = (long)strlen(key);
 	char *o = out;
 	int done = 0;
 	for (char *l = in; *l;) {
@@ -187,8 +189,8 @@ static void conf_save_profile(int fixed)
 		char *k = l;
 		while (*k == ' ' || *k == '\t')
 			k++;
-		if (!strncmp(k, "profile", 7) && (k[7] == ' ' || k[7] == '=' || k[7] == '\t')) {
-			o += snprintf(o, out + sizeof out - o, "profile = %s\n", val);
+		if (!strncmp(k, key, (u64)kl) && (k[kl] == ' ' || k[kl] == '=' || k[kl] == '\t')) {
+			o += snprintf(o, out + sizeof out - o, "%s = %s\n", key, val);
 			done = 1;
 		} else {
 			memcpy(o, l, (u64)(e - l));
@@ -198,7 +200,7 @@ static void conf_save_profile(int fixed)
 		l = *e ? e + 1 : e;
 	}
 	if (!done)
-		o += snprintf(o, out + sizeof out - o, "profile = %s\n", val);
+		o += snprintf(o, out + sizeof out - o, "%s = %s\n", key, val);
 	fd = sys_open(CONF, O_WRITE | O_CREATE | O_TRUNC);
 	if (fd < 0) {
 		slog("%s : écriture impossible (%ld)\n", CONF, fd);
@@ -206,6 +208,28 @@ static void conf_save_profile(int fixed)
 	}
 	sys_write(fd, out, (u64)(o - out));
 	sys_close(fd);
+}
+
+static void conf_save_profile(int fixed)
+{
+	conf_save_key("profile", fixed < 0 ? "auto" : prof_name[fixed]);
+}
+
+/* ACPID_OP_SET (décision du 25/11/2026 : Réglages sans élévation) : a = la clé (1 saver, 2 shutdown,
+ * 3 power_button), b = la valeur (0..1000 ; le bouton : 0 dialog, 1 shutdown, 2 nothing) -> 0 / E_INVAL */
+static long conf_set(u64 key, u64 v)
+{
+	static const char *const btn[3] = {"dialog", "shutdown", "nothing"};
+	char t[24];
+	if ((key == 1 || key == 2) && v <= 1000) {
+		snprintf(t, sizeof t, "%lu", (unsigned long)v);
+		conf_save_key(key == 1 ? "saver" : "shutdown", t);
+	} else if (key == 3 && v < 3)
+		conf_save_key("power_button", btn[v]);
+	else
+		return E_INVAL;
+	conf_load();
+	return 0;
 }
 
 /* ---- état */
@@ -590,7 +614,7 @@ int main(int argc, char **argv)
 			*(u32 *)(m + MSG_LEN) = 0;
 			if (op == ACPID_OP_GET) {
 				answer_get(m);
-			} else if ((op == ACPID_OP_PROFILE || op == ACPID_OP_RELOAD) &&
+			} else if ((op == ACPID_OP_PROFILE || op == ACPID_OP_RELOAD || op == ACPID_OP_SET) &&
 				   !caller_session_or_admin(*(u32 *)(m + 44), req)) {
 				M64(m, 0) = (u64)E_PERM; /* (le compte de la session, ou l'uid 0 : E32) */
 			} else if (op == ACPID_OP_PROFILE) {
@@ -606,6 +630,10 @@ int main(int argc, char **argv)
 						set_profile((int)p, "choisi");
 				}
 				M64(m, 0) = (u64)rc;
+			} else if (op == ACPID_OP_SET) {
+				M64(m, 0) = (u64)conf_set(M64(m, MSG_A), M64(m, MSG_B));
+				if (polling)
+					sample();
 			} else if (op == ACPID_OP_RELOAD) {
 				conf_load();
 				if (polling)

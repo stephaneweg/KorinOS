@@ -521,6 +521,28 @@ long file_write (const char *path, const char *text)
 long sys_ms (void) { return armpi_syscall (SYS_TIME_MS, 0, 0, 0, 0, 0, 0); }
 void sys_sleep (long ms) { armpi_syscall (SYS_SLEEP, ms, 0, 0, 0, 0, 0); }
 long svc_open (const char *name, long wait_ms) { return armpi_syscall (SYS_SVC_OPEN, (long) name, wait_ms, 0, 0, 0, 0); }
+
+long sys_setting (const char *file, const char *key, const char *val)
+{
+	static unsigned long long m[64];
+	memset (m, 0, sizeof m);
+	m[0] = 7;				/* INIT_OP_SETTING */
+	char *d = (char *) m + 48, *e = (char *) m + sizeof m;
+	size_t a = strlen (file) + 1, b = strlen (key) + 1, c = strlen (val) + 1;
+	if (d + a + b + c > e)
+		return -22;
+	memcpy (d, file, a);
+	memcpy (d + a, key, b);
+	memcpy (d + a + b, val, c);
+	((unsigned *) m)[10] = (unsigned) (a + b + c);
+	long ch = svc_open ("init2", 1000);
+	long r = ch < 0 ? ch : armpi_syscall (SYS_SVC_CALL, ch, (long) m, 0, 0, 0, 0);
+	if (r >= 0)
+		r = (long) m[0];
+	if (ch < 0 || r == -38)			/* (pas d'init2 qui sache : comme avant) */
+		return ini_set (!strcmp (file, "system") ? P_SYSTEM : P_OPTIONS, key, val);
+	return r;
+}
 long svc_call (long ch, void *msg) { return armpi_syscall (SYS_SVC_CALL, ch, (long) msg, 0, 0, 0, 0); }
 
 /* name, after = pid après lequel chercher (0 : depuis le début ; pour le suivant de même nom, le pid rendu)

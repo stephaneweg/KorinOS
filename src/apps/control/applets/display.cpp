@@ -368,16 +368,16 @@ static void ec_relaunch (void)
 	if (ec_shell != 2 && ec_choice != 2)	/* bureau classique <-> vue d'ensemble : tout de suite, sans redémarrer */
 	{
 		const char *v = ec_choice ? "overview" : "classic";
-		ini_set (P_SYSTEM, "desktop", v);
+		sys_setting ("system", "desktop", v);
 		ec_call (WS_OP_OVERVIEW, ec_choice ? 3 : 4, 0, 0);	/* Elegant d'abord (synchrone), */
 		bus_publish ((long) "korin.shell.desktop", (long) v, -1, BUS_RETAIN);	/* puis le panel se relance */
 		ec_shell = ec_choice;
 		ap.msg = ec_s_applied;
 		return;
 	}
-	ini_set (P_SYSTEM, "shell", ec_choice == 2 ? "poche" : "desktop");	/* le mode */
+	sys_setting ("system", "shell", ec_choice == 2 ? "poche" : "desktop");	/* le mode */
 	if (ec_choice < 2)			/* le genre du bureau (Elegant, le panel, la barre de menus) */
-		ini_set (P_SYSTEM, "desktop", ec_choice ? "overview" : "classic");
+		sys_setting ("system", "desktop", ec_choice ? "overview" : "classic");
 	ap.msg = ec_s_reboot;			/* « Redémarrage... », vu un instant */
 	draw ();
 	sys_sleep (400);
@@ -498,7 +498,7 @@ static void ec_apply (void)
 		{
 			char value[EC_LABEL];
 			ec_size (value, w, h);
-			ini_set (P_OPTIONS, "ecran", value);
+			sys_setting ("options", "ecran", value);
 		}
 		ap.msg = msg;
 		ap_fit ();

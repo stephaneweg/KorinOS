@@ -171,6 +171,10 @@ char *ini_field (char *s, char **rest);
  * fichier manque */
 int ini_read (const char *path, void (*fn) (char *key, char *val, void *data), void *data = 0);
 long ini_set (const char *path, const char *key, const char *val);	/* val 0 : retirer la clé */
+/* une clé de /etc/options.txt (file « options ») ou /etc/system.ini (« system ») par init2 (INIT_OP_SETTING : le
+ * compte de la session, sans élévation, valeurs vérifiées ; décision du 25/11/2026) -> 0 ou erreur ; un init2
+ * d'avant (E_INVAL sans la liste) : écrite directement, comme avant */
+long sys_setting (const char *file, const char *key, const char *val);
 long file_write (const char *path, const char *text);
 long proc_find (const char *name, long after);
 long spawn (const char *path, const char *arg);	/* SYS_SPAWN d'AppKit -> pid ou erreur */

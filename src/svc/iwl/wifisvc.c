@@ -99,8 +99,22 @@ static struct known *known_find(const char *ssid)
 	return 0;
 }
 
+/* un nom ou une clé qu'on peut écrire dans wifi.txt (entre guillemets, une ligne) : un SSID avec « " » ou un saut
+ * de ligne y ajoutait ses propres lignes (« key= », « country= », un autre réseau) (P12) */
+static int cfg_safe(const char *s)
+{
+	for (; *s; s++)
+		if ((u8)*s < 0x20 || *s == '"' || *s == 0x7F)
+			return 0;
+	return 1;
+}
+
 static void known_set(const char *ssid, const char *key, int prio)
 {
+	if (!cfg_safe(ssid) || !cfg_safe(key)) {
+		ilog("wifi : nom ou clé illisible dans wifi.txt : réseau non mémorisé\n");
+		return;
+	}
 	struct known *k = known_find(ssid);
 	if (!k) {
 		if (known_n >= NET_MAX)

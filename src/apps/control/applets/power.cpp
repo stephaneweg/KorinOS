@@ -8,7 +8,7 @@
  *     l'écrit lui-même dans /etc/power.ini) ;
  *   * batteries > 0 : « Économie sous » (saver, avec profiles) et « Extinction à » (shutdown) ;
  *   * power_button=1 : ce que fait le bouton d'alimentation (power_button).
- * Ces trois derniers vont dans /etc/power.ini (élévation), puis ACPID_OP_RELOAD. Sans acpid (le Pi, ou pas
+ * Ces trois derniers vont dans /etc/power.ini par acpid (ACPID_OP_SET, sans élévation depuis le 25/11/2026). Sans acpid (le Pi, ou pas
  * d'ACPI), le volet le dit. needs : /sys/svc/acpid (le PC seul l'installe).
  */
 #include <stdio.h>
@@ -21,6 +21,7 @@ enum
 	ACPID_OP_GET = 1,			/* src/svc/acpid/acpid.c */
 	ACPID_OP_PROFILE = 2,
 	ACPID_OP_RELOAD = 3,
+	ACPID_OP_SET = 4,
 	MSG_DATA_OFF = 48,			/* (MSG_DATA) */
 	PW_MSG = 512,
 	PW_LINES = 4,
@@ -84,7 +85,7 @@ static long pw_num (const char *key, long def)
 }
 
 /* une requête à acpid -> sa réponse (pw_msg[0]), < 0 : pas de service */
-static long pw_call (long op, long a)
+static long pw_call (long op, long a, long b = 0)
 {
 	long ch = svc_open ("acpid", 300);
 	if (ch < 0)
@@ -92,6 +93,7 @@ static long pw_call (long op, long a)
 	memset (pw_msg, 0, sizeof pw_msg);
 	pw_msg[0] = op;
 	pw_msg[1] = a;
+	pw_msg[2] = b;
 	long r = svc_call (ch, pw_msg);
 	if (r < 0)
 		return r;
@@ -310,31 +312,18 @@ static void pw_apply (void)
 		else
 			file = 1;
 	}
-	if (file)
+	if (file)	/* (acpid écrit /etc/power.ini pour le compte de la session, sans élévation : 25/11/2026) */
 	{
-		unsigned me;
-		if (ap_elevate (TR ("R\xC3\xA9glages veut modifier les r\xC3\xA9glages d'\xC3\xA9nergie."), &me))
-		{
-			ap.msg = "/etc/power.ini non modifi\xC3\xA9";
-			return;
-		}
-		char v[16];
 		for (long i = 0; i < fm_n; i++)
 		{
 			long c = fm_value (i);
 			long r = 0;
 			if (pw_line_kind[i] == L_SAVER && c >= 0 && c < 5)
-			{
-				snprintf (v, sizeof v, "%d", pw_saver_v[c]);
-				r = ini_set (PW_FILE, "saver", v);
-			}
+				r = pw_call (ACPID_OP_SET, 1, pw_saver_v[c]);
 			else if (pw_line_kind[i] == L_OFF && c >= 0 && c < 4)
-			{
-				snprintf (v, sizeof v, "%d", pw_off_v[c]);
-				r = ini_set (PW_FILE, "shutdown", v);
-			}
+				r = pw_call (ACPID_OP_SET, 2, pw_off_v[c]);
 			else if (pw_line_kind[i] == L_BUTTON && c >= 0 && c < 3)
-				r = ini_set (PW_FILE, "power_button", pw_btn_v[c]);
+				r = pw_call (ACPID_OP_SET, 3, c);	/* (pw_btn_v : dialog, shutdown, nothing, comme acpid) */
 			else
 				continue;
 			if (r < 0)
@@ -342,9 +331,6 @@ static void pw_apply (void)
 			else
 				pw_cur[i] = (int) c;
 		}
-		ap_unelevate (me);
-		if (pw_call (ACPID_OP_RELOAD, 0) < 0)
-			err = 1;
 	}
 	ap.msg = err ? "/etc/power.ini non modifi\xC3\xA9" : "Enregistr\xC3\xA9.";
 }

@@ -34,6 +34,7 @@ INIT_REBOOT_HALT	= 2		; (INIT_OP_REBOOT) arret : le firmware ne relance pas
 INIT_OP_SVC_STOP	= 4		; (service init2, uid 0) donnees : ligne de services.txt -> 0 (plus relance, arrete), E_NOENT
 INIT_OP_SVC_START	= 5		; (service init2, uid 0) donnees : ligne de services.txt -> pid (surveille), E_EXIST
 INIT_OP_LOGOUT		= 6		; (service init2, PC) fermer la session : ses process arretes, l'ecran de connexion -> 0
+INIT_OP_SETTING		= 7		; (service init2, compte de la session ou uid 0) donnees : fichier (options | system), 0, cle, 0, valeur, 0 -> 0, E_INVAL (cle ou valeur hors liste), E_PERM
 SVF_ENDS		= 1		; svc_register : prevenu des fins de process
 SVC_OP_END		= 0xFFFF	; (noyau -> service) a = pid termine
 SVF_BIRTHS		= 2		; svc_register : prevenu des naissances (avis 0xFFFE)

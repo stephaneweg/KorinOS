@@ -50,7 +50,11 @@ static const char *const marques[] = {"/tmp/session.ini", "/tmp/login.halt", "/t
 				      "/apps",
 				      /* Jet : un script injecté dans toutes les pages, la console ; les autorités de https
 				       * (une autorité ajoutée lisait tout le trafic chiffré) (J4) */
-				      "/etc/web-probe.js", "/etc/web-console", "/etc/ca-bundle", 0};
+				      "/etc/web-probe.js", "/etc/web-console", "/etc/ca-bundle",
+				      /* les réglages de la machine : écrits par init2 (INIT_OP_SETTING) et acpid (ACPID_OP_SET)
+				       * pour le compte de la session, ou par Réglages élevé (décision du 25/11/2026) ;
+				       * options.txt porte aussi les options du noyau (monitor, no_preload...) */
+				      "/etc/options.txt", "/etc/system.ini", "/etc/power.ini", 0};
 
 /* le chemin commence-t-il par le dossier d (« /home » couvre « /home » et « /home/a », pas « /homex ») ?
  * Sans la casse : FAT32 et exFAT trouvent « /ETC/SHADOW.INI » comme « /etc/shadow.ini » (E24, F1) */

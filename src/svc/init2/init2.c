@@ -659,6 +659,118 @@ static long service_request(u64 op)
 	return r;
 }
 
+/* ---- INIT_OP_SETTING (décision du 25/11/2026) : Réglages change, pour le compte de la session et sans élévation,
+ * quelques clés de /etc/options.txt et /etc/system.ini ; init2 (uid 0) les écrit, les valeurs vérifiées. Le reste
+ * (autologin, access, comptes, accès à distance) garde l'élévation */
+#define INIT_OP_SETTING 7
+
+static int set_ok(const char *v, const char *allowed, long max)
+{
+	long n = 0;
+	for (; v[n]; n++) {
+		const char *a = allowed;
+		while (*a && *a != v[n])
+			a++;
+		if (!*a)
+			return 0;
+	}
+	return n > 0 && n <= max;
+}
+
+static int set_word(const char *v, const char *a, const char *b)
+{
+	return str_eq(v, a) || str_eq(v, b);
+}
+
+/* « clé=valeur » à la place des lignes de la clé (à la fin), le reste gardé (comme ini_set de Réglages) */
+static long set_line(const char *path, const char *key, const char *val)
+{
+	static char in[8192], out[8192 + 160];
+	long kl = str_len(key), n = 0, fd = sys_open(path, O_READ);
+	if (fd >= 0) {
+		n = sys_read(fd, in, sizeof in - 1);
+		sys_close(fd);
+	}
+	if (n < 0)
+		n = 0;
+	in[n] = 0;
+	char *o = out, *p = in;
+	while (*p) {
+		char *e = p;
+		while (*e && *e != '\n')
+			e++;
+		if (*e)
+			e++;
+		char *k = p;
+		while (*k == ' ')
+			k++;
+		int same = 1;
+		for (long i = 0; i < kl && same; i++)
+			same = k[i] == key[i];
+		if (same && (k[kl] == '=' || k[kl] == ' ')) {
+			p = e;
+			continue;
+		}
+		while (p < e)
+			*o++ = *p++;
+	}
+	if (o != out && o[-1] != '\n') {
+		*o++ = '\r';
+		*o++ = '\n';
+	}
+	o = str_cat(str_cat(str_cat(o, key), "="), val);
+	*o++ = '\r';
+	*o++ = '\n';
+	fd = sys_open(path, O_WRITE | O_CREATE | O_TRUNC);
+	if (fd < 0)
+		return fd;
+	sys_write(fd, out, (u64)(o - out));
+	sys_close(fd);
+	return 0;
+}
+
+static long setting_request(long req)
+{
+	if (!caller_session_or_admin(M32(msg, 44), req))
+		return E_PERM;
+	const char *f = (const char *)msg + 48, *end = (const char *)msg + MSG_SIZE;
+	const char *k = f + str_len(f) + 1;
+	if (k >= end)
+		return E_INVAL;
+	const char *v = k + str_len(k) + 1;
+	if (v >= end || v + str_len(v) >= end)
+		return E_INVAL;
+	int ok = 0;
+	const char *path = 0;
+	if (str_eq(f, "options")) {
+		path = "/etc/options.txt";
+		if (str_eq(k, "keyb"))
+			ok = set_ok(v, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-", 15);
+		else if (str_eq(k, "pays"))
+			ok = set_ok(v, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 2) && str_len(v) == 2;
+		else if (str_eq(k, "fuseau"))
+			ok = set_ok(v, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_/+-", 48);
+		else if (str_eq(k, "ecran"))
+			ok = set_ok(v, "0123456789x@.autoAUTO", 24);
+	} else if (str_eq(f, "system")) {
+		path = "/etc/system.ini";
+		if (str_eq(k, "lang"))
+			ok = set_word(v, "fr", "en");
+		else if (str_eq(k, "desktop"))
+			ok = set_word(v, "classic", "overview");
+		else if (str_eq(k, "shell"))
+			ok = set_word(v, "desktop", "poche");
+	}
+	if (!ok)
+		return E_INVAL;
+	say("init2 : reglage ");
+	say(k);
+	say(" = ");
+	say(v);
+	say("\n");
+	return set_line(path, k, v);
+}
+
 static void requete(long req)
 {
 	u64 op = M64(msg, 0);
@@ -686,6 +798,8 @@ static void requete(long req)
 		r = launch_request();
 	else if (op == INIT_OP_SVC_STOP || op == INIT_OP_SVC_START)
 		r = service_request(op);
+	else if (op == INIT_OP_SETTING)
+		r = setting_request(req);
 	else
 		r = E_INVAL;
 	M64(msg, 0) = (u64)r;

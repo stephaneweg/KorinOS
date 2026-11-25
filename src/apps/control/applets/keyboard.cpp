@@ -278,12 +278,12 @@ static void cl_apply (void)
 {
 	long v = fm_value (1);			/* la langue : system.ini (AppKit) */
 	if (v >= 0)
-		ini_set (P_SYSTEM, "lang", v == 0 ? "fr" : "en");
+		sys_setting ("system", "lang", v == 0 ? "fr" : "en");
 	v = fm_value (2);			/* le pays : options.txt et le Wi-Fi */
 	if (v >= 0)
 	{
 		const char *code = cl_countries[v][0];
-		ini_set (P_OPTIONS, "pays", code);
+		sys_setting ("options", "pays", code);
 		wifi_country ((long) code);	/* (sans Wi-Fi : E_NODEV, sans effet) */
 	}
 	v = ui_w_get_value (cl_list);		/* le fuseau (la ville choisie) : options.txt, puis NTP */
@@ -292,7 +292,7 @@ static void cl_apply (void)
 		long data = 0;
 		if (uikit_list_get (cl_list, v, &data))	/* (sa donnée : le nom du fuseau) */
 		{
-			ini_set (P_OPTIONS, "fuseau", (const char *) data);
+			sys_setting ("options", "fuseau", (const char *) data);
 			net_ntp_sync (0);	/* (netd reprend l'heure : demande seule) */
 		}
 	}
@@ -305,7 +305,7 @@ static void cl_apply (void)
 		ap.msg = cl_s_error;
 		return;
 	}
-	ini_set (P_OPTIONS, "keyb", name);
+	sys_setting ("options", "keyb", name);
 	ap.msg = cl_s_done;
 }
 
