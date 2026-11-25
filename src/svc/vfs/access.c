@@ -3,6 +3,7 @@
  *
  *   uid 0 (system)                         tout
  *   /tmp, /media/..., /net/...             tout le monde (propriétaire du montage : plus tard)
+ *   /tmp/<uid>                             ce compte seulement (TMPDIR de libposix, E27)
  *   le dossier personnel du compte          lui (lecture, écriture)
  *   /home/public                           tout le monde
  *   le dossier personnel d'un autre compte  rien (question 3 de l'étude : 0700 proposé)
@@ -87,6 +88,21 @@ static int court_protege(const char *p)
 	return 0;
 }
 
+/* « /tmp/<nombre>[/...] » -> le nombre (l'uid du compte dont c'est le dossier temporaire) ; -1 sinon */
+static long tmp_uid(const char *p)
+{
+	if (!sous(p, "/tmp") || p[4] != '/')
+		return -1;
+	const char *c = p + 5;
+	long n = 0;
+	int k = 0;
+	while (*c >= '0' && *c <= '9' && k < 10) {
+		n = n * 10 + (*c++ - '0');
+		k++;
+	}
+	return k && (*c == 0 || *c == '/') ? n : -1;
+}
+
 /* uid, chemin externe, écriture ? -> 1 permis */
 static int permis(long uid, const char *p, int ecrire)
 {
@@ -103,6 +119,12 @@ static int permis(long uid, const char *p, int ecrire)
 			return 0;
 	if (court_protege(p))
 		return 0; /* un nom court 8.3 sous /etc ou /var : peut-être un secret */
+	{
+		long t = tmp_uid(p); /* (le dossier temporaire d'un compte : à lui seul, même en lecture ; un autre ne
+				      * peut pas le créer d'avance ni y poser un fichier qu'il ouvrirait : D11) */
+		if (t >= 0)
+			return t == uid;
+	}
 	if (sous(p, "/tmp") || sous(p, "/media") || sous(p, "/net") || sous(p, "/home/public"))
 		return 1;
 	if (sous(p, "/home/system"))
@@ -129,7 +151,10 @@ u64 acces_bits(const char *interne)
 	normaliser(e, p);
 	long owner = 0;
 	u64 kind = 0;
-	if (sous(p, "/tmp") || sous(p, "/media") || sous(p, "/net") || sous(p, "/home/public")) {
+	if (tmp_uid(p) >= 0) {
+		owner = tmp_uid(p);
+		kind = 1;
+	} else if (sous(p, "/tmp") || sous(p, "/media") || sous(p, "/net") || sous(p, "/home/public")) {
 		owner = session_uid_de(); /* (pas de propriétaire : celui de la session) */
 		kind = 2;
 	} else if (sous(p, "/home")) {
@@ -203,6 +228,8 @@ long acces_sbin(long pid, const char *interne)
  * ne doit pas pouvoir tout ouvrir) : le coffre, shadow.ini, et en écriture les marques et fichiers du système */
 static int critique(const char *p, int ecrire)
 {
+	if (tmp_uid(p) >= 0)
+		return 1; /* (/tmp/<uid> : nouveau, rien n'y comptait sur l'accès des autres) */
 	for (int i = 0; toujours[i]; i++)
 		if (sous(p, toujours[i]))
 			return 1;
@@ -231,8 +258,8 @@ long acces_verifier(long pid, const char *interne, int ecrire)
 	for (int i = 0; ecrire && marques[i]; i++)
 		if (sous(ext, marques[i]))
 			mode = ACCESS_ENFORCE; /* (les marques de session aussi) */
-	if (court_protege(ext))
-		mode = ACCESS_ENFORCE; /* (un nom court 8.3 sous /etc ou /var : peut-être shadow.ini) */
+	if (court_protege(ext) || tmp_uid(ext) >= 0)
+		mode = ACCESS_ENFORCE; /* (un nom court 8.3 sous /etc ou /var : peut-être shadow.ini ; /tmp/<uid>) */
 	if (!deja_note(uid, ext, ecrire)) {
 		char n[24], nom[64];
 		u64 info[8] = {0};

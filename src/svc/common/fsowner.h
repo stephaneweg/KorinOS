@@ -15,6 +15,11 @@ long proprietaire(struct msg *m);        /* propriétaire d'une ouverture */
 void open_extras_take(struct msg *m);    /* attributs demandés par vfs (c) */
 void open_extras_put(struct msg *m);     /* c |= ces attributs, a = canal */
 long fo_access(struct msg *m, long num); /* 0, ou E_BADF */
+/* une op par chemin (1-6) ou FS_CACHE : seulement de vfs (transmise ou elle-même), du noyau, de l'uid 0 ou d'un
+ * process aux droits de /sys -> 1 ; 0 : refuser (FS_E_ACCES). Un programme qui appelait fs.<volume> directement
+ * passait par-dessus les règles de vfs (F4) */
+#define FS_E_ACCES -13
+int fs_path_ok(long req, const struct msg *m);
 u32 *fo_own_find(long num, long pid);
 long fo_own_add(long num, long pid);     /* 1, 0 si la table est pleine */
 long fo_own_count(long num);

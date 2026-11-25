@@ -94,7 +94,7 @@ static long auth_call(long ch, u64 op, const char *pw, int keep)
 {
 	memset(m, 0, sizeof m);
 	m[0] = (long)op;
-	m[1] = korin_sys0(SYS_GETPPID); /* la portée de ce qui est retenu : le shell de ce terminal */
+	m[1] = korin_sys0(SYS_GETPPID); /* (l'ancienne portée : authd la calcule lui-même, le père réel, E38) */
 	m[2] = keep ? 1 : 0;
 	u64 n = pw ? (u64)str_len(pw) : 0;
 	if (n > 400)
@@ -152,9 +152,15 @@ int main(int argc, char **argv)
 			return 1;
 		}
 		long r = E_ACCES;
+		long vt = tty_in();
+		/* sans mot de passe (ou retenu), seulement depuis un terminal : une app qui lançait « sudo » par popen
+		 * devenait uid 0 sans que personne ne l'ait demandé (A3, E38) ; une app passe par ui_elevate (la carte) */
+		if (can == 1 && !vt) {
+			out("sudo : pas de terminal (une app demande l'elevation par la carte, ui_elevate)\n");
+			return 1;
+		}
 		if (can == 1)
 			r = auth_call(ch, AUTH_SUDO, "", 0);
-		long vt = tty_in();
 		int keep = -1; /* (demandé une fois, après le premier mot de passe) */
 		for (int tries = 0; r == E_ACCES && tries < 3; tries++) {
 			char pw[128];

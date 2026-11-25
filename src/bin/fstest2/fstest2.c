@@ -343,6 +343,10 @@ static void essai_noeuds(const char *name, int must)
 	canal = c;
 	appel_chemin(FS_MKDIR, 0, "tmp"); /* (déjà là : E_EXIST) */
 	long a = ouvrir_nd(O_READ | O_WRITE | O_CREATE | O_TRUNC, &size);
+	if (a == -13 && korin_sys0(SYS_GETUID) > 0) { /* (F4 : hors uid 0, le service d'un volume ne répond qu'à vfs) */
+		verdict(1, "FS_OPEN direct refuse hors uid 0 (F4 ; sudo fstest2 pour le reste)", a);
+		return;
+	}
 	verdict(a >= 0, "FS_OPEN tmp/fstest2.nd (A, creation)", a);
 	if (a < 0)
 		return;

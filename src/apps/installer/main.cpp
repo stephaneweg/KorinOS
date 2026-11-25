@@ -250,9 +250,18 @@ static long g_dlist, g_dact, g_dsup, g_dnouv, g_dnote, g_defi, g_duse, g_draz;
 static int role_ligne (int r) { for (int i = 0; i < g_np; i++) if (g_p[i].role == r) return i; return -1; }
 static bool roles_on () { return role_ligne (R_ROOT) >= 0; }	// (/ donné par « Utiliser… » : le parcours des rôles)
 
+// l'élévation avant les « sudo » : la carte d'authd (mot de passe de l'utilisateur, ou Autoriser) ; sudo, lui,
+// ne s'élève plus sans terminal quand le compte n'a pas de mot de passe (E38). Une fois en uid 0, l'installateur
+// y reste : les appels suivants rendent 0 tout de suite.
+static bool eleve ()
+{
+	return ui_elevate ((long) TR ("L'installateur veut préparer le disque et installer Korin OS")) == 0;
+}
+
 static void disque_lit ()
 {
 	g_np = 0; g_ndel = 0; g_dev[0] = 0; g_lu = true; g_kroot = g_khome = 0; g_kver[0] = g_kusers[0] = 0;
+	eleve ();
 	FILE *f = popen ("/bin/sudo /sbin/osinstall --list", "r");
 	if (!f) return;
 	char l[256]; bool premier = true;
@@ -735,6 +744,7 @@ static int vcmp (const char *a, const char *b)
 static volatile bool s_idx_tourne, s_idx_fini; static bool g_online, s_idx_fait; static pthread_t s_idx_tid;
 static void *idx_thread (void *)
 {
+	eleve ();
 	if (FILE *f = popen ("/bin/sudo /bin/pkg check", "r")) { char l[256]; while (fgets (l, sizeof l, f)) {} pclose (f); }
 	s_idx_fini = true;
 	return 0;
@@ -1506,10 +1516,12 @@ static void suivant ()
 	case P_SUMMARY:
 		plan_ecrit ();
 		s_ipct = 0; s_istep = 1; s_ifini = 0; s_irc = 0; s_nj = 0; s_ierr[0] = s_itache[0] = 0;
+		eleve ();	// (avant le thread : la carte se montre depuis la boucle de l'interface)
 		{ pthread_t t; if (pthread_create (&t, 0, installe, 0) != 0) { cpy (s_ierr, TR ("Pas de thread pour l'installation."), sizeof s_ierr); s_irc = 1; s_ifini = 1; } }
 		montre (P_INSTALL);
 		break;
 	case P_DONE:
+		eleve ();
 		if (FILE *r = popen ("/bin/sudo /bin/reboot", "r")) pclose (r);
 		break;
 	}

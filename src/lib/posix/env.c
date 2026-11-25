@@ -25,6 +25,7 @@
 #include <time.h>
 #include <pwd.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include "posix_internal.h"
 
 static char *s_noenv[1] = { 0 };
@@ -130,6 +131,21 @@ void __posix_env_init (void)
 				setenv ("USER", pw->pw_name, 1);
 			if (pw && pw->pw_name && getenv ("LOGNAME") == 0)
 				setenv ("LOGNAME", pw->pw_name, 1);
+		}
+	}
+	/* le dossier temporaire du compte (E27) : /tmp/<uid>, que vfs reserve a ce compte ; /tmp, commun, laissait un
+	 * autre compte poser d'avance le fichier qu'on allait ouvrir. Cree ici s'il manque (une seule fois par
+	 * lignee : les fils heritent de TMPDIR). Pas pour l'uid 0 (les services : voir HOME plus haut). */
+	if (getuid () != 0)
+	{
+		const char *t = getenv ("TMPDIR");
+		if (t == 0 || strcmp (t, "/tmp") == 0 || strcmp (t, "/tmp/") == 0)
+		{
+			char d[32];
+			snprintf (d, sizeof d, "/tmp/%u", (unsigned) getuid ());
+			struct stat st;
+			if (mkdir (d, 0700) == 0 || (stat (d, &st) == 0 && S_ISDIR (st.st_mode)))
+				setenv ("TMPDIR", d, 1);
 		}
 	}
 	/* entrees / sorties sur un pty (le Terminal, telnetd) : un xterm, sauf TERM donne */

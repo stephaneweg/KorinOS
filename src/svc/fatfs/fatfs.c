@@ -1673,7 +1673,7 @@ static void traiter(long req)
 		writer_begin();
 	mutex_unlock(&recv);
 	tc->req = req;
-	long r = k < 0 ? E_INVAL : ops[k].fn(m);
+	long r = k < 0 ? E_INVAL : !fs_path_ok(req, m) ? FS_E_ACCES : ops[k].fn(m);
 	if (r == E_RETRY_W) { /* (une fermeture qui écrit) */
 		op_end();
 		memcpy(m, &save, sizeof save);

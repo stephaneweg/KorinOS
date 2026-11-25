@@ -45,6 +45,7 @@ static char nom_svc[32];
 static struct msg msg __attribute__((aligned(16)));
 static struct ouvert ouverts[OUV_MAX];
 static u8 ajouts[OUV_MAX]; /* par entrée : ouverte en O_APPEND */
+static u8 ecrits[OUV_MAX]; /* par entrée : ouverte avec O_WRITE (comme fatfs ; sinon, pas d'écriture : F5) */
 static struct node noeuds[NOEUDS];
 
 /* ---- nœuds */
@@ -215,6 +216,7 @@ static long op_ouvrir(struct msg *m)
 	ouverts[e].owner = owner;
 	m->b = e;
 	ajouts[e] = (m->a & O_APPEND) != 0; /* O_APPEND : écrit à la fin réelle */
+	ecrits[e] = (m->a & O_WRITE) != 0;
 	ouverts[e].pos = ajouts[e] ? (i64)n->size : 0;
 	m->c = n->attr;
 	m->d = n->size;
@@ -446,6 +448,8 @@ static long op_ecrire(struct msg *m)
 		return e;
 	if ((u64)m->c > FS_DATA_MAX)
 		return E_INVAL;
+	if (!ecrits[e])
+		return E_BADF;
 	i64 pos = position_ecrire(m, n, position_lire(m, e));
 	u64 size;
 	long r = ecrire_noeud(n, pos, m->c, m->data, &size);
@@ -472,6 +476,8 @@ static long rw_t(struct msg *m, int write)
 		position_apres(m, e, r, pos);
 		return r;
 	}
+	if (!ecrits[e])
+		return E_BADF;
 	pos = position_ecrire(m, n, pos);
 	u64 size;
 	long r = ecrire_noeud(n, pos, m->c, buf, &size);
@@ -615,7 +621,7 @@ int main(int argc, char **argv)
 			r = E_INVAL;
 			for (int i = 0; ops[i].op; i++)
 				if ((u64)ops[i].op == op) {
-					r = ops[i].fn(&msg);
+					r = fs_path_ok(req, &msg) ? ops[i].fn(&msg) : FS_E_ACCES;
 					break;
 				}
 		}

@@ -28,6 +28,7 @@ struct ouvert {
 	struct ext4r_inode in;
 	char path[PATH_OUV]; /* (dossier) son chemin : les liens de ses entrées */
 	int append;          /* O_APPEND : écrit à la fin */
+	int wr;              /* ouvert avec O_WRITE (comme fatfs : sinon, pas d'écriture par ce numéro) */
 };
 
 static char nom_svc[32], nom_blk[32];
@@ -217,6 +218,7 @@ static long op_ouvrir(struct msg *m)
 	o->dpos = o->drang = 0;
 	o->in = in;
 	o->append = (m->a & O_APPEND) != 0;
+	o->wr = (m->a & O_WRITE) != 0;
 	if (o->append)
 		o->pos = (i64)in.size;
 	u64 n = strlen(path);
@@ -288,6 +290,8 @@ static long ecrire(struct msg *m, long e, const void *src, u64 n)
 	if (r)
 		return r;
 	struct ouvert *o = &ouverts[e];
+	if (!o->wr)
+		return E_BADF; /* (ouvert en lecture : vfs n'a vérifié que la lecture, F5) */
 	i64 pos = o->append ? (i64)o->in.size : position_lire(m, e);
 	if (pos < 0)
 		return E_INVAL;
@@ -592,7 +596,7 @@ int main(int argc, char **argv)
 			res = E_INVAL;
 			for (int i = 0; ops[i].op; i++)
 				if ((u64)ops[i].op == op) {
-					res = ops[i].fn(&msg);
+					res = fs_path_ok(req, &msg) ? ops[i].fn(&msg) : FS_E_ACCES;
 					break;
 				}
 		}

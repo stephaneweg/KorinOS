@@ -531,8 +531,38 @@ static long proprietaire(struct msg *m)
 		return pid;
 	if (memcmp(pl + 24, "vfs", 4))
 		return pid;
+	if (ksys(0x1D, pid, 0, 0, 0) != 1) /* (SYS_PROC_RIGHTS : le nom se choisit au lancement, vfs a les droits) */
+		return pid;
 	pid_vfs = pid;
 	return d;
+}
+
+/* F4 : une op par chemin (1-6) seulement de vfs (transmise, ou elle-même), du noyau, de l'uid 0 ou d'un process
+ * aux droits de /sys (comme fs_path_ok de src/svc/common/fsowner.c) */
+#define FSP_REQ_INFO 0x97
+#define FSP_RIGHTS 0x1D
+#define FSP_UID 0x92
+static int fsp_rights(long pid)
+{
+	return pid > 0 && ksys(FSP_RIGHTS, pid, 0, 0, 0) == 1;
+}
+static int path_ok(long req, const struct msg *m)
+{
+	u64 op = (u64)m->op;
+	if (!(op >= 1 && op <= 9) && op != 18)
+		return 1;
+	long pid = m->pid;
+	if (!pid || pid == SVC_PID_KERNEL || (pid_vfs && pid == pid_vfs))
+		return 1;
+	long info[4];
+	long r = ksys(FSP_REQ_INFO, req, (long)info, 0, 0);
+	if (r == -38)
+		return 1; /* (le Pi : pas d'uid) */
+	if (r == 0 && info[1])
+		return info[1] == pid_vfs || fsp_rights(info[1]);
+	if (fsp_rights(pid))
+		return 1;
+	return r == 0 ? info[2] == 0 : ksys(FSP_UID, pid, 0, 0, 0) == 0;
 }
 
 static int own_has(struct ouvert *o, u32 pid)
@@ -1079,6 +1109,11 @@ int main(int argc, char **argv)
 		}
 		if (op == SVC_OP_BIRTH)
 			continue;
+		if (!path_ok(req, &msg)) {
+			msg.op = -13; /* (E_ACCES) */
+			ksys(SYS_SVC_REPLY, req, (long)&msg, 0, 0);
+			continue;
+		}
 		long r;
 		if (op == FS_CLOSE) {
 			r = op_close(&msg);

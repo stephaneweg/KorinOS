@@ -2,7 +2,8 @@
  * tempname.c -- mktemp, mkstemp, mkstemps, mkostemp, mkostemps, mkdtemp (et leurs _r) : ceux de
  * newlib ne savent pas creer de repertoire (mkdtemp ne fait pas de mkdir : _gettemp sans
  * HAVE_MKDIR). Tout le module est remplace, pour que mktemp.o de newlib ne soit jamais tire (ses
- * symboles en double). Noms tires de getrandom. Ajoute pour git (receive-pack : quarantaine).
+ * symboles en double). Noms tires de getrandom, sans repli sur rand() (previsible : un autre compte
+ * devinait le nom, E27). Ajoute pour git (receive-pack : quarantaine).
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -40,8 +41,10 @@ static int gettemp (char *path, int suffix, int kind, int flags, int *fdp)
 		if (n > sizeof r)
 			n = sizeof r;
 		if (getrandom (r, n, 0) != (ssize_t) n)
-			for (size_t i = 0; i < n; i++)
-				r[i] = (unsigned char) (rand () >> 7);
+		{
+			errno = EIO;
+			return 0;
+		}
 		for (size_t i = 0; i < (size_t) (end - start); i++)
 			start[i] = s_chars[r[i % n] % (sizeof s_chars - 1)];
 		if (kind == 0)

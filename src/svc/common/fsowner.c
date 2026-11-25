@@ -57,6 +57,25 @@ void open_extras_put(struct msg *m)
 	m->a = (u32)fs_canal; /* (comme l'asm : 32 bits) */
 }
 
+int fs_path_ok(long req, const struct msg *m)
+{
+	u64 op = m->op;
+	if (!(op >= 1 && op <= 9) && op != 18) /* (FS_CACHE : 18) */
+		return 1;
+	long pid = m->pid;
+	if (!pid || pid == SVC_PID_KERNEL || (pid_vfs && pid == pid_vfs))
+		return 1;
+	long info[4];
+	long r = korin_sys2(SYS_SVC_REQ_INFO, req, (long)info);
+	if (r == CALLER_E_NOSYS)
+		return 1; /* (le Pi : pas d'uid, rien à protéger de plus que vfs) */
+	if (r == 0 && info[1]) /* transmise (SVC_FORWARD) : par vfs, ou un autre service aux droits de /sys */
+		return info[1] == pid_vfs || caller_rights(info[1]);
+	if (caller_rights(pid))
+		return 1; /* (vfs lui-même, avant sa première ouverture transmise) */
+	return r == 0 ? info[2] == 0 : caller_uid(pid) == 0;
+}
+
 long fo_access(struct msg *m, long num)
 {
 	u32 pid = m->pid;

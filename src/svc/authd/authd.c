@@ -571,7 +571,7 @@ static long elever(const struct compte *c, long pid, const char *raison)
 	}
 	if (c->uid == 0)
 		return 0; /* (déjà system) */
-	if (retenu(c->uid, 0)) {
+	if (retenu(c->uid, (u64)pid)) { /* (retenu pour cette app seulement, pas pour toutes celles du compte : A2) */
 		long r = korin_sys2(SYS_PROC_SETUID, pid, 0);
 		journal("elevation", c, pid, r ? "echec du changement d'uid" : "accordee (retenue)");
 		return r;
@@ -609,11 +609,14 @@ static long elever(const struct compte *c, long pid, const char *raison)
 	return DEFER;
 }
 
+static int verifier_compte(const struct compte *c, const char *pw);
+
 static long carte(long pid, const char *data)
 {
 	struct compte c;
 	memset(&c, 0, sizeof c);
 	copie(c.name, sizeof c.name, pending.name);
+	c.uid = pending.uid;
 	if (!pending.active || pending.done || pid != pending.card || M64(msg, 8) != pending.token)
 		return E_PERM;
 	if (M64(msg, 16) == 1) {
@@ -621,18 +624,128 @@ static long carte(long pid, const char *data)
 		finir(E_CANCELED);
 		return 0;
 	}
-	if (!verifier(pending.name, data)) {
+	if (!verifier_compte(&c, data)) {
 		journal("elevation", &c, pending.pid, "mauvais mot de passe");
-		korin_sys1(SYS_SLEEP, 1000);
 		return E_ACCES;
 	}
 	long r = korin_sys2(SYS_PROC_SETUID, pending.pid, 0);
 	int keep = !r && M64(msg, 24) == 1 && empreinte_de(pending.name) && empreinte[0];
 	if (keep)
-		retenir(pending.uid, 0);
+		retenir(pending.uid, (u64)pending.pid);
 	journal("elevation", &c, pending.pid, r ? "echec du changement d'uid" : keep ? "accordee, retenue 5 min" : "accordee");
 	finir(r);
 	return 0;
+}
+
+/* ---------------------------------------------------------------- E38 : l'appelant et sa portée */
+
+/* la portée de « retenir » : le père réel de l'appelant (le shell du terminal de sudo), lu par le noyau pendant
+ * que l'appelant attend (SVC_REQ_INFO) ; plus celle que donnait le client, qu'une app choisissait (A2) */
+static u64 portee_de(long pid)
+{
+	long info[4];
+	if (korin_sys2(SYS_SVC_REQ_INFO, cur_req, info) == 0 && info[0] == pid)
+		return (u64)info[3];
+	return 0; /* (le Pi, ou l'appelant parti : rien de retenu à trouver) */
+}
+
+/* l'appelant est-il le vrai /bin/sudo ? Le chemin déclaré par son chargeur ET l'empreinte de son contenu,
+ * comparée au fichier : un compte qui scellerait un faux « /bin/sudo » (image à son uid) ne passe pas (A2) */
+static u8 pex[296] __attribute__((aligned(8)));
+static u8 sudo_buf[4096];
+static int vrai_sudo(long pid)
+{
+	long r = korin_sys2(SYS_PROC_EXE, pid, pex);
+	if (r == E_NOSYS)
+		return 1; /* (le Pi : pas d'identité des programmes) */
+	if (r < 0 || !(*(u32 *)pex & 1))
+		return 0;
+	pex[40 + 127] = 0;
+	const char *e = (const char *)pex + 40, *c = e;
+	while (*c && *c != ':' && c - e < 8)
+		c++;
+	if (*c == ':' && c[1] == '/')
+		e = c + 1;
+	if (!str_eq(e, "/bin/sudo"))
+		return 0;
+	long fd = sys_open("/bin/sudo", O_READ);
+	if (fd < 0)
+		return 0;
+	struct sha s;
+	sha_init(&s);
+	long n;
+	while ((n = sys_read(fd, sudo_buf, sizeof sudo_buf)) > 0)
+		sha_add(&s, sudo_buf, (u64)n);
+	sys_close(fd);
+	u8 h[32];
+	sha_end(&s, h);
+	u8 d = 0;
+	for (int i = 0; i < 32; i++)
+		d |= h[i] ^ pex[8 + i];
+	return d == 0;
+}
+
+/* les mots de passe faux par compte et par origine : après 3, plus d'essai pendant 30 s, puis le double (une heure
+ * au plus) ; remplace un SLEEP de 1 s qui arrêtait tout authd (un seul fil) (A7, E38). L'origine : 0 pour sudo,
+ * la carte et passwd (les programmes du compte), le pid du service pour AUTH_VERIFY (login, telnetd, ftpd) : des
+ * essais à distance ne ferment pas l'écran de connexion */
+#define ECH_MAX 32
+static struct {
+	long uid, src, fails;
+	u64 until;
+} echecs[ECH_MAX];
+
+static int bloque(long uid, long src)
+{
+	for (int i = 0; i < ECH_MAX; i++)
+		if (echecs[i].fails && echecs[i].uid == uid && echecs[i].src == src)
+			return (u64)korin_sys0(SYS_TIME_MS) < echecs[i].until;
+	return 0;
+}
+
+static void resultat(long uid, long src, int ok)
+{
+	int k = -1;
+	for (int i = 0; i < ECH_MAX && k < 0; i++)
+		if (echecs[i].fails && echecs[i].uid == uid && echecs[i].src == src)
+			k = i;
+	if (ok) {
+		if (k >= 0)
+			echecs[k].fails = 0;
+		return;
+	}
+	for (int i = 0; i < ECH_MAX && k < 0; i++)
+		if (!echecs[i].fails)
+			k = i;
+	if (k < 0) { /* (pleine : la plus ancienne fin de blocage) */
+		k = 0;
+		for (int i = 1; i < ECH_MAX; i++)
+			if (echecs[i].until < echecs[k].until)
+				k = i;
+		echecs[k].fails = 0;
+	}
+	echecs[k].uid = uid;
+	echecs[k].src = src;
+	long f = ++echecs[k].fails;
+	if (f >= 3) {
+		u64 w = 30000ull << (f - 3 < 7 ? f - 3 : 7);
+		echecs[k].until = (u64)korin_sys0(SYS_TIME_MS) + (w > 3600000ull ? 3600000ull : w);
+	}
+}
+
+/* le mot de passe du compte, compté par origine (bloqué : refusé sans essayer) */
+static int verifier_de(const struct compte *c, const char *pw, long src)
+{
+	if (bloque(c->uid, src))
+		return 0;
+	int ok = verifier(c->name, pw);
+	resultat(c->uid, src, ok);
+	return ok;
+}
+
+static int verifier_compte(const struct compte *c, const char *pw)
+{
+	return verifier_de(c, pw, 0);
 }
 
 static long traiter(void)
@@ -671,7 +784,7 @@ static long traiter(void)
 	case AUTH_CAN:
 		if (uid != 0 && !peut_elever(&c))
 			return 0;
-		if (retenu(uid, M64(msg, 8)))
+		if (retenu(uid, portee_de(pid)))
 			return 1;
 		{
 			int e = empreinte_de(c.name);
@@ -682,38 +795,43 @@ static long traiter(void)
 		journal("oubli des elevations retenues", &c, pid, "fait");
 		return 0;
 	case AUTH_CHECK:
-		if (verifier(c.name, data))
+		if (verifier_compte(&c, data))
 			return 0;
-		korin_sys1(SYS_SLEEP, 1000);
 		return E_ACCES;
-	case AUTH_SUDO:
+	case AUTH_SUDO: {
+		/* seulement le vrai /bin/sudo (qui demande le mot de passe sur un terminal) ; une app qui envoyait
+		 * AUTH_SUDO elle-même devenait uid 0 (A2, E38) */
+		if (uid != 0 && !vrai_sudo(pid)) {
+			journal("sudo", &c, pid, "refuse (pas /bin/sudo)");
+			return E_PERM;
+		}
+		u64 scope = portee_de(pid);
 		if (uid != 0 && !peut_elever(&c)) {
 			journal("sudo", &c, pid, "refuse (pas dans /etc/elevate.ini)");
 			return E_PERM;
 		}
-		if (uid != 0 && retenu(uid, M64(msg, 8))) {
+		if (uid != 0 && scope && retenu(uid, scope)) {
 			journal("sudo", &c, pid, "accorde (retenu)");
 			return korin_sys2(SYS_PROC_SETUID, pid, 0);
 		}
-		if (!verifier(c.name, data)) {
+		if (!verifier_compte(&c, data)) {
 			journal("sudo", &c, pid, "mauvais mot de passe");
-			korin_sys1(SYS_SLEEP, 1000);
 			return E_ACCES;
 		}
 		{
-			int keep = uid != 0 && M64(msg, 16) == 1 && M64(msg, 8) && empreinte_de(c.name) && empreinte[0];
+			int keep = uid != 0 && M64(msg, 16) == 1 && scope && empreinte_de(c.name) && empreinte[0];
 			if (keep)
-				retenir(uid, M64(msg, 8));
+				retenir(uid, scope);
 			journal("sudo", &c, pid, keep ? "accorde, retenu 5 min" : "accorde");
 		}
 		return korin_sys2(SYS_PROC_SETUID, pid, 0);
+	}
 	case AUTH_PASSWD: {
 		const char *old = data, *nw = data + str_len(data) + 1;
 		if ((const u8 *)nw >= msg + MSG_SIZE)
 			return E_INVAL;
-		if (!verifier(c.name, old)) {
+		if (!verifier_compte(&c, old)) {
 			journal("passwd", &c, pid, "mauvais mot de passe");
-			korin_sys1(SYS_SLEEP, 1000);
 			return E_ACCES;
 		}
 		if (coffre(KV_PASSWD, c.name, old, nw) < 0) { /* (d'abord le coffre : s'il refuse, rien ne change) */
@@ -735,14 +853,14 @@ static long traiter(void)
 		struct compte t;
 		memset(&t, 0, sizeof t);
 		copie(t.name, sizeof t.name, who);
-		if (verifier(who, pw)) {
+		t.uid = user_uid(who);
+		if (verifier_de(&t, pw, pid)) {
 			journal("connexion", &t, pid, "accordee");
 			if (coffre(KV_UNLOCK, who, pw, 0) < 0)
 				journal("connexion", &t, pid, "le coffre ne s'ouvre pas avec ce mot de passe");
 			return 0;
 		}
 		journal("connexion", &t, pid, "mauvais mot de passe");
-		korin_sys1(SYS_SLEEP, 1000);
 		return E_ACCES;
 	}
 	case AUTH_HASPW: { /* (ouvert à tous : l'écran de connexion le montre déjà, « Sans mot de passe ») */
