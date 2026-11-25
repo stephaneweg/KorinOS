@@ -255,9 +255,16 @@ static long plan_send(u64 flags, u32 crc, const u64 *ranges, int n)
 	return r < 0 ? r : (long)dm[0];
 }
 
+/* l'aléa des sels et des GUID : un appel qui échoue laissait un sel nul ou un GUID prévisible (B10) ; on
+ * arrête plutôt l'installation */
 static void rnd(void *b, u64 n)
 {
-	korin_sys2(SYS_GETRANDOM, (long)b, (long)n);
+	for (int i = 0; i < 3; i++)
+		if (korin_sys2(SYS_GETRANDOM, (long)b, (long)n) == (long)n)
+			return;
+	static const char m[] = "osinstall : pas d'alea (SYS_GETRANDOM), installation arretee\n";
+	sys_write(2, m, sizeof m - 1);
+	_exit(1);
 }
 
 static void guid_rnd(u8 g[16])
