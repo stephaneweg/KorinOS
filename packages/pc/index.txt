@@ -1,7 +1,7 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-25 12:53
+date = 2026-11-25 14:14
 abi = 629
 packages = 117
 board = pc
@@ -2648,18 +2648,18 @@ content = 388c8e48a673928a390d6d815b44c3eb3bb19a4eb2eea81f0c12a10b8f3967cd
 
 [qtbase-dev]
 title = Qt (développement)
-version = 6.10.2-1
+version = 6.10.2-2
 category = Développement
 author = Korin OS
 summary = Qt 6.10.2 pour le GCC de l'OS : QtCore, QtGui, QtWidgets, QtNetwork (OpenSSL), la plateforme korin (UIKit, barre de menus globale) et le style korin, statiques, avec moc, rcc, uic, qmake, qt-cmake pour Korin, dans /devtools/qt (licences LGPL-3 / GPL)
-size = 4355822
-installed = 15698507
-sha256 = 171199795a31a38aeb3e7ed9ab28ad8710ac0a27ea109b46dcab16485b13f3e2
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtbase-dev-6.10.2-1.opk
+size = 4355836
+installed = 15698619
+sha256 = e4b52daec4619db920644b3ace6b398874a84292bd22fd66aa19ae7a74975a10
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtbase-dev-6.10.2-2.opk
 needs = zlib-dev, libpng-dev, brotli-dev, freetype-dev, harfbuzz-dev, openssl-dev, qtbase-dev-data-1, qtbase-dev-data-2, qtbase-dev-data-3, abi >= 629
 required = 0
 restart = 0
-content = b1bbf9d9c7d0aaeea3b83a5debd6e60b429810732709ef2bdbe1f40cfbf367b7
+content = 90a0fa5f0277c0166e56e1539e94039d51c5e69f7ddc62cc0b4df7c6489e91b3
 
 [qtshadertools-dev]
 title = Qt Shader Tools (développement)
