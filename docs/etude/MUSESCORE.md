@@ -12,7 +12,7 @@ AudioKit** ; les **menus dans la barre de menus globale** de Korin ; les dépend
 | Compilation croisée de MuseScore 4.7.7 (statique, 2 524 cibles) | **fait (24/11)** |
 | Convertisseur sans fenêtre : `main -o grace.pdf Amazing_grace.mscz` | **fait (24/11), QEMU PC** : PDF de 50 Ko en 31 s (sans KVM) |
 | Interface : fenêtre, palettes, inspecteur, partition (Leland, Edwin), **menus dans la barre globale**, **en français** | **fait (25/11), QEMU PC** |
-| Lecture : **pilote AudioKit**, SoundFont MS Basic, curseur de lecture | **fait (25/11), QEMU PC** (le compteur avance ; le son lui-même n'est pas écouté sous QEMU) |
+| Lecture : **pilote AudioKit**, **synthé d'AudioKit** et SoundFont du système (comme Koton), curseur de lecture, son en édition | **fait (25/11), QEMU PC** (sortie HDA de QEMU enregistrée en wav) |
 | **Impression** (Fichier > Imprimer) : le dialogue de Korin, les imprimantes de printd (PrintSupport sur PrinterKit, [QT.md](QT.md) § 3.1) | **fait (25/11), QEMU PC** |
 | App `/apps/musescore.app` (264 Mo), paquet `musescore` (Release) | **prêts**, pas publiés |
 | Essai sur le ZBook (vitesse réelle, son) | à faire |
@@ -47,9 +47,19 @@ par `stage.sh` avec le `lrelease` de l'hôte (MuseScore, instruments, et `qtbase
   (`platform/linux/Main.qml`), qui prend la barre de menus de la plateforme quand `isGlobalMenuAvailable()`.
 * **Thème de plateforme** (`korin/korinplatformtheme.*`) : barre de menus globale disponible (les menus passent par
   `Qt.labs.platform` → le `QPlatformMenuBar` de la QPA korin) ; clair ou sombre d'après le thème du bureau.
-* **Son** (`korin/korinaudiodriver.*`) : un flux d'AudioKit en 16 bits stéréo, 44,1 ou 48 kHz ; un fil appelle le
-  rappel de MuseScore (float), convertit et écrit quand `ak_space` a la place (AudioKit ne réveille personne) ; API par
+* **Son** (`korin/korinaudiodriver.*`) : un flux d'AudioKit en 16 bits stéréo à 44,1 kHz ; un fil appelle le
+  rappel de MuseScore (float), convertit et écrit ce qu'`ak_write` prend (AudioKit ne réveille personne) ; API par
   défaut « AudioKit ».
+* **Synthé** (`korin/korinfluidsynth.inc`, inclus par `fluidsynth.cpp` sous `__armpi__`) : la classe `FluidSynth` de
+  MuseScore joue par le **synthé GM d'AudioKit** (`ak_synth_new(0)` : la SoundFont du système, `/res/soundfonts`,
+  paquet `soundfonts`), comme Koton, Arabesque et la boîte à rythmes ; le séquenceur de MuseScore est gardé. Le dépôt
+  de SoundFonts ne lit plus de fichier : une seule, « MS Basic », dont les presets sont ceux d'`ak_sf_default`
+  (`fluidsoundfontparser.cpp`). Avant (25/11) : FluidSynth relisait MS Basic.sf3 (51 Mo d'Ogg) pour chaque piste ; la
+  lecture restait refusée pendant le « Chargement des échantillons audio » (4 min sous QEMU, sans fin sur le ZBook).
+  Percussions sur le canal 10 d'AudioKit (banque 128) ; gain 3 (mesuré) ; pas de micro-intervalles ni de SoundFont de
+  l'utilisateur.
+* **Menus** : `PlatformMenuBar.qml` ne relisait l'état des entrées qu'à `aboutToShow`, que la barre globale de Korin
+  n'émet pas (Enregistrer restait grisé) : chaque entrée suit `stateChanged`.
 * **MIDI** : les ports factices de MuseScore (remis à jour : l'interface avait changé sans eux). Pas de MIDI USB.
 * **Données** : `resolveAppDataPath` = `/apps/musescore.app/share`.
 * **Langue** : `LANG` d'après `lang` de `/etc/system.ini` (français sans clé, comme UIKit), quand la session n'en a

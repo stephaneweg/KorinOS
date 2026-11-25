@@ -31,6 +31,14 @@ le fermait) -> QPA : popup d'UIKit sans focus, focus de Qt à part, marge transp
 diffèrent par leurs dates seulement), musescore 4.7.7-0.2. Vu : la fenêtre principale descend de 12 px au premier
 clic dans la partition (Elegant ?), pas encore regardé.
 
+**25/11 (suite)** : lecture refusée sur le ZBook = chargement de MS Basic.sf3 par FluidSynth, par piste (« invalid
+audio source params » n'est que le premier essai) -> **synthé d'AudioKit** (demande de l'utilisateur : comme Koton) :
+korin/korinfluidsynth.inc + korinaudiodriver 44,1 kHz ; MS Basic retirée du paquet (needs soundfonts ; replaces
+musescore-data-2) ; menus : stateChanged (Enregistrer grisé). Publiés : musescore 4.7.7-0.3, musescore-data-1 1.0.1.
+Essais : tools/musescore/pctest.py --score, tools/python/pctest.py spawn2:, son par --qemu "-audiodev wav,id=snd0,
+path=X.wav -device intel-hda -device hda-output,audiodev=snd0" (la chaîne QEMU divise par 4 : sontest 10000 -> 2500).
+Barre d'outils « au-dessus » des autres fenêtres : plus reproduit par l'utilisateur.
+
 **Reste** : paroles des partitions MuseScore 2 (police absente, quelques lettres fausses), essai sur le ZBook (vitesse,
 son réel), MIDI USB, dialogues de fichiers d'UIKit, publication.
 
