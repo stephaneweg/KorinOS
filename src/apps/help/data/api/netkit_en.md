@@ -63,6 +63,8 @@ int up = *(unsigned *) (ni + NI_IP) != 0;
 | `net_socket` | `SOCK_TCP` (1) or `SOCK_UDP` (2) | socket number (`sd`) |
 | `net_connect` | sd, ip, port | 0; waits for the connection |
 | `net_bind` | sd, port | 0 |
+| `net_bind_addr` | sd, port, ip | 0; `ip` 127.x: loopback only (not the network), 0: all |
+| `net_peername` | sd | `ip \| port << 32` of the other end |
 | `net_listen` | sd, backlog | 0 |
 | `net_accept` | sd, timeout in ms | sd of the connection; `E_AGAIN` (-11) when the timeout expires |
 | `net_send` | sd, buffer, bytes | bytes sent |

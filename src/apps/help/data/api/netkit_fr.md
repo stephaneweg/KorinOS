@@ -63,6 +63,8 @@ int up = *(unsigned *) (ni + NI_IP) != 0;
 | `net_socket` | `SOCK_TCP` (1) ou `SOCK_UDP` (2) | numéro de socket (`sd`) |
 | `net_connect` | sd, ip, port | 0 ; attend la connexion |
 | `net_bind` | sd, port | 0 |
+| `net_bind_addr` | sd, port, ip | 0 ; `ip` 127.x : la boucle locale seulement (pas le réseau), 0 : toutes |
+| `net_peername` | sd | `ip \| port << 32` de l'autre bout |
 | `net_listen` | sd, file d'attente | 0 |
 | `net_accept` | sd, délai en ms | sd de la connexion ; `E_AGAIN` (-11) au bout du délai |
 | `net_send` | sd, tampon, octets | octets envoyés |

@@ -71,6 +71,9 @@ NET_OP_SHUTDOWN		= 24		; a sd : plus rien a envoyer, FIN apres la file ;
 NET_OP_SOCKETS		= 25		; a premier emplacement -> nombre d'entrees NSK_ENT
 					;   (NSK_PER_MSG au plus), b emplacement suivant
 					;   (MAX_SOCK de netd : fin) ; netstat, net_sockets
+NET_OP_BIND_ADDR	= 26		; a sd, b port, c ip (0 : toutes ; 127.x : la boucle locale
+					;   seulement ; la notre : elle seulement) -> 0 ; netd en C
+NET_OP_PEERNAME		= 27		; a sd -> b ip, c port de l'autre bout ; netd en C
 NSK_TYPE		= 0		; socket (NET_OP_SOCKETS) : 1 TCP, 2 UDP (32 bits)
 NSK_STATE		= 4		;   etat TCP (TCP_* de netd ; UDP : 0)
 NSK_LPORT		= 8		;   port local
