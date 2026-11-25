@@ -851,7 +851,10 @@ static int file_sha256(const char *path, u8 out[32])
 static const char *unix_path(const char *p)
 {
 	const char *c = strchr(p, ':');
-	if (c && c[1] == '/' && c - p < 8)
+	/* (un alias de vfs, HOME:, PUBLIC:, APPS:, est gardé : une app de HOME:/apps n'a pas l'identité de celle de
+	 * /apps de même nom ; 25/11/2026) */
+	if (c && c[1] == '/' && c - p < 8 && strncasecmp(p, "HOME:", 5) && strncasecmp(p, "PUBLIC:", 7) &&
+	    strncasecmp(p, "APPS:", 5))
 		return c + 1;
 	return p;
 }

@@ -75,8 +75,8 @@ static void applis_dir(const char *dir, int home)
 		if (l > AP_NOM - 1)
 			l = AP_NOM - 1;
 		ap_dirent.name[l] = 0; /* nom sans .app */
-		if (home && app_find(ap_dirent.name) >= 0)
-			continue; /* (même nom qu'une app du système : celle du système) */
+		int twin = home && app_find(ap_dirent.name) >= 0; /* (même nom qu'une app du système : les deux, « (u) »
+								     * devant celle de l'utilisateur ; décision du 25/11) */
 		long i = ap_n;
 		ap_home[i] = (u8)home;
 		str_copy_n(ap_nom[i], ap_dirent.name, AP_NOM);
@@ -87,6 +87,15 @@ static void applis_dir(const char *dir, int home)
 		e = str_cat(e, ap_dirent.name);
 		str_cat(e, ".app/app.txt");
 		ini_read(path, manifest_line);
+		if (twin) {
+			char t[AP_LIB];
+			str_copy_n(t, ap_lib[i], AP_LIB);
+			ap_lib[i][0] = '(';
+			ap_lib[i][1] = 'u';
+			ap_lib[i][2] = ')';
+			ap_lib[i][3] = ' ';
+			str_copy_n(ap_lib[i] + 4, t, AP_LIB - 4);
+		}
 		ap_n = i + 1;
 	}
 	sys_close(fd);

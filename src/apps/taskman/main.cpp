@@ -38,6 +38,7 @@
 // les appels du noyau (src/inc/syscalls.inc)
 enum
 {
+	SYS_GETUID_ = 0x90, SYS_SETUID_ = 0x91,
 	SYS_VM_STATS = 0x0B, SYS_GETPID = 0x11, SYS_KILL = 0x14, SYS_SLEEP = 0x17, SYS_TIME_MS = 0x19,
 	SYS_PROC_RIGHTS = 0x1D, SYS_PROCLIST_FROM = 0x1F, SYS_THREAD_LIST = 0x2A, SYS_SYSINFO = 0x62,
 	SYS_CPU_LOAD = 0x7E,		// (PC ; le Pi rend E_NOSYS : SYSINFO +40, ses 4 cœurs)
@@ -508,7 +509,17 @@ static void do_kill (void)
 		(long) TR ("Ce programme fait partie du système : le terminer peut bloquer la machine. Le terminer quand même ?"),
 		UM_YESNO) != 1)
 		return;
-	sysc (SYS_KILL, (long) p->pid);
+	long r = sysc (SYS_KILL, (long) p->pid);
+	if (r == -1)	// E_PERM : un process d'un autre compte ou du système (décision E34 du 25/11/2026) : la carte
+	{		// d'élévation, le Gestionnaire passe en uid 0 le temps de terminer, puis reprend son uid
+		long me = sysc (SYS_GETUID_, 0);
+		if (ui_elevate ((long) TR ("Le Gestionnaire des tâches veut terminer un programme d'un autre compte ou du système.")) == 0)
+		{
+			sysc (SYS_KILL, (long) p->pid);
+			if (me > 0)
+				sysc (SYS_SETUID_, me);
+		}
+	}
 	sysc (SYS_SLEEP, 100);
 	refresh ();
 }

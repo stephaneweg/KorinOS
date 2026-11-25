@@ -657,6 +657,23 @@ static u64 portee_de(long pid)
 	return 0; /* (le Pi, ou l'appelant parti : rien de retenu à trouver) */
 }
 
+
+/* « VOL:/x » : le préfixe d'un ancien volume (« SD0: ») est retiré ; un alias de vfs (HOME:, PUBLIC:, APPS:) est
+ * gardé : « HOME:/apps/x.app/main », une app de l'utilisateur, ne devient pas « /apps/x.app/main » (25/11/2026) */
+static int exe_alias(const char *e, const char *c)
+{
+	long n = c - e;
+	static const char *const al[] = {"HOME", "PUBLIC", "APPS", 0};
+	for (int i = 0; al[i]; i++) {
+		long k = 0;
+		while (al[i][k] && k < n && (e[k] & ~0x20) == al[i][k])
+			k++;
+		if (!al[i][k] && k == n)
+			return 1;
+	}
+	return 0;
+}
+
 /* l'appelant est-il le vrai /bin/sudo ? Le chemin déclaré par son chargeur ET l'empreinte de son contenu,
  * comparée au fichier : un compte qui scellerait un faux « /bin/sudo » (image à son uid) ne passe pas (A2) */
 static u8 pex[296] __attribute__((aligned(8)));
@@ -672,7 +689,7 @@ static int vrai_sudo(long pid)
 	const char *e = (const char *)pex + 40, *c = e;
 	while (*c && *c != ':' && c - e < 8)
 		c++;
-	if (*c == ':' && c[1] == '/')
+	if (*c == ':' && c[1] == '/' && !exe_alias(e, c))
 		e = c + 1;
 	if (!str_eq(e, "/bin/sudo"))
 		return 0;

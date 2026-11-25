@@ -138,6 +138,23 @@ static int app_valid(const char *name)
 	return 1;
 }
 
+
+/* « VOL:/x » : le préfixe d'un ancien volume (« SD0: ») est retiré ; un alias de vfs (HOME:, PUBLIC:, APPS:) est
+ * gardé : « HOME:/apps/x.app/main », une app de l'utilisateur, ne devient pas « /apps/x.app/main » (25/11/2026) */
+static int exe_alias(const char *e, const char *c)
+{
+	long n = c - e;
+	static const char *const al[] = {"HOME", "PUBLIC", "APPS", 0};
+	for (int i = 0; al[i]; i++) {
+		long k = 0;
+		while (al[i][k] && k < n && (e[k] & ~0x20) == al[i][k])
+			k++;
+		if (!al[i][k] && k == n)
+			return 1;
+	}
+	return 0;
+}
+
 /* l'app que dit l'expéditeur : crue d'un process d'uid 0 (notify -a, les services), ou si son exécutable est
  * /apps/<app>.app/main ; sinon une app se faisait passer pour une autre (icône, nom, E35, D16) */
 static u8 pex[296] __attribute__((aligned(8)));
@@ -151,7 +168,7 @@ static int app_from_sender(const char *app, long pid)
 	const char *e = (const char *)pex + 40, *c = e;
 	while (*c && *c != ':' && c - e < 8)
 		c++;
-	if (*c == ':' && c[1] == '/') /* (un nom de volume devant : « APPS:/x.app/main ») */
+	if (*c == ':' && c[1] == '/' && !exe_alias(e, c)) /* (un ancien nom de volume devant) */
 		e = c + 1;
 	const char *pre = "/apps/";
 	while (*pre && *e == *pre)

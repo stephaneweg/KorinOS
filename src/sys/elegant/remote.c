@@ -28,6 +28,23 @@ static u8 ws_pex[296] __attribute__((aligned(8)));
 
 #include "../../svc/authd/pwhash.h" /* SHA-256 */
 
+
+/* « VOL:/x » : le préfixe d'un ancien volume (« SD0: ») est retiré ; un alias de vfs (HOME:, PUBLIC:, APPS:) est
+ * gardé : « HOME:/apps/x.app/main », une app de l'utilisateur, ne devient pas « /apps/x.app/main » (25/11/2026) */
+static int exe_alias(const char *e, const char *c)
+{
+	long n = c - e;
+	static const char *const al[] = {"HOME", "PUBLIC", "APPS", 0};
+	for (int i = 0; al[i]; i++) {
+		long k = 0;
+		while (al[i][k] && k < n && (e[k] & ~0x20) == al[i][k])
+			k++;
+		if (!al[i][k] && k == n)
+			return 1;
+	}
+	return 0;
+}
+
 /* l'image de ws_pex a-t-elle le contenu du fichier path ? Empreinte du fichier gardée par chemin ; relue si elle ne
  * correspond pas (fichier mis à jour), au plus une fois toutes les 10 s par chemin (une fausse image ne fait pas
  * relire le fichier à chaque appel) */
@@ -98,7 +115,7 @@ int ws_trusted(void)
 	const char *e = (const char *)ws_pex + 40, *c = e;
 	while (*c && *c != ':' && c - e < 8)
 		c++;
-	if (*c == ':' && c[1] == '/') /* (un nom de volume devant) */
+	if (*c == ':' && c[1] == '/' && !exe_alias(e, c)) /* (un ancien nom de volume devant) */
 		e = c + 1;
 	for (int i = 0; ws_trusted_exe[i]; i++)
 		if (ws_ieq(e, ws_trusted_exe[i]))
@@ -119,7 +136,7 @@ int ws_secure_caller(void)
 	const char *e = (const char *)ws_pex + 40, *c = e;
 	while (*c && *c != ':' && c - e < 8)
 		c++;
-	if (*c == ':' && c[1] == '/')
+	if (*c == ':' && c[1] == '/' && !exe_alias(e, c))
 		e = c + 1;
 	/* (et ce que login lance en uid 0 : ses réglages rapides, l'extinction, le Wi-Fi, le son ; en couche normale,
 	 * ils passaient sous l'écran de connexion. Dans la session, ils tournent sous le compte : pas concernés) */
@@ -140,7 +157,7 @@ int ws_sysui_caller(void)
 	const char *e = (const char *)ws_pex + 40, *c = e;
 	while (*c && *c != ':' && c - e < 8)
 		c++;
-	if (*c == ':' && c[1] == '/')
+	if (*c == ':' && c[1] == '/' && !exe_alias(e, c))
 		e = c + 1;
 	const char *pre = "/sys/", *full = e;
 	while (*pre && (*e | 0x20) == *pre)

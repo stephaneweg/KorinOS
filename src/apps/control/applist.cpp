@@ -72,11 +72,9 @@ static void applis_dir (const char *dir, int home)
 			l = APP_NAME - 1;
 		memcpy (name, e->d_name, l);	/* nom sans .app */
 		name[l] = 0;
-		bool seen = false;
+		bool twin = false;	/* (même nom qu'une app du système : les deux, « (u) » devant la sienne : 25/11) */
 		for (long i = 0; i < apps_n && home; i++)
-			seen |= strcmp (apps[i].name, name) == 0;
-		if (seen)
-			continue;
+			twin |= strcmp (apps[i].name, name) == 0;
 		AppInfo &a = apps[apps_n];
 		a.home = (unsigned char) home;
 		copy_n (a.name, name, APP_NAME);
@@ -85,6 +83,12 @@ static void applis_dir (const char *dir, int home)
 		char path[160];
 		snprintf (path, sizeof path, "%s/%s.app/app.txt", dir, name);
 		ini_read (path, manifest_line, &a);
+		if (twin)
+		{
+			char t[APP_LABEL];
+			copy_n (t, a.label, APP_LABEL);
+			snprintf (a.label, APP_LABEL, "(u) %s", t);
+		}
 		apps_n++;
 	}
 	closedir (d);

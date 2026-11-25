@@ -48,3 +48,4 @@ noyau et caches = kernel and caches
 Émises = Sent
 Émission = Sending
 État = State
+Le Gestionnaire des tâches veut terminer un programme d'un autre compte ou du système. = Task Manager wants to end a program of another account or of the system.
