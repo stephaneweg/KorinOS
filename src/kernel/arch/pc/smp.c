@@ -19,7 +19,7 @@ extern const uint8_t _binary_smp_trampoline_bin_end[];
 
 struct tramp_params { /* à T + 8, voir smp_trampoline.asm */
 	uint32_t pml4;
-	uint32_t pad;
+	uint32_t efer; /* bits d'EFER à poser (NXE du cœur 0) */
 	uint64_t stack;
 	uint64_t cr3;
 	uint64_t entry;
@@ -119,10 +119,10 @@ __attribute__((noreturn)) void ap_main(struct cpu *c)
 {
 	unsigned idx = (unsigned)c->index;
 	cpu_init(idx, c->apic_id);
-	uint8_t *ist = kmalloc(2 * IST_SIZE);
+	uint8_t *ist = kmalloc(3 * IST_SIZE);
 	if (!ist)
 		arch_halt_forever();
-	gdt_init(idx, (uint64_t)ist + IST_SIZE, (uint64_t)ist + 2 * IST_SIZE);
+	gdt_init(idx, (uint64_t)ist + IST_SIZE, (uint64_t)ist + 2 * IST_SIZE, (uint64_t)ist + 3 * IST_SIZE);
 	idt_load();
 	pstate_init_cpu(idx); /* (après l'IDT : un MSR absent fait une #GP, rattrapée) */
 	apic_init_ap();
@@ -147,6 +147,7 @@ static int start_one(unsigned idx, uint32_t apic_id)
 
 	struct tramp_params *p = (struct tramp_params *)((uint8_t *)arch_phys_to_virt(tramp) + 8);
 	p->pml4 = (uint32_t)(tramp + 0x1000);
+	p->efer = (uint32_t)(rdmsr(MSR_EFER) & (1ULL << 11)); /* NXE : la carte physique et le noyau ont NX */
 	p->stack = ap_stack_top[idx];
 	p->cr3 = paging_kernel_pml4();
 	p->entry = (uint64_t)ap_entry;

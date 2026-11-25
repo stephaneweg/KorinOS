@@ -101,7 +101,7 @@ struct cpu {
 	volatile int online;
 };
 
-void gdt_init(unsigned cpu, uint64_t ist_double_fault, uint64_t ist_nmi);
+void gdt_init(unsigned cpu, uint64_t ist_double_fault, uint64_t ist_nmi, uint64_t ist_mc);
 void tss_set_rsp0(uint64_t top);
 void cpu_init(unsigned idx, uint32_t apic_id); /* GS, syscall/sysret, NX, FPU */
 void cpu_set_online(unsigned idx);

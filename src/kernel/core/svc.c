@@ -34,6 +34,7 @@ struct request {
 	int state;
 	struct thread *caller; /* 0 : avis du noyau */
 	int caller_pid;
+	int fwd_pid;           /* le dernier service qui l'a transmise (SVC_FORWARD), 0 : venue directement */
 	int64_t result;
 	struct request *next;  /* toutes les requêtes */
 	uint8_t msg[SVC_MSG];
@@ -175,6 +176,16 @@ int64_t sys_svc_open(uint64_t uname, uint64_t ms)
 	}
 }
 
+/* op d'un avis du noyau (SVC_OP_* et WS_OP_EXIT, 0xFFF0 à 0xFFFF) : jamais d'un process. Lue en
+ * 64 bits non signés : tout ce qui est au-dessus est refusé aussi, donc un service qui ne lit que
+ * les 32 ou 16 bits bas ne voit pas d'avis forgé (aucun client n'envoie d'op >= 0xFF00) */
+static int op_reserved(const uint8_t *msg)
+{
+	uint64_t op;
+	memcpy(&op, msg, 8);
+	return op >= 0xFFF0;
+}
+
 int64_t sys_svc_call(uint64_t chan, uint64_t umsg)
 {
 	if (chan >= SVC_MAX)
@@ -186,9 +197,14 @@ int64_t sys_svc_call(uint64_t chan, uint64_t umsg)
 		kfree(r);
 		return E_FAULT;
 	}
+	if (op_reserved(r->msg)) { /* les avis du noyau (fin, naissance, exec, setuid…) ne se forgent pas */
+		kfree(r);
+		return E_INVAL;
+	}
 	struct thread *t = sched_current();
 	r->caller = t;
 	r->caller_pid = t->proc->pid;
+	r->fwd_pid = 0;
 	set_pid(r->msg, r->caller_pid);
 	r->svc = (int)chan;
 	r->state = R_QUEUED;
@@ -498,6 +514,8 @@ int64_t sys_svc_signal(uint64_t chan, uint64_t bits)
 {
 	if (chan >= SVC_MAX)
 		return E_INVAL;
+	if (!me()->rights) /* interruptions des pilotes, SVC_SIG_LOWMEM : pas pour une app */
+		return E_PERM;
 	svc_signal_kernel((int)chan, bits);
 	return 0;
 }
@@ -522,6 +540,10 @@ int64_t sys_svc_forward(uint64_t num, uint64_t chan, uint64_t umsg)
 		kfree(in);
 		return E_FAULT;
 	}
+	if (op_reserved(in)) {
+		kfree(in);
+		return E_INVAL;
+	}
 	int64_t ret = 0;
 	uint64_t f = spin_lock_irqsave(&svc_lock);
 	struct request *r = taken(me(), num);
@@ -536,6 +558,7 @@ int64_t sys_svc_forward(uint64_t num, uint64_t chan, uint64_t umsg)
 	else {
 		memcpy(r->msg, in, SVC_MSG);
 		set_pid(r->msg, r->caller_pid);
+		r->fwd_pid = me()->pid;
 		r->svc = (int)chan;
 		r->state = R_QUEUED;
 		sched_wake_all(&svcs[chan]);
@@ -545,6 +568,34 @@ int64_t sys_svc_forward(uint64_t num, uint64_t chan, uint64_t umsg)
 		vm_tlb_shootdown(me()->vm); /* (hors du verrou) */
 	kfree(in);
 	return ret;
+}
+
+/* SVC_REQ_INFO (num, sortie 32 o) : pour une requête prise par le service qui appelle, {pid de
+ * l'appelant, pid du service qui l'a transmise (0 : venue directement), uid de l'appelant, pid de son
+ * père} ; lu sous svc_lock pendant que l'appelant attend sa réponse : pas de course sur la
+ * réutilisation des pids (PROC_UID(pid) après coup pouvait viser un autre process). E_INVAL : pas
+ * une requête prise par lui ; E_SRCH : l'appelant a abandonné (tué, délai) */
+int64_t sys_svc_req_info(uint64_t num, uint64_t out)
+{
+	int64_t o[4] = {0};
+	uint64_t f = spin_lock_irqsave(&svc_lock);
+	struct request *r = taken(me(), num);
+	int64_t ret = 0;
+	if (!r)
+		ret = E_INVAL;
+	else if (r->state == R_ABANDONED || !r->caller)
+		ret = E_SRCH;
+	else {
+		struct process *c = r->caller->proc; /* (l'appelant dort dans SVC_CALL : il est là) */
+		o[0] = r->caller_pid;
+		o[1] = r->fwd_pid;
+		o[2] = c->uid;
+		o[3] = c->parent;
+	}
+	spin_unlock_irqrestore(&svc_lock, f);
+	if (ret)
+		return ret;
+	return copy_to_user(out, o, sizeof o) ? E_FAULT : 0;
 }
 
 /* ---- avis du noyau et fins de process */

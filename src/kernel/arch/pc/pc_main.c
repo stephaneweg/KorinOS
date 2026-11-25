@@ -26,6 +26,7 @@
 uint8_t boot_stack[65536] __attribute__((aligned(16)));
 static uint8_t ist_df0[8192] __attribute__((aligned(16)));
 static uint8_t ist_nmi0[8192] __attribute__((aligned(16)));
+static uint8_t ist_mc0[8192] __attribute__((aligned(16)));
 
 static struct bootinfo bi;
 static uint8_t mmap_copy[MMAP_MAX] __attribute__((aligned(8)));
@@ -330,7 +331,8 @@ void kmain(uint64_t bootinfo_phys)
 	fpu_want_avx512 = cmdline_has("avx512"); /* (AVX-512 : seulement sur demande, cpu.c) */
 	fpu_no_xsave = cmdline_has("noxsave");    /* (FXSAVE seul, comme avant : essais) */
 	cpu_init(0, 0);
-	gdt_init(0, (uint64_t)(ist_df0 + sizeof ist_df0), (uint64_t)(ist_nmi0 + sizeof ist_nmi0));
+	gdt_init(0, (uint64_t)(ist_df0 + sizeof ist_df0), (uint64_t)(ist_nmi0 + sizeof ist_nmi0),
+		 (uint64_t)(ist_mc0 + sizeof ist_mc0));
 	idt_init();
 
 	uint64_t top = build_regions();

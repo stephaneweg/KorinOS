@@ -17,6 +17,12 @@
 
 #define MAX_HANDLES 1024
 #define RING 65536
+/* en file sur un bout, en plus des octets (RING) : un message vide n'y compte pas, mais peut porter
+ * 256 poignées ; sans ces plafonds la file grandissait sans fin dans le tas du noyau */
+#define Q_MSGS 4096
+#define Q_HANDLES 1024
+/* poignées envoyées par un process et pas encore reçues (tous ses canaux) */
+#define TRANSIT_MAX 4096
 #define MAX_IOV 64
 #define MAX_MSG_HANDLES 256
 #define WAIT_MAX 64
@@ -41,10 +47,12 @@ enum { ST_STREAM = 1, ST_DGRAM = 2, ST_SEQPACKET = 5 };
 struct ipc_obj {
 	int kind;
 	int refs;
+	struct ipc_obj *dead_next; /* file des objets à détruire (put_locked) */
 };
 
 struct msg {
 	struct msg *next;
+	int from; /* pid de l'envoyeur (ses poignées en transit, TRANSIT_MAX) */
 	uint32_t len, off, nh;
 	struct ipc_obj **objs;
 	uint8_t data[];
@@ -58,6 +66,7 @@ struct end {
 	int state;
 	struct msg *head, *tail;
 	uint32_t bytes; /* non lus */
+	uint32_t nmsg, nhq; /* messages et poignées en file (Q_MSGS, Q_HANDLES) */
 };
 
 struct chan {
@@ -108,8 +117,21 @@ static void changed(void)
 
 static void put_locked(struct ipc_obj *o);
 
+/* (sous ipc_lock) n poignées de l'envoyeur ne sont plus en transit */
+static void transit_done(int from, uint32_t n)
+{
+	if (!n || from <= 0)
+		return;
+	uint64_t f = sched_lock_take(); /* (ipc_lock puis l'ordonnanceur : permis, comme sleep_locked) */
+	struct process *s = proc_get(from);
+	if (s && !s->reaping)
+		__atomic_sub_fetch(&s->ipc_transit, (int)n, __ATOMIC_ACQ_REL);
+	sched_lock_give(f);
+}
+
 static void free_msg(struct msg *m)
 {
+	transit_done(m->from, m->nh);
 	for (uint32_t i = 0; i < m->nh; i++)
 		if (m->objs[i])
 			put_locked(m->objs[i]);
@@ -117,10 +139,34 @@ static void free_msg(struct msg *m)
 	kfree(m);
 }
 
+static void destroy_locked(struct ipc_obj *o);
+
+/* Une référence de moins. La destruction est itérative : un canal qui part rend les poignées de
+ * ses messages, qui peuvent être d'autres canaux, et ainsi de suite ; une chaîne de milliers de
+ * canaux imbriqués ne fait plus descendre la pile du noyau (16 Ko) en récursion sous ipc_lock.
+ * Les objets à détruire attendent dans une file, vidée par l'appel le plus extérieur. */
+static struct ipc_obj *dead_head;
+static int draining;
+
 static void put_locked(struct ipc_obj *o)
 {
 	if (--o->refs > 0)
 		return;
+	o->dead_next = dead_head;
+	dead_head = o;
+	if (draining)
+		return;
+	draining = 1;
+	while (dead_head) {
+		struct ipc_obj *d = dead_head;
+		dead_head = d->dead_next;
+		destroy_locked(d);
+	}
+	draining = 0;
+}
+
+static void destroy_locked(struct ipc_obj *o)
+{
 	if (o->kind == K_CHAN) {
 		struct end *e = (struct end *)o;
 		e->state |= S_CLOSED;
@@ -131,6 +177,7 @@ static void put_locked(struct ipc_obj *o)
 		}
 		e->tail = 0;
 		e->bytes = 0;
+		e->nmsg = e->nhq = 0;
 		struct chan *c = e->c;
 		if ((c->e[0].state & S_CLOSED) && (c->e[1].state & S_CLOSED))
 			kfree(c);
@@ -311,7 +358,8 @@ static int ready(struct ipc_obj *o)
 		r |= POLLIN;
 	if (peer->state & S_CLOSED)
 		r |= POLLHUP;
-	else if (!(peer->state & S_SHUT_RD) && !(e->state & S_SHUT_WR) && peer->bytes < RING)
+	else if (!(peer->state & S_SHUT_RD) && !(e->state & S_SHUT_WR) && peer->bytes < RING && peer->nmsg < Q_MSGS &&
+		 peer->nhq < Q_HANDLES)
 		r |= POLLOUT;
 	return r;
 }
@@ -593,8 +641,15 @@ int64_t sys_chan_send(uint64_t h, uint64_t umsg, uint64_t flags, uint64_t ms)
 			return sent ? (int64_t)sent : E_PIPE;
 		}
 		uint64_t room = RING - peer->bytes;
+		uint32_t nh_now = um.nh && !handles_sent ? um.nh : 0;
+		int qfull = peer->nmsg >= Q_MSGS || peer->nhq + nh_now > Q_HANDLES;
+		if (nh_now && __atomic_load_n(&p->ipc_transit, __ATOMIC_ACQUIRE) + (int)nh_now > TRANSIT_MAX) {
+			spin_unlock_irqrestore(&ipc_lock, f); /* trop de poignées envoyées et jamais reçues */
+			kfree(m);
+			return sent ? (int64_t)sent : E_NOBUFS;
+		}
 		uint64_t take = type == ST_STREAM ? (chunk < room ? chunk : room) : (chunk <= room ? chunk : 0);
-		if (take == 0 && !(chunk == 0 && type != ST_STREAM)) {
+		if (qfull || (take == 0 && !(chunk == 0 && type != ST_STREAM))) {
 			kfree(m);
 			if ((flags & IPC_NOWAIT) || sent) {
 				spin_unlock_irqrestore(&ipc_lock, f);
@@ -634,7 +689,11 @@ int64_t sys_chan_send(uint64_t h, uint64_t umsg, uint64_t flags, uint64_t ms)
 				m->objs[i]->refs++;
 			m->nh = um.nh;
 			handles_sent = 1;
+			__atomic_add_fetch(&p->ipc_transit, (int)um.nh, __ATOMIC_ACQ_REL);
 		}
+		m->from = p->pid;
+		peer->nmsg++;
+		peer->nhq += m->nh;
 		m->len = (uint32_t)take;
 		m->off = 0;
 		m->next = 0;
@@ -726,6 +785,8 @@ int64_t sys_chan_recv(uint64_t h, uint64_t umsg, uint64_t flags, uint64_t ms)
 						oflags |= IPC_CTRUNC;
 					}
 				}
+				transit_done(m->from, m->nh);
+				e->nhq -= m->nh;
 				kfree(m->objs);
 				m->objs = 0;
 				m->nh = 0;
@@ -738,6 +799,8 @@ int64_t sys_chan_recv(uint64_t h, uint64_t umsg, uint64_t flags, uint64_t ms)
 					e->head = m->next;
 					if (!e->head)
 						e->tail = 0;
+					e->nmsg--;
+					e->nhq -= m->nh; /* (0 : reçues plus haut) */
 					kfree(m);
 				}
 				break;
@@ -755,6 +818,8 @@ int64_t sys_chan_recv(uint64_t h, uint64_t umsg, uint64_t flags, uint64_t ms)
 			e->head = m->next;
 			if (!e->head)
 				e->tail = 0;
+			e->nmsg--;
+			e->nhq -= m->nh;
 			kfree(m);
 			m = e->head;
 			if (pos >= cap)
@@ -871,6 +936,10 @@ static int64_t get_name(uint64_t uname, char *name)
 	return n <= 0 ? (n ? n : E_INVAL) : 0;
 }
 
+#define SEAL_SEAL 1
+#define SEAL_SHRINK 2
+#define SEAL_GROW 4
+#define SEAL_WRITE 8
 #define SHM_CREAT 1
 #define SHM_EXCL 2
 #define SHM_TRUNC 4
@@ -910,9 +979,17 @@ int64_t sys_shm_open(uint64_t uname, uint64_t flags)
 		if (s->weak)
 			s->h.refs--;
 	}
-	if (r == 0) {
-		if ((flags & SHM_TRUNC))
+	/* tronquer suit la règle de SHM_SET_SIZE : pas sous un sceau, pas pendant une projection (les
+	 * pages rendues au pmm resteraient inscriptibles chez celui qui projette) */
+	if (r == 0 && (flags & SHM_TRUNC) && s->size) {
+		if (s->seals & SEAL_SHRINK)
+			r = E_PERM;
+		else if (s->mapped)
+			r = E_BUSY;
+		else
 			resize(s, 0);
+	}
+	if (r == 0) {
 		s->h.refs++;
 		r = add_handle(me(), &s->h, 0);
 		if (r < 0)
@@ -953,10 +1030,6 @@ int64_t sys_shm_unlink(uint64_t uname)
 #define SHM_ADD_SEALS 2
 #define SHM_PIN 3
 #define SHM_UNPIN 4
-#define SEAL_SEAL 1
-#define SEAL_SHRINK 2
-#define SEAL_GROW 4
-#define SEAL_WRITE 8
 
 int64_t sys_shm_ctl(uint64_t h, uint64_t op, uint64_t val)
 {

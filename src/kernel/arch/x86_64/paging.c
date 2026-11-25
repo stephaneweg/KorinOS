@@ -15,6 +15,9 @@
 #define PTE_PWT (1ULL << 3)
 #define PTE_PS (1ULL << 7)
 #define PTE_G (1ULL << 8)
+#define PTE_NX (1ULL << 63)
+
+extern char __text_end[], __rodata_end[]; /* (kernel.ld) */
 
 #define POOL_PAGES 96
 #define GIB (1ULL << 30)
@@ -65,6 +68,14 @@ void paging_init(uint64_t kernel_phys, uint64_t kernel_virt, uint64_t kernel_siz
 	/* PAT : entrée 1 (PWT seul) = écriture combinée au lieu de write-through */
 	wrmsr(MSR_PAT, KORIN_PAT);
 
+	/* NX : la carte physique (données seulement : pas de services de l'UEFI, l'AML dans acpid, le
+	 * trampoline des cœurs est recopié) ; les données du noyau. NXE posé avant write_cr3 (plus bas) et
+	 * passé au trampoline (smp.c) : sans lui, le bit 63 est réservé */
+	uint32_t r[4];
+	cpuid(0x80000001, 0, r);
+	int nx_ok = (r[3] >> 20) & 1;
+	uint64_t nx = nx_ok ? PTE_NX : 0;
+
 	uint64_t *pml4 = pool_page();
 	uint64_t *pdpt = pool_page();
 	pml4[256] = kv2p(pdpt) | PTE_P | PTE_W;
@@ -79,13 +90,13 @@ void paging_init(uint64_t kernel_phys, uint64_t kernel_virt, uint64_t kernel_siz
 		uint64_t gbase = g * GIB;
 		int has_fb = fb_size && fb_first < gbase + GIB && fb_end > gbase;
 		if (big && !has_fb) {
-			pdpt[g] = gbase | PTE_P | PTE_W | PTE_PS | PTE_G;
+			pdpt[g] = gbase | PTE_P | PTE_W | PTE_PS | PTE_G | nx;
 			continue;
 		}
 		uint64_t *pd = pool_page();
 		for (int i = 0; i < 512; i++) {
 			uint64_t a = gbase + (uint64_t)i * MIB2;
-			pd[i] = a | PTE_P | PTE_W | PTE_PS | PTE_G;
+			pd[i] = a | PTE_P | PTE_W | PTE_PS | PTE_G | nx;
 			if (fb_size && a >= fb_first && a < fb_end)
 				pd[i] |= PTE_PWT; /* PAT 1 : écriture combinée */
 		}
@@ -98,17 +109,22 @@ void paging_init(uint64_t kernel_phys, uint64_t kernel_virt, uint64_t kernel_siz
 	pml4[511] = kv2p(kpdpt) | PTE_P | PTE_W;
 	kpdpt[510] = kv2p(kpd) | PTE_P | PTE_W;
 	uint64_t pages = kernel_size / 4096;
+	/* .text en lecture et exécution, .rodata en lecture (NX), le reste en écriture (NX) : une écriture
+	 * dans le code du noyau, ou un saut dans ses données, fait une faute (CR0.WP : cpu_init) */
+	uint64_t text_end = ((uint64_t)__text_end - kernel_virt) / 4096;
+	uint64_t ro_end = ((uint64_t)__rodata_end - kernel_virt) / 4096;
 	for (uint64_t i = 0; i < pages; i += 512) {
 		uint64_t *pt = pool_page();
-		for (uint64_t j = 0; j < 512 && i + j < pages; j++)
-			pt[j] = (kernel_phys + (i + j) * 4096) | PTE_P | PTE_W | PTE_G;
+		for (uint64_t j = 0; j < 512 && i + j < pages; j++) {
+			uint64_t k = i + j;
+			uint64_t prot = k < text_end ? 0 : k < ro_end ? nx : PTE_W | nx;
+			pt[j] = (kernel_phys + k * 4096) | PTE_P | PTE_G | prot;
+		}
 		kpd[((kernel_virt >> 21) & 511) + i / 512] = kv2p(pt) | PTE_P | PTE_W;
 	}
 
-	/* NX : les pages des process sans droit d'exécution */
-	uint32_t r[4];
-	cpuid(0x80000001, 0, r);
-	if ((r[3] >> 20) & 1)
+	/* NX : les pages des process sans droit d'exécution, et celles du noyau ci-dessus */
+	if (nx_ok)
 		wrmsr(MSR_EFER, rdmsr(MSR_EFER) | (1ULL << 11));
 
 	kernel_pml4 = kv2p(pml4);

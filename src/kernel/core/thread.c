@@ -31,6 +31,10 @@ int64_t sys_thread_create(uint64_t entry, uint64_t stack, uint64_t arg, uint64_t
 		return E_INVAL;
 	if (prio == PRIO_MAX && !p->rights)
 		return E_PERM;
+	if (tls == ~0ULL)
+		tls = arch_get_tls(); /* -1 : celui de l'appelant (EmuKit sur le PC) */
+	if (tls >= USER_STACK_TOP)
+		return E_INVAL; /* non canonique : #GP du wrmsr (la règle de SYS_TLS_SET) */
 	char nm[THREAD_NAME];
 	memcpy(nm, p->name, THREAD_NAME - 1);
 	nm[THREAD_NAME - 1] = 0;
@@ -42,7 +46,7 @@ int64_t sys_thread_create(uint64_t entry, uint64_t stack, uint64_t arg, uint64_t
 	t->user_entry = entry;
 	t->user_stack = (stack & ~15ULL) - 8; /* comme après un call (System V) */
 	t->user_arg = arg;
-	t->user_tls = tls == ~0ULL ? arch_get_tls() : tls; /* -1 : celui de l'appelant (EmuKit sur le PC) */
+	t->user_tls = tls;
 	t->priority = (int)prio;
 	thread_start(t);
 	return t->tid;
@@ -120,11 +124,14 @@ int64_t sys_thread_kill(int64_t tid, int64_t code)
 		thread_exit((int)code);
 	uint64_t f = sched_lock_take();
 	struct thread *t = thread_find(me->proc, (int)tid);
+	struct process *held = t ? proc_hold_locked(me->proc) : 0; /* le thread reste, même s'il finit */
 	sched_lock_give(f);
 	if (!t)
 		return E_SRCH;
-	sched_kill_thread(t, (int)code);
-	return 0;
+	if (held)
+		sched_kill_thread(t, (int)code);
+	proc_release(held);
+	return held ? 0 : E_SRCH;
 }
 
 int64_t sys_thread_list(int64_t pid, uint64_t buf, uint64_t max)
@@ -203,7 +210,14 @@ int64_t sys_futex_wait(uint64_t addr, uint64_t val, uint64_t ms)
 	if (futex_key(addr, &w.space, &w.key))
 		return E_FAULT;
 	uint64_t f = spin_lock_irqsave(&futex_lock);
-	if (*(volatile uint32_t *)addr != (uint32_t)val) {
+	/* la comparaison reste sous le verrou (sinon un réveil se perd) ; la lecture est rattrapée : une
+	 * page retirée par un autre thread rend E_FAULT au lieu de geler la machine verrou tenu */
+	uint32_t cur;
+	if (arch_copy_user(&cur, (const void *)addr, 4)) {
+		spin_unlock_irqrestore(&futex_lock, f);
+		return E_FAULT;
+	}
+	if (cur != (uint32_t)val) {
 		spin_unlock_irqrestore(&futex_lock, f);
 		return E_AGAIN;
 	}

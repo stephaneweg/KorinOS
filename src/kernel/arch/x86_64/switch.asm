@@ -64,8 +64,7 @@ arch_enter_user:
         xor     r13, r13
         xor     r14, r14
         xor     r15, r15
-        swapgs
-        iretq
+        jmp     user_iret
 
 ; syscall : rax = numéro, rdi rsi rdx r10 r8 r9 = arguments ;
 ; rcx = rip et r11 = rflags de l'utilisateur. Retour dans rax.
@@ -128,8 +127,32 @@ ret_to_user:
         pop     rcx
         pop     rax
         add     rsp, 16
+; le seul retour vers le mode utilisateur (aussi celui d'isr.asm et d'arch_enter_user). Une faute
+; sur cet iretq (trame refusée : rip non canonique…) arrive en anneau 0 avec le GS du programme :
+; isr_common la reconnaît à son rip, refait swapgs, et exception() arrête le process.
+public user_iret
+public user_iretq
+user_iret:
         swapgs
+user_iretq:
         iretq
+
+; arch_copy_user(dst, src, len) -> 0, ou -14 (E_FAULT) : copie entre le noyau et la mémoire d'un
+; programme. Une faute de page sur user_copy_insn qu'idt.c ne peut pas amener (page rendue par un
+; autre thread après user_check, munmap) reprend à user_copy_fault : l'appel rend E_FAULT au lieu
+; d'arrêter le process en gardant un verrou (futex_lock, sig_lock : la machine gelait).
+public arch_copy_user
+public user_copy_insn
+public user_copy_fault
+arch_copy_user:
+        mov     rcx, rdx
+user_copy_insn:
+        rep movsb
+        xor     eax, eax
+        ret
+user_copy_fault:
+        mov     rax, -14
+        ret
 
 ; premier passage d'un fils de fork : r12 = struct regs (copiée sur sa pile)
 public fork_trampoline

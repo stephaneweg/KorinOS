@@ -218,11 +218,19 @@ gestionnaire, code de sortie déjà rangé. Un thread neuf hérite du masque de 
 | `0x32` | `SVC_CALL` | canal, message 512 o | résultat (réponse dans le message) ; `E_PIPE` si le service s'arrête |
 | `0x33` | `SVC_NEXT` | canal, message, attente ms | n° de requête (le service ; pid de l'appelant en +44) |
 | `0x34` | `SVC_REPLY` | n° de requête, message | 0 (le service) |
-| `0x35` | `SVC_SIGNAL` | canal, bits | 0 : OU dans le mot de signaux du service, sans bloquer ni allouer, sans débordement ; le service n'est réveillé que si le mot était à 0. Son `SVC_NEXT` rend l'op `SVC_OP_SIGNAL` (0xFFFD, a = bits, remis à 0), sans réponse, avant les requêtes en file |
+| `0x35` | `SVC_SIGNAL` | canal, bits | 0 : OU dans le mot de signaux du service, sans bloquer ni allouer, sans débordement ; le service n'est réveillé que si le mot était à 0. Son `SVC_NEXT` rend l'op `SVC_OP_SIGNAL` (0xFFFD, a = bits, remis à 0), sans réponse, avant les requêtes en file. **PC** : programmes de `/sys` seulement (`E_PERM`) |
 | `0x36` | `SVC_MAP_CALLER` | requête prise, adresse, taille (1 Mo au plus), `MC_WRITE` | adresse dans le service : mémoire de l'appelant, pages amenées et épinglées (`src/kernel/mapcaller.asm`) ; `E_FAULT` (lecture seule, pas de page), `E_PIPE` (appelant parti), `E_BUSY` (16 mappages au plus) ; programmes de `/sys` |
 | `0x37` | `SVC_UNMAP_CALLER` | adresse rendue | 0 ; fait aussi par `SVC_REPLY` de la requête et à la fin du service |
 | `0x38` | `SVC_CALLER_PHYS` | adresse rendue, tableau, places | pages ; adresses physiques, pour le DMA |
 | `0x39` | `SVC_FORWARD` | n° de requête prise, canal, message 512 o | 0 : la requête passe à cet autre service avec ce message, qui répondra lui-même à l'appelant (vfs → fatfs). Le noyau remet le pid de l'appelant en +44 ; la requête reprend sa place en file, l'échéance de l'appelant ne change pas. Appelant disparu : requête rendue, rien transmis (0). `E_NOENT` : service absent, la requête reste prise (vfs répond). Mappages de la requête rendus, comme `SVC_REPLY` |
+
+**PC, depuis le 25/11/2026** : `SVC_CALL` et `SVC_FORWARD` rendent `E_INVAL` pour une op de `0xFFF0` ou plus (lue
+sur 64 bits) : ce sont les avis du noyau (`SVC_OP_*`, `WS_OP_EXIT`), qu'aucun process ne peut forger. Un avis a le
+pid d'appelant 0 en +44.
+
+| N° | Nom (`SYS_*`) | Arguments | Résultat |
+|---|---|---|---|
+| `0x97` | `SVC_REQ_INFO` | n° de requête prise, sortie 32 o | 0 : {pid de l'appelant, pid du service qui l'a transmise par `SVC_FORWARD` (0 : venue directement), uid de l'appelant, pid de son père} (int64), lus pendant que l'appelant attend : sans course sur la réutilisation des pids ; `E_INVAL` : pas une requête prise par ce service ; `E_SRCH` : l'appelant l'a abandonnée. **PC** seulement (Pi : `E_NOSYS`, uid 0) |
 
 ### 0x40 — matériel et démarrage (programmes de `/sys`)
 

@@ -45,7 +45,7 @@ void idt_init(void)
 		uint64_t a = isr_table[v];
 		idt[v].off_lo = a & 0xFFFF;
 		idt[v].sel = 0x08;
-		idt[v].ist = v == 8 ? 1 : v == 2 ? 2 : 0;
+		idt[v].ist = v == 8 ? 1 : v == 2 ? 2 : v == 18 ? 3 : 0;
 		idt[v].type = 0x8E; /* porte d'interruption, présente, anneau 0 */
 		idt[v].off_mid = (a >> 16) & 0xFFFF;
 		idt[v].off_hi = a >> 32;
@@ -66,12 +66,22 @@ void idt_set_handler(uint8_t vector, irq_handler h)
 }
 
 int msr_fault_fixup(struct regs *r); /* (arch/pc/pstate.c) */
+extern char user_iretq[]; /* (switch.asm) */
+extern char user_copy_insn[], user_copy_fault[]; /* (switch.asm : arch_copy_user) */
 
 static void exception(struct regs *r)
 {
 	/* une lecture ou écriture « sûre » d'un MSR qui n'existe pas (pstate.c) : sautée */
 	if (r->vector == 13 && !(r->cs & 3) && msr_fault_fixup(r))
 		return;
+	/* l'iretq vers le mode utilisateur a refusé la trame (isr.asm a refait swapgs) : le process
+	 * s'arrête, comme pour une faute à lui */
+	if ((r->vector == 11 || r->vector == 12 || r->vector == 13) && !(r->cs & 3) &&
+	    r->rip == (uint64_t)user_iretq && sched_current()->proc->vm) {
+		kprintf("\nprocess %d (%s) arrêté : retour refusé (iretq)\n", sched_current()->proc->pid,
+			sched_current()->proc->name);
+		proc_exit(-11);
+	}
 	/* faute de page : région paresseuse du process (aussi quand le noyau lit
 	 * ou écrit sa mémoire) */
 	if (r->vector == 14) {
@@ -80,6 +90,10 @@ static void exception(struct regs *r)
 		if (a < 0x0000800000000000ULL && t->proc->mm &&
 		    mm_fault(t->proc, a, (r->error >> 1) & 1, (r->error >> 4) & 1) == 0)
 			return;
+		if (!(r->cs & 3) && a < 0x0000800000000000ULL && r->rip == (uint64_t)user_copy_insn) {
+			r->rip = (uint64_t)user_copy_fault; /* copy_*_user : E_FAULT à l'appelant */
+			return;
+		}
 		if (!(r->cs & 3) && a < 0x0000800000000000ULL && t->proc->vm) {
 			/* le noyau touchait la mémoire du process : le process meurt */
 			kprintf("\nprocess %d (%s) arrêté : adresse %lx inaccessible pendant un appel\n",

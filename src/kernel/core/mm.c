@@ -389,13 +389,14 @@ int user_check(uint64_t addr, uint64_t len, int write)
 	return 0;
 }
 
+/* les copies passent par arch_copy_user (switch.asm) : une page retirée entre user_check et la
+ * copie (un autre thread du process) rend E_FAULT, sans tuer le process sous un verrou */
 int copy_from_user(void *dst, uint64_t src, uint64_t len)
 {
 	int r = user_check(src, len, 0);
 	if (r)
 		return r;
-	memcpy(dst, (const void *)src, len);
-	return 0;
+	return arch_copy_user(dst, (const void *)src, len) ? E_FAULT : 0;
 }
 
 int copy_to_user(uint64_t dst, const void *src, uint64_t len)
@@ -403,18 +404,22 @@ int copy_to_user(uint64_t dst, const void *src, uint64_t len)
 	int r = user_check(dst, len, 1);
 	if (r)
 		return r;
-	memcpy((void *)dst, src, len);
-	return 0;
+	return arch_copy_user((void *)dst, src, len) ? E_FAULT : 0;
 }
 
 int64_t copy_string_from_user(char *dst, uint64_t src, uint64_t max)
 {
-	for (uint64_t i = 0; i < max; i++) {
-		if ((i == 0 || ((src + i) & (PAGE_SIZE - 1)) == 0) && user_check(src + i, 1, 0))
+	for (uint64_t i = 0; i < max;) {
+		/* par morceaux qui ne passent pas une fin de page : lire au-delà du 0 reste dans la page */
+		uint64_t n = PAGE_SIZE - ((src + i) & (PAGE_SIZE - 1));
+		if (n > max - i)
+			n = max - i;
+		if (user_check(src + i, n, 0) || arch_copy_user(dst + i, (const void *)(src + i), n))
 			return E_FAULT;
-		dst[i] = ((const char *)src)[i];
-		if (!dst[i])
-			return (int64_t)i;
+		for (uint64_t k = 0; k < n; k++)
+			if (!dst[i + k])
+				return (int64_t)(i + k);
+		i += n;
 	}
 	return E_INVAL;
 }
@@ -742,11 +747,9 @@ int64_t sys_vm_query(uint64_t addr, uint64_t out)
 
 int64_t sys_vm_stats(int64_t pid, uint64_t out)
 {
-	struct process *p = cur_proc();
+	struct process *p = cur_proc(), *held = 0;
 	if (pid && pid != p->pid) {
-		uint64_t f = sched_lock_take();
-		p = proc_get((int)pid);
-		sched_lock_give(f);
+		p = held = proc_hold((int)pid); /* (tenu : son mm et son espace restent) */
 		if (!p)
 			return E_SRCH;
 	}
@@ -764,6 +767,7 @@ int64_t sys_vm_stats(int64_t pid, uint64_t out)
 	}
 	if (p->vm)
 		o[5] = vm_table_pages(p->vm);
+	proc_release(held);
 	o[7] = pmm_free_pages(); /* une seule zone sur PC */
 	return copy_to_user(out, o, 64) ? E_FAULT : 0;
 }
@@ -803,30 +807,31 @@ static int buf_mapped(struct mm *mm, int n)
 	return (mm->bufs[n / 8] >> (n % 8)) & 1;
 }
 
-static int map_buf(struct process *p, int n)
+/* Ordre des verrous : mm->lock, puis buf_lock. Le bit de mm->bufs, les pages projetées et la
+ * référence du tampon changent ensemble sous mm->lock : deux BUF_FREE concurrents, ou un fork
+ * pendant un BUF_FREE, ne rendent jamais deux fois la même référence ni ne laissent une page
+ * rendue au pmm projetée chez quelqu'un. */
+
+static void unmap_pages_locked(struct process *p, int n, uint64_t count)
 {
-	struct mm *mm = p->mm;
 	uint64_t base = BUF_BASE + (uint64_t)n * BUF_SLOT;
-	uint64_t f = spin_lock_irqsave(&mm->lock);
-	for (uint64_t i = 0; i < bufs[n].pages; i++)
-		if (vm_map_page(p->vm, base + i * PAGE_SIZE, bufs[n].phys + i * PAGE_SIZE, VM_W | VM_SHARED)) {
-			spin_unlock_irqrestore(&mm->lock, f);
-			return E_NOMEM;
-		}
-	mm->bufs[n / 8] |= (uint8_t)(1 << (n % 8));
-	spin_unlock_irqrestore(&mm->lock, f);
-	return 0;
+	for (uint64_t i = 0; i < count; i++)
+		vm_unmap_page(p->vm, base + i * PAGE_SIZE, 0);
 }
 
-static void unmap_buf(struct process *p, int n)
+/* projette le tampon n chez p, qui en tient déjà une référence (sous mm->lock) ; E_NOMEM : rien de
+ * projeté, la référence reste à rendre */
+static int map_buf_locked(struct process *p, int n)
 {
-	struct mm *mm = p->mm;
 	uint64_t base = BUF_BASE + (uint64_t)n * BUF_SLOT;
-	uint64_t f = spin_lock_irqsave(&mm->lock);
 	for (uint64_t i = 0; i < bufs[n].pages; i++)
-		vm_unmap_page(p->vm, base + i * PAGE_SIZE, 0);
-	mm->bufs[n / 8] &= (uint8_t)~(1 << (n % 8));
-	spin_unlock_irqrestore(&mm->lock, f);
+		if (vm_map_page(p->vm, base + i * PAGE_SIZE, bufs[n].phys + i * PAGE_SIZE, VM_W | VM_SHARED)) {
+			unmap_pages_locked(p, n, i);
+			vm_tlb_shootdown(p->vm);
+			return E_NOMEM;
+		}
+	p->mm->bufs[n / 8] |= (uint8_t)(1 << (n % 8));
+	return 0;
 }
 
 /* une référence de moins : le tampon part avec la dernière (buf_lock pris) */
@@ -863,13 +868,15 @@ int64_t sys_buf_create(uint64_t size)
 			pmm_free(phys + i * PAGE_SIZE);
 		return E_NOMEM;
 	}
-	if (map_buf(p, n)) {
-		f = spin_lock_irqsave(&buf_lock);
+	f = spin_lock_irqsave(&p->mm->lock);
+	int r = map_buf_locked(p, n);
+	if (r) {
+		uint64_t g = spin_lock_irqsave(&buf_lock);
 		buf_put(n);
-		spin_unlock_irqrestore(&buf_lock, f);
-		return E_NOMEM;
+		spin_unlock_irqrestore(&buf_lock, g);
 	}
-	return n;
+	spin_unlock_irqrestore(&p->mm->lock, f);
+	return r ? r : n;
 }
 
 int64_t sys_buf_grant(uint64_t n, int64_t pid)
@@ -894,36 +901,48 @@ int64_t sys_buf_map(uint64_t n)
 	struct process *p = cur_proc();
 	if (n >= BUF_MAX || !p->mm)
 		return E_INVAL;
-	uint64_t f = spin_lock_irqsave(&buf_lock);
+	uint64_t f = spin_lock_irqsave(&p->mm->lock);
 	int64_t r = 0;
-	if (!bufs[n].used)
-		r = E_INVAL;
-	else if (bufs[n].owner != p->pid && bufs[n].grant != p->pid && bufs[n].grant != -1)
-		r = E_PERM;
-	else if (!buf_mapped(p->mm, (int)n))
-		bufs[n].refs++;
-	else
+	if (buf_mapped(p->mm, (int)n))
 		r = 1; /* déjà là */
-	spin_unlock_irqrestore(&buf_lock, f);
+	else {
+		uint64_t g = spin_lock_irqsave(&buf_lock);
+		if (!bufs[n].used)
+			r = E_INVAL;
+		else if (bufs[n].owner != p->pid && bufs[n].grant != p->pid && bufs[n].grant != -1)
+			r = E_PERM;
+		else
+			bufs[n].refs++;
+		spin_unlock_irqrestore(&buf_lock, g);
+		if (r == 0 && map_buf_locked(p, (int)n)) {
+			g = spin_lock_irqsave(&buf_lock);
+			buf_put((int)n);
+			spin_unlock_irqrestore(&buf_lock, g);
+			r = E_NOMEM;
+		}
+	}
+	spin_unlock_irqrestore(&p->mm->lock, f);
 	if (r < 0)
 		return r;
-	if (r == 0 && map_buf(p, (int)n)) {
-		f = spin_lock_irqsave(&buf_lock);
-		buf_put((int)n);
-		spin_unlock_irqrestore(&buf_lock, f);
-		return E_NOMEM;
-	}
 	return (int64_t)(BUF_BASE + n * BUF_SLOT);
 }
 
 int64_t sys_buf_free(uint64_t n)
 {
 	struct process *p = cur_proc();
-	if (n >= BUF_MAX || !p->mm || !buf_mapped(p->mm, (int)n))
+	if (n >= BUF_MAX || !p->mm)
 		return E_INVAL;
-	unmap_buf(p, (int)n);
+	/* le bit testé et effacé sous mm->lock : un seul BUF_FREE concurrent rend la référence */
+	uint64_t f = spin_lock_irqsave(&p->mm->lock);
+	if (!buf_mapped(p->mm, (int)n)) {
+		spin_unlock_irqrestore(&p->mm->lock, f);
+		return E_INVAL;
+	}
+	p->mm->bufs[n / 8] &= (uint8_t)~(1 << (n % 8));
+	unmap_pages_locked(p, (int)n, bufs[n].pages);
+	spin_unlock_irqrestore(&p->mm->lock, f);
 	vm_tlb_shootdown(p->vm);
-	uint64_t f = spin_lock_irqsave(&buf_lock);
+	f = spin_lock_irqsave(&buf_lock);
 	buf_put((int)n);
 	spin_unlock_irqrestore(&buf_lock, f);
 	return 0;
@@ -936,7 +955,7 @@ int64_t sys_buf_info(uint64_t n, uint64_t out)
 	uint64_t o[4];
 	uint64_t f = spin_lock_irqsave(&buf_lock);
 	int used = bufs[n].used;
-	o[0] = bufs[n].phys;
+	o[0] = cur_proc()->rights ? bufs[n].phys : 0; /* l'adresse physique : aux pilotes seulement (DMA) */
 	o[1] = bufs[n].pages * PAGE_SIZE;
 	o[2] = (uint64_t)(int64_t)bufs[n].owner;
 	o[3] = (uint64_t)(int64_t)bufs[n].grant;
@@ -964,6 +983,12 @@ int64_t sys_dma_alloc(uint64_t size, uint64_t phys_out)
 	struct mm *mm = p->mm;
 	uint64_t f = spin_lock_irqsave(&mm->lock);
 	uint64_t va = mm->dma_next;
+	if (pages > (DEV_BASE - va) / PAGE_SIZE - 1) { /* la zone DMA est pleine : rien d'empiété */
+		spin_unlock_irqrestore(&mm->lock, f);
+		for (uint64_t i = 0; i < pages; i++)
+			pmm_free(phys + i * PAGE_SIZE);
+		return E_NOMEM;
+	}
 	mm->dma_next += pages * PAGE_SIZE + PAGE_SIZE; /* une page de garde */
 	for (uint64_t i = 0; i < pages; i++)
 		vm_map_page(p->vm, va + i * PAGE_SIZE, phys + i * PAGE_SIZE, VM_W);
@@ -984,6 +1009,10 @@ int64_t mm_map_device(uint64_t phys, uint64_t size, int cached)
 	struct mm *mm = p->mm;
 	uint64_t f = spin_lock_irqsave(&mm->lock);
 	uint64_t va = mm->dev_next;
+	if (pages > (DEV_END - va) / PAGE_SIZE - 1) {
+		spin_unlock_irqrestore(&mm->lock, f);
+		return E_NOMEM;
+	}
 	mm->dev_next += pages * PAGE_SIZE + PAGE_SIZE;
 	for (uint64_t i = 0; i < pages; i++)
 		vm_map_page(p->vm, va + i * PAGE_SIZE, ALIGN_DOWN(phys, PAGE_SIZE) + i * PAGE_SIZE,
@@ -1032,16 +1061,16 @@ int mm_fork(struct process *parent, struct process *child)
 		 * sous 8 et 16 cœurs). Sûr sous le verrou : un cœur qui attend un verrou répond aux
 		 * invalidations en attendant (arch_cpu_relax) */
 		vm_tlb_shootdown(parent->vm);
+		/* les tampons du fils, sous le verrou du père : un BUF_FREE du père attend (il efface son
+		 * bit sous ce verrou), et ne peut rendre la page avant que le fils ait sa référence */
+		uint64_t g = spin_lock_irqsave(&buf_lock);
+		for (int n = 0; n < BUF_MAX; n++)
+			if (buf_mapped(cm, n))
+				bufs[n].refs++;
+		spin_unlock_irqrestore(&buf_lock, g);
 	}
 	spin_unlock_irqrestore(&pm->lock, f);
-	if (r)
-		return r;
-	f = spin_lock_irqsave(&buf_lock);
-	for (int n = 0; n < BUF_MAX; n++)
-		if (buf_mapped(cm, n))
-			bufs[n].refs++;
-	spin_unlock_irqrestore(&buf_lock, f);
-	return 0;
+	return r;
 }
 
 /* ---- fin d'un process */

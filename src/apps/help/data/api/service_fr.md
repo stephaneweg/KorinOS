@@ -23,9 +23,10 @@ Pour plus de 464 octets : la mémoire partagée ([IPC](ipc_fr.md#mémoire-partag
 | `0x32` | `SVC_CALL` | canal, message | le résultat (`op` de la réponse) ; `E_PIPE` (-32) si le service s'arrête |
 | `0x33` | `SVC_NEXT` | numéro de service, message, attente en ms | numéro de la requête (0 : rien pendant l'attente) |
 | `0x34` | `SVC_REPLY` | numéro de la requête, message | 0 |
-| `0x35` | `SVC_SIGNAL` | canal, bits | 0 : réveille le service sans attendre ; il reçoit l'op `0xFFFD`, `a` = les bits |
+| `0x35` | `SVC_SIGNAL` | canal, bits | 0 : réveille le service sans attendre ; il reçoit l'op `0xFFFD`, `a` = les bits. Droits système seulement (sinon `E_PERM`) |
+| `0x97` | `SVC_REQ_INFO` | numéro de la requête, sortie de 32 octets | 0 : pid de l'appelant, pid du service qui l'a transmise (0 : aucun), uid de l'appelant, pid de son père ; pour décider d'un droit sans course sur les pids (PC ; `E_NOSYS` sur le Pi : uid 0) |
 
-Drapeaux de `SVC_REGISTER` : 1 (`SVF_ENDS`) : le service est prévenu de la fin de chaque process (op `0xFFFF`, `a` = pid, `b` = code de sortie), utile pour libérer ce qu'un client tenait ; 2 : prévenu des naissances (op `0xFFFE`) ; 4 : il garde de la mémoire qu'il peut rendre. Ces avis du noyau n'attendent pas de réponse. Les autres appels (`0x36` à `0x38` : mémoire de l'appelant, pour les pilotes) sont décrits dans `docs/ABI.md`.
+Drapeaux de `SVC_REGISTER` : 1 (`SVF_ENDS`) : le service est prévenu de la fin de chaque process (op `0xFFFF`, `a` = pid, `b` = code de sortie), utile pour libérer ce qu'un client tenait ; 2 : prévenu des naissances (op `0xFFFE`) ; 4 : il garde de la mémoire qu'il peut rendre. Ces avis du noyau n'attendent pas de réponse ; un process ne peut pas envoyer d'op `0xFFF0` ou plus (`SVC_CALL` rend `E_INVAL`). Les autres appels (`0x36` à `0x38` : mémoire de l'appelant, pour les pilotes) sont décrits dans `docs/ABI.md`.
 
 Tous ces appels passent par `svc 0`, le numéro dans `x8` : voir `sys3` dans les exemples. La libc n'a pas de fonction pour eux.
 

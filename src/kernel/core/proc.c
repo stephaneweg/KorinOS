@@ -51,6 +51,41 @@ struct process *proc_get(int pid)
 	return p && p->pid == pid ? p : 0;
 }
 
+struct process *proc_hold_locked(struct process *p)
+{
+	if (!p || p->reaping)
+		return 0;
+	__atomic_add_fetch(&p->pins, 1, __ATOMIC_ACQ_REL);
+	return p;
+}
+
+struct process *proc_hold(int pid)
+{
+	uint64_t f = sched_lock_take();
+	struct process *p = proc_hold_locked(proc_get(pid));
+	sched_lock_give(f);
+	return p;
+}
+
+void proc_release(struct process *p)
+{
+	if (p)
+		__atomic_sub_fetch(&p->pins, 1, __ATOMIC_ACQ_REL);
+}
+
+/* (sous sched_lock) pid est-il un fils de parent, vivant ou fini depuis peu (exits[]) ? SETPGID : sh fait
+ * SETPGID(pid2, pid1) quand pid1 a déjà pu finir (« echo a | cat ») */
+int proc_is_child_locked(int pid, int parent)
+{
+	struct process *c = proc_get(pid);
+	if (c)
+		return c->parent == parent;
+	for (int i = 0; i < EXITS; i++)
+		if (exits[i].pid == pid && pid > 0 && exits[i].parent == parent)
+			return 1;
+	return 0;
+}
+
 /* un pid neuf (sous le verrou de l'ordonnanceur) */
 static int new_pid(struct process *p)
 {
@@ -59,7 +94,7 @@ static int new_pid(struct process *p)
 		if (!slot_of[s]) {
 			slot_of[s] = p;
 			slot_hint = s + 1;
-			return generation[s] * 65536 + s + 1;
+			return (int)generation[s] * 65536 + s + 1;
 		}
 	}
 	return E_NOMEM;
@@ -216,10 +251,12 @@ void proc_finished(struct process *p)
 	ipc_proc_exit(p);
 	mm_destroy(p);
 	vm_destroy(p->vm);
+	p->vm = 0;
 	kfree(p->args);
 	uint64_t f = sched_lock_take();
 	slot_of[slot(p->pid)] = 0;
-	generation[slot(p->pid)]++;
+	/* modulo 32767 : generation * 65536 + slot + 1 reste un int positif (pid_t, MSG_PID sur 32 bits) */
+	generation[slot(p->pid)] = (uint16_t)((generation[slot(p->pid)] + 1) % 32767);
 	exits[exit_next].pid = p->pid;
 	exits[exit_next].parent = p->parent;
 	exits[exit_next].code = p->exit_code;
@@ -291,15 +328,17 @@ int64_t sys_kill(int64_t pid)
 {
 	struct process *me = sched_current()->proc;
 	uint64_t f = sched_lock_take();
-	struct process *p = proc_get((int)pid);
+	struct process *p = proc_hold_locked(proc_get((int)pid)); /* (tenu : pas rendu pendant l'envoi) */
 	int ok = p && p->state != P_ZOMBIE;
 	int same = p && (me->uid == 0 || p->uid == me->uid);
 	sched_lock_give(f);
+	if (ok && same)
+		sched_kill_process(p, -9);
+	proc_release(p);
 	if (!ok)
 		return E_SRCH;
 	if (!same)
 		return E_PERM; /* un autre utilisateur, un service : seul l'uid 0 (§2.2 de l'étude) */
-	sched_kill_process(p, -9);
 	return 0;
 }
 
@@ -627,7 +666,7 @@ static int64_t sys_exec_image(struct thread *t, struct process *p, uint64_t path
 		char ipath[IMAGE_PATH_MAX];
 		if (copy_string_from_user(ipath, path, sizeof ipath) <= 0)
 			return E_INVAL;
-		im = image_get(ipath, size, 0);
+		im = image_get(ipath, size, 0, p->uid);
 		if (!im)
 			return E_NOENT; /* AppKit construit l'image */
 	} else if (size == 0 || size > (256ULL << 20))
@@ -754,7 +793,7 @@ int64_t sys_spawn_preloaded(uint64_t upath, uint64_t fsize, uint64_t params)
 	char path[IMAGE_PATH_MAX];
 	if (copy_string_from_user(path, upath, sizeof path) <= 0)
 		return E_INVAL;
-	struct image *im = image_get(path, fsize, rights);
+	struct image *im = image_get(path, fsize, rights, uid < 0 ? me->uid : uid);
 	if (!im)
 		return E_NOENT;
 	char name[PROC_NAME];

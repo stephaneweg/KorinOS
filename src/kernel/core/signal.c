@@ -19,6 +19,7 @@
 #include <korin/sched.h>
 #include <korin/signal.h>
 #include <korin/spinlock.h>
+#include <korin/vm.h>
 
 #define BIT(s) (1ULL << (s)) /* comme le Pi (signal.asm : 1 << signal) */
 #define STOPS (BIT(SIGSTOP) | BIT(SIGTSTP) | BIT(SIGTTIN) | BIT(SIGTTOU))
@@ -43,8 +44,10 @@ static int ignored(struct process *p, int s)
 
 int64_t sys_sig_action(uint64_t sig, uint64_t handler, uint64_t flags, uint64_t mask, uint64_t restorer)
 {
-	if (sig < 1 || sig > NSIG || sig == SIGKILL || sig == SIGSTOP)
-		return E_INVAL;
+	if (sig < 1 || sig >= NSIG || sig == SIGKILL || sig == SIGSTOP)
+		return E_INVAL; /* 1 à 63 : BIT(64) n'existe pas (SIGRTMAX = 63 dans libposix) */
+	if ((handler > 1 && !user_addr_ok(handler)) || (restorer && !user_addr_ok(restorer)))
+		return E_INVAL; /* adresse non canonique : #GP du noyau à l'iretq */
 	struct process *p = sched_current()->proc;
 	uint64_t f = spin_lock_irqsave(&sig_lock);
 	p->act[sig - 1] = (struct sigact){handler, flags, mask & ~UNBLOCKABLE};
@@ -60,11 +63,10 @@ int64_t sys_sig_action(uint64_t sig, uint64_t handler, uint64_t flags, uint64_t 
 static void job_event(struct process *p, int ev)
 {
 	p->jobev = ev;
-	uint64_t f = sched_lock_take();
-	struct process *parent = proc_get(p->parent);
-	sched_lock_give(f);
+	struct process *parent = proc_hold(p->parent);
 	if (parent && parent->act[SIGCHLD - 1].handler > 1 && !(parent->act[SIGCHLD - 1].flags & SA_NOCLDSTOP))
 		parent->sigpending |= BIT(SIGCHLD);
+	proc_release(parent);
 	proc_wake_waiters();
 }
 
@@ -189,49 +191,83 @@ static int pg_orphan(int pgid)
 	return orphan;
 }
 
+/* (sous sched_lock) un process vivant de la session est-il dans ce groupe ? */
+static int pgrp_in_session_locked(int pgid, int sid)
+{
+	for (struct process *q = *proc_list_head(); q; q = q->next)
+		if (q->pgid == pgid && q->sid == sid && q->state == P_ALIVE)
+			return 1;
+	return 0;
+}
+
 int64_t sys_sig_send(int64_t pid, int64_t tid, uint64_t sig)
 {
 	struct process *me = sched_current()->proc;
 	int tty = (sig & SIGF_TTY) != 0;
 	sig &= 0xFFFF;
-	if (sig > NSIG)
+	if (sig >= NSIG)
 		return E_INVAL;
 	if (pid < 0) { /* un groupe : chaque process, sauf ceux qui ont les droits */
-		int hit = 0;
+		/* tout le groupe, par lots de 64 process tenus (proc_hold : pas rendus pendant l'envoi) ;
+		 * chaque process n'est pris qu'une fois (gen_sig), un groupe qui grandit pendant l'envoi
+		 * (bombe de fork) est parcouru jusqu'au bout */
+		static uint32_t round_gen;
 		uint64_t f = sched_lock_take();
-		struct process *list[64];
-		int n = 0;
-		for (struct process *p = *proc_list_head(); p && n < 64; p = p->next)
-			if (p->pgid == -pid && p->state == P_ALIVE && !p->rights && p != &kernel_process &&
-			    (me->uid == 0 || p->uid == me->uid))
-				list[n++] = p;
+		uint32_t gen = ++round_gen;
+		if (!gen)
+			gen = ++round_gen;
 		sched_lock_give(f);
-		for (int i = 0; i < n; i++, hit++)
-			signal_send_proc(list[i], (int)sig);
+		int hit = 0;
+		for (;;) {
+			struct process *list[64];
+			int n = 0;
+			f = sched_lock_take();
+			for (struct process *p = *proc_list_head(); p && n < 64; p = p->next)
+				if (p->pgid == -pid && p->state == P_ALIVE && !p->rights && p != &kernel_process &&
+				    (me->uid == 0 || p->uid == me->uid) && p->sig_round != gen && proc_hold_locked(p)) {
+					p->sig_round = gen;
+					list[n++] = p;
+				}
+			sched_lock_give(f);
+			for (int i = 0; i < n; i++, hit++) {
+				signal_send_proc(list[i], (int)sig);
+				proc_release(list[i]);
+			}
+			if (n < 64)
+				break;
+		}
 		return hit ? 0 : E_SRCH;
 	}
 	uint64_t f = sched_lock_take();
-	struct process *p = pid ? proc_get((int)pid) : me;
+	struct process *p = proc_hold_locked(pid ? proc_get((int)pid) : me); /* (tenu : lui et ses threads) */
 	struct thread *t = tid && p ? thread_find(p, (int)tid) : 0;
 	sched_lock_give(f);
-	if (!p || p->state != P_ALIVE || (tid && !t))
+	if (!p || p->state != P_ALIVE || (tid && !t)) {
+		proc_release(p);
 		return E_SRCH;
-	if (me->uid != 0 && p->uid != me->uid)
+	}
+	if (me->uid != 0 && p->uid != me->uid) {
+		proc_release(p);
 		return E_PERM; /* un autre utilisateur, un service (comme SYS_KILL) */
+	}
 	if (tty) { /* signal d'un terminal pour un lecteur / écrivain en arrière-plan (comme jobs.asm du Pi) */
-		if (sig != SIGTTIN && sig != SIGTTOU)
-			return E_INVAL;
-		if (ignored(p, (int)sig) || masked_by_all(p, (int)sig))
-			return 1; /* ignoré, ou masqué par tous ses threads : rien d'envoyé (un shell qui
-				   * fait tcsetpgrp avec SIGTTOU masqué ne doit pas s'arrêter ensuite) */
-		if (pg_orphan(p->pgid))
+		int pg = p->pgid;
+		/* ignoré, ou masqué par tous ses threads : rien d'envoyé (un shell qui fait tcsetpgrp avec
+		 * SIGTTOU masqué ne doit pas s'arrêter ensuite) */
+		int r = sig != SIGTTIN && sig != SIGTTOU ? E_INVAL
+			: ignored(p, (int)sig) || masked_by_all(p, (int)sig) ? 1 : 0;
+		proc_release(p);
+		if (r)
+			return r;
+		if (pg_orphan(pg))
 			return 2; /* groupe orphelin : rien d'envoyé, le terminal rend E_IO */
-		sys_sig_send(-p->pgid, 0, sig);
+		sys_sig_send(-pg, 0, sig);
 		return 0;
 	}
 	f = spin_lock_irqsave(&sig_lock);
 	int r = send_locked(p, t, (int)sig, me->pid);
 	spin_unlock_irqrestore(&sig_lock, f);
+	proc_release(p);
 	return r;
 }
 
@@ -436,6 +472,11 @@ int64_t sys_setpgid(int64_t pid, int64_t pgid)
 		r = E_INVAL;
 	else if ((p != me && p->parent != me->pid) || p->sid != me->sid || p->sid == p->pid)
 		r = E_PERM;
+	else if (pgid && pgid != p->pid && !pgrp_in_session_locked((int)pgid, me->sid) &&
+		 !proc_is_child_locked((int)pgid, me->pid) && !proc_is_child_locked((int)pgid, me->parent))
+		r = E_PERM; /* un groupe qui n'existe pas dans la session ; permis : le meneur, fils de
+			     * l'appelant (le shell) ou de son père (le fils lui-même, comme bash), même fini
+			     * (« echo a | cat » : comme un zombie de Linux, pas encore attendu) */
 	else
 		p->pgid = pgid ? (int)pgid : p->pid;
 	sched_lock_give(f);
@@ -490,23 +531,24 @@ void signal_alarm_thread(void *arg)
 		int n = 0;
 		uint64_t f = sched_lock_take();
 		for (struct process *p = *proc_list_head(); p && n < 32; p = p->next)
-			if (p->alarm_ms && now >= p->alarm_ms && p->state == P_ALIVE) {
+			if (p->alarm_ms && now >= p->alarm_ms && p->state == P_ALIVE && proc_hold_locked(p)) {
 				p->alarm_ms = p->alarm_iv_ms ? now + p->alarm_iv_ms : 0;
 				due[n++] = p;
 			}
 		sched_lock_give(f);
-		for (int i = 0; i < n; i++)
+		for (int i = 0; i < n; i++) {
 			signal_send_proc(due[i], SIGALRM);
+			proc_release(due[i]);
+		}
 	}
 }
 
 void signal_child_exit(struct process *p)
 {
-	uint64_t f = sched_lock_take();
-	struct process *parent = proc_get(p->parent);
-	sched_lock_give(f);
+	struct process *parent = proc_hold(p->parent);
 	if (parent && parent->act[SIGCHLD - 1].handler > 1)
 		signal_send_proc(parent, SIGCHLD);
+	proc_release(parent);
 }
 
 /* ---- capture de syscall (SYS_SYSCALL_CAPTURE ; docs/etude/WIDEVINE.md 3.2) ----

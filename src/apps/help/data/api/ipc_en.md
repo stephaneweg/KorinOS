@@ -137,7 +137,7 @@ int main (int argc, char **argv)
 }
 ```
 
-> **Note**: shared memory synchronises nothing. To wait for the other process, send it a word through a channel, or a `SVC_SIGNAL` if it is a service.
+> **Note**: shared memory synchronises nothing. To wait for the other process, send it a word through a channel (a service with system rights can also use `SVC_SIGNAL`).
 
 ## The Kernel Calls
 

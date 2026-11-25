@@ -161,12 +161,16 @@ void cpu_init(unsigned idx, uint32_t apic_id)
 	/* sysret : CS = 0x10 + 16, SS = 0x10 + 8 (| 3) ; syscall : CS 0x08, SS 0x10 */
 	wrmsr(MSR_STAR, (0x10ULL << 48) | (0x08ULL << 32));
 	wrmsr(MSR_LSTAR, (uint64_t)syscall_entry);
-	wrmsr(MSR_FMASK, 0x40700); /* IF, TF, DF, AC coupés à l'entrée */
+	wrmsr(MSR_FMASK, 0x44700); /* IF, TF, DF, NT, AC coupés à l'entrée (NT : iretq ferait #GP) */
 
 	/* FPU et SSE pour les process : CR0.EM éteint, MP et NE ; CR4.OSFXSR, OSXMMEXCPT */
 	uint64_t cr0, cr4;
 	__asm__ volatile("mov %%cr0, %0" : "=r"(cr0));
-	cr0 = (cr0 & ~(1ULL << 2)) | (1ULL << 1) | (1ULL << 5);
+	/* CD (30) et NW (29) éteints : le trampoline des cœurs secondaires part de 0x60000010 et n'ajoute
+	 * que PG et PE, d'où des caches coupés sur ces cœurs ; WP (16) : le noyau respecte la lecture seule
+	 * des pages des programmes (ses écritures voulues passent par la carte physique, ou par
+	 * copy_to_user qui casse d'abord la copie sur écriture) */
+	cr0 = (cr0 & ~((1ULL << 30) | (1ULL << 29) | (1ULL << 2))) | (1ULL << 16) | (1ULL << 1) | (1ULL << 5);
 	__asm__ volatile("mov %0, %%cr0" ::"r"(cr0));
 	__asm__ volatile("mov %%cr4, %0" : "=r"(cr4));
 	cr4 |= (1ULL << 9) | (1ULL << 10);

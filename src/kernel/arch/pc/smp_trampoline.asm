@@ -19,7 +19,8 @@ use16
         align   8
 params:                                 ; T + 8 : struct tramp_params de smp.c
 p_pml4          dd 0                    ; tables provisoires (physique, < 4 Go)
-                dd 0
+p_efer          dd 0                    ; bits d'EFER du cœur 0 à poser aussi (NXE : les tables
+                                        ; du noyau ont des entrées NX, réservées sans lui)
 p_stack         dq 0                    ; pile du thread inactif (virtuelle)
 p_cr3           dq 0                    ; tables du noyau
 p_entry         dq 0                    ; ap_entry
@@ -47,6 +48,7 @@ code16:
         mov     ecx, 0xC0000080         ; EFER
         rdmsr
         or      eax, 1 shl 8            ; LME
+        or      eax, [p_efer]           ; NXE (avant toute table avec NX)
         wrmsr
         mov     eax, cr0
         or      eax, 0x80000001         ; PG et PE

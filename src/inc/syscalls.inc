@@ -221,6 +221,10 @@ SYS_SYSCALL_CAPTURE	= 0x96		; (plages, n, entree, retour, numeros) -> 0 : captur
 					; process entier, garde par fork, efface par exec ; PC seulement (Pi : E_NOSYS)
 CAPTURE_MAX		= 4
 CAPTURE_CODE		= 1
+SYS_SVC_REQ_INFO	= 0x97		; (num, sortie 32 o) -> 0 : la requete num prise par le service qui appelle :
+					; {pid de l'appelant, pid du service qui l'a transmise (0 : venue directement),
+					; uid de l'appelant, pid de son pere} (int64) ; E_INVAL : pas une requete prise par
+					; lui, E_SRCH : l'appelant l'a abandonnee ; PC seulement (Pi : E_NOSYS, uid 0)
 SPAWN_UID		= 2		; options de SPAWN_IMAGE / SPAWN_PRELOADED (params+16) : l'uid du fils dans
 					; les bits 32-63 ; appelant d'uid 0 seulement (E_PERM)
 SYS_APPKIT_FIRST	= SYS_OPEN

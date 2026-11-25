@@ -24,4 +24,10 @@ __attribute__((noreturn)) void kpanic(const char *fmt, ...);
 #define ALIGN_UP(x, a) (((x) + (a) - 1) & ~((uint64_t)(a) - 1))
 #define ALIGN_DOWN(x, a) ((x) & ~((uint64_t)(a) - 1))
 
+/* [off, off + len) tient dans [0, size) sans débordement (en-têtes ELF lus d'un fichier) */
+static inline int range_in(uint64_t off, uint64_t len, uint64_t size)
+{
+	return off <= size && len <= size - off;
+}
+
 #endif

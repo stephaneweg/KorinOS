@@ -75,6 +75,8 @@ struct process {
 	 * reaping : choisi par sched_reap (sous sched_lock), plus d'épinglage possible */
 	volatile int pins;
 	int reaping;
+	uint32_t sig_round; /* envoi à un groupe (signal.c) : déjà pris dans ce tour */
+	volatile int ipc_transit; /* poignées envoyées par lui, pas encore reçues (ipc.c, TRANSIT_MAX) */
 	struct process *next;
 };
 
@@ -174,6 +176,13 @@ struct process *proc_create(const char *name, int parent, int rights);
 int proc_spawn(const char *name, const void *image, uint64_t size);
 int proc_spawn_ex(const char *name, const void *image, uint64_t size, const char *args, int parent, int rights);
 struct process *proc_get(int pid);  /* sous sched_lock_take */
+/* le process de ce pid, tenu (pins) : sched_reap ne rend ni lui, ni ses threads finis, avant
+ * proc_release ; 0 s'il n'existe pas ou que son démontage a commencé. Sous sched_lock (_locked) ou non.
+ * Ne jamais dormir en le tenant : exec et le faucheur attendent que pins revienne à 0. */
+struct process *proc_hold(int pid);
+struct process *proc_hold_locked(struct process *p);
+void proc_release(struct process *p);
+int proc_is_child_locked(int pid, int parent);
 struct process **proc_list_head(void); /* sous sched_lock_take */
 void proc_list(void);
 /* appelé par sched_reap pour un process fini, hors verrou */

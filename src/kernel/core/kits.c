@@ -66,7 +66,7 @@ static int load(const char *name, const uint8_t *img, uint64_t size)
 	const struct ehdr *e = (const void *)img;
 	if (size < sizeof *e || memcmp(e->ident, "\x7f" "ELF", 4) || e->ident[4] != 2 ||
 	    e->machine != arch_elf_machine() || e->phentsize < sizeof(struct phdr) ||
-	    e->phoff + (uint64_t)e->phnum * e->phentsize > size)
+	    !range_in(e->phoff, (uint64_t)e->phnum * e->phentsize, size))
 		return E_NOEXEC;
 	struct kit k = {0};
 	memcpy(k.name, name, KIT_NAME);
@@ -75,7 +75,8 @@ static int load(const char *name, const uint8_t *img, uint64_t size)
 		const struct phdr *ph = (const void *)(img + e->phoff + (uint64_t)i * e->phentsize);
 		if (ph->type != 1 || !ph->memsz)
 			continue;
-		if ((ph->filesz && ph->offset + ph->filesz > size) || ph->filesz > ph->memsz || ph->vaddr + ph->memsz > KIT_SLOT)
+		if ((ph->filesz && !range_in(ph->offset, ph->filesz, size)) || ph->filesz > ph->memsz ||
+		    !range_in(ph->vaddr, ph->memsz, KIT_SLOT))
 			return E_NOEXEC;
 		uint64_t first = ALIGN_DOWN(ph->vaddr, PAGE_SIZE), end = ALIGN_UP(ph->vaddr + ph->memsz, PAGE_SIZE);
 		uint8_t *dst;
@@ -100,7 +101,7 @@ static int load(const char *name, const uint8_t *img, uint64_t size)
 			memcpy(k.rw_init + (ph->vaddr - first), img + ph->offset, ph->filesz);
 		}
 	}
-	if (!k.rx_size || k.entry + 8 > k.rx_size)
+	if (!k.rx_size || !range_in(k.entry, 8, k.rx_size))
 		return E_NOEXEC;
 	const uint32_t *tab = (const uint32_t *)((uint8_t *)arch_phys_to_virt(k.rx_phys) + k.entry);
 	if (tab[0] != KIT_MAGIC)

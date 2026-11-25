@@ -22,6 +22,13 @@ struct mm;
 #define BUF_MAX 128
 #define DMA_BASE 0x6A00000000ULL      /* DMA_ALLOC, puis DEV_MAP */
 #define DEV_BASE 0x6B00000000ULL
+#define DEV_END 0x6C00000000ULL       /* (WS_FB_VA 0x6D00000000, MAPC_BASE 0x6E00000000 au-dessus) */
+/* fenêtres d'IMAGE_CREATE (core/image.c) : 4 x 4 Go, au-dessus de MAPC_BASE ; jamais recopiées par
+ * fork (la page d'une image en cours de chargement ne passe pas au fils) */
+#define IMG_WIN_BASE 0x7000000000ULL
+#define IMG_WIN_SIZE (4ULL << 30)
+#define IMG_WIN_MAX 4
+#define IMG_WIN_END (IMG_WIN_BASE + IMG_WIN_MAX * IMG_WIN_SIZE)
 #define HEAP_LIMIT 0x5000000000ULL
 #define VM_LOW_BASE 0x10000ULL       /* VM_FIXED sous l'image du programme (hôte Linux) */
 #define USER_STACK_TOP 0x00007FFFFFFF0000ULL
@@ -57,6 +64,8 @@ uint64_t mm_pin_page(struct process *p, uint64_t va, int write);
 /* accès du noyau à la mémoire du process courant : pages des régions amenées
  * d'abord ; E_FAULT si une page manque ou n'a pas les droits */
 int user_check(uint64_t addr, uint64_t len, int write);
+/* (switch.asm) copie rattrapée : 0, ou E_FAULT si une page manque ; après user_check seulement */
+int arch_copy_user(void *dst, const void *src, uint64_t len);
 int copy_from_user(void *dst, uint64_t src, uint64_t len);
 int copy_to_user(uint64_t dst, const void *src, uint64_t len);
 /* chaîne terminée par 0, max octets avec le 0 ; longueur ou E_FAULT / E_INVAL */

@@ -5,6 +5,7 @@
 #include <korin/arch.h>
 #include <korin/kheap.h>
 #include <korin/lib.h>
+#include <korin/mm.h>
 #include <korin/pmm.h>
 #include <korin/vm.h>
 
@@ -136,6 +137,15 @@ int vm_map_page(struct vm_space *vm, uint64_t va, uint64_t phys, int flags)
 	uint64_t *pte = walk(vm, va, 1);
 	if (!pte)
 		return -12;
+	/* une page présente remplacée par une autre : la page d'avant reste comptée chez son
+	 * propriétaire, ou se perd (mode journal du plan de sécurité, E11 : relevé avant le refus) */
+	if ((*pte & PTE_P) && (*pte & ADDR_MASK) != (phys & ADDR_MASK)) {
+		static int told;
+		if (told < 16) {
+			told++;
+			kprintf("vm : page %lx remplacée (journal seulement)\n", va);
+		}
+	}
 	*pte = (phys & ADDR_MASK) | pte_bits(flags);
 	flush_local(vm, va);
 	return 0;
@@ -243,6 +253,10 @@ int vm_fork(struct vm_space *parent, struct vm_space *child)
 {
 	for (uint64_t va = vm_next_candidate(parent, 0, vm_user_top); va < vm_user_top;
 	     va = vm_next_candidate(parent, va + PAGE_SIZE, vm_user_top)) {
+		if (va >= IMG_WIN_BASE && va < IMG_WIN_END) { /* fenêtre d'image : au chargeur seul */
+			va = IMG_WIN_END - PAGE_SIZE;
+			continue;
+		}
 		uint64_t *pte = walk(parent, va, 0);
 		if (!pte || !(*pte & PTE_P))
 			continue;

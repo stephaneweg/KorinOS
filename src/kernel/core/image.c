@@ -26,9 +26,9 @@
 #define IMG_MAX 128
 #define PATH IMAGE_PATH_MAX
 #define IML_PATH 80 /* le chemin dans une entrée d'IMAGE_LIST (128 o, ABI) : tronqué */
-#define WIN_BASE 0x6C00000000ULL
-#define WIN_SIZE (4ULL << 30)
-#define WIN_MAX 4
+#define WIN_BASE IMG_WIN_BASE /* (mm.h ; 0x6C00000000 avant : recouvrait WS_FB_VA et MAPC_BASE) */
+#define WIN_SIZE IMG_WIN_SIZE
+#define WIN_MAX IMG_WIN_MAX
 #define IMG_PIN 1
 #define IMS_ABORT 1
 #define IML_PIN 1
@@ -39,6 +39,7 @@ struct image {
 	uint64_t fsize, npages;
 	uint64_t *pages;
 	int pinned, sys;
+	int uid;       /* du créateur : une image sans droits ne sert qu'aux process de cet uid */
 	int valid;     /* dans la table : trouvée par SPAWN_PRELOADED */
 	int loading;   /* pid qui la remplit (fenêtre), 0 : scellée */
 	int window;
@@ -156,8 +157,8 @@ static int check_elf(struct image *im, struct ehdr *e)
 	img_read(im, 0, e, sizeof *e);
 	if (memcmp(e->ident, "\x7f" "ELF", 4) || e->ident[4] != 2 || e->machine != arch_elf_machine() ||
 	    e->type != 2 || e->phentsize < sizeof(struct phdr) ||
-	    e->phoff + (uint64_t)e->phnum * e->phentsize > PAGE_SIZE ||
-	    e->phoff + (uint64_t)e->phnum * e->phentsize > im->fsize)
+	    !range_in(e->phoff, (uint64_t)e->phnum * e->phentsize, PAGE_SIZE) ||
+	    !range_in(e->phoff, (uint64_t)e->phnum * e->phentsize, im->fsize) || !user_addr_ok(e->entry))
 		return E_NOEXEC;
 	im->rw_pages = im->lazy = 0;
 	for (int i = 0; i < e->phnum; i++) {
@@ -165,7 +166,7 @@ static int check_elf(struct image *im, struct ehdr *e)
 		img_read(im, e->phoff + (uint64_t)i * e->phentsize, &ph, sizeof ph);
 		if (ph.type != 1 || !ph.memsz)
 			continue;
-		if (ph.filesz > ph.memsz || (ph.filesz && ph.offset + ph.filesz > im->fsize) || ph.vaddr < 0x10000 ||
+		if (ph.filesz > ph.memsz || (ph.filesz && !range_in(ph.offset, ph.filesz, im->fsize)) || ph.vaddr < 0x10000 ||
 		    ph.vaddr + ph.memsz > HEAP_LIMIT || ph.vaddr + ph.memsz < ph.vaddr)
 			return E_NOEXEC;
 		if (ph.flags & 2)
@@ -243,13 +244,13 @@ int image_map(struct image *im, struct vm_space *vm, struct mm *mm, uint64_t *en
 }
 
 /* l'image valide de ce chemin et de cette taille, avec une référence de plus */
-struct image *image_get(const char *path, uint64_t fsize, int need_sys)
+struct image *image_get(const char *path, uint64_t fsize, int need_sys, int uid)
 {
 	uint64_t f = spin_lock_irqsave(&img_lock);
 	struct image *im = 0;
 	for (int i = 0; i < IMG_MAX && !im; i++)
 		if (imgs[i] && imgs[i]->valid && imgs[i]->fsize == fsize && same_path(imgs[i]->path, path) &&
-		    (!need_sys || imgs[i]->sys))
+		    (!need_sys || imgs[i]->sys) && (imgs[i]->sys || imgs[i]->uid == uid))
 			im = imgs[i];
 	if (im)
 		im->refs++;
@@ -276,6 +277,7 @@ int64_t sys_image_create(uint64_t upath, uint64_t fsize, uint64_t flags)
 	im->pages = kzalloc(im->npages * 8);
 	im->pinned = (flags & IMG_PIN) != 0;
 	im->sys = p->rights;
+	im->uid = p->uid;
 	im->loading = p->pid;
 	if (!im->pages) {
 		kfree(im);
@@ -339,9 +341,11 @@ int64_t sys_image_seal(uint64_t window, uint64_t flags)
 	if (bad)
 		imgs[slot] = 0;
 	else {
-		/* la même image d'avant n'est plus prise (les process lancés la gardent) */
+		/* la même image d'avant, de la même classe (système, ou du même uid), n'est plus prise (les
+		 * process lancés la gardent) ; un compte ne retire pas l'image d'un autre */
 		for (int i = 0; i < IMG_MAX; i++)
-			if (imgs[i] && imgs[i] != im && imgs[i]->valid && same_path(imgs[i]->path, im->path)) {
+			if (imgs[i] && imgs[i] != im && imgs[i]->valid && same_path(imgs[i]->path, im->path) &&
+			    (im->sys ? imgs[i]->sys : !imgs[i]->sys && imgs[i]->uid == im->uid)) {
 				imgs[i]->valid = 0;
 				if (--imgs[i]->refs <= 0) { /* la référence de la table */
 					img_free(imgs[i]);
@@ -361,6 +365,8 @@ int64_t sys_image_seal(uint64_t window, uint64_t flags)
 
 int64_t sys_image_forget(uint64_t upath)
 {
+	struct process *p = sched_current()->proc;
+	int all = p->rights || p->uid == 0; /* les autres : seulement leurs images */
 	char path[PATH];
 	if (copy_string_from_user(path, upath, PATH) <= 0)
 		return E_INVAL;
@@ -369,7 +375,8 @@ int64_t sys_image_forget(uint64_t upath)
 	int nd = 0;
 	uint64_t f = spin_lock_irqsave(&img_lock);
 	for (int i = 0; i < IMG_MAX; i++)
-		if (imgs[i] && imgs[i]->valid && same_path(imgs[i]->path, path)) {
+		if (imgs[i] && imgs[i]->valid && same_path(imgs[i]->path, path) &&
+		    (all || (!imgs[i]->sys && imgs[i]->uid == p->uid))) {
 			imgs[i]->valid = 0;
 			n++;
 			if (--imgs[i]->refs <= 0) { /* la référence de la table */

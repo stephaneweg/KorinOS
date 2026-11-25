@@ -38,7 +38,7 @@ void tss_set_rsp0(uint64_t top)
 	tables[arch_cpu_id()].tss.rsp[0] = top;
 }
 
-void gdt_init(unsigned cpu, uint64_t ist_double_fault, uint64_t ist_nmi)
+void gdt_init(unsigned cpu, uint64_t ist_double_fault, uint64_t ist_nmi, uint64_t ist_mc)
 {
 	struct cpu_tables *t = &tables[cpu];
 	uint64_t *gdt = t->gdt;
@@ -50,6 +50,7 @@ void gdt_init(unsigned cpu, uint64_t ist_double_fault, uint64_t ist_nmi)
 
 	t->tss.ist[0] = ist_double_fault;
 	t->tss.ist[1] = ist_nmi;
+	t->tss.ist[2] = ist_mc; /* #MC : sa propre pile (une #MC pendant une NMI ne l'écrase pas) */
 	t->tss.iomap_base = sizeof t->tss;
 	uint64_t base = (uint64_t)&t->tss, limit = sizeof t->tss - 1;
 	gdt[5] = (limit & 0xFFFF) | ((base & 0xFFFFFF) << 16) | (0x89ULL << 40) |

@@ -79,8 +79,13 @@ int64_t sys_ws_reply(uint64_t num, uint64_t msg)
 	return sys_svc_reply(num, msg);
 }
 
+#define WS_SIG_DAMAGE 1 /* (ws_ext.inc) */
+
 int64_t sys_ws_signal(uint64_t bits)
 {
+	/* un programme sans droits ne lève que WS_SIG_DAMAGE (UIKit : une zone salie) ; 0 sonde */
+	if ((bits & ~(uint64_t)WS_SIG_DAMAGE) && !sched_current()->proc->rights)
+		return E_PERM;
 	int c = server_chan();
 	if (c < 0)
 		return E_NODEV;
@@ -100,6 +105,8 @@ int64_t sys_ws_post(int64_t pid, uint64_t uev)
 		return E_FAULT;
 	uint64_t f = sched_lock_take();
 	struct process *p = proc_get((int)pid);
+	if (p && p->reaping)
+		p = 0; /* démontage commencé : ws_proc_exit rend la file */
 	struct evq *q = p ? p->evq : 0;
 	if (p && !q)
 		q = p->evq = kzalloc(sizeof *q); /* (le tas a son propre verrou) */
@@ -245,8 +252,11 @@ int64_t sys_clip_get(uint64_t buf, uint64_t max)
 /* fin d'un process : sa file ; le serveur parti, la console reprend l'écran */
 void ws_proc_exit(struct process *p)
 {
-	kfree(p->evq);
+	uint64_t g = sched_lock_take(); /* (WS_POST écrit dans la file sous ce verrou) */
+	struct evq *q = p->evq;
 	p->evq = 0;
+	sched_lock_give(g);
+	kfree(q);
 	uint64_t f = spin_lock_irqsave(&ws_lock);
 	int was = p->pid == ws_pid;
 	if (was) {

@@ -35,7 +35,8 @@ int elf_load(struct vm_space *vm, struct mm *mm, const void *image, uint64_t siz
 	if (size < sizeof *e || memcmp(e->ident, "\x7f" "ELF", 4) || e->ident[4] != 2 ||
 	    e->machine != arch_elf_machine() || e->type != 2 /* ET_EXEC */)
 		return E_NOEXEC;
-	if (e->phentsize < sizeof(struct phdr) || e->phoff + (uint64_t)e->phnum * e->phentsize > size)
+	if (e->phentsize < sizeof(struct phdr) || !range_in(e->phoff, (uint64_t)e->phnum * e->phentsize, size) ||
+	    !user_addr_ok(e->entry))
 		return E_NOEXEC;
 
 	uint64_t top = 0;
@@ -43,7 +44,7 @@ int elf_load(struct vm_space *vm, struct mm *mm, const void *image, uint64_t siz
 		const struct phdr *ph = (const void *)(img + e->phoff + (uint64_t)i * e->phentsize);
 		if (ph->type != PT_LOAD || ph->memsz == 0)
 			continue;
-		if (ph->filesz > ph->memsz || (ph->filesz && ph->offset + ph->filesz > size) ||
+		if (ph->filesz > ph->memsz || (ph->filesz && !range_in(ph->offset, ph->filesz, size)) ||
 		    ph->vaddr + ph->memsz < ph->vaddr || ph->vaddr + ph->memsz > HEAP_LIMIT || ph->vaddr < 0x10000)
 			return E_NOEXEC;
 		int flags = (ph->flags & PF_W ? VM_W : 0) | (ph->flags & PF_X ? VM_X : 0);

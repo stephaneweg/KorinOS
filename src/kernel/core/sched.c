@@ -501,7 +501,10 @@ void sched_reap(void)
 	uint64_t f = spin_lock_irqsave(&sched_lock);
 	for (struct thread **pt = &threads; *pt;) {
 		struct thread *t = *pt;
-		if (t->state == T_DEAD && !t->on_cpu && t->idle_cpu < 0) {
+		/* (un process tenu, proc_hold : ses threads finis restent, un pointeur de thread_find pris
+		 * sous ce verrou reste valable ; THREAD_KILL, SIG_SEND à un thread) */
+		if (t->state == T_DEAD && !t->on_cpu && t->idle_cpu < 0 &&
+		    !(t->proc && __atomic_load_n(&t->proc->pins, __ATOMIC_ACQUIRE))) {
 			*pt = t->next;
 			t->next = dead;
 			dead = t;

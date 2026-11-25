@@ -18,6 +18,11 @@ struct vm_space;
 
 /* fin (exclue) de la moitié des process */
 extern const uint64_t vm_user_top;
+/* adresse de l'espace du programme (canonique sur le PC) : point d'entrée, gestionnaire, TLS */
+static inline int user_addr_ok(uint64_t va)
+{
+	return va < vm_user_top;
+}
 
 struct vm_space *vm_create(void);
 void vm_destroy(struct vm_space *vm);   /* rend les pages qui sont au process */

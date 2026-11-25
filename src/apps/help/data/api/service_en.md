@@ -23,9 +23,10 @@ For more than 464 bytes: shared memory ([IPC](ipc_en.md#shared-memory)), or seve
 | `0x32` | `SVC_CALL` | channel, message | the result (`op` of the answer); `E_PIPE` (-32) if the service stops |
 | `0x33` | `SVC_NEXT` | service number, message, wait in ms | request number (0: nothing during the wait) |
 | `0x34` | `SVC_REPLY` | request number, message | 0 |
-| `0x35` | `SVC_SIGNAL` | channel, bits | 0: wakes the service without waiting; it receives op `0xFFFD`, `a` = the bits |
+| `0x35` | `SVC_SIGNAL` | channel, bits | 0: wakes the service without waiting; it receives op `0xFFFD`, `a` = the bits. System rights only (`E_PERM` otherwise) |
+| `0x97` | `SVC_REQ_INFO` | request number, 32-byte output | 0: caller pid, pid of the service that forwarded it (0: none), caller uid, caller's parent pid; to decide on a right without a race on pids (PC; `E_NOSYS` on the Pi: uid 0) |
 
-Flags of `SVC_REGISTER`: 1 (`SVF_ENDS`): the service is told about the end of every process (op `0xFFFF`, `a` = pid, `b` = exit code), useful to release what a client held; 2: told about births (op `0xFFFE`); 4: it keeps memory it can give back. These kernel notices expect no answer. The other calls (`0x36` to `0x38`: memory of the caller, for drivers) are described in `docs/ABI.md`.
+Flags of `SVC_REGISTER`: 1 (`SVF_ENDS`): the service is told about the end of every process (op `0xFFFF`, `a` = pid, `b` = exit code), useful to release what a client held; 2: told about births (op `0xFFFE`); 4: it keeps memory it can give back. These kernel notices expect no answer; a process cannot send an op of `0xFFF0` or more (`SVC_CALL` returns `E_INVAL`). The other calls (`0x36` to `0x38`: memory of the caller, for drivers) are described in `docs/ABI.md`.
 
 All these calls go through `svc 0`, the number in `x8`: see `sys3` in the examples. The C library has no function for them.
 

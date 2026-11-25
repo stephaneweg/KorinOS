@@ -20,7 +20,9 @@ int64_t sys_kit_register(uint64_t name, uint64_t image, uint64_t size);
 int64_t sys_lib_open(uint64_t name, uint64_t vmin);
 
 /* l'image valide de ce chemin et de cette taille (une référence de plus) */
-struct image *image_get(const char *path, uint64_t fsize, int need_sys);
+/* uid : celui du process qui en sera lancé ; une image sans droits (im->sys = 0) n'est prise que par
+ * cet uid (sinon un compte scelle un faux /bin/sudo que lance un autre) */
+struct image *image_get(const char *path, uint64_t fsize, int need_sys, int uid);
 void image_put(struct image *im);
 /* une référence de plus sur une image déjà tenue (fork : le fils garde ses pages de code) */
 void image_hold(struct image *im);

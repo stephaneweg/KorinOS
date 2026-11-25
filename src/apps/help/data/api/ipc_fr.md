@@ -137,7 +137,7 @@ int main (int argc, char **argv)
 }
 ```
 
-> **Remarque** : la mémoire partagée ne synchronise rien. Pour attendre l'autre process, lui envoyer un mot par un canal, ou un `SVC_SIGNAL` s'il est un service.
+> **Remarque** : la mémoire partagée ne synchronise rien. Pour attendre l'autre process, lui envoyer un mot par un canal (un service à droits système peut aussi utiliser `SVC_SIGNAL`).
 
 ## Les appels du noyau
 

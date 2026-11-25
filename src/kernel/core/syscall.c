@@ -150,6 +150,7 @@ static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 	case SYS_SIG_MASK: return sys_sig_mask(a[0], a[1]);
 	case SYS_SIG_ALTSTACK: return sys_sig_altstack(a[0], a[1], a[2]);
 	case SYS_SYSCALL_CAPTURE: return sys_syscall_capture(a[0], a[1], a[2], a[3], a[4]);
+	case SYS_SVC_REQ_INFO: return sys_svc_req_info(a[0], a[1]);
 	/* 0x70 IPC entre process */
 	case SYS_HANDLE_CLOSE: return sys_handle_close(a[0]);
 	case SYS_HANDLE_INFO: return sys_handle_info(a[0], a[1]);
