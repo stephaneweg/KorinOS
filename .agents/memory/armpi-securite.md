@@ -43,3 +43,17 @@ mode log. Essais : ktest, bureau complet et essais en uid 1000 (sectest.sh), ré
 **Décisions de l'utilisateur (25/11)** : E70 : comptes + repli secret commun ; E33/E34 : NON (les programmes de
 session gardent `rights`, pas de sudo pour les façades) ; E68 : webd --dev local par défaut, option réseau ;
 JIT W^X : plus tard.
+
+**25/11 soir, suite de `security-fix`** : faites aussi E68, E70 (telnetd/ftpd par comptes), E48 (oauthd par uid),
+E38 (AUTH_SUDO du seul vrai /bin/sudo par empreinte, portée calculée par authd, compteur par compte et origine
+plafonné à 5 min ; compte sans mot de passe : sudo passe par la carte), F4 vraiment (fs.* : ops par chemin de vfs,
+uid 0 ou droits seulement : `fs_path_ok`), E27 (/tmp/<uid> à ce compte dans tous les modes, TMPDIR de libposix,
+O_WRITE dans ramfs/ext4fs), K1 (pkglib télécharge dans /tmp/0/pkg), G4/G5 (Elegant : captures, liste, fermeture,
+MENU_COMMAND à une liste de programmes par SYS_PROC_EXE), N10 (sceaux SHM). Une relecture par un agent a trouvé
+et fait corriger : montage par « /media/../etc », renommage d'un parent d'un chemin protégé (« mv /etc /e »).
+Listes de vfs valables dans tous les modes : /sys, /bin, /sbin, /lib, /etc/pkg, /var/pkg, /etc/init*, services*,
+users.ini, elevate.ini, shadow.ini, coffre, web-probe.js, ca-bundle, /apps/screenshot.app, /apps/taskman.app.
+**Reste** (voir le plan) : A5/G3 couches et carte imitable (E36 couches, E39), E10, E11 refus, E09, E42, E45, D8
+(KV_UNLOCK), E49-E62, E64-E65, R6/R7, S4/S6/S8, E71-E75 ; /apps et /devtools inscriptibles jusqu'à enforce
+(qbasic et qbstudio écrivent /apps sans élévation : à adapter avant E72) ; /etc/system.ini écrit par Réglages sans
+élévation (E72). Harnais d'essai : un seul QEMU à la fois (la console série est partagée).
