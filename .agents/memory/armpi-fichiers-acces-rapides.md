@@ -64,4 +64,10 @@ Demande de l'utilisateur du 24/11/2026, branche claude/lucid-wright-6o2o4b, fusi
   publié : pas vu en vrai.
 - Publié : pc 2026.11.109 (24/11 soir, sur la .108 d'une autre session) : alias PUBLIC:/ APPS:/ (vfs dans l'initrd),
   accès rapide Public, Système, lanceur (sys/panel) ; UIKit inchangé depuis la .107 (vérifié octet pour octet).
+- 25/11 : korin.apps.changed (pkglib refresh_desktop : pkg, pkg ui-job de Logiciels, pkgd ; busd rend le nombre
+  d'abonnés prévenus : 0 ou pas de busd -> relance comme avant) ; panel, panel classique, menubar relisent le
+  catalogue (apprun.c apps_reload : pids recasés par nom). Essayé sous QEMU PC (bureau classique, app factice
+  « demo » dans var/pkg/db, pkg remove demo). Pas publié. Construire pkg du PC : ARCH=x86_64 sh tools/openssl/build.sh
+  (pas tools/pc/thirdparty.sh, qui n'existe pas), puis tools/pc/apps.sh pkg pkgd pkgman.
+  Fichiers et les nouveaux fichiers d'autres programmes : modèle GNOME (inotify, un guet par dossier) proposé, pas fait.
 - Le Pi (armpi) n'est pas publié : son paquet a encore files.asm.
