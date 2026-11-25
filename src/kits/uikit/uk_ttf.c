@@ -1217,6 +1217,25 @@ ukr ttf_text_pos(long font, long s, long max, long x, long mode)
 	return r;
 }
 
+/* (25/11/2026) un bord de glyphe (couverture a, 1..255 sur 256) sur un fond en partie transparent (0xTTRRGGBB, TT : la
+ * transparence, couleur non prémultipliée, comme ic_blit) : la couleur du texte à cette opacité devant le fond. Le
+ * mélange de toujours (couleurs seules, pixel rendu opaque) frangeait de sombre le texte tracé sur une fenêtre
+ * transparente (WF_ALPHA : le noir du fond vide entrait dans le bord des lettres) */
+static u32 ttf_mix_alpha(u32 color, u32 bg, u32 a)
+{
+	u32 ab = 255 - (bg >> 24), as = a > 255 ? 255 : a; /* opacités du fond, du glyphe (0..255) */
+	u32 rest = (ab * (255 - as) + 127) / 255, ao = as + rest, o, ch;
+	if (!ao)
+		return bg;
+	o = (255 - ao) << 24;
+	for (ch = 0; ch < 24; ch += 8) {
+		u32 cs = (color >> ch) & 0xFF, cd = (bg >> ch) & 0xFF;
+		u32 v = (cs * as + cd * rest + ao / 2) / ao;
+		o |= (v > 255 ? 255 : v) << ch;
+	}
+	return o;
+}
+
 /* ttf__blend : mélange de la grille courante : x1 = surface, x2 = pas,
  * x3 = x, x4 = y (coin haut-gauche), w5 = couleur, w6 / w7 = clip */
 static void ttf_blend(long font, long surf, long pitch, long x, long y, u32 color, u32 cw, u32 ch)
@@ -1252,6 +1271,10 @@ static void ttf_blend(long font, long surf, long pitch, long x, long y, u32 colo
 				continue;
 			}
 			bg = (u32)LDW(dst, 0); /* fond */
+			if (bg >> 24) { /* fond en partie transparent : la vraie composition */
+				STW(dst, 0, ttf_mix_alpha(rb | g, bg, a));
+				continue;
+			}
 			ia = 256 - a;
 			w0 = (bg & 0x00FF00FF) * ia;
 			w0 = rb * a + w0;
@@ -1298,8 +1321,12 @@ static void ttf_blend8(long font, long e, long surf, long pitch, long x, long y,
 				STW(dst, 0, full);
 				continue;
 			}
-			a = a + (a >> 7); /* 0..255 -> 0..256 */
 			bg = (u32)LDW(dst, 0);
+			if (bg >> 24) { /* fond en partie transparent : la vraie composition */
+				STW(dst, 0, ttf_mix_alpha(full, bg, a));
+				continue;
+			}
+			a = a + (a >> 7); /* 0..255 -> 0..256 */
 			ia = 256 - a;
 			w19 = (bg & 0x00FF00FF) * ia;
 			w19 = rb * a + w19;

@@ -70,4 +70,9 @@ Demande de l'utilisateur du 24/11/2026, branche claude/lucid-wright-6o2o4b, fusi
   « demo » dans var/pkg/db, pkg remove demo). Pas publié. Construire pkg du PC : ARCH=x86_64 sh tools/openssl/build.sh
   (pas tools/pc/thirdparty.sh, qui n'existe pas), puis tools/pc/apps.sh pkg pkgd pkgman.
   Fichiers et les nouveaux fichiers d'autres programmes : modèle GNOME (inotify, un guet par dossier) proposé, pas fait.
+- 25/11 : la vraie cause du texte frangé (grille, pilules, toute fenêtre WF_ALPHA) : ttf_blend / ttf_blend8 d'UIKit
+  mélangeaient le bord des glyphes avec la couleur du fond SANS sa transparence (noir du vide -> pixel gris opaque).
+  ttf_mix_alpha (uk_ttf.c) compose sur un fond en partie transparent ; fond opaque : calcul inchangé. Vérifié sous
+  QEMU (pixels de « Démo » et « Toutes »). La vue d'ensemble s'ouvre sous QEMU s'il y a une fenêtre (bureau vide :
+  rien) : clic sur « Korin OS » (50,15), grille par (765,750). korin.apps.changed essayé aussi dans la grille.
 - Le Pi (armpi) n'est pas publié : son paquet a encore files.asm.
