@@ -120,11 +120,27 @@ void KorinAudioDriver::run()
             v = v > 1.0f ? 1.0f : (v < -1.0f ? -1.0f : v);
             m_out[i] = int16_t(std::lrint(v * 32767.0f));
         }
-        while (!m_quit && ak_space(m_stream) < bytes) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(2));
-        }
-        if (!m_quit) {
-            ak_write(m_stream, m_out.data(), bytes);
+        // ak_write prend ce qui tient (avance et anneau du service sound) : le tampon part en morceaux, sans
+        // attendre que toute sa taille soit libre d'un coup (ce qui pouvait ne jamais arriver)
+        const uint8_t* p = reinterpret_cast<const uint8_t*>(m_out.data());
+        long done = 0;
+        int idle = 0;
+        while (!m_quit && done < bytes) {
+            const long r = ak_write(m_stream, p + done, bytes - done);
+            if (r < 0) {
+                LOGE() << "AudioKit : ak_write " << r;
+                std::this_thread::sleep_for(std::chrono::milliseconds(20));
+                continue;
+            }
+            done += r;
+            if (r == 0) {
+                if (++idle == 2500) {	// (5 s sans place : le service sound ne joue plus ce flux)
+                    LOGW() << "AudioKit : rien n'est pris depuis 5 s (ak_space " << ak_space(m_stream) << ")";
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            } else {
+                idle = 0;
+            }
         }
     }
 }

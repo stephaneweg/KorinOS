@@ -386,15 +386,22 @@ void QKorinIntegration::handleEvent(const kq_event &ev)
         if (!w)
             break;
         w->setActive(ev.kind != 0);
-        if (ev.kind) {
-            w->refreshOrigin();
-            QWindowSystemInterface::handleFocusWindowChanged(w->window(), Qt::ActiveWindowFocusReason);
-        } else {
-            // le clavier part : relâcher les modificateurs tenus
-            m_mods = 0;
-            std::fill(std::begin(m_keyDown), std::end(m_keyDown), false);
-            if (QGuiApplication::focusWindow() == w->window())
-                QWindowSystemInterface::handleFocusWindowChanged(nullptr, Qt::ActiveWindowFocusReason);
+        {
+            // un popup outil ouvert par cette fenêtre tient le focus de Qt sans celui d'UIKit (QKorinWindow::isToolPopup)
+            QWindow *f = QGuiApplication::focusWindow();
+            QKorinWindow *fw = f && f->handle() ? static_cast<QKorinWindow *>(f->handle()) : nullptr;
+            const bool popupOfW = fw && fw != w && fw->isToolPopup() && f->transientParent() == w->window();
+            if (ev.kind) {
+                w->refreshOrigin();
+                if (!popupOfW)
+                    QWindowSystemInterface::handleFocusWindowChanged(w->window(), Qt::ActiveWindowFocusReason);
+            } else {
+                // le clavier part : relâcher les modificateurs tenus
+                m_mods = 0;
+                std::fill(std::begin(m_keyDown), std::end(m_keyDown), false);
+                if (f == w->window() || popupOfW)
+                    QWindowSystemInterface::handleFocusWindowChanged(nullptr, Qt::ActiveWindowFocusReason);
+            }
         }
         break;
     case KQ_EV_MENU:

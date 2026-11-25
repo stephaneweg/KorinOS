@@ -5,6 +5,7 @@
 
 #include <QtGui/qwindow.h>
 #include <QtGui/qscreen.h>
+#include <QtGui/qguiapplication.h>
 #include <QtGui/qpainter.h>
 #include <QtGui/private/qwindow_p.h>
 #include <qpa/qwindowsysteminterface.h>
@@ -34,6 +35,11 @@ int QKorinWindow::kind() const
     const Qt::WindowType t = window()->type();
     if (t == Qt::Popup || t == Qt::ToolTip || t == Qt::SplashScreen || t == Qt::Drawer)
         return KQ_WIN_POPUP;
+    // une fenêtre outil sans cadre : un popup fait à la main (PopupView de MuseScore : Qt::Tool | Frameless, fermé
+    // dès que sa fenêtre perd le focus). Comme un menu : sans le focus d'UIKit, au-dessus, là où Qt le met ; le
+    // focus de Qt lui est donné à part (isToolPopup)
+    if (t == Qt::Tool && (f & Qt::FramelessWindowHint))
+        return KQ_WIN_POPUP;
     if (f & Qt::FramelessWindowHint)
         return KQ_WIN_BORDERLESS;
     if ((t == Qt::Dialog || t == Qt::Sheet) && window()->modality() != Qt::NonModal)
@@ -44,10 +50,25 @@ int QKorinWindow::kind() const
     return KQ_WIN_RESIZABLE;
 }
 
+bool QKorinWindow::isToolPopup() const
+{
+    return m_kind == KQ_WIN_POPUP && window()->type() == Qt::Tool;
+}
+
+bool QKorinWindow::takesQtFocus() const
+{
+    if (window()->flags() & Qt::WindowDoesNotAcceptFocus)
+        return false;
+    return m_kind != KQ_WIN_POPUP || isToolPopup();
+}
+
 void QKorinWindow::create()
 {
     if (m_win > 0)
         return;
+    // (le genre suit les drapeaux du moment : Qt peut faire la fenêtre de plateforme avant setFlags)
+    m_kind = kind();
+    m_band = (m_kind == KQ_WIN_POPUP || m_kind == KQ_WIN_BORDERLESS) ? 0 : KQ_TOP_BAND;
     const QRect g = geometry();
     // x, y : le contenu d'UIKit (la bande comprise) sur l'écran
     m_win = kq_window(g.x(), g.y() - m_band, qMax(g.width(), 1), qMax(g.height(), 1) + m_band,
@@ -144,10 +165,16 @@ void QKorinWindow::setVisible(bool visible)
         create();
         if (m_win <= 0)
             return;
-        if (m_kind != KQ_WIN_POPUP && !(window()->flags() & Qt::WindowDoesNotAcceptFocus))
+        if (takesQtFocus())
             QWindowSystemInterface::handleFocusWindowChanged(window(), Qt::ActiveWindowFocusReason);
         QWindowSystemInterface::handleExposeEvent(window(), QRect(QPoint(), geometry().size()));
     } else {
+        // un popup outil qui avait le focus de Qt (UIKit ne le lui a jamais donné) : il revient à sa fenêtre
+        if (isToolPopup() && QGuiApplication::focusWindow() == window()) {
+            QWindow *back = window()->transientParent();
+            QWindowSystemInterface::handleFocusWindowChanged(back && back->isVisible() ? back : nullptr,
+                                                             Qt::ActiveWindowFocusReason);
+        }
         // (UIKit ne cache pas une fenêtre : elle est fermée, et refaite au prochain show)
         QWindowSystemInterface::handleExposeEvent(window(), QRegion());
         destroy();
@@ -218,7 +245,7 @@ void QKorinWindow::requestActivateWindow()
     if (m_win <= 0)
         return;
     kq_window_raise(m_win);
-    if (m_kind != KQ_WIN_POPUP)
+    if (takesQtFocus())
         QWindowSystemInterface::handleFocusWindowChanged(window(), Qt::ActiveWindowFocusReason);
 }
 

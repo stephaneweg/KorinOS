@@ -46,6 +46,10 @@ private:
     void create();
     void destroy();
     int kind() const;
+public:
+    bool isToolPopup() const;	// (Qt::Tool sans cadre : popup d'UIKit, focus de Qt à part)
+    bool takesQtFocus() const;
+private:
     void reportGeometry();
 
     long m_win = 0;
