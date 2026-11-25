@@ -54,12 +54,10 @@ static void manifest_line (char *key, char *val, void *data)
 	}
 }
 
-/* le catalogue ; sans manifeste (ou sans catégorie) : « Autres », libellé = nom */
-void applis_load (void)
+/* les apps d'un dossier (« /apps », puis « HOME:/apps » : un nom déjà vu, celui du système, est sauté) */
+static void applis_dir (const char *dir, int home)
 {
-	apps_n = 0;
-	cats_n = 0;
-	DIR *d = opendir ("/apps");
+	DIR *d = opendir (dir);
 	if (!d)
 		return;
 	struct dirent *e;
@@ -74,16 +72,31 @@ void applis_load (void)
 			l = APP_NAME - 1;
 		memcpy (name, e->d_name, l);	/* nom sans .app */
 		name[l] = 0;
+		bool seen = false;
+		for (long i = 0; i < apps_n && home; i++)
+			seen |= strcmp (apps[i].name, name) == 0;
+		if (seen)
+			continue;
 		AppInfo &a = apps[apps_n];
+		a.home = (unsigned char) home;
 		copy_n (a.name, name, APP_NAME);
 		a.cat = 0xFF;			/* (pas encore de catégorie) */
 		copy_n (a.label, name, APP_LABEL);	/* libellé : le nom, sauf manifeste */
-		char path[96];
-		snprintf (path, sizeof path, "/apps/%s.app/app.txt", name);
+		char path[160];
+		snprintf (path, sizeof path, "%s/%s.app/app.txt", dir, name);
 		ini_read (path, manifest_line, &a);
 		apps_n++;
 	}
 	closedir (d);
+}
+
+/* le catalogue ; sans manifeste (ou sans catégorie) : « Autres », libellé = nom */
+void applis_load (void)
+{
+	apps_n = 0;
+	cats_n = 0;
+	applis_dir ("/apps", 0);
+	applis_dir ("HOME:/apps", 1);
 	for (long i = 0; i < apps_n; i++)	/* sans catégorie : « Autres » */
 		if (apps[i].cat == 0xFF)
 			apps[i].cat = (unsigned char) cat_find ("Autres");	/* (-1 : 0xFF, comme l'asm) */
@@ -92,7 +105,7 @@ void applis_load (void)
 /* app : la lance (/apps/<nom>.app/main) -> pid ou erreur */
 long app_launch (long app)
 {
-	char path[64];
-	snprintf (path, sizeof path, "/apps/%s.app/main", apps[app].name);
+	char path[96];
+	snprintf (path, sizeof path, "%s/%s.app/main", apps[app].home ? "HOME:/apps" : "/apps", apps[app].name);
 	return spawn (path, 0);
 }

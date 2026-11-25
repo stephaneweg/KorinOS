@@ -495,7 +495,8 @@ static void op_make_bax ()
 	else set_status (TS ("Cannot write "), out);
 }
 
-// File > Make App...: /apps/<name>.app/{main, app.txt}. An app of ARMPI is an executable: the runtime and the program.
+// File > Make App...: HOME:/apps/<name>.app/{main, app.txt} (the user's own apps: /apps is written by the system only,
+// decision of 25/11/2026). An app of ARMPI is an executable: the runtime and the program.
 static void op_make_app ()
 {
 	char name[40] = "";
@@ -505,8 +506,12 @@ static void op_make_app ()
 	char title[64]; scpy (title, name, sizeof title);
 	if (!ask_text (TR ("App title (shown under its icon)"), title, sizeof title)) return;
 	if (!ask_compile ("Make App")) return;
-	char dir[128], p[160];
-	snprintf (dir, sizeof dir, "/apps/%s.app", name);
+	char dir[200], p[240];
+	const char *home = getenv ("HOME");
+	if (!home || !*home) home = "/home";
+	snprintf (dir, sizeof dir, "%s/apps", home);
+	mkdir (dir, 0755);
+	snprintf (dir, sizeof dir, "%s/apps/%s.app", home, name);
 	mkdir (dir, 0755);
 	snprintf (p, sizeof p, "%s/main", dir);
 	if (!write_bax (p, g_optManaged, true)) { set_status (TS ("Cannot write "), p); return; }

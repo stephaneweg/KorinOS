@@ -17,6 +17,7 @@ extern long ap_n, ca_n;            /* applications, catégories */
 extern char ap_nom[AP_MAX][AP_NOM]; /* noms */
 extern char ap_lib[AP_MAX][AP_LIB]; /* libellés (name= traduit par lang_tr) */
 extern u8 ap_cat[AP_MAX];           /* catégorie de chaque application */
+extern u8 ap_home[AP_MAX];          /* 1 : dans HOME:/apps (les apps de l'utilisateur) */
 extern char ca_nom[CA_MAX][CA_NOM]; /* noms des catégories (clés : lang_tr à l'affichage) */
 
 /* « a, b, c » -> premier champ (sans blancs) ; *rest = la suite (0 : aucune) ; coupe sur place */

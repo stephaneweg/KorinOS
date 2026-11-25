@@ -160,6 +160,32 @@ long exec_regle(const char *path)
 				return 1;
 		}
 	}
+	{ /* HOME:/apps/<nom>.app/main : les apps que l'utilisateur crée (qbasic, qbstudio), dans « /home/apps » ou
+	   * « /home/<compte>/apps » (pas /home/public : écrit par tous) ; les règles d'accès gardent le dossier des
+	   * autres comptes (décision du 25/11) */
+		char ext[PATH_MAX];
+		chemin_externe(path, ext);
+		const char *h = prefixe_ci(ext, "/home/");
+		if (h) {
+			const char *a = prefixe_ci(h, "apps/");
+			if (!a && !prefixe_ci(h, "public/")) {
+				while (*h && *h != '/')
+					h++;
+				if (*h == '/')
+					a = prefixe_ci(h + 1, "apps/");
+			}
+			if (a) {
+				const char *s = a;
+				while (*s && *s != '/')
+					s++;
+				if (*s && s - a >= 5) {
+					const char *t = prefixe_ci(s - 4, sp_main);
+					if (t && !*t)
+						return 1;
+				}
+			}
+		}
+	}
 	exd_charger(); /* les dossiers de exec.txt */
 	for (int i = 0; i < EXD_MAX && exd_v[i][0]; i++) {
 		const char *t = prefixe_ci(path, exd_v[i]);

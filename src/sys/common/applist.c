@@ -5,6 +5,7 @@ long ap_n, ca_n;
 char ap_nom[AP_MAX][AP_NOM];
 char ap_lib[AP_MAX][AP_LIB];
 u8 ap_cat[AP_MAX];
+u8 ap_home[AP_MAX]; /* 1 : une app de l'utilisateur, dans HOME:/apps (qbasic, qbstudio ; décision du 25/11) */
 char ca_nom[CA_MAX][CA_NOM];
 static long ap_cur; /* application dont on lit le manifeste */
 static struct dirent ap_dirent;
@@ -58,12 +59,11 @@ static void manifest_line(char *key, char *val)
 		ap_cat[ap_cur] = (u8)c;
 }
 
-void applis_load(void)
+/* les apps d'un dossier (« /apps », « HOME:/apps ») ; un nom déjà vu (une app du système) est sauté */
+static void applis_dir(const char *dir, int home)
 {
 	char path[96];
-	ap_n = 0;
-	ca_n = 0;
-	long fd = sys_open("/apps", O_READ);
+	long fd = sys_open(dir, O_READ);
 	if (fd < 0)
 		return;
 	while (ap_n < AP_MAX) {
@@ -75,18 +75,29 @@ void applis_load(void)
 		if (l > AP_NOM - 1)
 			l = AP_NOM - 1;
 		ap_dirent.name[l] = 0; /* nom sans .app */
+		if (home && app_find(ap_dirent.name) >= 0)
+			continue; /* (même nom qu'une app du système : celle du système) */
 		long i = ap_n;
+		ap_home[i] = (u8)home;
 		str_copy_n(ap_nom[i], ap_dirent.name, AP_NOM);
 		ap_cat[i] = 0xFF; /* (pas encore de catégorie) */
 		str_copy_n(ap_lib[i], ap_dirent.name, AP_LIB); /* libellé : le nom, sauf manifeste */
 		ap_cur = i;
-		char *e = str_cat(path, "/apps/");
+		char *e = str_cat(str_cat(path, dir), "/");
 		e = str_cat(e, ap_dirent.name);
 		str_cat(e, ".app/app.txt");
 		ini_read(path, manifest_line);
 		ap_n = i + 1;
 	}
 	sys_close(fd);
+}
+
+void applis_load(void)
+{
+	ap_n = 0;
+	ca_n = 0;
+	applis_dir("/apps", 0);
+	applis_dir("HOME:/apps", 1);
 	for (long i = 0; i < ap_n; i++) /* sans catégorie : « Autres » */
 		if (ap_cat[i] == 0xFF)
 			ap_cat[i] = (u8)cat_find("Autres"); /* (-1 : 0xFF, comme l'asm) */
@@ -102,8 +113,8 @@ long cat_hidden(long c)
 
 long app_launch(long app)
 {
-	char path[64];
-	char *e = str_cat(path, "/apps/");
+	char path[80];
+	char *e = str_cat(path, ap_home[app] ? "HOME:/apps/" : "/apps/");
 	e = str_cat(e, ap_nom[app]);
 	str_cat(e, ".app/main");
 	return ksys(SYS_SPAWN, (long)path, 0, 0, 0, 0, 0);

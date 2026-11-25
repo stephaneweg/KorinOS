@@ -187,6 +187,7 @@ struct AppInfo
 	char name[APP_NAME];			/* paquet sans .app */
 	char label[APP_LABEL];			/* name= du manifeste (sinon le nom) */
 	unsigned char cat;			/* catégorie */
+	unsigned char home;			/* 1 : dans HOME:/apps (une app de l'utilisateur) */
 };
 extern long apps_n, cats_n;
 extern AppInfo apps[APP_MAX];

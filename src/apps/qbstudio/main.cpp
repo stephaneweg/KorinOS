@@ -1112,9 +1112,14 @@ static void cmd_make_app ()
 	save_all ();
 	bas::Program *p = 0;
 	if (!compile_check (&p, false)) return;
-	char dir[128]; snprintf (dir, sizeof dir, "/apps/%s.app", g_p.name);
+	// (HOME:/apps : les apps de l'utilisateur ; /apps ne s'écrit que par le système, décision du 25/11/2026)
+	const char *home = getenv ("HOME");
+	if (!home || !*home) home = "/home";
+	char dir[200]; snprintf (dir, sizeof dir, "%s/apps", home);
 	mkdir (dir, 0755);
-	char path[200]; join (path, sizeof path, dir, "main");
+	snprintf (dir, sizeof dir, "%s/apps/%s.app", home, g_p.name);
+	mkdir (dir, 0755);
+	char path[260]; join (path, sizeof path, dir, "main");
 	if (g_p.managed) bas::setManaged (p, true);
 	char *bytes; int n = bas::saveBax (p, &bytes);
 	bas::destroy (p);
