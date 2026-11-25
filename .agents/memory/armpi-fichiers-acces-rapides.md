@@ -84,4 +84,10 @@ Demande de l'utilisateur du 24/11/2026, branche claude/lucid-wright-6o2o4b, fusi
 - Publié (25/11) : pc 2026.11.111 (Fichiers et guet, vfs et UIKit dans l'initrd, UIKit dans lib, panel, menubar) et
   pkgman 1.0.24 (bin/pkg, sys/pkgd : ils sont dans le paquet pkgman, pas pc ; pub.py pkgman --only bin/pkg sys/pkgd sur
   l'archive extraite). Emporte libposix de 8640a76 (getgrgid_r, autre session, sans effet ici).
+- 25/11 : ancrage au glisser dans Elegant (core.c drag_begin / drag_zone_at / drag_preview, uikit_ops.c win_zone /
+  win_snap / win_unsnap) : haut = agrandie, bord gauche / droit = moitié ; win_restore WR_ON = 1, 2 (gauche), 3 (droite) ;
+  glisser une agrandie ou ancrée de 10 px la rend à sa taille d'avant ; aperçu = voile blanc sous la fenêtre glissée.
+  L'écart de 12 px sous la barre de menus venait du serrage « area_top + FRAME_TITLE_H » (FRAME_TITLE_H n'est plus
+  qu'une ombre depuis le chrome sans barre) : serré à area_top. Essayé sous QEMU PC (Fichiers glissé par le haut de son
+  panneau). Pas publié (sys/elegant du paquet pc ; l'Elegant publié == main d'avant).
 - Le Pi (armpi) n'est pas publié : son paquet a encore files.asm.

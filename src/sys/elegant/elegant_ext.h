@@ -18,9 +18,20 @@
 #define WR_Y 1
 #define WR_W 2
 #define WR_H 3
-#define WR_ON 4 /* 1 : agrandie */
+#define WR_ON 4 /* 1 : agrandie ; WR_LEFT, WR_RIGHT : ancrée à une moitié (le glisser contre un bord) */
+#define WR_MAX 1
+#define WR_LEFT 2
+#define WR_RIGHT 3
 
 void resize_post(struct win *w, long width, long height); /* WEV_RESIZE à son programme */
+/* la place d'un genre WR_* dans la zone de travail (toute la zone, la moitié gauche, la droite) */
+void win_zone(long kind, long *x, long *y, long *wd, long *ht);
+/* ancrée (WR_MAX, WR_LEFT, WR_RIGHT) ; ox, oy : sa place d'avant le glisser (gardée pour la rendre) */
+void win_snap(struct win *w, long kind, long ox, long oy);
+/* rendue à sa taille d'avant (le glisser d'une fenêtre ancrée) ; x de sa place : à l'appelant */
+void win_unsnap(struct win *w);
+/* le geste de déplacement commence (barre de titre, ui_window_drag) : le pointeur en x, y */
+void drag_begin(struct win *w, long x, long y);
 void desk_set(long desk, long count); /* < 0 : garder l'espace ; 0 : garder le nombre */
 void desk_apply(void);
 void desk_forget(struct win **v); /* remise à 0 si sa fenêtre est cachée */

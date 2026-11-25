@@ -174,8 +174,8 @@ void screen_windows(long old_w, long old_h)
 			continue;
 		}
 		long *r = win_restore[i];
-		if (r[WR_ON]) { /* agrandie */
-			screen_work(&zx, &zy, &zw, &zh);
+		if (r[WR_ON]) { /* agrandie, ou ancrée à une moitié */
+			win_zone(r[WR_ON], &zx, &zy, &zw, &zh);
 			w->x = zx;
 			w->y = zy;
 			resize_post(w, zw, zh);
@@ -279,7 +279,7 @@ void reserve_update(void)
 				continue;
 			long zw, zh;
 			dirty_window(w);
-			screen_work(&w->x, &w->y, &zw, &zh);
+			win_zone(win_restore[i][WR_ON], &w->x, &w->y, &zw, &zh);
 			resize_post(w, zw, zh);
 		}
 	if (need_all) {

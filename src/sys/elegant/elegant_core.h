@@ -16,6 +16,8 @@ extern u64 info[5];         /* SYS_WS_DISPLAY / SYS_WS_MODE : adresse, largeur, 
 extern char ini_val[32];    /* la valeur lue par read_key */
 extern char ini_buf[INI_MAX]; /* (read_key, session_start, option_word) */
 extern long win_restore[MAX_WINDOWS][WIN_RESTORE_N]; /* (uikit_ops, screen, pocket) */
+extern long drag_zone;     /* core.c : la zone d'ancrage du glisser en cours (WR_MAX, WR_LEFT, WR_RIGHT ; 0 : aucune) */
+void drag_preview(void);   /* core.c : son aperçu, dans clip_r */
 
 long mode_choose(const char *arg); /* -> policy ; 0 si « console » */
 long force_desktop(void);
