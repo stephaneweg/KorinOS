@@ -449,6 +449,14 @@ static int cmd_ui_job (int ac, char **av)
 static int run (const char *c, char **rest, int nr)
 {
 	Manager &m = *M;
+	// ce qui change le système : l'uid 0 (sudo, ou Logiciels après la carte d'authd) ; sans, les archives et /var/pkg
+	// sont refusés (E_ACCES, que ArchiveKit nommait « entrée chiffrée » : trompeur, 26/11/2026)
+	if ((eq (c, "add") || eq (c, "delete") || eq (c, "remove") || eq (c, "update") || eq (c, "upgrade") || eq (c, "commit") || eq (c, "mode"))
+	    && getuid () != 0)
+	{
+		printf (TR ("pkg %s : il faut les droits du système (sudo pkg %s ...)\n"), c, c);
+		return 1;
+	}
 	if (eq (c, "ui-list")) return cmd_ui_list ();
 	if (eq (c, "ui-job")) return cmd_ui_job (nr, rest);
 	if (eq (c, "list")) return cmd_list (nr, rest);
