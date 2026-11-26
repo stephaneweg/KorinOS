@@ -436,8 +436,16 @@ static int cfg_write_ok(struct pci_info *f, unsigned off, unsigned size, uint32_
 	if ((f->hdr & 0x7F) != 0)
 		return 0;
 	unsigned d = off & 0xFFC; /* (une écriture alignée ne passe pas un mot de 32 bits, wr) */
-	if (d >= 0x10 && d < 0x28 && rd(f->addr, d, 4) != 0)
-		return 0; /* une BAR déjà assignée */
+	if (d >= 0x10 && d < 0x28) { /* une BAR déjà assignée : refusée. « Vide » = son ADRESSE à 0 : une BAR 64 bits
+				       * vide se relit 0x4 (ses bits de type) ; avant, ce 4 la faisait croire assignée, et
+				       * i2chid ne pouvait plus donner son adresse au touchpad du ZBook (26/11/2026) */
+		uint32_t cur = rd(f->addr, d, 4);
+		uint32_t prev = d > 0x10 ? rd(f->addr, d - 4, 4) : 1;
+		int upper = d > 0x10 && !(prev & 1) && (prev & 6) == 4; /* (la moitié haute d'une BAR 64 bits) */
+		uint32_t addr = upper ? cur : (cur & 1) ? cur & ~3u : cur & ~0xFu;
+		if (addr != 0)
+			return 0;
+	}
 	if (d == 0x30)
 		return 0; /* la ROM d'extension */
 	if (f->cap_msi) {
