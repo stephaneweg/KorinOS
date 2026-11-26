@@ -73,8 +73,10 @@ static const u32 t_paper[6] = { 0x00FCE9A6, 0x00D3EBC6, 0x00CFE0F3, 0x00F8D3D8, 
 static const u32 t_dot[6] = { 0x00E8B21F, 0x0067A657, 0x005284C4, 0x00D9667A, 0x008A68C2, 0x00908C86 };
 static const char *const s_colours[7] = { "yellow", "green", "blue", "pink", "purple", "grey", "gray" };
 static const char s_title[] = "Notes \xC3\xA9pingl\xC3\xA9" "es";
-static const char s_dir[] = "/Notes/";
-static const char s_ini_notes[] = "/Notes/notes.ini";
+/* les notes : HOME:/Notes (E72, 26/11/2026 ; Notes y copie l'ancien /Notes la première fois) ; tant que Notes ne l'a
+ * pas fait, l'ancien /Notes */
+static const char *s_dir = "HOME:/Notes/";
+static const char *s_ini_notes = "HOME:/Notes/notes.ini";
 static const char s_cfg[] = "/apps/notes.app/config.ini";       /* (l'ancienne place) */
 static const char s_cfg_u[] = "HOME:/.settings/notes/config.ini"; /* (celle de l'utilisateur, depuis le 25/11) */
 static const char p_notes[] = "/apps/notes.app/main";
@@ -173,6 +175,17 @@ static void read_pins(void)
 	g_npin = 0;
 	cur_pin = 0;
 	u64 n = read_file(s_ini_notes);
+	if (!n && s_dir[0] == 'H') { /* (pas encore de HOME:/Notes : l'ancienne place) */
+		n = read_file("/Notes/notes.ini");
+		if (n) {
+			s_dir = "/Notes/";
+			s_ini_notes = "/Notes/notes.ini";
+		}
+	} else if (s_dir[0] == '/' && read_file("HOME:/Notes/notes.ini")) { /* (Notes l'a copié depuis) */
+		s_dir = "HOME:/Notes/";
+		s_ini_notes = "HOME:/Notes/notes.ini";
+		n = read_file(s_ini_notes);
+	}
 	char *p = fbuf, *end = fbuf + n;
 	while (p < end) {
 		char *l = p;

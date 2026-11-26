@@ -176,8 +176,39 @@ static void on_sec (void *, const char *sec, const char *key, const char *val)
 	else if (!strcmp (key, "pinned")) g_sec[i].pinned = to_int (val, 0) != 0;
 	else if (!strcmp (key, "modified")) g_sec[i].modified = to_ll (val);
 }
+// HOME:/Notes missing, /Notes there (a system of before 26/11/2026): its notes, notes.ini and Corbeille copied
+// into HOME:/Notes, once (the old folder stays: an account cannot change it)
+static void copy_dir (const char *from, const char *to)
+{
+	DIR *d = opendir (from);
+	if (!d) return;
+	mkdir (to, 0755);
+	static char buf[NOTE_MAX_BYTES + 1];
+	while (struct dirent *de = readdir (d))
+	{
+		if (de->d_name[0] == '.') continue;
+		char a[FS_PATHL], b[FS_PATHL];
+		fs_join (a, sizeof a, from, de->d_name);
+		fs_join (b, sizeof b, to, de->d_name);
+		struct stat st;
+		if (stat (a, &st) != 0) continue;
+		if (S_ISDIR (st.st_mode)) { if (!strcmp (de->d_name, "Corbeille")) copy_dir (a, b); continue; }
+		int n = read_small (a, buf, sizeof buf);
+		if (n >= 0 && !fs_exists (b)) save_file (b, buf, n);
+	}
+	closedir (d);
+}
+static void notes_migrate (void)
+{
+	static bool done;
+	if (done) return;
+	done = true;
+	if (fs_exists (NOTES_DIR) || !fs_exists (NOTES_OLD_DIR)) return;
+	copy_dir (NOTES_OLD_DIR, NOTES_DIR);
+}
 static void ini_load (void)
 {
+	notes_migrate ();
 	g_nsec = 0;
 	int n = read_small (NOTES_INI, g_iniBuf, sizeof g_iniBuf);
 	if (n > 0) ini_each (g_iniBuf, n, on_sec, 0);

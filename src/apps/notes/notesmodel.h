@@ -16,9 +16,12 @@
 #ifndef NOTES_NOTESMODEL_H
 #define NOTES_NOTESMODEL_H
 
-#define NOTES_DIR      "/Notes"
-#define NOTES_INI      "/Notes/notes.ini"
-#define NOTES_TRASH    "/Notes/Corbeille"	// (a folder: notes_scan passes by it)
+// (E72, 26/11/2026: in the user's home, HOME:/Notes ; the old /Notes, at the root, is read-only for an account in
+// enforce mode: copied into HOME:/Notes the first time, and left as it was)
+#define NOTES_DIR      "HOME:/Notes"
+#define NOTES_INI      "HOME:/Notes/notes.ini"
+#define NOTES_TRASH    "HOME:/Notes/Corbeille"	// (a folder: notes_scan passes by it)
+#define NOTES_OLD_DIR  "/Notes"
 // (HOME:/.settings/notes/ : the user's data, no longer in /apps/notes.app, written by the system only ; the old
 // files are taken over on first use : armpi/appdata.h)
 #include <armpi/appdata.h>
