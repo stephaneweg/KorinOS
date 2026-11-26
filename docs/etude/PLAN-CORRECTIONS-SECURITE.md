@@ -2,6 +2,11 @@
 
 Rédigé le 24/11/2026 à partir de [AUDIT-SECURITE-PC.md](AUDIT-SECURITE-PC.md), sur `main` (df483dc6).
 
+> **26/11/2026** : faits aussi E33 (journal des droits, `/sys` sans droits hors `/sys/svc/` et cinq programmes, noms
+> de service par compte : [E33-CARTOGRAPHIE.md](E33-CARTOGRAPHIE.md) §7), E34, E55 sous la forme A/B
+> ([MISES-A-JOUR-AB.md](MISES-A-JOUR-AB.md) §6), le préchargement (images épinglées par le système seul, `/apps`
+> seulement ; plus d'image partagée entre comptes), `/` et `/home` en ext4 à l'installation.
+>
 > **État au 25/11/2026 (branche `security-fix`).**
 >
 > * **Fait** : E01-E27 (E11 : journal seulement), E29 réduite, E30-E32, E35, E36 (captures, liste, fermeture,
