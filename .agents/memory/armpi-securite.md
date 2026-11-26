@@ -132,3 +132,8 @@ GPU) n'exerce pas la surface partagée : E47 à voir sur le ZBook. Restent : E60
 --manual-upload --yes --no-push (attend), branche orpheline release-upload/jet-1.4.9 avec upload/pc-jet-1.4.9.opk poussée,
 workflow release-upload.yml lancé par l'outil MCP actions_run_trigger (ref main, input branch) : l'archive va dans la
 Release, la branche est supprimée, pub.py vérifie le SHA-256 et commite l'index ; puis push HEAD:main.
+**26/11, Logiciels et l'index** : pkg ui-job install prenait le dernier index gardé ; élevé, c'est /var/pkg/index.txt,
+que les vérifications d'un compte n'écrivent pas (HOME:/.cache/pkg) -> 404 sur pc, Jet réinstallé en 1.4.9. Corrigé :
+refresh avant d'installer (pkgman 1.0.29). Piège voisin : Pages garde l'ancien index en cache ~10 min, l'archive
+remplacée donne alors 404 (pub.py ne garde pas l'archive précédente). Exposé : vignette du bureau refaite quand le
+fond change (pc 2026.11.117). Jet 1.4.10 : BUF_GRANT -1 rétabli, E47 à reprendre.
