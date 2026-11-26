@@ -58,7 +58,9 @@ static long sf_attach(long s)
 			return r;
 		if (--tries == 0)
 			return r;
-		SYS2(SYS_BUF_GRANT, LDX(s, US_BUF), LDX(uk.msg, WM_A));
+		/* le tampon attaché : celui de ui_surface_source s'il y en a un (26/11/2026 : US_BUF était accordé à sa place ;
+		   Jet sans surface ouverte à tous montrait des pages blanches, E47) */
+		SYS2(SYS_BUF_GRANT, b, LDX(uk.msg, WM_A));
 	}
 }
 
