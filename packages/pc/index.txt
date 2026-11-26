@@ -1,11 +1,11 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-26 19:39
+date = 2026-11-26 19:49
 abi = 632
 packages = 117
 board = pc
-serial = 36
+serial = 37
 
 [avdemo]
 title = Avalonia
@@ -725,18 +725,18 @@ content = d558ddbf43fe0f2a4e5fe4ba2217bc3f90951861ef25dd96dcb9870193406400
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.121
+version = 2026.11.122
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 34359431
-installed = 101863661
-sha256 = 64f2cb856ab7077359d23140fa007b44dfc7d9f4ef3122403252d29b7c6032a6
-file = pkgs/pc-2026.11.121.opk
+size = 39366325
+installed = 111205745
+sha256 = 819273d2ff8d554e23adea05b81cfb175144ac4baa9387938112be9426ba706d
+file = pkgs/pc-2026.11.122.opk
 needs = 
 required = 1
 restart = 1
-content = b3811764f7ba310dc45611b641f7bec06ee53f16aa5acc216d19540ce41d295a
+content = 49fe93ec0e4f666193b4251d33999f6b855ea9c5f0b33adfc23c2a6ee30749d2
 
 [2048]
 title = 2048
