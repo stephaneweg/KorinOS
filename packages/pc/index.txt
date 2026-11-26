@@ -5,7 +5,7 @@ date = 2026-11-26 01:38
 abi = 632
 packages = 117
 board = pc
-serial = 8
+serial = 9
 
 [avdemo]
 title = Avalonia
@@ -1505,18 +1505,18 @@ content = a619e74fbcfe387a98c20252eeacfaabeb3db9b7b1aae884ceaae98690fe80b7
 
 [qbstudio]
 title = QBStudio
-version = 1.0.10
+version = 1.0.11
 category = Développement
 author = Korin OS
 summary = 
-size = 365169
-installed = 755327
-sha256 = 7d09ce7856d1c7a6f62379a79ffef125457cd4513d5851dcca85860dcdde968a
-file = pkgs/qbstudio-1.0.10.opk
+size = 367792
+installed = 763519
+sha256 = 913956b1aada71a0047e12748dd94e98e123918119eaf7de8a7ba3c16b0c5923
+file = pkgs/qbstudio-1.0.11.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 3499e11e48c3294e512570da8f6b6d8cfcada47be1a4fa41aecb41522ad470bd
+content = 5cf6f9464866030c0a15029706791ccc1cc91540f113fbd0358f4733b1e66a9e
 
 [recorder]
 title = Magnéto
