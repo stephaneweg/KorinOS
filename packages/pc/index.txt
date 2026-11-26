@@ -5,7 +5,7 @@ date = 2026-11-26 01:38
 abi = 632
 packages = 117
 board = pc
-serial = 7
+serial = 8
 
 [avdemo]
 title = Avalonia
@@ -1490,18 +1490,18 @@ content = 16cb9e42acd8f842d70862b46f3ea85bc016fb3cf1d8bbfefee8186f4c47d898
 
 [qbasic]
 title = QBasic
-version = 1.0.9
+version = 1.0.10
 category = Développement
 author = Korin OS
 summary = 
-size = 284177
-installed = 603024
-sha256 = 2d2476f1b340c6aaedc32dff28edd02184cf65ae60f9b71ffa36a3b2559ea7bd
-file = pkgs/qbasic-1.0.9.opk
+size = 286449
+installed = 607120
+sha256 = bdb9f4a69c24369c66d5f3d23e861e6e300f67e2703ae1bd2891ce16d91b723e
+file = pkgs/qbasic-1.0.10.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 990e3bf2a93f0c8b735442e0c79a97810fe1e05d8dbed46049db8ad4a260866a
+content = a619e74fbcfe387a98c20252eeacfaabeb3db9b7b1aae884ceaae98690fe80b7
 
 [qbstudio]
 title = QBStudio
