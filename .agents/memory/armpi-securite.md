@@ -148,3 +148,5 @@ reconstruit l'initrd sur la machine à partir des binaires installés (le charge
 **26/11, E47 fini côté Jet** : essai sur le ZBook réussi (pc 120 + /etc/jet-e47-test). Jet 1.4.12 publié : plus de
 BUF_GRANT -1, journal des seuls échecs (« jet: surface »), needs = pc >= 2026.11.120 (packages-pc.ini, [app.jet] ;
 pub.py --force car le content change). Reste l'étape 4 : le noyau refuse -1 (voir d'abord qui l'utilise encore).
+**26/11, E47 étape 4 publiée** : pc 2026.11.121, le noyau du PC refuse BUF_GRANT -1 (E_PERM + ligne « mm : ... ouvert a
+tous refuse » au journal). À confirmer sur le ZBook : Jet (pages, vidéo), une app GPU, journal sans refus. Pi inchangé.
