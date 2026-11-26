@@ -87,3 +87,10 @@ question de secours : `pkg` au terminal, Logiciels par `ui_elevate_system` (uiki
 l'installateur sans choix, plan-test.ini en ext4 avec un mot de passe). Essais QEMU : abcommit.sh, abseq.sh,
 itest.sh (scratchpad). Restent : E33 (attend le feu vert sur E33-CARTOGRAPHIE.md), préchargement (avec E33), la
 publication des paquets PC dans main (paquets seulement, après tout le reste, demandé par l'utilisateur).
+**26/11, suite** : E33 fait (journal « droits : » du noyau, vfs `sys_droits` : /sys/svc + elegant, pkgd, notifyd, clipd,
+printd ; noms de service par compte, svc.c ; init2 refuse /sys/svc pour un compte ; voronoy relancé sous le compte) ;
+préchargement : images épinglées par uid 0 + droits seulement et /apps seulement, plus d'image partagée (IMG_FORUID
+d'AppKit pour SPAWN_AS). Publié dans main (d2cee2a, paquets seulement, depuis un worktree d'origin/main avec
+`pub.py --no-push --base HEAD`, puis push) : pc 2026.11.113, pkgman 1.0.25 (sait se passer d'ui_elevate_system),
+archiver, calendar, notes, pocketqi, qbasic, qbstudio, webd. Ne jamais publier dock.ini ni oauth/providers.ini d'une
+construction du cloud (gardés de l'archive). L'utilisateur teste sur le ZBook.
