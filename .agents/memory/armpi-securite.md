@@ -141,3 +141,7 @@ fond change (pc 2026.11.117). Jet 1.4.10 : BUF_GRANT -1 rétabli, E47 à reprend
 web mappe bien sa surface ; c'est Elegant qui ne pouvait pas : UIKit sf_attach accordait US_BUF au lieu du tampon de
 ui_surface_source (corrigé, pc 2026.11.119). Reste : essai sur le ZBook avec /etc/jet-e47-test, puis Jet 1.4.12 sans
 BUF_GRANT -1 (et sans le journal). Vue de la session : attend korin.wallpaper.drawn (voronoy), 2 s au plus.
+**Piège (26/11)** : les kits (.so) sont AUSSI dans korin/initrd.tar (tools/pc/build.sh les y copie). Changer un kit =
+refaire build.sh (pas seulement build_c.sh + sysroot.sh), sinon pc publie un initrd avec l'ancien kit (pc 119 :
+UIKit corrigé dans /lib, pas dans l'initrd ; refait en 120). Idée de l'utilisateur, à faire : la mise à jour de pc
+reconstruit l'initrd sur la machine à partir des binaires installés (le chargeur ne vérifie pas l'empreinte de l'initrd).
