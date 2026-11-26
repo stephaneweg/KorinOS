@@ -392,7 +392,10 @@ static int cmd_ui_job (int ac, char **av)
 	}
 	else if (eq (kind, "install"))
 	{
-		m.load_cached_quiet ();
+		// le dépôt relu, comme pkg install : élevé (uid 0), le dernier index gardé est /var/pkg/index.txt, que les
+		// vérifications d'un compte n'écrivent pas (E72 : son cache) -- Logiciels installait d'après un vieil index
+		// (26/11/2026 : pc en 404, Jet réinstallé en 1.4.9). Dépôt injoignable : le dernier index gardé
+		if (m.refresh (r) != OK || !m.haveIndex) m.load_cached_quiet ();
 		const Pkg *list[96]; int n = 0;
 		for (int i = 0; i < nn; i++)
 		{
