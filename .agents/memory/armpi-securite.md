@@ -127,3 +127,8 @@ Jet reconstruit DANS LE CLOUD sans WebKit complet : SDK de la Release (jet-sdk-1
 SPECS=-specs=build/pc/posix/lib/posix.specs) ; changements de WebKit gardés dans tools/webkit/patches/0017. QEMU (sans
 GPU) n'exerce pas la surface partagée : E47 à voir sur le ZBook. Restent : E60 (cdmhost par l'UI, module épinglé),
 étape 4 d'E47 (-1 refusé, après publication de Jet), publication (pc, apps, jet 1.4.9, pkgman pour pkglib).
+**26/11 soir, publié (main 009ba19, puis 07c137f)** : pkgman 1.0.28, pc 2026.11.116, smbd 1.0.8, webd 1.0.9, notes
+1.0.15, clock 1.0.13, koton 1.0.13, webstudio 1.1.5, jet 1.4.9. Jet (release = 1) depuis le cloud : pub.py jet
+--manual-upload --yes --no-push (attend), branche orpheline release-upload/jet-1.4.9 avec upload/pc-jet-1.4.9.opk poussée,
+workflow release-upload.yml lancé par l'outil MCP actions_run_trigger (ref main, input branch) : l'archive va dans la
+Release, la branche est supprimée, pub.py vérifie le SHA-256 et commite l'index ; puis push HEAD:main.
