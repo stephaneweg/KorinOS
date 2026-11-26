@@ -137,3 +137,7 @@ que les vérifications d'un compte n'écrivent pas (HOME:/.cache/pkg) -> 404 sur
 refresh avant d'installer (pkgman 1.0.29). Piège voisin : Pages garde l'ancien index en cache ~10 min, l'archive
 remplacée donne alors 404 (pub.py ne garde pas l'archive précédente). Exposé : vignette du bureau refaite quand le
 fond change (pc 2026.11.117). Jet 1.4.10 : BUF_GRANT -1 rétabli, E47 à reprendre.
+**26/11 après-midi, E47 trouvé** : Jet 1.4.11 (journal « jet: e47 », essai par /etc/jet-e47-test) a montré que le process
+web mappe bien sa surface ; c'est Elegant qui ne pouvait pas : UIKit sf_attach accordait US_BUF au lieu du tampon de
+ui_surface_source (corrigé, pc 2026.11.119). Reste : essai sur le ZBook avec /etc/jet-e47-test, puis Jet 1.4.12 sans
+BUF_GRANT -1 (et sans le journal). Vue de la session : attend korin.wallpaper.drawn (voronoy), 2 s au plus.
