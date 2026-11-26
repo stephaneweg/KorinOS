@@ -25,6 +25,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <armpi/syscall.h>
+#include <armpi/kit.h>
 #include "uikit.h"
 #include "pkgui.h"
 
@@ -461,6 +462,12 @@ static bool ab_trial_running (void)
 	if (k < 36 || strncmp (t, "confirmed=", 10) || strncmp (t + 11, " trial=", 7) || strncmp (t + 27, " booted=", 8)) return false;
 	return (t[18] == 'a' || t[18] == 'b') && t[18] != t[10] && t[35] == t[18];
 }
+// ui_elevate_system (UIKit, version 223) : sur un système d'avant, la carte ordinaire (Logiciels s'installe avant pc)
+static bool uikit_has_elevate_system (void)
+{
+	void *k = armpi_kit_open ("uikit", 1);
+	return k && armpi_kit_version (k) >= 223;
+}
 static bool is_system_pkg (const char *n) { return !strcmp (n, "pc") || !strcmp (n, "armpi"); }
 static bool start_job (int kind, const char *const *names, int n, const char *mode = 0)
 {
@@ -479,7 +486,7 @@ static bool start_job (int kind, const char *const *names, int n, const char *mo
 		// lot, et c'est elle (authd, pas Logiciels) qui demande s'il faut garder la version actuelle de secours
 		bool sys = false;
 		for (int i = 0; kind == J_INSTALL && i < n; i++) sys |= is_system_pkg (names[i]);
-		long e = sys ? ui_elevate_system ((long) why, ab_trial_running () ? 1 : 0) : ui_elevate ((long) why);
+		long e = sys && uikit_has_elevate_system () ? ui_elevate_system ((long) why, ab_trial_running () ? 1 : 0) : ui_elevate ((long) why);
 		if (sys && e >= 0) { s_abKeep = e == 1; e = 0; }
 		if (e != 0)
 		{
