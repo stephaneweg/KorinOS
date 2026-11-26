@@ -114,15 +114,18 @@ void rand_bytes(u8 *out, u32 n)
 	static u8 pool[20];
 	static u64 ctr;
 	while (n) {
-		u8 b[64];
+		u8 b[96];
 		memcpy(b, pool, 20);
+		/* (E65, P13) l'aléa du noyau (SYS_GETRANDOM : RDRAND et son réservoir) ; le reste n'est qu'un appoint */
+		if (korin_sys2(SYS_GETRANDOM, b + 62, 32) != 32)
+			memset(b + 62, 0, 32);
 		put64(b + 20, tsc());
 		put64(b + 28, (u64)now_ms());
 		put64(b + 36, ++ctr);
 		memcpy(b + 44, W.mac, 6);
 		put32(b + 50, rd32(CSR_INT));
 		put64(b + 54, tsc());
-		sha1(b, 62, pool);
+		sha1(b, 94, pool);
 		u32 k = n < 16 ? n : 16;
 		memcpy(out, pool, k);
 		out += k;
@@ -690,11 +693,12 @@ static int npend;
 
 /* (appelé pendant la lecture de l'anneau de réception : rien n'y est envoyé à la puce ; sta_pending le
  * fait ensuite) */
-static void handle_eapol(const u8 *e, u32 len)
+static void handle_eapol(const u8 *e, u32 len, int prot)
 {
 	if (!S.wpa || eapol_ev)
 		return;
 	u32 olen = 0;
+	S.sup.rx_plain = S.keys_on && !prot; /* (E65 : en clair, les clés posées : seulement un message 3) */
 	int ev = sup_rx(&S.sup, e, len, eapol_out, &olen);
 	if (ev & SUP_EV_BAD)
 		ilog("EAPOL : trame refusée (%s)\n", S.sup.bad_mic ? "MIC faux : clé erronée ?" : "compteur, nonce ou format");
@@ -741,7 +745,7 @@ static void sta_pending(void)
 	eapol_ev = 0;
 	u32 olen = eapol_len;
 	if (ev == SUP_EV_SEND) {
-		idbg("EAPOL : message 1 reçu, message 2 envoyé\n");
+		idbg("EAPOL : réponse envoyée (message 2, ou message 4 / de groupe d'un message répété, sans reposer de clé)\n");
 		tx_eapol(eapol_out, olen);
 	} else if (ev == SUP_EV_PTK) {
 		ilog("EAPOL : message 3 reçu (MIC juste, GTK n° %u), message 4 envoyé, clés installées\n", S.sup.gtk_idx);
@@ -767,8 +771,11 @@ void sta_rx(const struct rx_frame *f)
 		return;
 	u16 fc = le16(h);
 	u32 type = (fc >> 2) & 3, sub = (fc >> 4) & 15;
-	const u8 *body = h + f->hdrlen + (f->pad ? 2 : 0);
-	u32 blen = f->len - f->hdrlen;
+	u32 pad = f->pad ? 2 : 0; /* (E65 : le bourrage n'est pas dans la longueur du corps) */
+	if (f->len < f->hdrlen + pad)
+		return;
+	const u8 *body = h + f->hdrlen + pad;
+	u32 blen = f->len - f->hdrlen - pad;
 	if (type == 0) {
 		if (memcmp(h + 4, W.mac, 6))
 			return;
@@ -805,7 +812,7 @@ void sta_rx(const struct rx_frame *f)
 	if (!n)
 		return;
 	if (eth[12] == 0x88 && eth[13] == 0x8e) {
-		handle_eapol(eth + 14, n - 14);
+		handle_eapol(eth + 14, n - 14, crypt != 0);
 		return;
 	}
 	if (S.state != ST_UP || (S.wpa && !crypt)) { /* (en WPA2, rien en clair à part l'EAPOL) */

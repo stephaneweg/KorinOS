@@ -49,7 +49,10 @@ static void rx_mpdu(const u8 *p, u32 len)
 		return;
 	}
 	struct bss b;
-	if (!parse_beacon(f.frame, f.frame + f.hdrlen + (f.pad ? 2 : 0), f.len - f.hdrlen, f.channel, f.signal, &b)) {
+	u32 pad = f.pad ? 2 : 0; /* (E65 : deux octets lus de trop sinon) */
+	if (f.len < f.hdrlen + pad)
+		return;
+	if (!parse_beacon(f.frame, f.frame + f.hdrlen + pad, f.len - f.hdrlen - pad, f.channel, f.signal, &b)) {
 		sta_rx(&f); /* (authentification, association, déconnexion) */
 		return;
 	}

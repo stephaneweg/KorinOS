@@ -201,7 +201,8 @@ void sup_init(struct supplicant *s, const u8 pmk[32], const u8 aa[6], const u8 s
 }
 
 /* une réponse : version de l'EAPOL du point d'accès, key_info, replay, nonce, données -> longueur */
-static u32 ek_build(struct supplicant *s, u8 *o, u8 ver, u16 ki, const u8 *nonce, const u8 *data, u32 dlen)
+static u32 ek_build(const u8 *ptk, const u8 *replay, u8 *o, u8 ver, u16 ki, const u8 *nonce, const u8 *data,
+		    u32 dlen)
 {
 	memset(o, 0, EK_HDR + dlen);
 	o[0] = ver;
@@ -209,28 +210,31 @@ static u32 ek_build(struct supplicant *s, u8 *o, u8 ver, u16 ki, const u8 *nonce
 	pbe16(o + 2, 95 + dlen);
 	o[4] = 2;
 	pbe16(o + 5, ki);
-	memcpy(o + 9, s->replay, 8);
+	memcpy(o + 9, replay, 8);
 	if (nonce)
 		memcpy(o + 17, nonce, 32);
 	pbe16(o + 97, dlen);
 	if (dlen)
 		memcpy(o + EK_HDR, data, dlen);
 	u8 mic[16];
-	eapol_mic(s->ptk, o, EK_HDR + dlen, mic);
+	eapol_mic(ptk, o, EK_HDR + dlen, mic);
 	memcpy(o + 81, mic, 16);
 	return EK_HDR + dlen;
 }
 
-static int mic_ok(const struct supplicant *s, const u8 *e, u32 len)
+/* le MIC de la trame avec la KCK de ptk ; comparé en temps constant (E65) */
+static int mic_ok(const u8 *ptk, const u8 *e, u32 len)
 {
 	static u8 tmp[2048];
 	if (len > sizeof tmp)
 		return 0;
 	memcpy(tmp, e, len);
 	memset(tmp + 81, 0, 16);
-	u8 mic[16];
-	eapol_mic(s->ptk, tmp, len, mic);
-	return !memcmp(mic, e + 81, 16);
+	u8 mic[16], d = 0;
+	eapol_mic(ptk, tmp, len, mic);
+	for (int i = 0; i < 16; i++)
+		d |= mic[i] ^ e[81 + i];
+	return d == 0;
 }
 
 /* les KDE et éléments des données déchiffrées : la GTK (00-0F-AC:1) */
@@ -277,34 +281,53 @@ int sup_rx(struct supplicant *s, const u8 *e, u32 len, u8 *out, u32 *out_len)
 	if (EK_HDR + dlen > len || (ki & KI_VER_MASK) != 2)
 		return SUP_EV_BAD;
 	const u8 *data = e + EK_HDR;
+	/* E65 (P4) : les clés posées, une trame EAPOL en clair n'est permise que pour un message 3 retransmis (le point
+	   d'accès ne pose ses clés qu'après notre message 4) ; un message 1 ou de groupe en clair est forgé */
+	int m3 = (ki & KI_PAIRWISE) && (ki & (KI_ACK | KI_MIC | KI_INSTALL)) == (KI_ACK | KI_MIC | KI_INSTALL);
+	if (s->rx_plain && !m3)
+		return SUP_EV_BAD;
 	if (ki & KI_PAIRWISE) {
 		if ((ki & (KI_ACK | KI_MIC)) == KI_ACK) { /* message 1 */
 			if (!replay_newer(s, e + 9) && s->state != SUP_WAIT_M1)
 				return SUP_EV_BAD;
+			/* (P4) sans MIC : le compteur n'est pas inscrit, la PTK n'est que provisoire (tptk) ; le message 2
+			   reprend le compteur du message 1 */
 			memcpy(s->anonce, e + 17, 32);
-			memcpy(s->replay, e + 9, 8);
-			s->have_replay = 1;
-			wpa_ptk(s->pmk, s->aa, s->spa, s->anonce, s->snonce, s->ptk);
-			*out_len = ek_build(s, out, e[0], 2 | KI_PAIRWISE | KI_MIC, s->snonce, s->rsn_ie, s->rsn_len);
+			wpa_ptk(s->pmk, s->aa, s->spa, s->anonce, s->snonce, s->tptk);
+			*out_len = ek_build(s->tptk, e + 9, out, e[0], 2 | KI_PAIRWISE | KI_MIC, s->snonce, s->rsn_ie,
+					    s->rsn_len);
 			s->state = SUP_WAIT_M3;
 			return SUP_EV_SEND;
 		}
-		if ((ki & (KI_ACK | KI_MIC | KI_INSTALL)) == (KI_ACK | KI_MIC | KI_INSTALL)) { /* message 3 */
-			if (s->state < SUP_WAIT_M3 || memcmp(e + 17, s->anonce, 32) || !replay_newer(s, e + 9))
+		if (m3) { /* message 3 */
+			if (memcmp(e + 17, s->anonce, 32) || !replay_newer(s, e + 9))
 				return SUP_EV_BAD;
-			if (!mic_ok(s, e, len)) {
+			if (s->state == SUP_DONE) { /* (P3, KRACK) retransmis : le message 4 de nouveau, sans reposer les clés */
+				if (!mic_ok(s->ptk, e, len)) {
+					s->bad_mic++;
+					return SUP_EV_BAD;
+				}
+				memcpy(s->replay, e + 9, 8);
+				*out_len = ek_build(s->ptk, s->replay, out, e[0], 2 | KI_PAIRWISE | KI_MIC | KI_SECURE, 0, 0, 0);
+				return SUP_EV_SEND;
+			}
+			if (s->state != SUP_WAIT_M3)
+				return SUP_EV_BAD;
+			if (!mic_ok(s->tptk, e, len)) {
 				s->bad_mic++;
 				return SUP_EV_BAD;
 			}
 			static u8 plain[512];
 			if (!(ki & KI_ENC) || dlen < 24 || dlen % 8 || dlen - 8 > sizeof plain ||
-			    aes_unwrap(s->ptk + 16, data, dlen, plain))
+			    aes_unwrap(s->tptk + 16, data, dlen, plain))
 				return SUP_EV_BAD;
 			if (find_gtk(s, plain, dlen - 8))
 				return SUP_EV_BAD;
+			memcpy(s->ptk, s->tptk, 48);
 			memcpy(s->gtk_rsc, e + 65, 8);
 			memcpy(s->replay, e + 9, 8);
-			*out_len = ek_build(s, out, e[0], 2 | KI_PAIRWISE | KI_MIC | KI_SECURE, 0, 0, 0);
+			s->have_replay = 1;
+			*out_len = ek_build(s->ptk, s->replay, out, e[0], 2 | KI_PAIRWISE | KI_MIC | KI_SECURE, 0, 0, 0);
 			s->state = SUP_DONE;
 			return SUP_EV_PTK;
 		}
@@ -315,16 +338,23 @@ int sup_rx(struct supplicant *s, const u8 *e, u32 len, u8 *out, u32 *out_len)
 		return SUP_EV_NONE;
 	if (!replay_newer(s, e + 9))
 		return SUP_EV_BAD;
-	if (!mic_ok(s, e, len)) {
+	if (!mic_ok(s->ptk, e, len)) {
 		s->bad_mic++;
 		return SUP_EV_BAD;
 	}
 	static u8 plain[512];
+	u8 old[32];
+	u32 old_len = s->gtk_len;
+	u8 old_idx = s->gtk_idx;
+	memcpy(old, s->gtk, sizeof old);
 	if (dlen < 24 || dlen % 8 || dlen - 8 > sizeof plain || aes_unwrap(s->ptk + 16, data, dlen, plain) ||
 	    find_gtk(s, plain, dlen - 8))
 		return SUP_EV_BAD;
-	memcpy(s->gtk_rsc, e + 65, 8);
 	memcpy(s->replay, e + 9, 8);
-	*out_len = ek_build(s, out, e[0], 2 | KI_MIC | KI_SECURE, 0, 0, 0);
+	*out_len = ek_build(s->ptk, s->replay, out, e[0], 2 | KI_MIC | KI_SECURE, 0, 0, 0);
+	/* (P3, KRACK de groupe) la même clé de nouveau : la réponse, mais ni la clé ni son compteur (RSC) reposés */
+	if (old_len == s->gtk_len && old_idx == s->gtk_idx && !memcmp(old, s->gtk, s->gtk_len))
+		return SUP_EV_SEND;
+	memcpy(s->gtk_rsc, e + 65, 8);
 	return SUP_EV_GTK;
 }

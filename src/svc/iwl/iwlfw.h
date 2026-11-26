@@ -436,6 +436,8 @@ struct supplicant {
 	u8 gtk_rsc[8];
 	u8 group_cipher; /* CIPH_* */
 	int bad_mic;
+	u8 tptk[48];  /* E65 : la PTK du message 1, adoptée seulement après un message 3 au MIC juste */
+	int rx_plain; /* (posé par l'appelant) cette trame est arrivée en clair alors que les clés sont posées */
 };
 void sup_init(struct supplicant *s, const u8 pmk[32], const u8 aa[6], const u8 spa[6], const u8 *rsn_ie,
 	      u32 rsn_len, u8 group_cipher, const u8 snonce[32]);

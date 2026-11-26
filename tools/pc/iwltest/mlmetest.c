@@ -174,6 +174,26 @@ static void test_mlme(const char *outdir)
 	/* rejoué, MIC faux */
 	ev = sup_rx(&s, m, ml, out, &ol);
 	CHECK(ev == SUP_EV_NONE || ev == SUP_EV_BAD, "message 3 rejoué refusé");
+	/* E65 (P3, KRACK) : le message 3 retransmis (compteur suivant, M4 perdu) : le message 4 de nouveau, rien de reposé */
+	replay[7] = 3;
+	aes_wrap(ptk_ap + 16, kd, k, kdw);
+	ap_eapol(m, &ml, 0x13ca, replay, an, rsc, kdw, k + 8, ptk_ap);
+	s.rx_plain = 1; /* (en clair : le point d'accès n'a pas encore ses clés) */
+	ev = sup_rx(&s, m, ml, out, &ol);
+	s.rx_plain = 0;
+	CHECK(ev == SUP_EV_SEND && s.state == SUP_DONE && ol == 99 && ek_mic_ok(ptk_ap, out, ol) && out[6] == 0x0a &&
+		      !memcmp(out + 9, replay, 8),
+	      "message 3 retransmis : message 4 de nouveau, sans reposer les clés (événement %d)", ev);
+	/* E65 (P4) : un message 1 en clair, les clés posées : refusé, compteur et PTK intacts */
+	u8 big[8] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xf0}, an2[32];
+	memset(an2, 0x77, 32);
+	ap_eapol(m, &ml, 0x008a, big, an2, 0, 0, 0, 0);
+	s.rx_plain = 1;
+	ev = sup_rx(&s, m, ml, out, &ol);
+	s.rx_plain = 0;
+	CHECK(ev == SUP_EV_BAD && s.replay[7] == 3 && s.state == SUP_DONE && !memcmp(s.ptk + 32, ptk_ap + 32, 16),
+	      "message 1 en clair après les clés : refusé, compteur et clés intacts");
+	replay[7] = 4; /* (la suite : le renouvellement de la GTK) */
 	/* renouvellement de la GTK */
 	for (int i = 0; i < 16; i++)
 		gtk[i] = (u8)(0xc0 + i);
@@ -183,11 +203,23 @@ static void test_mlme(const char *outdir)
 	memcpy(kd + 8, gtk, 16);
 	k = 24;
 	aes_wrap(ptk_ap + 16, kd, k, kdw);
-	replay[7] = 3;
+	replay[7] = 5;
 	ap_eapol(m, &ml, 0x1382, replay, 0, rsc, kdw, k + 8, ptk_ap); /* groupe : ack, mic, secure, enc */
 	ev = sup_rx(&s, m, ml, out, &ol);
 	CHECK(ev == SUP_EV_GTK && s.gtk_idx == 2 && !memcmp(s.gtk, gtk, 16), "nouvelle GTK n° 2");
 	CHECK(ol == 99 && ek_mic_ok(ptk_ap, out, ol) && out[5] == 0x03 && out[6] == 0x02, "réponse de groupe : key_info 0302");
+	/* E65 : la même GTK de nouveau (compteur suivant) : la réponse, sans la reposer */
+	replay[7] = 6;
+	ap_eapol(m, &ml, 0x1382, replay, 0, rsc, kdw, k + 8, ptk_ap);
+	ev = sup_rx(&s, m, ml, out, &ol);
+	CHECK(ev == SUP_EV_SEND && ol == 99 && ek_mic_ok(ptk_ap, out, ol), "même GTK de nouveau : réponse, pas reposée");
+	/* E65 : un message de groupe en clair, les clés posées : refusé */
+	replay[7] = 7;
+	ap_eapol(m, &ml, 0x1382, replay, 0, rsc, kdw, k + 8, ptk_ap);
+	s.rx_plain = 1;
+	ev = sup_rx(&s, m, ml, out, &ol);
+	s.rx_plain = 0;
+	CHECK(ev == SUP_EV_BAD, "message de groupe en clair : refusé");
 	/* mauvaise clé : le message 3 de l'AP (qui a la bonne PMK) est refusé par MIC */
 	struct supplicant s2;
 	u8 badpmk[32];

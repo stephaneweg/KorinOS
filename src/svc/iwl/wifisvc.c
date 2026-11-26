@@ -153,6 +153,50 @@ static char *cfg_value(char *v, int *quoted)
 	return v;
 }
 
+/* E65 (P12) : un SSID est du binaire (32 octets) ; dans wifi.txt, échappé : « \\ » et « \xHH » pour les octets de
+ * contrôle (un saut de ligne n'y injecte plus de ligne). ssid_unescape : la lecture, sur place */
+static char *ssid_escape(char *o, const char *s)
+{
+	static const char hex[] = "0123456789ABCDEF";
+	for (; *s; s++) {
+		u8 c = (u8)*s;
+		if (c == '\\') {
+			*o++ = '\\';
+			*o++ = '\\';
+		} else if (c < 0x20 || c == 0x7F) {
+			*o++ = '\\';
+			*o++ = 'x';
+			*o++ = hex[c >> 4];
+			*o++ = hex[c & 15];
+		} else
+			*o++ = (char)c;
+	}
+	*o = 0;
+	return o;
+}
+
+static int hexval(char c)
+{
+	return c >= '0' && c <= '9' ? c - '0' : (c | 0x20) >= 'a' && (c | 0x20) <= 'f' ? (c | 0x20) - 'a' + 10 : -1;
+}
+
+static void ssid_unescape(char *s)
+{
+	char *o = s;
+	for (const char *p = s; *p; p++) {
+		if (p[0] == '\\' && p[1] == '\\') {
+			*o++ = '\\';
+			p++;
+		} else if (p[0] == '\\' && p[1] == 'x' && hexval(p[2]) >= 0 && hexval(p[3]) >= 0 &&
+			   (hexval(p[2]) << 4 | hexval(p[3]))) {
+			*o++ = (char)(hexval(p[2]) << 4 | hexval(p[3]));
+			p += 3;
+		} else
+			*o++ = *p;
+	}
+	*o = 0;
+}
+
 static void cut_comment(char *v)
 {
 	for (char *p = v; *p; p++)
@@ -207,6 +251,7 @@ static void cfg_read(const char *path)
 				if (known_n < NET_MAX) {
 					cur = &known[known_n++];
 					memset(cur, 0, sizeof *cur);
+					ssid_unescape(v);
 					copy_z(cur->ssid, v, 33);
 				} else
 					cur = 0;
@@ -334,7 +379,7 @@ static void cfg_save(void)
 	}
 	for (int i = 0; i < known_n; i++) {
 		p = str_cat(p, "ssid=\"");
-		p = str_cat(p, known[i].ssid);
+		p = ssid_escape(p, known[i].ssid);
 		p = str_cat(p, "\"\n");
 		char name[80];
 		vault_name(name, known[i].ssid);
