@@ -103,3 +103,8 @@ La clé de réparation (osinstall « mode = repair », écrite dans le worktree 
 ÉCRASÉ /etc avec les fichiers par défaut du paquet (users.ini, mounts.txt sans BOOT ni /home...) : la v2 garde /etc
 (unzip -x etc/*). Sur un PC installé, /etc/mounts.txt doit avoir « BOOT = blk.boot, fatfs, /, ondemand » et
 « /home = blk.home, ext4fs » (sinon pkg écrit le noyau sur / et pas sur l'ESP). Compte de l'utilisateur : trolly.
+**26/11 matin, suite du ZBook** : 2e cause de l'écran gris = le firmware lance \EFI\BOOT\BOOTX64.EFI (vieux chargeur,
+jamais mis à jour, ignore ab.txt) -> pkg met aussi à jour cette copie et les chemins d'avant A/B (758281c, pkgman 1.0.27).
+Touchpad : pcid (E41) refusait d'écrire une BAR 64 bits « vide » (relue 0x4) -> ab376ef, pc 114. Google Drive : init2
+refusait /sys/svc/oauthd pour un compte -> exception (pc 115, main 31f7b75). Ces trois régressions venaient de
+correctifs de sécurité non essayés sur le matériel réel : essayer sur le ZBook avant de publier un pc.
