@@ -614,9 +614,11 @@ static inline bool forbidden (const char *rel)
 		if (!n ? e != 0 : (s[n - 1] == '.' || s[n - 1] == ' ')) return true;	// (un « / » final : dossier, permis)
 		s = e ? e + 1 : 0;
 	}
-	// (les mots de passe, le coffre, le repère de la carte : aucun paquet ne les livre ; un paquet ne les écrase pas, L4)
-	// (sans casse : FAT n'en tient pas compte, « VAR/pkg/... » écrivait /var/pkg)
-	static const char *const no[] = { "var/", "etc/wifi", "etc/remote", "etc/shadow", "etc/keyvault", "etc/secure-mark", 0 };
+	// (les mots de passe, les clés du coffre, le repère de la carte : aucun paquet ne les livre ; un paquet ne les écrase
+	// pas, L4 ; sans casse : FAT n'en tient pas compte, « VAR/pkg/... » écrivait /var/pkg). Du dossier etc/keyvault,
+	// seulement les clés de la machine : le paquet pc livre etc/keyvault/interpreters.ini, et le refuser laissait
+	// le paquet étagé à chaque démarrage (26/11/2026 : l'A/B jamais finalisé, l'écran gris du ZBook)
+	static const char *const no[] = { "var/", "etc/wifi", "etc/remote", "etc/shadow", "etc/keyvault/machine", "etc/secure-mark", 0 };
 	for (int i = 0; no[i]; i++) if (!strncasecmp (rel, no[i], strlen (no[i]))) return true;
 	return !strcasecmp (rel, "var");
 }
@@ -1569,7 +1571,7 @@ public:
 		{
 			char ip[200], dir[200]; snprintf (ip, sizeof ip, PKG_STAGE "/%s.ini", names[k]); snprintf (dir, sizeof dir, PKG_STAGE "/%s", names[k]);
 			Ini st; if (!st.load (ip)) { r.sayf ("%s : fichier d'étage illisible : laissé étagé", names[k]); left = true; continue; }
-			int moved = 0, missing = 0, failed = 0;
+			int moved = 0, missing = 0, failed = 0, abMoved = 0, abFailed = 0;
 			const char *bootPats = st.get ("package", "boot");	// (ses fichiers de demarrage : /boot/)
 			// A/B : l'emplacement cible, une fois par paquet qui porte le noyau ou l'initrd du PC
 			AbState ab = { 'a', '-', '0', 'a' }; char abTarget = 0, abPath[200] = "";
@@ -1611,8 +1613,8 @@ public:
 						char d[200], nw[340]; snprintf (d, sizeof d, "%s/korin/%c", bv, abTarget); mkdirs (d);
 						snprintf (to, sizeof to, "%s/%s", d, f + 6); snprintf (nw, sizeof nw, "%s.new", to);
 						char hh[65]; const char *want = st.get ("files", f);
-						if (move (from, nw) && sha_file (nw, hh) && (!*want || eq (hh, want)) && rename (nw, to) == 0) moved++;
-						else { unlink (nw); failed++; r.sayf (TR ("%s : écrit dans l'emplacement %c mais empreinte fausse ou écriture impossible"), f, abTarget); }
+						if (move (from, nw) && sha_file (nw, hh) && (!*want || eq (hh, want)) && rename (nw, to) == 0) { moved++; abMoved++; }
+						else { unlink (nw); failed++; abFailed++; r.sayf (TR ("%s : écrit dans l'emplacement %c mais empreinte fausse ou écriture impossible"), f, abTarget); }
 						continue;
 					}
 					if (boot_file (f, bootPats))
@@ -1625,13 +1627,16 @@ public:
 				}
 				else if (eq (st.kv[i].sec, "remove") && !forbidden (f) && !boot_refused (bootPats, f) && !db.owned_elsewhere (f, names[k])) { char c[320]; card_path (c, sizeof c, bootPats, f); unlink (c); prune (c); }
 			}
-			if (failed) { r.sayf ("%s : %d fichiers non déplacés : laissé étagé", names[k], failed); left = true; continue; }
-			if (abTarget)		// (la nouvelle version en essai : trois démarrages pour faire ses preuves)
+			// A/B : le noyau et l'initrd en place dans l'emplacement en essai -> ab.txt tout de suite, même si un autre
+			// fichier a échoué : sinon les programmes déjà déplacés tournent avec l'ancien noyau et les anciens kits de
+			// l'initrd (l'écran gris du 26/11/2026) ; le paquet reste étagé pour le reste
+			if (abTarget && !abFailed && abMoved)
 			{
 				ab.trial = abTarget; ab.tries = '3';
 				if (!ab_write (abPath, ab)) r.sayf (TR ("%s : écriture impossible"), abPath);
 				else r.sayf (TR ("nouvelle version dans l'emplacement %c (en essai), version de secours : %c"), abTarget, ab.conf);
 			}
+			if (failed) { r.sayf ("%s : %d fichiers non déplacés : laissé étagé", names[k], failed); left = true; continue; }
 			char dbp[200]; snprintf (dbp, sizeof dbp, PKG_DB "/%s.ini", names[k]);
 			mkdirs (PKG_DB);
 			rename (ip, dbp);
