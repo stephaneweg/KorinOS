@@ -313,11 +313,11 @@ namespace KorinRemote
 			c.Closed += why => BeginInvoke ((Action) (() => { if (opening == c) { opening = null; c.Close (); done (why); } else if (Conn == c) Disconnect (why); }));
 			c.LinkChanged += what => BeginInvoke ((Action) (() => { if (Conn != c) return; link = what; ShowStatus (); }));
 			c.CursorChanged += shape => BeginInvoke ((Action) (() => { if (Conn == c) ShowCursor (shape); }));
-			string h = host, pw = set.Password ?? ""; int p = set.Port; bool b16 = set.Bits16, back = set.Desktop, fr = set.Frames;
+			string h = host, pw = set.Password ?? "", who = set.Account ?? ""; int p = set.Port; bool b16 = set.Bits16, back = set.Desktop, fr = set.Frames;
 			System.Threading.ThreadPool.QueueUserWorkItem (_ =>
 			{
 				string err = null;
-				try { c.Open (h, p, pw, b16, back, fr); }
+				try { c.Open (h, p, who, pw, b16, back, fr); }
 				catch (Exception e) { err = e.Message; }
 				try
 				{

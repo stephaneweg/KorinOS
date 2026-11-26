@@ -4,9 +4,10 @@
 // Terminal (a telnet console, TelnetForm.cs: the dialog stays) and Connect (Enter). Connecting
 // does not hold the dialog: Connect becomes Cancel, what happens is said under the options. Once
 // connected it hides and the session's window shows (MainForm.cs); a disconnection brings it back.
-// The settings (Settings: %APPDATA%\KorinRemote.txt) are shared with the session's window; the
-// password (rdpd's, /etc/remote.txt on the Pi) is kept there encrypted for this Windows user
-// (DPAPI), only when "Remember" is ticked.
+// The settings (Settings: %APPDATA%\KorinRemote.txt) are shared with the session's window. The
+// account: the Korin account to log in with (its own password; empty: the shared password of
+// /etc/remote.txt, refused once the machine has accounts with passwords). The password is kept
+// there encrypted for this Windows user (DPAPI), only when "Remember" is ticked.
 // MIT licence.
 using System;
 using System.Collections.Generic;
@@ -26,7 +27,7 @@ namespace KorinRemote
 	{
 		public string Host = ""; public int Port = 3390;
 		public bool Bits16, Desktop, Frames, Full, OptionsOpen, KeepPassword;
-		public string Password = "";
+		public string Password = "", Account = "";
 		public readonly List<string> Recent = new List<string> ();
 		const int MaxRecent = 8;
 		static readonly string FilePath = Path.Combine (Environment.GetFolderPath (Environment.SpecialFolder.ApplicationData), "KorinRemote.txt");
@@ -48,6 +49,7 @@ namespace KorinRemote
 					else if (k == "frames") s.Frames = v == "1";
 					else if (k == "fullscreen") s.Full = v == "1";
 					else if (k == "options") s.OptionsOpen = v == "1";
+					else if (k == "account") s.Account = v.Trim ();
 					else if (k == "password") { s.Password = Unprotect (v); s.KeepPassword = true; }
 					else if (k == "recent" && v.Trim ().Length > 0 && s.Recent.Count < MaxRecent && !s.Recent.Contains (v.Trim ())) s.Recent.Add (v.Trim ());
 				}
@@ -65,7 +67,7 @@ namespace KorinRemote
 		public void Save ()
 		{
 			var lines = new List<string> { "host=" + Host, "port=" + Port, "bits16=" + (Bits16 ? 1 : 0), "desktop=" + (Desktop ? 1 : 0),
-				"frames=" + (Frames ? 1 : 0), "fullscreen=" + (Full ? 1 : 0), "options=" + (OptionsOpen ? 1 : 0) };
+				"frames=" + (Frames ? 1 : 0), "fullscreen=" + (Full ? 1 : 0), "options=" + (OptionsOpen ? 1 : 0), "account=" + Account };
 			if (KeepPassword && Password.Length > 0) lines.Add ("password=" + Protect (Password));
 			foreach (var r in Recent) lines.Add ("recent=" + r);
 			try { File.WriteAllLines (FilePath, lines); } catch { }
@@ -247,8 +249,8 @@ namespace KorinRemote
 	{
 		readonly Settings set; readonly MainForm main;
 		readonly float k;					// (the screen's scale: 1 at 96 dpi)
-		readonly FieldBox hostBox = new FieldBox (), portBox = new FieldBox (), passBox = new FieldBox ();
-		readonly TextBox host = new TextBox (), port = new TextBox (), pass = new TextBox { UseSystemPasswordChar = true };
+		readonly FieldBox hostBox = new FieldBox (), portBox = new FieldBox (), passBox = new FieldBox (), userBox = new FieldBox ();
+		readonly TextBox host = new TextBox (), port = new TextBox (), pass = new TextBox { UseSystemPasswordChar = true }, user = new TextBox ();
 		readonly DarkCheck keep = new DarkCheck { Text = "Remember" };
 		readonly DarkButton recent = new DarkButton { Arrow = true, TabStop = false };
 		readonly DarkCheck options = new DarkCheck { Arrow = true, Text = "Options" };
@@ -264,7 +266,7 @@ namespace KorinRemote
 		readonly Font titleFont = new Font ("Segoe UI Semibold", 13f), smallFont = new Font ("Segoe UI", 8.5f);
 		readonly Bitmap picture;
 		Rectangle optionsBox, foot;
-		int passLabelY;				// (painted: the options' panel, the bottom band)
+		int passLabelY, userLabelY;				// (painted: the options' panel, the bottom band)
 		bool busy;						// (connecting: Connect is Cancel)
 		const int W = 340, Margin0 = 18;
 
@@ -290,6 +292,10 @@ namespace KorinRemote
 			pass.BorderStyle = BorderStyle.None; pass.BackColor = Dark.Field; pass.ForeColor = Dark.Text;
 			pass.TextChanged += (s, e) => { if (!busy) Say ("", false); };
 			passBox.Controls.Add (pass);
+			user.BorderStyle = BorderStyle.None; user.BackColor = Dark.Field; user.ForeColor = Dark.Text; user.Font = pass.Font;
+			user.TextChanged += (s, e) => { if (!busy) Say ("", false); };
+			userBox.Controls.Add (user);
+			userBox.Click += (s, e) => user.Focus ();
 			passBox.Click += (s, e) => pass.Focus ();
 			keep.BackColor = Dark.Back;
 			port.MaxLength = 5;
@@ -313,8 +319,10 @@ namespace KorinRemote
 			tips.SetToolTip (terminal, "A telnet console on the Pi (the Korin shell; telnetd, port 23)");
 			tips.SetToolTip (recent, "The last addresses used");
 			tips.SetToolTip (keep, "Keep the password, encrypted for your Windows account");
+			tips.SetToolTip (user, "Your account on the Korin machine (empty: the shared remote password of an older setup)");
 
 			host.Text = set.Host; port.Text = set.Port.ToString ();
+			user.Text = set.Account;
 			pass.Text = set.Password; keep.Checked = set.KeepPassword;
 			desktop.Checked = set.Desktop; frames.Checked = set.Frames; bits16.Checked = set.Bits16; full.Checked = set.Full;
 			options.Checked = set.OptionsOpen;
@@ -324,7 +332,7 @@ namespace KorinRemote
 			main.Ended += why => Back (why);
 
 			// (the tab order: the address, the options, what they hold, the bottom row)
-			Controls.AddRange (new Control[] { hostBox, passBox, keep, options, portBox, desktop, frames, bits16, status, full, terminal, connect });
+			Controls.AddRange (new Control[] { hostBox, userBox, passBox, keep, options, portBox, desktop, frames, bits16, status, full, terminal, connect });
 			AcceptButton = connect;
 			Arrange ();
 			recent.Enabled = set.Recent.Count > 0;
@@ -340,6 +348,10 @@ namespace KorinRemote
 			recent.SetBounds (hostBox.Width - side - S (3), S (3), side, side);
 			host.SetBounds (S (9), (hostBox.Height - host.PreferredHeight) / 2, recent.Left - S (9) - S (4), host.PreferredHeight);
 			y += hostBox.Height + S (10);
+			userLabelY = y; y += S (20);
+			userBox.SetBounds (m, y, w, S (34));
+			user.SetBounds (S (9), (userBox.Height - user.PreferredHeight) / 2, userBox.Width - S (18), user.PreferredHeight);
+			y += userBox.Height + S (10);
 			passLabelY = y; y += S (20);
 			int kw = S (96);
 			passBox.SetBounds (m, y, w - kw - S (10), S (34));
@@ -390,6 +402,7 @@ namespace KorinRemote
 			TextRenderer.DrawText (g, "Korin Remote", titleFont, new Point (tx, S (15)), Dark.Text, flags);
 			TextRenderer.DrawText (g, "Connect to your Raspberry Pi", smallFont, new Point (tx + 1, S (41)), Dark.Faint, flags);
 			TextRenderer.DrawText (g, "Address", smallFont, new Point (m, S (78)), Dark.Dim, flags);
+			TextRenderer.DrawText (g, "Account", smallFont, new Point (m, userLabelY), Dark.Dim, flags);
 			TextRenderer.DrawText (g, "Password", smallFont, new Point (m, passLabelY), Dark.Dim, flags);
 			g.SmoothingMode = SmoothingMode.AntiAlias;
 			if (!optionsBox.IsEmpty)
@@ -434,7 +447,7 @@ namespace KorinRemote
 			set.Host = host.Text.Trim (); set.Port = Settings.ParsePort (port.Text);
 			port.Text = set.Port.ToString ();
 			set.Desktop = desktop.Checked; set.Frames = frames.Checked; set.Bits16 = bits16.Checked; set.Full = full.Checked;
-			set.Password = pass.Text; set.KeepPassword = keep.Checked;
+			set.Password = pass.Text; set.KeepPassword = keep.Checked; set.Account = user.Text.Trim ();
 			if (set.Host.Length == 0)
 			{
 				Say ("Enter the Pi's address first.", true);

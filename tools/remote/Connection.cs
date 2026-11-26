@@ -80,7 +80,7 @@ namespace KorinRemote
 		const byte OPT_16BIT = 1, OPT_NOFRAMES = 2, OPT_PIPELINED = 4, OPT_COPY = 8;
 		const byte AUTH_OK = 0, AUTH_WRONG = 1, AUTH_NONE = 2;	// (the verdict after the HMAC: ONYXRDP2)
 
-		string host, password; int port;
+		string host, password, account; int port;
 		bool bpp16, frames;
 		volatile bool desktopOn;
 		TcpClient tcp; NetworkStream net;
@@ -91,9 +91,9 @@ namespace KorinRemote
 
 		// The first connection (throws when it fails), then the reading / sending threads; the
 		// reconnections are theirs.
-		public void Open (string host, int port, string password, bool bits16, bool desktop, bool korinFrames)
+		public void Open (string host, int port, string account, string password, bool bits16, bool desktop, bool korinFrames)
 		{
-			this.host = host; this.port = port; this.password = password ?? ""; bpp16 = bits16; desktopOn = desktop; frames = korinFrames;
+			this.host = host; this.port = port; this.account = (account ?? "").Trim (); this.password = password ?? ""; bpp16 = bits16; desktopOn = desktop; frames = korinFrames;
 			Handshake ();
 			new Thread (Run) { IsBackground = true, Name = "rdpd reader" }.Start ();
 			new Thread (SendLoop) { IsBackground = true, Name = "rdpd sender" }.Start ();
@@ -130,9 +130,36 @@ namespace KorinRemote
 				string magic = Encoding.ASCII.GetString (hello, 0, 8);
 				bool auth = magic == "ONYXRDP2";			// (ONYXRDP1: an rdpd without a password, Onyx's)
 				if (!auth && magic != "ONYXRDP1") throw new RefusedException ("not a Korin rdpd server (or an older rdpd: update the SD card)");
+				byte opts = (byte) ((bpp16 ? OPT_16BIT : 0) | (frames ? 0 : OPT_NOFRAMES) | OPT_PIPELINED | OPT_COPY);
 				var ans = new List<byte> (Encoding.ASCII.GetBytes (magic));
-				ans.Add ((byte) ((bpp16 ? OPT_16BIT : 0) | (frames ? 0 : OPT_NOFRAMES) | OPT_PIPELINED | OPT_COPY));
-				if (auth)
+				ans.Add (opts);
+				if (auth && account.Length > 0)
+				{
+					// ONYXRDP3, an account: the name -> the server's iteration count and salt for it,
+					// then HMAC-SHA256 (key: PBKDF2-SHA256 of the password) of the challenge
+					byte[] challenge = ReadExactly (s, 16);
+					byte[] name = Encoding.UTF8.GetBytes (account);
+					if (name.Length > 31) throw new RefusedException ("account name too long");
+					ans = new List<byte> (Encoding.ASCII.GetBytes ("ONYXRDP3"));
+					ans.Add (opts); ans.Add ((byte) name.Length); ans.AddRange (name);
+					s.Write (ans.ToArray (), 0, ans.Count);
+					ans.Clear ();
+					byte[] it = ReadExactly (s, 5);
+					int iter = it[0] | it[1] << 8 | it[2] << 16 | it[3] << 24, saltLen = it[4];
+					if (iter < 1 || iter > 10000000 || saltLen < 1) throw new RefusedException ("refused by the Pi");
+					byte[] salt = ReadExactly (s, saltLen);
+					byte[] key;
+					using (var kdf = new Rfc2898DeriveBytes (Encoding.UTF8.GetBytes (password), salt, iter, HashAlgorithmName.SHA256)) key = kdf.GetBytes (32);
+					byte[] proof;
+					using (var mac = new HMACSHA256 (key)) proof = mac.ComputeHash (challenge);
+					Array.Clear (key, 0, key.Length);
+					t.ReceiveTimeout = HelloMs + 30000;		// (the server checks; a wrong password waits)
+					s.Write (proof, 0, proof.Length);
+					int verdict = ReadExactly (s, 1)[0];
+					if (verdict == AUTH_WRONG) throw new RefusedException ("Incorrect password");
+					if (verdict != AUTH_OK) throw new RefusedException ("refused by the Pi");
+				}
+				else if (auth)
 				{
 					// the challenge (16 bytes) -> HMAC-SHA256 (key: the password in UTF-8), then the
 					// verdict (1 byte) before anything else
