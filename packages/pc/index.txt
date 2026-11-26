@@ -1,11 +1,11 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-26 11:12
+date = 2026-11-26 11:13
 abi = 632
 packages = 117
 board = pc
-serial = 17
+serial = 18
 
 [avdemo]
 title = Avalonia
@@ -695,18 +695,18 @@ content = 4d093df519910dcb66bd4cba30f8ddf6bd8b179b41f69cf9a8966dcc1c01d1dc
 
 [webd]
 title = Serveur web
-version = 1.0.8
+version = 1.0.9
 category = Internet
 author = Korin OS
 summary = Le serveur web de Korin (webd) : sites, liaisons http et https, certificats, et son volet dans Réglages
-size = 4424936
-installed = 11441128
-sha256 = c547e0fcca136e3c03a7cce956e3770aa1d48db2647db187bd85a6ce77ca7ad0
-file = pkgs/webd-1.0.8.opk
+size = 4425625
+installed = 11441312
+sha256 = e4879af7faa2d54f18fc31ad0205080f231ad0b05a441d7ba7bd9427044dac9e
+file = pkgs/webd-1.0.9.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 05ba6bd04bf39b43be538055cfcc239abc593e80193c78642fa13156a79bdfb5
+content = 579f96f1b343d9c03c909c7a53f51c6b8171e5b2e60c87307cab8dc469164a19
 
 [smbd]
 title = Partage de fichiers (SMB)
