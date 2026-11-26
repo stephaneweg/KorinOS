@@ -285,17 +285,25 @@ static int file_save(const char *path, const void *p, size_t n)
 	char tmp[160];
 	snprintf(tmp, sizeof tmp, "%s.new", path);
 	int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0600);
-	if (fd < 0)
+	if (fd < 0) {
+		say("%s : ouverture impossible (errno %d)", tmp, errno);
 		return -1;
+	}
 	int ok = write(fd, p, n) == (ssize_t)n;
+	int e = errno;
 	ok = close(fd) == 0 && ok;
 	if (!ok) {
+		say("%s : écriture impossible (errno %d)", tmp, e);
 		unlink(tmp);
 		return -1;
 	}
 	/* rename remplace le fichier d'arrivée (fatfs.c, ext4) : plus d'unlink avant, qui laissait, sur
 	 * une coupure entre les deux, un compte sans coffre (recréé vide à l'ouverture suivante) */
-	return rename(tmp, path);
+	if (rename(tmp, path) < 0) {
+		say("%s : renommage impossible (errno %d)", path, errno);
+		return -1;
+	}
+	return 0;
 }
 
 /* ---- crypto */

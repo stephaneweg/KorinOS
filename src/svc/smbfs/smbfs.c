@@ -11,6 +11,7 @@
  *   user = stephane
  *   password = ...
  *   domain =                 (facultatif : le domaine ou le nom du PC Windows)
+ *   unsigned = 1             (facultatif : accepter un serveur sans signature, et l'invité sans compte)
  *   [bureau]
  *   host = 192.168.0.9
  *   share = Korin
@@ -20,6 +21,9 @@
  * requête à la fois. La connexion se fait à la première requête d'un programme (jamais pendant le
  * montage : vfs attend alors ce service, et lire /etc/smbfs.ini passe par vfs) ; elle est refaite
  * si le serveur l'a coupée. Pas de rootpath au montage (un dossier dans la source à la place).
+ *
+ * Signature (E70 S8) : exigée ; il faut donc un compte (l'invité d'un NAS ne peut pas signer : refusé, comme
+ * Windows 11). « unsigned = 1 » dans la section l'accepte quand même, en connaissance de cause.
  *
  * Mots de passe et coffre à secrets (le PC, service keyvault, docs/etude/COFFRE.md) : celui d'une section est
  * le secret « smbfs/<section> » de l'espace @system (smbfs est d'uid 0). Un « password = » encore dans
@@ -168,6 +172,7 @@ static char volume[32], source[256];
 static struct smb2_context *smb2;
 static u32 conn_gen;
 static char host[128], share[128], subdir[256], user[128], password[128], domain[128];
+static int allow_unsigned; /* « unsigned = 1 » : sans signature, invité accepté */
 static int creds_read;
 static char last_error[256];
 
@@ -371,6 +376,8 @@ static int ini_section(const char *name)
 			snprintf(share, sizeof share, "%s", v);
 		else if (!strcasecmp(k, "dir") && !subdir[0])
 			snprintf(subdir, sizeof subdir, "%s", v);
+		else if (!strcasecmp(k, "unsigned"))
+			allow_unsigned = *v == '1';
 	}
 	fclose(f);
 	memset(line, 0, sizeof line);
@@ -459,10 +466,24 @@ static long connect_share(void)
 		    source);
 		return E_INVAL;
 	}
+	if (!user[0] && !allow_unsigned) { /* (S8 : l'invité ne signe pas) */
+		if (strcmp(last_error, "invite")) {
+			say("//%s/%s : il faut un compte (user = dans /etc/smbfs.ini) : l'invité ne peut pas signer ; "
+			    "« unsigned = 1 » l'accepte quand même",
+			    host, share);
+			snprintf(last_error, sizeof last_error, "invite");
+		}
+		return E_ACCES;
+	}
 	smb2 = smb2_init_context();
 	if (!smb2)
 		return E_NOMEM;
-	smb2_set_security_mode(smb2, SMB2_NEGOTIATE_SIGNING_ENABLED);
+	if (allow_unsigned)
+		smb2_set_security_mode(smb2, SMB2_NEGOTIATE_SIGNING_ENABLED);
+	else { /* signature exigée (S8) : un serveur sans elle est refusé, les réponses non signées aussi */
+		smb2_set_security_mode(smb2, SMB2_NEGOTIATE_SIGNING_ENABLED | SMB2_NEGOTIATE_SIGNING_REQUIRED);
+		smb2_set_sign(smb2, 1);
+	}
 	smb2_set_version(smb2, SMB2_VERSION_ANY);
 	smb2_set_timeout(smb2, 30);
 	if (user[0])

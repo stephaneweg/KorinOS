@@ -144,6 +144,13 @@ serveur l'a coupée ; les fichiers ouverts avant sont alors perdus (E_IO). Une r
 Windows 11 (24H2 et plus) refuse les invités : un partage « Tout le monde » demande quand même un compte de
 cette machine Windows (`user`/`password`).
 
+**Signature exigée (26/11/2026, E70 S8 du plan de sécurité).** smbfs exige la signature SMB : un serveur qui ne
+signe pas est refusé, et une réponse non signée aussi. Il faut donc un compte : l'invité d'un NAS ne peut pas
+signer, smbfs le refuse (comme Windows 11) et le dit au journal. `unsigned = 1` dans la section du partage
+l'accepte quand même, sans signature, en connaissance de cause (n'importe qui sur le réseau peut alors lire et
+modifier ce qui passe). De son côté, **smbd exige aussi la signature** : un client qui ne signe pas est refusé
+dès la négociation. Windows, macOS et Linux (`mount.cifs`, `smbclient`) signent quand le serveur le demande.
+
 ## 4. Vérifié
 
 * **smbd sous Linux** (WSL, AddressSanitizer, 15/11) avec les exemples de libsmb2 : liste, lecture, écriture,

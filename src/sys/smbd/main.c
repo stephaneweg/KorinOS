@@ -461,6 +461,7 @@ static void on_connection(struct smb2_context *smb2, void *cb_data)
 	(void)cb_data;
 	/* les réponses de fichiers et d'infos sont encodées par fs.c (octets bruts) */
 	smb2_set_passthrough(smb2, 1);
+	smb2_set_sign(smb2, 1); /* signature exigée (E70 S8) : un client qui ne signe pas est refusé */
 	log_dbg("nouvelle connexion");
 }
 
