@@ -43,3 +43,4 @@ Sam = Sat
 Nouvelle alarme = New Alarm
 Modifier l'alarme = Edit Alarm
 Impossible d'écrire /etc/alarms.txt. = Cannot write /etc/alarms.txt.
+L'Horloge veut garder l'heure réglée pour tous les comptes. = Clock wants to keep the time setting for all accounts.

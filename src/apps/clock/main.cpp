@@ -298,10 +298,24 @@ static void offset_from_bus (void)
 	g_offset = (long) (parse_dec (b) % 86400);
 }
 
-// le décalage écrit dans clock.cfg, puis publié (korin.clock.offset : la barre de menus et clockd le prennent sans
-// relire le fichier)
+// le décalage publié (korin.clock.offset : la barre de menus et clockd le prennent tout de suite, sans relire le
+// fichier) ; clock.cfg (/etc : uid 0) est écrit une fois, élevé, à la fermeture (write_cfg, E72)
+static bool g_dirty;
 static void save_cfg (void)
 {
+	char b[32];
+	*cat_dec (b, (unsigned long) g_offset) = 0;
+	if (g_bus) bus_publish ((long) CLK_TOPIC, (long) b, -1, BUS_RETAIN);
+	g_dirty = true;
+}
+
+static void write_cfg (void)
+{
+	if (!g_dirty)
+		return;
+	unsigned me = (unsigned) getuid ();
+	if (me && ui_elevate ((long) TR ("L'Horloge veut garder l'heure r\xC3\xA9gl\xC3\xA9" "e pour tous les comptes.")))
+		return;					// (refusé : l'heure reste celle du bus jusqu'au redémarrage)
 	char b[32];
 	char *e = cat_dec (b, (unsigned long) g_offset);
 	*e = '\n';
@@ -311,8 +325,9 @@ static void save_cfg (void)
 		if (write (fd, b, (size_t) (e + 1 - b)) < 0) { /* (rien de plus que l'asm) */ }
 		close (fd);
 	}
-	*e = 0;
-	if (g_bus) bus_publish ((long) CLK_TOPIC, (long) b, -1, BUS_RETAIN);
+	if (me)
+		setuid (me);
+	g_dirty = false;
 }
 
 // ===========================================================================
@@ -749,7 +764,7 @@ int main ()
 		}
 		long t = ui_event (left);
 		if (!t) continue;
-		if (t == WEV_CLOSE) break;
+		if (t == WEV_CLOSE) { write_cfg (); break; }
 		if (t == WEV_THEME) { page_show (g_page); continue; }	// autre thème : la page redessinée
 		if (t == WEV_BUS)
 		{
