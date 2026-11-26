@@ -214,6 +214,7 @@ static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 	/* 0x60 système */
 	case SYS_PRINT: return sys_print(a[0], a[1]);
 	case SYS_KLOG: return sys_klog(a[0], a[1]);
+	case SYS_KLOG_FROM: return sys_klog_from(a[0], a[1], a[2]);
 	case SYS_SYSINFO: return sys_sysinfo(a[0]);
 	case SYS_CPU_LOAD: return sys_cpu_load(a[0], a[1]);
 	case SYS_GETRANDOM: return sys_getrandom(a[0], a[1]);

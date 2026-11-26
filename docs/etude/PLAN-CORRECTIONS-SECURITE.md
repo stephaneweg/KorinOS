@@ -13,6 +13,13 @@ Rédigé le 24/11/2026 à partir de [AUDIT-SECURITE-PC.md](AUDIT-SECURITE-PC.md)
 >   menus, capture WF_GRAB d'une app au premier plan seulement), E37-E41, E43, E44, E46 (sceaux SHM compris), E48
 >   (oauthd), E51 (téléchargement en uid 0, `/var/pkg` protégé, noms et chemins interdits sans casse), E63 (sauf
 >   usbhid et usbstorage), E66-E70 (E70 : telnetd et ftpd par comptes ; le 26/11 : RDP par compte, S3, S4, S6, S8), E09, E10.
+> * **Le 26/11 (après-midi)** :
+>   * E53 : `local.tar` en texte seulement, Windows ignoré sur les clés USB, MOR ;
+>   * E54 : écritures dans `/boot` limitées à `\korin`, `\EFI\Korin` et `\EFI\BOOT\BOOTX64.EFI`, dans vfs, même pour l'uid 0 ;
+>   * E56 : auditd et `/var/log/auth.log` (`boot.cfg` pas encore suivi) ;
+>   * E72 : la liste est traitée (Réglages, Horloge, Fichiers, Notes, Koton, Logiciels, smbd, webd, webstudio,
+>     printd, `ui_elevate` sans authd) ; un démarrage en `enforce` avec sept apps ne donne aucun refus.
+>   * Restent E73 (une semaine en mode log sur le ZBook) et E74 (`enforce` par défaut).
 > * **Ajouté après une relecture de la branche** : `fs.*` ne répondent qu'à vfs (le fond de F4) ; montage par
 >   « `/media/../etc` » ; renommage d'un parent d'un chemin protégé ; sudo d'un compte sans mot de passe par la
 >   carte ; couche sûre et repère secret de la carte et de l'écran de connexion (E39) ; `/etc/web-probe.js`,

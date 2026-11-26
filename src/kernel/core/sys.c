@@ -236,6 +236,37 @@ void klog_write(const char *s)
 	spin_unlock_irqrestore(&klog_lock, f);
 }
 
+/* SYS_KLOG_FROM : à partir de la position absolue pos (ou de la plus ancienne encore là) ; tampon : la position du
+ * premier octet rendu (8 octets), puis les octets -> leur nombre (E56 : auditd ne relit que ce qui est nouveau) */
+int64_t sys_klog_from(uint64_t pos, uint64_t buf, uint64_t max)
+{
+	if (max < 8)
+		return E_INVAL;
+	max -= 8;
+	uint64_t f = spin_lock_irqsave(&klog_lock);
+	uint64_t end = klog_len, oldest = klog_len > KLOG_SIZE ? klog_len - KLOG_SIZE : 0;
+	spin_unlock_irqrestore(&klog_lock, f);
+	if (pos < oldest)
+		pos = oldest;
+	if (pos > end)
+		pos = end;
+	uint64_t n = end - pos;
+	if (n > max)
+		n = max;
+	if (copy_to_user(buf, &pos, 8))
+		return E_FAULT;
+	char tmp[256];
+	for (uint64_t done = 0; done < n;) {
+		uint64_t m = n - done < sizeof tmp ? n - done : sizeof tmp;
+		for (uint64_t i = 0; i < m; i++)
+			tmp[i] = klog[(pos + done + i) % KLOG_SIZE];
+		if (copy_to_user(buf + 8 + done, tmp, m))
+			return E_FAULT;
+		done += m;
+	}
+	return (int64_t)n;
+}
+
 int64_t sys_klog(uint64_t buf, uint64_t max)
 {
 	uint64_t f = spin_lock_irqsave(&klog_lock);

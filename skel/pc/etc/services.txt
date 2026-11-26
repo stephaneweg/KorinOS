@@ -22,3 +22,6 @@
 # d'energie des coeurs (docs/etude/BATTERIE-PC.md, /etc/power.ini) ; sans batterie, il reste a
 # repondre (commande battery)
 /sys/svc/acpid
+# le journal d'audit (E56 du plan de securite) : /var/log/auth.log, les lignes du journal du noyau qui comptent
+# pour la securite (elevations, connexions, refus de vfs, commits de paquets), en ajout seulement
+/sys/svc/auditd

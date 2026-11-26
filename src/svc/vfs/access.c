@@ -7,7 +7,7 @@
  *   le dossier personnel du compte          lui (lecture, écriture)
  *   /home/public                           tout le monde
  *   le dossier personnel d'un autre compte  rien (question 3 de l'étude : 0700 proposé)
- *   /etc/shadow.ini, wifi.txt, wifi.bak, remote.txt, smbd.ini, smbfs.ini, /etc/web/certs
+ *   /etc/shadow.ini, wifi.txt, wifi.bak, remote.txt, smbd.ini, smbfs.ini, /etc/web/certs, /var/log/auth.log
  *                                          uid 0 seulement (même en lecture)
  *   /var/keyvault, /etc/keyvault           le coffre à secrets (docs/KEYVAULT.md) : uid 0 seulement, et refusé
  *                                          même en mode « log » (rien ne les lit, le coffre seul)
@@ -21,7 +21,8 @@
 #define NOTES 32 /* refus déjà notés (le journal ne répète pas le même) */
 
 static const char *const secrets[] = {"/etc/shadow.ini", "/etc/wifi.txt", "/etc/wifi.bak", "/etc/remote.txt",
-				      "/etc/smbd.ini", "/etc/smbfs.ini", "/etc/web/certs", 0};
+				      "/etc/smbd.ini", "/etc/smbfs.ini", "/etc/web/certs",
+				      "/var/log/auth.log", "/var/log/auth.log.1", /* (le journal d'audit, E56) */ 0};
 /* refusés aux autres que l'uid 0 quel que soit le mode (sauf « off ») : les fichiers du coffre */
 static const char *const toujours[] = {"/var/keyvault", "/etc/keyvault", "/etc/shadow.ini",
 				       "/etc/secure-mark", /* (le repère de la carte d'élévation : A5) */ 0};
@@ -285,13 +286,43 @@ long acces_renommer(long pid, const char *src, const char *dst)
 	return 0;
 }
 
+#ifdef __x86_64__
+/* E54 (B3) : sur le PC, /boot est la partition système EFI, partagée avec Windows. On n'y écrit (même en uid 0 : pkg,
+ * osinstall) que ce qui est à Korin : \korin, \EFI\Korin, et \EFI\BOOT\BOOTX64.EFI (le chargeur que le firmware
+ * lance ; pkg le remplace par .new puis renommage) ; le chargeur de Windows et le reste ne bougent pas */
+static int esp_permis(const char *p)
+{
+	if (!sous(p, "/boot"))
+		return 1;
+	if (sous(p, "/boot/korin") || sous(p, "/boot/EFI/Korin"))
+		return 1;
+	if (nom_egal_n(p, "/boot/EFI", 10) || nom_egal_n(p, "/boot/EFI/BOOT", 15)) /* (les dossiers, sur une ESP neuve) */
+		return 1;
+	return nom_egal_n(p, "/boot/EFI/BOOT/BOOTX64.EFI", 26); /* (et « .new » derrière) */
+}
+#endif
+
 long acces_verifier(long pid, const char *interne, int ecrire)
 {
 	int mode = acces_mode();
 	long uid = pid_uid(pid);
+	char brut[PATH_MAX], ext[PATH_MAX];
+#ifdef __x86_64__
+	if (ecrire) {
+		chemin_externe(interne, brut);
+		normaliser(brut, ext);
+		if (!esp_permis(ext)) {
+			if (!deja_note(uid, ext, 1)) {
+				ak_puts("vfs : ecriture refusee sur la partition EFI (hors de \\korin et \\EFI\\Korin) : ");
+				ak_puts(ext);
+				ak_puts("\n");
+			}
+			return E_PERM;
+		}
+	}
+#endif
 	if (uid == 0)
 		return 0;
-	char brut[PATH_MAX], ext[PATH_MAX];
 	chemin_externe(interne, brut);
 	normaliser(brut, ext);
 	if (mode == ACCESS_OFF && !critique(ext, ecrire))

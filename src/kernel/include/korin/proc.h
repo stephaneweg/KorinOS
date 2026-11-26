@@ -35,6 +35,7 @@ int64_t sys_sysinfo(uint64_t out);
 int64_t sys_cpu_load(uint64_t out, uint64_t places);
 int64_t sys_getrandom(uint64_t buf, uint64_t n);
 int64_t sys_klog(uint64_t buf, uint64_t max);
+int64_t sys_klog_from(uint64_t pos, uint64_t buf, uint64_t max);
 /* journal du noyau : chaque ligne avec son heure, 64 Ko au plus */
 void klog_write(const char *s);
 void random_mix(uint64_t v);
