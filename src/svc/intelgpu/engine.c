@@ -715,7 +715,7 @@ int eng_init(void)
 	S.hwsp_ggtt = ggtt_map(i, S.hwsp_phys, 1);
 	if (G.simu)
 		simu_note(S.hwsp_phys, (void *)va, 4096);
-	/* page d'état partagée : un tampon partagé ouvert à tous (BUF_GRANT -1), lu par les clients */
+	/* page d'état partagée, lue par les clients : accordée à chacun à IG_OP_INFO (E47 : plus ouverte à tous) */
 	S.status_buf = korin_sys1(SYS_BUF_CREATE, 4096);
 	if (S.status_buf < 0) {
 		glog("ANOMALIE : BUF_CREATE de la page d'état refusé (%ld)\n", S.status_buf);
@@ -723,7 +723,6 @@ int eng_init(void)
 	}
 	u64 bi[4];
 	korin_sys2(SYS_BUF_INFO, S.status_buf, bi);
-	korin_sys2(SYS_BUF_GRANT, S.status_buf, -1);
 	S.status = (volatile u32 *)(BUF_VA_BASE_SV + (u64)S.status_buf * BUF_SLOT_SV);
 	S.status_phys = bi[0];
 	i = ggtt_alloc(1);

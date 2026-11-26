@@ -14,7 +14,8 @@
  *    tampons partages d'ARMPI (BUF_CREATE / BUF_MAP / BUF_FREE, docs/ABI.md). Le numero rendu porte
  *    la taille (le process web la retrouve sans appel) : bits 0-6 le tampon + 1, 7-18 la largeur,
  *    19-30 la hauteur (4095 au plus). Le tampon est sous 1 Go (BUF_LOW : le GPU y compose
- *    directement) et ouvert a tous les process (BUF_GRANT pid -1 : le process web, Elegant).
+ *    directement). Plus ouvert a tous (E47 du plan de securite, J6 : tout process lisait l'ecran de Gmail) : le
+ *    process UI l'accorde au process web qui y dessine (onyx_surface_grant, DrawingAreaProxy), UIKit a Elegant.
  */
 #include <stddef.h>
 
@@ -251,8 +252,15 @@ int onyx_surface_create (int width, int height)
 		n = armpi_svc (SYS_BUF_CREATE, (long) width * height * 4);
 	if (n < 0 || n > 126)
 		return 0;
-	armpi_svc2 (SYS_BUF_GRANT, n, -1);
 	return (int) ((n + 1) | (long) width << 7 | (long) height << 19);
+}
+
+/* E47 : la surface id accordee a pid (le process web qui la remplit) -> 0 ou une erreur */
+int onyx_surface_grant (int id, int pid)
+{
+	if (id <= 0 || pid <= 0)
+		return -22;
+	return (int) armpi_svc2 (SYS_BUF_GRANT, (id & 0x7F) - 1, pid);
 }
 
 unsigned *onyx_surface_map (int id, int *width, int *height)

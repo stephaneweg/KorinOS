@@ -1,0 +1,53 @@
+--- a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp
++++ b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp
+@@ -75,17 +75,15 @@
+     return home && *home ? home : "/home";
+ }
+ 
++// Korin (E58, E60 of the security plan): no $JET_WIDEVINE_CDM nor $JET_CDMHOST any more -- whoever starts Jet could
++// otherwise make it load another module, or start another program as the CDM host
+ static std::string modulePath()
+ {
+-    if (const char* path = getenv("JET_WIDEVINE_CDM"); path && *path)
+-        return path;
+     return homeDirectory() + "/.jet/widevine/libwidevinecdm.so";
+ }
+ 
+ static std::string hostPath()
+ {
+-    if (const char* path = getenv("JET_CDMHOST"); path && *path)
+-        return path;
+     return "/apps/jet.app/libexec/cdmhost"; // (a folder of /etc/exec.txt: executable)
+ }
+ 
+--- a/Source/WebKit/UIProcess/onyx/DrawingAreaProxyCoordinatedGraphicsOnyx.cpp
++++ b/Source/WebKit/UIProcess/onyx/DrawingAreaProxyCoordinatedGraphicsOnyx.cpp
+@@ -32,6 +32,7 @@
+ #include "MessageSenderInlines.h"
+ #include "OnyxSurface.h"
+ #include "WebPageProxy.h"
++#include "WebProcessProxy.h"
+ #include <WebCore/Region.h>
+ #include <skia/core/SkCanvas.h>
+ #include <skia/core/SkPixmap.h>
+@@ -65,6 +66,9 @@
+         s_onyxFrameClient(-1, 0, 0, 0, 0, 0, 0);
+ }
+ 
++// Korin (E47): the surface given to one more process (tools/webkit/glue/webkit2_armpi.c ; x86-64 only, 0 elsewhere)
++extern "C" int onyx_surface_grant(int surfaceID, int pid);
++
+ namespace WebKit {
+ using namespace WebCore;
+ 
+@@ -142,6 +146,10 @@
+         m_onyxFrameSize = { };
+     }
+ 
++    // Korin (E47 of the security plan): the surface is no longer open to every process; the web process that will
++    // draw into it is given it here, each time (after a process swap, the new one).
++    if (auto pid = webProcessProxy().processID())
++        onyx_surface_grant(m_onyxSurfaceID, pid);
+     send(Messages::DrawingArea::SetOnyxCompositingSurface(m_onyxSurfaceID));
+ }
+ 

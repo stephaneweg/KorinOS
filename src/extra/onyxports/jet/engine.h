@@ -68,6 +68,9 @@ int  engine_auxiliary_main (int argc, char **argv);
 // user/Libs/gpucomp: scrolling paints nothing again) instead of painted into one bitmap. The
 // browser's window asks for it by default (main.cpp: --nogpu, /etc/web-nogpu); Mail's view does not.
 void engine_set_compositing (bool enabled);
+// Before engine_init : this run is a web app (webapp.cpp) : the protected contents (EME with a module) are granted,
+// a download the user did not start is refused (E58 of the security plan ; the browser asks)
+void engine_set_webapp (bool on);
 // Who shows the compositor's picture without a copy: its shared buffer (buffer, pitch in bytes, the
 // picture at offset), what changed; buffer -1: compositing left. Answers 0 if it cannot: the picture is
 // painted (engine_paint).

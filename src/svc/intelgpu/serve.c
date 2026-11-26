@@ -256,6 +256,8 @@ static long handle(long req, u64 *m)
 		in->state = S.dead ? 0 : G.simu ? 2 : 1;
 		in->pid = (u32)korin_sys0(SYS_GETPID);
 		in->status_buf = (u32)S.status_buf;
+		if (S.status_buf >= 0) /* (E47 : à ce client, plus à tous) */
+			korin_sys2(SYS_BUF_GRANT, S.status_buf, (long)pid);
 		in->device = G.pci.device;
 		in->revision = G.pci.rev;
 		u32 dss = G.simu ? 3 : rd(DSS_ENABLE), eud = G.simu ? 0 : rd(EU_DISABLE) & 0xFF;

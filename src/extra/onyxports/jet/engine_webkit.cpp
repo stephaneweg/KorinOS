@@ -39,6 +39,7 @@
 #include <WebKit/WKHitTestResult.h>
 #if ENABLE(ENCRYPTED_MEDIA)
 #include <WebKit/WKMediaKeySystemPermissionCallback.h>
+#include <WebKit/WKSecurityOriginRef.h>
 #endif
 #include <WebKit/WKNavigationActionRef.h>
 #include <WebKit/WKPage.h>
@@ -142,6 +143,15 @@ static void say (const char *fmt, ...)
 	write (2, b, (size_t) n);
 }
 
+// Korin (E58 of the security plan, J4): the debug files of /etc (web-console, web-probe.js, web-trace-net,
+// web-trace-media) are taken only when they belong to the system (uid 0): a page script injected into every site
+// from a file anyone could write would be a lasting spy in Gmail or the bank.
+static bool system_file (const char *path)
+{
+	struct stat st;
+	return stat (path, &st) == 0 && st.st_uid == 0;
+}
+
 static std::string str (WKStringRef s)
 {
 	if (!s)
@@ -158,7 +168,7 @@ static std::string str (WKStringRef s)
 static bool trace_net ()
 {
 	static int on = -1;
-	if (on < 0) on = getenv ("WEBKIT_TRACE_NET") || access ("/etc/web-trace-net", F_OK) == 0;
+	if (on < 0) on = getenv ("WEBKIT_TRACE_NET") || system_file ("/etc/web-trace-net");
 	return on;
 }
 
@@ -396,6 +406,8 @@ struct Download
 	bool cancelled;
 };
 static std::vector<Download *> s_downloads;
+static bool s_webapp;				// engine_set_webapp (E58)
+void engine_set_webapp (bool on) { s_webapp = on; }
 static int s_nextDownload = 1;
 
 static void tell (Download *dl, int event, const char *text)
@@ -417,9 +429,19 @@ static std::string unique_path (const std::string &dir, std::string name)
 	return path;
 }
 
-static WKStringRef dlDecide (WKDownloadRef, WKURLResponseRef, WKStringRef suggested, const void *info)
+static WKStringRef dlDecide (WKDownloadRef d, WKURLResponseRef, WKStringRef suggested, const void *info)
 {
 	Download *dl = (Download *) const_cast<void *> (info);
+	// E58 : a download the user did not start (a page script) : asked in the browser, refused in a web app ; a
+	// name chosen in Save As is the user's
+	if (dl->path.empty () && !WKDownloadGetWasUserInitiated (d)) {
+		std::string q = "Une page veut enregistrer « " + str (suggested) + " » dans vos téléchargements. Permettre ?";
+		if (s_webapp || !(s_client->confirm && s_client->confirm (q.c_str ()))) {
+			say ("download %d refused (not started by the user)", dl->id);
+			WKDownloadCancel (d, nullptr, [] (WKDataRef, const void *) {});
+			return nullptr;
+		}
+	}
 	if (dl->path.empty ()) {
 		std::string dir = home_dir () + "/downloads";
 		mkdir (dir.c_str (), 0755);
@@ -580,7 +602,7 @@ static const char MOBILE_UA[] = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleW
 #if defined(__x86_64__)
 // The sites of protected content (EME Widevine, docs/etude/WIDEVINE.md, step 6): they play only for the browsers
 // they know with Widevine -- Safari is given FairPlay, which this engine has not. To them Jet is Chrome on Linux
-// (the platform of the module it runs, L3), once the module is installed (CDMWidevineOnyx: $JET_WIDEVINE_CDM, else
+// (the platform of the module it runs, L3), once the module is installed (CDMWidevineOnyx:
 // $HOME/.jet/widevine/libwidevinecdm.so); without it, nothing changes.
 static const char WIDEVINE_UA[] = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
 static const char *const WIDEVINE_SITES[] = { "netflix.com", "spotify.com", "disneyplus.com", "primevideo.com",
@@ -590,9 +612,8 @@ static const char *const WIDEVINE_SITES[] = { "netflix.com", "spotify.com", "dis
 // (looked at each time: the settings' box installs or removes it while Jet runs)
 static bool widevine_installed ()
 {
-	const char *path = getenv ("JET_WIDEVINE_CDM");
-	const char *home = getenv ("HOME");
-	std::string p = path && *path ? path : std::string (home && *home ? home : "/home") + "/.jet/widevine/libwidevinecdm.so";
+	const char *home = getenv ("HOME");	// (E58 : no $JET_WIDEVINE_CDM any more : the module is the account's)
+	std::string p = std::string (home && *home ? home : "/home") + "/.jet/widevine/libwidevinecdm.so";
 	return access (p.c_str (), R_OK) == 0;
 }
 
@@ -754,11 +775,33 @@ static void runConfirm (WKPageRef, WKStringRef text, WKFrameRef, WKSecurityOrigi
 // EME (Korin, docs/etude/WIDEVINE.md): a page asks for a key system (navigator.requestMediaKeySystemAccess).
 // Clear Key: always (no module, the keys stay in the page). The others (Widevine, through cdmhost): for now
 // too; the setting « Lire les contenus protégés » will decide (étape 7).
-static void mediaKeySystemPermission (WKPageRef, WKSecurityOriginRef, WKStringRef keySystem, WKMediaKeySystemPermissionCallbackRef callback)
+// E58 : a key system with a module (Widevine) is asked for once per origin in the browser (a web app : granted, it is
+// the site the user installed) ; the answer kept while Jet runs.
+static void mediaKeySystemPermission (WKPageRef, WKSecurityOriginRef origin, WKStringRef keySystem, WKMediaKeySystemPermissionCallbackRef callback)
 {
-	if (getenv ("WEBKIT_TRACE_MEDIA") || access ("/etc/web-trace-media", F_OK) == 0)
-		fprintf (stderr, "jet: EME: the page asks for %s: allowed\n", str (keySystem).c_str ());
-	WKMediaKeySystemPermissionCallbackComplete (callback, true);
+	static std::vector<std::string> allowed, refused;
+	std::string ks = str (keySystem), o;
+	if (origin) {
+		WKStringRef os = WKSecurityOriginCopyToString (origin);
+		o = str (os);
+		if (os) WKRelease (os);
+	}
+	bool ok = true;
+	if (ks != "org.w3.clearkey" && !s_webapp) {
+		auto has = [] (const std::vector<std::string> &v, const std::string &k) {
+			for (const auto &x : v) if (x == k) return true;
+			return false; };
+		if (has (allowed, o)) ok = true;
+		else if (has (refused, o)) ok = false;
+		else {
+			std::string q = o + " veut lire des contenus protégés (DRM " + ks + ", un module de Google). Permettre ?";
+			ok = s_client->confirm ? s_client->confirm (q.c_str ()) : false;
+			(ok ? allowed : refused).push_back (o);
+		}
+	}
+	if (getenv ("WEBKIT_TRACE_MEDIA") || system_file ("/etc/web-trace-media"))
+		fprintf (stderr, "jet: EME: %s asks for %s: %s\n", o.c_str (), ks.c_str (), ok ? "allowed" : "refused");
+	WKMediaKeySystemPermissionCallbackComplete (callback, ok);
 }
 #endif
 
@@ -796,8 +839,9 @@ void engine_new_window (const char *url)
 int engine_spawn_self (const char *role, int *toChild, int *fromChild)
 {
 	int a[2], b[2];
-	if (pipe (a)) return 0;
-	if (pipe (b)) { close (a[0]); close (a[1]); return 0; }
+	// (E58 : O_CLOEXEC, the helper gets only its own ends, as its 0 and 1 : adddup2 clears the flag on the copy)
+	if (pipe2 (a, O_CLOEXEC)) return 0;
+	if (pipe2 (b, O_CLOEXEC)) { close (a[0]); close (a[1]); return 0; }
 	posix_spawn_file_actions_t fa;
 	posix_spawn_file_actions_init (&fa);
 	posix_spawn_file_actions_adddup2 (&fa, a[0], 0);
@@ -964,13 +1008,13 @@ bool engine_init (const EngineClient *client, int w, int h)
 	WKRunLoopInitializeMain ();
 	say ("program %s (argv[0] %s)", self_path (), program_invocation_name ? program_invocation_name : "-");
 	// /etc/web-console: the pages' console (their messages, their script errors) in kmsg
-	s_console = access ("/etc/web-console", F_OK) == 0;
+	s_console = system_file ("/etc/web-console");
 	if (s_console)
 		say ("the pages' console is logged");
 	say ("compositing %s", s_compositing ? "on (the GPU compositor)" : "off (the software path)");
 	// /etc/web-probe.js: a script run in every page (all its frames) before the page's own, to
 	// find what a site's application does (with web-console, what it logs is in kmsg)
-	if (FILE *f = fopen ("/etc/web-probe.js", "rb")) {
+	if (FILE *f = system_file ("/etc/web-probe.js") ? fopen ("/etc/web-probe.js", "rb") : nullptr) {
 		static char src[32768];
 		size_t n = fread (src, 1, sizeof src - 1, f);
 		fclose (f);

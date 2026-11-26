@@ -1319,7 +1319,8 @@ int main (int argc, char **argv)
 			setenv ("WEBKIT_TRACE_MEDIA", "1", 1);
 		else if (!strcmp (argv[i], "--trace-net"))
 			setenv ("WEBKIT_TRACE_NET", "1", 1);
-	if (access ("/etc/web-trace-net", F_OK) == 0)
+	struct stat tst;	// (E58 : le fichier du système seulement, uid 0)
+	if (stat ("/etc/web-trace-net", &tst) == 0 && tst.st_uid == 0)
 		setenv ("WEBKIT_TRACE_NET", "1", 1);
 	// OpenSSL initialise des le depart, dans chaque process, sans atexit (OPENSSL_INIT_NO_ATEXIT). Sa premiere
 	// initialisation fait atexit (OPENSSL_cleanup) et, si atexit refuse, OpenSSL refuse ensuite toute recherche

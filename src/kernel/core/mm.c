@@ -55,15 +55,34 @@ struct mm {
 	uint8_t bufs[BUF_MAX / 8];
 };
 
+#define BUF_GRANTS 16
 struct buf {
 	int used;
 	uint64_t phys, pages;
-	int owner, grant;
+	int owner, grant; /* grant : le dernier pid accordé, -1 : tous (BUF_INFO) */
 	int refs;
+	/* E47 (J6) : les pids accordés (la plus ancienne place remplacée), et « tous » (-1, encore accepté : les clients
+	 * d'avant ; à réserver ensuite) */
+	int all;
+	int ng;
+	int grants[BUF_GRANTS];
 };
+
+
 
 static struct buf bufs[BUF_MAX];
 static spinlock_t buf_lock = SPINLOCK_INIT;
+
+/* (sous buf_lock) pid peut-il mapper le tampon n ? son propriétaire, un pid accordé, ou « tous » */
+static int buf_granted(int n, int pid)
+{
+	if (bufs[n].owner == pid || bufs[n].all)
+		return 1;
+	for (int i = 0; i < BUF_GRANTS && i < bufs[n].ng; i++)
+		if (bufs[n].grants[i] == pid)
+			return 1;
+	return 0;
+}
 
 static struct process *cur_proc(void)
 {
@@ -905,7 +924,7 @@ int64_t sys_buf_create(uint64_t size)
 		if (!bufs[i].used)
 			n = i;
 	if (n >= 0)
-		bufs[n] = (struct buf){1, phys, pages, p->pid, 0, 1};
+		bufs[n] = (struct buf){1, phys, pages, p->pid, 0, 1, 0, 0, {0}};
 	spin_unlock_irqrestore(&buf_lock, f);
 	if (n < 0) {
 		for (uint64_t i = 0; i < pages; i++)
@@ -934,8 +953,20 @@ int64_t sys_buf_grant(uint64_t n, int64_t pid)
 		r = E_INVAL;
 	else if (bufs[n].owner != p->pid)
 		r = E_PERM;
-	else
+	else {
 		bufs[n].grant = (int)pid;
+		if (pid == -1)
+			bufs[n].all = 1;
+		else if (pid > 0) {
+			int seen = 0;
+			for (int i = 0; i < BUF_GRANTS && i < bufs[n].ng; i++)
+				seen |= bufs[n].grants[i] == (int)pid;
+			if (!seen) /* (plein : la plus ancienne place, en tournant) */
+				bufs[n].grants[bufs[n].ng++ % BUF_GRANTS] = (int)pid;
+			if (bufs[n].ng >= 2 * BUF_GRANTS)
+				bufs[n].ng -= BUF_GRANTS; /* (le rang reste le même modulo BUF_GRANTS, la liste pleine) */
+		}
+	}
 	spin_unlock_irqrestore(&buf_lock, f);
 	return r;
 }
@@ -953,7 +984,7 @@ int64_t sys_buf_map(uint64_t n)
 		uint64_t g = spin_lock_irqsave(&buf_lock);
 		if (!bufs[n].used)
 			r = E_INVAL;
-		else if (bufs[n].owner != p->pid && bufs[n].grant != p->pid && bufs[n].grant != -1)
+		else if (!buf_granted((int)n, p->pid))
 			r = E_PERM;
 		else
 			bufs[n].refs++;

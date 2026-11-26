@@ -753,6 +753,7 @@ int webapp_main (const char *name, const char *title, const char *url, bool gpu)
 	g_client.keyNotHandled = cb_key_not_handled;
 	g_client.showPopup = cb_popup;
 	g_client.hidePopup = cb_hide_popup;
+	engine_set_webapp (true);	// (E58)
 	if (!engine_init (&g_client, g_w, g_h))
 	{
 		ui_message ((long) g_title.c_str (), (long) "WebKit n'a pas pu démarrer.", UM_OK);
