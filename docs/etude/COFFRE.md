@@ -49,9 +49,9 @@ aujourd'hui les clés d'API partent avec.
 |---|---|---|---|
 | telnetd, ftpd, vncd, rdpd | mot de passe d'accès à distance (un seul pour les quatre) | `/etc/remote.txt`, `password = …` en clair ; lu par `src/svc/inc/remotepw.c` et `src/inc/remotepw.inc` ; écrit par Réglages › Accès à distance et Setup | tous (enforce : uid 0) |
 | wifisvc (PC), wifi (Pi) | phrases WPA2 | `/etc/wifi.txt` **et `/etc/wifi.bak`**, `key="…"` en clair ; recopiés par `osinstall` | tous (enforce : `wifi.bak` reste ouvert) |
-| smbfs (client) | comptes des partages | `/etc/smbfs.ini`, `password = …` en clair, écrit par Fichiers | **tous, même en enforce** |
+| smbfs (client) | comptes des partages | `/etc/smbfs.ini`, `password = …` en clair, écrit par Fichiers | ~~tous, même en enforce~~ uid 0 seulement en enforce (`secrets[]` de `src/svc/vfs/access.c`) ; Fichiers l'écrit élevé (26/11/2026) |
 | smbd (serveur) | comptes du partage | `/etc/smbd.ini` `[users] nom = mot de passe` en clair | tous (enforce : uid 0) |
-| webd | clés privées TLS (P-256) | `/etc/web/certs/*.key`, PEM non chiffré | **tous, même en enforce** |
+| webd | clés privées TLS (P-256) | `/etc/web/certs/*.key`, PEM non chiffré | ~~tous, même en enforce~~ uid 0 seulement en enforce (`secrets[]` de `access.c`) ; le volet Serveur web agit élevé (26/11/2026) |
 | oauthd | `client_secret` des fournisseurs | `/etc/oauth/providers.ini` en clair (Google : valeurs remplies à la construction) | tous ; un `client_secret` d'application de bureau ne protège rien (voir `docs/OAUTH.md`) |
 | installateur | empreinte PBKDF2 des mots de passe | `/tmp/install/plan.ini` (`hash =`, `root_hash =`), recopié dans `shadow.ini` | tous, pendant l'installation |
 | authd | mots de passe des comptes | `/etc/shadow.ini`, **empreinte** `pbkdf2-sha256` (pas en clair) | enforce : uid 0 — **correct** |
