@@ -80,6 +80,8 @@ typedef unsigned char u8;
 #define PKG_SYSTEM	"armpi"
 #endif
 #define PKG_VAR		"/var/pkg"
+#define PKG_USER_CACHE	"HOME:/.cache/pkg"		/* (un compte : l'index vérifié, E72) */
+#define PKG_USER_INDEX	PKG_USER_CACHE "/index.txt"
 #define PKG_DB		"/var/pkg/db"
 #define PKG_STAGE	"/var/pkg/stage"
 #define PKG_AB_COPY	"/var/pkg/ab.txt"	// (l'état A/B du démarrage en cours, écrit par pkg bootok)
@@ -1181,18 +1183,37 @@ public:
 				}
 			}
 		}
-		write_file (RP (PKG_VAR "/index.txt"), ti.b, ti.n);
+		if (getuid () != 0 && !g_pkgroot[0])	// (un compte : /var/pkg est au système, E72 ; l'index vérifié va
+		{					//  dans son cache, que les listes lisent ; une installation, élevée, refait refresh)
+			mkdirs (PKG_USER_CACHE);
+			write_file (PKG_USER_INDEX, ti.b, ti.n);
+		}
+		else
+			write_file (RP (PKG_VAR "/index.txt"), ti.b, ti.n);
 		index.ini.parse (ti.take ()); index.build (); haveIndex = verified = true;
 		return OK;
 	}
+	// le dernier index vu : /var/pkg/index.txt, ou pour un compte celui de son cache s'il est plus récent (son numéro
+	// de série, signé avec lui)
+	static const char *cached_index (char *buf, size_t cap)
+	{
+		snprintf (buf, cap, "%s", RP (PKG_VAR "/index.txt"));
+		if (getuid () == 0 || g_pkgroot[0]) return buf;
+		Ini a, u;
+		if (!u.load (PKG_USER_INDEX)) return buf;
+		if (a.load (buf) && strtoull (u.get ("repo", "serial", "0"), 0, 10) < strtoull (a.get ("repo", "serial", "0"), 0, 10))
+			return buf;
+		return PKG_USER_INDEX;
+	}
 	bool load_cached (Report &r)
 	{
-		if (!index.ini.load (RP (PKG_VAR "/index.txt"))) return false;
+		char ip[400];
+		if (!index.ini.load (cached_index (ip, sizeof ip))) return false;
 		index.build (); haveIndex = true; verified = false;
 		r.sayf ("(dépôt injoignable : son dernier index, du %s)", index.date);
 		return true;
 	}
-	bool load_cached_quiet () { if (!index.ini.load (RP (PKG_VAR "/index.txt"))) return false; index.build (); haveIndex = true; return true; }
+	bool load_cached_quiet () { char ip[400]; if (!index.ini.load (cached_index (ip, sizeof ip))) return false; index.build (); haveIndex = true; return true; }
 
 	// Une de ses apps tourne ? (son nom -> out) ; les programmes en memoire ne craignent rien, mais une app
 	// peut reecrire des fichiers que la mise a jour change. (Le gestionnaire se met a jour lui-meme : voir install.)
