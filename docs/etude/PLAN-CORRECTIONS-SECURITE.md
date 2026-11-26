@@ -34,8 +34,11 @@ Rédigé le 24/11/2026 à partir de [AUDIT-SECURITE-PC.md](AUDIT-SECURITE-PC.md)
 >     `JET_CDMHOST` ni `JET_WIDEVINE_CDM`, permission DRM par origine, téléchargement non demandé refusé ou
 >     soumis à une question ;
 >   * E59 : Jet reconstruit ;
->   * E60 : seulement les variables d'environnement. Restent cdmhost lancé par l'UI et le module vérifié au
->     chargement (empreinte épinglée par l'uid 0, ou CRX3), à essayer avec Netflix et Spotify ;
+>   * E60 : les variables d'environnement retirées ; **décision du 26/11** : le module est un fichier du système,
+>     `/res/widevine/libwidevinecdm.so`, posé (ou retiré) par `cdmupdate` lancé élevé (la carte d'authd), lu par
+>     cdmhost sous le compte ; WebKit (patch 0018) et Jet ne le prennent que s'il est à l'uid 0. Sous le compte
+>     restent les licences (`HOME/.jet/widevine/storage`) et la vérification du jour (`cdmupdate --check`). Jet
+>     1.4.13. Reste : cdmhost lancé par l'UI (prérequis de `pledge`), à faire plus tard ;
 >   * étape 4 d'E47 : le noyau du PC refuse `-1` (E_PERM, une ligne « mm : … ouvert a tous refuse » au journal) ; plus
 >     aucun source ne l'utilisait (intelgpu et Jet corrigés). Le Pi (noyau en assembleur) l'accepte encore ;
 >   * E47 essayé sur le ZBook le 26/11 (pc 2026.11.121, Jet 1.4.12) : Jet, YouTube, Netflix, Disney+, Godot, Blender,

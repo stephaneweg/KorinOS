@@ -22,6 +22,7 @@
 
 #include "engine.h"
 #include "present.h"
+#include "widevine.h"
 #include <uikit.h>
 #include <openssl/crypto.h>
 #include <dirent.h>
@@ -174,7 +175,7 @@ static void move_old_home (const char *app)
 		home.pop_back ();
 	if (home == "/" || home == "/home")
 		return;
-	// (.jet : le module Widevine et son stockage, HOME/.jet/widevine, communs à Jet et aux apps web : la première
+	// (.jet : les données du module Widevine, HOME/.jet/widevine/storage, communes à Jet et aux apps web : la première
 	// des deux lancée sous le compte le déplace)
 	std::vector<std::string> names = { ".jet" };
 	if (app)
@@ -735,55 +736,57 @@ static void choose_search ()
 		clear_site_data ();
 }
 
-// ---- Widevine : la case des réglages (docs/etude/WIDEVINE.md, étape 7) ------------------------------------
+// ---- Widevine : la case des réglages (docs/etude/WIDEVINE.md, étape 7 ; widevine.h) ------------------------------
 // « Lire les contenus protégés (Widevine) », décochée tant que le module n'est pas là. Cochée : Jet demande à
-// l'utilisateur, puis /apps/jet.app/libexec/cdmupdate télécharge le module chez Google (son serveur de composants,
-// SHA-256 vérifié) et l'installe dans HOME/.jet/widevine, là où le CDM de WebKit le cherche (CDMWidevineOnyx).
-// Ensuite, au plus une demande par jour, au démarrage, sans rien dire si rien ne change. Décochée : le module et ses
-// données sont retirés. Le module n'est jamais dans nos paquets (seul Google le distribue).
-#define WV_UPDATER	"/apps/jet.app/libexec/cdmupdate"
+// l'utilisateur, puis /apps/jet.app/libexec/cdmupdate, lancé élevé (la carte d'authd), télécharge le module chez Google
+// (son serveur de composants, SHA-256 vérifié) et l'installe dans /res/widevine, pour tous les comptes (E60). Ensuite,
+// au plus une vérification par jour, au démarrage, sous le compte (cdmupdate --check) : une version plus récente est
+// proposée (élevée aussi). Décochée : le module retiré (élevé), et les données du compte avec. Le module n'est jamais
+// dans nos paquets (seul Google le distribue).
+enum { WV_INSTALL, WV_CHECK, WV_REMOVE };
 
 static pid_t g_wvPid = -1;		// cdmupdate en cours
 static int g_wvOut = -1;		// sa sortie (stdout et stderr)
+static int g_wvMode;
 static std::string g_wvText;
 static bool g_wvQuiet;			// la vérification du jour : rien à dire si rien ne change
 
-static std::string wv_dir ()
-{
-	const char *h = getenv ("HOME");
-	return std::string (h && *h ? h : "/home") + "/.jet/widevine";
-}
+static void rm_tree (const std::string &path);
 
-static bool wv_installed () { return access ((wv_dir () + "/libwidevinecdm.so").c_str (), R_OK) == 0; }
-
-static bool wv_start (bool quiet)
+static bool wv_start (int mode, bool quiet)
 {
 	if (g_wvPid > 0) return true;
-	int p[2];
-	if (pipe (p)) return false;
-	pid_t pid = fork ();
-	if (pid == 0)
+	static const char *const args[] = { nullptr, "--check", "--remove" };
+	const char *why = mode == WV_REMOVE ? "Jet veut retirer le module Widevine de Google (pour tous les comptes)."
+		: "Jet veut installer le module Widevine de Google dans le système (/res/widevine, pour tous les comptes).";
+	int out = -1;
+	pid_t pid = wv_spawn (args[mode], mode != WV_CHECK, why, &out);
+	if (pid == -2)
 	{
-		dup2 (p[1], 1);
-		dup2 (p[1], 2);
-		close (p[0]);
-		close (p[1]);
-		execl (WV_UPDATER, WV_UPDATER, (char *) nullptr);
-		_exit (127);
-	}
-	close (p[1]);
-	if (pid < 0)
-	{
-		close (p[0]);
+		if (!quiet) ui_message ((long) "Jet", (long) "Autorisation refusée : le module Widevine n'a pas été changé.", UM_OK);
 		return false;
 	}
-	fcntl (p[0], F_SETFL, fcntl (p[0], F_GETFL) | O_NONBLOCK);
+	if (pid < 0) return false;
 	g_wvPid = pid;
-	g_wvOut = p[0];
+	g_wvOut = out;
+	g_wvMode = mode;
 	g_wvText.clear ();
 	g_wvQuiet = quiet;
-	say (quiet ? "widevine: daily check" : "widevine: download asked");
+	say (mode == WV_CHECK ? "widevine: daily check" : mode == WV_REMOVE ? "widevine: removal" : "widevine: download asked");
 	return true;
+}
+
+// (la date de la vérification : au compte, pour le « une fois par jour »)
+static void wv_note_checked ()
+{
+	std::string d = wv_user_dir ();
+	mkdir (d.substr (0, d.rfind ('/')).c_str (), 0700);
+	mkdir (d.c_str (), 0700);
+	if (FILE *f = fopen ((d + "/checked.txt").c_str (), "wb"))
+	{
+		fprintf (f, "%lld\n", (long long) time (nullptr));
+		fclose (f);
+	}
 }
 
 // la boucle principale : cdmupdate a-t-il fini ?
@@ -801,21 +804,40 @@ static void wv_poll ()
 	close (g_wvOut);
 	g_wvOut = -1;
 	g_wvPid = -1;
-	bool ok = WIFEXITED (st) && WEXITSTATUS (st) == 0;
+	int code = WIFEXITED (st) ? WEXITSTATUS (st) : 1;
+	bool ok = code == 0;
 	// (sa dernière ligne dit ce qui a été fait ; en cas d'échec, la dernière de ses messages dit pourquoi)
 	std::string last = g_wvText;
 	while (!last.empty () && (last.back () == '\n' || last.back () == '\r')) last.pop_back ();
 	size_t nl = last.rfind ('\n');
 	if (nl != std::string::npos) last = last.substr (nl + 1);
-	fprintf (stderr, "jet: widevine: %s (%s)\n", ok ? "ok" : "failed", last.c_str ());
+	fprintf (stderr, "jet: widevine: %s (%s)\n", ok ? "ok" : code == 2 ? "update available" : "failed", last.c_str ());
 	menu_checks ();
-	bool installed = last.find ("installé") == 0;
-	if (g_wvQuiet && ok && !installed) return;	// (déjà à jour)
+	size_t colon = last.find (": ");
+	std::string version = colon != std::string::npos ? last.substr (colon + 2) : last;
+	if (g_wvMode == WV_REMOVE)
+	{
+		if (ok)
+		{
+			rm_tree (wv_user_dir ());	// (les données du compte avec)
+			status ("Widevine : module retiré.");
+		}
+		else
+			ui_message ((long) "Jet", (long) ("Le module Widevine n'a pas pu être retiré :\n" + last).c_str (), UM_OK);
+		return;
+	}
+	if (g_wvMode == WV_CHECK)
+	{
+		// (2 : « disponible : V ») une version plus récente : la proposer ; l'installer demande une autorisation
+		if (code == 2 && ui_message ((long) "Jet", (long) ("Une version plus récente du module Widevine de Google est "
+				"disponible (" + version + ").\n\nL'installer ? Une autorisation est demandée.").c_str (), UM_OKCANCEL) == 1)
+			wv_start (WV_INSTALL, false);
+		return;
+	}
 	if (ok)
 	{
-		// (« installé : 4.10.3112.0 », « à jour : … » : la version)
-		size_t colon = last.find (": ");
-		std::string version = colon != std::string::npos ? last.substr (colon + 2) : last;
+		wv_note_checked ();
+		bool installed = last.find ("installé") == 0;
 		status (("Widevine : module " + version + (installed ? " installé" : " à jour") +
 			". Les pages déjà ouvertes doivent être rechargées.").c_str ());
 		if (!g_wvQuiet)
@@ -845,45 +867,49 @@ static void wv_toggle ()
 {
 	if (g_wvPid > 0)
 	{
-		status ("Widevine : le téléchargement est en cours…");
+		status ("Widevine : cdmupdate est en cours…");
 		return;
 	}
 	if (wv_installed ())
 	{
-		if (ui_message ((long) "Jet", (long) "Retirer le module Widevine de Google et ses données ?\n"
-				"Les sites de contenus protégés (Netflix, Spotify, Disney+…) ne joueront plus.", UM_OKCANCEL) != 1)
+		if (ui_message ((long) "Jet", (long) "Retirer le module Widevine de Google, pour tous les comptes, et vos données "
+				"de contenus protégés ?\nLes sites de contenus protégés (Netflix, Spotify, Disney+…) ne joueront plus. "
+				"Une autorisation est demandée.", UM_OKCANCEL) != 1)
 			return;
-		rm_tree (wv_dir ());
-		say ("widevine: module removed");
-		status ("Widevine : module retiré.");
-		menu_checks ();
+		if (wv_start (WV_REMOVE, false))
+			status ("Widevine : retrait du module…");
 		return;
 	}
 	if (ui_message ((long) "Jet", (long) "Lire les contenus protégés (Netflix, Spotify, Disney+…) demande le module "
 			"Widevine de Google, un logiciel propriétaire que seul Google distribue.\n\n"
-			"Jet va le télécharger chez Google (environ 22 Mo), vérifier son empreinte et l'installer dans votre dossier "
-			"personnel ; il vérifiera ensuite les mises à jour une fois par jour. Sur ces sites, Jet se présentera comme "
-			"Chrome sous Linux.\n\nTélécharger le module ?", UM_OKCANCEL) != 1)
+			"Jet va le télécharger chez Google (environ 22 Mo), vérifier son empreinte et l'installer dans le système "
+			"(/res/widevine, pour tous les comptes) : une autorisation est demandée. Il vérifiera ensuite les mises à "
+			"jour une fois par jour. Sur ces sites, Jet se présentera comme Chrome sous Linux.\n\nTélécharger le "
+			"module ?", UM_OKCANCEL) != 1)
 		return;
-	if (wv_start (false))
+	if (wv_start (WV_INSTALL, false))
 		status ("Widevine : téléchargement du module chez Google…");
-	else
-		ui_message ((long) "Jet", (long) "Le téléchargement n'a pas pu commencer (" WV_UPDATER ").", UM_OK);
+	else if (g_wvPid <= 0 && !wv_installed ())
+		status ("Widevine : le module n'a pas été installé.");
 }
 
-// au démarrage : une demande par jour au plus, quand le module est là
+// au démarrage : une vérification par jour au plus, quand le module est là (et le module d'avant, du dossier du
+// compte, retiré : il n'est plus jamais chargé)
 static void wv_daily ()
 {
+	if (wv_forget_old () && !wv_installed ())
+		status ("Widevine : le module est maintenant dans le système ; réinstallez-le (Réglages, « Lire les contenus "
+			"protégés »).");
 	if (!wv_installed ()) return;
 	std::string t;
-	if (FILE *f = fopen ((wv_dir () + "/checked.txt").c_str (), "rb"))
+	if (FILE *f = fopen ((wv_user_dir () + "/checked.txt").c_str (), "rb"))
 	{
 		char b[32] = {};
 		if (fgets (b, sizeof b, f)) t = b;
 		fclose (f);
 	}
 	if (time (nullptr) - atoll (t.c_str ()) >= 86400)
-		wv_start (true);
+		wv_start (WV_CHECK, true);
 }
 
 // ---- les menus d'Elegant (la barre du haut) -------------------------------------------------------------

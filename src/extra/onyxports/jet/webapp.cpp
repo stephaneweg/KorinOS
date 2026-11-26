@@ -13,7 +13,7 @@
 //   maximize = 1                             la fenêtre agrandie au départ (la vidéo : Netflix)
 //
 // Les données des sites (cookies, stockage) : HOME/<nom>/webkit, à part de celles de Jet (engine_set_data_name) ; le
-// module Widevine : celui de Jet (HOME/.jet/widevine), proposé au premier lancement s'il manque (cdmupdate). Les liens
+// module Widevine : celui de Jet (/res/widevine, posé par élévation : widevine.h), proposé au premier lancement s'il manque (cdmupdate). Les liens
 // vers d'autres fenêtres (target=_blank, window.open) s'ouvrent dans Jet.
 //
 // Un lecteur connu (le nom de l'app : « spotify ») : son état est lu dans la page une fois par seconde (un script :
@@ -26,6 +26,7 @@
 //
 #include "engine.h"
 #include "present.h"
+#include "widevine.h"
 #include <uikit.h>
 #include <fcntl.h>
 #include <sys/wait.h>
@@ -37,7 +38,6 @@
 #include <string>
 #include <vector>
 
-#define WV_UPDATER	"/apps/jet.app/libexec/cdmupdate"
 #define MINI_W		330
 #define MINI_H		92
 #define TOP_H		34		// la bande du haut : le nom de l'app, les boutons de la fenêtre (Elegant) à droite
@@ -559,32 +559,17 @@ static pid_t g_wvPid = -1;
 static int g_wvOut = -1;
 static std::string g_wvText;
 
-static bool wv_installed ()
+// (cdmupdate élevé : le module va dans /res/widevine, widevine.h) -> 1 lancé, 0 échec, -2 élévation refusée
+static int wv_start ()
 {
-	const char *h = getenv ("HOME");
-	return access ((std::string (h && *h ? h : "/home") + "/.jet/widevine/libwidevinecdm.so").c_str (), R_OK) == 0;
-}
-
-static bool wv_start ()
-{
-	int p[2];
-	if (pipe (p)) return false;
-	pid_t pid = fork ();
-	if (pid == 0)
-	{
-		dup2 (p[1], 1);
-		dup2 (p[1], 2);
-		close (p[0]);
-		close (p[1]);
-		execl (WV_UPDATER, WV_UPDATER, (char *) nullptr);
-		_exit (127);
-	}
-	close (p[1]);
-	if (pid < 0) { close (p[0]); return false; }
-	fcntl (p[0], F_SETFL, fcntl (p[0], F_GETFL) | O_NONBLOCK);
+	int out = -1;
+	pid_t pid = wv_spawn (nullptr, true, ("Jet veut installer le module Widevine de Google dans le système "
+		"(/res/widevine, pour tous les comptes), pour " + g_title + ".").c_str (), &out);
+	if (pid == -2) return -2;
+	if (pid < 0) return 0;
 	g_wvPid = pid;
-	g_wvOut = p[0];
-	return true;
+	g_wvOut = out;
+	return 1;
 }
 
 // -> true quand cdmupdate a fini (ou ne tourne pas)
@@ -623,12 +608,20 @@ static bool wv_offer ()
 			"mais ne jouera pas.", UM_OK);
 		return false;
 	}
+	wv_forget_old ();	// (un module d'avant, du dossier du compte : plus jamais chargé)
 	if (wv_installed ()) return false;
 	std::string q = g_title + " joue par le module Widevine de Google (contenus protégés), un logiciel propriétaire que seul "
-		"Google distribue.\n\nLe télécharger chez Google (environ 22 Mo) et l'installer dans votre dossier personnel ? "
-		"Jet s'en sert aussi (Réglages, « Lire les contenus protégés »).";
+		"Google distribue.\n\nLe télécharger chez Google (environ 22 Mo) et l'installer dans le système (/res/widevine, "
+		"pour tous les comptes) ? Une autorisation est demandée. Jet s'en sert aussi (Réglages, « Lire les contenus "
+		"protégés »).";
 	if (ui_message ((long) g_title.c_str (), (long) q.c_str (), UM_OKCANCEL) != 1) return false;
-	if (wv_start ()) return true;
+	int r = wv_start ();
+	if (r == 1) return true;
+	if (r == -2)
+	{
+		ui_message ((long) g_title.c_str (), (long) "Autorisation refusée : la page s'ouvre, mais ne jouera pas.", UM_OK);
+		return false;
+	}
 	ui_message ((long) g_title.c_str (), (long) "Le téléchargement n'a pas pu commencer (" WV_UPDATER ").", UM_OK);
 	return false;
 }

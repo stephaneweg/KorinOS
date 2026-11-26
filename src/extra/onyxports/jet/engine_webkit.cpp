@@ -603,7 +603,7 @@ static const char MOBILE_UA[] = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleW
 // The sites of protected content (EME Widevine, docs/etude/WIDEVINE.md, step 6): they play only for the browsers
 // they know with Widevine -- Safari is given FairPlay, which this engine has not. To them Jet is Chrome on Linux
 // (the platform of the module it runs, L3), once the module is installed (CDMWidevineOnyx:
-// $HOME/.jet/widevine/libwidevinecdm.so); without it, nothing changes.
+// /res/widevine/libwidevinecdm.so, the system's since E60); without it, nothing changes.
 static const char WIDEVINE_UA[] = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
 static const char *const WIDEVINE_SITES[] = { "netflix.com", "spotify.com", "disneyplus.com", "primevideo.com",
 	"amazon.com", "amazon.fr", "deezer.com", "max.com", "hulu.com", "canalplus.com", "mycanal.fr", "tf1.fr", "france.tv",
@@ -612,9 +612,8 @@ static const char *const WIDEVINE_SITES[] = { "netflix.com", "spotify.com", "dis
 // (looked at each time: the settings' box installs or removes it while Jet runs)
 static bool widevine_installed ()
 {
-	const char *home = getenv ("HOME");	// (E58 : no $JET_WIDEVINE_CDM any more : the module is the account's)
-	std::string p = std::string (home && *home ? home : "/home") + "/.jet/widevine/libwidevinecdm.so";
-	return access (p.c_str (), R_OK) == 0;
+	struct stat st;		// (/res/widevine, the system's since E60 : uid 0, as widevine.h and CDMWidevineOnyx check)
+	return stat ("/res/widevine/libwidevinecdm.so", &st) == 0 && st.st_uid == 0 && S_ISREG (st.st_mode);
 }
 
 // url's host is a Widevine site or one of its subdomains

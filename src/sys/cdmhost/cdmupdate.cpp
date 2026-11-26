@@ -3,12 +3,15 @@
 // « WidevineCdm », oimompecagnajdejgnnjijobebaeigek) donne la version courante, ses adresses chez Google, sa taille et
 // son SHA-256 ; l'archive .crx3 est téléchargée chez Google, vérifiée, et son module Linux x86-64 installé.
 //
-//   cdmupdate [--dir DOSSIER] [--check]
+//   cdmupdate [--dir DOSSIER] [--check | --remove]
 //
-// DOSSIER : $HOME/.jet/widevine par défaut (là où CDMWidevineOnyx le cherche) : libwidevinecdm.so, manifest.json,
-// version.txt (la version installée), checked.txt (la date de la dernière demande, en secondes). Remplacé d'un coup
-// (un fichier neuf renommé) ; la version installée n'est pas retéléchargée. --check : seulement dire s'il y a une
-// version plus récente (sortie 0 : à jour, 2 : une version plus récente, 1 : erreur).
+// DOSSIER : /res/widevine par défaut (là où CDMWidevineOnyx le cherche ; E60 du plan de sécurité, décision du
+// 26/11/2026 : le module est un fichier du système, posé par élévation, lu par cdmhost sous le compte -- un programme
+// du compte ne peut plus le remplacer) : libwidevinecdm.so, manifest.json, version.txt (la version installée).
+// Installer et retirer demandent l'uid 0 (Jet lance cdmupdate élevé, par la carte d'authd) ; --check se fait sous le
+// compte : seulement dire s'il y a une version plus récente (sortie 0 : à jour, 2 : une version plus récente, 1 :
+// erreur), et noter la date de la demande dans HOME/.jet/widevine/checked.txt. Remplacé d'un coup (un fichier neuf
+// renommé) ; la version installée n'est pas retéléchargée. --remove : le module retiré (pour tous les comptes).
 // Sortie 0 : installé ou déjà à jour ; 1 : une erreur (message sur stderr). La dernière ligne de stdout dit ce
 // qui a été fait (Jet la montre).
 //
@@ -173,19 +176,41 @@ static void say_done (const char *text, const std::string &version)
 int main (int argc, char **argv)
 {
 	const char *home = getenv ("HOME");
-	std::string dir = std::string (home && *home ? home : "/home") + "/.jet/widevine";
-	bool check = false;
+	std::string dir = "/res/widevine";
+	// (la date de la dernière demande : au compte, pas dans /res ; jamais écrite en uid 0 dans un dossier de compte)
+	std::string userDir = std::string (home && *home ? home : "/home") + "/.jet/widevine";
+	bool check = false, remove = false, ownDir = false;
 	for (int i = 1; i < argc; i++)
 	{
 		if (!strcmp (argv[i], "--dir") && i + 1 < argc)
+		{
 			dir = argv[++i];
+			ownDir = true;
+		}
 		else if (!strcmp (argv[i], "--check"))
 			check = true;
+		else if (!strcmp (argv[i], "--remove"))
+			remove = true;
 		else
 		{
-			fprintf (stderr, "usage : cdmupdate [--dir DOSSIER] [--check]\n");
+			fprintf (stderr, "usage : cdmupdate [--dir DOSSIER] [--check | --remove]\n");
 			return 1;
 		}
+	}
+	bool root = getuid () == 0;
+	if (!check && !root && !ownDir)
+	{
+		fprintf (stderr, "cdmupdate : installer ou retirer le module demande l'élévation (Jet le demande)\n");
+		return 1;
+	}
+	if (remove)
+	{
+		static const char *const files[] = { "libwidevinecdm.so", "manifest.json", "version.txt", "checked.txt" };
+		for (const char *f : files)
+			unlink ((dir + "/" + f).c_str ());
+		rmdir (dir.c_str ());
+		say_done ("retiré :", dir);
+		return 0;
 	}
 	std::string installed;
 	read_file (dir + "/version.txt", installed);
@@ -210,12 +235,17 @@ int main (int argc, char **argv)
 	std::string j (resp.begin (), resp.end ());
 	time_t now = time (nullptr);
 	std::string stamp = std::to_string ((long long) now) + "\n";
-	mkdir ((std::string (home && *home ? home : "/home") + "/.jet").c_str (), 0700);
-	mkdir (dir.c_str (), 0700);
+	auto note_check = [&] () {
+		if (root)
+			return;
+		mkdir ((std::string (home && *home ? home : "/home") + "/.jet").c_str (), 0700);
+		mkdir (userDir.c_str (), 0700);
+		write_file (userDir + "/checked.txt", stamp.data (), stamp.size ());
+	};
 	std::string uc_status = json_value (j, "status", j.find ("\"updatecheck\""));
 	if (uc_status == "noupdate")
 	{
-		write_file (dir + "/checked.txt", stamp.data (), stamp.size ());
+		note_check ();
 		say_done ("à jour :", installed);
 		return 0;
 	}
@@ -236,12 +266,13 @@ int main (int argc, char **argv)
 	}
 	if (present && !newer (version, installed))
 	{
-		write_file (dir + "/checked.txt", stamp.data (), stamp.size ());
+		note_check ();
 		say_done ("à jour :", installed);
 		return 0;
 	}
 	if (check)
 	{
+		note_check ();
 		say_done ("disponible :", version);
 		return 2;
 	}
@@ -307,10 +338,10 @@ int main (int argc, char **argv)
 
 	// 4. l'installation : le module d'abord, sa version ensuite
 	std::string ver = version + "\n";
+	mkdir (dir.c_str (), 0755);
 	if (!write_file (dir + "/libwidevinecdm.so", module.data (), module.size ()) ||
 	    !write_file (dir + "/manifest.json", manifest.data (), manifest.size ()) ||
-	    !write_file (dir + "/version.txt", ver.data (), ver.size ()) ||
-	    !write_file (dir + "/checked.txt", stamp.data (), stamp.size ()))
+	    !write_file (dir + "/version.txt", ver.data (), ver.size ()))
 	{
 		fprintf (stderr, "cdmupdate : écriture dans %s impossible (%s)\n", dir.c_str (), strerror (errno));
 		return 1;

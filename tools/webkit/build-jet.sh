@@ -99,7 +99,7 @@ cp "$HERE/tests/frame-probe.js" "$HERE/tests/login-probe.js" "$JET_OUT/"
 # l'hôte du module Widevine (src/sys/cdmhost, docs/etude/WIDEVINE.md ; PC seulement : le module est Linux x86-64),
 # que CDMWidevineOnyx lance (/apps/jet.app/libexec/cdmhost : un dossier de /etc/exec.txt, donc exécutable) ;
 # construit par tools/linux/build.sh. Le module n'est pas là : la case des réglages de Jet le fait télécharger chez
-# Google par cdmupdate (même dossier ; OpenSSL et zlib du sysroot de Jet), dans HOME:/.jet/widevine (jamais dans nos
+# Google par cdmupdate (même dossier ; OpenSSL et zlib du sysroot de Jet), lancé élevé, dans /res/widevine (E60 ; jamais dans nos
 # paquets)
 if [ "$ONYX_ARCH" = x86_64 ]; then
 	if [ -f "$ARMPI/build/pc/linux/cdmhost" ]; then

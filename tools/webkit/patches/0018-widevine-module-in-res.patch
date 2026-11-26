@@ -1,0 +1,32 @@
+--- a/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp
++++ b/Source/WebCore/platform/graphics/onyx/CDMWidevineOnyx.cpp
+@@ -77,9 +77,19 @@
+ 
+ // Korin (E58, E60 of the security plan): no $JET_WIDEVINE_CDM nor $JET_CDMHOST any more -- whoever starts Jet could
+ // otherwise make it load another module, or start another program as the CDM host
++// Korin (E60, the user's decision of 26/11/2026): Google's module is a file of the system, in /res/widevine, put there
++// by cdmupdate with an elevation (Jet's setting) and only read by cdmhost under the account: a program of the account
++// can no longer swap it. Its storage (licences) stays the account's.
+ static std::string modulePath()
+ {
+-    return homeDirectory() + "/.jet/widevine/libwidevinecdm.so";
++    return "/res/widevine/libwidevinecdm.so";
++}
++
++// (the module there, and the system's: uid 0)
++static bool moduleInstalled()
++{
++    struct stat st;
++    return !stat(modulePath().c_str(), &st) && !st.st_uid && S_ISREG(st.st_mode);
+ }
+ 
+ static std::string hostPath()
+@@ -130,7 +140,7 @@
+ {
+     // (offered only when Google's module and the host are installed: the page then picks another way)
+     return equalLettersIgnoringASCIICase(keySystem, "com.widevine.alpha"_s)
+-        && !access(modulePath().c_str(), R_OK) && !access(hostPath().c_str(), X_OK);
++        && moduleInstalled() && !access(modulePath().c_str(), R_OK) && !access(hostPath().c_str(), X_OK);
+ }
+ 
+ void CDMPrivateWidevineOnyx::getSupportedConfiguration(CDMKeySystemConfiguration&& candidate, LocalStorageAccess access, SupportedConfigurationCallback&& callback)
