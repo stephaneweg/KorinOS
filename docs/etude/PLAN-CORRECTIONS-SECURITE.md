@@ -36,7 +36,9 @@ Rédigé le 24/11/2026 à partir de [AUDIT-SECURITE-PC.md](AUDIT-SECURITE-PC.md)
 >   * E59 : Jet reconstruit ;
 >   * E60 : seulement les variables d'environnement. Restent cdmhost lancé par l'UI et le module vérifié au
 >     chargement (empreinte épinglée par l'uid 0, ou CRX3), à essayer avec Netflix et Spotify ;
->   * restent l'étape 4 d'E47 (`-1` refusé par le noyau : les autres clients d'abord) et l'essai du reste sur le ZBook.
+>   * étape 4 d'E47 : le noyau du PC refuse `-1` (E_PERM, une ligne « mm : … ouvert a tous refuse » au journal) ; plus
+>     aucun source ne l'utilisait (intelgpu et Jet corrigés). Le Pi (noyau en assembleur) l'accepte encore ;
+>   * reste l'essai du reste sur le ZBook.
 > * **Ajouté après une relecture de la branche** : `fs.*` ne répondent qu'à vfs (le fond de F4) ; montage par
 >   « `/media/../etc` » ; renommage d'un parent d'un chemin protégé ; sudo d'un compte sans mot de passe par la
 >   carte ; couche sûre et repère secret de la carte et de l'écran de connexion (E39) ; `/etc/web-probe.js`,

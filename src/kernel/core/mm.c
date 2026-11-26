@@ -61,8 +61,8 @@ struct buf {
 	uint64_t phys, pages;
 	int owner, grant; /* grant : le dernier pid accordé, -1 : tous (BUF_INFO) */
 	int refs;
-	/* E47 (J6) : les pids accordés (la plus ancienne place remplacée), et « tous » (-1, encore accepté : les clients
-	 * d'avant ; à réserver ensuite) */
+	/* E47 (J6) : les pids accordés (la plus ancienne place remplacée) ; « tous » (-1) refusé depuis le 26/11/2026 (all
+	 * reste à 0 : le champ garde la place de la structure) */
 	int all;
 	int ng;
 	int grants[BUF_GRANTS];
@@ -953,11 +953,12 @@ int64_t sys_buf_grant(uint64_t n, int64_t pid)
 		r = E_INVAL;
 	else if (bufs[n].owner != p->pid)
 		r = E_PERM;
+	else if (pid == -1)
+		r = E_PERM; /* E47, étape 4 : plus de tampon ouvert à tous (Jet jusqu'à 1.4.11, la page d'état d'intelgpu
+			       d'avant E47) ; chaque client est accordé par son pid */
 	else {
 		bufs[n].grant = (int)pid;
-		if (pid == -1)
-			bufs[n].all = 1;
-		else if (pid > 0) {
+		if (pid > 0) {
 			int seen = 0;
 			for (int i = 0; i < BUF_GRANTS && i < bufs[n].ng; i++)
 				seen |= bufs[n].grants[i] == (int)pid;
@@ -968,6 +969,8 @@ int64_t sys_buf_grant(uint64_t n, int64_t pid)
 		}
 	}
 	spin_unlock_irqrestore(&buf_lock, f);
+	if (pid == -1 && r == E_PERM && bufs[n].used)
+		kprintf("mm : %s (pid %d) : tampon %d ouvert a tous refuse (E47)\n", p->name, p->pid, (int)n);
 	return r;
 }
 
