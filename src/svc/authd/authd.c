@@ -61,6 +61,16 @@
 #define AUTH_VERIFY 9 /* (uid 0 : l'écran de connexion) données : nom, 0, mot de passe -> 0 / E_ACCES */
 #define AUTH_HASPW 10 /* données : nom -> 1 : le compte a un mot de passe, 0 : non */
 #define AUTH_FORGET 11
+/* E70, l'accès à distance par comptes (rdpd) : un défi-réponse sur l'empreinte PBKDF2, le mot de passe ne circule pas
+ * (uid 0 seulement : les services)
+ *   AUTH_SALT   données : nom -> 0 ; a = tours | longueur du sel << 32, b, c, d = le sel (24 octets au plus). Un
+ *               compte inconnu ou sans mot de passe : un sel factice mais stable (HMAC d'une clé tirée au démarrage),
+ *               pour ne pas dire quels comptes existent
+ *   AUTH_PROOF  données : nom, 0, défi (16 octets), preuve (32 : HMAC-SHA256, clé PBKDF2(mot de passe, sel, tours),
+ *               message le défi) -> 0 ; a = uid, b = 1 s'il peut s'élever (elevate.ini) ; E_ACCES : faux (le compteur
+ *               d'échecs de AUTH_VERIFY, par compte et par appelant) */
+#define AUTH_SALT 12
+#define AUTH_PROOF 13
 #define GRACE_MS (5 * 60 * 1000)
 #define GRACES 32
 #define E_AGAIN -11
@@ -914,6 +924,81 @@ static long traiter(void)
 		}
 		journal("connexion", &t, pid, "mauvais mot de passe");
 		return E_ACCES;
+	}
+	case AUTH_SALT:
+	case AUTH_PROOF: {
+		if (uid != 0)
+			return E_PERM;
+		const char *who = data;
+		if (!nom_ok(who))
+			return E_INVAL;
+		u8 salt[32], key[32];
+		u32 iter = 0;
+		int sl = 0, real = 0;
+		if (empreinte_de(who) > 0 && empreinte[0]) { /* « pbkdf2-sha256$tours$sel$empreinte » */
+			const char *e = empreinte, *pre = "pbkdf2-sha256$";
+			for (; *pre && *e == *pre; pre++, e++)
+				;
+			if (!*pre) {
+				iter = (u32)parse_dec(e);
+				while (*e && *e != '$')
+					e++;
+				if (*e == '$') {
+					e++;
+					sl = unhex(e, salt, 24);
+					while (*e && *e != '$')
+						e++;
+					real = iter && sl > 0 && *e == '$' && unhex(e + 1, key, 32) == 32;
+				}
+			}
+			memset(empreinte, 0, sizeof empreinte);
+		}
+		if (!real) { /* (inconnu, sans mot de passe, illisible) : le même sel à chaque fois pour ce nom */
+			static u8 fake[32];
+			static int fake_ok;
+			if (!fake_ok)
+				fake_ok = korin_sys2(SYS_GETRANDOM, fake, 32) == 32;
+			u8 h[32];
+			hmac(fake, 32, (const u8 *)who, (u64)str_len(who), 0, 0, h);
+			memcpy(salt, h, 16);
+			sl = 16;
+			iter = 20000;
+		}
+		if (op == AUTH_SALT) {
+			memset(key, 0, sizeof key);
+			u64 w[3] = {0, 0, 0};
+			memcpy(w, salt, (u64)sl);
+			M64(msg, 8) = (u64)iter | (u64)sl << 32;
+			M64(msg, 16) = w[0];
+			M64(msg, 24) = w[1];
+			M64(msg, 32) = w[2];
+			return 0;
+		}
+		struct compte t;
+		memset(&t, 0, sizeof t);
+		copie(t.name, sizeof t.name, who);
+		t.uid = user_uid(who);
+		const u8 *chal = (const u8 *)who + str_len(who) + 1, *proof = chal + 16;
+		if (proof + 32 > msg + MSG_SIZE)
+			return E_INVAL;
+		if (bloque(t.uid, pid)) {
+			journal("acces a distance", &t, pid, "refuse (trop d'echecs)");
+			return E_ACCES;
+		}
+		u8 want[32];
+		hmac(key, 32, chal, 16, 0, 0, want);
+		u8 d = (u8)!real;
+		for (int i = 0; i < 32; i++)
+			d |= want[i] ^ proof[i];
+		memset(key, 0, sizeof key);
+		memset(want, 0, sizeof want);
+		resultat(t.uid, pid, d == 0);
+		journal("acces a distance", &t, pid, d == 0 ? "accorde" : "mauvais mot de passe");
+		if (d)
+			return E_ACCES;
+		M64(msg, 8) = (u64)t.uid;
+		M64(msg, 16) = (u64)(peut_elever(&t) != 0);
+		return 0;
 	}
 	case AUTH_HASPW: { /* (ouvert à tous : l'écran de connexion le montre déjà, « Sans mot de passe ») */
 		int e = empreinte_de(data);

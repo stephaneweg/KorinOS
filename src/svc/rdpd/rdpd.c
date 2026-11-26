@@ -15,6 +15,12 @@
  *    + HMAC-SHA256 (clé : le mot de passe en UTF-8, message : le défi ; 32
  *    octets, sha256.c) ; le serveur répond un octet : 0 accepté, 1 mot de
  *    passe faux, 2 aucun mot de passe (tout est refusé) ; sauf 0, il ferme ;
+ *  * par compte (E70, 26/11/2026) : le client répond « ONYXRDP3 » + options + longueur du nom (u8) + le nom ; le
+ *    serveur envoie les tours de PBKDF2 (u32), la longueur du sel (u8) et le sel du compte (authd AUTH_SALT : un sel
+ *    factice pour un compte inconnu) ; le client envoie HMAC-SHA256 (clé : PBKDF2-SHA256(mot de passe, sel, tours),
+ *    32 octets ; message : le défi) ; verdict comme plus haut (authd AUTH_PROOF : le mot de passe ne circule pas). Le
+ *    compte doit être celui de la session, ou pouvoir s'élever. En mode comptes (remotepw.c, rp_accounts : un compte
+ *    de personne a un mot de passe, et remote.txt n'a pas « shared = 1 »), « ONYXRDP2 » (le secret commun) est refusé ;
  *  * serveur -> client : type (u8), longueur (u32), charge : 1 WIN, 2 GONE,
  *    3 ZORDER, 4 PIXELS (LZ4 si plus court, sinon brut ; 32 bits, ou 16 bits
  *    RGB565 si demandé, sauf les cadres et les fenêtres WF_ALPHA : 32 bits,
@@ -120,6 +126,7 @@ struct slot {
 _Static_assert(sizeof(struct slot) == 160, "SL_SIZE"); /* le titre est suivi de la place suivante */
 
 static const char s_magic[] = "ONYXRDP2"; /* (8 octets) */
+static const char s_magic3[] = "ONYXRDP3"; /* (la réponse d'un client par compte) */
 static const char m_ready[] = "rdpd : en écoute sur le port 3390 (Korin Remote, mot de passe)\n";
 static const char m_refused[] = "rdpd : mot de passe faux, client refusé\n";
 static const char m_none[] = "rdpd : aucun mot de passe (/etc/remote.txt), client refusé\n";
@@ -568,6 +575,48 @@ static u64 auth(void)
 	return v;
 }
 
+/* E70 : who (le nom donné par le client) -> verdict comme auth() ; 99 : le client est parti. Le sel du compte
+ * (authd AUTH_SALT), puis la preuve du client vérifiée par authd (AUTH_PROOF) ; le compte : celui de la session, ou
+ * un compte qui peut s'élever (RDP montre l'écran de la session) */
+static u64 auth_account(const char *who)
+{
+	static u64 am[64];
+	long ch = korin_sys2(SYS_SVC_OPEN, "auth", 2000);
+	if (ch < 0)
+		return AUTH_NONE;
+	u64 nl = (u64)str_len(who);
+	memset(am, 0, sizeof am);
+	am[0] = 12; /* AUTH_SALT */
+	memcpy((u8 *)am + 48, who, nl + 1);
+	*(u32 *)((u8 *)am + 40) = (u32)(nl + 1);
+	if (korin_sys2(SYS_SVC_CALL, ch, am) < 0 || am[0] != 0)
+		return AUTH_NONE;
+	u32 iter = (u32)am[1];
+	u8 sl = (u8)(am[1] >> 32);
+	if (sl > 24)
+		sl = 24;
+	put32(iter);
+	put8(sl);
+	put((const u8 *)&am[2], sl);
+	flush_out();
+	if (!need(32, 30000)) /* la preuve (PBKDF2 côté client : quelques dixièmes de seconde) */
+		return 99;
+	memset(am, 0, sizeof am);
+	am[0] = 13; /* AUTH_PROOF */
+	memcpy((u8 *)am + 48, who, nl + 1);
+	memcpy((u8 *)am + 48 + nl + 1, sd.challenge, 16);
+	memcpy((u8 *)am + 48 + nl + 17, inbuf, 32);
+	*(u32 *)((u8 *)am + 40) = (u32)(nl + 1 + 48);
+	consume(32);
+	long r = korin_sys2(SYS_SVC_CALL, ch, am);
+	if (r < 0 || am[0] != 0)
+		return 1;
+	long uid = (long)am[1];
+	if (uid != user_session_uid() && !am[2])
+		return 1; /* (ni le compte de la session, ni un administrateur) */
+	return 0;
+}
+
 /* now : la forme du curseur a changé -> CURSOR (KAPI_CURSOR_* d'Onyx, OnyxRemote) */
 static void cursor_poll(u64 now)
 {
@@ -1001,22 +1050,37 @@ static void session(void)
 	put16(DPI);
 	put(sd.challenge, 16);
 	flush_out();
-	if (!need(AUTH_LEN, 15000)) /* la réponse du client */
+	if (!need(10, 15000)) /* la réponse du client : la marque, les options, puis selon la version */
 		goto out;
-	if (memcmp(inbuf, s_magic, 8))
+	u64 v;
+	u8 o = inbuf[8]; /* options */
+	if (!memcmp(inbuf, s_magic3, 8)) { /* par compte */
+		u64 nl = inbuf[9];
+		if (!nl || nl > 31 || !need(10 + nl, 15000))
+			goto out;
+		char who[32];
+		memcpy(who, inbuf + 10, nl);
+		who[nl] = 0;
+		consume(10 + nl);
+		v = auth_account(who);
+		if (v == 99) /* (le client est parti pendant l'échange) */
+			goto out;
+	} else if (!memcmp(inbuf, s_magic, 8)) { /* le secret commun */
+		if (!need(AUTH_LEN, 15000))
+			goto out;
+		v = rp_accounts() ? 1 : auth(); /* (mode comptes : refusé) */
+		consume(AUTH_LEN);
+	} else
 		goto out;
-	u64 v = auth(); /* le mot de passe -> verdict */
 	put8(v);
 	flush_out();
 	if (v) {
 		ak_puts(v == AUTH_NONE ? m_none : m_refused);
 		goto out;
 	}
-	u8 o = inbuf[8]; /* options */
 	opt_16 = o & 1;
 	opt_noframes = (o >> 1) & 1;
 	opt_pipe = (o >> 2) & 1;
-	consume(AUTH_LEN);
 	rounds_max = opt_pipe ? PIPE_ROUNDS : 1; /* crédit : 1 ronde en vol, 3 en pipeline */
 	credit = rounds_max - 1;                 /* (+ le premier READY du client) */
 	if (opt_pipe) {
