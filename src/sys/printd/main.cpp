@@ -456,7 +456,7 @@ static long handle (long op, char *msg)
 				l->p[at] = p;
 				if (l->n == 2) scpy (l->def, sizeof l->def, p.name);		// la premiere vraie imprimante : par defaut
 				ok = save (*l);
-				if (!ok) scpy (why, sizeof why, "/etc/printers.ini ne peut etre ecrit");
+				if (!ok) scpy (why, sizeof why, "printers.ini (HOME:/etc) ne peut etre ecrit");
 				else scpy (why, sizeof why, p.name);
 			}
 		}
@@ -731,7 +731,7 @@ int main (void)
 	if (svc < 0) return 0;					// (il tourne deja)
 	netkit_kit_open ();
 	archivekit_kit_open ();
-	mkdir ("/var", 0777); mkdir ("/var/spool", 0777); mkdir (PRINT_SPOOL, 0777);
+	mkdir ("HOME:/.cache", 0755); mkdir (PRINT_SPOOL, 0700);	// (la file du compte, E72)
 	mkdir ("HOME:", 0777); mkdir ("HOME:/documents", 0777);
 	ipp::net_stop = stop;
 	scan_fonts ();

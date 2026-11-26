@@ -5,7 +5,7 @@
  *
  * Une application imprime en quatre temps : le dialogue, un travail, ses
  * pages, la fin. Les pages sont ENREGISTRÉES dans la file de printd
- * (/var/spool/print/<id>.opj) ; le service en fait un PDF, ou ce que
+ * (HOME:/.cache/print/<id>.opj, E72) ; le service en fait un PDF, ou ce que
  * l'imprimante réseau prend. Tout le savoir (imprimantes, papiers, polices,
  * IPP) est chez printd : ici, le fichier des pages, les appels au service et
  * le dialogue.

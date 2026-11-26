@@ -25,8 +25,16 @@
 #include <time.h>
 #include "buf.h"
 
-#define PRINT_INI	"/etc/printers.ini"
-#define PRINT_SPOOL	"/var/spool/print"		// <id>.opj (les pages), <id>.job (le ticket)
+// E72, E48 : printd est un programme de la session (sous le compte) : ses imprimantes sont celles du compte
+// (HOME:/etc/printers.ini, au départ une copie de /etc/printers.ini, celui de la machine), sa file est dans son dossier
+// (une application du même compte y écrit les pages) ; /etc et /var sont au système
+#include <armpi/userconf.h>
+static inline const char *print_ini (int write)
+{
+	static char b[2][160];
+	return korin_conf_path ("printers.ini", b[write ? 1 : 0], sizeof b[0], write);
+}
+#define PRINT_SPOOL	"HOME:/.cache/print"		// <id>.opj (les pages), <id>.job (le ticket)
 #define PRINT_PDF_NAME	"PDF"				// le nom de l'imprimante PDF
 #define PRINTD_NAME	"print"
 
@@ -141,7 +149,7 @@ static void load (List &l)
 {
 	l.n = 1; l.def[0] = 0;
 	pdf_printer (l.p[0]);
-	char *t = pio_load (PRINT_INI, 0);
+	char *t = pio_load (print_ini (0), 0);
 	if (t)
 	{
 		Ini ini (t); Printer *cur = 0; char sec[64]; sec[0] = 0;
@@ -196,7 +204,7 @@ static bool save (const List &l)
 		puts_ (b, "margins = "); for (int k = 0; k < 4; k++) { if (k) b.put ((unsigned char) ','); putint (b, p.margin[k]); }
 		b.put ((unsigned char) '\n');
 	}
-	return pio_save (PRINT_INI, b.b ? b.b : (const unsigned char *) "", b.n);
+	return pio_save (print_ini (1), b.b ? b.b : (const unsigned char *) "", b.n);
 }
 static inline const Printer *find (const List &l, const char *name)
 {
