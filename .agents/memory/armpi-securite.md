@@ -108,3 +108,13 @@ jamais mis à jour, ignore ab.txt) -> pkg met aussi à jour cette copie et les c
 Touchpad : pcid (E41) refusait d'écrire une BAR 64 bits « vide » (relue 0x4) -> ab376ef, pc 114. Google Drive : init2
 refusait /sys/svc/oauthd pour un compte -> exception (pc 115, main 31f7b75). Ces trois régressions venaient de
 correctifs de sécurité non essayés sur le matériel réel : essayer sur le ZBook avant de publier un pc.
+**26/11 après-midi, E70 fini (non publié)** : RDP par compte (ONYXRDP3, authd AUTH_SALT 12 / AUTH_PROOF 13, compte de
+la session ou admin ; Korin Remote : champ Compte, non compilé dans le cloud), RDP S6 (le nouveau client s'authentifie
+à côté : pend_* de rdpd.c), VNC S4 (secret « remote-vnc » du coffre, Réglages ; refus en mode comptes sans lui), compteur
+d'échecs pour VNC/RDP (rp_note), SMB S8 (smbd et smbfs exigent la signature ; smbfs « unsigned = 1 » pour l'invité).
+Essais : tools/remote/rdp_account_test.py, vnc_auth_test.py ; SMB par un client libsmb2 natif (scratchpad). Écran de
+connexion : bouton d'extinction (07847e9) ; pkg sans sudo (c6974e4). À publier après un essai ZBook : pc, apps
+(Réglages : control), smbd/smbfs. Point ouvert : sous QEMU (TCG), environ 1 premier démarrage sur 3, un appel de
+service vers vfs dépasse 30 s (keyvault : renommage de /var/keyvault/0.db, errno 116 = ETIMEDOUT ; smbd sans
+partages) : surcharge de fatfs au démarrage supposée, pas un interblocage prouvé. /bin/bash n'existe pas sur le PC
+(scripts d'essai : /bin/sh).

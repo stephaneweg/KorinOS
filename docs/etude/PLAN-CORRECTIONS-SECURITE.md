@@ -12,7 +12,7 @@ Rédigé le 24/11/2026 à partir de [AUDIT-SECURITE-PC.md](AUDIT-SECURITE-PC.md)
 > * **Fait** : E01-E27 (E11 : journal seulement), E29 réduite, E30-E32, E35, E36 (captures, liste, fermeture,
 >   menus, capture WF_GRAB d'une app au premier plan seulement), E37-E41, E43, E44, E46 (sceaux SHM compris), E48
 >   (oauthd), E51 (téléchargement en uid 0, `/var/pkg` protégé, noms et chemins interdits sans casse), E63 (sauf
->   usbhid et usbstorage), E66-E70 (E70 : telnetd et ftpd par comptes), E09, E10.
+>   usbhid et usbstorage), E66-E70 (E70 : telnetd et ftpd par comptes ; le 26/11 : RDP par compte, S3, S4, S6, S8), E09, E10.
 > * **Ajouté après une relecture de la branche** : `fs.*` ne répondent qu'à vfs (le fond de F4) ; montage par
 >   « `/media/../etc` » ; renommage d'un parent d'un chemin protégé ; sudo d'un compte sans mot de passe par la
 >   carte ; couche sûre et repère secret de la carte et de l'écran de connexion (E39) ; `/etc/web-probe.js`,
@@ -22,7 +22,7 @@ Rédigé le 24/11/2026 à partir de [AUDIT-SECURITE-PC.md](AUDIT-SECURITE-PC.md)
 > * **Aussi** : E39 (couche sûre, repère), G3 (WF_GRAB au premier plan), E50-E51 pour K2 (numéro de série de l'index),
 >   L4, B10, B16, D8, P9, R6, R7.
 > * **Reste** : E11 (refus : essais de Jet, Godot et linuxhost d'abord), E42 et E64 (ZBook), E45, E47, E49,
->   E52-E62, E65, E70 (VNC, RDP, SMB), E72-E75. `/apps`, `/devtools` et `/etc/system.ini` restent inscriptibles
+>   E52-E62, E65, E70 (S2 de smbd : il sert en uid 0), E72-E75. `/apps`, `/devtools` et `/etc/system.ini` restent inscriptibles
 >   jusqu'à `enforce` : qbasic et qbstudio écrivent `/apps`, Réglages écrit `system.ini`, sans élévation.
 
 **La règle de ce plan, posée par l'utilisateur.** Avant toute implémentation, on vérifie en profondeur, en lisant le
