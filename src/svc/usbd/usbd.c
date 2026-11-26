@@ -28,11 +28,16 @@
 #include "caller.h"
 
 #define DEV_MAX 16
+#define HW_PID_TAG 0x5049442100000000ull /* (hwmanager : la réponse de HW_OP_USB porte le pid du pilote, E49) */
 #define PIPE_MAX 16
 #define BUF_MAX 8
 
+#define OWN_MAX 8
 struct dev {
 	int used;
+	int bound;            /* E49 : hwmanager a dit quels pilotes il a lancés pour lui */
+	int nown;
+	int owners[OWN_MAX];  /* leurs pids (un par interface ; un pilote composite : le même) */
 	long handle; /* contrôleur << 8 | slot (xhci.c) */
 	uint32_t vidpid;
 	int speed;
@@ -173,6 +178,8 @@ long usbd_attach(long handle, const uint8_t *dd, const uint8_t *cfg, unsigned cf
 	dev_next = n + 1;
 	struct dev *d = &devs[n];
 	d->used = 1;
+	d->bound = 0;
+	d->nown = 0;
 	d->handle = handle;
 	d->speed = speed;
 	d->vidpid = (uint32_t)(dd[8] | dd[9] << 8) << 16 | (dd[10] | dd[11] << 8);
@@ -190,6 +197,16 @@ long usbd_attach(long handle, const uint8_t *dd, const uint8_t *cfg, unsigned cf
 			say("usbd :   interface %u : %02X/%02X/%02X\n", x[2], x[5], x[6], x[7]);
 			hw_call(HW_OP_USB, (uint64_t)n, x[2], (uint32_t)x[5] << 16 | (uint32_t)x[6] << 8 | x[7],
 				d->vidpid);
+			const uint64_t *hm = (const uint64_t *)hw_msg; /* (la réponse : le pilote lancé, E49) */
+			if (hw_chan >= 0 && hm[2] == HW_PID_TAG) {
+				d->bound = 1;
+				int pid = (int)hm[1];
+				int seen = 0;
+				for (int k = 0; k < d->nown; k++)
+					seen |= d->owners[k] == pid;
+				if (pid > 0 && !seen && d->nown < OWN_MAX)
+					d->owners[d->nown++] = pid;
+			}
 		}
 		o += x[0];
 	}
@@ -232,9 +249,33 @@ void usbd_detach(long n)
 	hw_call(HW_OP_USB_REMOVED, (uint64_t)n, 0, 0, 0);
 }
 
+/* E49 (P6) : le périphérique n est-il à ce pilote ? Ceux que hwmanager a lancés pour lui ; sans réponse de hwmanager
+ * (le Pi, un ancien hwmanager, aucun pilote lancé) : tout pilote (droits de /sys) comme avant ; ses pilotes tous
+ * arrêtés (hwmanager en relance un, sous un autre pid) : le premier qui y touche le prend */
+static int dev_allowed(struct dev *d, int pid)
+{
+	if (!d->bound)
+		return 1;
+	for (int k = 0; k < d->nown; k++)
+		if (d->owners[k] == pid)
+			return 1;
+	if (d->nown == 0) {
+		d->owners[d->nown++] = pid;
+		say("usbd : périphérique repris par le pilote %d\n", pid);
+		return 1;
+	}
+	return 0;
+}
+
 /* un pilote s'est arrêté : ses tuyaux, sa lecture sans attente, son tampon */
 static void driver_ended(int pid)
 {
+	for (int i = 0; i < DEV_MAX; i++) /* (ses périphériques : libres pour son remplaçant) */
+		for (int k = 0; k < devs[i].nown; k++)
+			if (devs[i].owners[k] == pid) {
+				devs[i].owners[k] = devs[i].owners[--devs[i].nown];
+				k--;
+			}
 	iso_close_pid(pid);
 	if (nb_pid == pid) {
 		xh_bulk_nb_stop(nb_handle);
@@ -303,6 +344,13 @@ static int request(long req)
 	/* tout ce qui parle au matériel (CONTROL, BULK, INTR, ISO, ADD_CONTROLLER) : les pilotes (droits
 	 * de /sys) ; DESCRIPTORS reste ouvert (lsusb) */
 	if (op != USB_OP_DESCRIPTORS && !caller_rights(pid)) {
+		M(0) = (uint64_t)E_PERM;
+		korin_sys2(SYS_SVC_REPLY, req, msg);
+		return 0;
+	}
+	if ((op == USB_OP_CONTROL || op == USB_OP_INTR_OPEN || op == USB_OP_BULK || op == USB_OP_BULK_NB ||
+	     op == USB_OP_ISO_OPEN) &&
+	    (d = dev_of((long)M(1))) && !dev_allowed(d, pid)) { /* (E49 : le périphérique d'un autre pilote) */
 		M(0) = (uint64_t)E_PERM;
 		korin_sys2(SYS_SVC_REPLY, req, msg);
 		return 0;

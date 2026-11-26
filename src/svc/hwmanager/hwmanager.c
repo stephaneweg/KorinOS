@@ -26,6 +26,7 @@
 
 #define HW_OP_USB 1
 #define HW_OP_USB_RETRAIT 2
+#define HW_PID_TAG 0x5049442100000000ull /* (réponse de HW_OP_USB : a = pid du pilote lancé, b = cette marque) */
 
 #define DET_MAX 8   /* lignes « i2c1:... » */
 #define SONDES 30   /* essais (toutes les 2 s) */
@@ -248,11 +249,15 @@ static long announce_usb(void)
 		*p++ = ' ';
 		p = fmt_dec(M64(msg, 16), p);
 		*p = 0;
-		launch(ligne_usb);
+		long pid = launch(ligne_usb);
 		note_plugged(M64(msg, 8), ligne_usb); /* (une par périphérique) */
+		M64(msg, 8) = pid > 0 ? (u64)pid : 0; /* E49 : usbd réserve ce périphérique à ce pilote */
+		M64(msg, 16) = HW_PID_TAG;
 		return 0;
 	}
 	say("aucun pilote\n");
+	M64(msg, 8) = 0;
+	M64(msg, 16) = HW_PID_TAG;
 	return 0;
 }
 
