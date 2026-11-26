@@ -27,14 +27,16 @@ Rédigé le 24/11/2026 à partir de [AUDIT-SECURITE-PC.md](AUDIT-SECURITE-PC.md)
 >     SA Query ;
 >   * E52 : les paquets de la clé passent par `pkg --root -r /packages/pc` ;
 >   * E47 : une liste de pids accordés par tampon ; intelgpu accorde sa page d'état à chaque client ; Jet (patch 0017,
->     glue) l'accorde au process web ;
+>     glue) l'accorde au process web, UIKit à Elegant (le tampon de `ui_surface_source`, corrigé le 26/11 : il accordait
+>     celui de la surface, d'où les pages blanches de Jet 1.4.9). Jet 1.4.12 (pc 2026.11.120 demandé) n'ouvre plus
+>     ses surfaces à tous ; essayé sur le ZBook ;
 >   * E58 : tubes en O_CLOEXEC, fichiers de débogage de `/etc` seulement s'ils sont à l'uid 0, plus de
 >     `JET_CDMHOST` ni `JET_WIDEVINE_CDM`, permission DRM par origine, téléchargement non demandé refusé ou
 >     soumis à une question ;
 >   * E59 : Jet reconstruit ;
 >   * E60 : seulement les variables d'environnement. Restent cdmhost lancé par l'UI et le module vérifié au
 >     chargement (empreinte épinglée par l'uid 0, ou CRX3), à essayer avec Netflix et Spotify ;
->   * restent l'étape 4 d'E47 (`-1` refusé, après la publication de Jet) et l'essai de tout cela sur le ZBook.
+>   * restent l'étape 4 d'E47 (`-1` refusé par le noyau : les autres clients d'abord) et l'essai du reste sur le ZBook.
 > * **Ajouté après une relecture de la branche** : `fs.*` ne répondent qu'à vfs (le fond de F4) ; montage par
 >   « `/media/../etc` » ; renommage d'un parent d'un chemin protégé ; sudo d'un compte sans mot de passe par la
 >   carte ; couche sûre et repère secret de la carte et de l'écran de connexion (E39) ; `/etc/web-probe.js`,

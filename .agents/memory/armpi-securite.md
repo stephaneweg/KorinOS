@@ -145,3 +145,6 @@ BUF_GRANT -1 (et sans le journal). Vue de la session : attend korin.wallpaper.dr
 refaire build.sh (pas seulement build_c.sh + sysroot.sh), sinon pc publie un initrd avec l'ancien kit (pc 119 :
 UIKit corrigé dans /lib, pas dans l'initrd ; refait en 120). Idée de l'utilisateur, à faire : la mise à jour de pc
 reconstruit l'initrd sur la machine à partir des binaires installés (le chargeur ne vérifie pas l'empreinte de l'initrd).
+**26/11, E47 fini côté Jet** : essai sur le ZBook réussi (pc 120 + /etc/jet-e47-test). Jet 1.4.12 publié : plus de
+BUF_GRANT -1, journal des seuls échecs (« jet: surface »), needs = pc >= 2026.11.120 (packages-pc.ini, [app.jet] ;
+pub.py --force car le content change). Reste l'étape 4 : le noyau refuse -1 (voir d'abord qui l'utilise encore).
