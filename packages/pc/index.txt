@@ -5,7 +5,7 @@ date = 2026-11-26 19:49
 abi = 632
 packages = 117
 board = pc
-serial = 38
+serial = 39
 
 [avdemo]
 title = Avalonia
@@ -115,18 +115,18 @@ content = 5dbdcd50fcea186f20f494edb60ef2a5166a33fcc564f8c350daa4c3f8b9c766
 
 [jet]
 title = Jet
-version = 1.4.14
+version = 1.4.15
 category = Internet
 author = Korin OS
 summary = Le navigateur, sur WebKit
-size = 55982670
+size = 55983387
 installed = 139960927
-sha256 = 09c28e28c3a2ef71f0a7a20c913b5920a9cbc45fca454da8b503dc1151a7b964
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.14.opk
+sha256 = a942887325dd814e6642059dd3a786d7e2d57ef3f0dc0d392286e128f510ed36
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.15.opk
 needs = pc >= 2026.11.120, abi >= 629
 required = 0
 restart = 0
-content = 03d70052c6cd9e06a8ef959a70215b017a1cc35f951a3f6cfedb4776d4d4f93f
+content = c97b511e81712da7d76a4bdd1f488648fa1b821fa1e98b40504d6beba48d3d70
 
 [spotify]
 title = Spotify
