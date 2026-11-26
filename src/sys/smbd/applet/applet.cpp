@@ -153,9 +153,28 @@ static void state (void)
 	ui_w_draw (0);
 }
 
+/* op (INIT_OP_SVC_START 5, INIT_OP_SVC_STOP 4), la ligne de services.txt -> la réponse d'init2 (en uid 0 : il
+ * lance le service en uid 0 et le surveille ; l'appelant doit être en uid 0 : elevated) */
+static int init2_svc (long op)
+{
+	static unsigned char m[512] __attribute__ ((aligned (16)));
+	long ch = svc_open ("init2", 0);
+	if (ch < 0)
+		return (int) ch;
+	memset (m, 0, sizeof m);
+	*(long *) m = op;
+	memcpy (m + 48, SMBD, sizeof SMBD);
+	*(unsigned *) (m + 40) = (unsigned) sizeof SMBD;
+	long r = svc_call (ch, m);
+	return (int) (r < 0 ? r : *(long *) m);
+}
+
 static void on_start (long, long)
 {
-	spawn (SMBD, "");
+	/* par init2, en uid 0 (E72) : smbd lit smbd.ini (un secret) et ouvre le port 445 ; un smbd lancé par Réglages
+	   tournait sous le compte */
+	if (elevated ([] (void *) -> int { return init2_svc (5); }, 0) == -2)
+		return;
 	for (int i = 0; i < 30 && !service_pid (); i++)
 		sys_sleep (100);
 	state ();
@@ -164,9 +183,14 @@ static void on_start (long, long)
 
 static void on_stop (long, long)
 {
-	long pid = 0;
-	while ((pid = proc_find ("smbd", pid)) != 0)
-		armpi_syscall (SYS_KILL_, pid, 0, 0, 0, 0, 0);
+	if (elevated ([] (void *) -> int {
+		int r = init2_svc (4);	/* (init2 cesse de le surveiller et l'arrête) */
+		long pid = 0;		/* (un smbd lancé à la main, hors d'init2) */
+		while ((pid = proc_find ("smbd", pid)) != 0)
+			armpi_syscall (SYS_KILL_, pid, 0, 0, 0, 0, 0);
+		return r;
+	}, 0) == -2)
+		return;
 	for (int i = 0; i < 20 && service_pid (); i++)
 		sys_sleep (100);
 	state ();
@@ -389,27 +413,40 @@ static void on_remove (long, long)
 
 /* ---- le compte ---- */
 
+/* le nom du compte, lisible par tous (smbd.ini est un secret, illisible pour un compte en enforce : E72) */
+#define SMBD_NAME	"/etc/smbd-account.txt"
+
 static void on_account (long, long)
 {
-	char user[64], pw[128], old_u[64], old_p[128];
+	char user[64], pw[128];
 	snprintf (user, sizeof user, "%s", (const char *) ui_w_get_text (w_user));
 	snprintf (pw, sizeof pw, "%s", (const char *) ui_w_get_text (w_pw));
-	int had = smbd_account_get (SMBD_INI, old_u, sizeof old_u, old_p, sizeof old_p);
 	if (!user[0] || strpbrk (user, "=[]#;\\/ ")) {
 		status (TR ("Donnez un nom de compte (sans espace ni = [ ] # ; \\ /)."));
 		return;
 	}
-	if (!pw[0]) {
-		if (!had) {
-			status (TR ("Donnez un mot de passe."));
-			return;
+	/* élevé : l'ancien compte lu (smbd.ini), le mot de passe gardé si le champ est vide, le nouveau rangé (le coffre :
+	   smbd_account_store), et son nom dans SMBD_NAME */
+	struct acct { const char *u; char *p; } ac = { user, pw };
+	int ar = elevated ([] (void *a) -> int {
+		struct acct *c = (struct acct *) a;
+		char old_u[64], old_p[128];
+		int had = smbd_account_get (SMBD_INI, old_u, sizeof old_u, old_p, sizeof old_p);
+		if (!c->p[0]) {
+			if (!had)
+				return -3;
+			snprintf (c->p, 128, "%s", old_p);	/* (vide : le mot de passe enregistré gardé) */
 		}
-		snprintf (pw, sizeof pw, "%s", old_p);	/* (vide : le mot de passe enregistré gardé) */
-	}
-	struct acct { const char *u, *p, *o; } ac = { user, pw, had ? old_u : 0 };	/* (le coffre : smbd_account_store) */
-	int ar = elevated ([] (void *a) -> int { struct acct *c = (struct acct *) a; return smbd_account_store (SMBD_INI, c->u, c->p, c->o); }, &ac);
+		int r = smbd_account_store (SMBD_INI, c->u, c->p, had ? old_u : 0);
+		memset (old_p, 0, sizeof old_p);
+		FILE *f = r >= 0 ? fopen (SMBD_NAME, "w") : 0;
+		if (f) {
+			fprintf (f, "user = %s\n", c->u);
+			fclose (f);
+		}
+		return r;
+	}, &ac);
 	memset (pw, 0, sizeof pw);
-	memset (old_p, 0, sizeof old_p);
 	if (ar == -2)
 		return;
 	if (ar == -3) {
@@ -477,7 +514,18 @@ static void sh_open (void)
 	in (g, ui_label (x + 10, y + SH_CT, pw - 20, 36, (long) TR ("Le nom et le mot de passe que Windows demande pour "
 		"ouvrir les partages SMB (pas un compte de Korin)."), ULB_DIM | ULB_WRAP));
 	char u[64], p[128];
-	smbd_account_get (SMBD_INI, u, sizeof u, p, sizeof p);
+	u[0] = p[0] = 0;
+	if (smbd_account_get (SMBD_INI, u, sizeof u, p, sizeof p) <= 0 && !u[0]) {	/* (illisible : le nom seul) */
+		FILE *f = fopen (SMBD_NAME, "r");
+		char l[128];
+		while (f && fgets (l, sizeof l, f))
+			if (!strncmp (l, "user = ", 7)) {
+				l[strcspn (l, "\r\n")] = 0;
+				snprintf (u, sizeof u, "%s", l + 7);
+			}
+		if (f)
+			fclose (f);
+	}
 	in (g, ui_label (x + 10, y + SH_CT + 46, 110, 20, (long) TR ("Nom"), 0));
 	w_user = in (g, ui_textbox (x + 120, y + SH_CT + 40, 200, SH_BTN, 0));
 	ui_w_set_text (w_user, (long) u);
