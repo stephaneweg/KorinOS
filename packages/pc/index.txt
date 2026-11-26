@@ -1,11 +1,11 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-26 19:33
+date = 2026-11-26 19:38
 abi = 632
 packages = 117
 board = pc
-serial = 34
+serial = 35
 
 [avdemo]
 title = Avalonia
@@ -2914,3 +2914,18 @@ required = 0
 restart = 0
 replaces = musescore-data-2
 content = e1e556c24685c18d0da25f310cade97f13f8f3e23e7aad4d91314502e43f903d
+
+[agent-skills]
+title = Compétences des agents
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Ce que les agents de code (Mistral Vibe, MAI, claude-acp, le copilote de KorinStudio) savent de Korin : les compétences (système, langages, kits, apps, jeux) et leurs consignes
+size = 390269
+installed = 912598
+sha256 = 14d5d009b59a73b0376300d17e6667a7c7d952f8b9f998139c131e563ac514fc
+file = pkgs/agent-skills-1.0.0.opk
+needs = pc, abi >= 629
+required = 0
+restart = 0
+content = 63f1e0bba030ee5a6f999ffa381718a5fe391ddc090358fb878b465c625e21c5
