@@ -5,7 +5,7 @@ date = 2026-11-26 01:38
 abi = 632
 packages = 117
 board = pc
-serial = 5
+serial = 6
 
 [avdemo]
 title = Avalonia
@@ -1355,18 +1355,18 @@ content = 52550276bc8003f56a7eac40b5f9c15cd58414090a8cfeb4d8159cdf397da570
 
 [notes]
 title = Notes
-version = 1.0.13
+version = 1.0.14
 category = Bureautique
 author = Korin OS
 summary = Les notes
-size = 183880
-installed = 390060
-sha256 = e4c63c5097e47fa67e240f3839f1ded22e270851ceb6db275ae1b1763e6614a7
-file = pkgs/notes-1.0.13.opk
+size = 187935
+installed = 398380
+sha256 = 5f7bd057940ae0a6b29497c10a2b3434f9c27f8d6d6b98ebd7ee452e6bbb5160
+file = pkgs/notes-1.0.14.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = e9e3123397377b78c5ca523e45af5f7628f536026aa41125c408bae973c7d7b9
+content = 70fdbfdc37ba6313fecf0e188d2352c42e41c3c2c334a0b547886a7542e41bfa
 
 [paint]
 title = Dessin
