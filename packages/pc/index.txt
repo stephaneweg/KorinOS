@@ -5,7 +5,7 @@ date = 2026-11-26 01:38
 abi = 632
 packages = 117
 board = pc
-serial = 4
+serial = 5
 
 [avdemo]
 title = Avalonia
@@ -875,18 +875,18 @@ content = cbf457bb91d6ca168fea9c5bd3578c80bebb29fa5a7a058a42962eabc65a2f92
 
 [calendar]
 title = Calendrier
-version = 1.0.13
+version = 1.0.14
 category = Bureautique
 author = Korin OS
 summary = L'agenda d'Onyx
-size = 202624
-installed = 420622
-sha256 = dd129c72b0e61e34238fee60651b14910a4f98e44832232e4d0e31005e521994
-file = pkgs/calendar-1.0.13.opk
+size = 206079
+installed = 425006
+sha256 = ee6dcd65accb92783618c0102ff7c7122f1bc27e09f091e13890700b8f4d6b8b
+file = pkgs/calendar-1.0.14.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 0af0bee9666cbb406ca794f44d40d55225a9735ce535f01891b9de33e2c3469c
+content = 0995003d5ff2ff00dbbfa55f045b1af604fdb22854c9824006d4d67548fa08e8
 
 [cardfile]
 title = Cardfile
