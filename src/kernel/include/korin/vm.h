@@ -27,6 +27,7 @@ static inline int user_addr_ok(uint64_t va)
 struct vm_space *vm_create(void);
 void vm_destroy(struct vm_space *vm);   /* rend les pages qui sont au process */
 int vm_map_page(struct vm_space *vm, uint64_t va, uint64_t phys, int flags);
+int vm_map_page_replace(struct vm_space *vm, uint64_t va, uint64_t phys, int flags); /* (E11 : remplacer exprès) */
 /* retire la page : son adresse physique (0 si absente) ; *flags : VM_* qu'elle avait */
 uint64_t vm_unmap_page(struct vm_space *vm, uint64_t va, int *flags);
 /* droits d'une page présente ; 0 si absente */

@@ -137,15 +137,31 @@ int vm_map_page(struct vm_space *vm, uint64_t va, uint64_t phys, int flags)
 	uint64_t *pte = walk(vm, va, 1);
 	if (!pte)
 		return -12;
-	/* une page présente remplacée par une autre : la page d'avant reste comptée chez son
-	 * propriétaire, ou se perd (mode journal du plan de sécurité, E11 : relevé avant le refus) */
+	/* une page présente remplacée par une autre : refusé (E11, N24) ; la page d'avant resterait comptée chez son
+	 * propriétaire, ou se perdrait, et une page partagée pourrait être recouverte en silence. Relevé avant le refus
+	 * (26/11/2026) : aucun remplacement en un jour d'essais (229 démarrages, Jet, Godot, linuxhost). Remplacer
+	 * exprès : vm_map_page_replace. Les mêmes droits sur la même page (elf.c, deux segments) restent permis */
 	if ((*pte & PTE_P) && (*pte & ADDR_MASK) != (phys & ADDR_MASK)) {
 		static int told;
 		if (told < 16) {
 			told++;
-			kprintf("vm : page %lx remplacée (journal seulement)\n", va);
+			kprintf("vm : page %lx deja presente : remplacement refuse\n", va);
 		}
+		return -17; /* E_EXIST */
 	}
+	*pte = (phys & ADDR_MASK) | pte_bits(flags);
+	flush_local(vm, va);
+	return 0;
+}
+
+/* vm_map_page, en remplaçant une page présente (à l'appelant de rendre l'ancienne) */
+int vm_map_page_replace(struct vm_space *vm, uint64_t va, uint64_t phys, int flags)
+{
+	if (va >= vm_user_top)
+		return -22;
+	uint64_t *pte = walk(vm, va, 1);
+	if (!pte)
+		return -12;
 	*pte = (phys & ADDR_MASK) | pte_bits(flags);
 	flush_local(vm, va);
 	return 0;
