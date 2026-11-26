@@ -57,3 +57,7 @@ gris = grey
 jaune = yellow
 pourpre = purple
 corail = coral
+Éteindre = Shut down
+Éteindre ou redémarrer l'ordinateur ? = Shut down or restart the computer?
+Redémarrer = Restart
+Annuler = Cancel

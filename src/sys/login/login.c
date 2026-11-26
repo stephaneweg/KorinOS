@@ -298,8 +298,9 @@ static void avatar(const struct acc *a, long x, long y, long d)
 /* ---- l'écran (23/11/2026, demande de l'utilisateur : « comme le login de Fedora ») : plein écran, sans cadre, le
  * fond gris sombre de la vue d'ensemble ; la liste des comptes au milieu, un clic sur l'un l'agrandit (disque de 96, le
  * nom, le champ du mot de passe, à gauche un bouton rond pour revenir à la liste) ; en haut au milieu la date et
- * l'heure, à droite la zone d'état (réseau, son, alimentation) qui ouvre les réglages rapides (/sys/quickmenu « L… » :
- * sans Réglages, on n'est pas encore authentifié) ; en bas au milieu le nom du système. */
+ * l'heure, à droite un bouton d'extinction (26/11/2026, demande de l'utilisateur : la zone d'état d'avant ouvrait les
+ * réglages rapides, qui ne servent à rien avant la connexion) : un dialogue Éteindre / Redémarrer / Annuler, par init2 ;
+ * en bas au milieu le nom du système. */
 #define BG 0x002A2B2D /* (le fond de la vue d'ensemble : le fond d'écran flouté et assombri, ≈ uni) */
 #define INK 0x00FFFFFF
 #define DIM 0x00B9BBBF
@@ -316,10 +317,10 @@ static void avatar(const struct acc *a, long x, long y, long d)
 
 static int prompt;   /* 0 : la liste des comptes ; 1 : le compte choisi, son mot de passe */
 static int hov = -1; /* sous le pointeur : un compte (0..), ou HV_* */
-enum { HV_TRAY = 100, HV_BACK, HV_GO, HV_EYE, HV_OPEN };
+enum { HV_POWER = 100, HV_BACK, HV_GO, HV_EYE, HV_OPEN };
 static long tray_x, list_y, fx, fy, back_x; /* (posés au dessin) */
 
-/* le haut : la date et l'heure au milieu, la zone d'état à droite */
+/* le haut : la date et l'heure au milieu, le bouton d'extinction à droite */
 static void draw_top(void)
 {
 	long W = ui.w;
@@ -330,21 +331,11 @@ static void draw_top(void)
 	str_cat(str_cat(d + str_len(d), "  "), h); /* (str_cat écrit à l'adresse donnée et rend la fin) */
 	long tw = ui_text_width((long)d, 14, (long)ui.font_b);
 	ui_text((long)d, (W - tw) / 2, 22, INK, 14, (long)ui.font_b, 0);
-	/* la zone d'état : réseau, son, alimentation, dans une pilule au survol */
-	long tw2 = 3 * 26 + 12;
-	tray_x = W - 8 - tw2;
-	if (hov == HV_TRAY)
-		ui_rbox(tray_x, 4, tw2, TOP_H - 8, (TOP_H - 8) / 2, BOX_HI, BOX_HI);
-	long gx = tray_x + 8;
-	ui_glyph((long)"glyph-tb-network", gx, 9, 16, INK);
-	gx += 26; /* le haut-parleur : un corps, un pavillon, deux ondes */
-	ui_fill(gx + 1, 15, 4, 6, INK);
-	for (long i = 0; i < 5; i++)
-		ui_fill(gx + 5 + i, 15 - i, 1, 6 + 2 * i, INK);
-	ui_fill(gx + 12, 14, 2, 8, INK);
-	ui_fill(gx + 15, 12, 2, 12, INK);
-	gx += 26;
-	ui_glyph((long)"glyph-power", gx, 9, 16, INK);
+	/* le bouton d'extinction : un rond, plus clair au survol */
+	long bw = TOP_H - 8;
+	tray_x = W - 8 - bw;
+	ui_rbox(tray_x, 4, bw, bw, bw / 2, hov == HV_POWER ? BOX_HI : BOX, hov == HV_POWER ? BOX_HI : BOX);
+	ui_glyph((long)"glyph-power", tray_x + (bw - 16) / 2, 4 + (bw - 16) / 2, 16, INK);
 }
 
 /* le bas : le nom du système, un losange devant */
@@ -440,6 +431,32 @@ static void draw_prompt(void)
 	}
 }
 
+/* Éteindre / Redémarrer / Annuler -> init2 (INIT_OP_REBOOT : bit 1 l'arrêt ; l'écran de connexion est en uid 0) */
+static void power_dialog(void)
+{
+	enum { DW = 400, DH = 150 };
+	long d = ui_dialog_begin(DW, DH, (long)TR("Éteindre"));
+	if (!d)
+		return;
+	ui_label(20, 24, DW - 40, 44, (long)TR("Éteindre ou redémarrer l'ordinateur ?"), ULB_WRAP);
+	long x = ui_dialog_button(d, 0, (long)TR("Éteindre"), 1, UB_DEFAULT, DW - 12);
+	x = ui_dialog_button(d, 1, (long)TR("Redémarrer"), 2, 0, x - 8);
+	ui_dialog_button(d, 2, (long)TR("Annuler"), 0, 0, x - 8);
+	ui_dialog_cancel(d, 0);
+	long r = ui_dialog_run(d, 0, 0);
+	ui_dialog_end(d);
+	if (r != 1 && r != 2)
+		return;
+	long ch = korin_sys2(SYS_SVC_OPEN, "init2", 1000);
+	if (ch < 0)
+		return;
+	static u64 m[64];
+	memset(m, 0, sizeof m);
+	m[0] = 3;                /* INIT_OP_REBOOT */
+	m[1] = r == 1 ? 2 : 0;   /* (INIT_REBOOT_HALT : éteindre) */
+	korin_sys2(SYS_SVC_CALL, ch, m);
+}
+
 static void draw(void)
 {
 	ui_fill(0, 0, ui.w, ui.h, BG);
@@ -456,7 +473,7 @@ static void draw(void)
 static int hit(long x, long y)
 {
 	if (y < TOP_H)
-		return x >= tray_x ? HV_TRAY : -1;
+		return x >= tray_x ? HV_POWER : -1;
 	if (!prompt) {
 		long x0 = (ui.w - LIST_W) / 2;
 		if (x < x0 || x >= x0 + LIST_W || y < list_y)
@@ -616,10 +633,10 @@ int main(int argc, char **argv)
 			}
 			if (kind != 1)
 				continue;
-			if (h == HV_TRAY) { /* les réglages rapides, sous la zone d'état (« L » : ceux de l'écran de connexion) */
-				char arg[24] = "L";
-				*fmt_dec((u64)(ui.w - 4), arg + 1) = 0;
-				ksys(SYS_SPAWN, (long)"/sys/quickmenu", (long)arg, 0, 0, 0, 0);
+			if (h == HV_POWER) {
+				hov = -1;
+				power_dialog();
+				draw();
 			} else if (!prompt && h >= 0 && h < nacc) {
 				sel = h;
 				prompt = 1;
