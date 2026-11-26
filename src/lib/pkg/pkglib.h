@@ -326,6 +326,17 @@ static inline int ab_boot_ok ()
 	if (ok) ab_write (PKG_AB_COPY, s); else unlink (PKG_AB_COPY);
 	return r;
 }
+// un fichier est-il un chargeur de Korin ? (ses messages : « boot: \korin\boot.cfg ») ; un autre (Windows,
+// Linux) n'est jamais remplacé
+static inline bool korin_loader (const char *path)
+{
+	u64 n = 0; char *b = read_file (path, &n);
+	static const char mark[] = "boot: \\korin\\boot.cfg";
+	bool ok = false;
+	for (u64 i = 0; b && i + sizeof mark - 1 <= n && !ok; i++) ok = !memcmp (b + i, mark, sizeof mark - 1);
+	free (b);
+	return ok;
+}
 static inline bool copy_plain (const char *from, const char *to)
 {
 	u64 n = 0; char *b = read_file (from, &n);
@@ -1613,7 +1624,15 @@ public:
 						char d[200], nw[340]; snprintf (d, sizeof d, "%s/korin/%c", bv, abTarget); mkdirs (d);
 						snprintf (to, sizeof to, "%s/%s", d, f + 6); snprintf (nw, sizeof nw, "%s.new", to);
 						char hh[65]; const char *want = st.get ("files", f);
-						if (move (from, nw) && sha_file (nw, hh) && (!*want || eq (hh, want)) && rename (nw, to) == 0) { moved++; abMoved++; }
+						if (move (from, nw) && sha_file (nw, hh) && (!*want || eq (hh, want)) && rename (nw, to) == 0)
+						{
+							moved++; abMoved++;
+							// et aux chemins d'avant A/B (\korin\kernel.elf...) : un chargeur qui ne lit pas ab.txt (une
+							// copie pas mise à jour, \EFI\BOOT\BOOTX64.EFI du ZBook) démarre ainsi la même version que
+							// les programmes (l'écran gris du 26/11/2026) ; le chargeur A/B, lui, prend l'emplacement
+							char leg[320], legn[340]; snprintf (leg, sizeof leg, "%s/%s", bv, f); snprintf (legn, sizeof legn, "%s.new", leg);
+							if (!(copy_plain (to, legn) && rename (legn, leg) == 0)) { unlink (legn); r.sayf (TR ("%s : copie d'avant A/B impossible"), leg); }
+						}
 						else { unlink (nw); failed++; abFailed++; r.sayf (TR ("%s : écrit dans l'emplacement %c mais empreinte fausse ou écriture impossible"), f, abTarget); }
 						continue;
 					}
@@ -1623,7 +1642,23 @@ public:
 						if ((eq (f, "kernel8.img") || eq (f, "kernel_2712.img") || eq (f, "korin/kernel.elf")) && exists (to))
 						{ char old[320]; snprintf (old, sizeof old, "%s.old", to); rename (to, old); }
 					}
-					if (move (from, to)) moved++; else failed++;
+					if (move (from, to))
+					{
+						moved++;
+						// le chargeur : aussi ses autres copies sur la même partition (\EFI\BOOT\BOOTX64.EFI, posé par
+						// osinstall ; le firmware du ZBook lançait celle-là, jamais mise à jour), si ce sont les nôtres
+						if (eq (f, "EFI/Korin/korin.efi") && !g_pkgroot[0])
+						{
+							char cp[320]; snprintf (cp, sizeof cp, "%s/EFI/BOOT/BOOTX64.EFI", boot_volume ());
+							if (korin_loader (cp))
+							{
+								char cpn[340]; snprintf (cpn, sizeof cpn, "%s.new", cp);
+								if (copy_plain (to, cpn) && rename (cpn, cp) == 0) r.sayf (TR ("%s : chargeur mis à jour aussi"), cp);
+								else { unlink (cpn); r.sayf (TR ("%s : copie du chargeur impossible"), cp); }
+							}
+						}
+					}
+					else failed++;
 				}
 				else if (eq (st.kv[i].sec, "remove") && !forbidden (f) && !boot_refused (bootPats, f) && !db.owned_elsewhere (f, names[k])) { char c[320]; card_path (c, sizeof c, bootPats, f); unlink (c); prune (c); }
 			}
