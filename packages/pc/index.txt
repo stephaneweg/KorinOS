@@ -1,10 +1,11 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-25 14:16
-abi = 629
+date = 2026-11-26 19:49
+abi = 632
 packages = 117
 board = pc
+serial = 39
 
 [avdemo]
 title = Avalonia
@@ -114,18 +115,18 @@ content = 5dbdcd50fcea186f20f494edb60ef2a5166a33fcc564f8c350daa4c3f8b9c766
 
 [jet]
 title = Jet
-version = 1.4.8
+version = 1.4.15
 category = Internet
 author = Korin OS
 summary = Le navigateur, sur WebKit
-size = 55954972
-installed = 139887199
-sha256 = cfc23704a775e6e9c7dd35d63fc81de7250330790cf52889933797cd4c73a918
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.8.opk
-needs = abi >= 629
+size = 55983387
+installed = 139960927
+sha256 = a942887325dd814e6642059dd3a786d7e2d57ef3f0dc0d392286e128f510ed36
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.15.opk
+needs = pc >= 2026.11.120, abi >= 629
 required = 0
 restart = 0
-content = 9ca14cf952a7ce16b6f9600430ddc8543a279e09c8a83cb09ae45f5f626e3d2b
+content = c97b511e81712da7d76a4bdd1f488648fa1b821fa1e98b40504d6beba48d3d70
 
 [spotify]
 title = Spotify
@@ -174,18 +175,18 @@ content = 1ed897c3c1436c173dc1585ff0f13199a42ffae587eca0515ab9e2e50688aede
 
 [pkgman]
 title = Logiciels
-version = 1.0.24
+version = 1.0.29
 category = Système
 author = Korin OS
 summary = Les paquets : la commande pkg, le gestionnaire Logiciels (et son volet dans Réglages), le service pkgd
-size = 4616567
-installed = 11799195
-sha256 = e7060f9a134a539cfda70a66b76de8460f0e644d6e4364fb46e40d9ba7b3d9b8
-file = pkgs/pkgman-1.0.24.opk
+size = 4622519
+installed = 11806459
+sha256 = d83b1048563a7826a58dee051b665706cb170be9cdc55798bbc46e9a3fdf6202
+file = pkgs/pkgman-1.0.29.opk
 needs = abi >= 626
 required = 1
 restart = 0
-content = ccf597646db410bb26d994a3d8274f5fd2ec0a449c2f7b2a9aa268aca064a565
+content = a075f6d7f31425455f032c635e450c66c0c2fc0fcd8c74cd44b4d8f9afe192b3
 
 [soundfonts]
 title = Banque de sons General MIDI
@@ -544,18 +545,18 @@ content = 4a62f5b65e76b629ed9b38197e4b13cefd661b379360c0c35ad7d50d0e65c422
 
 [vibe]
 title = Mistral Vibe
-version = 1.0.10
+version = 1.0.11
 category = Développement
 author = Korin OS
 summary = L'agent de code de Mistral : l'app Vibe, le client terminal agent, vibe-acp, et ses compétences de Korin (apps en C, C#, FreeBASIC, diagnostic)
-size = 554397
-installed = 1207802
-sha256 = 41b56084e1ac5d41b5bf810c10b24d86dae0936ddb3fda54b78e80636617f690
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vibe-1.0.10.opk
-needs = python, bash, git, rg, abi >= 626
+size = 326712
+installed = 648125
+sha256 = e645248c33c1118d983cc8485f43dad1d1e80c45d363656cefb0ea678d53feba
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vibe-1.0.11.opk
+needs = python, bash, git, rg, agent-skills, abi >= 626
 required = 0
 restart = 0
-content = 5d32dc18f615534fcc1ebbffab6f0e7f30cd518761147166f9c29d5cf2f1e131
+content = 76249a35846ffbdbb3960da0ed1dd990006584b89bb50267cff254b1171232de
 
 [bash]
 title = GNU bash
@@ -634,18 +635,18 @@ content = 1096fe67d96ab6bbd46bb945d19d4c2926db2a381127759a0841a0c755f502e2
 
 [webstudio]
 title = WebStudio
-version = 1.1.4
+version = 1.1.5
 category = Développement
 author = Korin OS
 summary = L'outil de développement web : un site est un dossier, le serveur de Korin le sert, F5 l'ouvre dans Jet
-size = 155842
-installed = 320626
-sha256 = e1e4eb972d9b7e56ca854d73b3dceba01ea0ac6b11046adc62a6d91bbc24c22c
-file = pkgs/webstudio-1.1.4.opk
+size = 159128
+installed = 328818
+sha256 = c1c24bbb7a9f3232dd2cc5b06d20ef67bbd14a313bc54f749fbc07eda4f74c07
+file = pkgs/webstudio-1.1.5.opk
 needs = webd, abi >= 626
 required = 0
 restart = 0
-content = 9972d47882dad834b2fce688479e39918bbc6a5f5dbbe9a8fb5ae470e556844f
+content = 81f980619054cbc077bbbf0129dedaa67b3ecca45c049ab50a1e5046bcef3d87
 
 [godot-templates]
 title = Modèles d'export de Godot
@@ -694,48 +695,48 @@ content = 4d093df519910dcb66bd4cba30f8ddf6bd8b179b41f69cf9a8966dcc1c01d1dc
 
 [webd]
 title = Serveur web
-version = 1.0.7
+version = 1.0.9
 category = Internet
 author = Korin OS
 summary = Le serveur web de Korin (webd) : sites, liaisons http et https, certificats, et son volet dans Réglages
-size = 4421854
-installed = 11438672
-sha256 = 4f452a4bcbe7d920b5dab21b18f307c6c66ed70bdfd3f09ac14ef83ee53bda60
-file = pkgs/webd-1.0.7.opk
+size = 4425625
+installed = 11441312
+sha256 = e4879af7faa2d54f18fc31ad0205080f231ad0b05a441d7ba7bd9427044dac9e
+file = pkgs/webd-1.0.9.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = ba59877b34d88744d65312e460c29e62634fcae9d0eb932a411c3517282a3055
+content = 579f96f1b343d9c03c909c7a53f51c6b8171e5b2e60c87307cab8dc469164a19
 
 [smbd]
 title = Partage de fichiers (SMB)
-version = 1.0.7
+version = 1.0.8
 category = Internet
 author = Korin OS
 summary = Partage des dossiers de Korin avec Windows, macOS et Linux (SMB 2 et 3) : le serveur smbd et le volet Partages de Réglages
-size = 389271
-installed = 781064
-sha256 = 0c618a9df1406a84204017e395cc0d79e55eb4fe530030f8121831e0cd6df0b7
-file = pkgs/smbd-1.0.7.opk
+size = 391711
+installed = 783032
+sha256 = f5ba410777cb6d7d27445d1aff37f100c0436e398a184d01eba5c50df6d1300a
+file = pkgs/smbd-1.0.8.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = abbe00f72f244a9ded8a32ece9a30d41e4882fa84f05b9a081019e35c1ec0163
+content = d558ddbf43fe0f2a4e5fe4ba2217bc3f90951861ef25dd96dcb9870193406400
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.112
+version = 2026.11.122
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 34263289
-installed = 101663916
-sha256 = c3176bd6198a9284fe454d74ff3549d08db4395a30ace3c023348f16b1efc6d3
-file = pkgs/pc-2026.11.112.opk
+size = 39366325
+installed = 111205745
+sha256 = 819273d2ff8d554e23adea05b81cfb175144ac4baa9387938112be9426ba706d
+file = pkgs/pc-2026.11.122.opk
 needs = 
 required = 1
 restart = 1
-content = aac8d7b05ef913c0ab485aa6764316050148330e60eaf897b8c8dd462ba48939
+content = 49fe93ec0e4f666193b4251d33999f6b855ea9c5f0b33adfc23c2a6ee30749d2
 
 [2048]
 title = 2048
@@ -769,18 +770,18 @@ content = c97b00ab2c25f2682008e94fa8663bac3106866f2e35911bed4362f463e49ea5
 
 [archiver]
 title = Archiveur
-version = 1.0.8
+version = 1.0.9
 category = Accessoires
 author = Korin OS
 summary = 
-size = 137379
-installed = 281060
-sha256 = 54317f911448e365aff8d4f4deff3d11144d85ac6b9982b151db1c26171a562b
-file = pkgs/archiver-1.0.8.opk
+size = 141103
+installed = 289252
+sha256 = ab10006612f318e3fffbab28674df36ea337991736c968b6485718d96f72425a
+file = pkgs/archiver-1.0.9.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 0dede6a2ee062538e7694cf1d70973be2b5933134dd52826966e75dd368fce70
+content = 4f2b2b33c0f0819284ff992fc51919492c14e8064132c613dfa61946264de2e1
 
 [arkanoid]
 title = Arkanoid
@@ -874,18 +875,18 @@ content = cbf457bb91d6ca168fea9c5bd3578c80bebb29fa5a7a058a42962eabc65a2f92
 
 [calendar]
 title = Calendrier
-version = 1.0.13
+version = 1.0.14
 category = Bureautique
 author = Korin OS
 summary = L'agenda d'Onyx
-size = 202624
-installed = 420622
-sha256 = dd129c72b0e61e34238fee60651b14910a4f98e44832232e4d0e31005e521994
-file = pkgs/calendar-1.0.13.opk
+size = 206079
+installed = 425006
+sha256 = ee6dcd65accb92783618c0102ff7c7122f1bc27e09f091e13890700b8f4d6b8b
+file = pkgs/calendar-1.0.14.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 0af0bee9666cbb406ca794f44d40d55225a9735ce535f01891b9de33e2c3469c
+content = 0995003d5ff2ff00dbbfa55f045b1af604fdb22854c9824006d4d67548fa08e8
 
 [cardfile]
 title = Cardfile
@@ -919,18 +920,18 @@ content = dcdc0ebfdf279faedb6275d9897521e243238d117c2564c9efcc7aefc056bbb3
 
 [clock]
 title = Horloge
-version = 1.0.12
+version = 1.0.13
 category = Accessoires
 author = Korin OS
 summary = 
-size = 135884
-installed = 273631
-sha256 = 7b857d948861b7afbc7e329e5bf04d32f1f87044a7c1406bbb9fa4a33ff3ef8a
-file = pkgs/clock-1.0.12.opk
+size = 138967
+installed = 277727
+sha256 = 1b0d4ab81635f815f00345cb37acd0c4530b8ed4aa7a8716b96ba8ef56004a75
+file = pkgs/clock-1.0.13.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 65ff1e6a053a9c37205bc45955c9373f02acd1a34cabaf9735bf96f35dcd1666
+content = 4b3d41027a208cf9562a487a8449cff9ba223631c3a9c96df789d67be71844e6
 
 [cosmozoom]
 title = Cosmo Zoom!
@@ -1204,33 +1205,33 @@ content = 9dcc6ae967cf3770ce2c99171be88fcde48a3415e593ca9e6fbeae8163173869
 
 [koton]
 title = Koton
-version = 1.0.12
+version = 1.0.13
 category = Musique
 author = Korin OS
 summary = Le studio de musique
-size = 2116239
-installed = 4146775
-sha256 = 9621f597dc5da3dbb413fe1d48cf0e7b3321d1a5a69b335cb24f34f038f601f1
-file = pkgs/koton-1.0.12.opk
+size = 2168024
+installed = 4241143
+sha256 = 8dcb52abb8843f578507f10e970bd8bff5a997b5c0deab238093a17f84f1561b
+file = pkgs/koton-1.0.13.opk
 needs = llm, abi >= 626
 required = 0
 restart = 0
-content = becc3396c8a3a07b388ef22720b77a42c86388cf38417e3c7facc898e26d1732
+content = 3f465c6d834001dfedc8e7fcc127d2e71d9e934dea7baf1f066627a64295ef34
 
 [letters]
 title = Letters
-version = 1.0.10
+version = 1.0.11
 category = Bureautique
 author = Korin OS
 summary = Le traitement de texte
-size = 513022
-installed = 1006990
-sha256 = 3d4576e180d98e7f4df1d3957356419bc374ad1b8d02142ad58510bfd3333682
-file = pkgs/letters-1.0.10.opk
+size = 515378
+installed = 1011086
+sha256 = e779cbcefd7b60c4ea1f5721be8ca949284d986ca883459b4ec0187c352f067e
+file = pkgs/letters-1.0.11.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 62bf12f98c8dc0cf05b95a6396e19b9962a1c8b512e719c3c790a745434edfd3
+content = 48e09f58cce6696bf475bd7d84039429b6127f6ec1efe426d8c2fa58ceb4fbb8
 
 [mail]
 title = Mail
@@ -1354,18 +1355,18 @@ content = 52550276bc8003f56a7eac40b5f9c15cd58414090a8cfeb4d8159cdf397da570
 
 [notes]
 title = Notes
-version = 1.0.13
+version = 1.0.15
 category = Bureautique
 author = Korin OS
 summary = Les notes
-size = 183880
-installed = 390060
-sha256 = e4c63c5097e47fa67e240f3839f1ded22e270851ceb6db275ae1b1763e6614a7
-file = pkgs/notes-1.0.13.opk
+size = 188520
+installed = 398780
+sha256 = 71157294c83dfb1c978b014e4e2a1849ba9e772905c745ad1aecd25f15a8f485
+file = pkgs/notes-1.0.15.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = e9e3123397377b78c5ca523e45af5f7628f536026aa41125c408bae973c7d7b9
+content = 774ba6d1bd118034c19e3267b6d4bbea567682195fd65a368b7283817e2464e2
 
 [paint]
 title = Dessin
@@ -1474,48 +1475,48 @@ content = c0ba17436c61c5ac7751be072f5f0f9715a189e613c8d861c0351281757741b4
 
 [pocketqi]
 title = PocketQI
-version = 1.0.8
+version = 1.0.9
 category = Accessoires
 author = Korin OS
 summary = 
-size = 2432671
-installed = 6146153
-sha256 = 5ebdd483ebc4c0df7d66e133737fbc1e68e2ae3246718ffe33a1e3d5972092c1
-file = pkgs/pocketqi-1.0.8.opk
+size = 2437555
+installed = 6154345
+sha256 = 90a4a711935164d6c10f8bba1ee8a30fd88c652e80ac4eadfab83e9f54031437
+file = pkgs/pocketqi-1.0.9.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = f9ac4b98c87ee716bf3e6f28cdc5b1e568814b5b860c6a328d168a741989ef26
+content = 16cb9e42acd8f842d70862b46f3ea85bc016fb3cf1d8bbfefee8186f4c47d898
 
 [qbasic]
 title = QBasic
-version = 1.0.9
-category = Développement
-author = Korin OS
-summary = 
-size = 284177
-installed = 603024
-sha256 = 2d2476f1b340c6aaedc32dff28edd02184cf65ae60f9b71ffa36a3b2559ea7bd
-file = pkgs/qbasic-1.0.9.opk
-needs = abi >= 626
-required = 0
-restart = 0
-content = 990e3bf2a93f0c8b735442e0c79a97810fe1e05d8dbed46049db8ad4a260866a
-
-[qbstudio]
-title = QBStudio
 version = 1.0.10
 category = Développement
 author = Korin OS
 summary = 
-size = 365169
-installed = 755327
-sha256 = 7d09ce7856d1c7a6f62379a79ffef125457cd4513d5851dcca85860dcdde968a
-file = pkgs/qbstudio-1.0.10.opk
+size = 286449
+installed = 607120
+sha256 = bdb9f4a69c24369c66d5f3d23e861e6e300f67e2703ae1bd2891ce16d91b723e
+file = pkgs/qbasic-1.0.10.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 3499e11e48c3294e512570da8f6b6d8cfcada47be1a4fa41aecb41522ad470bd
+content = a619e74fbcfe387a98c20252eeacfaabeb3db9b7b1aae884ceaae98690fe80b7
+
+[qbstudio]
+title = QBStudio
+version = 1.0.11
+category = Développement
+author = Korin OS
+summary = 
+size = 367792
+installed = 763519
+sha256 = 913956b1aada71a0047e12748dd94e98e123918119eaf7de8a7ba3c16b0c5923
+file = pkgs/qbstudio-1.0.11.opk
+needs = abi >= 626
+required = 0
+restart = 0
+content = 5cf6f9464866030c0a15029706791ccc1cc91540f113fbd0358f4733b1e66a9e
 
 [recorder]
 title = Magnéto
@@ -2913,3 +2914,18 @@ required = 0
 restart = 0
 replaces = musescore-data-2
 content = e1e556c24685c18d0da25f310cade97f13f8f3e23e7aad4d91314502e43f903d
+
+[agent-skills]
+title = Compétences des agents
+version = 1.0.0
+category = Développement
+author = Korin OS
+summary = Ce que les agents de code (Mistral Vibe, MAI, claude-acp, le copilote de KorinStudio) savent de Korin : les compétences (système, langages, kits, apps, jeux) et leurs consignes
+size = 390269
+installed = 912598
+sha256 = 14d5d009b59a73b0376300d17e6667a7c7d952f8b9f998139c131e563ac514fc
+file = pkgs/agent-skills-1.0.0.opk
+needs = pc, abi >= 629
+required = 0
+restart = 0
+content = 63f1e0bba030ee5a6f999ffa381718a5fe391ddc090358fb878b465c625e21c5
