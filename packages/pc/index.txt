@@ -5,7 +5,7 @@ date = 2026-11-26 11:12
 abi = 632
 packages = 117
 board = pc
-serial = 15
+serial = 16
 
 [avdemo]
 title = Avalonia
@@ -725,18 +725,18 @@ content = abbe00f72f244a9ded8a32ece9a30d41e4882fa84f05b9a081019e35c1ec0163
 
 [pc]
 title = Système Korin OS pour PC
-version = 2026.11.115
+version = 2026.11.116
 category = Système
 author = Korin OS
 summary = Le noyau, l'initrd, le chargeur, les services, les kits, Elegant, les commandes de /bin et les apps de base
-size = 34328736
-installed = 101793180
-sha256 = ff66a71b91217975725a02a33bfd5ed658cea7afe4bb45baa15514461f660104
-file = pkgs/pc-2026.11.115.opk
+size = 34359044
+installed = 101862989
+sha256 = 0d99b9bb627ad3e65e996903f689c2e564128097a47560bcaf15f1b4e1230ecf
+file = pkgs/pc-2026.11.116.opk
 needs = 
 required = 1
 restart = 1
-content = 6800387d811895bbbfc69017440ffc3940a5c9c3f26e2eb5f26f122706a2e159
+content = e30d8192f1037e163ec26d97c0007bb3876f2aaa7c93e2cb60b9c14420c0e6be
 
 [2048]
 title = 2048
