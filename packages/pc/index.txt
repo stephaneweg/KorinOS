@@ -5,7 +5,7 @@ date = 2026-11-26 01:38
 abi = 632
 packages = 117
 board = pc
-serial = 6
+serial = 7
 
 [avdemo]
 title = Avalonia
@@ -1475,18 +1475,18 @@ content = c0ba17436c61c5ac7751be072f5f0f9715a189e613c8d861c0351281757741b4
 
 [pocketqi]
 title = PocketQI
-version = 1.0.8
+version = 1.0.9
 category = Accessoires
 author = Korin OS
 summary = 
-size = 2432671
-installed = 6146153
-sha256 = 5ebdd483ebc4c0df7d66e133737fbc1e68e2ae3246718ffe33a1e3d5972092c1
-file = pkgs/pocketqi-1.0.8.opk
+size = 2437555
+installed = 6154345
+sha256 = 90a4a711935164d6c10f8bba1ee8a30fd88c652e80ac4eadfab83e9f54031437
+file = pkgs/pocketqi-1.0.9.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = f9ac4b98c87ee716bf3e6f28cdc5b1e568814b5b860c6a328d168a741989ef26
+content = 16cb9e42acd8f842d70862b46f3ea85bc016fb3cf1d8bbfefee8186f4c47d898
 
 [qbasic]
 title = QBasic
