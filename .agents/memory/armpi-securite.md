@@ -118,3 +118,12 @@ connexion : bouton d'extinction (07847e9) ; pkg sans sudo (c6974e4). À publier 
 service vers vfs dépasse 30 s (keyvault : renommage de /var/keyvault/0.db, errno 116 = ETIMEDOUT ; smbd sans
 partages) : surcharge de fatfs au démarrage supposée, pas un interblocage prouvé. /bin/bash n'existe pas sur le PC
 (scripts d'essai : /bin/sh).
+**26/11 soir, E11, E49, E65, E52, E47, E58-E60 (non publiés)** : E11 refus effectif (ktest 59/0, Jet, Godot, linuxhost
+sans remplacement) ; E49 usbd/hwmanager (HW_PID_TAG) ; E65 supplicant (tools/pc/iwltest 228/0 ; PMF pas annoncé) ;
+E52 osinstall par pkg --root -r /packages/pc (essai : paquet altéré refusé ; une clé sans /bin/pkg n'installe rien).
+Jet reconstruit DANS LE CLOUD sans WebKit complet : SDK de la Release (jet-sdk-1.4.8-{1,2,3}.zip) déballé,
+/devtools/jet-sdk -> ce dossier, objets recompilés par la commande de commands.txt avec x86_64-onyx-elf-g++
+-isystem build/pc/posix/include (scripts du scratchpad : jetcc.sh, jetobj.sh, jetlink.sh ; liaison avec
+SPECS=-specs=build/pc/posix/lib/posix.specs) ; changements de WebKit gardés dans tools/webkit/patches/0017. QEMU (sans
+GPU) n'exerce pas la surface partagée : E47 à voir sur le ZBook. Restent : E60 (cdmhost par l'UI, module épinglé),
+étape 4 d'E47 (-1 refusé, après publication de Jet), publication (pc, apps, jet 1.4.9, pkgman pour pkglib).
