@@ -154,7 +154,8 @@ long uk_conf_path(const char *name, long write)
 /* ui_elevate : x0 = raison (« Logiciels veut installer Tetris ») -> 0 : ce programme est passé en uid 0,
  * après la carte de confirmation d'authd (/sys/authcard : le mot de passe de l'utilisateur, ou Autoriser ;
  * docs/etude/MULTI-UTILISATEUR.md §2.6) ; E_CANCELED (-125) : refusé ; E_PERM : le compte n'est pas dans
- * /etc/elevate.ini ; E_BUSY : une autre carte est ouverte. Déjà en uid 0, ou un noyau sans uid (le Pi) : 0.
+ * /etc/elevate.ini ; E_BUSY : une autre carte est ouverte ; E_NOSYS : pas d'authd. Déjà en uid 0, ou un noyau
+ * sans uid (le Pi) : 0.
  * Le programme revient à son uid par SYS_SETUID quand il a fini. */
 long ui_elevate(long reason)
 {
@@ -163,7 +164,8 @@ long ui_elevate(long reason)
 		return 0;
 	long ch = SYS2(SYS_SVC_OPEN, S("auth"), 3000);
 	if (ch < 0)
-		return 0; /* (pas d'authd : rien à élever ; vfs reste seul juge, et ne refuse rien en mode journal) */
+		return -38; /* E_NOSYS : un compte sans authd ne peut pas s'élever ; le dire, plutôt que de laisser
+			       l'appelant écrire en croyant être en uid 0 (E72) */
 	long op = 5; /* AUTH_ELEVATE, puis AUTH_WAIT (7) tant qu'authd rend E_AGAIN (-11) */
 	for (;;) {
 		for (int i = 0; i < 64; i++)
@@ -197,7 +199,7 @@ long ui_elevate_system(long reason, long ask)
 		return 0;
 	long ch = SYS2(SYS_SVC_OPEN, S("auth"), 3000);
 	if (ch < 0)
-		return 0;
+		return -38; /* (E_NOSYS : comme ui_elevate) */
 	long op = 5;
 	for (;;) {
 		for (int i = 0; i < 64; i++)
