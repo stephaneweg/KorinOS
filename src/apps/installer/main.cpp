@@ -524,7 +524,8 @@ static void utilise_maj ()
 {
 	bool r = ui_w_get_value (g_ur[1]) != 0, h = ui_w_get_value (g_ur[2]) != 0;
 	int sp = disque_sel (); bool petit = sp >= 0 && g_p[sp].last - g_p[sp].first + 1 < MIN_KORIN;
-	ui_w_show (g_ufs_root, r && !petit); ui_w_show (g_ufs_home, h);
+	(void) petit;	// (le système de fichiers ne se choisit plus : ext4, décision du 25/11/2026)
+	ui_w_show (g_ufs_root, false); ui_w_show (g_ufs_home, false);
 	int s = disque_sel ();
 	char n[120], z[240] = "";
 	if (s >= 0 && (r || h))
@@ -566,7 +567,8 @@ static void disque_utilise ()
 	long r = ui_dialog_run (d, (long) utilise_fn, 0);
 	int role = ui_w_get_value (g_ur[1]) ? R_ROOT : ui_w_get_value (g_ur[2]) ? R_HOME : R_NONE;
 	long vr = ui_w_get_value (g_ufs_root);
-	int fs = role == R_ROOT ? (vr == 1 ? FS_EXFAT : vr == 2 ? FS_EXT4 : FS_FAT32) : (ui_w_get_value (g_ufs_home) == 1 ? FS_EXT4 : FS_EXFAT);
+	(void) vr;
+	int fs = FS_EXT4;	// (/ et /home toujours en ext4 ; FAT32 et exFAT : disques amovibles seulement, décision du 25/11/2026)
 	ui_dialog_end (d);
 	ui_w_draw (0);
 	if (r != 1) return;
@@ -581,8 +583,8 @@ static Part g_choix; static bool g_efi_neuve; static u64 g_place;	// place utile
 
 // ---- 3 Mes fichiers ----------------------------------------------------------------------------------------------
 static long g_hview, g_hslider, g_htext, g_hbornes, g_hnote, g_hfsl, g_hexfat, g_hext4, g_hext4n, g_hrootl, g_hroot, g_hrootn;
-static bool g_ext4;
-static int g_rootfs;	// le système de fichiers de / : FS_FAT32 (conseillé), FS_EXFAT, FS_EXT4
+static bool g_ext4 = true;	// /home en ext4, et / aussi (décision du 25/11/2026 : FAT32 et exFAT, disques amovibles seulement)
+static int g_rootfs = FS_EXT4;
 static long g_home_go;
 static const long SYS_GO = 10;
 static long home_max () { long m = (long) (g_place / GIB) - SYS_GO; return m < 0 ? 0 : m; }
@@ -617,10 +619,9 @@ static void home_montre ()
 	long sys = (long) (g_place / GIB) - g_home_go;
 	if (g_home_go) snprintf (t, sizeof t, TR ("/ %ld Go · /home %ld Go (%s)"), sys, g_home_go, g_ext4 ? "ext4" : "exFAT"); else snprintf (t, sizeof t, TR ("/home dans le système (%ld Go)"), sys);
 	ui_w_set_text (g_status, (long) t); ui_w_draw (g_status);
-	bool fs = g_home_go > 0;	// (le choix du système de fichiers : avec une partition /home seulement)
-	ui_w_show (g_hfsl, fs); ui_w_show (g_hexfat, fs); ui_w_show (g_hext4, fs); ui_w_show (g_hext4n, fs && g_ext4);
-	ui_w_set_value (g_hexfat, !g_ext4); ui_w_set_value (g_hext4, g_ext4);
-	ui_w_set_value (g_hroot, g_rootfs); ui_w_show (g_hrootn, g_rootfs == FS_EXT4);
+	// (plus de choix du système de fichiers : ext4 pour / et /home)
+	ui_w_show (g_hfsl, false); ui_w_show (g_hexfat, false); ui_w_show (g_hext4, false); ui_w_show (g_hext4n, true);
+	ui_w_show (g_hrootl, false); ui_w_show (g_hroot, false); ui_w_show (g_hrootn, false);
 	ui_w_draw (0);
 }
 
@@ -1157,7 +1158,7 @@ static void sview_paint (long, long w, long h)
 	else if (g_choix.genre == G_FREE) snprintf (l[1], 200, TR ("Korin dans %s d'espace libre"), t);
 	else if (g_choix.genre == G_NEW) snprintf (l[1], 200, TR ("Korin dans la nouvelle partition (%s)"), t);
 	else snprintf (l[1], 200, TR ("Korin à la place de %s (%s)"), nom_de (g_choix, n, sizeof n), t);
-	if (ir < 0 && g_rootfs != FS_FAT32) { char z[48]; snprintf (z, sizeof z, " · / %s", FS_NOMS[g_rootfs]); strncat (l[1], z, 199 - strlen (l[1])); }
+	if (ir < 0) { char z[48]; snprintf (z, sizeof z, " · / %s", FS_NOMS[g_rootfs]); strncat (l[1], z, 199 - strlen (l[1])); }
 	if (g_home_go && ir < 0) { char z[64]; snprintf (z, sizeof z, " · %s", TR ("/home %ld Go (%s)")); { char zz[64]; snprintf (zz, sizeof zz, z, g_home_go, g_ext4 ? "ext4" : "exFAT"); cpy (z, zz, sizeof z); } strncat (l[1], z, 199 - strlen (l[1])); }
 	int nc = 0; for (int i = 0; i < g_ncat; i++) if (cat_etat (i, 0)) nc++;
 	snprintf (l[2], 200, nc > 1 ? TR ("%d catégories choisies") : TR ("%d catégorie choisie"), nc);
@@ -1702,7 +1703,7 @@ int main (int, char **)
 	g_hrootl = item (P_HOME, ui_label (X, Y0 + 344, 260, 22, (long) TR ("Système de fichiers de /"), ULB_BOLD));
 	g_hroot = item (P_HOME, ui_segmented (X + 270, Y0 + 338, 0, 0, (long) TR ("FAT32 (conseillé)|exFAT|ext4")));
 	g_hrootn = item (P_HOME, ui_label (X, Y0 + 378, W, 40, (long) TR ("/ en ext4 : pas encore de journal (voir plus haut) ; FAT32 reste le plus éprouvé pour le système."), ULB_WRAP));
-	g_hext4n = item (P_HOME, ui_label (X, Y0 + 292, W, 44, (long) TR ("L'ext4 de Korin n'a pas encore de journal : après une coupure de courant pendant une écriture, le disque peut garder des erreurs que Korin ne sait pas encore réparer."), ULB_WRAP));
+	g_hext4n = item (P_HOME, ui_label (X, Y0 + 204, W, 44, (long) TR ("Le système et /home sont en ext4. L'ext4 de Korin n'a pas encore de journal : après une coupure de courant pendant une écriture, le disque peut garder des erreurs que Korin ne sait pas encore réparer."), ULB_WRAP | ULB_DIM));
 
 	// 4 Internet
 	g_wlist = item (P_NET, ui_list (X, Y0, W, lh - 60, UL_HEADER | UL_NOSORT));

@@ -8,7 +8,8 @@ ne lit plus **aucun** fichier, kits compris (décision de l'utilisateur à l'ét
 `kcharger` de D11).
 
 > **15/11/2026 : arbre unique.** Korin a quitté les chemins à volume (`SD0:/a`, `RAM0:/x`, `USB0:/y`) pour un seul
-> arbre à la Unix : `/` est le volume système, les autres volumes sont montés dans des dossiers (`/tmp`,
+> arbre à la Unix : `/` est le volume système (25/11/2026 : en ext4 sur un PC installé, `/home` aussi ; FAT32 et
+> exFAT sont réservés aux disques amovibles ; la carte du Pi reste en FAT32, que son firmware lit), les autres volumes sont montés dans des dossiers (`/tmp`,
 > `/media/usb0`, `/media/sd1`, `/net/net0`, `/boot`), et le seul alias est `HOME:/`, le dossier personnel (24/11/2026 : plus `PUBLIC:/` et `APPS:/`, section 4.5). La règle
 > du « volume courant » et les chemins virtuels de `/etc/paths.txt` ont disparu. La règle d'aujourd'hui est en
 > section 4.5 ; les journaux d'essais des sections 4 à 6 gardent les noms de leur date.

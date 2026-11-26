@@ -526,6 +526,13 @@ propose **Réinstaller en gardant mes fichiers** (par défaut) ou **Nouvelle ins
   sautée quand `/` est donné ainsi ; une partition EFI doit exister.
 * **ext4 pour `/`** : `root_fs = ext4` ; ext4fs sert alors `/` dès `init.txt` (`vfs / blk.root ext4fs`), le type GPT
   est Linux. L'installateur le propose (Mes fichiers, « Utiliser… »), FAT32 restant conseillé.
+
+**Décision du 25/11/2026.** `/` et `/home` sont toujours en ext4 à l'installation : l'installateur ne propose plus
+de choix (Mes fichiers, « Utiliser… » : ext4, avec la note sur le journal qui manque encore) et osinstall refuse
+`root_fs` ou `home_fs` autre qu'`ext4` (défaut : `ext4`). FAT32 et exFAT sont réservés aux disques amovibles ; la
+partition EFI (`/boot`, les fichiers de démarrage et les emplacements A/B) reste en FAT, que le firmware lit. Une
+réinstallation garde le système de fichiers de KORIN OS et de KORIN HOME (un ancien `/` en FAT32 le reste ; une
+installation neuve le passe en ext4). Pas de chiffrement.
 * **Les logiciels en ligne pendant l'installation** : connecté, l'installateur lit l'index en ligne (`sudo pkg check`
   sur la clé : `/var/pkg/index.txt`, signature vérifiée) ; un paquet choisi vient de la clé si elle l'a dans la même
   version ou plus récente, sinon du dépôt : osinstall lance `pkg --root /media/tgt add NOM` (pkglib : une racine

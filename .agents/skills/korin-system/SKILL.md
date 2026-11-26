@@ -27,14 +27,14 @@ a plus de préfixe de volume (`SD0:`, `RAM0:`, `USB0:`… sont refusés) ; `/x` 
 
 | Dossier | Système de fichiers | Rôle |
 |---|---|---|
-| `/` | FAT32 | le système : `bin`, `apps`, `lib`, `etc`, `sys`, `home`, `devtools` |
+| `/` | ext4 (PC installé) ; FAT32 (carte du Pi, disques d'essai) | le système : `bin`, `apps`, `lib`, `etc`, `sys`, `home`, `devtools` |
 | `/devtools` | (sur `/`) | les outils de développement : `gcc`, `dotnet`, `python` |
-| `/home` | (sur `/`) | le dossier personnel de l'utilisateur, aussi nommé `HOME:/` |
+| `/home` | (sur `/`, ou KORIN HOME en ext4 sur un PC) | le dossier personnel de l'utilisateur, aussi nommé `HOME:/` |
 | `/tmp` | ramfs (1 Go) | temporaire, perdu à l'extinction |
 | `/media/usb0`, `/media/usb1`… | selon la clé | les clés USB, montées au branchement |
 | `/media/sd1` | exFAT | sur le Pi, **les données personnelles de l'utilisateur : ne jamais y écrire, formater ni « réparer »** |
 | `/net/net0`… | smbfs | les partages réseau |
-| `/boot` | FAT32 | la partition de démarrage, montée seulement le temps d'y écrire |
+| `/boot` | FAT32 | la partition de démarrage (sur le PC : la partition EFI, avec `\korin\a`, `\korin\b` et `ab.txt`), montée seulement le temps d'y écrire |
 
 **`HOME:/`** est le dossier personnel de l'utilisateur en cours (aujourd'hui `/home`, plus tard
 `/home/<nom>`) ; deux autres alias : **`PUBLIC:/`** (`/home/public`, partagé) et **`APPS:/`** (`/apps`). Les apps y rangent les documents (`HOME:/documents`…). `getcwd` et `pwd` rendent des chemins

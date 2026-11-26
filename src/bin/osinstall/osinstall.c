@@ -17,9 +17,10 @@
  *   [disk]   device = blk.nvme0 ; mode = beside (à côté de l'existant) | wipe (le disque entier) ;
  *            delete = 3, 4 (beside : les entrées à supprimer d'abord, numéros de la GPT) ;
  *            place = PREMIER-DERNIER (secteurs : la place de Korin, libre après les suppressions ; défaut : le plus
- *            grand espace libre) ; root_fs = fat32 | exfat | ext4 (18/11/2026 : ext4fs sert alors / dès init.txt) ;
- *            home = no | yes ; root_gb = 64 (avec home) ;
- *            home_fs = exfat | ext4 ; boot_mb = 512 (une EFI neuve) ; min_gb = 10 (place exigée)
+ *            grand espace libre) ; root_fs = ext4 (ext4fs sert / dès init.txt) ; home = no | yes ; root_gb = 64
+ *            (avec home) ; home_fs = ext4 ; boot_mb = 512 (une EFI neuve) ; min_gb = 10 (place exigée). / et /home
+ *            sont toujours en ext4 (décision du 25/11/2026 : FAT32 et exFAT sont réservés aux disques amovibles) ;
+ *            la réinstallation garde le système de fichiers de KORIN OS et de KORIN HOME
  *            Des partitions choisies (beside, décision du 17/11/2026 soir) : root_part = 3 (une partition existante,
  *            formatée en root_fs : /) ou root_place = PREMIER-DERNIER (un espace libre, une partition neuve) ;
  *            home_part = 4 ou home_place = PREMIER-DERNIER (/home, formatée en home_fs) ; sans l'un ni l'autre, /home
@@ -46,7 +47,7 @@
  * Le disque (décision du 16/11/2026) : toujours une partition EFI, celle qui existe (gardée, jamais formatée : le
  * chargeur va dans \EFI\Korin, le noyau, l'initrd, local.tar et boot.cfg dans \korin ; rien d'autre n'y est
  * touché), sinon une neuve de boot_mb au début de la place (avec aussi \EFI\BOOT\BOOTX64.EFI) ; puis KORIN OS
- * (/, FAT32 ou exFAT) et KORIN HOME (/home) si demandé. L'EFI est /boot (blk.boot : le volume du chargeur). Étapes (sur la sortie, pour Setup) :
+ * (/, ext4) et KORIN HOME (/home, ext4) si demandé. L'EFI est /boot (blk.boot : le volume du chargeur). Étapes (sur la sortie, pour Setup) :
  *   « S n texte » une étape (1 à 5), « P pourcent texte » la progression, « L texte » le journal,
  *   « X code texte » l'échec (code de sortie 1), « OK » la fin (code 0).
  * Le système installé : / monté par l'alias blk.root (nvme.txt de local.tar, par GUID), /boot à la demande
@@ -1403,19 +1404,19 @@ int main(int argc, char **argv)
 	char dev[32], mode[16], rootfs[16], homefs[16], v[64];
 	ini("disk", "device", "blk.nvme0", dev, sizeof dev);
 	ini("disk", "mode", "beside", mode, sizeof mode);
-	ini("disk", "root_fs", "fat32", rootfs, sizeof rootfs);
-	ini("disk", "home_fs", "exfat", homefs, sizeof homefs);
+	ini("disk", "root_fs", "ext4", rootfs, sizeof rootfs);
+	ini("disk", "home_fs", "ext4", homefs, sizeof homefs);
 	int wipe = str_eq(mode, "wipe"), reinst = str_eq(mode, "reinstall");
 	int home = yes(ini("disk", "home", "no", v, sizeof v));
 	u64 root_gb = parse_dec(ini("disk", "root_gb", "64", v, sizeof v));
 	u64 boot_mb = parse_dec(ini("disk", "boot_mb", "512", v, sizeof v));
 	u64 min_gb = parse_dec(ini("disk", "min_gb", "10", v, sizeof v));
-	if (!str_eq(rootfs, "fat32") && !str_eq(rootfs, "exfat") && !str_eq(rootfs, "ext4"))
-		return fail(E_INVAL, "root_fs : fat32, exfat ou ext4");
+	if (!reinst && !str_eq(rootfs, "ext4")) /* (la réinstallation lit celui de KORIN OS : reinstall_disk) */
+		return fail(E_INVAL, "root_fs : ext4 (FAT32 et exFAT : disques amovibles seulement)");
 	rootsvc[0] = 0;
 	str_cat(rootsvc, svc_of(rootfs));
-	if (home && !str_eq(homefs, "exfat") && !str_eq(homefs, "fat32") && !str_eq(homefs, "ext4"))
-		return fail(E_INVAL, "home_fs : exfat, fat32 ou ext4");
+	if (home && !reinst && !str_eq(homefs, "ext4"))
+		return fail(E_INVAL, "home_fs : ext4 (FAT32 et exFAT : disques amovibles seulement)");
 	char user[32], full[64], host[64], lang[8], keyb[16];
 	ini("user", "name", "user", user, sizeof user);
 	ini("user", "fullname", user, full, sizeof full);

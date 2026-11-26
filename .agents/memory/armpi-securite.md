@@ -79,3 +79,11 @@ HOME:/apps : les deux, « (u) » devant celle de l'utilisateur ; sudo toujours a
 avoir un (osinstall, Réglages, authd) ; oauthd par compte (oauth.<uid>) ; moniteur du noyau seulement dans les builds
 de test ; / et /home en ext4 à l'installation ; préchargement seulement /apps par élévation, images partagées créées
 par le démarrage seul ; K3 pas maintenant ; E34 ACCEPTÉ (tuer/signaler hors de ses process : élévation).
+
+**26/11, faits sur `security-fix`** : A/B sur le PC (docs/etude/MISES-A-JOUR-AB.md §6 : chargeur ab.inc, pkg commit dans
+\korin\a|b avec SHA-256, `pkg bootok` lancé par init2 à l'ouverture de session (rend 3 essais, copie /var/pkg/ab.txt),
+question de secours : `pkg` au terminal, Logiciels par `ui_elevate_system` (uikit.abi version 223, carte d'authd mode
+« system-ask », `pkg --ab-keep`)) ; / et /home en ext4 (osinstall refuse fat32/exfat hors réinstallation,
+l'installateur sans choix, plan-test.ini en ext4 avec un mot de passe). Essais QEMU : abcommit.sh, abseq.sh,
+itest.sh (scratchpad). Restent : E33 (attend le feu vert sur E33-CARTOGRAPHIE.md), préchargement (avec E33), la
+publication des paquets PC dans main (paquets seulement, après tout le reste, demandé par l'utilisateur).
