@@ -682,6 +682,11 @@ global_guid       dd 0x8BE4DF61             ; EFI_GLOBAL_VARIABLE
 partinfo_guid     dd 0x8CF2F62C             ; EFI_PARTITION_INFO_PROTOCOL
                   dw 0xBC9B, 0x4821
                   db 0x80, 0x8D, 0xEC, 0x9E, 0xC4, 0x21, 0xA1, 0xA0
+mor_guid          dd 0xE20939BE             ; MEMORY_ONLY_RESET_CONTROL (TCG, MOR)
+                  dw 0x32D4, 0x41BE
+                  db 0xA1, 0x50, 0x89, 0x7F, 0x85, 0xD4, 0x98, 0x29
+mor_name          du 'MemoryOverwriteRequestControl', 0
+mor_value         dq 1                      ; (SetVariable en lit 1 octet ; dq : les données qui suivent restent alignées)
 
 kernel_path du '\korin\kernel.elf', 0
 initrd_path du '\korin\initrd.tar', 0
@@ -759,6 +764,8 @@ NV_KEY_BYTES = $ - nv_key
 nv_done     db 'done   '
 d_nv_begin  db 'boot: firmware = install : entree Korin OS du firmware', 0
 d_nv_boot   db 'boot: Boot4B4F ecrit', 0
+d_mor_ok    db 'boot: MOR demande (memoire effacee apres un arret brutal)', 0
+d_mor_no    db 'boot: MOR refuse par le firmware', 0
 d_nv_order  db 'boot: BootOrder : Korin OS en tete', 0
 d_nv_done   db 'boot: boot.cfg : firmware = done', 0
 d_nv_cfg    db 'boot: boot.cfg pas recrit (firmware = install reste)', 0
@@ -868,6 +875,7 @@ fw_count        dq 0
 fw_sfs          dq 0
 fw_root         dq 0
 fw_pinfo        dq 0
+fw_bio          dq 0
 fe_file         dq 0
 var_size        dq 0
 var_val         dq 0

@@ -252,3 +252,24 @@ target_find:
         mov     rax, [bootsvc]
         call    qword [rax + BS_FREE_POOL]
 .none:  pleave
+
+; ---------------------------------------------------------------------------
+; mor_set : MemoryOverwriteRequestControl = 1 (TCG, B15 du plan de sécurité, E53) : après un redémarrage brutal, le
+; firmware efface la mémoire avant de lancer quoi que ce soit (une attaque de démarrage à froid ne trouve plus les
+; clés du coffre). Windows fait de même. Sans MOR, ou verrouillé (MorLock) : refusé, rien de plus.
+mor_set:
+        penter
+        lea     rcx, [mor_name]
+        lea     rdx, [mor_guid]
+        mov     r8d, EFI_VAR_NV_BS_RT
+        mov     r9d, 1
+        lea     rax, [mor_value]
+        mov     [rsp + 32], rax
+        mov     rax, [runtime]
+        call    qword [rax + RT_SET_VAR]
+        lea     rsi, [d_mor_ok]
+        test    rax, rax
+        jz      @f
+        lea     rsi, [d_mor_no]
+@@:     call    dbg
+        pleave

@@ -14,7 +14,7 @@
 ;   target = auto                  (la clé d'installation : lancer d'abord un Korin installé qui attend son entrée)
 ;
 ; Le noyau, l'initrd et boot.cfg sont lus sur le volume d'où ce chargeur a démarré (sur le PC : la
-; partition KORIN OS) ; bootmgfw.efi est cherché sur TOUS les volumes (find_windows, en lecture
+; partition KORIN OS) ; bootmgfw.efi est cherché sur tous les volumes non amovibles (find_windows, en lecture
 ; seule), la partition système EFI d'abord.
 ;
 ; « Windows » : LoadImage + StartImage de bootmgfw.efi par un vrai chemin de périphérique (celui du
@@ -320,6 +320,7 @@ launch:
         call    cls
         lea     rdx, [msg_loading]
         call    print
+        call    mor_set                 ; (B15 : le firmware effacera la mémoire après un arrêt brutal)
         call    korin_load
         test    rax, rax
         jz      .out
@@ -843,7 +844,8 @@ connect_blocks:
 
 ; ---------------------------------------------------------------------------
 ; find_windows : cherche \EFI\Microsoft\Boot\bootmgfw.efi sur tous les volumes que le
-; firmware connaît (EFI_SIMPLE_FILE_SYSTEM_PROTOCOL), en lecture seule. Le premier volume
+; firmware connaît (EFI_SIMPLE_FILE_SYSTEM_PROTOCOL), en lecture seule, sauf les supports
+; amovibles (BlockIo RemovableMedia : une clé USB ne contourne pas le verrou du firmware). Le premier volume
 ; qui l'a et qui est une partition système EFI (EFI_PARTITION_INFO_PROTOCOL.System = 1)
 ; gagne ; sinon le premier volume qui l'a (firmware sans PartitionInfo). win_device = son
 ; handle (0 : rien), has_windows = 1 s'il y en a un.
@@ -896,7 +898,18 @@ find_windows:
         call    qword [rcx + FP_CLOSE]
         test    r14, r14
         jnz     .next
-        lea     rsi, [d_win_vol]
+        mov     rcx, rbx                ; un support amovible (clé USB) : ignoré, le verrou de démarrage
+        lea     rdx, [blockio_guid]     ; USB du firmware tient (B13, E53)
+        lea     r8, [fw_bio]
+        mov     rax, [bootsvc]
+        call    qword [rax + BS_HANDLE_PROTO]
+        test    rax, rax
+        jnz     @f                      ; (sans BlockIo : gardé)
+        mov     rax, [fw_bio]
+        mov     rax, [rax + 8]          ; EFI_BLOCK_IO_PROTOCOL.Media
+        cmp     byte [rax + 4], 0       ; EFI_BLOCK_IO_MEDIA.RemovableMedia
+        jne     .next
+@@:     lea     rsi, [d_win_vol]
         call    dbg_str
         mov     rax, r12
         call    dbg_num

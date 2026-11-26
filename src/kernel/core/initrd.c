@@ -96,7 +96,11 @@ int initrd_find(const char *name, const void **data, uint64_t *size)
 			return 0;
 		}
 	struct find_ctx f = {name, data, size};
-	return walk(&local, find_cb, &f) || walk(&initrd, find_cb, &f) ? 0 : -1;
+	/* local.tar ne remplace que des fichiers texte (B2, E53 : init.txt, nvme.txt ; ses écrivains sont osinstall et
+	   installkey.py) : un programme ou un kit vient toujours de l'initrd, qui vient des paquets signés */
+	uint64_t l = strlen(name);
+	int text = l > 4 && !strcmp(name + l - 4, ".txt");
+	return (text && walk(&local, find_cb, &f)) || walk(&initrd, find_cb, &f) ? 0 : -1;
 }
 
 static int list_cb(const char *n, const void *d, uint64_t s, void *c)
