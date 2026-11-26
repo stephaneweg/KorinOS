@@ -1,11 +1,11 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-26 19:38
+date = 2026-11-26 19:39
 abi = 632
 packages = 117
 board = pc
-serial = 35
+serial = 36
 
 [avdemo]
 title = Avalonia
@@ -545,18 +545,18 @@ content = 4a62f5b65e76b629ed9b38197e4b13cefd661b379360c0c35ad7d50d0e65c422
 
 [vibe]
 title = Mistral Vibe
-version = 1.0.10
+version = 1.0.11
 category = Développement
 author = Korin OS
 summary = L'agent de code de Mistral : l'app Vibe, le client terminal agent, vibe-acp, et ses compétences de Korin (apps en C, C#, FreeBASIC, diagnostic)
-size = 554397
-installed = 1207802
-sha256 = 41b56084e1ac5d41b5bf810c10b24d86dae0936ddb3fda54b78e80636617f690
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vibe-1.0.10.opk
-needs = python, bash, git, rg, abi >= 626
+size = 326712
+installed = 648125
+sha256 = e645248c33c1118d983cc8485f43dad1d1e80c45d363656cefb0ea678d53feba
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-vibe-1.0.11.opk
+needs = python, bash, git, rg, agent-skills, abi >= 626
 required = 0
 restart = 0
-content = 5d32dc18f615534fcc1ebbffab6f0e7f30cd518761147166f9c29d5cf2f1e131
+content = 76249a35846ffbdbb3960da0ed1dd990006584b89bb50267cff254b1171232de
 
 [bash]
 title = GNU bash
