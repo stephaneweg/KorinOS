@@ -5,7 +5,7 @@ date = 2026-11-26 01:38
 abi = 632
 packages = 117
 board = pc
-serial = 3
+serial = 4
 
 [avdemo]
 title = Avalonia
@@ -770,18 +770,18 @@ content = c97b00ab2c25f2682008e94fa8663bac3106866f2e35911bed4362f463e49ea5
 
 [archiver]
 title = Archiveur
-version = 1.0.8
+version = 1.0.9
 category = Accessoires
 author = Korin OS
 summary = 
-size = 137379
-installed = 281060
-sha256 = 54317f911448e365aff8d4f4deff3d11144d85ac6b9982b151db1c26171a562b
-file = pkgs/archiver-1.0.8.opk
+size = 141103
+installed = 289252
+sha256 = ab10006612f318e3fffbab28674df36ea337991736c968b6485718d96f72425a
+file = pkgs/archiver-1.0.9.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 0dede6a2ee062538e7694cf1d70973be2b5933134dd52826966e75dd368fce70
+content = 4f2b2b33c0f0819284ff992fc51919492c14e8064132c613dfa61946264de2e1
 
 [arkanoid]
 title = Arkanoid
