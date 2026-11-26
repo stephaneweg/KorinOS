@@ -7,7 +7,8 @@
 #     bin/vibe-account                les comptes de fournisseurs et le modèle (tools/vibe/vibe_account.py)
 #     bin/agent                       le client terminal de Vibe (ARCH=x86_64 sh tools/agent/build.sh)
 #     apps/vibe.app/                  l'app Vibe (sh tools/pc/apps.sh vibe), avec son icône
-#     .vibe/                          AGENTS.md et les compétences de Korin (tools/vibe/home.py) ; ni .env ni
+#     res/agents/                     AGENTS.md et les compétences de Korin, pour tous les agents (tools/agents/home.py, paquet
+#                                     agent-skills) ; plus de .vibe/ ; ni .env ni
 #                                     config.toml : ils sont à l'utilisateur
 #   TESTS=1 : Lib/test et les modules d'essai (build/pc/python/tests), les scripts d'essai dans home/pytest.
 #
@@ -51,7 +52,7 @@ if [ -f "$C/main" ]; then
 else
 	echo "sysroot_python : pas de mai.app (sh tools/pc/apps.sh mai)"
 fi
-python3 -I tools/vibe/home.py "$OUT"
+python3 -I tools/agents/home.py "$OUT"
 if [ -n "$TESTS" ] && [ -d build/pc/python/tests ]; then
 	L=$OUT/python/lib/python3.14
 	cp -r build/pc/python/tests/test "$L/"

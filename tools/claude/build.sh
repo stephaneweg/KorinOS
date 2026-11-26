@@ -4,13 +4,13 @@
 # tools/python/site-packages.sh (qui l'appelle a sa fin), ou seul sur un arbre deja fait :
 #     bash tools/claude/build.sh                      le Pi (build/python/sdroot)
 #     ARCH=x86_64 bash tools/claude/build.sh          Korin PC (build/pc/python/sdroot)
-#     DEST=dossier bash tools/claude/build.sh         un autre arbre (sa racine : bin/, python/, .claude-acp/)
+#     DEST=dossier bash tools/claude/build.sh         un autre arbre (sa racine : bin/, python/)
 # Pose dans l'arbre (recopie sur la carte par build.ps1, dans celui du PC par tools/pc/sysroot_python.sh) :
 #   python/lib/python3.14/site-packages/   le SDK anthropic et ce qui manquait de ses dependances (docstring-parser,
 #                                          sniffio), le jiter de Korin en Python pur (tools/claude/jiter, a la place
 #                                          du module Rust), et claude_acp (tools/claude/claude_acp)
 #   bin/claude-acp                         la commande (#!/bin/python3)
-#   .claude-acp/                           AGENTS.md et les competences (tools/claude/home.py) ; ni .env (la cle de
+#   (AGENTS.md et les competences : /res/agents, paquet agent-skills, tools/agents/home.py, depuis le 26/11/2026) ; ni .env (la cle de
 #                                          l'utilisateur) ni config.toml, ni sessions/
 # Rien de natif : les memes fichiers pour les deux machines. Les autres dependances du SDK (httpx2, anyio, pydantic,
 # opentelemetry-api, typing-extensions) sont celles de Vibe, deja dans site-packages.
@@ -56,5 +56,4 @@ for p in anthropic docstring_parser sniffio claude_acp jiter; do
 done
 printf '#!/bin/python3\nimport os, sys\n# (unixtools : /devtools/bin devant /bin pour les commandes de l agent, BusyBox)\nif os.path.isfile("/devtools/bin/busybox") and "/devtools/bin" not in os.environ.get("PATH", "").split(":"):\n    os.environ["PATH"] = "/devtools/bin:" + os.environ.get("PATH", "/bin:/sbin")\nfrom claude_acp.main import main\nsys.exit(main())\n' > "$D/bin/claude-acp"
 chmod +x "$D/bin/claude-acp"
-"$BUILD_PYTHON" -I "$ROOT/tools/claude/home.py" "$D"
-du -sh "$SP/anthropic" "$SP/claude_acp" "$D/.claude-acp"
+du -sh "$SP/anthropic" "$SP/claude_acp"

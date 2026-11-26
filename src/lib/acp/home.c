@@ -4,14 +4,18 @@
  * Vibe garde ses comptes, ses séances et ses journaux dans $VIBE_HOME (défaut ~/.local/vibe), claude-acp dans
  * $CLAUDE_ACP_HOME (défaut ~/.local/claude-acp), mai-acp dans $MAI_ACP_HOME (défaut ~/.local/mai-acp) : un dossier par
  * compte, sous ~/.local/<app> comme les données des autres apps (docs/etude/MULTI-UTILISATEUR.md, question 4, 18/11 ;
- * ~/.vibe, ~/.claude-acp et ~/.mai-acp, les places d'avant, sont ignorées : rien n'y est repris). Les paquets vibe,
- * claude et mai posent dans /.vibe, /.claude-acp et /.mai-acp ce que l'agent sait de Korin : AGENTS.md et skills/
- * (la compétence d'une app vient avec elle, /apps/<app>.app/SKILL.md : VIBE_SKILL_PATHS plus bas). Quand le dossier
- * du compte n'est pas celui-là :
- *   - chaque compétence de skills/ y est recopiée quand elle manque ou que celle du paquet est plus récente
- *     (SKILL.md fait foi) ; AGENTS.md seulement s'il manque (il est à l'utilisateur une fois posé) ;
- *   - ce qu'un compte avait laissé dans /.vibe avant les comptes (.env et la clé, config.toml, séances, journaux,
- *     korin-app.txt...) y est déplacé au premier lancement, comme Jet le fait pour /home/jet.
+ * ~/.vibe, ~/.claude-acp et ~/.mai-acp, les places d'avant, sont ignorées : rien n'y est repris).
+ * Ce que l'agent sait de Korin est au système (décision du 26/11/2026, paquet agent-skills, tools/agents/home.py) :
+ * /res/agents/skills, les compétences communes, lues là par l'agent (VIBE_SKILL_PATHS plus bas pour Vibe ;
+ * claude_acp/agent.py pour claude-acp et mai-acp) et plus recopiées dans le compte -- seul l'uid 0 écrit dans /res,
+ * un programme du compte ne peut plus y glisser une consigne ; /res/agents/<agent>/AGENTS.md, copié dans le dossier
+ * du compte s'il y manque (il est à l'utilisateur une fois posé). La compétence d'une app vient avec elle
+ * (/apps/<app>.app/SKILL.md). Une fois par compte :
+ *   - les copies des compétences du système que libacp posait avant dans le compte sont retirées (sinon une copie
+ *     ancienne, ou changée par un programme, passerait avant celle du système) ; les compétences de l'utilisateur,
+ *     d'autres noms, restent ;
+ *   - ce qu'un compte avait laissé dans /.vibe (/.claude-acp, /.mai-acp) avant les comptes (.env et la clé,
+ *     config.toml, séances, journaux, korin-app.txt...) y est déplacé, comme Jet le fait pour /home/jet.
  */
 #include "acp.h"
 
@@ -30,12 +34,6 @@ static int is_dir (const char *p)
 {
 	struct stat st;
 	return stat (p, &st) == 0 && S_ISDIR (st.st_mode);
-}
-
-static long long mtime_of (const char *p)
-{
-	struct stat st;
-	return stat (p, &st) == 0 ? (long long) st.st_mtime : -1;
 }
 
 static int copy_file (const char *from, const char *to)
@@ -64,54 +62,42 @@ static int copy_file (const char *from, const char *to)
 	return r;
 }
 
-/* from -> to, les sous-dossiers compris ; les fichiers de to sont remplacés, ceux qu'il a de plus restent */
-static void copy_tree (const char *from, const char *to)
+/* (le dossier d'un compte, une fois) les copies des compétences du système (res/<nom>) retirées de home/skills */
+static void rm_tree (const char *p)
 {
-	mkdir (to, 0755);
-	DIR *d = opendir (from);
+	DIR *d = opendir (p);
 	if (!d)
+	{
+		unlink (p);
 		return;
+	}
 	struct dirent *e;
 	while ((e = readdir (d)) != 0)
 	{
 		if (!strcmp (e->d_name, ".") || !strcmp (e->d_name, ".."))
 			continue;
-		char a[1024], b[1024];
-		snprintf (a, sizeof a, "%s/%s", from, e->d_name);
-		snprintf (b, sizeof b, "%s/%s", to, e->d_name);
-		if (is_dir (a))
-			copy_tree (a, b);
-		else
-			copy_file (a, b);
+		char a[1024];
+		snprintf (a, sizeof a, "%s/%s", p, e->d_name);
+		rm_tree (a);
 	}
 	closedir (d);
+	rmdir (p);
 }
 
-/* les compétences du paquet (sys/skills/<nom>) dans le dossier du compte, quand elles manquent ou ont changé */
-static void sync_skills (const char *sys, const char *home)
+static void drop_system_copies (const char *res, const char *home)
 {
-	char from[600], to[600];
-	snprintf (from, sizeof from, "%s/skills", sys);
-	snprintf (to, sizeof to, "%s/skills", home);
-	DIR *d = opendir (from);
+	DIR *d = opendir (res);
 	if (!d)
 		return;
-	mkdir (to, 0755);
 	struct dirent *e;
 	while ((e = readdir (d)) != 0)
 	{
 		if (e->d_name[0] == '.')
 			continue;
-		char a[900], b[900], sa[1000], sb[1000];
-		snprintf (a, sizeof a, "%s/%s", from, e->d_name);
-		snprintf (b, sizeof b, "%s/%s", to, e->d_name);
-		if (!is_dir (a))
-			continue;
-		snprintf (sa, sizeof sa, "%s/SKILL.md", a);
-		snprintf (sb, sizeof sb, "%s/SKILL.md", b);
-		long long ma = mtime_of (sa), mb = mtime_of (sb);
-		if (ma >= 0 && (mb < 0 || ma > mb))
-			copy_tree (a, b);
+		char b[900];
+		snprintf (b, sizeof b, "%s/skills/%s", home, e->d_name);
+		if (is_dir (b))
+			rm_tree (b);
 	}
 	closedir (d);
 }
@@ -141,7 +127,8 @@ static void move_user_data (const char *sys, const char *home)
 
 int acp_home (int profile, char *out, unsigned long cap)
 {
-	static const char *const NAME[] = { "/.vibe", "/.claude-acp", "/.mai-acp" };		/* (ceux des paquets) */
+	static const char *const NAME[] = { "/.vibe", "/.claude-acp", "/.mai-acp" };		/* (ceux d'avant /res/agents) */
+	static const char *const RES[] = { "/res/agents/vibe", "/res/agents/claude-acp", "/res/agents/mai-acp" };
 	static const char *const LOCAL[] = { "vibe", "claude-acp", "mai-acp" };		/* ~/.local/<nom> */
 	static const char *const VAR[] = { "VIBE_HOME", "CLAUDE_ACP_HOME", "MAI_ACP_HOME" };
 	if (profile < 0 || profile > ACP_PROFILE_MAI)
@@ -168,7 +155,7 @@ int acp_home (int profile, char *out, unsigned long cap)
 	   les dossiers de skill_paths, que cette variable lui donne en plus de son config.toml ; claude-acp et mai-acp
 	   lisent /apps eux-mêmes (claude_acp/agent.py, app_skills) */
 	if (profile == ACP_PROFILE_VIBE)
-		setenv ("VIBE_SKILL_PATHS", "[\"" ACP_SYS_ROOT "/apps\"]", 0);
+		setenv ("VIBE_SKILL_PATHS", "[\"" ACP_SYS_ROOT "/res/agents/skills\", \"" ACP_SYS_ROOT "/apps\"]", 0);
 	if (strcmp (out, sys) != 0 && is_dir (sys))
 	{
 		char mark[700];
@@ -180,12 +167,24 @@ int acp_home (int profile, char *out, unsigned long cap)
 			if (f)
 				fclose (f);
 		}
-		char a[700], b[700];
+	}
+	char res[300], a[700], b[700];
+	snprintf (res, sizeof res, "%s%s", ACP_SYS_ROOT, RES[profile]);
+	snprintf (a, sizeof a, "%s/AGENTS.md", res);
+	if (access (a, F_OK) != 0)	/* (un paquet d'avant agent-skills : AGENTS.md dans /.vibe...) */
 		snprintf (a, sizeof a, "%s/AGENTS.md", sys);
-		snprintf (b, sizeof b, "%s/AGENTS.md", out);
-		if (access (b, F_OK) != 0)
-			copy_file (a, b);
-		sync_skills (sys, out);
+	snprintf (b, sizeof b, "%s/AGENTS.md", out);
+	if (strcmp (a, b) != 0 && access (b, F_OK) != 0)
+		copy_file (a, b);
+	char mark2[700], skills[400];
+	snprintf (mark2, sizeof mark2, "%s/.skills-in-res", out);
+	snprintf (skills, sizeof skills, "%s/res/agents/skills", ACP_SYS_ROOT);
+	if (access (mark2, F_OK) != 0 && is_dir (skills))	/* (une fois : les copies d'avant /res/agents retirées) */
+	{
+		drop_system_copies (skills, out);
+		FILE *f = fopen (mark2, "w");
+		if (f)
+			fclose (f);
 	}
 	return 0;
 }

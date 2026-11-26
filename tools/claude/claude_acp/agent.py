@@ -130,13 +130,20 @@ ce qui n'a pas été vérifié. Du Markdown simple (le terminal le rend en parti
 """
 
 
+# les compétences du système (paquet agent-skills, tools/agents/home.py) ; un essai hors de Korin le change par
+# CLAUDE_ACP_SKILLS
+SKILLS_ENV = "CLAUDE_ACP_SKILLS"
+
+
 def find_skills():
-    """Les compétences (nom -> dossier, description) : $CLAUDE_ACP_HOME/skills/<nom>/SKILL.md, puis celles des apps
-    installées (app_skills) ; celle d'une app l'emporte sur une copie du même nom dans skills/ (une ancienne copie
-    d'avant que la compétence vienne avec son app)."""
+    """Les compétences (nom -> dossier, description) : celles de l'utilisateur ($CLAUDE_ACP_HOME/skills/<nom>/SKILL.md),
+    puis celles du système (/res/agents/skills, décision du 26/11/2026 : seul l'uid 0 y écrit ; elles l'emportent sur
+    une copie du même nom dans le compte, ancienne ou changée par un programme), puis celles des apps installées
+    (app_skills), qui l'emportent aussi."""
     skills, desc = {}, {}
-    d = os.path.join(home(), "skills")
-    if os.path.isdir(d):
+    for d in (os.path.join(home(), "skills"), os.environ.get(SKILLS_ENV) or "/res/agents/skills"):
+        if not os.path.isdir(d):
+            continue
         for name in sorted(os.listdir(d)):
             f = os.path.join(d, name, "SKILL.md")
             if not os.path.isfile(f):

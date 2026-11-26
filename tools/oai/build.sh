@@ -4,11 +4,11 @@
 # du depot, apres tools/claude/build.sh (oai_acp reprend claude_acp) :
 #     bash tools/oai/build.sh                      le Pi (build/python/sdroot)
 #     ARCH=x86_64 bash tools/oai/build.sh          Korin PC (build/pc/python/sdroot)
-#     DEST=dossier bash tools/oai/build.sh         un autre arbre (sa racine : bin/, python/, .mai-acp/)
+#     DEST=dossier bash tools/oai/build.sh         un autre arbre (sa racine : bin/, python/)
 # Pose dans l'arbre :
 #   python/lib/python3.14/site-packages/oai_acp    tools/oai/oai_acp (rien d'autre : la requete passe par urllib)
 #   bin/mai-acp                                    la commande (#!/bin/python3, profil mai)
-#   .mai-acp/                                      AGENTS.md et les competences, comme .claude-acp (tools/claude/home.py) ;
+#   (AGENTS.md et les competences : /res/agents, paquet agent-skills, tools/agents/home.py, depuis le 26/11/2026) ;
 #                                                  ni .env (le point d'acces et la cle) ni config.toml, ni sessions/
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -27,5 +27,4 @@ find "$SP/oai_acp" -name __pycache__ -prune -exec rm -rf {} +
 printf '#!/bin/python3\nimport os, sys\n# (unixtools : /devtools/bin devant /bin pour les commandes de l agent, BusyBox)\nif os.path.isfile("/devtools/bin/busybox") and "/devtools/bin" not in os.environ.get("PATH", "").split(":"):\n    os.environ["PATH"] = "/devtools/bin:" + os.environ.get("PATH", "/bin:/sbin")\nfrom oai_acp.main import main\nsys.exit(main(["--profile", "mai"] + sys.argv[1:]))\n' \
 	> "$D/bin/mai-acp"
 chmod +x "$D/bin/mai-acp"
-"$BUILD_PYTHON" -I "$ROOT/tools/claude/home.py" "$D" .mai-acp
-du -sh "$SP/oai_acp" "$D/.mai-acp"
+du -sh "$SP/oai_acp"
