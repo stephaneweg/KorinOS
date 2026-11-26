@@ -394,8 +394,8 @@ static void cmdCadence () { cadenceOnChordTrack (); refreshAll (); }
 static void cmdSoundFont ()
 {
 	char p[256];
-	mkdir ("/res", 0755); mkdir ("/res/soundfonts", 0755);
-	if (!fileOpen (p, sizeof p, "/res/soundfonts", "SoundFonts|*.sf2|All files|*")) return;
+	mkdir ("HOME:/soundfonts", 0755);	// (the user's own ; /res/soundfonts is the system's, read-only: E72)
+	if (!fileOpen (p, sizeof p, "HOME:/soundfonts", "SoundFonts|*.sf2|All files|*")) return;
 	int n = (int) strlen (p);
 	if (n < 4 || strcasecmp (p + n - 4, ".sf2")) { message ("SoundFont", "Choose a .sf2 file.", UM_OK); return; }
 	snprintf (g_settings.soundfont, sizeof g_settings.soundfont, "%s", p);
@@ -405,7 +405,7 @@ static void cmdSoundFont ()
 // (Onyx fetches GeneralUser GS with /bin/llm, a TLS download: not here)
 static void cmdGetSoundFont ()
 {
-	message ("SoundFont", "Not available on Korin OS: copy a .sf2 file into /res/soundfonts.", UM_OK);
+	message ("SoundFont", "Not available on Korin OS: copy a .sf2 file into your soundfonts folder (HOME:/soundfonts).", UM_OK);
 }
 static void cmdZoomIn () { if (g_arrange) { g_arrange->ppb = dmin (160, g_arrange->ppb * 1.25); g_arrange->invalidate (true); } }
 static void cmdZoomOut () { if (g_arrange) { g_arrange->ppb = dmax (2, g_arrange->ppb * 0.8); g_arrange->invalidate (true); } }
