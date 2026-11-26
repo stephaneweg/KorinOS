@@ -202,7 +202,11 @@ static long gp_section (const char *head, const char *body)
 		o = stpcpy (o, body);
 	}
 	*o = 0;
+	unsigned me;				/* (/etc : la carte d'authd, E72) */
+	if (ap_elevate (TR ("R\xC3\xA9glages veut enregistrer la configuration des manettes."), &me))
+		return -1;
 	long r = file_write (P_GPINI, ap_out);
+	ap_unelevate (me);
 	long ch = svc_open ("hid", 500);	/* HIDManager relit */
 	if (ch >= 0)
 	{

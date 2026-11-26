@@ -30,7 +30,8 @@
  *  HID_OP_PILOTE (3) -> numéro d'un tampon partagé, même anneau, mais c'est
  *    le pilote qui écrit (la tête) et hidmanager qui lit (la queue)
  *  HID_OP_PADMAP (4) -> 0 : relit /etc/gamepad.ini
- *  HID_OP_POINTER (5) -> 0 : relit /etc/pointer.ini (Réglages, Souris) */
+ *  HID_OP_POINTER (5) -> 0 : relit /etc/pointer.ini (Réglages, Souris) ; a = 1 : les vitesses en b (souris),
+ *    c (touchpad), d (accélération) au lieu du fichier (celles du compte : Réglages, l'écran de connexion ; E72) */
 #include "caller.h"
 #include "../svclib/svclib.h"
 
@@ -415,6 +416,11 @@ static void pointer_line(char *key, char *val)
 		sp_touchpad = v;
 	else if (str_eq(key, "accel"))
 		sp_accel = parse_dec(val) != 0;
+}
+
+static long speed_clamp(u64 v)
+{
+	return v < 10 ? 10 : v > 1000 ? 1000 : (long)v;
 }
 
 static void pointer_load(void)
@@ -1028,7 +1034,13 @@ int main(int argc, char **argv)
 			r = 0;
 			break;
 		case HID_OP_POINTER:
-			pointer_load();
+			if (M64(msg, 8) == 1) { /* les valeurs du compte */
+				sp_mouse = speed_clamp(M64(msg, 16));
+				sp_touchpad = speed_clamp(M64(msg, 24));
+				sp_accel = M64(msg, 32) != 0;
+				rest_x[0] = rest_x[1] = rest_y[0] = rest_y[1] = 0;
+			} else
+				pointer_load();
 			r = 0;
 			break;
 		case HID_OP_PILOTE:

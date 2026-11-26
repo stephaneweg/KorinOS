@@ -162,9 +162,16 @@ static void dn_apply (void)
 			o = stpcpy (o, CRLF);
 		}
 	}
-	file_write (DN_P_FILE, dn_file);
+	unsigned me;				/* (/etc : la carte d'authd, E72) */
+	if (ap_elevate (TR ("R\xC3\xA9glages veut changer les assemblys .NET gard\xC3\xA9" "es en m\xC3\xA9moire."), &me))
+	{
+		ap.msg = TR ("Autorisation refus\xC3\xA9" "e.");
+		return;
+	}
+	long r = file_write (DN_P_FILE, dn_file);
+	ap_unelevate (me);
 	spawn (DN_P_TOOL, 0);			/* (l'asm passait un argument vide : aucun) */
-	ap.msg = dn_s_done;
+	ap.msg = r < 0 ? TR ("Enregistrement impossible.") : dn_s_done;
 }
 
 /* montré seulement si le paquet dotnet est installé : dllpreload est à lui (/devtools/dotnet) */

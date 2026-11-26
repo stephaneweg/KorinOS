@@ -265,7 +265,20 @@ static void sn_apply (void)
 	if (pref >= 0)
 		ak_main (pref);
 	/* (le volume : déjà changé par le curseur) */
-	ap.msg = sn_i2s_set (sn_check (SN_I2S)) < 0 ? sn_s_err : sn_s_done;	/* micro I2S : services.txt */
+	ap.msg = sn_s_done;
+	int want = sn_check (SN_I2S);
+	if (want != sn_i2s_on ())		/* micro I2S : services.txt, élevé (E72), seulement s'il change */
+	{
+		unsigned me;
+		if (ap_elevate (TR ("R\xC3\xA9glages veut changer les services du d\xC3\xA9marrage."), &me))
+			ap.msg = TR ("Autorisation refus\xC3\xA9" "e.");
+		else
+		{
+			if (sn_i2s_set (want) < 0)
+				ap.msg = sn_s_err;
+			ap_unelevate (me);
+		}
+	}
 	if (sn_check (SN_TEST))
 		sn_beep ();
 }

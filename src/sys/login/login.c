@@ -218,10 +218,41 @@ static void layout_for(long uid)
 	}
 }
 
+/* les vitesses du pointeur : celles du compte (son HOME:/etc/pointer.ini, Réglages, Souris) à l'ouverture de sa
+ * session, sinon celles de la machine (/etc/pointer.ini, que hidmanager relit) ; E72 : sans écrire /etc */
+static void pointer_for(long uid)
+{
+	static u64 m[64];
+	memset(m, 0, sizeof m);
+	m[0] = 5; /* HID_OP_POINTER (a = 0 : /etc/pointer.ini) */
+	const char *p = uid > 0 ? conf_path_uid(uid, "pointer.ini") : 0;
+	char *t = p && !str_eq(p, "/etc/pointer.ini") ? lire(p) : 0, *l;
+	if (t) {
+		m[1] = 1; /* les valeurs suivent */
+		m[2] = 100;
+		m[3] = 200;
+		while ((l = ligne(&t))) {
+			char *v, *k = cle(l, &v);
+			if (!k)
+				continue;
+			if (str_eq(k, "mouse"))
+				m[2] = parse_dec(v);
+			else if (str_eq(k, "touchpad"))
+				m[3] = parse_dec(v);
+			else if (str_eq(k, "accel"))
+				m[4] = parse_dec(v) != 0;
+		}
+	}
+	long ch = korin_sys2(SYS_SVC_OPEN, "hid", 500);
+	if (ch >= 0)
+		korin_sys2(SYS_SVC_CALL, ch, m);
+}
+
 /* la session est ouverte pour ce compte : /tmp/session.ini, puis fin */
 static int ouvrir(const struct acc *a)
 {
 	layout_for(a->uid); /* (la connexion automatique : la disposition du compte aussi) */
+	pointer_for(a->uid);
 	char line[96] = "uid = ";
 	char *o = line + 6;
 	char t[24];
@@ -566,6 +597,7 @@ int main(int argc, char **argv)
 		return ouvrir(&accs[0]);
 	prompt = nacc == 1; /* (un seul compte : il est déjà choisi) */
 	layout_for(prompt ? accs[0].uid : 0);
+	pointer_for(0); /* (celles de la machine, après une session) */
 	ui_init((long)&ui);
 	ui_screen((long)scr);
 	/* tout l'écran, couche normale (pas WF_TOP : les réglages rapides et le dialogue d'extinction passent devant ; pas

@@ -24,6 +24,7 @@
 #define RP_VAULT "remote-password"	/* le secret, dans l'espace @system */
 #define RP_MARK "password_vault"	/* la ligne de remote.txt : « dans le coffre » */
 #define RP_VAULT_VNC "remote-vnc"	/* le mot de passe de VNC seul (S4), même espace */
+#define RP_STATE "/etc/remote-state.ini"	/* lisible par tous (E72) : « password = 1 » quand un secret est défini */
 
 char rp_pw[RP_MAX + 1];
 static char rp_buf[RP_BUF];
@@ -70,6 +71,33 @@ static const char *rp_next(const char *p)
 	}
 }
 
+/* /etc/remote-state.ini (lisible par tous, sans secret : Réglages y voit qu'un mot de passe est défini, remote.txt
+ * étant illisible pour un compte en mode enforce) : « password = 1 », ses autres lignes gardées */
+static void rp_state_password(void)
+{
+	static char st[256];
+	long fd = sys_open(RP_STATE, O_READ), n = 0;
+	if (fd >= 0) {
+		n = sys_read(fd, st, sizeof st - 1);
+		sys_close(fd);
+		if (n < 0)
+			n = 0;
+	}
+	st[n] = 0;
+	for (const char *p = st; p && *p; p = rp_next(p))
+		if (rp_key(p, "password"))
+			return; /* (déjà dit) */
+	fd = sys_open(RP_STATE, O_WRITE | O_CREATE | O_TRUNC);
+	if (fd < 0)
+		return;
+	if (n)
+		sys_write(fd, st, (u64)n);
+	if (n && st[n - 1] != 10)
+		sys_write(fd, "\n", 1);
+	sys_write(fd, "password = 1\n", 13);
+	sys_close(fd);
+}
+
 /* remote.txt (dans rp_buf, n octets) réécrit sans sa ligne « password = »
  * (line, jusqu'à end : 0 à la fin du fichier), avec RP_MARK -> 0 ou erreur */
 static long rp_strip(long n, const char *line, const char *end)
@@ -94,6 +122,7 @@ static long rp_strip(long n, const char *line, const char *end)
 			r = -1;
 	}
 	sys_close(fd);
+	rp_state_password();
 	return r;
 }
 

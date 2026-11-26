@@ -69,6 +69,7 @@ static const char ra_s_okpw[] = "Mot de passe chang\xC3\xA9. Services : au proch
 #define RP_MARK		"password_vault"	/* la ligne de remote.txt : « dans le coffre » */
 #define RP_VAULT_VNC	"remote-vnc"		/* celui de VNC (remotepw.c, rp_read_vnc) */
 #define RP_MARK_VNC	"vnc_vault"
+#define RP_STATE	"/etc/remote-state.ini"	/* lisible par tous (E72 : remote.txt ne l'est plus en enforce) */
 
 static long ra_len[RA_NF];			/* longueurs saisies (octets) */
 static long ra_field;				/* champ choisi (0 à 3) */
@@ -76,6 +77,47 @@ static long ra_pwok;				/* longueur du mot de passe de remote.txt */
 static int ra_vncok;				/* remote.txt : « vnc_vault = 1 » */
 static unsigned char ra_en[RA_N];		/* services au démarrage (lus) */
 static char ra_pw[RA_NF][RP_MAX + 1];
+
+/* ce qui est défini : /etc/remote-state.ini (« password = 1 », « vnc = 1 »), lisible par tous ; sans lui (un système
+ * d'avant), remote.txt (rp_read, ra_vnc_read : lisible en mode log seulement) */
+static int ra_vnc_read (void);
+static long rp_read (void);
+static void ra_state_read (void)
+{
+	char buf[256];
+	int fd = open (RP_STATE, O_RDONLY);
+	if (fd < 0)
+	{
+		ra_pwok = rp_read ();
+		ra_vncok = ra_vnc_read ();
+		return;
+	}
+	long n = read (fd, buf, sizeof buf - 1);
+	close (fd);
+	buf[n > 0 ? n : 0] = 0;
+	ra_pwok = ra_vncok = 0;
+	for (const char *line = buf; *line; )
+	{
+		const char *p = line;
+		int vnc = !strncmp (p, "vnc", 3), pw = !strncmp (p, "password", 8);
+		p += vnc ? 3 : pw ? 8 : 0;
+		while (*p == ' ' || *p == '\t' || *p == '=')
+			p++;
+		if (*p == '1')
+		{
+			if (vnc)
+				ra_vncok = 1;
+			else if (pw)
+				ra_pwok = 1;
+		}
+		while (*line && *line++ != '\n')
+			;
+	}
+	if (!ra_pwok)				/* (remote.txt lisible : en mode log, ou élevé) */
+		ra_pwok = rp_read ();
+	if (!ra_vncok)
+		ra_vncok = ra_vnc_read ();
+}
 
 /* -> 1 si remote.txt a « vnc_vault = 1 » (un mot de passe VNC dans le coffre) */
 static int ra_vnc_read (void)
@@ -323,6 +365,8 @@ static void ra_apply (void)
 			werr = ini_set (RP_FILE, "password", 0);
 			if (!werr)
 				werr = ini_set (RP_FILE, RP_MARK, "1");
+			if (!werr)
+				werr = ini_set (RP_STATE, "password", "1");
 		}
 		else
 		{
@@ -330,6 +374,8 @@ static void ra_apply (void)
 			strcpy (stpcpy (stpcpy (buf, "password = "), ra_pw[0]), "\n");
 			werr = file_write (RP_FILE, buf);
 			memset (buf, 0, sizeof buf);
+			if (!werr)
+				werr = ini_set (RP_STATE, "password", "1");
 		}
 	}
 	if (!werr && vnc)
@@ -337,6 +383,8 @@ static void ra_apply (void)
 		werr = kv_sys_set (RP_VAULT_VNC, ra_pw[2], l2) >= 0 ? 0 : -1;
 		if (!werr)
 			werr = ini_set (RP_FILE, RP_MARK_VNC, "1");
+		if (!werr)
+			werr = ini_set (RP_STATE, "vnc", "1");
 	}
 	ap_unelevate (me);
 	if (werr)
@@ -352,8 +400,7 @@ static void ra_apply (void)
 	memset (ra_len, 0, sizeof ra_len);	/* champs vides, mots de passe relus */
 	memset (ra_pw, 0, sizeof ra_pw);
 	ra_field = 0;
-	ra_pwok = rp_read ();
-	ra_vncok = ra_vnc_read ();
+	ra_state_read ();
 	ap.msg = ra_s_okpw;
 }
 
@@ -516,8 +563,7 @@ static void ra_open (void)
 	ra_field = 0;
 	memset (ra_pw, 0, sizeof ra_pw);
 	ra_svc_read ();
-	ra_pwok = rp_read ();
-	ra_vncok = ra_vnc_read ();
+	ra_state_read ();
 	applet_row (ra_s_services, R_TITLE);
 	for (long s = 0; s < RA_N; s++)		/* les cases, dans l'ordre de ra_labels */
 		applet_row (ra_labels[s], R_CHECK, 0, ra_en[s], s);

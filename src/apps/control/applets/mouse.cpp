@@ -3,14 +3,17 @@
  *   * la vitesse des souris (USB, PS/2, pointeur du clavier) et celle du touchpad (i2chid), en %, par deux curseurs
  *     (ui_slider) : appliquées aussitôt ;
  *   * une petite accélération des souris (jusqu'à x2 pour un geste vif ; le touchpad a toujours la sienne).
- * Les réglages vont dans /etc/pointer.ini (mouse, touchpad, accel), que hidmanager applique à tous les pilotes
- * et relit à la demande (service « hid », HID_OP_POINTER) : à chaud, sans redémarrer. Défauts : souris 100 %, sans
+ * Les réglages vont à hidmanager (service « hid », HID_OP_POINTER avec les valeurs), qui les applique à tous les
+ * pilotes à chaud, et dans le fichier du compte, HOME:/etc/pointer.ini (mouse, touchpad, accel ; E72 : sans
+ * élévation), que l'écran de connexion applique à l'ouverture de sa session. /etc/pointer.ini reste celui de la
+ * machine (l'écran de connexion, un compte qui n'a rien réglé). Défauts : souris 100 %, sans
  * accélération (comme avant), touchpad 200 % (docs/etude/TOUCHPAD-PC.md).
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <armpi/userconf.h>
 #include "../control.h"
 
 enum
@@ -21,12 +24,11 @@ enum
 	MS_MAX = 400,
 };
 
-#define MS_FILE		"/etc/pointer.ini"
 
 static long ms_mouse = 100, ms_touchpad = 200, ms_accel;
 static long ms_sl_mouse, ms_sl_touchpad;	/* les curseurs */
 static const char ms_s_done[] = "Enregistr\xC3\xA9.";
-static const char ms_s_err[] = "/etc/pointer.ini non modifi\xC3\xA9";
+static const char ms_s_err[] = "R\xC3\xA9glages de la souris non enregistr\xC3\xA9s";
 
 static void ms_line (char *key, char *val, void *)
 {
@@ -44,25 +46,32 @@ static long clamp (long v)
 	return v < MS_MIN ? MS_MIN : v > MS_MAX ? MS_MAX : v;
 }
 
-/* le fichier, puis hidmanager le relit -> 0, < 0 : fichier non écrit */
+/* les vitesses à hidmanager (tout de suite), puis le fichier du compte (HOME:/etc/pointer.ini : E72, sans
+ * élévation ; l'écran de connexion l'applique à l'ouverture de la session ; /etc/pointer.ini reste celui de la
+ * machine) -> 0, < 0 : fichier non écrit */
 static long ms_save (void)
 {
-	char v[16];
-	if (access (MS_FILE, F_OK) != 0
-	    && file_write (MS_FILE, "# Vitesse du pointeur (R\xC3\xA9glages, Souris) : hidmanager, en %" CRLF) < 0)
-		return -1;
-	snprintf (v, sizeof v, "%ld", ms_mouse);
-	long r = ini_set (MS_FILE, "mouse", v);
-	snprintf (v, sizeof v, "%ld", ms_touchpad);
-	r |= ini_set (MS_FILE, "touchpad", v);
-	r |= ini_set (MS_FILE, "accel", ms_accel ? "1" : "0");
 	long ch = svc_open ("hid", 1000);
 	if (ch >= 0)
 	{
 		long msg[64] = { 0 };
 		msg[0] = HID_OP_POINTER;
+		msg[1] = 1;			/* les valeurs suivent */
+		msg[2] = ms_mouse;
+		msg[3] = ms_touchpad;
+		msg[4] = ms_accel;
 		svc_call (ch, msg);
 	}
+	char v[16], cp[160];
+	const char *f = korin_conf_path ("pointer.ini", cp, sizeof cp, 1);
+	if (access (f, F_OK) != 0
+	    && file_write (f, "# Vitesse du pointeur (R\xC3\xA9glages, Souris) : hidmanager, en %" CRLF) < 0)
+		return -1;
+	snprintf (v, sizeof v, "%ld", ms_mouse);
+	long r = ini_set (f, "mouse", v);
+	snprintf (v, sizeof v, "%ld", ms_touchpad);
+	r |= ini_set (f, "touchpad", v);
+	r |= ini_set (f, "accel", ms_accel ? "1" : "0");
 	return r < 0 ? -1 : 0;
 }
 
@@ -94,7 +103,8 @@ static void ms_open (void)
 	ms_mouse = 100;
 	ms_touchpad = 200;
 	ms_accel = 0;
-	ini_read (MS_FILE, ms_line);
+	char cp[160];
+	ini_read (korin_conf_path ("pointer.ini", cp, sizeof cp, 0), ms_line);	/* (celui du compte, sinon /etc) */
 	ms_mouse = clamp (ms_mouse);
 	ms_touchpad = clamp (ms_touchpad);
 	ap.colw = AP_COLS * COL_W;		/* (une seule colonne : des curseurs plus longs) */

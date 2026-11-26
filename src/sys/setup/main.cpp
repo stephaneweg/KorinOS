@@ -541,6 +541,9 @@ static bool mot_de_passe ()
 		if (f && coffre) fprintf (f, "# le mot de passe de l'acces a distance (Reglages, Acces a distance) : dans le coffre\npassword_vault = 1\n");
 		else if (f) fprintf (f, "# le mot de passe de l'acces a distance (Reglages, Acces a distance)\npassword = %s\n", a);
 		if (f) fclose (f);
+		// (lisible par tous : Réglages y voit qu'un mot de passe est défini, remote.txt ne l'est plus en enforce)
+		FILE *st = fopen ("/etc/remote-state.ini", "wb");
+		if (st) { fputs ("password = 1\n", st); fclose (st); }
 	}
 	memset (a, 0, sizeof a); memset (b, 0, sizeof b);
 	return true;
