@@ -63,8 +63,9 @@ int soundfont_find (const char *preferred, char *out, int cap)
 	static const char *const s_default = "/res/soundfonts/GeneralUser-GS.sf2";
 	FILE *f = fopen (s_default, "rb");
 	if (f != 0) { fclose (f); snprintf (out, (size_t) cap, "%s", s_default); return 1; }
-	// the user's folder first (HOME:/soundfonts: an account cannot write /res, E72), then the system's
-	static const char *const s_dirs[2] = { "HOME:/soundfonts", "/res/soundfonts" };
+	// the shared folder first (/home/public/soundfonts, PUBLIC:/: every account writes it, /res is the system's), then
+	// the system's
+	static const char *const s_dirs[2] = { "/home/public/soundfonts", "/res/soundfonts" };
 	int found = 0;
 	for (int k = 0; k < 2 && !found; k++)
 	{

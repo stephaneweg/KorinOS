@@ -18,7 +18,7 @@ chanson est un fichier **`.kson`** : du JSON, que l'on écrit au mieux par un sc
 | `/home/public/koton/demos/*.kson` | cinq morceaux qui passent par tous les blocs et tous les greffons : **lisez celui qui ressemble à la demande** |
 | `HOME:/koton/songs/` (`/home/koton/songs`) | les chansons de l'utilisateur ; écrivez-y les vôtres |
 | `/apps/koton.app/plugins/<id>/plugin.json` | chaque greffon : ses paramètres, leurs bornes et leurs valeurs par défaut |
-| `/res/soundfonts/*.sf2` | la SoundFont (paquet `generaluser-gs`) ; sans elle, Koton joue en FM |
+| `/home/public/soundfonts/*.sf2`, puis `/res/soundfonts/*.sf2` | la SoundFont : d'abord le dossier partagé entre les comptes (`PUBLIC:/soundfonts`, où chacun peut en copier), puis celle du système (paquet `generaluser-gs`) ; sans elle, Koton joue en FM |
 
 Pour faire entendre le résultat, ouvrez-le sans bloquer le shell :
 
