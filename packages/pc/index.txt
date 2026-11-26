@@ -5,7 +5,7 @@ date = 2026-11-26 11:13
 abi = 632
 packages = 117
 board = pc
-serial = 20
+serial = 21
 
 [avdemo]
 title = Avalonia
@@ -1205,18 +1205,18 @@ content = 9dcc6ae967cf3770ce2c99171be88fcde48a3415e593ca9e6fbeae8163173869
 
 [koton]
 title = Koton
-version = 1.0.12
+version = 1.0.13
 category = Musique
 author = Korin OS
 summary = Le studio de musique
-size = 2116239
-installed = 4146775
-sha256 = 9621f597dc5da3dbb413fe1d48cf0e7b3321d1a5a69b335cb24f34f038f601f1
-file = pkgs/koton-1.0.12.opk
+size = 2168024
+installed = 4241143
+sha256 = 8dcb52abb8843f578507f10e970bd8bff5a997b5c0deab238093a17f84f1561b
+file = pkgs/koton-1.0.13.opk
 needs = llm, abi >= 626
 required = 0
 restart = 0
-content = becc3396c8a3a07b388ef22720b77a42c86388cf38417e3c7facc898e26d1732
+content = 3f465c6d834001dfedc8e7fcc127d2e71d9e934dea7baf1f066627a64295ef34
 
 [letters]
 title = Letters
