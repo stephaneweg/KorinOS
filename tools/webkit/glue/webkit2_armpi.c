@@ -252,6 +252,9 @@ int onyx_surface_create (int width, int height)
 		n = armpi_svc (SYS_BUF_CREATE, (long) width * height * 4);
 	if (n < 0 || n > 126)
 		return 0;
+	/* (26/11/2026 : encore ouvert a tous, en plus de onyx_surface_grant : sur le ZBook, Jet 1.4.9 sans cela montrait des
+	   pages blanches -- le process web ne pouvait plus mapper la surface ; E47 a refaire une fois la cause trouvee) */
+	armpi_svc2 (SYS_BUF_GRANT, n, -1);
 	return (int) ((n + 1) | (long) width << 7 | (long) height << 19);
 }
 
