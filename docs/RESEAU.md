@@ -684,6 +684,20 @@ Il n'y a pas de chiffrement : telnet et FTP font passer le mot de passe en clair
 `Compte :` puis `Mot de passe :` (vérifié par authd) et ouvre le shell sous ce compte ; FTP prend `USER` et son mot de
 passe, et le client ne voit que le dossier du compte (`/` pour lui). Sans compte à mot de passe (le Pi, les images
 d'essai), le secret commun reste, comme avant. Après 5 mots de passe faux, un service refuse tout essai pendant 30 s,
-puis le double à chaque nouvel échec (une heure au plus). `tools/armpi_remote.py` : `ARMPI_REMOTE_USER` et
-`ARMPI_REMOTE_PW`. `/etc/remote.txt` ne s'écrit qu'en uid 0 (Réglages élevé). VNC et RDP gardent le secret commun.
+puis le double à chaque nouvel échec (dix minutes au plus). `tools/armpi_remote.py` : `ARMPI_REMOTE_USER` et
+`ARMPI_REMOTE_PW`. `/etc/remote.txt` ne s'écrit qu'en uid 0 (Réglages élevé). Le compteur d'échecs vaut aussi pour VNC
+et RDP.
+
+**RDP et VNC en mode comptes (26/11/2026).**
+
+* **RDP** : Korin Remote a un champ « Compte ». Le client répond `ONYXRDP3` avec le nom ; le serveur envoie le sel et
+  le nombre de tours PBKDF2 du compte (authd `AUTH_SALT`, un faux sel stable pour un compte inconnu) ; le client
+  envoie HMAC-SHA256(PBKDF2-SHA256(mot de passe), défi), vérifié par authd (`AUTH_PROOF`). Le compte doit être celui
+  de la session ouverte, ou un administrateur. Le secret commun (`ONYXRDP2`) est refusé en mode comptes. Un client
+  qui arrive pendant une session s'authentifie à côté ; il ne prend la place qu'une fois accepté. Essai :
+  `tools/remote/rdp_account_test.py`.
+* **VNC** : le défi DES ne garde que 8 caractères et ne connaît pas les comptes. VNC a donc son propre mot de passe
+  (Réglages, Accès à distance, « Mot de passe VNC », 8 caractères au plus). Il est le secret `remote-vnc` du coffre,
+  et `remote.txt` dit `vnc_vault = 1`. Sans lui, VNC prend le secret commun, sauf en mode comptes : il refuse alors
+  toute connexion. Essai : `tools/remote/vnc_auth_test.py`.
 

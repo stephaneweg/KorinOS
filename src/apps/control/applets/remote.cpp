@@ -9,6 +9,10 @@
  *     différents : un message. Effet tout de suite (relu à chaque connexion). Avec le coffre à secrets (le PC,
  *     docs/etude/COFFRE.md) : le secret « remote-password » de l'espace @system (src/svc/inc/remotepw.c), et
  *     remote.txt n'a plus que « password_vault = 1 » (un mot de passe est défini, sans qu'on puisse le lire).
+ *   * Mot de passe VNC (S4, E70) : deux champs de plus. Le défi DES de VNC ne garde que 8 octets et ne peut pas servir
+ *     un compte : VNC a son propre mot de passe, le secret « remote-vnc » du coffre (8 octets au plus), et remote.txt
+ *     « vnc_vault = 1 ». Sans lui, vncd prend le mot de passe commun, sauf en mode comptes (des comptes ont un mot
+ *     de passe) : il refuse alors toute connexion.
  *   * Un service coché sans mot de passe défini : un avertissement.
  *
  * Port en C++ de applets/remote.inc et de la lecture de src/inc/remotepw.inc (Korin ; Onyx n'avait pas ce volet).
@@ -30,9 +34,17 @@ enum
 	RA_Y = AP_HEAD + 4 + (RA_N + 1) * ROW_H + 10,	/* haut du bloc du mot de passe */
 	RP_MAX = 63,				/* (remotepw.inc) octets du mot de passe */
 	RP_BUF = 1024,
+	RA_NF = 4,				/* champs : le commun (0, 1), celui de VNC (2, 3) */
+	RA_VNC_MAX = 8,				/* (le défi DES de VNC) */
+	RA_Y2 = RA_Y + ROW_H + 2 + 2 * RA_RH + 4 + 20 + 6,	/* haut du bloc de VNC (sous la ligne d'état du commun) */
 };
 
 static const char ra_s_common[] = "Mot de passe commun";
+static const char ra_s_vnc[] = "Mot de passe VNC";
+static const char ra_s_vnc_set[] = "Un mot de passe VNC est d\xC3\xA9" "fini.";
+static const char ra_s_vnc_none[] = "Aucun : VNC prend le mot de passe commun, sauf si des comptes ont un mot de passe.";
+static const char ra_s_vnc_long[] = "VNC : 8 caract\xC3\xA8res au plus.";
+static const char ra_s_vnc_novault[] = "Sans coffre \xC3\xA0 secrets, VNC garde le mot de passe commun.";
 static const char ra_s_services[] = "Services";
 static const char *const ra_labels[RA_N] = {
 	"Terminal \xC3\xA0 distance (telnet)", "Bureau \xC3\xA0 distance (VNC)", "Fen\xC3\xAAtres \xC3\xA0 distance (RDP)",
@@ -45,8 +57,7 @@ static const char *const ra_pw_labels[2] = { "Mot de passe", "Confirmer" };
 static const char ra_s_set[] = "Un mot de passe est d\xC3\xA9" "fini. Champs vides : il ne change pas.";
 static const char ra_s_none[] = "Aucun mot de passe d\xC3\xA9" "fini.";
 static const char ra_s_warn[] = "Sans mot de passe, les services activ\xC3\xA9s refusent toute connexion.";
-static const char ra_s_note1[] = "Services : effet au prochain d\xC3\xA9marrage.";
-static const char ra_s_note2[] = "Mot de passe : effet imm\xC3\xA9" "diat (relu \xC3\xA0 chaque connexion).";
+static const char ra_s_notes[] = "Services : effet au prochain d\xC3\xA9marrage. Mots de passe : effet imm\xC3\xA9" "diat.";
 static const char ra_s_differ[] = "Les deux mots de passe sont diff\xC3\xA9rents.";
 static const char ra_s_spaces[] = "Pas d'espace au d\xC3\xA9" "but ni \xC3\xA0 la fin du mot de passe.";
 static const char ra_s_write[] = "Enregistrement impossible.";
@@ -56,12 +67,41 @@ static const char ra_s_okpw[] = "Mot de passe chang\xC3\xA9. Services : au proch
 #define RP_FILE		"/etc/remote.txt"
 #define RP_VAULT	"remote-password"	/* le secret, espace @system (src/svc/inc/remotepw.c) */
 #define RP_MARK		"password_vault"	/* la ligne de remote.txt : « dans le coffre » */
+#define RP_VAULT_VNC	"remote-vnc"		/* celui de VNC (remotepw.c, rp_read_vnc) */
+#define RP_MARK_VNC	"vnc_vault"
 
-static long ra_len[2];				/* longueurs saisies (octets) */
-static long ra_field;				/* champ choisi (0, 1) */
+static long ra_len[RA_NF];			/* longueurs saisies (octets) */
+static long ra_field;				/* champ choisi (0 à 3) */
 static long ra_pwok;				/* longueur du mot de passe de remote.txt */
+static int ra_vncok;				/* remote.txt : « vnc_vault = 1 » */
 static unsigned char ra_en[RA_N];		/* services au démarrage (lus) */
-static char ra_pw[2][RP_MAX + 1];
+static char ra_pw[RA_NF][RP_MAX + 1];
+
+/* -> 1 si remote.txt a « vnc_vault = 1 » (un mot de passe VNC dans le coffre) */
+static int ra_vnc_read (void)
+{
+	static char buf[RP_BUF];
+	int fd = open (RP_FILE, O_RDONLY);
+	if (fd < 0)
+		return 0;
+	long n = read (fd, buf, RP_BUF - 1);
+	close (fd);
+	buf[n > 0 ? n : 0] = 0;
+	int ok = 0;
+	for (const char *line = buf; *line; )
+	{
+		if (!strncmp (line, RP_MARK_VNC, sizeof RP_MARK_VNC - 1))
+		{
+			const char *p = line + sizeof RP_MARK_VNC - 1;
+			while (*p == ' ' || *p == '\t' || *p == '=')
+				p++;
+			ok = *p == '1';
+		}
+		while (*line && *line++ != '\n')
+			;
+	}
+	return ok;
+}
 
 /* ---- le mot de passe (src/inc/remotepw.inc) ---- */
 
@@ -228,8 +268,27 @@ static long ra_svc_write (void)
 
 static void ra_apply (void)
 {
-	long l0 = ra_len[0], l1 = ra_len[1];
-	int pw = 0;				/* 1 : mot de passe à écrire */
+	long l0 = ra_len[0], l1 = ra_len[1], l2 = ra_len[2], l3 = ra_len[3];
+	int pw = 0, vnc = 0;			/* 1 : mot de passe à écrire (le commun, celui de VNC) */
+	if (l2 | l3)
+	{
+		if (l2 != l3 || memcmp (ra_pw[2], ra_pw[3], (size_t) l2))
+		{
+			ap.msg = ra_s_differ;
+			return;
+		}
+		if (l2 > RA_VNC_MAX)
+		{
+			ap.msg = ra_s_vnc_long;
+			return;
+		}
+		if (access ("/sys/svc/keyvault", F_OK) != 0)
+		{
+			ap.msg = ra_s_vnc_novault;
+			return;
+		}
+		vnc = 1;
+	}
 	if (l0 | l1)
 	{
 		if (l0 != l1 || memcmp (ra_pw[0], ra_pw[1], (size_t) l0))	/* les deux champs : égaux */
@@ -273,21 +332,28 @@ static void ra_apply (void)
 			memset (buf, 0, sizeof buf);
 		}
 	}
+	if (!werr && vnc)
+	{
+		werr = kv_sys_set (RP_VAULT_VNC, ra_pw[2], l2) >= 0 ? 0 : -1;
+		if (!werr)
+			werr = ini_set (RP_FILE, RP_MARK_VNC, "1");
+	}
 	ap_unelevate (me);
 	if (werr)
 	{
 		ap.msg = ra_s_write;
 		return;
 	}
-	if (!pw)
+	if (!pw && !vnc)
 	{
 		ap.msg = ra_s_ok;
 		return;
 	}
-	ra_len[0] = ra_len[1] = 0;		/* champs vides, mot de passe relu */
+	memset (ra_len, 0, sizeof ra_len);	/* champs vides, mots de passe relus */
 	memset (ra_pw, 0, sizeof ra_pw);
 	ra_field = 0;
 	ra_pwok = rp_read ();
+	ra_vncok = ra_vnc_read ();
 	ap.msg = ra_s_okpw;
 }
 
@@ -323,20 +389,26 @@ static void ra_draw (long, long, long)
 		y += RA_RH;
 	}
 	y += 4;					/* mot de passe défini ou pas */
-	ui_text ((long) TR (ra_pwok ? ra_s_set : ra_s_none), x, y + 14, tok (TJ_TEXT2), 12, F (), w);
-	y += 20;
-	if (!ra_pwok)				/* un service coché sans mot de passe */
-		for (long s = 0; s < RA_N; s++)
-			if (ra_checked (s))
-			{
-				ui_text ((long) TR (ra_s_warn), x, y + 14, tok (TJ_DANGER), 12, FB (), w);
-				y += 20;
-				break;
-			}
-	y += 6;
-	ui_text ((long) TR (ra_s_note1), x, y + 14, tok (TJ_TEXT3), 12, F (), w);
-	y += 18;
-	ui_text ((long) TR (ra_s_note2), x, y + 14, tok (TJ_TEXT3), 12, F (), w);
+	int warn = 0;				/* un service coché sans mot de passe : l'avertissement à la place */
+	for (long s = 0; !ra_pwok && s < RA_N; s++)
+		warn |= ra_checked (s);
+	if (warn)
+		ui_text ((long) TR (ra_s_warn), x, y + 14, tok (TJ_DANGER), 12, FB (), w);
+	else
+		ui_text ((long) TR (ra_pwok ? ra_s_set : ra_s_none), x, y + 14, tok (TJ_TEXT2), 12, F (), w);
+	y = RA_Y2;				/* celui de VNC */
+	ui_text ((long) TR (ra_s_vnc), x, y + 18, tok (TJ_TEXT2), 13, FB (), w);
+	y += ROW_H + 2;
+	for (long i = 2; i < RA_NF; i++)
+	{
+		ui_text ((long) TR (ra_pw_labels[i - 2]), x, y + 18, tok (TJ_TEXT1), 13, F (), RA_LW - 8);
+		ra_field_draw (x, i, y);
+		y += RA_RH;
+	}
+	y += 4;
+	ui_text ((long) TR (ra_vncok ? ra_s_vnc_set : ra_s_vnc_none), x, y + 14, tok (TJ_TEXT2), 12, F (), w);
+	y += 24;
+	ui_text ((long) TR (ra_s_notes), x, y + 14, tok (TJ_TEXT3), 12, F (), w);
 }
 
 /* ---- clics et clavier ---- */
@@ -346,13 +418,21 @@ static int ra_xclick (long x, long y)
 {
 	if (x < SIDE_W + AP_MARGIN + RA_LW || x >= SIDE_W + AP_MARGIN + RA_LW + RA_FW)
 		return 0;
-	y -= RA_Y + (long) ROW_H + 2;			/* haut du premier champ */
+	long base = 0;					/* les champs du commun, ou ceux de VNC */
+	if (y >= RA_Y2)
+	{
+		y -= RA_Y2;
+		base = 2;
+	}
+	else
+		y -= RA_Y;
+	y -= (long) ROW_H + 2;				/* haut du premier champ du bloc */
 	if (y < 0)
 		return 0;
 	long k = y / RA_RH;
 	if (k >= 2 || y - k * RA_RH >= RA_FH)
 		return 0;
-	ra_field = k;
+	ra_field = base + k;
 	ap.msg = 0;
 	return 1;
 }
@@ -393,7 +473,7 @@ static int ra_key (void)
 	char *pw = ra_pw[f];
 	if (code == KEY_TAB)
 	{
-		ra_field = f ^ 1;
+		ra_field = (f + 1) % RA_NF;
 		return 1;
 	}
 	if (code == KEY_BACKSPACE)		/* (dernier caractère UTF-8) */
@@ -432,11 +512,12 @@ static void ra_open (void)
 	ap.xclick = ra_xclick;
 	ap.key = ra_key;
 	ap.colw = RA_COLW;
-	ra_len[0] = ra_len[1] = 0;		/* champs vides, le premier choisi */
+	memset (ra_len, 0, sizeof ra_len);	/* champs vides, le premier choisi */
 	ra_field = 0;
-	ra_pw[0][0] = ra_pw[1][0] = 0;
+	memset (ra_pw, 0, sizeof ra_pw);
 	ra_svc_read ();
 	ra_pwok = rp_read ();
+	ra_vncok = ra_vnc_read ();
 	applet_row (ra_s_services, R_TITLE);
 	for (long s = 0; s < RA_N; s++)		/* les cases, dans l'ordre de ra_labels */
 		applet_row (ra_labels[s], R_CHECK, 0, ra_en[s], s);

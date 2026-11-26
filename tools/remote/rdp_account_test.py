@@ -4,7 +4,8 @@
 
 Quatre connexions : le bon compte et un mauvais mot de passe (verdict 1), un compte inconnu (verdict 1, avec un sel
 stable : le meme deux fois), l'ancien client au secret commun en mode comptes (verdict 1), puis le bon mot de passe
-(verdict 0, puis CAPS et CURSOR). Code de sortie : nombre d'echecs.
+(verdict 0, puis CAPS et CURSOR) ; pendant cette session (S6), un mauvais mot de passe ne la coupe pas, le bon
+prend la place. Code de sortie : nombre d'echecs.
 """
 import hashlib
 import hmac
@@ -50,6 +51,22 @@ def account(addr, who, pw):
     return recvall(s, 1)[0], s, (it, salt)
 
 
+def alive(s, wait=2):
+    """-> True si la session repond encore (READY, puis ce qui vient ; rien pendant wait : vivante aussi)"""
+    s.settimeout(wait)
+    try:
+        s.sendall(bytes([1]))
+        while True:
+            if not s.recv(65536):
+                return False
+    except socket.timeout:
+        return True
+    except OSError:
+        return False
+    finally:
+        s.settimeout(30)
+
+
 def main():
     host, _, port = sys.argv[1].partition(":")
     addr = (host, int(port or 3390))
@@ -82,6 +99,20 @@ def main():
             recvall(s, n)
             types.append(t)
         check(types == [9, 11], "la session commence : CAPS puis CURSOR (%s)" % types)
+        # S6 : un client au mauvais mot de passe ne coupe pas la session ouverte
+        v, b, _ = account(addr, who, pw + "y")
+        b.close()
+        check(v == 1, "pendant la session, mauvais mot de passe : verdict %d (1 attendu)" % v)
+        check(alive(s), "la session ouverte continue apres ce refus")
+        # le bon mot de passe prend la place
+        v, b, _ = account(addr, who, pw)
+        check(v == 0, "pendant la session, bon mot de passe : verdict %d (0 attendu)" % v)
+        check(not alive(s, 6), "l'ancienne session est fermee")
+        if v == 0:
+            b.sendall(bytes([7, 0, 1]))
+            t, n = struct.unpack("<BI", recvall(b, 5))
+            check(t == 9, "la nouvelle session commence (type %d)" % t)
+        b.close()
     s.close()
     print("echecs :", fails)
     sys.exit(fails)

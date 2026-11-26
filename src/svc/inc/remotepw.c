@@ -23,6 +23,7 @@
 #define RP_FILE "/etc/remote.txt"
 #define RP_VAULT "remote-password"	/* le secret, dans l'espace @system */
 #define RP_MARK "password_vault"	/* la ligne de remote.txt : « dans le coffre » */
+#define RP_VAULT_VNC "remote-vnc"	/* le mot de passe de VNC seul (S4), même espace */
 
 char rp_pw[RP_MAX + 1];
 static char rp_buf[RP_BUF];
@@ -164,6 +165,11 @@ static void rp_result(int ok)
 			wait = 600000ull;
 		rp_until = (u64)korin_sys0(SYS_TIME_MS) + wait;
 	}
+}
+
+void rp_note(int ok)
+{
+	rp_result(ok);
 }
 
 /* saisie, sa longueur -> 1 si c'est le mot de passe de rp_pw (rp_read avant) ;
@@ -315,4 +321,21 @@ long rp_account(const char *name, const char *pw, char *home, u64 cap)
 		 rp_auth(RP_AUTH_HASPW, name, 0) == 1 && rp_auth(RP_AUTH_VERIFY, name, pw) == 0;
 	rp_result(ok);
 	return ok ? f.uid : -1;
+}
+
+/* ---- VNC (S4) */
+
+long rp_read_vnc(void)
+{
+	rp_pw[0] = 0;
+	if (rp_vault()) {
+		long r = kv_sys_get(RP_VAULT_VNC, rp_pw, RP_MAX);
+		if (r > 0) {
+			rp_pw[r] = 0;
+			return r;
+		}
+	}
+	if (rp_accounts())
+		return 0; /* (mode comptes sans mot de passe VNC : refusé) */
+	return rp_read();
 }

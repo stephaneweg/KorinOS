@@ -15,5 +15,11 @@ int rp_accounts(void);
 long rp_account(const char *name, const char *pw, char *home, u64 cap);
 /* trop d'échecs récents (secret commun et comptes, par service) : refuser sans essayer (S3) */
 int rp_locked(void);
+/* un essai d'un service qui vérifie lui-même (le défi de VNC, le HMAC de RDP) : ok 1 ou 0, pour le compteur (S3) */
+void rp_note(int ok);
+/* VNC (S4) : son propre mot de passe (le secret « remote-vnc » du coffre, 8 octets au plus comptent) ; sans lui, le
+ * secret commun hors du mode comptes ; en mode comptes, 0 : refusé (le défi DES de VNC ne peut pas servir un
+ * compte). -> longueur, lui dans rp_pw */
+long rp_read_vnc(void);
 
 #endif

@@ -7,7 +7,8 @@
  * Protocole d'Onyx (user/BinUtils/rdpd.c), petit-boutiste, plus un mot de passe
  * (celui de l'accès à distance, /etc/remote.txt, remotepw.c, relu à chaque
  * connexion), un client à la fois (un nouveau client prend la place de
- * l'ancien : le PC qui se reconnecte après une coupure) :
+ * l'ancien : le PC qui se reconnecte après une coupure ; S6 : seulement une fois
+ * authentifié, pendant que la session continue : pend_*) :
  *  * salut : « ONYXRDP2 », largeur, hauteur, 96 (u16 ; le client y lit la
  *    version de l'ABI d'Onyx et veut au moins 56), puis un défi de 16 octets
  *    (SYS_GETRANDOM) ; le client répond « ONYXRDP2 » + options (1 : 16 bits,
@@ -69,6 +70,7 @@
 #define IDLE_PING_MS 2000 /* client en pipeline silencieux : un PING */
 #define SILENT_MS 12000   /* ... sans rien entendre : la session finit */
 #define POLL_MS 500       /* un nouveau client ? */
+#define PEND_POLL_MS 40   /* un client en attente d'authentification (S6) */
 #define DPI 96
 #define DESK 0xFFFFFFFFUL /* pseudo-fenêtre du bureau */
 #define AUTH_LEN (8 + 1 + 32) /* la réponse au salut : « ONYXRDP2 », options, HMAC */
@@ -559,26 +561,55 @@ static void parse(void)
  * verdict : 0 accepté, 1 mot de passe faux, AUTH_NONE aucun (/etc/
  * remote.txt absent ou vide : tout est refusé). Comparaison en temps constant ;
  * le mot de passe ne reste pas en mémoire. */
-static u64 auth(void)
+static u64 auth(const u8 *chal, const u8 *mac)
 {
+	if (rp_locked()) /* trop d'échecs récents (S3) */
+		return 1;
 	long n = rp_read();
 	u64 v = AUTH_NONE;
 	if (n) {
-		hmac_sha256((const u8 *)rp_pw, (u64)n, sd.challenge, 16, sd.expected);
+		hmac_sha256((const u8 *)rp_pw, (u64)n, chal, 16, sd.expected);
 		u8 d = 0;
 		for (int i = 0; i < 32; i++)
-			d |= sd.expected[i] ^ inbuf[9 + i];
+			d |= sd.expected[i] ^ mac[i];
 		v = d != 0;
+		rp_note(!v);
 	}
 	memset(rp_pw, 0, RP_MAX + 1); /* (le mot de passe, le haché attendu) */
 	memset(sd.expected, 0, 32);
 	return v;
 }
 
-/* E70 : who (le nom donné par le client) -> verdict comme auth() ; 99 : le client est parti. Le sel du compte
- * (authd AUTH_SALT), puis la preuve du client vérifiée par authd (AUTH_PROOF) ; le compte : celui de la session, ou
- * un compte qui peut s'élever (RDP montre l'écran de la session) */
-static u64 auth_account(const char *who)
+/* E70 : who (le nom donné par le client) -> le sel du compte (authd AUTH_SALT) dans out (itération u32, longueur
+ * u8, sel : 29 octets au plus) -> sa longueur, < 0 : authd absent. Un compte inconnu a un faux sel stable */
+static long acct_salt(const char *who, u8 *out)
+{
+	static u64 am[64];
+	long ch = korin_sys2(SYS_SVC_OPEN, "auth", 2000);
+	if (ch < 0)
+		return -1;
+	u64 nl = (u64)str_len(who);
+	memset(am, 0, sizeof am);
+	am[0] = 12; /* AUTH_SALT */
+	memcpy((u8 *)am + 48, who, nl + 1);
+	*(u32 *)((u8 *)am + 40) = (u32)(nl + 1);
+	if (korin_sys2(SYS_SVC_CALL, ch, am) < 0 || am[0] != 0)
+		return -1;
+	u32 iter = (u32)am[1];
+	u8 sl = (u8)(am[1] >> 32);
+	if (sl > 24)
+		sl = 24;
+	for (int i = 0; i < 4; i++)
+		out[i] = (u8)(iter >> (8 * i));
+	out[4] = sl;
+	memcpy(out + 5, (const u8 *)&am[2], sl);
+	return 5 + sl;
+}
+
+/* who, le défi, la preuve du client (32 octets : HMAC-SHA256 du défi, clé PBKDF2) -> verdict comme auth() : authd
+ * la vérifie (AUTH_PROOF, son compteur d'échecs) ; le compte : celui de la session, ou un compte qui peut s'élever
+ * (RDP montre l'écran de la session) */
+static u64 acct_proof(const char *who, const u8 *chal, const u8 *proof)
 {
 	static u64 am[64];
 	long ch = korin_sys2(SYS_SVC_OPEN, "auth", 2000);
@@ -586,28 +617,11 @@ static u64 auth_account(const char *who)
 		return AUTH_NONE;
 	u64 nl = (u64)str_len(who);
 	memset(am, 0, sizeof am);
-	am[0] = 12; /* AUTH_SALT */
-	memcpy((u8 *)am + 48, who, nl + 1);
-	*(u32 *)((u8 *)am + 40) = (u32)(nl + 1);
-	if (korin_sys2(SYS_SVC_CALL, ch, am) < 0 || am[0] != 0)
-		return AUTH_NONE;
-	u32 iter = (u32)am[1];
-	u8 sl = (u8)(am[1] >> 32);
-	if (sl > 24)
-		sl = 24;
-	put32(iter);
-	put8(sl);
-	put((const u8 *)&am[2], sl);
-	flush_out();
-	if (!need(32, 30000)) /* la preuve (PBKDF2 côté client : quelques dixièmes de seconde) */
-		return 99;
-	memset(am, 0, sizeof am);
 	am[0] = 13; /* AUTH_PROOF */
 	memcpy((u8 *)am + 48, who, nl + 1);
-	memcpy((u8 *)am + 48 + nl + 1, sd.challenge, 16);
-	memcpy((u8 *)am + 48 + nl + 17, inbuf, 32);
+	memcpy((u8 *)am + 48 + nl + 1, chal, 16);
+	memcpy((u8 *)am + 48 + nl + 17, proof, 32);
 	*(u32 *)((u8 *)am + 40) = (u32)(nl + 1 + 48);
-	consume(32);
 	long r = korin_sys2(SYS_SVC_CALL, ch, am);
 	if (r < 0 || am[0] != 0)
 		return 1;
@@ -615,6 +629,196 @@ static u64 auth_account(const char *who)
 	if (uid != user_session_uid() && !am[2])
 		return 1; /* (ni le compte de la session, ni un administrateur) */
 	return 0;
+}
+
+/* le premier client (rien d'autre en cours) : who -> verdict ; 99 : le client est parti */
+static u64 auth_account(const char *who)
+{
+	u8 m[32];
+	long n = acct_salt(who, m);
+	if (n < 0)
+		return AUTH_NONE;
+	put(m, (u64)n);
+	flush_out();
+	if (!need(32, 30000)) /* la preuve (PBKDF2 côté client : quelques dixièmes de seconde) */
+		return 99;
+	u64 v = acct_proof(who, sd.challenge, inbuf);
+	consume(32);
+	return v;
+}
+
+/* ---- S6 : un client qui arrive pendant une session s'authentifie à côté, sans la couper ; elle ne lui cède la
+ * place qu'une fois le verdict 0 envoyé. Un seul en attente ; 45 s au plus */
+
+#define PEND_MS 45000
+static struct {
+	long sock; /* -1 : aucun */
+	u64 at;
+	u64 n;
+	u8 stage; /* 0 : la réponse au salut ; 1 : la preuve (par compte) */
+	u8 opts;
+	u8 chal[16];
+	char who[32];
+	u8 buf[96];
+} pend;
+static u64 pend_last;   /* (sa dernière lecture) */
+static u64 next_opts;   /* next_sock déjà authentifié : ses options */
+static int next_authed; /* (et le verdict 0 déjà envoyé) */
+
+/* octets vers s (petit : net_send attend la place) -> 0 ou < 0 */
+static long send_raw(long s, const void *p, u64 n)
+{
+	const u8 *q = p;
+	while (n) {
+		long r = net_send(s, (long)q, (long)n);
+		if (r <= 0)
+			return -1;
+		q += r;
+		n -= (u64)r;
+	}
+	return 0;
+}
+
+static void pend_drop(void)
+{
+	if (pend.sock >= 0)
+		net_close(pend.sock);
+	pend.sock = -1;
+	memset(&pend.buf, 0, sizeof pend.buf);
+}
+
+static void pend_shift(u64 k)
+{
+	pend.n -= k;
+	memmove(pend.buf, pend.buf + k, pend.n);
+}
+
+/* c : un client arrivé pendant la session -> le salut (son propre défi) */
+static void pend_start(long c)
+{
+	if (pend.sock >= 0) { /* (déjà un en attente) */
+		net_close(c);
+		return;
+	}
+	u8 h[30];
+	if (korin_sys2(SYS_GETRANDOM, pend.chal, 16) != 16) {
+		net_close(c);
+		return;
+	}
+	memcpy(h, s_magic, 8);
+	h[8] = (u8)scr_w;
+	h[9] = (u8)(scr_w >> 8);
+	h[10] = (u8)scr_h;
+	h[11] = (u8)(scr_h >> 8);
+	h[12] = (u8)DPI;
+	h[13] = (u8)(DPI >> 8);
+	memcpy(h + 14, pend.chal, 16);
+	if (send_raw(c, h, 30) < 0) {
+		net_close(c);
+		return;
+	}
+	pend.sock = c;
+	pend.at = now_ms();
+	pend.n = 0;
+	pend.stage = 0;
+	ak_puts(m_client);
+}
+
+/* ce que le client en attente a envoyé -> 1 : authentifié (le verdict 0 envoyé, il prend la place) ; 0 sinon (en
+ * attente, ou refusé et fermé) */
+static int pend_poll(u64 now)
+{
+	if (pend.sock < 0)
+		return 0;
+	if (now - pend.at > PEND_MS) {
+		pend_drop();
+		return 0;
+	}
+	long r = net_recv(pend.sock, (long)(pend.buf + pend.n), (long)(sizeof pend.buf - pend.n), 0);
+	if (r == E_AGAIN)
+		r = 0;
+	else if (r <= 0) {
+		pend_drop();
+		return 0;
+	}
+	pend.n += (u64)r;
+	u64 v;
+	if (pend.stage == 0) {
+		if (pend.n < 10)
+			return 0;
+		pend.opts = pend.buf[8];
+		if (!memcmp(pend.buf, s_magic3, 8)) {
+			u64 nl = pend.buf[9];
+			if (!nl || nl > 31) {
+				pend_drop();
+				return 0;
+			}
+			if (pend.n < 10 + nl)
+				return 0;
+			memcpy(pend.who, pend.buf + 10, nl);
+			pend.who[nl] = 0;
+			pend_shift(10 + nl);
+			u8 m[32];
+			long k = acct_salt(pend.who, m);
+			if (k < 0) {
+				v = AUTH_NONE;
+				goto verdict;
+			}
+			if (send_raw(pend.sock, m, (u64)k) < 0) {
+				pend_drop();
+				return 0;
+			}
+			pend.stage = 1;
+		} else if (!memcmp(pend.buf, s_magic, 8)) {
+			if (pend.n < 9 + 32)
+				return 0;
+			v = rp_accounts() ? 1 : auth(pend.chal, pend.buf + 9);
+			pend_shift(9 + 32);
+			goto verdict;
+		} else {
+			pend_drop();
+			return 0;
+		}
+	}
+	if (pend.n < 32)
+		return 0;
+	v = acct_proof(pend.who, pend.chal, pend.buf);
+	pend_shift(32);
+verdict:;
+	u8 b = (u8)v;
+	if (send_raw(pend.sock, &b, 1) < 0 || v) {
+		if (v)
+			ak_puts(v == AUTH_NONE ? m_none : m_refused);
+		pend_drop();
+		return 0;
+	}
+	return 1;
+}
+
+/* le client authentifié prend la place : next_sock ; ce qu'il a déjà envoyé ensuite passe dans inbuf */
+static u64 pend_left;
+static u8 pend_rest[96];
+static void pend_handover(void)
+{
+	next_sock = pend.sock;
+	next_opts = pend.opts;
+	next_authed = 1;
+	pend_left = pend.n;
+	memcpy(pend_rest, pend.buf, pend.n);
+	pend.sock = -1;
+	memset(&pend.buf, 0, sizeof pend.buf);
+}
+
+/* la session est finie, un client attend encore : finir son authentification (bloquant) */
+static void pend_finish(void)
+{
+	while (pend.sock >= 0) {
+		if (pend_poll(now_ms())) {
+			pend_handover();
+			return;
+		}
+		korin_sys1(SYS_SLEEP, 20);
+	}
 }
 
 /* now : la forme du curseur a changé -> CURSOR (KAPI_CURSOR_* d'Onyx, OnyxRemote) */
@@ -1032,6 +1236,8 @@ static void session(void)
 {
 	in_n = 0; /* remise à zéro */
 	outlen = 0;
+	int authed = next_authed; /* (S6 : authentifié pendant la session précédente) */
+	next_authed = 0;
 	dead = 0;
 	opt_desktop = 0;
 	btn = 0;
@@ -1042,6 +1248,15 @@ static void session(void)
 		slots[i].sent = 0;
 	}
 	korin_sys1(SYS_SCREEN_INFO, scr); /* taille de l'écran */
+	u64 v;
+	u8 o;
+	if (authed) {
+		o = (u8)next_opts;
+		memcpy(inbuf, pend_rest, pend_left);
+		in_n = pend_left;
+		memset(pend_rest, 0, sizeof pend_rest);
+		goto ready;
+	}
 	if (korin_sys2(SYS_GETRANDOM, sd.challenge, 16) != 16) /* le défi du mot de passe */
 		goto out;
 	put(s_magic, 8); /* salut */
@@ -1052,8 +1267,7 @@ static void session(void)
 	flush_out();
 	if (!need(10, 15000)) /* la réponse du client : la marque, les options, puis selon la version */
 		goto out;
-	u64 v;
-	u8 o = inbuf[8]; /* options */
+	o = inbuf[8]; /* options */
 	if (!memcmp(inbuf, s_magic3, 8)) { /* par compte */
 		u64 nl = inbuf[9];
 		if (!nl || nl > 31 || !need(10 + nl, 15000))
@@ -1068,7 +1282,7 @@ static void session(void)
 	} else if (!memcmp(inbuf, s_magic, 8)) { /* le secret commun */
 		if (!need(AUTH_LEN, 15000))
 			goto out;
-		v = rp_accounts() ? 1 : auth(); /* (mode comptes : refusé) */
+		v = rp_accounts() ? 1 : auth(sd.challenge, inbuf + 9); /* (mode comptes : refusé) */
 		consume(AUTH_LEN);
 	} else
 		goto out;
@@ -1078,6 +1292,7 @@ static void session(void)
 		ak_puts(v == AUTH_NONE ? m_none : m_refused);
 		goto out;
 	}
+ready:
 	opt_16 = o & 1;
 	opt_noframes = (o >> 1) & 1;
 	opt_pipe = (o >> 2) & 1;
@@ -1134,15 +1349,20 @@ static void session(void)
 				flush_out();
 			}
 		}
-		if (now - last_poll < POLL_MS) /* un nouveau client prend la place */
+		if (pend.sock >= 0 && now - pend_last >= PEND_POLL_MS) {
+			pend_last = now;
+			if (pend_poll(now)) {
+				pend_handover(); /* un nouveau client authentifié prend la place (S6) */
+				ak_puts(m_next);
+				goto out;
+			}
+		}
+		if (now - last_poll < POLL_MS)
 			continue;
 		last_poll = now;
 		long c = net_accept(lsock, 0);
-		if (c < 0)
-			continue;
-		next_sock = c;
-		ak_puts(m_next);
-		goto out;
+		if (c >= 0)
+			pend_start(c); /* (il s'authentifie à côté) */
 	}
 out:
 	release_all();
@@ -1158,6 +1378,7 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 	next_sock = -1;
+	pend.sock = -1;
 	long h = korin_sys2(SYS_SVC_OPEN, "hid", 10000); /* pilote virtuel de HIDManager */
 	if (h >= 0) {
 		MW(WM_OP) = HID_OP_PILOTE;
@@ -1193,6 +1414,8 @@ int main(int argc, char **argv)
 					session();
 					net_close(sock);
 					ak_puts(m_gone);
+					if (next_sock < 0)
+						pend_finish(); /* (un client encore en attente : il finit) */
 				}
 			}
 			net_close(ls);

@@ -3,9 +3,10 @@
  * messages, même protocole, mêmes bizarreries : « comme l'asm »).
  * RFB 3.3 / 3.7 / 3.8 (RFC 6143), sécurité « VNC Authentication » (type 2,
  * RFC 6143 7.2.2) : défi de 16 octets aléatoires (getrandom), réponse DES-ECB
- * dont la clé est le mot de passe de l'accès à distance (/etc/remote.txt,
- * remotepw.c, relu à chaque client ; 8 octets au plus comptent, bits de chaque
- * octet inversés : usage de VNC). Sans mot de passe défini, toute connexion est
+ * dont la clé est le mot de passe de VNC (S4 : le secret « remote-vnc » du
+ * coffre, Réglages ; sans lui, le secret commun, sauf en mode comptes : refusé ;
+ * remotepw.c, rp_read_vnc, relu à chaque client ; 8 octets au plus comptent,
+ * bits de chaque octet inversés : usage de VNC ; le compteur d'échecs commun). Sans mot de passe défini, toute connexion est
  * refusée (avec la raison). DES : des.c. Un client à la fois ; tout client VNC
  * (TigerVNC, RealVNC, TightVNC), ou vncdotool (Python) pour les scripts.
  *  * image : l'écran composé d'Elegant (op WS_OP_SNAPSHOT : seules les zones
@@ -48,7 +49,7 @@
 
 static const char s_version[] = "RFB 003.008\n"; /* (12 octets envoyés) */
 static const char s_name[8] = "Korin";
-static const char m_ready[] = "vncd : en écoute sur le port 5900 (mot de passe : etc/remote.txt)\n";
+static const char m_ready[] = "vncd : en écoute sur le port 5900 (mot de passe : Réglages, Accès à distance)\n";
 static const char m_refused[] = "vncd : mot de passe refusé\n";
 static const char m_no_pw[] = "vncd : aucun mot de passe défini, client refusé\n";
 static const char s_wrong[] = "Mot de passe incorrect";
@@ -227,6 +228,10 @@ static long auth_vnc(long sock, u32 version)
 		diff |= dk.expected[i] ^ response[i];
 	memset(&dk, 0, sizeof dk); /* effacer clé, sous-clés, mot de passe */
 	memset(rp_pw, 0, RP_MAX + 1);
+	if (rp_locked()) /* trop d'échecs récents (S3) : refusé sans compter */
+		diff = 1;
+	else
+		rp_note(!diff);
 	if (!diff) {
 		memset(tmp, 0, 4); /* SecurityResult 0 : bon */
 		return send_all(sock, tmp, 4);
@@ -496,7 +501,7 @@ static void client(long sock)
 	if (recv_all(sock, tmp, 12) < 0)
 		return;
 	u32 version = (u32)tmp[10] - '0'; /* « RFB 003.00x » : x = 3, 7 ou 8 */
-	long pw = rp_read(); /* le mot de passe, relu à chaque client */
+	long pw = rp_read_vnc(); /* le mot de passe, relu à chaque client */
 	if (version >= 7) {
 		if (pw) {
 			tmp[0] = 1; /* 3.7, 3.8 : la liste {VNC Authentication} */
