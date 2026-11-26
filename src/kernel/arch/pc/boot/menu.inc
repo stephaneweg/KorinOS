@@ -29,6 +29,7 @@ ID_WINDOWS      = 1
 ID_FW           = 2
 ID_REBOOT       = 3
 ID_OFF          = 4
+ID_SAFE         = 5                     ; Korin OS, la version de secours (ab.inc)
 
 MENU_W          = 46            ; largeur de la barre de sélection
 STATUS_W        = 72            ; largeur des lignes d'état et de message
@@ -79,6 +80,7 @@ macro pleave {
 boot_menu:
         penter
         call    cfg_load
+        call    ab_load
         cmp     byte [cfg_fw], 0
         je      @f
         call    nvram_register          ; (firmware.inc)
@@ -114,7 +116,14 @@ boot_menu:
         xor     ebx, ebx
         mov     byte [rdi + rbx], ID_KORIN
         inc     ebx
-        cmp     byte [has_windows], 0
+        push    rdi
+        call    ab_has_safe             ; (une version en essai : la version de secours aussi, au clavier)
+        pop     rdi
+        test    al, al
+        jz      @f
+        mov     byte [rdi + rbx], ID_SAFE
+        inc     ebx
+@@:     cmp     byte [has_windows], 0
         je      @f
         mov     byte [rdi + rbx], ID_WINDOWS
         inc     ebx
@@ -300,8 +309,14 @@ launch:
         lea     rdi, [dbg_launch]
         mov     rsi, [rdi + rbx * 8]
         call    dbg
+        cmp     ebx, ID_SAFE
+        je      .korin
         cmp     ebx, ID_KORIN
         jne     .win
+.korin: xor     ecx, ecx
+        cmp     ebx, ID_SAFE
+        sete    cl
+        call    ab_choose
         call    cls
         lea     rdx, [msg_loading]
         call    print
@@ -349,16 +364,26 @@ launch:
 ; rax = 0, ou le message d'erreur (pour la ligne de message du menu).
 korin_load:
         sub     rsp, 40
-        lea     rdx, [kernel_path]
+.again: mov     rdx, [kpath_ptr]
         call    read_file
         test    rax, rax
-        jnz     .nofile
+        jz      .kok
+        call    ab_fallback             ; (illisible : la version confirmée, puis les fichiers d'avant A/B)
+        test    eax, eax
+        jnz     .again
+        jmp     .nofile
+.kok:
         mov     rax, [rf_buf]
         mov     [kfile_buf], rax
         call    load_elf
         test    rax, rax
-        jnz     .badelf
-        lea     rdx, [initrd_path]
+        jz      .elfok
+        call    ab_fallback             ; (invalide : de même)
+        test    eax, eax
+        jnz     .again
+        jmp     .badelf
+.elfok:
+        mov     rdx, [ipath_ptr]
         call    read_file
         test    rax, rax
         jnz     .ok

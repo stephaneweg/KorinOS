@@ -584,6 +584,7 @@ find_config_table:
 
 include 'menu.inc'
 include 'firmware.inc'
+include 'ab.inc'
 
 ; ---------------------------------------------------------------------------
 ; print : rdx = chaîne UTF-16 terminée par 0 (pile alignée à l'appel de print).
@@ -686,6 +687,11 @@ kernel_path du '\korin\kernel.elf', 0
 initrd_path du '\korin\initrd.tar', 0
 cfg_path    du '\korin\boot.cfg', 0
 local_path  du '\korin\local.tar', 0
+ab_path     du '\korin\ab.txt', 0
+ka_path     du '\korin\a\kernel.elf', 0
+ia_path     du '\korin\a\initrd.tar', 0
+kb_path     du '\korin\b\kernel.elf', 0
+ib_path     du '\korin\b\initrd.tar', 0
 win_path    du '\EFI\Microsoft\Boot\bootmgfw.efi', 0
 WIN_PATH_BYTES = $ - win_path
 v_os_ind     du 'OsIndications', 0
@@ -712,6 +718,7 @@ lbl_windows du 'Windows', 0
 lbl_fw      du 'R', 0xE9, 'glages du firmware (BIOS)', 0
 lbl_reboot  du 'Red', 0xE9, 'marrer', 0
 lbl_off     du 0xC9, 'teindre', 0
+lbl_safe    du 'Korin OS (version de secours)', 0
 s_2sp       du '  ', 0
 s_count1    du 'D', 0xE9, 'marrage de ', 0
 s_count2    du ' dans ', 0
@@ -766,6 +773,11 @@ d_timeout   db 'boot: delai ', 0
 d_fwui      db 'boot: reglages du firmware possibles', 0
 d_cfg       db 'boot: \korin\boot.cfg lu', 0
 d_local     db 'boot: \korin\local.tar lu', 0
+d_ab        db 'boot: \korin\ab.txt lu (deux emplacements)', 0
+d_ab_slot   db 'boot: emplacement ', 0
+d_ab_nowr   db 'boot: \korin\ab.txt pas recrit', 0
+d_ab_fall   db 'boot: noyau illisible ou invalide : repli', 0
+d_safe      db 'boot: lance korin (version de secours)', 0
 d_bootpart  db 'boot: partition de demarrage ', 0
 d_nobootpart db 'boot: partition de demarrage inconnue (pas de noeud HARDDRIVE)', 0
 d_expire    db 'boot: fin du compte a rebours', 0
@@ -814,8 +826,17 @@ desc_size       dq 0
 desc_version    dq 0
 exit_tries      dq 0
 reloc_anchor    dq start                ; garde une table de relocation non vide
-labels          dq lbl_korin, lbl_windows, lbl_fw, lbl_reboot, lbl_off ; par ID_*
-dbg_launch      dq d_korin, d_windows, d_fw, d_reboot, d_off
+labels          dq lbl_korin, lbl_windows, lbl_fw, lbl_reboot, lbl_off, lbl_safe ; par ID_*
+dbg_launch      dq d_korin, d_windows, d_fw, d_reboot, d_off, d_safe
+kpath_ptr       dq kernel_path          ; (ab.inc) le noyau et l'initrd à lire
+ipath_ptr       dq initrd_path
+ab_file         dq 0
+ab_size         dq 0
+ab_ok           db 0
+ab_slot         db 0
+ab_slotstr      db 'a', 0
+ab_model        db 'confirmed=? trial=? tries=? booted=?'
+ab_buf          rb 40
 efi_names       dq 1, n_load, 2, n_inval, 3, n_unsup, 9, n_res, 14, n_notfound, 15, n_denied
                 dq 21, n_aborted, 26, n_security, 0, 0 ; codes d'erreur EFI (sans le bit 63)
 cfg_timeout     dq -1                   ; -1 : pas dans boot.cfg

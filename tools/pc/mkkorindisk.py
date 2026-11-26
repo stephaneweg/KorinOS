@@ -138,7 +138,7 @@ def make(img, windows, cfg, esp_src, loader, layout="old", sysroot=None):
         if sysroot:
             shutil.copytree(sysroot, korin)
         os.makedirs(os.path.join(korin, "EFI", "Korin"))
-        os.makedirs(os.path.join(korin, "korin"))
+        os.makedirs(os.path.join(korin, "korin"), exist_ok=True)  # (un arbre qui a déjà korin/ : ab.txt, a/, b/)
         shutil.copyfile(loader, os.path.join(korin, "EFI", "Korin", "korin.efi"))
         for n in ("kernel.elf", "initrd.tar"):
             s = os.path.join(esp_src, "korin", n)
