@@ -122,6 +122,7 @@ static void job_line (char *line)
 	case 'E': g_job.rc = atoi (a); g_job.ended = true; break;
 	}
 }
+static bool s_abKeep;	// la réponse de la carte d'authd : la version actuelle gardée de secours (A/B)
 static bool job_start (int kind, const char *const *names, int n, const char *mode = 0)
 {
 	if (g_job.running) return false;
@@ -129,7 +130,10 @@ static bool job_start (int kind, const char *const *names, int n, const char *mo
 	g_job.kind = kind; g_job.fd = -1; g_job.rc = -1;
 	static const char *const K[] = { "check", "install", "remove", "mode" };
 	const char *argv[72]; int a = 0;
-	argv[a++] = PKG_CMD; argv[a++] = "ui-job"; argv[a++] = K[kind];
+	argv[a++] = PKG_CMD;
+	if (s_abKeep && kind == J_INSTALL) argv[a++] = "--ab-keep";
+	s_abKeep = false;
+	argv[a++] = "ui-job"; argv[a++] = K[kind];
 	for (int i = 0; i < n && i < 64; i++) { cpy (g_job.names[g_job.n++], names[i], 40); argv[a++] = g_job.names[i]; }
 	if (mode) argv[a++] = mode;
 	argv[a] = 0;
@@ -446,6 +450,18 @@ static void all_changed ()
 	refilter (); tabs_labels (); bar_sync (); update_buttons (); ui_view_dirty (g_list);
 }
 static int s_dropUid = -1;	// l'uid à reprendre quand le travail élevé est fini (-1 : aucun)
+// la version qui tourne est-elle la version en essai d'A/B (\korin\ab.txt du volume de démarrage, copié dans
+// /var/pkg/ab.txt par « pkg bootok » à chaque démarrage, docs/etude/MISES-A-JOUR-AB.md) ? Alors la carte demande s'il
+// faut la garder de secours ; sans le fichier (le Pi, une installation d'avant A/B) : non
+static bool ab_trial_running (void)
+{
+	char t[48] = ""; int f = open ("/var/pkg/ab.txt", O_RDONLY);
+	if (f < 0) return false;
+	ssize_t k = read (f, t, sizeof t - 1); close (f);
+	if (k < 36 || strncmp (t, "confirmed=", 10) || strncmp (t + 11, " trial=", 7) || strncmp (t + 27, " booted=", 8)) return false;
+	return (t[18] == 'a' || t[18] == 'b') && t[18] != t[10] && t[35] == t[18];
+}
+static bool is_system_pkg (const char *n) { return !strcmp (n, "pc") || !strcmp (n, "armpi"); }
 static bool start_job (int kind, const char *const *names, int n, const char *mode = 0)
 {
 	if (g_job.running) return false;
@@ -459,7 +475,12 @@ static bool start_job (int kind, const char *const *names, int n, const char *mo
 		snprintf (why, sizeof why, TR (kind == J_REMOVE ? "Logiciels veut retirer %s." : "Logiciels veut installer %s."),
 			  n == 1 ? names[0] : TR ("des logiciels"));
 		uid_t me = getuid ();
-		long e = ui_elevate ((long) why);
+		// une mise à jour du système dans le lot : la carte s'ouvre toujours (pas de « retenir »), une seule pour tout le
+		// lot, et c'est elle (authd, pas Logiciels) qui demande s'il faut garder la version actuelle de secours
+		bool sys = false;
+		for (int i = 0; kind == J_INSTALL && i < n; i++) sys |= is_system_pkg (names[i]);
+		long e = sys ? ui_elevate_system ((long) why, ab_trial_running () ? 1 : 0) : ui_elevate ((long) why);
+		if (sys && e >= 0) { s_abKeep = e == 1; e = 0; }
 		if (e != 0)
 		{
 			pkgui_status (e == -1 ? "Ce compte ne peut pas installer de logiciels (/etc/elevate.ini)." : "Autorisation refusée.");

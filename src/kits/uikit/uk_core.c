@@ -185,6 +185,41 @@ long ui_elevate(long reason)
 	}
 }
 
+/* ui_elevate_system : x0 = raison, x1 = 1 : poser la question de la version de secours -> comme ui_elevate,
+ * pour une mise à jour du système (A/B, docs/etude/MISES-A-JOUR-AB.md) : la carte d'authd s'ouvre toujours (le
+ * « retenir 5 minutes » ne s'y applique pas) ; avec x1 = 1, elle porte la case « Garder la version actuelle comme
+ * version de secours ». -> 1 : passé en uid 0, case cochée ; 0 : passé en uid 0 (ou déjà, ou le Pi) sans ;
+ * < 0 : comme ui_elevate */
+long ui_elevate_system(long reason, long ask)
+{
+	static u64 m[64];
+	if (SYS0(SYS_GETUID) <= 0)
+		return 0;
+	long ch = SYS2(SYS_SVC_OPEN, S("auth"), 3000);
+	if (ch < 0)
+		return 0;
+	long op = 5;
+	for (;;) {
+		for (int i = 0; i < 64; i++)
+			m[i] = 0;
+		m[0] = (u64)op;
+		m[2] = ask ? 3 : 2; /* (b : le mode mise à jour du système) */
+		long n = 0;
+		const char *r = (const char *)(uintptr_t)reason;
+		char *d = (char *)&m[6];
+		while (r && r[n] && n < 400) {
+			d[n] = r[n];
+			n++;
+		}
+		((u32 *)m)[10] = (u32)(n + 1);
+		long e = SYS2(SYS_SVC_CALL, ch, S(m));
+		long res = e < 0 ? e : (long)m[0];
+		if (res != -11)
+			return res == 0 ? (m[1] == 1 ? 1 : 0) : res;
+		op = 7;
+	}
+}
+
 /* ui_load_font : x0 = chemin, x1 = police -> 1 si chargée */
 long ui_load_font(long path, long font)
 {

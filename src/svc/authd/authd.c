@@ -23,6 +23,10 @@
  *                passé en uid 0 ; E_CANCELED : refusé à la carte ; E_PERM : pas dans elevate.ini ; E_BUSY :
  *                une autre carte est ouverte. La réponse attend la carte de confirmation (/sys/authcard,
  *                lancée par authd en uid 0 : ce n'est pas l'app qui la dessine), un mot de passe à la fois.
+ *                b = 2 : une mise à jour du système (A/B, docs/etude/MISES-A-JOUR-AB.md) : la carte s'ouvre
+ *                toujours (ni « retenir » ni retenu) ; b = 3 : de même, avec la case « Garder la version actuelle
+ *                comme version de secours » ; la réponse : a = 1 si elle est cochée (la question passe par authd,
+ *                jamais par l'app : décision du 25/11/2026). Un compte déjà en uid 0 : 0, a = 0 (pas de carte)
  *   AUTH_CARD    (la carte seulement) a = jeton, b = 1 annuler ; données : mot de passe -> 0 : accepté (ou
  *                annulé) ; E_ACCES : mauvais mot de passe, la carte reste
  *   AUTH_WAIT    (l'app, après E_AGAIN) -> comme AUTH_ELEVATE. Le noyau abandonne un appel au bout de 30 s :
@@ -86,6 +90,9 @@ static struct {
 	long uid;   /* le compte de l'app */
 	u64 token;
 	char name[32];
+	int system; /* une mise à jour du système : ni retenu ni « retenir » */
+	int ask;    /* la case de la version de secours est montrée */
+	int backup; /* et elle a été cochée (rendu en a) */
 } pending;
 
 #include "pwhash.h" /* SHA-256, HMAC, PBKDF2 */
@@ -521,6 +528,7 @@ static void repondre(long req, long r)
 {
 	memset(msg2, 0, MSG_SIZE);
 	M64(msg2, 0) = (u64)r;
+	M64(msg2, 8) = (u64)(r == 0 && pending.backup); /* (la case de la version de secours, mise à jour du système) */
 	korin_sys2(SYS_SVC_REPLY, req, msg2);
 }
 
@@ -561,10 +569,11 @@ static void dec_to(u64 v, char *o)
 	*o = 0;
 }
 
-static long elever(const struct compte *c, long pid, const char *raison)
+static long elever(const struct compte *c, long pid, const char *raison, long mode)
 {
 	if (pending.active)
 		return E_BUSY;
+	M64(msg, 8) = 0; /* (a de la réponse : la case de la version de secours, non par défaut) */
 	if (c->uid != 0 && !peut_elever(c)) {
 		journal("elevation", c, pid, "refusee (pas dans /etc/elevate.ini)");
 		return E_PERM;
@@ -579,7 +588,7 @@ static long elever(const struct compte *c, long pid, const char *raison)
 			return E_PERM;
 		}
 	}
-	if (retenu(c->uid, (u64)pid)) { /* (retenu pour cette app seulement, pas pour toutes celles du compte : A2) */
+	if (mode < 2 && retenu(c->uid, (u64)pid)) { /* (retenu pour cette app seulement, pas pour toutes celles du compte : A2) */
 		long r = korin_sys2(SYS_PROC_SETUID, pid, 0);
 		journal("elevation", c, pid, r ? "echec du changement d'uid" : "accordee (retenue)");
 		return r;
@@ -600,6 +609,8 @@ static long elever(const struct compte *c, long pid, const char *raison)
 	*o = 0;
 	o = str_cat(str_cat(str_cat(o, "|"), c->name), "|");
 	o = str_cat(o, empreinte_de(c->name) && empreinte[0] ? "1" : "0");
+	if (mode >= 2)
+		o = str_cat(o, mode == 3 ? "|system-ask" : "|system");
 	long card = ksys(SYS_SPAWN, (long)"/sys/authcard", (long)args, 0, 0, 0, 0);
 	if (card < 0) {
 		journal("elevation", c, pid, "carte /sys/authcard introuvable");
@@ -614,6 +625,9 @@ static long elever(const struct compte *c, long pid, const char *raison)
 	pending.token = tok;
 	pending.uid = c->uid;
 	copie(pending.name, sizeof pending.name, c->name);
+	pending.system = mode >= 2;
+	pending.ask = mode == 3;
+	pending.backup = 0;
 	return DEFER;
 }
 
@@ -637,10 +651,13 @@ static long carte(long pid, const char *data)
 		return E_ACCES;
 	}
 	long r = korin_sys2(SYS_PROC_SETUID, pending.pid, 0);
-	int keep = !r && M64(msg, 24) == 1 && empreinte_de(pending.name) && empreinte[0];
+	int keep = !r && !pending.system && M64(msg, 24) == 1 && empreinte_de(pending.name) && empreinte[0];
 	if (keep)
 		retenir(pending.uid, (u64)pending.pid);
-	journal("elevation", &c, pending.pid, r ? "echec du changement d'uid" : keep ? "accordee, retenue 5 min" : "accordee");
+	pending.backup = !r && pending.ask && (M64(msg, 24) & 2) != 0;
+	journal("elevation", &c, pending.pid, r ? "echec du changement d'uid" : keep ? "accordee, retenue 5 min" :
+		pending.backup ? "accordee (mise a jour du systeme, version actuelle gardee de secours)" : pending.system ?
+		"accordee (mise a jour du systeme)" : "accordee");
 	finir(r);
 	return 0;
 }
@@ -875,8 +892,10 @@ static long traiter(void)
 		journal("passwd", &c, pid, r ? "echec de l'ecriture de /etc/shadow.ini" : "change");
 		return r;
 	}
-	case AUTH_ELEVATE:
-		return elever(&c, pid, data);
+	case AUTH_ELEVATE: {
+		long mode = (long)M64(msg, 16);
+		return elever(&c, pid, data, mode == 2 || mode == 3 ? mode : 0);
+	}
 	case AUTH_VERIFY: {
 		if (uid != 0)
 			return E_PERM;
@@ -920,6 +939,7 @@ static long traiter(void)
 			return E_INVAL;
 		if (pending.done) {
 			pending.active = 0;
+			M64(msg, 8) = (u64)(pending.result == 0 && pending.backup);
 			return pending.result;
 		}
 		pending.req = cur_req;

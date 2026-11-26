@@ -40,3 +40,4 @@ gris = grey
 jaune = yellow
 pourpre = purple
 corail = coral
+Garder la version actuelle comme version de secours = Keep the current version as the fallback version

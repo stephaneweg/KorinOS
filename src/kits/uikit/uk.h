@@ -713,6 +713,7 @@ UKF long ui_anchor(long a0, long a1);
 UKF long ui_design_size(long a0, long a1);
 UKF long ui_surface_overlay(long a0, long a1);
 UKF long ui_elevate(long a0);
+UKF long ui_elevate_system(long reason, long ask);
 UKF long ui_drag_image(long a0, long a1, long a2, long a3, long a4, long a5);
 UKF long ui_window_place(long x, long y);
 UKF long ui_window_top(long on);

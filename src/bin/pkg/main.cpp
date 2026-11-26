@@ -12,6 +12,7 @@
 //   pkg upgrade                  un tour de pkgd : les paquets auto mis a jour, les autres listes
 //   pkg check                    relire l'index : les mises a jour disponibles
 //   pkg mode <nom> manual|auto|never
+//   pkg bootok                   (init2, la session ouverte) la version en essai a démarré : ses trois essais rendus
 //   pkg commit                   les paquets etages mis en place (init2, au demarrage) ; redemarre si le
 //                                noyau, les modules ou le firmware ont change
 //   -r <depot>                   un autre depot (URL ou dossier) pour cette commande
@@ -117,6 +118,19 @@ static const char *g_named;	// (le paquet nomme : lui seul est force, pas ses be
 static int install_list (const Pkg **list, int n)
 {
 	int rc = OK;
+	// une mise à jour du système (le paquet pc) : la version qui tourne, en essai, gardée de secours ? (A/B, décision
+	// du 25/11/2026) ; au terminal seulement : sans personne (pkgd, un script), « non »
+	for (int i = 0; i < n; i++)
+		if (eq (list[i]->name, "pc") && isatty (0) && ab_can_confirm ())
+		{
+			Inst *cur = M->db.find ("pc");
+			printf (TR ("Korin %s fonctionne bien : le garder comme version de secours, pour revenir en arrière si la nouvelle version pose problème ? [o/N] "),
+				cur ? cur->version () : "");
+			fflush (stdout);
+			char a[16] = "";
+			if (fgets (a, sizeof a, stdin)) g_abKeep = a[0] == 'o' || a[0] == 'O' || a[0] == 'y' || a[0] == 'Y';
+			break;
+		}
 	for (int i = 0; i < n; i++)
 	{
 		Inst *in = M->db.find (list[i]->name);
@@ -464,8 +478,11 @@ int main (int argc, char **argv)
 		if (argc - a0 >= 2 && eq (argv[a0], "-r")) { repo = argv[a0 + 1]; a0 += 2; continue; }
 		if (argc - a0 >= 2 && eq (argv[a0], "--root")) { pkg_set_root (argv[a0 + 1]); a0 += 2; continue; }
 		if (argc - a0 >= 1 && !strncmp (argv[a0], "root=", 5)) { pkg_set_root (argv[a0] + 5); a0 += 1; continue; }
+		// (Logiciels, après la carte d'authd : la version en essai qui tourne gardée de secours, A/B)
+		if (argc - a0 >= 1 && eq (argv[a0], "--ab-keep")) { g_abKeep = 1; a0 += 1; continue; }
 		break;
 	}
+	if (argc - a0 == 1 && eq (argv[a0], "bootok")) return ab_boot_ok ();	// (init2 : sans le Manager, à chaque connexion)
 	static Manager *mp = new Manager;	// (après --root : le Manager lit /etc/pkg et la base de cette racine)
 	Manager &m = *mp; M = &m;
 	if (repo) cpy (m.repo, repo, sizeof m.repo);

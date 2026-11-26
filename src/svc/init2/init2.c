@@ -889,6 +889,12 @@ static void startup_si_ouverte(void)
 	if (sys_stat("/tmp/session.ini", st) < 0 && sys_stat("/sys/login", st) >= 0)
 		return;
 	startup_attendu = 0;
+	static int boot_ok;
+	if (!boot_ok) { /* A/B (docs/etude/MISES-A-JOUR-AB.md) : le démarrage a réussi, la version en essai garde ses essais */
+		boot_ok = 1;
+		if (sys_stat("/bin/pkg", st) >= 0)
+			spawn("/bin/pkg", "bootok");
+	}
 	session_uid = 1;
 	long su = user_session_uid(); /* (les fichiers du compte ouvert, pas ceux du HOME: d'init2, E30) */
 	long n = list_load(conf_path_uid(su, "session.off"), sess_list, sizeof sess_list / 2); /* désactivés, puis manuels */

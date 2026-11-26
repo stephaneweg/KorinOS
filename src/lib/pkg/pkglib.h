@@ -82,6 +82,7 @@ typedef unsigned char u8;
 #define PKG_VAR		"/var/pkg"
 #define PKG_DB		"/var/pkg/db"
 #define PKG_STAGE	"/var/pkg/stage"
+#define PKG_AB_COPY	"/var/pkg/ab.txt"	// (l'état A/B du démarrage en cours, écrit par pkg bootok)
 #define PKG_DL		"/tmp/pkg"				// les telechargements (verifies, puis extraits) hors uid 0
 #define PKG_DL0		"/tmp/0/pkg"				// en uid 0 (pkgd, sudo pkg) : /tmp/0, que vfs reserve a l'uid 0
 								// dans tous les modes ; /tmp/pkg, commun, laissait un compte
@@ -215,6 +216,7 @@ static inline bool boot_refused (const char *bootPats, const char *rel)
 	return g_bootFail;
 }
 struct BootScope { ~BootScope () { boot_release (); } };
+
 // rel (chemin de la carte), motifs `boot =` du paquet -> "/boot/rel" ou "/rel"
 static inline void card_path (char *out, size_t cap, const char *bootPats, const char *rel)
 {
@@ -271,6 +273,65 @@ static inline bool write_file (const char *path, const void *b, u64 n)
 	close (fd);
 	if (!ok || rename (tmp, path) != 0) { unlink (tmp); return false; }
 	return true;
+}
+
+// ---- A/B (docs/etude/MISES-A-JOUR-AB.md, décision du 25/11/2026) : le noyau et l'initrd du PC dans deux emplacements,
+// \korin\a et \korin\b du volume de démarrage, et \korin\ab.txt (lu et décompté par le chargeur, ab.inc) :
+// « confirmed=a trial=b tries=3 booted=a ». Une mise à jour s'écrit dans l'emplacement en essai ; la version actuelle
+// ne devient la version de secours que sur la réponse de root (g_abKeep, posée par pkg ou pkgman avant l'étage, notée
+// « ab_keep = 1 » dans la fiche d'étage), et seulement si c'est bien la version en essai qui a démarré.
+static int g_abKeep;
+static inline bool ab_file (const char *f) { return eq (f, "korin/kernel.elf") || eq (f, "korin/initrd.tar"); }
+struct AbState { char conf, trial, tries, booted; };
+static inline bool ab_read (const char *path, AbState &s)
+{
+	char *t = read_file (path);
+	bool ok = t && strlen (t) >= 36 && !strncmp (t, "confirmed=", 10) && !strncmp (t + 11, " trial=", 7) && !strncmp (t + 19, " tries=", 7)
+		&& !strncmp (t + 27, " booted=", 8) && (t[10] == 'a' || t[10] == 'b') && (t[18] == 'a' || t[18] == 'b' || t[18] == '-')
+		&& t[26] >= '0' && t[26] <= '9' && (t[35] == 'a' || t[35] == 'b' || t[35] == '-');
+	if (ok) { s.conf = t[10]; s.trial = t[18]; s.tries = t[26]; s.booted = t[35]; }
+	free (t);
+	return ok;
+}
+static inline bool ab_write (const char *path, const AbState &s)
+{
+	char b[40]; int n = snprintf (b, sizeof b, "confirmed=%c trial=%c tries=%c booted=%c\r\n", s.conf, s.trial, s.tries, s.booted);
+	char tmp[220]; snprintf (tmp, sizeof tmp, "%s.new", path);
+	return write_file (tmp, b, (u64) n) && rename (tmp, path) == 0;
+}
+// la version qui tourne est-elle la version en essai (donc à confirmer, sur la réponse de root) ?
+static inline bool ab_can_confirm ()
+{
+	if (g_pkgroot[0]) return false;
+	char p[200]; snprintf (p, sizeof p, "%s/korin/ab.txt", boot_volume ());
+	AbState s; bool r = ab_read (p, s) && s.trial != '-' && s.trial != s.conf && s.booted == s.trial;
+	boot_release ();
+	return r;
+}
+// un démarrage réussi (init2, la session ouverte) : la version en essai retrouve ses trois essais. Ce n'est pas une
+// confirmation (elle reste en essai, la version de secours ne change pas) : sans cela, le chargeur, qui décompte
+// chaque démarrage d'essai, la quitterait au quatrième démarrage même si elle marche
+static inline int ab_boot_ok ()
+{
+	char p[200]; snprintf (p, sizeof p, "%s/korin/ab.txt", boot_volume ());
+	AbState s; int r = 1;
+	bool ok = !g_bootFail && ab_read (p, s);
+	if (ok && s.trial != '-' && s.trial != s.conf && s.booted == s.trial && s.tries != '3')
+	{
+		s.tries = '3';
+		r = ab_write (p, s) ? 0 : 2;
+	}
+	boot_release ();
+	// une copie lisible par tous (/boot ne l'est qu'à l'uid 0) : Logiciels y voit s'il faut poser la question de secours
+	if (ok) ab_write (PKG_AB_COPY, s); else unlink (PKG_AB_COPY);
+	return r;
+}
+static inline bool copy_plain (const char *from, const char *to)
+{
+	u64 n = 0; char *b = read_file (from, &n);
+	bool ok = b && write_file (to, b, n);
+	free (b);
+	return ok;
 }
 // Une liste de lignes changee par l'utilisateur (`merge =` du manifeste, services.txt) + celle du paquet -> malloc :
 // la sienne entiere, puis chaque ligne du paquet (hors commentaire) qu'elle n'a pas, meme en commentaire (« # ligne » :
@@ -1271,6 +1332,7 @@ public:
 		static const char *const keys[] = { "name", "title", "version", "category", "author", "summary", "needs", "required", "restart", "config", "fetch", 0 };
 		for (int i = 0; keys[i]; i++) { snprintf (line, sizeof line, "%s = %s\n", keys[i], man.get ("", keys[i])); put (line); }
 		if (*bootPats) { put ("boot = "); put (bootPats); put ("\n"); }
+		if (stage && g_abKeep) put ("ab_keep = 1\n");		// (la réponse de root : la version actuelle gardée de secours)
 		if (p && *p->part) { snprintf (line, sizeof line, "part = %s\n", p->part); put (line); }
 		snprintf (line, sizeof line, "mode = %s\n\n[files]\n", old ? old->mode () : "manual"); put (line);
 		const char *cfg = man.get ("", "config");
@@ -1509,6 +1571,31 @@ public:
 			Ini st; if (!st.load (ip)) { r.sayf ("%s : fichier d'étage illisible : laissé étagé", names[k]); left = true; continue; }
 			int moved = 0, missing = 0, failed = 0;
 			const char *bootPats = st.get ("package", "boot");	// (ses fichiers de demarrage : /boot/)
+			// A/B : l'emplacement cible, une fois par paquet qui porte le noyau ou l'initrd du PC
+			AbState ab = { 'a', '-', '0', 'a' }; char abTarget = 0, abPath[200] = "";
+			for (int i = 0; i < st.n && !abTarget && !g_pkgroot[0]; i++)
+				if (eq (st.kv[i].sec, "moves") && ab_file (st.kv[i].key) && in_patterns (bootPats, st.kv[i].key) && !boot_refused (bootPats, st.kv[i].key))
+				{
+					const char *bv = boot_volume ();
+					snprintf (abPath, sizeof abPath, "%s/korin/ab.txt", bv);
+					if (!ab_read (abPath, ab))	// (la première fois : la version installée devient a, la confirmée)
+					{
+						char d[200]; snprintf (d, sizeof d, "%s/korin/a", bv); mkdirs (d);
+						static const char *const fs[] = { "kernel.elf", "initrd.tar", 0 };
+						for (int k = 0; fs[k]; k++)
+						{
+							char from[260], to[260]; snprintf (from, sizeof from, "%s/korin/%s", bv, fs[k]); snprintf (to, sizeof to, "%s/%s", d, fs[k]);
+							if (exists (from)) copy_plain (from, to);
+						}
+						ab = { 'a', '-', '0', 'a' };
+					}
+					if (eq (st.get ("package", "ab_keep"), "1") && ab.trial != '-' && ab.booted == ab.trial)
+					{
+						r.sayf (TR ("la version en essai (%c) devient la version de secours"), ab.trial);
+						ab.conf = ab.trial;
+					}
+					abTarget = ab.trial != '-' && ab.trial != ab.conf ? ab.trial : (ab.conf == 'a' ? 'b' : 'a');
+				}
 			for (int i = 0; i < st.n; i++)
 			{
 				const char *f = st.kv[i].key;
@@ -1517,6 +1604,17 @@ public:
 					char from[320], to[320]; snprintf (from, sizeof from, "%s/%s", dir, f); card_path (to, sizeof to, bootPats, f);
 					if (forbidden (f) || boot_refused (bootPats, f)) { failed++; continue; }
 					if (!exists (from)) { missing++; continue; }	// (deja la : un commit interrompu reprend)
+					if (abTarget && ab_file (f))	// (A/B : dans l'emplacement en essai, .new puis SHA-256 vérifié, puis renommé)
+					{
+						kernelChanged = true;
+						const char *bv = boot_volume ();
+						char d[200], nw[340]; snprintf (d, sizeof d, "%s/korin/%c", bv, abTarget); mkdirs (d);
+						snprintf (to, sizeof to, "%s/%s", d, f + 6); snprintf (nw, sizeof nw, "%s.new", to);
+						char hh[65]; const char *want = st.get ("files", f);
+						if (move (from, nw) && sha_file (nw, hh) && (!*want || eq (hh, want)) && rename (nw, to) == 0) moved++;
+						else { unlink (nw); failed++; r.sayf (TR ("%s : écrit dans l'emplacement %c mais empreinte fausse ou écriture impossible"), f, abTarget); }
+						continue;
+					}
 					if (boot_file (f, bootPats))
 					{
 						kernelChanged = true;
@@ -1528,6 +1626,12 @@ public:
 				else if (eq (st.kv[i].sec, "remove") && !forbidden (f) && !boot_refused (bootPats, f) && !db.owned_elsewhere (f, names[k])) { char c[320]; card_path (c, sizeof c, bootPats, f); unlink (c); prune (c); }
 			}
 			if (failed) { r.sayf ("%s : %d fichiers non déplacés : laissé étagé", names[k], failed); left = true; continue; }
+			if (abTarget)		// (la nouvelle version en essai : trois démarrages pour faire ses preuves)
+			{
+				ab.trial = abTarget; ab.tries = '3';
+				if (!ab_write (abPath, ab)) r.sayf (TR ("%s : écriture impossible"), abPath);
+				else r.sayf (TR ("nouvelle version dans l'emplacement %c (en essai), version de secours : %c"), abTarget, ab.conf);
+			}
 			char dbp[200]; snprintf (dbp, sizeof dbp, PKG_DB "/%s.ini", names[k]);
 			mkdirs (PKG_DB);
 			rename (ip, dbp);

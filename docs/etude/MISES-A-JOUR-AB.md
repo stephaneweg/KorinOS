@@ -1,6 +1,6 @@
 # Mises à jour du système : emplacements A/B avec version de secours confirmée
 
-Décisions de l'utilisateur (conversation du 25/11/2026). Nouveau chantier, rien n'est implémenté. Il remplace l'étape E55 du plan (constat B5 de l'audit : mise à jour du noyau ni atomique ni réversible).
+Décisions de l'utilisateur (conversation du 25/11/2026). Il remplace l'étape E55 du plan (constat B5 de l'audit : mise à jour du noyau ni atomique ni réversible). Mis en œuvre sur le PC le 26/11/2026 (§6) ; le Pi n'a pas d'A/B.
 
 ## 1. Principe
 
@@ -51,3 +51,32 @@ Décisions de l'utilisateur (conversation du 25/11/2026). Nouveau chantier, rien
   1. E50 : `serial` dans les outils de publication ;
   2. publier l'index signé avec ce numéro ;
   3. E51 : pkglib refuse un index de numéro plus petit que le dernier vu (absent = 0).
+## 6. Mise en œuvre sur le PC (26/11/2026, branche `security-fix`)
+
+- **L'état** : `\korin\ab.txt` du volume de démarrage, 36 octets réécrits sur place par le chargeur :
+  `confirmed=a trial=b tries=3 booted=b`. Les fichiers : `\korin\a\` et `\korin\b\` (`kernel.elf`, `initrd.tar`).
+  `korin.efi` n'est pas doublé (c'est lui qui choisit) ; `\korin\kernel.elf` et `\korin\initrd.tar`, ceux d'avant A/B,
+  restent le dernier recours.
+- **Le chargeur** (`src/kernel/arch/pc/boot/ab.inc`, `menu.inc`) : sans `ab.txt` (ou mal formé), comme avant. Avec : la
+  version en essai tant qu'il lui reste des essais (décomptés à chaque démarrage), sinon la confirmée ; un noyau
+  illisible fait passer à la confirmée, puis aux fichiers d'avant A/B. Le menu a l'entrée « Korin OS (version de
+  secours) » quand une version en essai existe : la choisir demande d'être devant la machine (le clavier au démarrage).
+- **Un démarrage réussi** : à l'ouverture de la session, init2 lance `pkg bootok`, qui rend à la version en essai ses
+  trois essais (et copie l'état dans `/var/pkg/ab.txt`, lisible par tous). Ce n'est pas une confirmation (elle reste en essai) ; sans cela, le chargeur la quitterait au
+  quatrième démarrage même si elle marche.
+- **pkg commit** (`pkglib.h`, au démarrage) : un paquet qui porte `korin/kernel.elf` ou `korin/initrd.tar` (le paquet
+  `pc`) s'écrit dans l'emplacement en essai (s'il y en a un), sinon dans l'autre ; fichiers `.new`, SHA-256 vérifié
+  contre la fiche d'étage, puis renommés ; `trial` et `tries=3` écrits à la fin. La première fois (pas d'`ab.txt`), la
+  version installée est copiée dans `a`, la confirmée.
+- **La question de secours** : posée seulement si la version qui tourne est la version en essai. Au terminal
+  (`sudo pkg update`, `pkg upgrade`), pkg la pose, « [o/N] » ; sans terminal, « non ». Dans Logiciels, un lot qui
+  contient `pc` passe par `ui_elevate_system` (UIKit, ajoutée à la fin de `uikit.abi`) : authd ouvre toujours la
+  carte (ni « retenir » ni élévation retenue), avec la case « Garder la version actuelle comme version de secours »
+  (décochée), et rend la réponse à Logiciels, qui la passe à pkg (`pkg --ab-keep ui-job install ...`). La réponse
+  est notée dans la fiche d'étage (`ab_keep = 1`) ; pkg commit ne confirme que si la version démarrée est bien
+  celle en essai. pkgd ne la pose jamais : « non ».
+- **Logiciels** sait s'il faut poser la question par `/var/pkg/ab.txt`, la copie que `pkg bootok` (uid 0) écrit à
+  chaque démarrage : le volume de démarrage (la partition EFI, `/boot`) ne se lit qu'à l'uid 0.
+- **Reste** : les paquets ne sont pas
+  liés à leur emplacement (un retour sur la version de secours garde les kits récents). osinstall et l'installateur
+  écrivent encore les fichiers d'avant A/B (la première mise à jour fait la migration). Essais sur le ZBook.

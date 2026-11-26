@@ -8,6 +8,10 @@
  * pendant 5 minutes » (décochée à chaque ouverture) : cochée, authd n'en redemande pas pendant 5 minutes à ce
  * compte pour la session graphique (maquette docs/maquettes/elevation-retenir.html).
  *
+ * Mise à jour du système (docs/etude/MISES-A-JOUR-AB.md) : « jeton|raison|compte|1|system » : sans la case
+ * « Retenir » ; « ...|system-ask » : avec la case « Garder la version actuelle comme version de secours »
+ * (décochée), dont la réponse va à authd (AUTH_CARD d, bit 1), jamais à l'app.
+ *
  * Mode coffre (docs/KEYVAULT.md) : « jeton|raison|compte|1|keyvault », lancée par le service keyvault : ouvrir
  * le coffre fermé d'un compte (mot de passe), ou laisser ses secrets à un programme qui a changé (sans mot de
  * passe) ; la réponse va à keyvault (KV_CARD), sans la case « Retenir ».
@@ -27,7 +31,8 @@ static struct krt_ui ui;
 static long chan;
 static u64 token;
 static int vault; /* mode coffre */
-static long w_pw, w_msg, w_keep;
+static int sys_mode; /* mise à jour du système : 1, 2 avec la case de la version de secours */
+static long w_pw, w_msg, w_keep, w_backup;
 static u8 msg[MSG_SIZE];
 
 #define TR(s) ((const char *)ui_tr((long)(s)))
@@ -38,7 +43,7 @@ static long answer(int cancel, const char *pw, int keep)
 	M64(msg, 0) = vault ? KV_CARD : AUTH_CARD;
 	M64(msg, 8) = token;
 	M64(msg, 16) = cancel ? 1 : 0;
-	M64(msg, 24) = keep ? 1 : 0;
+	M64(msg, 24) = (u64)keep; /* (bit 0 : retenir 5 min ; bit 1 : la version de secours) */
 	u64 n = pw ? (u64)str_len(pw) : 0;
 	if (n > 400)
 		n = 400;
@@ -84,6 +89,7 @@ int main(int argc, char **argv)
 	if (np < 4)
 		return 1;
 	vault = np == 5 && str_eq(part[4], "keyvault");
+	sys_mode = np == 5 && str_eq(part[4], "system") ? 1 : np == 5 && str_eq(part[4], "system-ask") ? 2 : 0;
 	token = parse_dec(part[0]);
 	const char *raison = part[1], *compte = part[2];
 	int need = part[3][0] == '1';
@@ -92,14 +98,14 @@ int main(int argc, char **argv)
 		return 1;
 	ui_init((long)&ui);
 	enum { DW = 420, M = 20 };
-	long DH = need ? 310 : 220;
+	long DH = (need ? 310 : 220) + (sys_mode == 2 ? 30 : 0) - (sys_mode && need ? 30 : 0);
 	/* le repère secret de cet ordinateur (A5) : une fausse carte ouverte par une app ne le connaît pas */
 	static char mark[128];
 	const char *ma, *mc;
 	mark[0] = 0;
 	if (secure_mark(&ma, &mc))
 		str_cat(str_cat(str_cat(str_cat(mark, TR("Repère : ")), TR(ma)), " · "), TR(mc));
-	int keep = 0; /* (gardée d'un essai à l'autre après un mauvais mot de passe) */
+	int keep = 0, backup = 0; /* (gardées d'un essai à l'autre après un mauvais mot de passe) */
 	for (;;) {
 		long d = ui_dialog_begin(DW, DH, (long)TR(vault ? "Coffre à secrets" : "Autorisation"));
 		if (!d)
@@ -111,15 +117,19 @@ int main(int argc, char **argv)
 		str_cat(str_cat(who, TR("Compte : ")), compte);
 		ui_label(M, y, DW - 2 * M, 20, (long)who, ULB_DIM);
 		y += 30;
-		w_pw = w_keep = 0;
+		w_pw = w_keep = w_backup = 0;
 		if (need) {
 			w_pw = ui_textbox(M, y, DW - 2 * M, 30, UTF_PASSWORD);
 			ui_textbox_hint(w_pw, (long)TR("Mot de passe"));
 			y += 40;
-			if (!vault) {
+			if (!vault && !sys_mode) {
 				w_keep = ui_checkbox(M, y, 0, 0, (long)TR("Retenir pendant 5 minutes"), keep);
 				y += 30;
 			}
+		}
+		if (sys_mode == 2) {
+			w_backup = ui_checkbox(M, y, 0, 0, (long)TR("Garder la version actuelle comme version de secours"), backup);
+			y += 30;
 		}
 		w_msg = ui_label(M, y, DW - 2 * M, 20, (long)"", ULB_DIM);
 		y += 24;
@@ -136,12 +146,13 @@ int main(int argc, char **argv)
 		if (w_pw)
 			str_copy_n(pw, (const char *)ui_w_get_text(w_pw), sizeof pw);
 		keep = w_keep && ui_w_get_value(w_keep) ? 1 : 0;
+		backup = w_backup && ui_w_get_value(w_backup) ? 1 : 0;
 		ui_dialog_end(d);
 		if (r != 1) {
 			answer(1, 0, 0);
 			return 0;
 		}
-		long a = answer(0, pw, keep);
+		long a = answer(0, pw, keep | (backup ? 2 : 0));
 		memset(pw, 0, sizeof pw);
 		if (a != E_ACCES)
 			return 0;
