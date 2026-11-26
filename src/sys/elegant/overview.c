@@ -35,6 +35,7 @@
 #define OV_CLOSE_MS 240
 #define OV_SCROLL_MS 260
 #define OV_REFRESH_MS 120     /* une vignette refaite au plus tous les tant de ms */
+#define OV_WALL_MS 2000       /* la vue de la session attend le fond d'écran au plus tant de ms */
 #define OV_BG_MS 300          /* le fond : son empreinte relue au plus tous les tant de ms, pendant la vue */
 #define OV_R_DESK 16          /* rayon des coins d'un bureau (à sa taille dans la vue) */
 #define OV_SH_DESK 14         /* son ombre */
@@ -1160,6 +1161,48 @@ void ov_reset(void)
 	bg_ok = 0;
 }
 
+/* ---- la vue de la session après le fond d'écran : voronoy, lancé par la session sous le compte, met environ une seconde à
+ * dessiner ; la vue ouverte avant montrait une bande blanche en bas du bureau. voronoy publie korin.wallpaper.drawn
+ * une fois le fond dessiné (desktop.c, dk_bus_ev) ; sans l'avis (pas de busd, un voronoy d'avant), OV_WALL_MS au plus */
+static long ov_wall_pending; /* 1 : le fond d'écran de la session se dessine */
+static u64 ov_wall_until;    /* non nul : la vue s'ouvre quand il est dessiné, au plus tard à cette heure */
+
+void ov_wall_expect(void)
+{
+	ov_wall_pending = 1;
+}
+
+void ov_wall_drawn(void)
+{
+	ov_wall_pending = 0;
+}
+
+void ov_wall_cancel(void)
+{
+	ov_wall_until = 0;
+}
+
+void ov_open_after_wall(void)
+{
+	if (!ov_wall_pending) {
+		ov_open();
+		return;
+	}
+	ov_wall_until = now_ms() + OV_WALL_MS;
+}
+
+/* (à chaque tour) */
+static void wall_tick(void)
+{
+	if (!ov_wall_until || ov_on)
+		return;
+	if (ov_wall_pending && now_ms() < ov_wall_until)
+		return;
+	ov_wall_until = 0;
+	ov_wall_pending = 0;
+	ov_open();
+}
+
 /* -> 1 pendant une animation (la boucle n'attend presque pas) */
 long ov_busy(void)
 {
@@ -1172,6 +1215,7 @@ static void sw_tick(void);
 void ov_tick(void)
 {
 	sw_tick();
+	wall_tick();
 	if (!ov_on)
 		return;
 	u64 now = now_ms();

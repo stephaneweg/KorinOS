@@ -38,6 +38,7 @@ enum { WP_VORONOI, WP_GRADIENT, WP_BUBBLES, WP_SOLID, WP_PATTERN, WP_IMAGE, WP_N
 #define WP_DIR "/res/wallpapers"	/* les motifs */
 #define WP_PUBLIC "/home/public/wallpapers" /* les fonds du paquet wallpapers (Choisir... y ouvre) */
 #define WP_TOPIC "korin.wallpaper"	/* publié par Réglages : le fond a changé */
+#define WP_DRAWN_TOPIC "korin.wallpaper.drawn"	/* publié par voronoy : le fond est dessiné (Elegant, overview.c) */
 #define WP_PATTERN_DEF "waves.png"
 
 struct wp_conf {

@@ -1633,11 +1633,13 @@ long req_create(void)
 							     (demande de l'utilisateur, 23/11/2026) ; sinon (l'installateur
 							     de la clé), quand la dernière se ferme */
 		if (!apps_open(w))
-			ov_open();
+			ov_open_after_wall(); /* (pas avant que le fond d'écran soit dessiné : sinon une bande blanche) */
 		else
 			ov_start_pending = 1;
-	} else if (!(role & (WF_OVERVIEW | WF_APPGRID | WF_BACK | WF_HOME | WF_NOFOCUS)))
+	} else if (!(role & (WF_OVERVIEW | WF_APPGRID | WF_BACK | WF_HOME | WF_NOFOCUS))) {
 		ov_start_pending = 0; /* (une application s'ouvre : on y travaille déjà) */
+		ov_wall_cancel();
+	}
 	M64(msg, WM_A) = (u64)buf;
 	M64(msg, WM_B) = frame ? content : 0;
 	M64(msg, WM_C) = frame ? content + frame : 0;

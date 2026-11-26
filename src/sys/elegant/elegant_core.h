@@ -115,7 +115,7 @@ void session_run(char *line);
 
 typedef void (*sh_ev_fn)(u8 *ev); /* un événement WEV_BUS de 32 octets */
 extern long bp_canal;          /* canal de busd + 1 (0 : pas ouvert) */
-extern long sh_sub_home, sh_sub_theme;
+extern long sh_sub_home, sh_sub_theme, sh_sub_wall;
 extern const char sh_topic_mode[], sh_topic_home[], sh_topic_switch[], sh_topic_quick[],
 	sh_topic_sleep[], sh_topic_theme[], sh_val_1[];
 void sh_tick(sh_ev_fn fn);

@@ -84,6 +84,10 @@ long pk_owns(const struct win *w);   /* mode poche : sa place est tenue par Eleg
 extern long ov_on;        /* non nul : la vue a l'écran (ouverture, ouverte, fermeture) */
 extern long ov_enabled;   /* la vue d'ensemble existe (défaut) ; desktop=classic de /etc/system.ini : le bureau classique */
 void ov_open(void);
+void ov_open_after_wall(void); /* la vue de la session : une fois le fond d'écran dessiné (2 s au plus) */
+void ov_wall_expect(void);     /* la session lance le fond d'écran : il va se dessiner */
+void ov_wall_drawn(void);      /* korin.wallpaper.drawn (voronoy) */
+void ov_wall_cancel(void);     /* une application s'ouvre : plus de vue à ouvrir */
 void ov_close(long desk, struct win *w); /* bureau (-1 : celui du milieu), fenêtre à ramener */
 void ov_toggle(void);
 void ov_tick(void);

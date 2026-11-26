@@ -75,10 +75,17 @@ const struct policy mode_desktop = {
 	.raise = dk_none_w,
 };
 
-/* à chaque tour : le bus (korin.shell.mode, shell.c) */
+/* événement du bus (WEV_BUS) : korin.wallpaper.drawn, le fond d'écran de la session est dessiné */
+static void dk_bus_ev(u8 *ev)
+{
+	if (sh_sub_wall > 0 && M32(ev, BEV_SUB) == (u64)sh_sub_wall)
+		ov_wall_drawn();
+}
+
+/* à chaque tour : le bus (korin.shell.mode, korin.wallpaper.drawn : shell.c) */
 void dk_tick(void)
 {
-	sh_tick(0);
+	sh_tick(dk_bus_ev);
 	ov_tick(); /* la vue d'ensemble : animations, vignettes */
 }
 
@@ -290,5 +297,7 @@ void session_run(char *line)
 			args = s + 1;
 			break;
 		}
+	if (!memcmp(line, "/sys/voronoy", 13))
+		ov_wall_expect(); /* (la vue d'ensemble de la session attend qu'il ait dessiné le fond) */
 	spawn_session(line, args); /* avec l'uid du compte (korinrt, users.c), Elegant restant en uid 0 */
 }

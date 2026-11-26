@@ -14,7 +14,7 @@
 
 long bp_canal; /* canal de busd + 1 (buspub.inc) */
 static u64 sh_try; /* prochain essai d'ouverture (ms) */
-long sh_sub_home, sh_sub_theme; /* abonnements */
+long sh_sub_home, sh_sub_theme, sh_sub_wall; /* abonnements */
 static u8 sh_ev[32] __attribute__((aligned(16)));
 
 const char sh_topic_mode[] = "korin.shell.mode";
@@ -23,6 +23,7 @@ const char sh_topic_switch[] = "korin.shell.switch";
 const char sh_topic_quick[] = "korin.shell.quick";
 const char sh_topic_sleep[] = "korin.shell.sleep";
 const char sh_topic_theme[] = "korin.theme";
+const char sh_topic_wall[] = "korin.wallpaper.drawn"; /* (voronoy : le fond est dessiné) */
 const char sh_val_1[] = "1";
 
 /* fonction des événements du bus (0 : aucune) : à chaque tour */
@@ -41,6 +42,8 @@ void sh_tick(sh_ev_fn fn)
 		if (policy->flags & POLF_POCKET) { /* les sujets suivis par le mode */
 			sh_sub_home = sh_subscribe(sh_topic_home, 0);
 			sh_sub_theme = sh_subscribe(sh_topic_theme, BUS_CURRENT);
+		} else {
+			sh_sub_wall = sh_subscribe(sh_topic_wall, 0); /* (le bureau : la vue d'ensemble de la session) */
 		}
 	}
 	for (;;) { /* les événements en attente */

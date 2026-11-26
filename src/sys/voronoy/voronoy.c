@@ -88,6 +88,8 @@ static void paint(void)
 	if (img)
 		ui_image_free(img);
 	ui_update_all();
+	if (wp_sub) /* (Elegant ouvre la vue d'ensemble de la session une fois le fond dessiné) */
+		bus_publish((long)WP_DRAWN_TOPIC, (long)"1", -1, 0);
 }
 
 int main(int argc, char **argv)
