@@ -111,5 +111,5 @@ puis sur le ZBook.
 - **Étape 3, écart** : notifyd, clipd et printd gardent leurs droits **à leur place** (`/sys/notifyd`...), par la liste
   de vfs, plutôt que d'être déplacés dans `/sys/svc/` : même effet, sans casser les `session` personnels qui les
   nomment.
-- **Reste** : un process sans droits peut toujours demander à init2 de lancer un `/sys/svc/...` avec droits (les essais
-  svctest et maptest s'en servent) ; à limiter à l'uid 0, les essais lancés par sudo. Le Pi.
+- **init2** : `INIT_OP_LAUNCH` d'un `/sys/svc/...` est réservé à l'uid 0 (maptest et svctest : par sudo).
+- **Reste** : le Pi.

@@ -22,7 +22,7 @@
  * Il s'enregistre sous « init2 » (prévenu des fins de process : SVF_ENDS).
  *  * INIT_OP_LAUNCH : lance un programme de /sys pour un process sans
  *    droits ; données : chemin résolu par vfs (« /sys/... »), 0, arguments,
- *    0 -> pid. Refus : chemin hors de /sys (E_PERM). Chaque demande est
+ *    0 -> pid. Refus : chemin hors de /sys, ou un service de /sys/svc/ demandé par un compte (E_PERM, E33). Chaque demande est
  *    notée au journal ;
  *  * INIT_OP_KIT_LOAD : inscrit un kit pour un process sans droits ; données :
  *    le nom (« netkit ») -> 0 ou erreur (f_kit_load d'AppKit) ;
@@ -497,8 +497,11 @@ static long launch_request(void)
 	u64 want = M64(msg, 24);
 	if (uid == 0 && (want >> 32) == (INIT_LAUNCH_UID_TAG >> 32))
 		uid = (long)(u32)want;
+	long real = korin_sys1(SYS_PROC_UID, (long)who);
 	if (uid < 0 && uid != E_NOSYS)
 		r = -3; /* E_SRCH (demandeur disparu, ou erreur : jamais lancé en uid 0 à sa place, E18) */
+	else if (real > 0 && !memcmp(launch_path, "/sys/svc/", 9))
+		r = E_PERM; /* un service (avec droits) : pour l'uid 0 seulement, plus pour une app (E33 ; svctest : sudo) */
 	else if (sys_path_ok(launch_path)) { /* AppKit : droits (vfs : ATTR_SYS ; le noyau : init2 les a) */
 		r = uid > 0 ? ksys(SYS_SPAWN_AS, (long)launch_path, (long)args, uid, 0, 0, 0) : E_NOSYS;
 		if (r == E_NOSYS) /* (uid 0, ou AppKit sans SPAWN_AS) */
