@@ -193,7 +193,7 @@ static void scan_fonts ()
 {
 	if (s_nfile >= 0) return;
 	s_nfile = 0;
-	static const char *const DIRS[2] = { "/fonts", "/res/fonts" };
+	static const char *const DIRS[2] = { "/res/fonts", "/fonts" };
 	for (int k = 0; k < 2; k++)
 	{
 		DIR *d = opendir (DIRS[k]);

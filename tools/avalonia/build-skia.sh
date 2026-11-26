@@ -24,7 +24,8 @@ for h in ft2build.h freetype2 png.h pngconf.h pnglibconf.h jpeglib.h jconfig.h j
 	ln -sf "$WK/include/$h" "$D/include/$h"
 done
 
-echo '#define SK_FONT_FILE_PREFIX "/fonts/"' > "$D/include/armpi_skia.h"
+# (26/11/2026) les polices du système : /res/fonts (Avalonia est du PC ; /fonts reste un temps, pour les programmes d'avant)
+echo '#define SK_FONT_FILE_PREFIX "/res/fonts/"' > "$D/include/armpi_skia.h"
 FLAGS=""
 for f in $CPUFLAGS -specs=$WK/lib/onyx-cc.specs -D_GNU_SOURCE -DSK_BUILD_FOR_UNIX -DSKIA_C_DLL -w -fpermissive -O2	-ffunction-sections -fdata-sections -I$D/include -I$D/include/freetype2 -include$D/include/armpi_skia.h; do
 	FLAGS="$FLAGS\"$f\","

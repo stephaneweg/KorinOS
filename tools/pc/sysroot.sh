@@ -12,7 +12,8 @@
 #                       mounts.txt, services.txt, system.ini « shell=console », options.txt)
 #     res/keyb/, res/   les dispositions de clavier (hidmanager), les fuseaux ; pour le bureau : les
 #                       dictionnaires (res/lang, tools/lang/merge.py), les icônes sans application
-#                       (res/icons, de tools/icons/rendered), les polices (fonts/, de ref/fonts)
+#                       (res/icons, de tools/icons/rendered), les polices (res/fonts/, de ref/fonts ;
+#                       fonts/ : une copie pour les programmes d'avant)
 #     home/             vide : les dossiers des utilisateurs (HOME:)
 # Pas encore d'apps graphiques (/apps) ni de GCC. Installé par tools/pc/korin.ps1 install,
 # essayé sous QEMU par tools/pc/mkkorindisk.py --sysroot build/pc/sysroot.
@@ -123,6 +124,10 @@ copy_files skel/sd0/res/keyb "$OUT/res/keyb"
 mkdir -p "$OUT/res/wallpapers" && copy_files skel/sd0/res/wallpapers "$OUT/res/wallpapers" '*.png'
 # le bureau : polices, icônes sans application (comme build.ps1 : celles d'une app partent avec elle),
 # dictionnaires
+# (26/11/2026) les polices du système dans res/fonts ; fonts/, une copie pour les programmes pas encore reconstruits
+# (Godot, Blender, Qt, MuseScore, la Skia d'Avalonia, les apps Rust...), à retirer ensuite (docs/FICHIERS.md)
+mkdir -p "$OUT/res/fonts"
+copy_files ref/fonts "$OUT/res/fonts" '*.ttf'
 copy_files ref/fonts "$OUT/fonts" '*.ttf'
 for f in tools/icons/rendered/*.rgba; do
 	[ -d "src/apps/$(basename "$f" .rgba)" ] || cp "$f" "$OUT/res/icons/"

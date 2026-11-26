@@ -50,8 +50,9 @@ static inline unsigned be32 (const unsigned char *p) { return (unsigned) p[0] <<
 static bool ttf_load (int face)
 {
 	if (s_ttf[face].data) return s_ttf[face].cmap != 0;
-	char path[64]; snprintf (path, sizeof path, "/fonts/%s.ttf", FACE_FILE[face]);
+	char path[64]; snprintf (path, sizeof path, "/res/fonts/%s.ttf", FACE_FILE[face]);	// (/fonts avant, et sur le Pi)
 	s_ttf[face].data = file_read (path, &s_ttf[face].len);
+	if (!s_ttf[face].data) { snprintf (path, sizeof path, "/fonts/%s.ttf", FACE_FILE[face]); s_ttf[face].data = file_read (path, &s_ttf[face].len); }
 	const unsigned char *b = (const unsigned char *) s_ttf[face].data;
 	if (!b || s_ttf[face].len < 12) return false;
 	int n = be16 (b + 4);

@@ -13,11 +13,11 @@ struct uk_state uk = {
 };
 
 /* ---- chaînes (uikit.asm) ------------------------------------------------- */
-const char ui_path_sans[] = "/fonts/Inter-Regular.ttf";
-const char ui_path_bold[] = "/fonts/Inter-SemiBold.ttf";
-const char ui_path_sans2[] = "/fonts/DejaVuSans.ttf";
-const char ui_path_bold2[] = "/fonts/DejaVuSans-Bold.ttf";
-const char ui_path_mono[] = "/fonts/DejaVuSansMono.ttf";
+const char ui_path_sans[] = "/res/fonts/Inter-Regular.ttf";
+const char ui_path_bold[] = "/res/fonts/Inter-SemiBold.ttf";
+const char ui_path_sans2[] = "/res/fonts/DejaVuSans.ttf";
+const char ui_path_bold2[] = "/res/fonts/DejaVuSans-Bold.ttf";
+const char ui_path_mono[] = "/res/fonts/DejaVuSansMono.ttf";
 const char uk_s_ellipsis[] = "\xE2\x80\xA6";
 const char uk_s_up[] = "\xE2\x96\xB2";
 const char uk_s_down[] = "\xE2\x96\xBC";
@@ -222,14 +222,51 @@ long ui_elevate_system(long reason, long ask)
 	}
 }
 
+/* (26/11/2026) les polices du système : /res/fonts sur le PC (paquet pc), /fonts avant, et sur le Pi ; un chemin de
+ * l'une absent -> le même dans l'autre, dans alt (0 : pas un chemin de polices du système) */
+static long font_alt(const char *p, char *alt, long cap)
+{
+	static const char a[] = "/fonts/", b[] = "/res/fonts/";
+	const char *from = 0, *to = 0;
+	long k = 0;
+	while (a[k] && p[k] == a[k])
+		k++;
+	if (!a[k])
+		from = a, to = b;
+	else {
+		k = 0;
+		while (b[k] && p[k] == b[k])
+			k++;
+		if (!b[k])
+			from = b, to = a;
+	}
+	if (!from)
+		return 0;
+	const char *rest = p + k;
+	long n = 0;
+	while (to[n] && n < cap - 1) {
+		alt[n] = to[n];
+		n++;
+	}
+	while (*rest && n < cap - 1)
+		alt[n++] = *rest++;
+	alt[n] = 0;
+	return *rest ? 0 : 1;
+}
+
 /* ui_load_font : x0 = chemin, x1 = police -> 1 si chargée */
 long ui_load_font(long path, long font)
 {
 	long st[2];
 	long size, data, fd, n, scratch;
+	char alt[256];
 	uk_kits();
-	if (SYS2(SYS_STAT, path, (long)(uintptr_t)st) != 0)
-		return 0;
+	if (SYS2(SYS_STAT, path, (long)(uintptr_t)st) != 0) {
+		if (!font_alt((const char *)(uintptr_t)path, alt, sizeof alt) ||
+		    SYS2(SYS_STAT, (long)(uintptr_t)alt, (long)(uintptr_t)st) != 0)
+			return 0;
+		path = (long)(uintptr_t)alt;
+	}
 	size = st[0];
 	data = uk_malloc(size);
 	if (!data)

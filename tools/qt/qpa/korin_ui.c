@@ -8,6 +8,7 @@
 #include "korin_ui.h"
 
 #include <string.h>
+#include <sys/stat.h>
 #include <uikit.h>
 
 static struct ui_vars ui;
@@ -225,5 +226,7 @@ int kq_metric(int which)
 
 const char *kq_font_dir(void)
 {
-	return "/fonts";
+	/* (26/11/2026) les polices du système : /res/fonts sur le PC, /fonts avant (et sur le Pi) */
+	struct stat st;
+	return stat("/res/fonts", &st) == 0 ? "/res/fonts" : "/fonts";
 }
