@@ -999,7 +999,7 @@ int64_t sys_buf_info(uint64_t n, uint64_t out)
 	uint64_t o[4];
 	uint64_t f = spin_lock_irqsave(&buf_lock);
 	int used = bufs[n].used;
-	o[0] = cur_proc()->rights ? bufs[n].phys : 0; /* l'adresse physique : aux pilotes seulement (DMA) */
+	o[0] = rights_used(cur_proc(), RU_BUF_PHYS, "BUF_INFO (adresse physique)") ? bufs[n].phys : 0; /* l'adresse physique : aux pilotes seulement (DMA) */
 	o[1] = bufs[n].pages * PAGE_SIZE;
 	o[2] = (uint64_t)(int64_t)bufs[n].owner;
 	o[3] = (uint64_t)(int64_t)bufs[n].grant;
@@ -1014,7 +1014,7 @@ int64_t sys_buf_info(uint64_t n, uint64_t out)
 int64_t sys_dma_alloc(uint64_t size, uint64_t phys_out)
 {
 	struct process *p = cur_proc();
-	if (!p->rights)
+	if (!rights_used(p, RU_DMA_ALLOC, "DMA_ALLOC"))
 		return E_PERM;
 	size &= ~DMA_CACHED; /* le DMA du PC est cohérent avec les caches */
 	if (!p->mm || size == 0)

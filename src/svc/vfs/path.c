@@ -459,12 +459,31 @@ long chemins_lister(void)
 	return n;
 }
 
-/* chemin interne -> attributs qu'il donne : sous /root/sys/ ATTR_SYS, sous
- * /root/lib/ ATTR_LIB (le service les ajoute à la réponse d'ouverture) */
+/* E33 (docs/etude/E33-CARTOGRAPHIE.md) : les programmes de /sys, hors /sys/svc/, lancés avec les droits : Elegant,
+ * pkgd et les trois « services déguisés » de la session (notifyd, clipd : SVC_MAP_CALLER, printd), qui gardent un nom
+ * du système. Les autres sont lancés sans droits (étapes 0 et 1 : panel, menubar, shutdown, voronoy, dock, login,
+ * authcard, webd, smbd, mcp, setup...) ; les singletons de la session (agenda, clockd, stickies, quickmenu, soundmenu,
+ * wifimenu) prennent leur nom à leur compte (étape 2, le noyau : note A). Le Pi (sans uid) : tout /sys, comme avant. */
+static const char *const sys_rights[] = {"elegant", "pkgd", "notifyd", "clipd", "printd", 0};
+static int sys_droits(const char *rest)
+{
+	if (!strncmp(rest, "svc/", 4))
+		return 1;
+	for (int i = 0; sys_rights[i]; i++)
+		if (!strcmp(rest, sys_rights[i]))
+			return 1;
+	static int pi = -1; /* le Pi (pas d'uid : SYS_PROC_UID rend E_NOSYS) : tout /sys, comme avant (pas essayé là) */
+	if (pi < 0)
+		pi = korin_sys1(SYS_PROC_UID, korin_sys0(SYS_GETPID)) == E_NOSYS;
+	return pi;
+}
+
+/* chemin interne -> attributs qu'il donne : sous /root/sys/ ATTR_SYS (les droits au lancement : /sys/svc/ et la
+ * liste sys_rights), sous /root/lib/ ATTR_LIB (le service les ajoute à la réponse d'ouverture) */
 static long attributs_de(const char *p)
 {
 	if (!strncmp(p, chemin_sys, sizeof chemin_sys - 1))
-		return ATTR_SYS;
+		return sys_droits(p + sizeof chemin_sys - 1) ? ATTR_SYS : 0;
 	if (!strncmp(p, chemin_lib, sizeof chemin_lib - 1))
 		return ATTR_LIB;
 	return 0;

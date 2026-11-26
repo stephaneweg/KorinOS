@@ -66,7 +66,17 @@ struct service {
 	int pid;               /* 0 : libre */
 	uint32_t flags;
 	volatile uint64_t signals;
+	int uid;               /* -1 : un nom du système ; sinon le compte qui l'a pris (E33, sans droits) */
 };
+
+/* E33 étape 2 (docs/etude/E33-CARTOGRAPHIE.md, note A) : un process d'une personne (uid > 0) sans droits prend un nom
+ * à son compte : (nom, uid). SVC_OPEN cherche d'abord le nom du système, puis celui du compte de l'appelant (jamais
+ * pour l'uid 0 ni un process avec droits) ; un compte ne voit pas les noms des autres. Un nom pris une fois par le
+ * système depuis le démarrage (auth, keyvault, notify...) ne peut jamais être pris par un compte : une app ne se
+ * fait pas passer pour authd, même s'il redémarre. */
+#define SEEN_MAX 96
+static char sys_seen[SEEN_MAX][SVC_NAME];
+static int n_seen;
 
 static struct service svcs[SVC_MAX];
 static struct request *reqs; /* en file et prises, dans l'ordre d'arrivée */
@@ -104,22 +114,61 @@ static void unlink_req(struct request *r)
 		}
 }
 
-static int by_name(const char *name)
+static int by_name_uid(const char *name, int uid)
 {
 	for (int i = 0; i < SVC_MAX; i++)
-		if (svcs[i].pid && !strcmp(svcs[i].name, name))
+		if (svcs[i].pid && svcs[i].uid == uid && !strcmp(svcs[i].name, name))
 			return i;
 	return -1;
+}
+
+static int by_name(const char *name) /* (un nom du système) */
+{
+	return by_name_uid(name, -1);
+}
+
+static int seen(const char *name) /* (sous le verrou) */
+{
+	for (int i = 0; i < n_seen; i++)
+		if (!strcmp(sys_seen[i], name))
+			return 1;
+	return 0;
+}
+
+/* un nom pris à son compte par un process sans droits -> canal, E_EXIST, E_PERM (un nom du système) */
+static int64_t svc_register_account(const char *name, struct process *p)
+{
+	uint64_t f = spin_lock_irqsave(&svc_lock);
+	int64_t r = E_NOMEM;
+	if (seen(name) || by_name(name) >= 0)
+		r = E_PERM;
+	else if (by_name_uid(name, p->uid) >= 0)
+		r = E_EXIST;
+	else
+		for (int i = 0; i < SVC_MAX; i++)
+			if (!svcs[i].pid) {
+				memcpy(svcs[i].name, name, SVC_NAME);
+				svcs[i].pid = p->pid;
+				svcs[i].flags = 0; /* (ni fins ni naissances des process : rien sur les autres) */
+				svcs[i].signals = 0;
+				svcs[i].uid = p->uid;
+				r = i;
+				break;
+			}
+	spin_unlock_irqrestore(&svc_lock, f);
+	if (r >= 0)
+		sched_wake_all(&open_key);
+	return r;
 }
 
 int64_t sys_svc_register(uint64_t uname, uint64_t flags)
 {
 	struct process *p = me();
-	if (!p->rights)
-		return E_PERM;
 	char name[SVC_NAME];
 	if (copy_string_from_user(name, uname, SVC_NAME) <= 0)
 		return E_INVAL;
+	if (!rights_used(p, RU_SVC_REGISTER, "SVC_REGISTER"))
+		return p->uid > 0 ? svc_register_account(name, p) : E_PERM;
 	return svc_register_name(name, (uint32_t)flags, p);
 }
 
@@ -146,9 +195,12 @@ int64_t svc_register_name(const char *name, uint32_t flags, struct process *p)
 				svcs[i].pid = p->pid;
 				svcs[i].flags = (uint32_t)flags;
 				svcs[i].signals = 0;
+				svcs[i].uid = -1;
 				r = i;
 				break;
 			}
+	if (r >= 0 && !seen(name) && n_seen < SEEN_MAX)
+		memcpy(sys_seen[n_seen++], name, SVC_NAME);
 	spin_unlock_irqrestore(&svc_lock, f);
 	if (r >= 0)
 		sched_wake_all(&open_key);
@@ -161,9 +213,13 @@ int64_t sys_svc_open(uint64_t uname, uint64_t ms)
 	if (copy_string_from_user(name, uname, SVC_NAME) <= 0)
 		return E_INVAL;
 	uint64_t deadline = arch_ticks_ms() + ms;
+	struct process *p = me();
+	int acct = p->uid > 0 && !p->rights ? p->uid : -1; /* (les noms de son compte, après ceux du système) */
 	for (;;) {
 		uint64_t f = spin_lock_irqsave(&svc_lock);
 		int i = by_name(name);
+		if (i < 0 && acct > 0)
+			i = by_name_uid(name, acct);
 		uint64_t now = arch_ticks_ms();
 		if (i >= 0 || now >= deadline) {
 			spin_unlock_irqrestore(&svc_lock, f);
@@ -372,7 +428,7 @@ static int unmap_request(struct process *svc, uint64_t num)
 int64_t sys_svc_map_caller(uint64_t num, uint64_t addr, uint64_t size, uint64_t flags)
 {
 	struct process *svc = me();
-	if (!svc->rights)
+	if (!rights_used(svc, RU_SVC_MAP_CALLER, "SVC_MAP_CALLER"))
 		return E_PERM;
 	if (size == 0 || size > MAPC_SIZE || addr + size < addr)
 		return E_INVAL;
@@ -514,7 +570,7 @@ int64_t sys_svc_signal(uint64_t chan, uint64_t bits)
 {
 	if (chan >= SVC_MAX)
 		return E_INVAL;
-	if (!me()->rights) /* interruptions des pilotes, SVC_SIG_LOWMEM : pas pour une app */
+	if (!rights_used(me(), RU_SVC_SIGNAL, "SVC_SIGNAL")) /* interruptions des pilotes, SVC_SIG_LOWMEM : pas pour une app */
 		return E_PERM;
 	svc_signal_kernel((int)chan, bits);
 	return 0;

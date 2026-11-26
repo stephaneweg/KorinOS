@@ -34,7 +34,7 @@ int64_t sys_clock(int set, uint64_t a, uint64_t b, uint64_t c)
 	if (!set) {
 		r = a == 0 ? now_utc() : a == 1 ? clock_offset : a == 2 ? now_utc() + clock_offset
 		  : a == 3 ? (int64_t)arch_counter_hz() : E_INVAL;
-	} else if (!sched_current()->proc->rights)
+	} else if (!rights_used(sched_current()->proc, RU_CLOCK_SET, "CLOCK_SET"))
 		r = E_PERM;
 	else {
 		int64_t want = (int64_t)a;

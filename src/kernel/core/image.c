@@ -373,7 +373,7 @@ int64_t sys_image_seal(uint64_t window, uint64_t flags)
 int64_t sys_image_forget(uint64_t upath)
 {
 	struct process *p = sched_current()->proc;
-	int all = p->rights || p->uid == 0; /* les autres : seulement leurs images */
+	int all = rights_used(p, RU_IMAGE_FORGET, "IMAGE_FORGET (de tous)") || p->uid == 0; /* les autres : seulement leurs images */
 	char path[PATH];
 	if (copy_string_from_user(path, upath, PATH) <= 0)
 		return E_INVAL;
@@ -431,7 +431,7 @@ int64_t sys_image_list(uint64_t buf, uint64_t max)
 int64_t sys_image_preload(uint64_t upath, uint64_t image, uint64_t size)
 {
 	struct process *p = sched_current()->proc;
-	if (!p->rights)
+	if (!rights_used(p, RU_IMAGE_PRELOAD, "IMAGE_PRELOAD"))
 		return E_PERM;
 	if (kernel_option("no_preload"))
 		return E_NOSYS;

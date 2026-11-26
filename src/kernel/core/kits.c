@@ -157,7 +157,7 @@ static int64_t map_into(int i)
 
 int64_t sys_kit_register(uint64_t uname, uint64_t image, uint64_t size)
 {
-	if (!sched_current()->proc->rights)
+	if (!rights_used(sched_current()->proc, RU_KIT_REGISTER, "KIT_REGISTER"))
 		return E_PERM;
 	char name[KIT_NAME];
 	if (copy_string_from_user(name, uname, KIT_NAME) <= 0)

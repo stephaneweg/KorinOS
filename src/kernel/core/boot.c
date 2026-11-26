@@ -36,7 +36,7 @@ static char options[1024];
 int64_t sys_mod_lancer(uint64_t uname, uint64_t uargs)
 {
 	struct process *p = sched_current()->proc;
-	if (!p->rights)
+	if (!rights_used(p, RU_MOD_LAUNCH, "MOD_LAUNCH"))
 		return E_PERM;
 	char name[NAME];
 	if (copy_string_from_user(name, uname, NAME) <= 0)
@@ -58,7 +58,7 @@ int64_t sys_mod_lancer(uint64_t uname, uint64_t uargs)
 
 int64_t sys_mod_lire(uint64_t uname, uint64_t buf, uint64_t max)
 {
-	if (!sched_current()->proc->rights)
+	if (!rights_used(sched_current()->proc, RU_MOD_READ, "MOD_READ"))
 		return E_PERM;
 	char name[NAME];
 	if (copy_string_from_user(name, uname, NAME) <= 0)
@@ -98,7 +98,7 @@ int64_t sys_boot_file(uint64_t uname, uint64_t image, uint64_t size)
 			n = size;
 		return copy_to_user(image, list, n) ? E_FAULT : (int64_t)n;
 	}
-	if (!sched_current()->proc->rights)
+	if (!rights_used(sched_current()->proc, RU_BOOT_FILE, "BOOT_FILE"))
 		return E_PERM;
 	char name[NAME];
 	if (copy_string_from_user(name, uname, NAME) <= 0)
@@ -165,7 +165,7 @@ int kernel_option(const char *word)
 
 int64_t sys_demarrage_pret(void)
 {
-	if (!sched_current()->proc->rights)
+	if (!rights_used(sched_current()->proc, RU_BOOT_READY, "BOOT_READY"))
 		return E_PERM;
 	apply_options();
 	ready = 1;

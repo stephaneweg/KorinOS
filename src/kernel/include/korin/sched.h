@@ -39,6 +39,7 @@ struct process {
 	enum proc_state state;
 	int exit_code;
 	int rights;          /* droits de /sys (services, matériel) */
+	uint32_t rights_seen; /* les opérations réservées déjà notées au journal (rights_used, E33) */
 	int uid;             /* à qui sont ses fichiers (0 : system) ; hérité du père (SYS_SETUID, SPAWN_UID) */
 	uint64_t flags;      /* PROC_FLAGS */
 	uint64_t start_ms;
@@ -173,6 +174,13 @@ struct thread *sched_threads(void);
 
 /* process (core/proc.c) */
 struct process *proc_create(const char *name, int parent, int rights);
+/* E33, étape 0 (docs/etude/E33-CARTOGRAPHIE.md) : p a-t-il les droits ? S'il les a et que c'est un process d'une
+ * personne (uid > 0 : un programme de session), l'opération réservée est notée au journal, une fois par process */
+int rights_used(struct process *p, int op, const char *name);
+enum { RU_SVC_REGISTER, RU_SVC_MAP_CALLER, RU_SVC_SIGNAL, RU_CLOCK_SET, RU_BUF_PHYS, RU_DMA_ALLOC, RU_MOD_LAUNCH,
+       RU_MOD_READ, RU_BOOT_FILE, RU_BOOT_READY, RU_WS_REGISTER, RU_WS_SIGNAL, RU_CLIP, RU_KIT_REGISTER, RU_DEV_MAP,
+       RU_IRQ_BIND, RU_IRQ_MSI, RU_ACPI_TABLE, RU_IO_PORT, RU_POWER, RU_PRIO_MAX, RU_IMAGE_PRELOAD, RU_IMAGE_FORGET,
+       RU_PROC_EXE, RU_PROC_STATS, RU_SPAWN_RIGHTS };
 int proc_spawn(const char *name, const void *image, uint64_t size);
 int proc_spawn_ex(const char *name, const void *image, uint64_t size, const char *args, int parent, int rights);
 struct process *proc_get(int pid);  /* sous sched_lock_take */

@@ -73,7 +73,7 @@ static int64_t sys_proc_stats(int64_t pid, uint64_t buf, uint64_t places)
 	if (p) {
 		/* les compteurs par appel système d'un autre compte : rien (le rythme des lectures de login, d'authd
 		 * ou de sudo pendant la saisie d'un mot de passe, N25, E43) ; le total reste */
-		int other = me->uid != 0 && p->uid != me->uid && !me->rights;
+		int other = me->uid != 0 && p->uid != me->uid && !rights_used(me, RU_PROC_STATS, "PROC_STATS (autre uid)");
 		w[0] = p->svc_n;
 		for (uint64_t i = 1; i < n; i++)
 			w[i] = other ? 0 : p->svc_tab[i - 1];

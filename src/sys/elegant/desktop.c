@@ -235,9 +235,12 @@ static void session_run_file(const char *file, const char *defaults)
 	long k = list_load(conf_path_uid(su, "session.off"), sess_off, sizeof sess_off / 2);
 	sess_off[k] = 10;
 	list_load(conf_path_uid(su, "session.manual"), sess_off + k + 1, (long)sizeof sess_off - k - 1);
-	if (voronoy_early && voronoy_pid > 0 && list_has(sess_off, "/sys/voronoy")) { /* (lancé sous la connexion) */
+	if (voronoy_early && voronoy_pid > 0 && (su > 0 || list_has(sess_off, "/sys/voronoy"))) {
+		/* (lancé sous la connexion, en uid 0 : arrêté ; la session le relance sous le compte, qui lit son propre
+		 * wallpaper.ini, E33 étape 1) */
 		ksys(SYS_KILL, voronoy_pid, 0, 0, 0, 0, 0);
 		voronoy_pid = 0;
+		voronoy_early = 0;
 	}
 	long fd = sys_open(file, O_READ);
 	long n = -1;

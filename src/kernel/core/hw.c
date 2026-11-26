@@ -30,7 +30,7 @@ static spinlock_t irq_lock = SPINLOCK_INIT;
 int64_t sys_dev_map(uint64_t phys, uint64_t size)
 {
 	struct process *p = sched_current()->proc;
-	if (!p->rights)
+	if (!rights_used(p, RU_DEV_MAP, "DEV_MAP"))
 		return E_PERM;
 	if (size == 0 || phys + size < phys)
 		return E_INVAL;
@@ -52,7 +52,7 @@ static struct holder *mine(unsigned line, int pid)
 int64_t sys_irq_bind(uint64_t line, int64_t chan, uint64_t bits)
 {
 	struct process *p = sched_current()->proc;
-	if (!p->rights)
+	if (!rights_used(p, RU_IRQ_BIND, "IRQ_BIND"))
 		return E_PERM;
 	if (kernel_option("no_irq"))
 		return E_NOSYS; /* les pilotes sondent */
@@ -162,7 +162,7 @@ int64_t sys_irq_unbind(uint64_t line)
 int64_t sys_irq_msi(uint64_t count, uint64_t out)
 {
 	struct process *p = sched_current()->proc;
-	if (!p->rights)
+	if (!rights_used(p, RU_IRQ_MSI, "IRQ_MSI"))
 		return E_PERM;
 	if (kernel_option("no_irq"))
 		return E_NOSYS;
@@ -185,7 +185,7 @@ int64_t sys_irq_msi(uint64_t count, uint64_t out)
 int64_t sys_acpi_table(uint64_t sig, uint64_t idx, uint64_t buf, uint64_t max)
 {
 	struct process *p = sched_current()->proc;
-	if (!p->rights)
+	if (!rights_used(p, RU_ACPI_TABLE, "ACPI_TABLE"))
 		return E_PERM;
 	char s[4];
 	if (copy_from_user(s, sig, 4))
@@ -207,7 +207,7 @@ int64_t sys_acpi_table(uint64_t sig, uint64_t idx, uint64_t buf, uint64_t max)
 int64_t sys_io_port(uint64_t port, uint64_t op, uint64_t value)
 {
 	struct process *p = sched_current()->proc;
-	if (!p->rights)
+	if (!rights_used(p, RU_IO_PORT, "IO_PORT"))
 		return E_PERM;
 	if (port > 0xFFFF || op > 5)
 		return E_INVAL;
@@ -224,7 +224,7 @@ int64_t sys_io_port(uint64_t port, uint64_t op, uint64_t value)
 int64_t sys_power(uint64_t op, int64_t arg)
 {
 	struct process *p = sched_current()->proc;
-	if (!p->rights)
+	if (!rights_used(p, RU_POWER, "POWER"))
 		return E_PERM;
 	if (op == 3) {
 		if (arg > 2)

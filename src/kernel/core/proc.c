@@ -100,6 +100,17 @@ static int new_pid(struct process *p)
 	return E_NOMEM;
 }
 
+int rights_used(struct process *p, int op, const char *name)
+{
+	if (!p->rights)
+		return 0;
+	if (p->uid > 0 && op >= 0 && op < 32 && !(p->rights_seen & (1u << op))) {
+		p->rights_seen |= 1u << op;
+		kprintf("droits : %s (pid %d, uid %d) : %s\n", p->name, p->pid, p->uid, name);
+	}
+	return 1;
+}
+
 struct process *proc_create(const char *name, int parent, int rights)
 {
 	if (!slot_of) {
@@ -459,7 +470,7 @@ int64_t sys_proc_exe(int64_t pid, uint64_t out)
 	uint64_t f = sched_lock_take();
 	struct process *p = proc_get((int)pid);
 	struct process *me = sched_current()->proc;
-	if (p && me->uid != 0 && p->uid != me->uid && !me->rights) { /* (son compte, l'uid 0, les droits : E43) */
+	if (p && me->uid != 0 && p->uid != me->uid && !rights_used(me, RU_PROC_EXE, "PROC_EXE (autre uid)")) { /* (son compte, l'uid 0, les droits : E43) */
 		sched_lock_give(f);
 		kfree(x);
 		return E_PERM;
@@ -551,7 +562,7 @@ int64_t sys_spawn_image(uint64_t image, uint64_t size, uint64_t params)
 	if (params && copy_from_user(pr, params, 48))
 		return E_FAULT;
 	int rights = (pr[2] & 1) != 0;
-	if (rights && !me->rights)
+	if (rights && !rights_used(me, RU_SPAWN_RIGHTS, "SPAWN avec droits"))
 		return E_PERM;
 	int uid;
 	if (spawn_uid(me, pr[2], &uid))
@@ -803,7 +814,7 @@ int64_t sys_spawn_preloaded(uint64_t upath, uint64_t fsize, uint64_t params)
 	if (params && copy_from_user(pr, params, 48))
 		return E_FAULT;
 	int rights = (pr[2] & 1) != 0;
-	if (rights && !me->rights)
+	if (rights && !rights_used(me, RU_SPAWN_RIGHTS, "SPAWN avec droits"))
 		return E_PERM;
 	int uid;
 	if (spawn_uid(me, pr[2], &uid))

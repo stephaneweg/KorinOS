@@ -2,7 +2,7 @@
 
 Relevé du 25/11/2026 (branche `security-fix`), par la lecture des sources, sans rien changer. Le journal « droits
 utilisés par pid » (étape 2 de la méthode de [DECISIONS-SECURITE-25-11.md](DECISIONS-SECURITE-25-11.md)) n'existe pas
-encore. **À montrer à l'utilisateur avant de changer le code.**
+encore. **Feu vert de l'utilisateur le 26/11/2026 ; mis en œuvre le même jour (§7).**
 
 ## 1. Qui donne les droits aujourd'hui
 
@@ -92,3 +92,24 @@ puis sur le ZBook.
   matériel, pas les comptes.
 - Autres programmes de `/sys` hors session (login, authcard, smbd, webd, mcp, cdmhost, linuxhost, setup) : l'étape 0
   leur retire aussi les droits ; seul mcp lit les droits (pour les afficher). À confirmer par le journal.
+
+## 7. Mise en œuvre (26/11/2026, PC)
+
+- **Le journal** (étape 0) : le noyau note « droits : <nom> (pid, uid) : <opération> », une fois par process et par
+  opération, quand un process d'une personne (uid > 0) se sert de ses droits (`rights_used`, 26 opérations : celles
+  du §2, plus SPAWN avec droits). Sous QEMU, après les changements : seuls clipd (SVC_REGISTER, SVC_MAP_CALLER) et
+  notifyd (SVC_REGISTER), plus le service d'essai mapsvc.
+- **vfs** (`path.c`, `sys_droits`) : `ATTR_SYS` (les droits au lancement) seulement pour `/sys/svc/` et elegant, pkgd,
+  notifyd, clipd, printd. Tout le reste de `/sys` est lancé sans droits, aussi par init2 (`INIT_OP_LAUNCH` lance par
+  AppKit, qui suit `ATTR_SYS`) : la voie du §1 est fermée pour ces programmes. Le Pi (sans uid) garde tout `/sys`.
+- **Étape 1** : panel, menubar, shutdown, dock, voronoy, login, authcard, webd, smbd, mcp, setup sans droits ; voronoy,
+  lancé en uid 0 sous l'écran de connexion, est arrêté à l'ouverture de la session et relancé sous le compte.
+- **Étape 2** (note A, `svc.c`) : sans droits, un process d'une personne prend un nom à son compte ; SVC_OPEN cherche le
+  nom du système puis celui du compte de l'appelant (jamais pour l'uid 0 ni un process avec droits) ; un nom pris
+  une fois par le système depuis le démarrage ne peut plus être pris par un compte ; un nom de compte n'a pas d'avis
+  (ni fins ni naissances de process). agenda, clockd, stickies, quickmenu, soundmenu, wifimenu en profitent.
+- **Étape 3, écart** : notifyd, clipd et printd gardent leurs droits **à leur place** (`/sys/notifyd`...), par la liste
+  de vfs, plutôt que d'être déplacés dans `/sys/svc/` : même effet, sans casser les `session` personnels qui les
+  nomment.
+- **Reste** : un process sans droits peut toujours demander à init2 de lancer un `/sys/svc/...` avec droits (les essais
+  svctest et maptest s'en servent) ; à limiter à l'uid 0, les essais lancés par sudo. Le Pi.

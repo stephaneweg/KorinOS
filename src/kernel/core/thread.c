@@ -29,7 +29,7 @@ int64_t sys_thread_create(uint64_t entry, uint64_t stack, uint64_t arg, uint64_t
 		return E_INVAL;
 	if (prio > PRIO_MAX)
 		return E_INVAL;
-	if (prio == PRIO_MAX && !p->rights)
+	if (prio == PRIO_MAX && !rights_used(p, RU_PRIO_MAX, "PRIO_MAX"))
 		return E_PERM;
 	if (tls == ~0ULL)
 		tls = arch_get_tls(); /* -1 : celui de l'appelant (EmuKit sur le PC) */
@@ -92,7 +92,7 @@ int64_t sys_thread_set_priority(int64_t tid, int64_t prio)
 	struct thread *me = sched_current();
 	if (prio < 0 || prio > PRIO_MAX)
 		return E_INVAL;
-	if (prio == PRIO_MAX && !me->proc->rights)
+	if (prio == PRIO_MAX && !rights_used(me->proc, RU_PRIO_MAX, "PRIO_MAX"))
 		return E_PERM;
 	uint64_t f = sched_lock_take();
 	struct thread *t = tid ? thread_find(me->proc, (int)tid) : me;

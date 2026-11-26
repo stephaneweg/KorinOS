@@ -42,7 +42,7 @@ static uint32_t bar_height;
 int64_t sys_ws_register(void)
 {
 	struct process *p = sched_current()->proc;
-	if (!p->rights)
+	if (!rights_used(p, RU_WS_REGISTER, "WS_REGISTER"))
 		return E_PERM;
 	int64_t ch = svc_register_name("ws", SVF_ENDS, p);
 	if (ch < 0)
@@ -84,7 +84,7 @@ int64_t sys_ws_reply(uint64_t num, uint64_t msg)
 int64_t sys_ws_signal(uint64_t bits)
 {
 	/* un programme sans droits ne lève que WS_SIG_DAMAGE (UIKit : une zone salie) ; 0 sonde */
-	if ((bits & ~(uint64_t)WS_SIG_DAMAGE) && !sched_current()->proc->rights)
+	if ((bits & ~(uint64_t)WS_SIG_DAMAGE) && !rights_used(sched_current()->proc, RU_WS_SIGNAL, "WS_SIGNAL"))
 		return E_PERM;
 	int c = server_chan();
 	if (c < 0)
@@ -217,7 +217,7 @@ int64_t sys_screen_info(uint64_t out)
 static int clip_allowed(void)
 {
 	struct process *p = sched_current()->proc;
-	return p->rights || (ws_pid && p->pid == ws_pid);
+	return rights_used(p, RU_CLIP, "CLIP_SET/GET") || (ws_pid && p->pid == ws_pid);
 }
 
 int64_t sys_clip_set(uint64_t buf, uint64_t len)
