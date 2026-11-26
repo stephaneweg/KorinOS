@@ -30,6 +30,7 @@
 #define WIN_SIZE IMG_WIN_SIZE
 #define WIN_MAX IMG_WIN_MAX
 #define IMG_PIN 1
+#define IMG_FORUID 4 /* (uid 0) l'image d'un lancement sous un autre uid (SPAWN_AS) : uid dans les bits 32 à 63 */
 #define IMS_ABORT 1
 #define IML_PIN 1
 #define IML_SYS 8
@@ -39,7 +40,8 @@ struct image {
 	uint64_t fsize, npages;
 	uint64_t *pages;
 	int pinned, sys;
-	int uid;       /* du créateur : une image sans droits ne sert qu'aux process de cet uid */
+	int shared;    /* une image de tous les comptes : épinglée par le système (préchargement de /apps), seule */
+	int uid;       /* le compte dont les process la prennent (son créateur, ou l'uid de SPAWN_AS) */
 	int valid;     /* dans la table : trouvée par SPAWN_PRELOADED */
 	int loading;   /* pid qui la remplit (fenêtre), 0 : scellée */
 	int window;
@@ -257,7 +259,7 @@ struct image *image_get(const char *path, uint64_t fsize, int need_sys, int uid)
 	struct image *im = 0;
 	for (int i = 0; i < IMG_MAX && !im; i++)
 		if (imgs[i] && imgs[i]->valid && imgs[i]->fsize == fsize && same_path(imgs[i]->path, path) &&
-		    (!need_sys || imgs[i]->sys) && (imgs[i]->sys || imgs[i]->uid == uid))
+		    (!need_sys || imgs[i]->sys) && (imgs[i]->shared || imgs[i]->uid == uid))
 			im = imgs[i];
 	if (im)
 		im->refs++;
@@ -275,6 +277,27 @@ int64_t sys_image_create(uint64_t upath, uint64_t fsize, uint64_t flags)
 		return E_INVAL;
 	if (fsize < 64 || fsize > WIN_SIZE || !p->vm)
 		return E_INVAL;
+	/* décision du 25/11/2026 (tâche « préchargement », avec E33) : une image partagée entre les comptes, épinglée
+	 * (gardée sans process), ne se crée que par le système (uid 0 avec droits : init2 au démarrage, d'après
+	 * /etc/preload.txt, que seule l'élévation change) et seulement pour une app de /apps ; avant, n'importe quel
+	 * process épinglait de la mémoire sans limite, et une image d'un créateur avec droits servait à tous */
+	int pin = (flags & IMG_PIN) != 0;
+	if (pin) {
+		static const char apps[] = "/apps/";
+		int in_apps = 1;
+		for (int k = 0; apps[k] && in_apps; k++)
+			in_apps = (path[k] | (path[k] >= 'A' && path[k] <= 'Z' ? 0x20 : 0)) == apps[k];
+		for (const char *c = path; *c && in_apps; c++)
+			in_apps = !(c[0] == '/' && c[1] == '.' && c[2] == '.');
+		if (!p->rights || p->uid != 0 || !in_apps)
+			return E_PERM;
+	}
+	int uid = p->uid;
+	if (flags & IMG_FORUID) {
+		if (p->uid != 0)
+			return E_PERM; /* (comme SPAWN_AS) */
+		uid = (int)(uint32_t)(flags >> 32);
+	}
 	struct image *im = kzalloc(sizeof *im);
 	if (!im)
 		return E_NOMEM;
@@ -282,9 +305,10 @@ int64_t sys_image_create(uint64_t upath, uint64_t fsize, uint64_t flags)
 	im->fsize = fsize;
 	im->npages = ALIGN_UP(fsize, PAGE_SIZE) / PAGE_SIZE;
 	im->pages = kzalloc(im->npages * 8);
-	im->pinned = (flags & IMG_PIN) != 0;
+	im->pinned = pin;
 	im->sys = p->rights;
-	im->uid = p->uid;
+	im->shared = pin;
+	im->uid = uid;
 	im->loading = p->pid;
 	if (!im->pages) {
 		kfree(im);
@@ -352,7 +376,8 @@ int64_t sys_image_seal(uint64_t window, uint64_t flags)
 		 * process lancés la gardent) ; un compte ne retire pas l'image d'un autre */
 		for (int i = 0; i < IMG_MAX; i++)
 			if (imgs[i] && imgs[i] != im && imgs[i]->valid && same_path(imgs[i]->path, im->path) &&
-			    (im->sys ? imgs[i]->sys : !imgs[i]->sys && imgs[i]->uid == im->uid)) {
+			    (im->shared ? imgs[i]->shared
+					: !imgs[i]->shared && imgs[i]->sys == im->sys && imgs[i]->uid == im->uid)) {
 				imgs[i]->valid = 0;
 				if (--imgs[i]->refs <= 0) { /* la référence de la table */
 					img_free(imgs[i]);
@@ -383,7 +408,7 @@ int64_t sys_image_forget(uint64_t upath)
 	uint64_t f = spin_lock_irqsave(&img_lock);
 	for (int i = 0; i < IMG_MAX; i++)
 		if (imgs[i] && imgs[i]->valid && same_path(imgs[i]->path, path) &&
-		    (all || (!imgs[i]->sys && imgs[i]->uid == p->uid))) {
+		    (all || (!imgs[i]->shared && imgs[i]->uid == p->uid))) {
 			imgs[i]->valid = 0;
 			n++;
 			if (--imgs[i]->refs <= 0) { /* la référence de la table */

@@ -213,7 +213,11 @@ static void pl_load (void)
 		strcat (path, ".app/main");
 		pl_left_add (path);
 	}
+#if defined (__x86_64__)	/* (le PC : seulement les apps de /apps, décision du 25/11/2026 ; le noyau refuse le reste) */
+	DIR *d = 0;
+#else
 	DIR *d = opendir ("/bin");
+#endif
 	if (d)
 	{
 		struct dirent *de;
@@ -324,7 +328,9 @@ static void pl_add (void)
 	*o++ = '\r';
 	*o++ = '\n';
 	pl_file_write (o);
+#if !defined (__x86_64__)	/* (le PC : au prochain démarrage, par init2 ; seul le démarrage précharge, 25/11/2026) */
 	spawn ("/bin/preload", path);
+#endif
 	pl_load ();
 }
 

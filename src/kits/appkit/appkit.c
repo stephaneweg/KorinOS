@@ -105,6 +105,7 @@ typedef uint64_t u64;
 #define VT_CLOSE 4
 
 #define IMG_PIN 1
+#define IMG_FORUID 4 /* (noyau, image.c) */
 #define IMS_ABORT 1
 #define EXP_NAME 0
 #define EXP_ARGS 1
@@ -1341,7 +1342,9 @@ EXPORT long f_spawn_file(long *resp, const char *args, const long *stdio)
 		goto ferme;
 	}
 	if (res != E_NOSYS) {
-		res = fc_image_load(path, size, fd, 0);
+		/* SPAWN_AS (uid 0) : l'image est celle de cet uid, que SPAWN_PRELOADED cherchera (les images ne sont plus
+		 * partagées entre les comptes : préchargement seulement, noyau, image.c) */
+		res = fc_image_load(path, size, fd, (P[2] & 2) ? (long)(4 | ((u64)P[2] & 0xFFFFFFFF00000000ull)) : 0);
 		if (res != E_NOSYS && res != E_NOSPC) {
 			if (!res)
 				res = korin_sys3(SYS_SPAWN_PRELOADED, path, size, P);

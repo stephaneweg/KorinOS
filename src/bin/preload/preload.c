@@ -3,6 +3,8 @@
  *                            fichier, pages, références, chemin
  *   preload <chemin>...      épingle l'image de chaque programme (SYS_PRELOAD d'AppKit : lue une
  *                            fois, gardée tant que le fichier ne change pas ; unload la retire)
+ *                            Sur le PC (25/11/2026) : seulement une app de /apps, et seulement par le système
+ *                            (uid 0 avec droits : init2 au démarrage, d'après /etc/preload.txt) ; sinon E_PERM (-1)
  * Comme l'asm : les mots de la ligne d'arguments, coupés aux espaces seulement ; une ligne vide ou
  * d'espaces ne fait rien (code 0) ; seule une ligne absente donne la liste ; une erreur :
  * « : erreur -N », code 1, et on continue ; chaque image épinglée envoie la notification
