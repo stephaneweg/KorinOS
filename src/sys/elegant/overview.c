@@ -35,6 +35,7 @@
 #define OV_CLOSE_MS 240
 #define OV_SCROLL_MS 260
 #define OV_REFRESH_MS 120     /* une vignette refaite au plus tous les tant de ms */
+#define OV_BG_MS 300          /* le fond : son empreinte relue au plus tous les tant de ms, pendant la vue */
 #define OV_R_DESK 16          /* rayon des coins d'un bureau (à sa taille dans la vue) */
 #define OV_SH_DESK 14         /* son ombre */
 #define OV_SH_WIN 10          /* l'ombre d'une fenêtre */
@@ -99,6 +100,7 @@ static u32 *bg_full, *bg_dim, *bg_thumb;
 static long bg_w, bg_h, bgt_w, bgt_h;
 static u64 bg_sig;
 static long bg_ok; /* bg_full et bg_dim à jour (pour bg_sig) */
+static u64 bgt_sig; /* bg_sig de bg_thumb */
 
 struct box {
 	long x, y, w, h;
@@ -780,6 +782,8 @@ static u64 back_sig(void)
 			continue;
 		s = s * 1099511628211ULL ^ (w->id << 40 ^ (u64)w->gen << 20 ^ w->cgen);
 		s = s * 1099511628211ULL ^ ((u64)(w->x & 0xFFFF) << 16 | (u64)(w->y & 0xFFFF));
+		s = s * 1099511628211ULL ^ ((u64)(w->w & 0xFFFF) << 16 | (u64)(w->h & 0xFFFF) | w->buf << 32); /* (sa taille :
+		   le fond d'écran qui grandit après coup, à l'ouverture de la session) */
 	}
 	return s;
 }
@@ -876,8 +880,8 @@ static void bg_thumb_build(void)
 {
 	if (!bg_full)
 		return;
-	if (bg_thumb && bgt_w == g.tw && bgt_h == g.th)
-		return;
+	if (bg_thumb && bgt_w == g.tw && bgt_h == g.th && bgt_sig == bg_sig)
+		return; /* (refaite aussi quand le fond a changé : le fond d'écran fini après l'ouverture de la vue) */
 	if (bg_thumb)
 		free(bg_thumb);
 	bg_thumb = ov_alloc(g.tw * g.th * 4);
@@ -887,6 +891,7 @@ static void bg_thumb_build(void)
 		return;
 	downscale(bg_full, g.W, g.H, g.W, bg_thumb, g.tw, g.th);
 	round_mask(bg_thumb, g.tw, g.th, OV_R_DESK);
+	bgt_sig = bg_sig;
 }
 
 /* tout ce qui n'est gardé que pendant la vue */
@@ -1220,6 +1225,19 @@ void ov_tick(void)
 	}
 	if (ov_state != 2)
 		return;
+	/* le fond a changé pendant la vue (le fond d'écran encore en train de se dessiner, à l'ouverture de la session :
+	   voronoy est relancé sous le compte) : recomposé, au plus tous les OV_BG_MS ; sans cela une bande blanche restait
+	   jusqu'à la fermeture de la vue */
+	static u64 bg_seen;
+	if (bg_ok && now - bg_seen >= OV_BG_MS) {
+		bg_seen = now;
+		if (back_sig() != bg_sig) {
+			bg_build();
+			bg_thumb_build();
+			dirty_all();
+			return;
+		}
+	}
 	/* une vignette dont le contenu a changé (au plus une par tour) */
 	for (long i = 0; i < n_items; i++) {
 		struct ov_item *it = &items[i];
