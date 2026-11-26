@@ -1,11 +1,11 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-26 13:02
+date = 2026-11-26 13:14
 abi = 632
 packages = 117
 board = pc
-serial = 25
+serial = 26
 
 [avdemo]
 title = Avalonia
@@ -175,18 +175,18 @@ content = 1ed897c3c1436c173dc1585ff0f13199a42ffae587eca0515ab9e2e50688aede
 
 [pkgman]
 title = Logiciels
-version = 1.0.28
+version = 1.0.29
 category = Système
 author = Korin OS
 summary = Les paquets : la commande pkg, le gestionnaire Logiciels (et son volet dans Réglages), le service pkgd
-size = 4622703
+size = 4622519
 installed = 11806459
-sha256 = 4291a5ad473da6eb88d7aa40f533c844b8d07772b65a91e1a62591e774ba75a1
-file = pkgs/pkgman-1.0.28.opk
+sha256 = d83b1048563a7826a58dee051b665706cb170be9cdc55798bbc46e9a3fdf6202
+file = pkgs/pkgman-1.0.29.opk
 needs = abi >= 626
 required = 1
 restart = 0
-content = 159857caa7f15e3aceeeefa8635050b561c3783c7b8669457c2fffdbec903b05
+content = a075f6d7f31425455f032c635e450c66c0c2fc0fcd8c74cd44b4d8f9afe192b3
 
 [soundfonts]
 title = Banque de sons General MIDI
