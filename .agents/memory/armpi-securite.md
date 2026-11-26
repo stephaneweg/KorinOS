@@ -94,3 +94,12 @@ d'AppKit pour SPAWN_AS). Publié dans main (d2cee2a, paquets seulement, depuis u
 `pub.py --no-push --base HEAD`, puis push) : pc 2026.11.113, pkgman 1.0.25 (sait se passer d'ui_elevate_system),
 archiver, calendar, notes, pocketqi, qbasic, qbstudio, webd. Ne jamais publier dock.ini ni oauth/providers.ini d'une
 construction du cloud (gardés de l'archive). L'utilisateur teste sur le ZBook.
+
+**26/11 nuit, ÉCRAN GRIS DU ZBOOK (pc 113)** : cause = L4 interdisait « etc/keyvault » (le paquet pc livre
+etc/keyvault/interpreters.ini) -> pc laissé étagé, ab.txt jamais écrit -> les programmes de la 113 avec le noyau et
+l'initrd (kits) de la 112 -> « kit absent ou trop ancien : /lib/uikit » pour login, panel, menubar. Corrigé (322b476,
+pkgman 1.0.26 publié, main 0197f5c). Leçon : un commit partiel ne doit jamais mélanger programmes neufs et vieil initrd.
+La clé de réparation (osinstall « mode = repair », écrite dans le worktree /tmp/claude-0/base, pas dans le dépôt) a d'abord
+ÉCRASÉ /etc avec les fichiers par défaut du paquet (users.ini, mounts.txt sans BOOT ni /home...) : la v2 garde /etc
+(unzip -x etc/*). Sur un PC installé, /etc/mounts.txt doit avoir « BOOT = blk.boot, fatfs, /, ondemand » et
+« /home = blk.home, ext4fs » (sinon pkg écrit le noyau sur / et pas sur l'ESP). Compte de l'utilisateur : trolly.
