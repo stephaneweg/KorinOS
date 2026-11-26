@@ -163,4 +163,7 @@ Fichiers cachés montrés = Hidden files shown
 Fichiers cachés masqués = Hidden files hidden
 Système = System
 Fichiers veut installer dans les applications du système (/apps) = Files wants to install into the system applications (/apps)
+Fichiers veut retenir ce volume pour les prochains démarrages = Files wants to remember this volume for the next startups
+Fichiers veut enregistrer le compte de ce serveur et s'y connecter = Files wants to save this server's account and connect to it
+Connexion refusée = Connection refused
 Installation dans /apps refusée = Installation into /apps refused

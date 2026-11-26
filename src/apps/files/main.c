@@ -2241,7 +2241,7 @@ static int ini_has_user (const char *sec)
 }
 
 /* mounts.txt : la ligne du volume « vol » (« NET0 ») retiree, puis « line » ajoutee (0 : aucune) */
-static int mounts_set (const char *vol, const char *line)
+static int mounts_set_do (const char *vol, const char *line)
 {
 	char *old = file_load (MOUNTS_TXT);
 	size_t cap = (old ? strlen (old) : 0) + (line ? strlen (line) : 0) + 64;
@@ -2285,6 +2285,19 @@ static int mounts_set (const char *vol, const char *line)
 	return r;
 }
 
+/* /etc/mounts.txt est au système (E72) : un compte s'élève le temps de l'écrire (la carte d'authd), puis reprend
+ * son uid ; déjà en uid 0 (connect_server l'est) : directement */
+static int mounts_set (const char *vol, const char *line)
+{
+	uid_t was = getuid ();
+	if (was != 0 && ui_elevate ((long) TR ("Fichiers veut retenir ce volume pour les prochains démarrages")) != 0)
+		return -1;
+	int r = mounts_set_do (vol, line);
+	if (was != 0)
+		setuid (was);
+	return r;
+}
+
 /* « smb://hote/partage/dossier », « \\hote\partage », « //hote/partage », « hote/partage » -> hote,
  * partage, dossier (« a/b », peut etre vide) ; 0 si l'adresse est incomplete */
 static int smb_parse (const char *in, char *host, char *share, char *dir)
@@ -2318,18 +2331,63 @@ static int smb_parse (const char *in, char *host, char *share, char *dir)
 	return 1;
 }
 
-/* les serveurs deja connus (sections « hote/partage » de smbfs.ini) -> « smb://a/b|smb://c/d » */
+/* les serveurs déjà connus, gardés par compte (HOME:/etc/smb-servers.txt, une ligne « hôte/partage ») : smbfs.ini,
+ * un secret, n'est lisible qu'en uid 0 (E72) */
+#define SMB_KNOWN	"HOME:/etc/smb-servers.txt"
+static void servers_note (const char *sec)
+{
+	if (!strchr (sec, '/'))
+		return;				/* (une section nommée, « net3 » : pas une adresse) */
+	char *s = file_load (SMB_KNOWN);
+	for (const char *l = s ? s : ""; *l;)
+	{
+		const char *e = strchr (l, '\n');
+		size_t k = e ? (size_t) (e - l) : strlen (l);
+		if (k == strlen (sec) && !strncasecmp (l, sec, k))
+		{
+			free (s);
+			return;
+		}
+		l += k + (e ? 1 : 0);
+	}
+	mkdir ("HOME:/etc", 0755);
+	FILE *f = fopen (SMB_KNOWN, "ab");
+	if (f)
+	{
+		fprintf (f, "%s\n", sec);
+		fclose (f);
+	}
+	free (s);
+}
+
+/* les serveurs deja connus (HOME:/etc/smb-servers.txt, et les sections « hote/partage » de smbfs.ini quand il est
+ * lisible) -> « smb://a/b|smb://c/d » */
 static void known_servers (char *out, long max)
 {
 	char *s = file_load (SMB_INI), name[160];
 	long n = 0;
 	out[0] = 0;
+	char *k = file_load (SMB_KNOWN);
+	for (const char *l = k ? k : ""; *l;)
+	{
+		const char *e = strchr (l, '\n');
+		size_t len = e ? (size_t) (e - l) : strlen (l);
+		if (len && len < sizeof name && memchr (l, '/', len) && n + (long) len + 8 < max)
+			n += sprintf (out + n, "%ssmb://%.*s", n ? "|" : "", (int) len, l);
+		l += len + (e ? 1 : 0);
+	}
+	free (k);
 	for (const char *l = s ? s : ""; *l;)
 	{
 		const char *e = strchr (l, '\n');
 		e = e ? e + 1 : l + strlen (l);
+		char tag[170];
 		if (line_section (l, e, name, sizeof name) && strchr (name, '/') && n + (long) strlen (name) + 8 < max)
-			n += sprintf (out + n, "%ssmb://%s", n ? "|" : "", name);
+		{
+			snprintf (tag, sizeof tag, "smb://%s", name);
+			if (!strstr (out, tag))
+				n += sprintf (out + n, "%ssmb://%s", n ? "|" : "", name);
+		}
 		l = e;
 	}
 	free (s);
@@ -2436,6 +2494,14 @@ static void connect_server (void)
 			snprintf (sec, sizeof sec, "net%ld", n);
 			snprintf (src, sizeof src, "smb:net%ld", n);
 		}
+		/* /etc/smbfs.ini (un secret) et /etc/mounts.txt sont au système (E72) : élevé le temps du compte, du
+		   montage (smbfs est lancé par vfs en uid 0 de toute façon) et de mounts.txt, puis l'uid du compte */
+		uid_t was = getuid ();
+		if (was != 0 && ui_elevate ((long) TR ("Fichiers veut enregistrer le compte de ce serveur et s'y connecter")) != 0)
+		{
+			set_msg ("Connexion refusée");
+			return;
+		}
 		/* le compte : « DOMAINE\nom » ou « nom » ; vides : celui deja enregistre */
 		char *dom = strchr (user, '\\');
 		if (user[0] || pw[0] || alias || !ini_has_user (sec))
@@ -2452,6 +2518,8 @@ static void connect_server (void)
 			if (ini_put_section (sec, body) < 0)
 			{
 				set_err (kerr (errno));
+				if (was != 0)
+					setuid (was);
 				return;
 			}
 		}
@@ -2478,6 +2546,8 @@ static void connect_server (void)
 			}
 			snprintf (err, sizeof err, "%s //%s/%s.\n%s", TR ("Connexion impossible à"), host, share,
 				  TR ("Vérifiez l'adresse, le compte et le mot de passe, et que le serveur partage ce dossier."));
+			if (was != 0)
+				setuid (was);
 			ui_message ((long) TR ("Se connecter à un serveur"), (long) err, UM_OK);
 			msg = 0;
 			continue;
@@ -2487,6 +2557,9 @@ static void connect_server (void)
 		snprintf (line, sizeof line, "net%ld = %s, smbfs", n, src);
 		snprintf (root, sizeof root, "net%ld", n);
 		mounts_set (root, line);
+		if (was != 0)
+			setuid (was);
+		servers_note (sec);		/* (la liste des serveurs connus, lisible : HOME) */
 		pw[0] = 0;			/* (ne reste pas dans le dialogue) */
 		sys3 (SYS_SLEEP_, 100, 0);
 		vol_poll ();
