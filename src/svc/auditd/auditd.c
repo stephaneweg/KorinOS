@@ -102,10 +102,18 @@ static void flush(void)
 		vfs_rename(LOG_FILE, LOG_OLD);
 	}
 	long fd = sys_open(LOG_FILE, O_WRITE | O_CREATE | O_APPEND);
-	if (fd >= 0) {
-		sys_write(fd, out, out_n);
-		sys_close(fd);
+	if (fd < 0) { /* (pas encore de /var/log, ou vfs pas prêt : les lignes attendent le tour suivant) */
+		sys_mkdir("/var");
+		sys_mkdir(LOG_DIR);
+		fd = sys_open(LOG_FILE, O_WRITE | O_CREATE | O_APPEND);
+		if (fd < 0) {
+			if (out_n > sizeof out / 2)
+				out_n = 0; /* (trop longtemps : perdues plutôt que plus rien de nouveau) */
+			return;
+		}
 	}
+	sys_write(fd, out, out_n);
+	sys_close(fd);
 	out_n = 0;
 }
 
@@ -113,9 +121,17 @@ static void flush(void)
 static void klog_line(void)
 {
 	line[line_n] = 0;
+	const char *l = line; /* (sans l'heure depuis le démarrage que le noyau met devant : « [   12.345] ») */
+	if (*l == '[') {
+		const char *e = l;
+		while (*e && *e != ']')
+			e++;
+		if (*e == ']' && e[1] == ' ')
+			l = e + 2;
+	}
 	for (int i = 0; keep[i]; i++)
-		if (starts(line, keep[i])) {
-			emit(0, line, line_n);
+		if (starts(l, keep[i])) {
+			emit(0, l, line_n - (u64)(l - line));
 			break;
 		}
 	line_n = 0;
@@ -189,6 +205,7 @@ int main(int argc, char **argv)
 {
 	(void)argc;
 	(void)argv;
+	sys_mkdir("/var"); /* (une image sans /var : créé) */
 	sys_mkdir(LOG_DIR);
 	static const char boot[] = "-- démarrage";
 	emit(0, boot, sizeof boot - 1);
