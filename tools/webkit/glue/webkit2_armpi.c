@@ -254,14 +254,8 @@ int onyx_surface_create (int width, int height)
 		n = armpi_svc (SYS_BUF_CREATE, (long) width * height * 4);
 	if (n < 0 || n > 126)
 		return 0;
-	/* (26/11/2026 : encore ouvert a tous, en plus de onyx_surface_grant : sur le ZBook, Jet 1.4.9 sans cela montrait des
-	   pages blanches -- le process web ne pouvait plus mapper la surface ; E47 a refaire une fois la cause trouvee.
-	   /etc/jet-e47-test (cree par sudo) : pas ouvert a tous, comme 1.4.9, pour le diagnostic ; les lignes « jet: e47 »
-	   du journal disent qui cree, accorde et mappe quoi) */
-	int test = access ("/etc/jet-e47-test", F_OK) == 0;
-	long g = test ? 0 : armpi_svc2 (SYS_BUF_GRANT, n, -1);
-	fprintf (stderr, "jet: e47 : pid %d cree le tampon %ld (%dx%d)%s -> %ld\n", (int) getpid (), n, width, height,
-		 test ? ", essai : pas ouvert a tous" : ", ouvert a tous", g);
+	/* (plus ouverte a tous, E47 : accordee au process web par onyx_surface_grant, a Elegant par UIKit -- les pages
+	   blanches de Jet 1.4.9 venaient d'UIKit, qui accordait a Elegant le mauvais tampon ; corrige dans pc 2026.11.120) */
 	return (int) ((n + 1) | (long) width << 7 | (long) height << 19);
 }
 
@@ -270,12 +264,12 @@ int onyx_surface_grant (int id, int pid)
 {
 	if (id <= 0 || pid <= 0)
 	{
-		fprintf (stderr, "jet: e47 : pid %d : accord du tampon %d au pid %d refuse (id ou pid nul)\n", (int) getpid (),
-			 (id & 0x7F) - 1, pid);
+		fprintf (stderr, "jet: surface : tampon %d, pid %d : pas d'accord possible\n", (id & 0x7F) - 1, pid);
 		return -22;
 	}
 	long r = armpi_svc2 (SYS_BUF_GRANT, (id & 0x7F) - 1, pid);
-	fprintf (stderr, "jet: e47 : pid %d accorde le tampon %d au pid %d -> %ld\n", (int) getpid (), (id & 0x7F) - 1, pid, r);
+	if (r < 0)
+		fprintf (stderr, "jet: surface : accord du tampon %d au pid %d refuse (%ld)\n", (id & 0x7F) - 1, pid, r);
 	return (int) r;
 }
 
@@ -286,10 +280,9 @@ unsigned *onyx_surface_map (int id, int *width, int *height)
 	long p = armpi_svc (SYS_BUF_MAP, (id & 0x7F) - 1);
 	if (p <= 0)
 	{
-		fprintf (stderr, "jet: e47 : pid %d ne peut pas mapper le tampon %d -> %ld\n", (int) getpid (), (id & 0x7F) - 1, p);
+		fprintf (stderr, "jet: surface : le pid %d ne peut pas mapper le tampon %d (%ld)\n", (int) getpid (), (id & 0x7F) - 1, p);
 		return NULL;
 	}
-	fprintf (stderr, "jet: e47 : pid %d mappe le tampon %d\n", (int) getpid (), (id & 0x7F) - 1);
 	if (width) *width = (id >> 7) & 0xFFF;
 	if (height) *height = (id >> 19) & 0xFFF;
 	return (unsigned *) p;
