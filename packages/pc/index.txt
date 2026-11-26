@@ -5,7 +5,7 @@ date = 2026-11-26 11:13
 abi = 632
 packages = 117
 board = pc
-serial = 19
+serial = 20
 
 [avdemo]
 title = Avalonia
@@ -920,18 +920,18 @@ content = dcdc0ebfdf279faedb6275d9897521e243238d117c2564c9efcc7aefc056bbb3
 
 [clock]
 title = Horloge
-version = 1.0.12
+version = 1.0.13
 category = Accessoires
 author = Korin OS
 summary = 
-size = 135884
-installed = 273631
-sha256 = 7b857d948861b7afbc7e329e5bf04d32f1f87044a7c1406bbb9fa4a33ff3ef8a
-file = pkgs/clock-1.0.12.opk
+size = 138967
+installed = 277727
+sha256 = 1b0d4ab81635f815f00345cb37acd0c4530b8ed4aa7a8716b96ba8ef56004a75
+file = pkgs/clock-1.0.13.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 65ff1e6a053a9c37205bc45955c9373f02acd1a34cabaf9735bf96f35dcd1666
+content = 4b3d41027a208cf9562a487a8449cff9ba223631c3a9c96df789d67be71844e6
 
 [cosmozoom]
 title = Cosmo Zoom!
