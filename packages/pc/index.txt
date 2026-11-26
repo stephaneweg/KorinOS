@@ -5,7 +5,7 @@ date = 2026-11-26 11:13
 abi = 632
 packages = 117
 board = pc
-serial = 21
+serial = 22
 
 [avdemo]
 title = Avalonia
@@ -635,18 +635,18 @@ content = 1096fe67d96ab6bbd46bb945d19d4c2926db2a381127759a0841a0c755f502e2
 
 [webstudio]
 title = WebStudio
-version = 1.1.4
+version = 1.1.5
 category = Développement
 author = Korin OS
 summary = L'outil de développement web : un site est un dossier, le serveur de Korin le sert, F5 l'ouvre dans Jet
-size = 155842
-installed = 320626
-sha256 = e1e4eb972d9b7e56ca854d73b3dceba01ea0ac6b11046adc62a6d91bbc24c22c
-file = pkgs/webstudio-1.1.4.opk
+size = 159128
+installed = 328818
+sha256 = c1c24bbb7a9f3232dd2cc5b06d20ef67bbd14a313bc54f749fbc07eda4f74c07
+file = pkgs/webstudio-1.1.5.opk
 needs = webd, abi >= 626
 required = 0
 restart = 0
-content = 9972d47882dad834b2fce688479e39918bbc6a5f5dbbe9a8fb5ae470e556844f
+content = 81f980619054cbc077bbbf0129dedaa67b3ecca45c049ab50a1e5046bcef3d87
 
 [godot-templates]
 title = Modèles d'export de Godot
