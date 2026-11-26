@@ -27,6 +27,7 @@
 #include "engine.h"
 #include "present.h"
 #include "widevine.h"
+#include "pagefiles.h"
 #include <uikit.h>
 #include <fcntl.h>
 #include <sys/wait.h>
@@ -263,6 +264,16 @@ static bool g_dead;
 static void cb_ended (int) { g_dead = true; }
 static void cb_alert (const char *t) { ui_message ((long) g_title.c_str (), (long) (t ? t : ""), UM_OK); }
 static bool cb_confirm (const char *t) { return ui_message ((long) g_title.c_str (), (long) (t ? t : ""), UM_OKCANCEL) == 1; }
+
+// <input type=file> : le dialogue d'ouverture de Korin (comme la fenêtre de Jet)
+static bool cb_choose_file (char *path, unsigned long size, const char *patterns)
+{
+	ui_file_filter (patterns && *patterns ? (long) patterns : 0);
+	const char *h = getenv ("HOME");
+	long ok = ui_file_open ((long) (h && *h ? h : "/home"), (long) path, (long) size);
+	ui_file_filter (0);
+	return ok == 1 && path[0];
+}
 
 static std::vector<std::string> g_popItems;
 static int g_popX = -1, g_popY, g_popW;
@@ -743,6 +754,7 @@ int webapp_main (const char *name, const char *title, const char *url, bool gpu)
 	g_client.processEnded = cb_ended;
 	g_client.alert = cb_alert;
 	g_client.confirm = cb_confirm;
+	g_client.chooseFile = cb_choose_file;
 	g_client.keyNotHandled = cb_key_not_handled;
 	g_client.showPopup = cb_popup;
 	g_client.hidePopup = cb_hide_popup;
@@ -795,9 +807,18 @@ int webapp_main (const char *name, const char *title, const char *url, bool gpu)
 			if (g_tab)
 			{
 				long k = onyx_key (code, ch, mods);
+				std::string why;	// (Ctrl+V : une image ou des fichiers copiés, pagefiles.h)
+				if ((mods & OK_MOD_CTRL) && !(mods & OK_MOD_ALT) && k == 22 && pf_paste (why)) break;
 				if (k) engine_key (k, mods);
 			}
 			break;
+		case WEV_DROP:				// des fichiers déposés depuis Fichiers (pagefiles.h)
+		{
+			std::string why;
+			if (!g_mini && g_tab && y >= TOP_H && pf_drop (x, y - TOP_H, why)) break;
+			if (t > 0) ui_w_event (0);
+			break;
+		}
 		case WEV_FOCUS:
 			if (!g_mini) engine_set_active (kind != 0);
 			break;

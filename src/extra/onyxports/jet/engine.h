@@ -51,6 +51,9 @@ struct EngineClient
 	// ends), its place ("file:line:column", "" none). ENGINE_CONSOLE_CLEAR: a new page starts
 	// loading, the console starts again.
 	void (*console) (int level, const char *text, const char *where);
+	// An <input type=file> asks for a file (26/11/2026): the window's dialog; patterns « *.png;*.jpg » ("" any).
+	// -> true and its path in path (size bytes), false: none chosen
+	bool (*chooseFile) (char *path, unsigned long size, const char *patterns);
 };
 
 enum { ENGINE_CONSOLE_CLEAR = -1, ENGINE_CONSOLE_LOG = 0, ENGINE_CONSOLE_WARNING, ENGINE_CONSOLE_ERROR,
@@ -139,6 +142,13 @@ void engine_set_user_css (const char *css);
 // A script run in the shown tab's main frame; done (ctx, its value when it is a string, else "") is called later,
 // from engine_cycle (never when there is no tab).
 void engine_run_script (const char *js, void (*done) (void *ctx, const char *result), void *ctx);
+// Files given to the shown page (26/11/2026; WebKit here has no drag and drop, and its pasteboard only text): drop
+// true, dropped on the element at (x, y) (page coordinates: dragenter, dragover, drop, or an <input type=file> there);
+// false, pasted where the focus is (a paste event). count files: name, MIME type, bytes. -> false: too big, nothing
+// given (ENGINE_GIVE_MAX bytes in all)
+#define ENGINE_GIVE_MAX (32L << 20)
+bool engine_give_files (int count, const char *const *names, const char *const *types, const unsigned char *const *data,
+			const unsigned long *sizes, int x, int y, bool drop);
 // Helper processes started from this program (the downloads' window): argv[1] the role.
 int  engine_spawn_self (const char *role, int *toChild, int *fromChild);	// -> pid (0: failed)
 

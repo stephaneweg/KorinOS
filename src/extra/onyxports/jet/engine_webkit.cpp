@@ -42,6 +42,9 @@
 #include <WebKit/WKSecurityOriginRef.h>
 #endif
 #include <WebKit/WKNavigationActionRef.h>
+#include <WebKit/WKOpenPanelParametersRef.h>
+#include <WebKit/WKOpenPanelResultListener.h>
+#include <WebKit/WKArray.h>
 #include <WebKit/WKPage.h>
 #include <WebKit/WKPageConfigurationRef.h>
 #include <WebKit/WKPageNavigationClient.h>
@@ -770,6 +773,55 @@ static void runConfirm (WKPageRef, WKStringRef text, WKFrameRef, WKSecurityOrigi
 	WKPageRunJavaScriptConfirmResultListenerCall (listener, ok);
 }
 
+// <input type=file> (26/11/2026): the window's file dialog (one file: Korin's dialog chooses one), its path given
+// back as a file: URL; none chosen: cancelled (the page keeps what it had)
+static std::string file_url (const char *path)
+{
+	static const char hex[] = "0123456789ABCDEF";
+	std::string u = "file://";
+	for (const unsigned char *p = (const unsigned char *) path; *p; p++) {
+		unsigned char c = *p;
+		if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || strchr ("/-_.~", c))
+			u += (char) c;
+		else {
+			u += '%';
+			u += hex[c >> 4];
+			u += hex[c & 15];
+		}
+	}
+	return u;
+}
+
+static void runOpenPanel (WKPageRef, WKFrameRef, WKOpenPanelParametersRef params, WKOpenPanelResultListenerRef listener, const void *)
+{
+	std::string patterns;	// (the accepted extensions, « .png » -> « *.png »)
+	if (WKArrayRef ext = WKOpenPanelParametersCopyAcceptedFileExtensions (params)) {
+		for (size_t i = 0; i < WKArrayGetSize (ext); i++) {
+			WKTypeRef e = WKArrayGetItemAtIndex (ext, i);
+			if (!e || WKGetTypeID (e) != WKStringGetTypeID ()) continue;
+			std::string x = str ((WKStringRef) e);
+			if (x.empty ()) continue;
+			if (!patterns.empty ()) patterns += ";";
+			patterns += x[0] == '.' ? "*" + x : "*." + x;
+		}
+		WKRelease (ext);
+	}
+	char path[1024] = "";
+	if (!s_client->chooseFile || !s_client->chooseFile (path, sizeof path, patterns.c_str ()) || !path[0]) {
+		WKOpenPanelResultListenerCancel (listener);
+		return;
+	}
+	say ("file chosen for the page: %s", path);
+	WKURLRef u = WKURLCreateWithUTF8CString (file_url (path).c_str ());
+	WKTypeRef items[1] = { u };
+	WKArrayRef a = WKArrayCreate (items, 1);
+	WKArrayRef none = WKArrayCreate (nullptr, 0);	// (the allowed MIME types: WebKit reads the array, never null)
+	WKOpenPanelResultListenerChooseFiles (listener, a, none);
+	WKRelease (none);
+	WKRelease (a);
+	WKRelease (u);
+}
+
 #if ENABLE(ENCRYPTED_MEDIA)
 // EME (Korin, docs/etude/WIDEVINE.md): a page asks for a key system (navigator.requestMediaKeySystemAccess).
 // Clear Key: always (no module, the keys stay in the page). The others (Widevine, through cdmhost): for now
@@ -1151,6 +1203,7 @@ int engine_tab_new (const char *typed)
 	uc.mouseDidMoveOverElement = mouseOverElement;
 	uc.runJavaScriptAlert = runAlert;
 	uc.runJavaScriptConfirm = runConfirm;
+	uc.runOpenPanel = runOpenPanel;
 #if ENABLE(ENCRYPTED_MEDIA)
 	uc.decidePolicyForMediaKeySystemPermissionRequest = mediaKeySystemPermission;
 #endif
@@ -1460,6 +1513,78 @@ void engine_run_script (const char *js, void (*done) (void *, const char *), voi
 	WKStringRef s = WKStringCreateWithUTF8CString (js);
 	WKPageEvaluateJavaScriptInMainFrame (s_page, s, new ScriptCall { done, ctx }, script_done);
 	WKRelease (s);
+}
+
+// engine_give_files: the files built in the page from base64 (a File each, in a DataTransfer), then the events a
+// drop or a paste would have fired -- not trusted events (isTrusted false), which the sites that take pasted or dropped
+// files (claude.ai, mail, drives) do not check
+static void base64 (std::string &out, const unsigned char *d, unsigned long n)
+{
+	static const char t[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	out.reserve (out.size () + (n + 2) / 3 * 4);
+	unsigned long i = 0;
+	for (; i + 2 < n; i += 3) {
+		unsigned v = d[i] << 16 | d[i + 1] << 8 | d[i + 2];
+		out += t[v >> 18]; out += t[v >> 12 & 63]; out += t[v >> 6 & 63]; out += t[v & 63];
+	}
+	if (i < n) {
+		unsigned v = d[i] << 16 | (i + 1 < n ? d[i + 1] << 8 : 0);
+		out += t[v >> 18]; out += t[v >> 12 & 63];
+		out += i + 1 < n ? t[v >> 6 & 63] : '=';
+		out += '=';
+	}
+}
+
+static std::string js_string (const char *s)
+{
+	std::string r = "\"";
+	for (const unsigned char *p = (const unsigned char *) s; *p; p++) {
+		if (*p == '"' || *p == '\\') { r += '\\'; r += (char) *p; }
+		else if (*p < 0x20) { char b[8]; snprintf (b, sizeof b, "\\u%04x", *p); r += b; }
+		else r += (char) *p;
+	}
+	return r + "\"";
+}
+
+bool engine_give_files (int count, const char *const *names, const char *const *types, const unsigned char *const *data,
+			const unsigned long *sizes, int x, int y, bool drop)
+{
+	if (!s_page || count <= 0) return false;
+	unsigned long total = 0;
+	for (int i = 0; i < count; i++) total += sizes[i];
+	if (total > (unsigned long) ENGINE_GIVE_MAX) return false;
+	std::string js = "(function(){function f(s,t,n){var r=atob(s),a=new Uint8Array(r.length);"
+		"for(var i=0;i<r.length;i++)a[i]=r.charCodeAt(i);return new File([a],n,{type:t,lastModified:Date.now()});}"
+		"var dt=new DataTransfer();";
+	for (int i = 0; i < count; i++) {
+		js += "dt.items.add(f(\"";
+		base64 (js, data[i], sizes[i]);
+		js += "\"," + js_string (types[i] && *types[i] ? types[i] : "application/octet-stream") + "," + js_string (names[i]) + "));";
+	}
+	char xy[64];
+	snprintf (xy, sizeof xy, "var X=%d,Y=%d;", x, y);
+	js += xy;
+	if (drop)
+		js += "var el=document.elementFromPoint(X,Y)||document.body;"
+			"function fire(type){var e;try{e=new DragEvent(type,{bubbles:true,cancelable:true,composed:true,clientX:X,clientY:Y,dataTransfer:dt});}"
+			"catch(_){e=new Event(type,{bubbles:true,cancelable:true,composed:true});}"
+			"if(!e.dataTransfer)try{Object.defineProperty(e,'dataTransfer',{value:dt});}catch(_){}"
+			"return el.dispatchEvent(e);}"
+			"fire('dragenter');fire('dragover');var free=fire('drop');"
+			"var inp=(el.tagName=='INPUT'&&el.type=='file')?el:(el.closest?el.closest('label')&&el.closest('label').control:null);"
+			"if(free&&inp&&inp.type=='file'){inp.files=dt.files;inp.dispatchEvent(new Event('input',{bubbles:true}));"
+			"inp.dispatchEvent(new Event('change',{bubbles:true}));}"
+			"return free?'drop:free':'drop:taken';";
+	else
+		js += "var el=document.activeElement||document.body;var e=null;"
+			"try{e=new ClipboardEvent('paste',{bubbles:true,cancelable:true,composed:true,clipboardData:dt});}catch(_){}"
+			"if(!e||!e.clipboardData){e=new Event('paste',{bubbles:true,cancelable:true,composed:true});"
+			"try{Object.defineProperty(e,'clipboardData',{value:dt});}catch(_){}}"
+			"return el.dispatchEvent(e)?'paste:free':'paste:taken';";
+	js += "})()";
+	say ("%d file(s), %lu bytes, %s the page at %d,%d", count, total, drop ? "dropped on" : "pasted into", x, y);
+	engine_run_script (js.c_str (), [] (void *, const char *r) { say ("files given: %s", r); }, nullptr);
+	return true;
 }
 
 void engine_back () { if (s_page && WKPageCanGoBack (s_page)) WKPageGoBack (s_page); }

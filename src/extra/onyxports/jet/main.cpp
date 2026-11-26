@@ -23,6 +23,7 @@
 #include "engine.h"
 #include "present.h"
 #include "widevine.h"
+#include "pagefiles.h"
 #include <uikit.h>
 #include <openssl/crypto.h>
 #include <dirent.h>
@@ -528,6 +529,17 @@ static void cb_ended (int id)
 
 static void cb_alert (const char *t) { ui_message ((long) "Jet", (long) (t ? t : ""), UM_OK); }
 static bool cb_confirm (const char *t) { return ui_message ((long) "Jet", (long) (t ? t : ""), UM_OKCANCEL) == 1; }
+
+// <input type=file> : le dialogue d'ouverture de Korin, dans le dossier personnel (patterns : les extensions que la page
+// accepte, « *.png;*.jpg »)
+static bool cb_choose_file (char *path, unsigned long size, const char *patterns)
+{
+	ui_file_filter (patterns && *patterns ? (long) patterns : 0);
+	const char *h = getenv ("HOME");
+	long ok = ui_file_open ((long) (h && *h ? h : "/home"), (long) path, (long) size);
+	ui_file_filter (0);
+	return ok == 1 && path[0];
+}
 
 // une liste <select> : montree apres engine_cycle (hors de l'appel du moteur)
 static std::vector<std::string> g_popItems;
@@ -1264,9 +1276,29 @@ static void handle_event (long t)
 			if (k == 27) { focus_page (); return; }
 			break;					// (l'adresse : ses widgets)
 		}
+		if ((mods & OK_MOD_CTRL) && !(mods & OK_MOD_ALT) && k == 22)	// Ctrl+V : une image ou des fichiers copiés
+		{								// (pagefiles.h) ; sinon le texte, par WebKit
+			std::string why;
+			if (pf_paste (why))
+			{
+				if (!why.empty ()) status (("Coller : " + why).c_str ());
+				return;
+			}
+		}
 		if (k) engine_key (k, mods);
 		return;
 	}
+	case WEV_DROP:					// des fichiers déposés depuis Fichiers (pagefiles.h)
+		if (in_page (x, y))
+		{
+			std::string why;
+			if (pf_drop (x, y - PAGE_Y, why))
+			{
+				if (!why.empty ()) status (("Déposer : " + why).c_str ());
+				return;
+			}
+		}
+		break;
 	case WEV_FOCUS:
 		engine_set_active (kind != 0);
 		break;
@@ -1453,6 +1485,7 @@ int main (int argc, char **argv)
 	g_client.processEnded = cb_ended;
 	g_client.alert = cb_alert;
 	g_client.confirm = cb_confirm;
+	g_client.chooseFile = cb_choose_file;
 	g_client.keyNotHandled = cb_key_not_handled;
 	g_client.showPopup = cb_popup;
 	g_client.hidePopup = cb_hide_popup;
