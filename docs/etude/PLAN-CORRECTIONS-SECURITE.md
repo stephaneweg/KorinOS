@@ -38,6 +38,8 @@ Rédigé le 24/11/2026 à partir de [AUDIT-SECURITE-PC.md](AUDIT-SECURITE-PC.md)
 >     chargement (empreinte épinglée par l'uid 0, ou CRX3), à essayer avec Netflix et Spotify ;
 >   * étape 4 d'E47 : le noyau du PC refuse `-1` (E_PERM, une ligne « mm : … ouvert a tous refuse » au journal) ; plus
 >     aucun source ne l'utilisait (intelgpu et Jet corrigés). Le Pi (noyau en assembleur) l'accepte encore ;
+>   * E47 essayé sur le ZBook le 26/11 (pc 2026.11.121, Jet 1.4.12) : Jet, YouTube, Netflix, Disney+, Godot, Blender,
+>     Cosmozoom ; aucun refus au journal. **E47 fini sur le PC** ;
 >   * reste l'essai du reste sur le ZBook.
 > * **Ajouté après une relecture de la branche** : `fs.*` ne répondent qu'à vfs (le fond de F4) ; montage par
 >   « `/media/../etc` » ; renommage d'un parent d'un chemin protégé ; sudo d'un compte sans mot de passe par la

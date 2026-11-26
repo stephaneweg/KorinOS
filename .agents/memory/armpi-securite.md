@@ -150,3 +150,5 @@ BUF_GRANT -1, journal des seuls échecs (« jet: surface »), needs = pc >= 2026
 pub.py --force car le content change). Reste l'étape 4 : le noyau refuse -1 (voir d'abord qui l'utilise encore).
 **26/11, E47 étape 4 publiée** : pc 2026.11.121, le noyau du PC refuse BUF_GRANT -1 (E_PERM + ligne « mm : ... ouvert a
 tous refuse » au journal). À confirmer sur le ZBook : Jet (pages, vidéo), une app GPU, journal sans refus. Pi inchangé.
+**26/11, E47 fini** : essayé sur le ZBook (Jet, YouTube, Netflix, Disney+, Godot, Blender, Cosmozoom), aucun refus.
+Suite possible : initrd refait sur la machine à la mise à jour de pc (idée de l'utilisateur, « plus tard »), E60.
