@@ -20,6 +20,21 @@ Rédigé le 24/11/2026 à partir de [AUDIT-SECURITE-PC.md](AUDIT-SECURITE-PC.md)
 >   * E72 : la liste est traitée (Réglages, Horloge, Fichiers, Notes, Koton, Logiciels, smbd, webd, webstudio,
 >     printd, `ui_elevate` sans authd) ; un démarrage en `enforce` avec sept apps ne donne aucun refus.
 >   * Restent E73 (une semaine en mode log sur le ZBook) et E74 (`enforce` par défaut).
+> * **Le 26/11 (soir)** :
+>   * E11 : `vm_map_page` refuse un remplacement, après un relevé vide (Jet, Godot, linuxhost, ktest) ;
+>   * E49 : un périphérique USB réservé aux pilotes lancés pour lui ;
+>   * E65 : KRACK, compteur de rejeu, nonces, SSID, MIC, bourrage. PMF n'est pas annoncé : il faudrait IGTK, BIP et
+>     SA Query ;
+>   * E52 : les paquets de la clé passent par `pkg --root -r /packages/pc` ;
+>   * E47 : une liste de pids accordés par tampon ; intelgpu accorde sa page d'état à chaque client ; Jet (patch 0017,
+>     glue) l'accorde au process web ;
+>   * E58 : tubes en O_CLOEXEC, fichiers de débogage de `/etc` seulement s'ils sont à l'uid 0, plus de
+>     `JET_CDMHOST` ni `JET_WIDEVINE_CDM`, permission DRM par origine, téléchargement non demandé refusé ou
+>     soumis à une question ;
+>   * E59 : Jet reconstruit ;
+>   * E60 : seulement les variables d'environnement. Restent cdmhost lancé par l'UI et le module vérifié au
+>     chargement (empreinte épinglée par l'uid 0, ou CRX3), à essayer avec Netflix et Spotify ;
+>   * restent l'étape 4 d'E47 (`-1` refusé, après la publication de Jet) et l'essai de tout cela sur le ZBook.
 > * **Ajouté après une relecture de la branche** : `fs.*` ne répondent qu'à vfs (le fond de F4) ; montage par
 >   « `/media/../etc` » ; renommage d'un parent d'un chemin protégé ; sudo d'un compte sans mot de passe par la
 >   carte ; couche sûre et repère secret de la carte et de l'écran de connexion (E39) ; `/etc/web-probe.js`,

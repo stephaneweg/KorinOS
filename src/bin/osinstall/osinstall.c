@@ -651,21 +651,6 @@ static int key_opk(const char *name, char *path, u64 cap)
 	return 0;
 }
 
-static void sha256_file(const char *path, char *hex)
-{
-	struct sha s;
-	u8 h[32];
-	sha_init(&s);
-	long f = sys_open(path, O_READ), n;
-	if (f >= 0) {
-		while ((n = sys_read(f, cbuf, sizeof cbuf)) > 0)
-			sha_add(&s, cbuf, (u64)n);
-		sys_close(f);
-	}
-	sha_end(&s, h);
-	hexs(h, 32, hex);
-}
-
 /* la valeur de « clé = ... » dans la section [name] d'un index -> out (vide s'il n'y en a pas) */
 static void idx_val(const char *idx, const char *name, const char *key, char *out, u64 cap)
 {
@@ -723,85 +708,23 @@ static int vcmp(const char *a, const char *b)
 
 static char onidx[262144]; /* l'index en ligne vérifié (/var/pkg/index.txt de la clé) */
 
-/* installe un paquet de la clé dans la cible -> 0, ou < 0 */
+/* installe un paquet de la clé dans la cible -> 0, ou < 0. Par pkg (E52, B8) : le dépôt hors ligne de la clé
+ * (/packages/pc : index.txt, index.sig, pkgs/), sa signature (la clé compilée dans pkg) et le SHA-256 de l'archive
+ * vérifiés, la fiche de /media/tgt/var/pkg/db écrite par pkg ; avant, l'archive était décompressée sans contrôle */
 static long key_install(const char *name, const char *opk)
 {
-	static char args[400], db[96000], man[4096];
+	(void)opk; /* (pkg la retrouve par l'index) */
+	static char args[300], db[160];
 	args[0] = 0;
-	str_cat(str_cat(str_cat(args, "-o -q -d /media/tgt "), opk), "");
-	long r = run("/bin/unzip", args);
-	if (r != 0)
-		return r < 0 ? r : E_IO;
-	/* la fiche : le manifeste, puis chaque fichier de l'archive (le répertoire central du zip) et son SHA-256 */
-	if (rd_file("/media/tgt/PKG/manifest.ini", man, sizeof man) < 0)
-		man[0] = 0;
-	sys_unlink("/media/tgt/PKG/manifest.ini");
-	sys_unlink("/media/tgt/PKG");
-	db[0] = 0;
-	str_cat(db, "# installe par osinstall (cle d'installation)\n[package]\n");
-	for (char *l = man; *l;) {
-		char *e = l;
-		while (*e && *e != '\n')
-			e++;
-		char c = *e;
-		*e = 0;
-		if (*l && *l != '#' && (u64)str_len(db) + (u64)(e - l) + 2 < sizeof db)
-			str_cat(str_cat(db + str_len(db), l), "\n");
-		*e = c;
-		l = c ? e + 1 : e;
-	}
-	str_cat(db + str_len(db), "mode = manual\n\n[files]\n");
-	long f = sys_open(opk, O_READ);
+	str_cat(str_cat(args, "--root /media/tgt -r /packages/pc add "), name);
+	long r = run("/bin/pkg", args);
+	join(db, "/media/tgt/var/pkg/db", name);
+	str_cat(db + str_len(db), ".ini");
+	long f = sys_open(db, O_READ); /* (installé : sa fiche est là) */
 	if (f < 0)
-		return f;
-	long size = sys_seek(f, 0, 2);
-	u64 tail = size > 65557 ? 65557 : (u64)size; /* la fin du répertoire central : dans les 64 Kio de la fin */
-	sys_seek(f, size - (long)tail, 0);
-	long got = rd_full(f, cbuf, tail);
-	long eocd = -1;
-	for (long i = got - 22; i >= 0; i--)
-		if (cbuf[i] == 'P' && cbuf[i + 1] == 'K' && cbuf[i + 2] == 5 && cbuf[i + 3] == 6) {
-			eocd = i;
-			break;
-		}
-	if (eocd < 0) {
-		sys_close(f);
-		return E_IO;
-	}
-	u32 cd_size = cbuf[eocd + 12] | cbuf[eocd + 13] << 8 | cbuf[eocd + 14] << 16 | (u32)cbuf[eocd + 15] << 24;
-	u32 cd_off = cbuf[eocd + 16] | cbuf[eocd + 17] << 8 | cbuf[eocd + 18] << 16 | (u32)cbuf[eocd + 19] << 24;
-	static u8 cd[131072];
-	if (cd_size > sizeof cd) {
-		sys_close(f);
-		return E_IO;
-	}
-	sys_seek(f, cd_off, 0);
-	if (rd_full(f, cd, cd_size) != (long)cd_size) {
-		sys_close(f);
-		return E_IO;
-	}
+		return r < 0 ? r : E_IO;
 	sys_close(f);
-	for (u32 o = 0; o + 46 <= cd_size;) {
-		if (cd[o] != 'P' || cd[o + 1] != 'K' || cd[o + 2] != 1 || cd[o + 3] != 2)
-			break;
-		u32 nl = cd[o + 28] | cd[o + 29] << 8, xl = cd[o + 30] | cd[o + 31] << 8, cl = cd[o + 32] | cd[o + 33] << 8;
-		char nm[300];
-		u32 k = nl < 299 ? nl : 299;
-		memcpy(nm, cd + o + 46, k);
-		nm[k] = 0;
-		o += 46 + nl + xl + cl;
-		if (!k || nm[k - 1] == '/' || !memcmp(nm, "PKG/", 4))
-			continue;
-		char full[400], hex[65];
-		join(full, "/media/tgt", nm);
-		sha256_file(full, hex);
-		if ((u64)str_len(db) + k + 70 < sizeof db)
-			str_cat(str_cat(str_cat(str_cat(db + str_len(db), nm), " = "), hex), "\n");
-	}
-	char dbp[160];
-	join(dbp, "/media/tgt/var/pkg/db", name);
-	str_cat(dbp + str_len(dbp), ".ini");
-	return wr_file(dbp, db, (u64)str_len(db));
+	return 0;
 }
 
 /* ---- le programme */
@@ -1668,7 +1591,8 @@ int main(int argc, char **argv)
 				if (f >= 0) {
 					sys_close(f);
 					nnet++;
-				} else if (onkey && key_install(s, opk) >= 0) { /* (le dépôt ne répond pas : la version de la clé) */
+				} else if (onkey && key_install(s, opk) >= 0) { /* (le dépôt ne répond pas : la version de la clé,
+										     vérifiée de même) */
 					logl(m);
 				} else {
 					char e[96] = "échec : ";
@@ -1683,7 +1607,7 @@ int main(int argc, char **argv)
 				char m[96] = "depuis la clé : ";
 				str_cat(m + str_len(m), s);
 				prog(82, m);
-				if (key_install(s, opk) < 0) {
+				if (key_install(s, opk) < 0) { /* (pkg : index.sig de la clé et SHA-256 vérifiés, E52) */
 					logl(m);
 					str_cat(str_cat(txt + str_len(txt), s), "\n");
 					nw++;

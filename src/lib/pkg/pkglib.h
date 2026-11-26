@@ -1102,7 +1102,15 @@ public:
 	// (une adresse complete, « https://… » : telle quelle ; les gros paquets sont dans une Release)
 	bool fetch (const char *rel, Sink &sink, u64 want, Report &r)
 	{
-		if (strstr (rel, "://")) return http_get (rel, sink, want, strrchr (rel, '/') + 1, r);
+		static __thread char relbuf[300];
+		if (strstr (rel, "://"))
+		{
+			if (!local_repo ()) return http_get (rel, sink, want, strrchr (rel, '/') + 1, r);
+			// un dépôt hors ligne (la clé d'installation, tools/pc/keyroot.py) : l'archive d'une Release y est dans
+			// pkgs/ sous son nom (E52 : osinstall installe par pkg, signature et empreintes vérifiées)
+			snprintf (relbuf, sizeof relbuf, "pkgs/%s", strrchr (rel, '/') + 1);
+			rel = relbuf;
+		}
 		char url[600]; cpy (url, repo, sizeof url);
 		int l = (int) strlen (url); while (l && url[l - 1] == '/') url[--l] = 0;
 		// « ../pkgs/x.opk » : un paquet sans code machine, publie une seule fois pour toutes les plateformes, que
