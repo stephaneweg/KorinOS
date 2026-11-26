@@ -500,8 +500,10 @@ static long launch_request(void)
 	long real = korin_sys1(SYS_PROC_UID, (long)who);
 	if (uid < 0 && uid != E_NOSYS)
 		r = -3; /* E_SRCH (demandeur disparu, ou erreur : jamais lancé en uid 0 à sa place, E18) */
-	else if (real > 0 && !memcmp(launch_path, "/sys/svc/", 9))
-		r = E_PERM; /* un service (avec droits) : pour l'uid 0 seulement, plus pour une app (E33 ; svctest : sudo) */
+	else if (real > 0 && !memcmp(launch_path, "/sys/svc/", 9) && !str_eq(launch_path, "/sys/svc/oauthd"))
+		r = E_PERM; /* un service (avec droits) : pour l'uid 0 seulement, plus pour une app (E33 ; svctest : sudo) ;
+			     * sauf oauthd, le service d'un compte (oauth.<uid>), que NetKit lance à la demande sous l'uid
+			     * de l'app (sans lui, Fichiers ne se connectait plus à Google Drive : 26/11/2026) */
 	else if (sys_path_ok(launch_path)) { /* AppKit : droits (vfs : ATTR_SYS ; le noyau : init2 les a) */
 		r = uid > 0 ? ksys(SYS_SPAWN_AS, (long)launch_path, (long)args, uid, 0, 0, 0) : E_NOSYS;
 		if (r == E_NOSYS) /* (uid 0, ou AppKit sans SPAWN_AS) */
