@@ -134,6 +134,58 @@ static int run (const char *const *argv)
 	return WIFEXITED (st) ? WEXITSTATUS (st) : -1;
 }
 
+/* ---- E72 : /etc/web (sites.ini, certs : un secret) et le service sont au système ; l'élévation le temps d'agir ---- */
+
+static char certs[4096];		/* la sortie de « webd cert list », lue élevée ou quand c'est permis */
+static int certs_ok;
+
+static void certs_load (void)
+{
+	const char *argv[] = { WEBD_CMD, "cert", "list", 0 };
+	char keep[sizeof out];
+	snprintf (keep, sizeof keep, "%s", out);	/* (out garde le message de l'action) */
+	if (run (argv) == 0) {
+		snprintf (certs, sizeof certs, "%s", out);
+		certs_ok = 1;
+	}
+	snprintf (out, sizeof out, "%s", keep);
+}
+
+/* op (INIT_OP_SVC_START 5, INIT_OP_SVC_STOP 4) de la ligne /sys/webd -> la réponse d'init2 (appelant en uid 0) */
+static int init2_svc (long op)
+{
+	static unsigned char m[512] __attribute__ ((aligned (16)));
+	long ch = svc_open ("init2", 0);
+	if (ch < 0)
+		return (int) ch;
+	memset (m, 0, sizeof m);
+	*(long *) m = op;
+	memcpy (m + 48, WEBD, sizeof WEBD);
+	*(unsigned *) (m + 40) = (unsigned) sizeof WEBD;
+	long r = svc_call (ch, m);
+	return (int) (r < 0 ? r : *(long *) m);
+}
+
+/* une commande de webd élevée (les certificats) ; réussie : le service relit (SIGHUP), la liste des certificats
+ * relue -> son code (-2 : refusé) */
+static int run_elevated (const char *const *argv, void (*post) (void) = 0)
+{
+	unsigned me;
+	if (ap_elevate (TR ("Réglages veut modifier le serveur web."), &me)) {
+		snprintf (out, sizeof out, "%s", TR ("Autorisation refusée."));
+		return -2;
+	}
+	int r = run (argv);
+	int pid = service_pid ();
+	if (r == 0 && pid)
+		kill (pid, SIGHUP);
+	if (r == 0 && post)
+		post ();
+	certs_load ();
+	ap_unelevate (me);
+	return r;
+}
+
 /* « Démarrer avec Korin » : la ligne /sys/webd de services.txt (sans « # ») */
 static int boot_get (void)
 {
@@ -221,11 +273,12 @@ static void show_cert (void)
 	if (!b)
 		snprintf (t, sizeof t, "%s", TR ("Pas de liaison https : pas de certificat."));
 	else {
-		const char *argv[] = { WEBD_CMD, "cert", "list", 0 };
 		const char *fh = strcmp (b->host, "*") ? b->host : "default";
 		const char *line = 0;
-		if (run (argv) == 0)
-			for (char *l = out; l && *l; l = strchr (l, '\n') ? strchr (l, '\n') + 1 : 0)
+		if (!certs_ok)
+			certs_load ();	/* (un compte : refusé en enforce, /etc/web/certs est un secret) */
+		if (certs_ok)
+			for (char *l = certs; l && *l; l = strchr (l, '\n') ? strchr (l, '\n') + 1 : 0)
 				if (!strncmp (l, fh, strlen (fh)) && l[strlen (fh)] == ' ') {
 					line = l + strlen (fh);
 					break;
@@ -236,7 +289,10 @@ static void show_cert (void)
 			const char *e = strchr (line, '\n');
 			snprintf (t, sizeof t, "%s %s : %.*s", TR ("Certificat de"), b->host, (int) (e ? e - line : (long) strlen (line)),
 				line);
-		} else
+		} else if (!certs_ok)
+			snprintf (t, sizeof t, "%s %s : %s", TR ("Certificat de"), b->host,
+				TR ("protégé (ses détails après une action sur les certificats)."));
+		else
 			snprintf (t, sizeof t, "%s %s : %s", TR ("Certificat de"), b->host,
 				TR ("aucun ; un auto-signé sera créé au démarrage du serveur."));
 	}
@@ -301,13 +357,20 @@ static void state (void)
 /* la configuration écrite, relue par le service en marche -> 0 */
 static int save (const char *name, const char *done)
 {
-	if (conf_save (CONF_FILE, cf) < 0) {
+	unsigned me;
+	if (ap_elevate (TR ("Réglages veut modifier le serveur web."), &me)) {
+		status (TR ("Autorisation refusée."));
+		return -1;
+	}
+	int w = conf_save (CONF_FILE, cf);
+	int pid = service_pid ();
+	if (w >= 0 && pid)
+		kill (pid, SIGHUP);	/* (le service, en uid 0 : élevé aussi) */
+	ap_unelevate (me);
+	if (w < 0) {
 		status (TR ("La configuration ne peut pas être écrite (/etc/web/sites.ini)."));
 		return -1;
 	}
-	int pid = service_pid ();
-	if (pid)
-		kill (pid, SIGHUP);
 	seen_mtime = conf_mtime ();
 	load (name);
 	status (TR (done));
@@ -319,7 +382,13 @@ static int save (const char *name, const char *done)
 
 static void on_start (long, long)
 {
-	spawn (WEBD, "");
+	unsigned me;	/* par init2, en uid 0 (E72) : un webd lancé par Réglages tournait sous le compte */
+	if (ap_elevate (TR ("Réglages veut modifier le serveur web."), &me)) {
+		status (TR ("Autorisation refusée."));
+		return;
+	}
+	init2_svc (5);
+	ap_unelevate (me);
 	for (int i = 0; i < 30 && !service_pid (); i++)
 		sys_sleep (100);
 	state ();
@@ -328,8 +397,15 @@ static void on_start (long, long)
 
 static void on_stop (long, long)
 {
+	unsigned me;
+	if (ap_elevate (TR ("Réglages veut modifier le serveur web."), &me)) {
+		status (TR ("Autorisation refusée."));
+		return;
+	}
+	init2_svc (4);		/* (init2 cesse de le surveiller) */
 	const char *argv[] = { WEBD_CMD, "stop", 0 };
-	run (argv);
+	run (argv);		/* (un webd lancé à la main) */
+	ap_unelevate (me);
 	state ();
 	status (TR ("Serveur arrêté."));
 }
@@ -484,9 +560,7 @@ static const char *cert_host (void)
 
 static void cert_done (int r)
 {
-	int pid = service_pid ();
-	if (r == 0 && pid)
-		kill (pid, SIGHUP);
+	(void) r;		/* (le service a relu : run_elevated) */
 	status (out);
 	show_cert ();
 	ui_w_draw (0);
@@ -498,7 +572,7 @@ static void on_self (long, long)
 	if (!h)
 		return;
 	const char *argv[] = { WEBD_CMD, "cert", "self", h, 0 };
-	cert_done (run (argv));
+	cert_done (run_elevated (argv));
 }
 
 static void on_csr (long, long)
@@ -507,12 +581,27 @@ static void on_csr (long, long)
 	if (!h)
 		return;
 	const char *argv[] = { WEBD_CMD, "cert", "csr", h, 0 };
-	int r = run (argv);
+	static const char *csr_host;
+	csr_host = strcmp (h, "*") ? h : "default";
+	/* (élevé : la demande copiée dans le dossier personnel, /etc/web/certs étant illisible pour le compte) */
+	int r = run_elevated (argv, [] () {
+		char a[300], b[300], buf[8192];
+		snprintf (a, sizeof a, "%s/%s.csr", CERT_DIR, csr_host);
+		snprintf (b, sizeof b, "HOME:/%s.csr", csr_host);
+		FILE *in = fopen (a, "rb"), *o = in ? fopen (b, "wb") : 0;
+		size_t n;
+		while (o && (n = fread (buf, 1, sizeof buf, in)) > 0)
+			fwrite (buf, 1, n, o);
+		if (o)
+			fclose (o);
+		if (in)
+			fclose (in);
+	});
 	cert_done (r);
 	if (r == 0) {
 		char t[700];
-		snprintf (t, sizeof t, "%s\n\n%s/%s.csr\n\n%s", TR ("La demande de certificat est prête :"), CERT_DIR,
-			strcmp (h, "*") ? h : "default", TR ("Envoyez-la au fournisseur, puis « Importer » le certificat reçu."));
+		snprintf (t, sizeof t, "%s\n\nHOME:/%s.csr\n\n%s", TR ("La demande de certificat est prête :"),
+			csr_host, TR ("Envoyez-la au fournisseur, puis « Importer » le certificat reçu."));
 		ui_message ((long) TR ("Demande de certificat"), (long) t, UM_OK);
 	}
 }
@@ -526,7 +615,7 @@ static void on_import (long, long)
 	if (!ui_file_open ((long) "HOME:/", (long) file, sizeof file))
 		return;
 	const char *argv[] = { WEBD_CMD, "cert", "import", h, file, 0 };
-	cert_done (run (argv));
+	cert_done (run_elevated (argv));
 }
 
 /* chaque seconde : l'état du service, et les sites si sites.ini a changé (« webd site » dans le Terminal) */

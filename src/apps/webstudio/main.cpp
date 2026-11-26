@@ -1204,12 +1204,22 @@ static void cmd_publish ()
 	if (!ui_ask ((long) TR ("Publier sur le serveur web de ce PC"), (long) TR ("Liaison du site (http://*:80, https://nom.exemple) :"), (long) bind, sizeof bind)) { repaint (); return; }
 	save_all ();
 	static char out[2000];
+	// /etc/web/sites.ini est au système (E72) : webd est lancé élevé (la carte d'authd), puis l'uid revient
+	uid_t was = getuid ();
+	if (was != 0 && ui_elevate ((long) TR ("Webstudio veut publier ce site sur le serveur web du PC")) != 0)
+	{
+		ui_message ((long) TR ("Publier"), (long) TR ("Autorisation refusée."), UM_OK);
+		repaint ();
+		return;
+	}
 	const char *a[] = { WEBD, "site", "add", g_name, g_root, bind, 0 };
 	int r = run (a, out, sizeof out);
 	if (r != 0 && strstr (out, "existe")) {	// (déjà publié : la liaison seulement)
 		const char *b[] = { WEBD, "site", "bind", g_name, "add", bind, 0 };
 		r = run (b, out, sizeof out);
 	}
+	if (was != 0)
+		setuid (was);
 	char m[2400];
 	snprintf (m, sizeof m, "%s\n\n%s", out, TR (r == 0 ? "Le site est dans Réglages › Serveur web ; le serveur doit être démarré." : "La publication a échoué."));
 	ui_message ((long) TR ("Publier"), (long) m, UM_OK);
