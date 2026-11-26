@@ -1,0 +1,369 @@
+# osinstall-repair.patch : les modes « repair » (réinstaller pc et pkgman depuis la clé, /etc gardé, relevé du
+# journal en deux passages) et « bootfix » (noyau, initrd et chargeur de la clé sur la partition EFI, mounts.txt
+# complété, commit.log rapporté) de la clé de réparation du ZBook (26/11/2026), écrits sur osinstall de main 1068ab7
+# (la version 112). Clé : tools/pc/installkey.py build --plan <plan avec [disk] mode = repair|bootfix> ; pour bootfix,
+# les fichiers à poser dans /fix de l'arbre de la clé. À porter dans osinstall de la branche avant de resservir.
+diff --git a/src/bin/osinstall/osinstall.c b/src/bin/osinstall/osinstall.c
+index 249a9e7..65f68d4 100644
+--- a/src/bin/osinstall/osinstall.c
++++ b/src/bin/osinstall/osinstall.c
+@@ -716,14 +716,23 @@ static int vcmp(const char *a, const char *b)
+ static char onidx[262144]; /* l'index en ligne vérifié (/var/pkg/index.txt de la clé) */
+ 
+ /* installe un paquet de la clé dans la cible -> 0, ou < 0 */
++static void rm_tree(const char *path, int self);
++static int g_keep_etc; /* (réparation) les fichiers de /etc du système gardés : jamais extraits */
+ static long key_install(const char *name, const char *opk)
+ {
+ 	static char args[400], db[96000], man[4096];
+ 	args[0] = 0;
+-	str_cat(str_cat(str_cat(args, "-o -q -d /media/tgt "), opk), "");
++	str_cat(str_cat(str_cat(args, "-o -q -d /media/tgt "), opk), g_keep_etc ? " -x etc/*" : "");
+ 	long r = run("/bin/unzip", args);
+ 	if (r != 0)
+ 		return r < 0 ? r : E_IO;
++	if (g_keep_etc) { /* ceux du paquet à part (/tmp/repair-etc), pour leur empreinte dans la fiche : pkg verra les
++			     fichiers du système comme changés par l'utilisateur, et les gardera */
++		rm_tree("/tmp/repair-etc", 1);
++		args[0] = 0;
++		str_cat(str_cat(str_cat(args, "-o -q -d /tmp/repair-etc "), opk), " etc/*");
++		run("/bin/unzip", args);
++	}
+ 	/* la fiche : le manifeste, puis chaque fichier de l'archive (le répertoire central du zip) et son SHA-256 */
+ 	if (rd_file("/media/tgt/PKG/manifest.ini", man, sizeof man) < 0)
+ 		man[0] = 0;
+@@ -785,7 +794,7 @@ static long key_install(const char *name, const char *opk)
+ 		if (!k || nm[k - 1] == '/' || !memcmp(nm, "PKG/", 4))
+ 			continue;
+ 		char full[400], hex[65];
+-		join(full, "/media/tgt", nm);
++		join(full, g_keep_etc && !memcmp(nm, "etc/", 4) ? "/tmp/repair-etc" : "/media/tgt", nm);
+ 		sha256_file(full, hex);
+ 		if ((u64)str_len(db) + k + 70 < sizeof db)
+ 			str_cat(str_cat(str_cat(str_cat(db + str_len(db), nm), " = "), hex), "\n");
+@@ -1382,6 +1391,308 @@ static int reinstall_disk(const char *dev, u32 crc, int *nboot, int *nroot, int
+ 	return 0;
+ }
+ 
++/* ---- réparation (clé de réparation du 26/11/2026) : plan « [disk] mode = repair » ; [repair] packages = pc pkgman.
++ * Sur le disque où Korin est installé : la partition « KORIN OS » et la partition EFI, seules ouvertes en écriture
++ * (comme une réinstallation) ; les paquets nommés sont réinstallés depuis la clé (/packages/pc : la version d'avant),
++ * leurs fichiers de démarrage remis sur la partition EFI ; rien d'autre n'est touché (ni /home, ni /etc, ni les
++ * autres logiciels). Puis le journal sur la clé (/journal.txt) et l'extinction. */
++static void repair_end(void)
++{
++	run("/bin/journal", "");
++	run("/bin/shutdown", "now");
++}
++
++static int repair_mv(const char *from, const char *to)
++{
++	long st[2];
++	if (sys_stat(from, st) < 0)
++		return 0;
++	long r = cp_file(from, to);
++	if (r < 0) {
++		logl(to);
++		return fail(r, "copie d'un fichier de démarrage");
++	}
++	sys_unlink(from);
++	logl(to);
++	return 0;
++}
++
++static int repair(const char *dev)
++{
++	char v0[16];
++	step(1, "Trouver Korin sur le disque");
++	u64 sectors;
++	long r = disk_open(dev, &sectors);
++	if (r < 0)
++		return fail(r, "le disque ne répond pas");
++	if (gpt_read(&g, disk_rd, 0, sectors) != 0 || g.from_backup)
++		return fail(E_INVAL, "pas de table GPT lisible");
++	u32 crc = g.header_crc;
++	int nr = 0, esp = -1;
++	for (int i = 0; i < GPT_ENTRIES; i++)
++		if (gpt_used(&g.e[i])) {
++			if (!nr && name_is(&g.e[i], "KORIN OS"))
++				nr = i + 1;
++			if (esp < 0 && !memcmp(g.e[i].type, GPT_T_EFI, 16))
++				esp = i;
++		}
++	if (!nr)
++		return fail(E_NOENT, "pas de partition « KORIN OS »");
++	if (esp < 0)
++		return fail(E_NOENT, "pas de partition EFI");
++	const struct gpt_entry *er = &g.e[nr - 1];
++	char fs[16] = "";
++	str_cat(fs, content_word(er->first));
++	logl(fs);
++	rootsvc[0] = 0;
++	str_cat(rootsvc, svc_of(fs));
++	u64 ranges[4] = {er->first, er->last, g.e[esp].first, g.e[esp].last};
++	r = plan_send(PLAN_ESP, crc, ranges, 2);
++	if (r < 0)
++		return plan_refused(r);
++	if ((r = blk(dchan, BLK_RESCAN, 0, 0, 0)) < 0)
++		return fail(r, "relecture de la table");
++	char pboot[40], proot[40];
++	part_name(pboot, dev, esp + 1);
++	part_name(proot, dev, nr);
++	if ((r = vu_mount("tgt", proot, rootsvc)) < 0)
++		return fail(r, "montage de KORIN OS");
++	if ((r = vu_mount("tgtboot", pboot, "fatfs")) < 0)
++		return fail(r, "montage de la partition EFI");
++	prog(10, "KORIN OS et la partition EFI ouvertes");
++
++	/* deux passages : le premier pose sur le système installé un script lancé par init2 au démarrage (uid 0) qui
++	 * écrit le journal du noyau dans /journal.txt après 150 s, puis s'arrête ; l'utilisateur démarre son système
++	 * (l'écran gris), attend, éteint ; le second passage copie ce journal sur la clé (/journal-zbook.txt), retire le
++	 * script, puis répare */
++	long st2[2];
++	if (yes(ini("repair", "diagnose", "yes", v0, sizeof v0)) && sys_stat("/media/tgt/etc/diag-repair.txt", st2) < 0) {
++		step(2, "Préparer le relevé du journal");
++		if (cp_file("/media/tgt/etc/services.txt", "/media/tgt/etc/services.txt.avant-diag") < 0)
++			return fail(E_IO, "copie de services.txt");
++		static const char sh[] = "#!/bin/sh\n# releve du journal (cle de reparation) : retire par la cle\n/bin/sleep 90\n/bin/echo === diag : process\n/bin/sysstat\n/bin/echo === diag : login\n/bin/sysstat login\n/bin/echo === diag : elegant\n/bin/sysstat elegant\n/bin/echo === diag : authd\n/bin/sysstat authd\n/bin/echo === diag : hidmanager\n/bin/sysstat hidmanager\n/bin/echo === diag : vfs\n/bin/sysstat vfs\n/bin/echo === diag : voronoy\n/bin/sysstat voronoy\n/bin/df\n/bin/mount\n/bin/journal\n/bin/sleep 600\n";
++		if (wr_file("/media/tgt/etc/diag.sh", sh, sizeof sh - 1) < 0)
++			return fail(E_IO, "écriture de /etc/diag.sh");
++		long n = rd_file("/media/tgt/etc/services.txt", tmp, sizeof tmp - 64);
++		if (n < 0)
++			n = 0;
++		tmp[n] = 0;
++		str_cat(tmp + str_len(tmp), "\n# releve du journal (cle de reparation)\n/bin/sh /etc/diag.sh\n");
++		if (wr_file("/media/tgt/etc/services.txt", tmp, (u64)str_len(tmp)) < 0)
++			return fail(E_IO, "écriture de services.txt");
++		/* l'écran : la console texte au lieu d'Elegant (init2 : shell = console), où le journal du noyau reste
++		 * affiché ; system.ini gardé à côté, remis au second passage */
++		if (cp_file("/media/tgt/etc/system.ini", "/media/tgt/etc/system.ini.avant-diag") >= 0) {
++			long m = rd_file("/media/tgt/etc/system.ini", txt, sizeof txt - 32);
++			if (m < 0)
++				m = 0;
++			txt[m] = 0;
++			char *o = tmp;
++			for (char *l = txt; *l;) {
++				char *e = l;
++				while (*e && *e != '\n')
++					e++;
++				const char *k = l;
++				while (*k == ' ' || *k == '\t')
++					k++;
++				int drop = !memcmp(k, "shell", 5) && (k[5] == ' ' || k[5] == '=' || k[5] == '\t');
++				if (!drop) {
++					memcpy(o, l, (u64)(e - l));
++					o += e - l;
++					*o++ = '\n';
++				}
++				l = *e ? e + 1 : e;
++			}
++			o = str_cat(o, "shell = console\n");
++			wr_file("/media/tgt/etc/system.ini", tmp, (u64)(o - tmp));
++		}
++		wr_file("/media/tgt/etc/diag-repair.txt", "1\n", 2);
++		vu_sync("tgt");
++		vu_unmount("tgtboot");
++		vu_unmount("tgt");
++		prog(100, "Relevé préparé : démarrer le PC sans la clé, attendre 3 minutes, éteindre, puis la clé à nouveau");
++		out("OK diag\n");
++		return 0;
++	}
++	if (sys_stat("/media/tgt/etc/diag-repair.txt", st2) >= 0) {
++		if (cp_file("/media/tgt/journal.txt", "/journal-zbook.txt") >= 0)
++			logl("journal du système copié sur la clé : /journal-zbook.txt");
++		else
++			logl("pas de /journal.txt sur le système (le relevé n'a pas eu lieu)");
++		if (cp_file("/media/tgt/etc/services.txt.avant-diag", "/media/tgt/etc/services.txt") >= 0)
++			sys_unlink("/media/tgt/etc/services.txt.avant-diag");
++		if (cp_file("/media/tgt/etc/system.ini.avant-diag", "/media/tgt/etc/system.ini") >= 0)
++			sys_unlink("/media/tgt/etc/system.ini.avant-diag");
++		sys_unlink("/media/tgt/etc/diag.sh");
++		sys_unlink("/media/tgt/etc/diag-repair.txt");
++	}
++
++	step(2, "Remettre la version d'avant");
++	g_keep_etc = 1;
++	rm_tree("/media/tgt/var/pkg/stage", 1); /* (une mise à jour étagée ne repasse pas au démarrage) */
++	char v[200];
++	const char *names = ini("repair", "packages", "pc pkgman", v, sizeof v);
++	int k = 0;
++	for (const char *p = names; *p;) {
++		while (*p == ' ' || *p == ',')
++			p++;
++		char nm[48];
++		u64 n = 0;
++		while (*p && *p != ' ' && *p != ',' && n + 1 < sizeof nm)
++			nm[n++] = *p++;
++		nm[n] = 0;
++		if (!n)
++			break;
++		char opk[200];
++		if (!key_opk(nm, opk, sizeof opk))
++			return fail(E_NOENT, "paquet absent de la clé");
++		logl(opk);
++		if ((r = key_install(nm, opk)) < 0)
++			return fail(r, "réinstallation d'un paquet");
++		prog((u64)(20 + 30 * ++k), nm);
++	}
++
++	step(3, "Fichiers de démarrage");
++	sys_mkdir("/media/tgtboot/korin");
++	sys_mkdir("/media/tgtboot/EFI");
++	sys_mkdir("/media/tgtboot/EFI/Korin");
++	if ((r = repair_mv("/media/tgt/korin/kernel.elf", "/media/tgtboot/korin/kernel.elf")) ||
++	    (r = repair_mv("/media/tgt/korin/initrd.tar", "/media/tgtboot/korin/initrd.tar")) ||
++	    (r = repair_mv("/media/tgt/EFI/Korin/korin.efi", "/media/tgtboot/EFI/Korin/korin.efi")))
++		return r;
++	sys_unlink("/media/tgtboot/korin/ab.txt"); /* (le chargeur reprend \korin\kernel.elf) */
++	sys_unlink("/media/tgt/korin");
++	sys_unlink("/media/tgt/EFI/Korin");
++	sys_unlink("/media/tgt/EFI");
++	vu_sync("tgt");
++	vu_sync("tgtboot");
++	vu_unmount("tgtboot");
++	vu_unmount("tgt");
++	prog(100, "Réparé");
++	out("OK\n");
++	return 0;
++}
++
++/* ---- correctif de démarrage (26/11/2026 soir) : plan « [disk] mode = bootfix ». La partition « KORIN OS » et la
++ * partition EFI ouvertes en écriture ; les fichiers de démarrage de la clé (/fix : korin.efi, kernel.elf,
++ * initrd.tar de la version installée) copiés sur la partition EFI (\korin\, \EFI\Korin\), \korin\ab.txt retiré ;
++ * /etc/mounts.txt complété (BOOT et /home s'ils manquent, rien d'autre de changé) ; commit.log et le journal copiés
++ * sur la clé. Aucun paquet réinstallé, rien d'autre dans /etc. */
++static int bootfix(const char *dev)
++{
++	step(1, "Trouver Korin sur le disque");
++	u64 sectors;
++	long r = disk_open(dev, &sectors);
++	if (r < 0)
++		return fail(r, "le disque ne répond pas");
++	if (gpt_read(&g, disk_rd, 0, sectors) != 0 || g.from_backup)
++		return fail(E_INVAL, "pas de table GPT lisible");
++	u32 crc = g.header_crc;
++	int nr = 0, nh = 0, esp = -1;
++	for (int i = 0; i < GPT_ENTRIES; i++)
++		if (gpt_used(&g.e[i])) {
++			if (!nr && name_is(&g.e[i], "KORIN OS"))
++				nr = i + 1;
++			if (!nh && name_is(&g.e[i], "KORIN HOME"))
++				nh = i + 1;
++			if (esp < 0 && !memcmp(g.e[i].type, GPT_T_EFI, 16))
++				esp = i;
++		}
++	if (!nr)
++		return fail(E_NOENT, "pas de partition « KORIN OS »");
++	if (esp < 0)
++		return fail(E_NOENT, "pas de partition EFI");
++	const struct gpt_entry *er = &g.e[nr - 1];
++	char fs[16] = "";
++	str_cat(fs, content_word(er->first));
++	rootsvc[0] = 0;
++	str_cat(rootsvc, svc_of(fs));
++	u64 ranges[4] = {er->first, er->last, g.e[esp].first, g.e[esp].last};
++	r = plan_send(PLAN_ESP, crc, ranges, 2);
++	if (r < 0)
++		return plan_refused(r);
++	if ((r = blk(dchan, BLK_RESCAN, 0, 0, 0)) < 0)
++		return fail(r, "relecture de la table");
++	char pboot[40], proot[40];
++	part_name(pboot, dev, esp + 1);
++	part_name(proot, dev, nr);
++	if ((r = vu_mount("tgt", proot, rootsvc)) < 0)
++		return fail(r, "montage de KORIN OS");
++	if ((r = vu_mount("tgtboot", pboot, "fatfs")) < 0)
++		return fail(r, "montage de la partition EFI");
++	prog(10, "KORIN OS et la partition EFI ouvertes");
++
++	step(2, "Relever ce qui s'est passé");
++	if (cp_file("/media/tgt/var/pkg/commit.log", "/commit-zbook.txt") >= 0)
++		logl("/var/pkg/commit.log copié sur la clé : /commit-zbook.txt");
++	cp_file("/media/tgt/etc/mounts.txt", "/mounts-avant.txt");
++	cp_file("/media/tgt/journal.txt", "/journal-zbook.txt");
++	cp_file("/media/tgtboot/korin/ab.txt", "/ab-zbook.txt");
++
++	step(3, "Fichiers de démarrage");
++	sys_mkdir("/media/tgtboot/korin");
++	sys_mkdir("/media/tgtboot/EFI");
++	sys_mkdir("/media/tgtboot/EFI/Korin");
++	static const char *const fr[] = {"/fix/kernel.elf", "/fix/initrd.tar", "/fix/korin.efi", 0};
++	static const char *const to[] = {"/media/tgtboot/korin/kernel.elf", "/media/tgtboot/korin/initrd.tar",
++					 "/media/tgtboot/EFI/Korin/korin.efi", 0};
++	for (int i = 0; fr[i]; i++) {
++		char tmpn[120];
++		tmpn[0] = 0;
++		str_cat(str_cat(tmpn, to[i]), ".new");
++		if ((r = cp_file(fr[i], tmpn)) < 0)
++			return fail(r, "copie d'un fichier de démarrage");
++		sys_unlink(to[i]);
++		if ((r = vfs_rename(tmpn, to[i])) < 0)
++			return fail(r, "mise en place d'un fichier de démarrage");
++		logl(to[i]);
++	}
++	sys_unlink("/media/tgtboot/korin/ab.txt"); /* (le chargeur prend \korin\kernel.elf, \korin\initrd.tar) */
++	prog(70, "Noyau, initrd et chargeur en place");
++
++	step(4, "/etc/mounts.txt");
++	long n = rd_file("/media/tgt/etc/mounts.txt", txt, sizeof txt - 256);
++	if (n < 0)
++		n = 0;
++	txt[n] = 0;
++	int has_boot = 0, has_home = 0;
++	for (const char *l = txt; *l;) {
++		while (*l == ' ' || *l == '\t')
++			l++;
++		if (!memcmp(l, "BOOT", 4) && (l[4] == ' ' || l[4] == '='))
++			has_boot = 1;
++		if (!memcmp(l, "/home", 5) && (l[5] == ' ' || l[5] == '='))
++			has_home = 1;
++		while (*l && *l != '\n')
++			l++;
++		if (*l)
++			l++;
++	}
++	if (!has_boot || (nh && !has_home)) {
++		char *o = txt + str_len(txt);
++		if (o > txt && o[-1] != '\n')
++			*o++ = '\n', *o = 0;
++		if (!has_boot)
++			o = str_cat(o, "\n# osinstall : /boot (la partition du chargeur), à la demande\nBOOT = blk.boot, fatfs, /, ondemand\n");
++		if (nh && !has_home) {
++			const char *hs = svc_of(content_word(g.e[nh - 1].first));
++			o = str_cat(str_cat(str_cat(o, "/home = blk.home, "), hs), "\n");
++		}
++		if (wr_file("/media/tgt/etc/mounts.txt", txt, (u64)(o - txt)) < 0)
++			return fail(E_IO, "écriture de /etc/mounts.txt");
++		logl("/etc/mounts.txt complété");
++	} else
++		logl("/etc/mounts.txt déjà complet");
++	cp_file("/media/tgt/etc/mounts.txt", "/mounts-apres.txt");
++	vu_sync("tgt");
++	vu_sync("tgtboot");
++	vu_unmount("tgtboot");
++	vu_unmount("tgt");
++	prog(100, "Corrigé");
++	out("OK\n");
++	return 0;
++}
++
+ int main(int argc, char **argv)
+ {
+ 	if (argc >= 2 && str_eq(argv[1], "--list"))
+@@ -1396,6 +1707,16 @@ int main(int argc, char **argv)
+ 	char dev[32], mode[16], rootfs[16], homefs[16], v[64];
+ 	ini("disk", "device", "blk.nvme0", dev, sizeof dev);
+ 	ini("disk", "mode", "beside", mode, sizeof mode);
++	if (str_eq(mode, "bootfix")) {
++		int rr = bootfix(dev);
++		repair_end();
++		return rr;
++	}
++	if (str_eq(mode, "repair")) {
++		int rr = repair(dev);
++		repair_end();
++		return rr;
++	}
+ 	ini("disk", "root_fs", "fat32", rootfs, sizeof rootfs);
+ 	ini("disk", "home_fs", "exfat", homefs, sizeof homefs);
+ 	int wipe = str_eq(mode, "wipe"), reinst = str_eq(mode, "reinstall");
