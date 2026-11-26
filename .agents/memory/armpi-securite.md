@@ -152,3 +152,11 @@ pub.py --force car le content change). Reste l'étape 4 : le noyau refuse -1 (vo
 tous refuse » au journal). À confirmer sur le ZBook : Jet (pages, vidéo), une app GPU, journal sans refus. Pi inchangé.
 **26/11, E47 fini** : essayé sur le ZBook (Jet, YouTube, Netflix, Disney+, Godot, Blender, Cosmozoom), aucun refus.
 Suite possible : initrd refait sur la machine à la mise à jour de pc (idée de l'utilisateur, « plus tard »), E60.
+**26/11 soir, /res** : compétences des agents dans /res/agents (paquet agent-skills 1.0.0, vibe 1.0.11 ; libacp ne
+recopie plus, retire une fois les anciennes copies ; Claude Code garde /etc/claude-code). Polices dans /res/fonts (pc
+2026.11.122) ; **copie de transition dans /fonts** à retirer quand seront reconstruits (sur le PC Windows) : Godot,
+Blender, Qt (korin_ui.c fait), MuseScore, la Skia d'Avalonia (build-skia.sh fait), Vector (source fait), les apps Rust
+(egui-korin : vérifier), le Pi garde /fonts. UIKit (ui_load_font) bascule seul /fonts <-> /res/fonts. Jet 1.4.14 :
+<input type=file>, Ctrl+V d'image/fichiers et dépôt depuis Fichiers par JS simulé (pagefiles.h) ; 1.4.15 : Skia sur
+/res/fonts (SkFontMgr_onyx.o remplacé dans libskia.a du SDK). Rectangles de claude.ai : PAS le repli des polices
+(page locale OK) -- cause sur le site, à voir avec une capture.
