@@ -7,7 +7,11 @@
  * tampon (puts, print_dec, lang_puts). */
 #include "korinrt.h"
 
+#if defined(__x86_64__)
 static const char path[] = "/res/fonts/DejaVuSans.ttf";
+#else
+static const char path[] = "/fonts/DejaVuSans.ttf";
+#endif
 static long stbuf[2];
 
 /* le fichier entier (une lecture) dans buf */

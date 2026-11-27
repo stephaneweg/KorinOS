@@ -12,8 +12,7 @@
 #                       mounts.txt, services.txt, system.ini « shell=console », options.txt)
 #     res/keyb/, res/   les dispositions de clavier (hidmanager), les fuseaux ; pour le bureau : les
 #                       dictionnaires (res/lang, tools/lang/merge.py), les icônes sans application
-#                       (res/icons, de tools/icons/rendered), les polices (res/fonts/, de ref/fonts ;
-#                       fonts/ : une copie pour les programmes d'avant)
+#                       (res/icons, de tools/icons/rendered), les polices (res/fonts/, de ref/fonts)
 #     home/             vide : les dossiers des utilisateurs (HOME:)
 # Pas encore d'apps graphiques (/apps) ni de GCC. Installé par tools/pc/korin.ps1 install,
 # essayé sous QEMU par tools/pc/mkkorindisk.py --sysroot build/pc/sysroot.
@@ -29,7 +28,7 @@ done
 # Elegant et la session du bureau (programmes de src/sys en C ; PC_QUICK=1 : déjà construits)
 [ -n "$PC_QUICK" ] || sh tools/sys/build_c.sh >/dev/null
 rm -rf "$OUT"
-mkdir -p "$OUT/bin" "$OUT/sys/svc" "$OUT/lib" "$OUT/etc" "$OUT/res/keyb" "$OUT/res/icons" "$OUT/res/lang" 	"$OUT/fonts" "$OUT/home"
+mkdir -p "$OUT/bin" "$OUT/sys/svc" "$OUT/lib" "$OUT/etc" "$OUT/res/keyb" "$OUT/res/icons" "$OUT/res/lang" 	"$OUT/home"
 
 copy_files() { # copy_files <dossier source> <dossier cible> [motif]
 	for f in "$1"/${3:-*}; do
@@ -124,11 +123,9 @@ copy_files skel/sd0/res/keyb "$OUT/res/keyb"
 mkdir -p "$OUT/res/wallpapers" && copy_files skel/sd0/res/wallpapers "$OUT/res/wallpapers" '*.png'
 # le bureau : polices, icônes sans application (comme build.ps1 : celles d'une app partent avec elle),
 # dictionnaires
-# (26/11/2026) les polices du système dans res/fonts ; fonts/, une copie pour les programmes pas encore reconstruits
-# (Godot, Blender, Qt, MuseScore, la Skia d'Avalonia, les apps Rust...), à retirer ensuite (docs/FICHIERS.md)
+# les polices du système : res/fonts (27/11/2026 : plus de fonts/)
 mkdir -p "$OUT/res/fonts"
 copy_files ref/fonts "$OUT/res/fonts" '*.ttf'
-copy_files ref/fonts "$OUT/fonts" '*.ttf'
 for f in tools/icons/rendered/*.rgba; do
 	[ -d "src/apps/$(basename "$f" .rgba)" ] || cp "$f" "$OUT/res/icons/"
 done

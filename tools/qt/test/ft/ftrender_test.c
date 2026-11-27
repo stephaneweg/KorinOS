@@ -18,7 +18,7 @@ int main(int argc, char **argv)
 	printf("setjmp/longjmp : %d (attendu 7)\n", r);
 
 	FT_Library lib; FT_Face face;
-	if (FT_Init_FreeType(&lib) || FT_New_Face(lib, argc > 1 ? argv[1] : "/fonts/DejaVuSans.ttf", 0, &face)) {
+	if (FT_Init_FreeType(&lib) || FT_New_Face(lib, argc > 1 ? argv[1] : "/res/fonts/DejaVuSans.ttf", 0, &face)) {
 		printf("police introuvable\n"); return 1;
 	}
 	double px = argc > 2 ? atof(argv[2]) : 1.5, sc = argc > 3 ? atof(argv[3]) : 16;

@@ -193,8 +193,12 @@ static void scan_fonts ()
 {
 	if (s_nfile >= 0) return;
 	s_nfile = 0;
-	static const char *const DIRS[2] = { "/res/fonts", "/fonts" };
-	for (int k = 0; k < 2; k++)
+#if defined(__x86_64__)
+	static const char *const DIRS[1] = { "/res/fonts" };	// (les polices du système ; /fonts sur le Pi)
+#else
+	static const char *const DIRS[1] = { "/fonts" };
+#endif
+	for (int k = 0; k < 1; k++)
 	{
 		DIR *d = opendir (DIRS[k]);
 		if (!d) continue;

@@ -139,8 +139,11 @@ void scan ()
 	std::lock_guard<std::mutex> l (s_scan);
 	if (s_scanned) return;
 	s_scanned = true;
-	scan_dir ("/res/fonts/");	// (les polices du système ; /fonts avant, et sur le Pi)
+#if defined(__x86_64__)
+	scan_dir ("/res/fonts/");	// (les polices du système ; /fonts sur le Pi)
+#else
 	scan_dir ("/fonts/");
+#endif
 	scan_dir ("HOME:/fonts/");
 	std::sort (s_fonts.begin (), s_fonts.end (), [] (const FontFile &a, const FontFile &b) { return a.family < b.family; });
 }
@@ -171,10 +174,11 @@ const char *alias (const char *n)
 
 sk_sp<SkTypeface> font_ui ()
 {
-	static sk_sp<SkTypeface> f = [] {
-		sk_sp<SkTypeface> t = mgr ()->makeFromFile ("/res/fonts/DejaVuSans.ttf", 0);	// (/fonts avant, et sur le Pi)
-		return t ? t : mgr ()->makeFromFile ("/fonts/DejaVuSans.ttf", 0);
-	} ();
+#if defined(__x86_64__)
+	static sk_sp<SkTypeface> f = mgr ()->makeFromFile ("/res/fonts/DejaVuSans.ttf", 0);
+#else
+	static sk_sp<SkTypeface> f = mgr ()->makeFromFile ("/fonts/DejaVuSans.ttf", 0);
+#endif
 	return f;
 }
 void fonts_scan_async () { std::thread ([] { scan (); }).detach (); }

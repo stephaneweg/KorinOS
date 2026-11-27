@@ -4,7 +4,7 @@
 // manager) rendered by the CPU raster back end into an RGBA buffer, checked, and written as a PNG.
 // One line per check (PASS / FAIL), a summary; the exit status is the number of failures.
 //
-//   skiatest [out.png [font directory [width height]]]     default /tmp/skiatest.png /fonts/ 800 600
+//   skiatest [out.png [font directory [width height]]]     default /tmp/skiatest.png /res/fonts/ (the PC; /fonts/ on the Pi) 800 600
 //
 // Copyright (c) 2026 Stéphane Wegener and the Onyx contributors. MIT licence: Permission is hereby granted, free
 // of charge, to any person obtaining a copy of this software and associated documentation files (the

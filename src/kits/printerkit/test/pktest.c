@@ -644,7 +644,11 @@ static long sv_handle(unsigned char *m)
 		char nm[64];
 		scpy(nm, data, 40);
 		char *p = data;
+#if defined(__x86_64__)
+		for (const char *s = "/res/fonts/"; *s;)
+#else
 		for (const char *s = "/fonts/"; *s;)
+#endif
 			*p++ = *s++;
 		for (const char *s = nm; *s; s++)
 			*p++ = *s == ' ' ? '-' : *s;

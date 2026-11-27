@@ -729,19 +729,24 @@ long ui_menu_key(long a0)
 }
 
 /* ---------------------------------------------------------------------------
- *  Polices : les trois du programme et les autres DejaVu de /res/fonts (/fonts sur le Pi : ui_load_font),
+ *  Polices : les trois du programme et les autres DejaVu de /res/fonts (/fonts sur le Pi),
  *  chargées au premier besoin dans le kit
  * ------------------------------------------------------------------------- */
 
 /* uk_font_paths : chaînes à la suite (la (x - 3)e) */
+#if defined(__x86_64__)
+#define UK_FONTS2 "/res/fonts/"
+#else
+#define UK_FONTS2 "/fonts/"
+#endif
 static const char font_paths[] =
-	"/res/fonts/DejaVuSans-Oblique.ttf\0"
-	"/res/fonts/DejaVuSans-BoldOblique.ttf\0"
-	"/res/fonts/DejaVuSansMono-Bold.ttf\0"
-	"/res/fonts/DejaVuSerif.ttf\0"
-	"/res/fonts/DejaVuSerif-Bold.ttf\0"
-	"/res/fonts/DejaVuSerif-Italic.ttf\0"
-	"/res/fonts/DejaVuSerif-BoldItalic.ttf";
+	UK_FONTS2 "DejaVuSans-Oblique.ttf\0"
+	UK_FONTS2 "DejaVuSans-BoldOblique.ttf\0"
+	UK_FONTS2 "DejaVuSansMono-Bold.ttf\0"
+	UK_FONTS2 "DejaVuSerif.ttf\0"
+	UK_FONTS2 "DejaVuSerif-Bold.ttf\0"
+	UK_FONTS2 "DejaVuSerif-Italic.ttf\0"
+	UK_FONTS2 "DejaVuSerif-BoldItalic.ttf";
 
 /* x0 = police (UFN_*) -> police pour ui_text (absente : la régulière) */
 long ui_font_get(long a0)

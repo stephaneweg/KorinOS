@@ -581,7 +581,7 @@ UTF-8. Plus tard : dossiers FTP montes en `FTPx:` (espace utilisateur).
 * `/etc/drivers.txt` : table de `hwmanager`, « détection = pilote » (`i2c1:5d =
   /sys/svc/gt911`) ; un pilote de matériel non détectable va dans `services.txt`.
 * `/etc` : **toute la configuration** (`system.ini`, `session`, `theme.txt`, `dock.ini`,
-  `options.txt`, `startup.txt`, `wifi.txt`, `clock.cfg`) ; `/res/fonts` (les polices ; `/fonts` sur le Pi, et une copie de transition sur le PC), `/res/keyb`.
+  `options.txt`, `startup.txt`, `wifi.txt`, `clock.cfg`) ; `/res/fonts` (les polices ; `/fonts` sur le Pi), `/res/keyb`.
   `options.txt` : `lang=fr` ou `en` (langue choisie dans Réglages → Région : chaque application
   la lit et se traduit elle-même, au fur et à mesure), `keyb=NOM` (disposition du clavier, `docs/CLAVIER.md`) et `ecran=LxH` (résolution, de
   640x480 à 1920x1080), lus par le noyau au démarrage ; écrits par le panneau de configuration.

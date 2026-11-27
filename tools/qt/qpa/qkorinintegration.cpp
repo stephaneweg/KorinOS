@@ -105,7 +105,7 @@ QWindow *QKorinScreen::topLevelAt(const QPoint &p) const
 //
 // La base de FreeType de Qt, sans fontconfig : ni alias ni repli. Une famille absente (« Times New Roman » d'une
 // partition de MuseScore 2) tombait alors sur n'importe quelle police, parfois une police de musique (b -> ♮). Ici :
-// les alias usuels vers les polices de /fonts, et des replis selon le style (puis les symboles et les émojis).
+// les alias usuels vers les polices de /res/fonts, et des replis selon le style (puis les symboles et les émojis).
 
 class QKorinFontDatabase : public QFreeTypeFontDatabase
 {

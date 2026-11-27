@@ -2866,8 +2866,13 @@ static void test_files_window(void)
 	}
 	sum("ui_font_get dessins");
 	ps("ui_load_font:");
+#if defined(__x86_64__)
+	kv("absent", C2(UI_LOAD_FONT, "/res/fonts/absent.ttf", font4));
+	kv("dejavu", C2(UI_LOAD_FONT, "/res/fonts/DejaVuSans.ttf", font4));
+#else
 	kv("absent", C2(UI_LOAD_FONT, "/fonts/absent.ttf", font4));
 	kv("dejavu", C2(UI_LOAD_FONT, "/fonts/DejaVuSans.ttf", font4));
+#endif
 	kv("larg", C3(UI_TEXT_WIDTH, (long)"DejaVu Wxyz", 20, (long)font4));
 	nl();
 	ps("ui_lang");

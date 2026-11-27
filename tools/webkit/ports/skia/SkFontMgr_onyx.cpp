@@ -22,7 +22,6 @@
 #include <mutex>
 #include <string>
 #include <strings.h>
-#include <sys/stat.h>
 #include <vector>
 
 namespace {
@@ -201,10 +200,14 @@ const char *SkFontMgr_Onyx_Alias (const char *family)
 
 sk_sp<SkFontMgr> SkFontMgr_New_Onyx (const char *dir)
 {
-	// (26/11/2026) les polices du système : /res/fonts sur le PC, /fonts avant (et sur le Pi)
-	struct stat st;
+	// les polices du système : /res/fonts sur le PC (27/11/2026, sans repli), /fonts sur le Pi
+#if defined(__x86_64__)
 	if (!dir)
-		dir = stat ("/res/fonts", &st) == 0 && S_ISDIR (st.st_mode) ? "/res/fonts/" : "/fonts/";
+		dir = "/res/fonts/";
+#else
+	if (!dir)
+		dir = "/fonts/";
+#endif
 	sk_sp<SkFontMgr> base = SkFontMgr_New_Custom_Directory (dir);
 	if (!base)
 		return nullptr;
