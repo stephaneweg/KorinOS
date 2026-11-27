@@ -12,6 +12,7 @@
 #include <korin/lib.h>
 #include <korin/mm.h>
 #include <korin/pmm.h>
+#include <korin/proc.h>
 #include <korin/sched.h>
 #include <korin/spinlock.h>
 #include <korin/vm.h>
@@ -53,6 +54,9 @@ struct mm {
 	uint64_t owned, faults;
 	uint64_t dma_next, dev_next;
 	uint8_t bufs[BUF_MAX / 8];
+	/* ASLR (étape 1 de docs/etude/DURCISSEMENT-N3-N5.md) : tirés à la création (un process lancé, exec), recopiés
+	 * par fork : le début des recherches dans l'arène, et le décalage des kits (kits.c) */
+	uint64_t arena_off, kit_off;
 };
 
 #define BUF_GRANTS 16
@@ -94,6 +98,11 @@ static int vm_prot(uint32_t prot)
 	return (prot & PROT_WRITE ? VM_W : 0) | (prot & PROT_EXEC ? VM_X : 0);
 }
 
+uint64_t mm_kit_off(struct mm *mm)
+{
+	return mm ? mm->kit_off : 0;
+}
+
 struct mm *mm_create(void)
 {
 	struct mm *mm = kzalloc(sizeof *mm);
@@ -107,6 +116,8 @@ struct mm *mm_create(void)
 	}
 	mm->dma_next = DMA_BASE;
 	mm->dev_next = DEV_BASE;
+	mm->arena_off = (random_u64() % ARENA_RND_PAGES) * PAGE_SIZE;
+	mm->kit_off = (random_u64() % KIT_RND_PAGES) * PAGE_SIZE;
 	return mm;
 }
 
@@ -570,8 +581,12 @@ static uint64_t find_gap(struct mm *mm, uint64_t hint, uint64_t len)
 {
 	if (hint && !(hint & (PAGE_SIZE - 1)) && in_arena(hint, len) && !overlaps(mm, hint, hint + len))
 		return hint;
-	uint64_t a = gap_in(mm, VM_ARENA_BASE, VM_ARENA_END, len);
-	/* (l'arène haute : seulement ce qui ne tient pas dans l'arène ; les adresses habituelles ne changent pas) */
+	/* d'abord après le décalage tiré du process (ASLR), puis toute l'arène */
+	uint64_t a = gap_in(mm, VM_ARENA_BASE + mm->arena_off, VM_ARENA_END, len);
+	if (!a)
+		a = gap_in(mm, VM_ARENA_BASE, VM_ARENA_END, len);
+	/* (l'arène haute : seulement ce qui ne tient pas dans l'arène ; pas tirée : PartitionAlloc du module Widevine y
+	 * veut ses 32 Go alignés) */
 	return a ? a : gap_in(mm, VM_HIGH_BASE, VM_HIGH_END, len);
 }
 
@@ -1128,6 +1143,8 @@ int mm_fork(struct process *parent, struct process *child)
 			}
 		cm->brk_start = pm->brk_start;
 		cm->brk = pm->brk;
+		cm->arena_off = pm->arena_off; /* (le fils a les mêmes adresses que le père) */
+		cm->kit_off = pm->kit_off;
 		cm->img_lo = pm->img_lo;
 		cm->dma_next = pm->dma_next;
 		cm->dev_next = pm->dev_next;

@@ -2,9 +2,9 @@
  *   un kit est un ELF64 lié à 0 : un segment lecture + exécution (code, table
  *   d'exportation : « AKIT », version, décalages), un segment lecture +
  *   écriture (variables) sur d'autres pages ; code sans adresse absolue ;
- *   chargé une fois pour tout le système à une place fixe, KIT_BASE + n x 64 Mo,
- *   la même dans tous les process ; dans chaque process, le code est mappé
- *   partagé et les variables recopiées dans des pages à lui.
+ *   chargé une fois pour tout le système (place n) ; dans chaque process, mappé à
+ *   KIT_BASE + décalage du process (ASLR, tiré par mm_create, 27/11/2026) + n x 64 Mo :
+ *   le code partagé, les variables recopiées dans des pages à lui.
  * KIT_REGISTER (nom, image, taille) : un kit lu par AppKit (droits de
  * /sys) ; LIB_OPEN (nom, version minimale) : un kit déjà en mémoire, ou
  * « <nom>.so » de l'initrd. Le noyau ne lit aucun fichier. Portable. */
@@ -135,7 +135,7 @@ static int64_t map_into(int i)
 	if (!p->vm)
 		return E_INVAL;
 	struct kit *k = &kits[i];
-	uint64_t base = KIT_BASE + (uint64_t)i * KIT_SLOT;
+	uint64_t base = KIT_BASE + mm_kit_off(p->mm) + (uint64_t)i * KIT_SLOT; /* (ASLR : décalage du process) */
 	if (!(vm_page_flags(p->vm, base) & VM_PRESENT)) {
 		for (uint64_t off = 0; off < k->rx_size; off += PAGE_SIZE)
 			if (vm_map_page(p->vm, base + off, k->rx_phys + off, VM_X | VM_SHARED))

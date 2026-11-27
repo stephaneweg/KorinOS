@@ -130,6 +130,19 @@ void random_mix(uint64_t v)
 	pool = (pool ^ v) * 0x9E3779B97F4A7C15ULL + (pool >> 29);
 }
 
+/* un tirage pour le noyau (ASLR : arène, kits, pile ; étape 1 de docs/etude/DURCISSEMENT-N3-N5.md) : le flux de
+ * ChaCha au compteur suivant, jamais rendu à un process (sys_getrandom prend ses compteurs après) */
+uint64_t random_u64(void)
+{
+	uint32_t out[16];
+	uint64_t f = spin_lock_irqsave(&rnd_lock);
+	chacha_block(key, counter++, out);
+	spin_unlock_irqrestore(&rnd_lock, f);
+	uint64_t v = (uint64_t)out[0] | (uint64_t)out[1] << 32;
+	memset(out, 0, sizeof out);
+	return v;
+}
+
 /* l'amorçage, avant le premier process (pc_main) : toute la clé ChaCha depuis l'aléa du processeur
  * (RDSEED, RDRAND) et la gigue du compteur de cycles ; avant, la clé partait de zéro et ne recevait
  * que 64 bits mélangés par appel : sous QEMU et en début de démarrage, la sortie se devinait (sel des

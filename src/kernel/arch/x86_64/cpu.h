@@ -109,7 +109,7 @@ void cpu_set_online(unsigned idx);
 extern uint64_t fpu_xcr0;
 extern uint32_t fpu_size;
 extern int fpu_want_avx512, fpu_no_xsave;
-extern int cpu_no_smep, cpu_no_umip;
+extern int cpu_no_smep, cpu_no_umip, cpu_no_smap;
 void cpu_protect(unsigned idx); /* SMEP, UMIP */
 void fpu_save(uint8_t *a, int full);
 void fpu_restore(const uint8_t *a);

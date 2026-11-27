@@ -92,7 +92,8 @@ static void exception(struct regs *r)
 		 * (exécution, bit 4) ou de droits ; mm_fault y rendrait 0 et l'instruction referait la faute sans fin */
 		if (!(r->cs & 3) && a < 0x0000800000000000ULL && r->rip != (uint64_t)user_copy_insn && (r->error & 1)) {
 			kprintf("\nnoyau : %s d'une page d'un process (%lx, rip %lx, pid %d)\n",
-				(r->error & 16) ? "exécution (SMEP)" : "accès", a, r->rip, t->proc ? t->proc->pid : -1);
+				(r->error & 16) ? "exécution (SMEP)" : "accès (SMAP ou droits)", a, r->rip,
+				t->proc ? t->proc->pid : -1);
 			kpanic("faute de protection du noyau sur une page d'un process");
 		}
 		if (a < 0x0000800000000000ULL && t->proc->mm &&

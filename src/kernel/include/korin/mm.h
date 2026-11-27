@@ -33,6 +33,13 @@ struct mm;
 #define VM_LOW_BASE 0x10000ULL       /* VM_FIXED sous l'image du programme (hôte Linux) */
 #define USER_STACK_TOP 0x00007FFFFFFF0000ULL
 #define USER_STACK_SIZE (64ULL << 20) /* paresseuse, sauf les 16 Ko du haut (64 Mo, comme le Pi) */
+/* ASLR (étape 1 de docs/etude/DURCISSEMENT-N3-N5.md) : l'arène commence ses recherches jusqu'à 8 Go plus haut ; les
+ * kits sont décalés ensemble jusqu'à 30 Go dans leur zone (KIT_BASE 0x5000000000, 16 x 64 Mo, sous l'arène) ; le
+ * pointeur de pile part jusqu'à 1 Mo sous USER_STACK_TOP (le sommet reste : les programmes d'avant le prennent pour
+ * borne de la pile du thread principal, src/lib/posix/pthread.c) */
+#define ARENA_RND_PAGES ((8ULL << 30) / 4096)
+#define KIT_RND_PAGES ((30ULL << 30) / 4096)
+#define STACK_RND_MAX (1ULL << 20)
 
 /* sortes de régions (VMK_* de syscalls.inc) */
 #define VMK_ANON 1
@@ -44,6 +51,7 @@ struct mm;
 #define PROT_WRITE 2
 #define PROT_EXEC 4
 
+uint64_t mm_kit_off(struct mm *mm); /* ASLR des kits (kits.c) */
 struct mm *mm_create(void);
 void mm_destroy(struct process *p); /* tampons rendus, régions libérées (pas la vm) */
 void mm_free(struct mm *mm);

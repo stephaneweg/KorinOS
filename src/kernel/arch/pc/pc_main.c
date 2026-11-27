@@ -345,6 +345,7 @@ void kmain(uint64_t bootinfo_phys)
 	fpu_no_xsave = cmdline_has("noxsave");    /* (FXSAVE seul, comme avant : essais) */
 	cpu_no_smep = cmdline_has("nosmep");      /* (SMEP, UMIP : cpu_protect ; retour en arrière) */
 	cpu_no_umip = cmdline_has("noumip");
+	cpu_no_smap = cmdline_has("nosmap");
 	cpu_init(0, 0);
 	gdt_init(0, (uint64_t)(ist_df0 + sizeof ist_df0), (uint64_t)(ist_nmi0 + sizeof ist_nmi0),
 		 (uint64_t)(ist_mc0 + sizeof ist_mc0));

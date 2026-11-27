@@ -40,5 +40,6 @@ int64_t sys_klog_from(uint64_t pos, uint64_t buf, uint64_t max);
 void klog_write(const char *s);
 void random_mix(uint64_t v);
 void random_init(void); /* l'amorçage de l'aléa : avant le premier process */
+uint64_t random_u64(void); /* un tirage pour le noyau (ASLR) */
 
 #endif

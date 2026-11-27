@@ -141,17 +141,28 @@ user_iretq:
 ; programme. Une faute de page sur user_copy_insn qu'idt.c ne peut pas amener (page rendue par un
 ; autre thread après user_check, munmap) reprend à user_copy_fault : l'appel rend E_FAULT au lieu
 ; d'arrêter le process en gardant un verrou (futex_lock, sig_lock : la machine gelait).
+; SMAP (CR4.21, étape 1 de docs/etude/DURCISSEMENT-N3-N5.md) : le noyau ne touche une page d'un programme qu'ici,
+; entre stac et clac (AC = 1) ; smap_on (cpu.c) : 0 sans SMAP (stac et clac y feraient #UD).
 public arch_copy_user
 public user_copy_insn
 public user_copy_fault
+extrn smap_on
 arch_copy_user:
         mov     rcx, rdx
+        test    byte [smap_on], 1
+        jz      user_copy_insn
+        db      0x0F, 0x01, 0xCB        ; stac
 user_copy_insn:
         rep movsb
         xor     eax, eax
-        ret
+        jmp     user_copy_end
 user_copy_fault:
         mov     rax, -14
+user_copy_end:
+        test    byte [smap_on], 1
+        jz      @f
+        db      0x0F, 0x01, 0xCA        ; clac
+@@:
         ret
 
 ; premier passage d'un fils de fork : r12 = struct regs (copiée sur sa pile)

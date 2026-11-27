@@ -7,6 +7,7 @@
 format ELF64
 
 extrn isr_dispatch
+extrn smap_on
 extrn user_iretq
 extrn user_iret
 
@@ -49,6 +50,10 @@ isr_paranoid:
         push    r14
         push    r15
         cld
+        test    byte [smap_on], 1       ; SMAP : AC effacé (un programme peut le mettre ; l'entrée ne l'efface pas)
+        jz      @f
+        db      0x0F, 0x01, 0xCA        ; clac
+@@:
         xor     ebx, ebx
         mov     ecx, 0xC0000101         ; GS_BASE
         rdmsr
@@ -109,6 +114,10 @@ isr_common:
         push    r14
         push    r15
         cld
+        test    byte [smap_on], 1       ; SMAP : AC effacé (un programme peut le mettre ; l'entrée ne l'efface pas)
+        jz      @f
+        db      0x0F, 0x01, 0xCA        ; clac
+@@:
         mov     rdi, rsp
         call    isr_dispatch
         pop     r15

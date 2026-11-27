@@ -167,15 +167,16 @@ static void user_start(void *arg)
 	arch_enter_user(t->user_entry, t->user_stack, t->user_arg);
 }
 
-/* pile du thread principal : région paresseuse de 64 Mo (comme le Pi), les 16 Ko du haut
- * peuplés ; la ligne d'arguments en haut de pile */
+/* pile du thread principal : région paresseuse de 64 Mo (comme le Pi) sous USER_STACK_TOP ; le pointeur de pile part
+ * d'un point tiré dans le Mo du haut (ASLR, aligné sur 16 octets), les 16 Ko sous lui peuplés ; la ligne d'arguments
+ * juste sous ce point */
 static int setup_stack(struct process *p, const char *args, uint64_t *sp, uint64_t *argp)
 {
-	uint64_t top = USER_STACK_TOP;
-	int r = mm_add_region(p->mm, top - USER_STACK_SIZE, top, PROT_READ | PROT_WRITE, VMK_STACK);
+	int r = mm_add_region(p->mm, USER_STACK_TOP - USER_STACK_SIZE, USER_STACK_TOP, PROT_READ | PROT_WRITE, VMK_STACK);
 	if (r)
 		return r;
-	for (uint64_t va = top - 16384; va < top; va += PAGE_SIZE)
+	uint64_t top = USER_STACK_TOP - (random_u64() % (STACK_RND_MAX / 16)) * 16;
+	for (uint64_t va = ALIGN_DOWN(top - 16384, PAGE_SIZE); va < top; va += PAGE_SIZE)
 		if (mm_fault(p, va, 1, 0))
 			return E_NOMEM;
 	*argp = 0;
