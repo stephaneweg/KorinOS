@@ -5,7 +5,7 @@ date = 2026-11-27 09:15
 abi = 632
 packages = 117
 board = pc
-serial = 42
+serial = 43
 
 [avdemo]
 title = Avalonia
@@ -2649,18 +2649,18 @@ content = 388c8e48a673928a390d6d815b44c3eb3bb19a4eb2eea81f0c12a10b8f3967cd
 
 [qtbase-dev]
 title = Qt (développement)
-version = 6.10.2-2
+version = 6.10.2-2.1
 category = Développement
 author = Korin OS
 summary = Qt 6.10.2 pour le GCC de l'OS : QtCore, QtGui, QtWidgets, QtNetwork (OpenSSL), la plateforme korin (UIKit, barre de menus globale) et le style korin, statiques, avec moc, rcc, uic, qmake, qt-cmake pour Korin, dans /devtools/qt (licences LGPL-3 / GPL)
-size = 4355836
-installed = 15698619
-sha256 = e4b52daec4619db920644b3ace6b398874a84292bd22fd66aa19ae7a74975a10
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtbase-dev-6.10.2-2.opk
-needs = zlib-dev, libpng-dev, brotli-dev, freetype-dev, harfbuzz-dev, openssl-dev, qtbase-dev-data-1, qtbase-dev-data-2, qtbase-dev-data-3, abi >= 629
+size = 4355821
+installed = 15698491
+sha256 = 2645dacd7e34befe5e8d3acf82a4ac161758f67d89e2136d966c26904eeba406
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-qtbase-dev-6.10.2-2.1.opk
+needs = zlib-dev, libpng-dev, brotli-dev, freetype-dev, harfbuzz-dev, openssl-dev, abi >= 629
 required = 0
 restart = 0
-content = 90a0fa5f0277c0166e56e1539e94039d51c5e69f7ddc62cc0b4df7c6489e91b3
+content = 8b7c09ad195411cfd19c0fcb8f2e7844866a95bfde83a21fedce67c7a9dccae4
 
 [qtshadertools-dev]
 title = Qt Shader Tools (développement)
