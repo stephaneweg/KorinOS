@@ -163,6 +163,9 @@ Blender, Qt (korin_ui.c fait), MuseScore, la Skia d'Avalonia (build-skia.sh fait
 **27/11, /fonts retiré des sources du PC (sans repli ; le Pi garde /fonts, choisi par __x86_64__)**. Publiés :
 skia-dev 154.0.1 (SkFontMgr_onyx.o remplacé dans libskia.a, identique à celle du SDK de Jet), letters 1.0.12, qtbase-dev
 6.10.2-2.1 (korin_ui.c.o remplacé dans libqkorin.a, -O2 -fPIC -fstack-protector-strong -ffunction-sections), jet
-1.4.16. **Pas encore publié : pc sans fonts/** (packages-pc.ini l'a déjà retiré ; publier avec --drop fonts/) --
-attend que l'utilisateur reconstruise sur son PC Windows : Avalonia (rebuild-ports.sh avalonia : dotnet-skia,
-SK_FONT_FILE_PREFIX) et MuseScore (Qt avec le nouveau libqkorin, puis tools/musescore/build.sh).
+1.4.16 ; reconstruits dans le cloud et publiés : avalonia 1.0.4 (dotnet-skia, Avalonia.Desktop ; skiatest sous QEMU :
+DejaVu trouvée dans /res/fonts) et musescore 4.7.7-0.5 (Qt refait, mscore ; export PDF et fenêtre sous QEMU).
+**Reste : pc 2026.11.124 sans fonts/** (préparé : pub.py pc --drop fonts/ ; uikit.so, printd, initrd, korin.efi),
+en attente du feu vert de l'utilisateur. Cloud : CoreCLR après un changement de libposix : effacer
+obj/coreclr-x64/CMakeCache.txt ; build-skia.sh d'Avalonia veut un sysroot de WebKit qui a les en-têtes de libposix ;
+la chaîne Qt + MuseScore (JOBS=2, 4 cœurs) : 3 h et ~45 Go (host-obj et x86_64/obj effaçables une fois installés).
