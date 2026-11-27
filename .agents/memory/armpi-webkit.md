@@ -70,3 +70,9 @@ du milieu de Page::updateRendering (après les requestAnimationFrame), non chron
 (style/mise en page séparés, partout) construit dans le cloud.
 **22/11 : jetlink vérifié dans Korin** (QEMU, 8 Go, sortie dans /tmp) : ld code 0 en ≈ 8,5 min, le Jet obtenu
 démarre. jet 1.4.7 publié (0015) ; note pour l'agent local : docs/agents/JET-TF1-ETAPES-2.md.
+
+**27/11/2026, WOFF2** : le WebKit de Jet était construit sans WOFF2 (`USE_WOFF2 0` d'OptionsOnyx.cmake) : les polices
+web WOFF2 ne se chargeaient pas (texte retombé sur DejaVu, icônes de claude.ai en rectangles). Jet 1.4.19 : woff2 1.0.2
+de Google (tools/webkit/ports/woff2/build.sh, patch 0019 : USE_WOFF2 ON + find_package(WOFF2)), lié (woff2dec,
+woff2common avant brotlidec : build-jet.sh, jet-sdk.py). Dans le cloud : UnifiedSource-platform-45 et -58 recompilés
+(jetobj.sh) avec cmakeconfig.h du SDK à USE_WOFF2 1, libwoff2dec.a dans le sysroot du SDK, `ar s` sur libWebCore.a.

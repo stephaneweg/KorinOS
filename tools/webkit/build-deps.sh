@@ -4,7 +4,7 @@
 # en-tetes dans le sysroot ($WK_OUT/sysroot), outils d'essai dans $WK_OUT/ports/bin.
 #
 #   sh tools/webkit/build-deps.sh [dep...]    deps : sqlite openssl libxml2 curl icu libpng freetype
-#                                             harfbuzz libjpeg-turbo libwebp skia ; groupes « c » (les
+#                                             harfbuzz libjpeg-turbo libwebp skia woff2 ; groupes « c » (les
 #                                             quatre premieres) et « webkit » (les autres) ; defaut : tout
 # Le sysroot est refait d'abord (sysroot.sh). Environ 10 minutes sur 16 coeurs.
 set -e
@@ -15,7 +15,7 @@ ports=
 for p in ${*:-c webkit}; do
 	case $p in
 	c) ports="$ports sqlite openssl libxml2 curl";;
-	webkit) ports="$ports icu libpng freetype harfbuzz libjpeg-turbo libwebp skia";;
+	webkit) ports="$ports icu libpng freetype harfbuzz libjpeg-turbo libwebp skia woff2";;
 	*) ports="$ports $p";;
 	esac
 done

@@ -132,8 +132,9 @@ static long tmp_uid(const char *p)
 
 /* Le bac à sable d'un compte (uid | UID_BAC : les process web de Jet, qui y entrent seuls avant de lire une page ;
  * étape 2 de docs/etude/DURCISSEMENT-N3-N5.md) : lecture de /res (polices, ICU, module Widevine), /lib (kits),
- * /apps/jet.app et /etc (hors secrets) ; lecture et écriture de /tmp/<son uid> et des données du module Widevine du
- * compte (HOME/.jet/widevine/storage : cdmhost, lancé par le process web) ; rien d'autre (ni les fichiers du compte,
+ * /apps/jet.app et /etc (hors secrets) ; lecture et écriture de /tmp/<son uid>, des données du module Widevine du
+ * compte (HOME/.jet/widevine/storage : cdmhost, lancé par le process web) et de son cache de shaders
+ * (HOME/.cache/mesa-bac) ; rien d'autre (ni les fichiers du compte,
  * ni /tmp, /media, /net, /home/public). Toujours appliqué, même en mode journal ou « off ». */
 #define UID_BAC 0x40000000
 static int deja_note(long uid, const char *p, int ecrire);
@@ -144,14 +145,19 @@ static int permis_bac(long uid, const char *p, int ecrire)
 		return t == uid;
 	const char *home = home_compte(uid & ~(long)UID_BAC);
 	if (home) {
-		char wv[PATH_MAX];
+		/* ses dossiers dans celui du compte : les données de Widevine (cdmhost) et son propre cache de shaders de Mesa
+		 * (pas celui des autres programmes GL du compte, qu'un process web exploité empoisonnerait ; Jet le désigne par
+		 * MESA_SHADER_CACHE_DIR) */
+		static const char *const siens[] = {"/.jet/widevine/storage", "/.cache/mesa-bac", 0};
+		char d[PATH_MAX];
 		u64 n = strlen(home);
-		if (n + 32 < sizeof wv) {
-			memcpy(wv, home, n);
-			memcpy(wv + n, "/.jet/widevine/storage", 23);
-			if (sous(p, wv))
-				return 1;
-		}
+		for (int i = 0; siens[i]; i++)
+			if (n + strlen(siens[i]) < sizeof d) {
+				memcpy(d, home, n);
+				memcpy(d + n, siens[i], strlen(siens[i]) + 1);
+				if (sous(p, d))
+					return 1;
+			}
 	}
 	if (ecrire)
 		return 0;

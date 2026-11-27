@@ -54,7 +54,7 @@ ${ONYX_TOOLCHAIN_PREFIX}gcc -specs="$S/lib/onyx-cc.specs" -O2 $ONYX_CPU_FLAGS -I
 WK="-Wl,--start-group $BUILD/lib/libWebKit.a $BUILD/lib/libWebCore.a $BUILD/lib/libPAL.a $BUILD/lib/libJavaScriptCore.a $BUILD/lib/libWTF.a $BUILD/lib/libbmalloc.a -Wl,--end-group"
 LIBS=""
 for l in skia harfbuzz-icu harfbuzz freetype png16 jpeg webpmux webpdemux webp sharpyuv curl ssl crypto \
-	nghttp2 brotlidec xml2 sqlite3 z icui18n icuuc icudata; do
+	nghttp2 woff2dec woff2common brotlidec xml2 sqlite3 z icui18n icuuc icudata; do
 	LIBS="$LIBS $S/lib/lib$l.a"
 done
 # WebGL : ANGLE, puis Mesa par armgl

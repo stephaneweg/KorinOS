@@ -1443,6 +1443,12 @@ int main (int argc, char **argv)
 						snprintf (tmp, sizeof tmp, "/tmp/%ld", kuid ());
 						mkdir (tmp, 0700);
 						setenv ("TMPDIR", tmp, 1);
+						// le cache de shaders de Mesa : le sien (vfs ne lui ouvre que celui-là dans le dossier du compte)
+						if (const char *h = getenv ("HOME"))
+						{
+							std::string c = std::string (h) + "/.cache/mesa-bac";
+							setenv ("MESA_SHADER_CACHE_DIR", c.c_str (), 1);
+						}
 						break;
 					}
 					fprintf (stderr, "jet : process web hors du bac a sable (noyau trop ancien ?)\n");

@@ -43,7 +43,7 @@ ff = "/tmp/korin-ffmpeg-jet-x86_64"
 for l in ["libavformat.a", "libavcodec.a", "libswscale.a", "libavutil.a"]:
     copyfile(os.path.join(ff, l), os.path.join(T, "ffmpeg", l))
 copyfile(os.path.join(ROOT, "build", "pc", "mesa", "lib", "libglkit.a"), os.path.join(T, "glkit", "libglkit.a"))
-for l in "skia harfbuzz-icu harfbuzz freetype png16 jpeg webpmux webpdemux webp sharpyuv curl ssl crypto nghttp2 brotlidec xml2 sqlite3 z icui18n icuuc icudata".split():
+for l in "skia harfbuzz-icu harfbuzz freetype png16 jpeg webpmux webpdemux webp sharpyuv curl ssl crypto nghttp2 woff2dec woff2common brotlidec xml2 sqlite3 z icui18n icuuc icudata".split():
     copyfile(os.path.join(K, "sysroot", "lib", "lib%s.a" % l), os.path.join(T, "sysroot", "lib", "lib%s.a" % l))
 print("liaison :", len(libs), "bibliothèques,", len(members), "objets")
 

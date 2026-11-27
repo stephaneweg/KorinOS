@@ -479,3 +479,8 @@ n'écrit que dans `/tmp/<uid>`, n'a pas de socket et ne revient pas à l'uid du 
 une page locale de `/home/public` (lue par le process réseau) et son JavaScript. Les pages d'Internet ne se chargent
 pas sous QEMU dans le cloud (pas de résolution de noms, même sans bac) : à essayer sur le ZBook, avec Widevine
 (Netflix, Disney+), le son, la vidéo et le GPU.
+
+**Sur le ZBook (pc 2026.11.128, Jet 1.4.18)** : Jet et l'app Netflix entrent dans le bac ; Netflix (Widevine), le GPU
+(Mesa sur l'Intel) marchent. Un seul refus : Mesa écrivait son cache de shaders dans `HOME/.cache/mesa_shader_cache_db`
+(commun à tous les programmes GL du compte : un process web exploité l'empoisonnerait). Le bac a maintenant le sien,
+`HOME/.cache/mesa-bac` (vfs : `permis_bac` ; Jet : `MESA_SHADER_CACHE_DIR`).
