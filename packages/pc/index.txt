@@ -1,11 +1,11 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-27 08:25
+date = 2026-11-27 09:15
 abi = 632
 packages = 117
 board = pc
-serial = 40
+serial = 41
 
 [avdemo]
 title = Avalonia
@@ -2526,18 +2526,18 @@ content = b4dab0a21f0d439ab234327acdc81c80b681ef4d77eaf426a1765aee4b256511
 
 [skia-dev]
 title = Skia (développement)
-version = 154.0.0
+version = 154.0.1
 category = Développement
 author = Korin OS
 summary = Skia m154 (celui de Jet) : libskia.a, skia/include, skia/modules (licence BSD)
-size = 4929564
-installed = 18739188
-sha256 = b68b5e4ccb1cf1752a59b4f68eae3da33670d9dcc51655f8d4bf8fc13277852c
-file = pkgs/skia-dev-154.0.0.opk
+size = 4930595
+installed = 18741898
+sha256 = e76c841f73ef59f64dcde097103381bd8e6b61f0b92d46c6796f8c22662f583c
+file = pkgs/skia-dev-154.0.1.opk
 needs = freetype-dev, harfbuzz-dev, libpng-dev, libwebp-dev, zlib-dev, abi >= 629
 required = 0
 restart = 0
-content = 418a715764c9ad3c4b05cb05742e4825b71ba8b241835e5e81def7245f3d657a
+content = 90b7c23cdf53f30de8a168e1f3b865bc47f259e73c013c9fb8e462aceec9d6a8
 
 [llamacpp]
 title = llama.cpp
