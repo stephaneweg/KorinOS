@@ -1,11 +1,11 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-27 10:50
+date = 2026-11-27 12:41
 abi = 632
 packages = 117
 board = pc
-serial = 45
+serial = 46
 
 [avdemo]
 title = Avalonia
@@ -2901,19 +2901,19 @@ content = 76b3d286e763df152b997c93f779fac7b01469bba0daa52e3f5223cc96f9136b
 
 [musescore]
 title = MuseScore Studio
-version = 4.7.7-0.4
+version = 4.7.7-0.5
 category = Musique
 author = Korin OS
 summary = MuseScore Studio 4.7 (essai) : écrire, mettre en page, écouter et imprimer des partitions
-size = 60430466
+size = 60430942
 installed = 145882481
-sha256 = ddaa91ef3986ec0901e87c9a0f2c18dfb790853ea7a8fee23b83fe273b57b1a9
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-musescore-4.7.7-0.4.opk
+sha256 = bdddac0aebf1cb30d3b100daeb6af63f3d08e594c3f48eac8c3607202a2f63a6
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-musescore-4.7.7-0.5.opk
 needs = pc, soundfonts, musescore-data-1, abi >= 629
 required = 0
 restart = 0
 replaces = musescore-data-2
-content = e1e556c24685c18d0da25f310cade97f13f8f3e23e7aad4d91314502e43f903d
+content = 25859740006dda260d35b73399e1ed83c4f42c4414f6aa99a0e15d61d5bdada5
 
 [agent-skills]
 title = Compétences des agents
