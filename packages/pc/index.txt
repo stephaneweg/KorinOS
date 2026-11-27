@@ -1,11 +1,11 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-27 09:16
+date = 2026-11-27 10:50
 abi = 632
 packages = 117
 board = pc
-serial = 44
+serial = 45
 
 [avdemo]
 title = Avalonia
@@ -436,18 +436,18 @@ content = 5b808022d5af60463a80cd27a352a82f5bb967db04bb0ffed94eb7c7df87e2e2
 
 [avalonia]
 title = Avalonia
-version = 1.0.3
+version = 1.0.4
 category = Développement
 author = Korin OS
 summary = Avalonia 12 pour .NET : les DLL, l'hôte dotnet-skia (Skia), AvaloniaEdit, les modèles de projet (/devtools/dotnet)
-size = 17534848
-installed = 42458184
-sha256 = 453c16931ce06f45bef30cdbcf0550a7f954198036404cf132b82a0f0f3bec34
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-avalonia-1.0.3.opk
+size = 17679920
+installed = 42789960
+sha256 = 74091fd00c5e8b556200197f989033aa57a3e729e4e008758c3f17936b7c3d00
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-avalonia-1.0.4.opk
 needs = dotnet, abi >= 626
 required = 0
 restart = 0
-content = b75a77c44ea26e3859ee9642d62fe72ae20941887437fa453ec4592e3403d789
+content = edd65c59ba6c6bdcfa4f3a41b42344a76746aefff026e9bf82bf187df9e007b4
 
 [dotnet-data-1]
 title = .NET (1/2)
