@@ -195,8 +195,17 @@ static long ownpw (const char *old, const char *pw)
 	memcpy (m + 48 + o + 1, pw, p + 1);
 	*(unsigned *) (m + 40) = (unsigned) (o + p + 2);
 	long r = svc_call (ch, m);
+	r = r < 0 ? r : *(long *) m;
+	/* (second audit, N2) un administrateur sans mot de passe : authd le fait confirmer à la carte d'élévation, devant la
+	   machine ; en attendant, E_AGAIN toutes les 20 s : AUTH_WAIT (7), comme ui_elevate */
+	while (r == -11) {
+		memset (m, 0, sizeof m);
+		*(long *) m = 7;
+		long e = svc_call (ch, m);
+		r = e < 0 ? e : *(long *) m;
+	}
 	memset (m, 0, sizeof m);
-	return r < 0 ? r : *(long *) m;
+	return r;
 }
 
 static int ask_pw (const char *title, char *pw, size_t cap)

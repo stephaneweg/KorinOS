@@ -464,3 +464,15 @@ Comptes par gravité : **1 critique, 4 hautes, 6 moyennes, 8 basses** (19 consta
   n'ajoute `access = enforce` (aucune occurrence trouvée dans le code).
 * **Micrologiciel et matériel** : verrous de l'UEFI, TPM, Thunderbolt (niveau de sécurité du contrôleur) : hors de
   portée d'une lecture de code.
+
+---
+
+## Suivi (27/11/2026)
+
+* **N1, en partie** : vfs protège désormais en écriture, quel que soit le mode, `/etc/mounts.txt`,
+  `/etc/bash.bashrc`, `/etc/claude-code`, `/res` (compétences des agents, module Widevine, polices) et `/var/log`
+  (`src/svc/vfs/access.c`, liste `marques`). Reste le passage en « enforce » par défaut (étapes E73 et E74 du plan) ;
+  `/devtools` n'est pas protégé : pip, lancé sous un compte, y installe.
+* **N2, corrigé** : le premier mot de passe d'un compte qui peut administrer est confirmé à la carte d'élévation
+  (couche sûre, devant la machine) avant qu'authd l'écrive (`src/svc/authd/authd.c`, `premier_mdp`) ; `passwd` et
+  Réglages › Comptes attendent la carte. Essayé sous QEMU.

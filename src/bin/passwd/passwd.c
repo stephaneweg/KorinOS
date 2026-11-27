@@ -7,6 +7,9 @@
 #define AUTH_CHECK 3
 #define AUTH_PASSWD 4
 #define AUTH_SETPW 8
+#define AUTH_WAIT 7
+#define E_AGAIN -11
+#define E_CANCELED -125
 #define E_ACCES -13
 #define VT_TCGETS 5
 #define VT_TCSETS 6
@@ -112,11 +115,21 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	long r = other ? call(ch, AUTH_SETPW, other, n1) : call(ch, AUTH_PASSWD, old, n1);
+	/* (second audit, N2) un administrateur sans mot de passe : authd le fait confirmer à la carte d'élévation, devant
+	   la machine ; la réponse vient quand elle est validée (E_AGAIN toutes les 20 s en attendant) */
+	if (!other && r == E_AGAIN)
+		out("passwd : confirmez sur la carte d'elevation, a l'ecran...\n");
+	while (!other && r == E_AGAIN)
+		r = call(ch, AUTH_WAIT, "", 0);
 	memset(old, 0, sizeof old);
 	memset(n1, 0, sizeof n1);
 	memset(n2, 0, sizeof n2);
 	if (r == E_ACCES) {
 		out("passwd : mot de passe actuel incorrect\n");
+		return 1;
+	}
+	if (r == E_CANCELED) {
+		out("passwd : annule a la carte, rien n'est change\n");
 		return 1;
 	}
 	if (r) {

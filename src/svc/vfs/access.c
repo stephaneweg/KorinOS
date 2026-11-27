@@ -55,7 +55,18 @@ static const char *const marques[] = {"/tmp/session.ini", "/tmp/login.halt", "/t
 				      /* les réglages de la machine : écrits par init2 (INIT_OP_SETTING) et acpid (ACPID_OP_SET)
 				       * pour le compte de la session, ou par Réglages élevé (décision du 25/11/2026) ;
 				       * options.txt porte aussi les options du noyau (monitor, no_preload...) */
-				      "/etc/options.txt", "/etc/system.ini", "/etc/power.ini", 0};
+				      "/etc/options.txt", "/etc/system.ini", "/etc/power.ini",
+				      /* (second audit, N1, 26/11/2026) les montages : lus par vfs en uid 0 au démarrage, un
+				       * compte y montait un volume à lui sur /etc (users.ini, services.txt à lui) ; écrits par
+				       * Fichiers élevé, osinstall et le premier démarrage */
+				      "/etc/mounts.txt",
+				      /* le shell de tous (lu par bash, root compris), ce que Claude Code sait de la machine */
+				      "/etc/bash.bashrc", "/etc/claude-code",
+				      /* /res : les compétences des agents (consignes suivies avec leurs outils), le module
+				       * Widevine (chargé par cdmhost), les polices ; écrits par pkg et cdmupdate élevé */
+				      "/res",
+				      /* les journaux des services (auditd, webd : uid 0) */
+				      "/var/log", 0};
 
 /* le chemin commence-t-il par le dossier d (« /home » couvre « /home » et « /home/a », pas « /homex ») ?
  * Sans la casse : FAT32 et exFAT trouvent « /ETC/SHADOW.INI » comme « /etc/shadow.ini » (E24, F1) */

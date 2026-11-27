@@ -103,6 +103,8 @@ static struct {
 	int system; /* une mise à jour du système : ni retenu ni « retenir » */
 	int ask;    /* la case de la version de secours est montrée */
 	int backup; /* et elle a été cochée (rendu en a) */
+	int passwd; /* (second audit, N2) la carte confirme le premier mot de passe d'un administrateur, pw_new */
+	char pw_new[160];
 } pending;
 
 #include "pwhash.h" /* SHA-256, HMAC, PBKDF2 */
@@ -638,6 +640,47 @@ static long elever(const struct compte *c, long pid, const char *raison, long mo
 	pending.system = mode >= 2;
 	pending.ask = mode == 3;
 	pending.backup = 0;
+	pending.passwd = 0;
+	return DEFER;
+}
+
+/* (second audit, N2, 26/11/2026) un compte qui peut administrer et n'a pas de mot de passe s'en donne un : sans preuve
+ * possible (pas d'ancien mot de passe), un programme du compte le faisait seul, puis passait par sudo. La carte, que
+ * seule une personne devant la machine peut valider (couche sûre, E39), le confirme ; authd l'écrit ensuite (carte) */
+static long premier_mdp(const struct compte *c, long pid, const char *nw)
+{
+	if (pending.active)
+		return E_BUSY;
+	if (str_len(nw) >= (long)sizeof pending.pw_new)
+		return E_INVAL;
+	u64 tok = 0;
+	korin_sys2(SYS_GETRANDOM, &tok, sizeof tok);
+	tok |= 1;
+	static char args[400];
+	char t[24];
+	dec_to(tok, t);
+	char *o = str_cat(str_cat(args, t), "|");
+	o = str_cat(o, "Donner un mot de passe à ce compte : il pourra ensuite administrer la machine");
+	o = str_cat(str_cat(str_cat(o, "|"), c->name), "|0"); /* (pas de mot de passe à demander : il n'y en a pas) */
+	long card = ksys(SYS_SPAWN, (long)"/sys/authcard", (long)args, 0, 0, 0, 0);
+	if (card < 0) {
+		journal("passwd", c, pid, "carte /sys/authcard introuvable");
+		return card;
+	}
+	pending.active = 1;
+	pending.done = 0;
+	pending.req = cur_req;
+	pending.since = korin_sys0(SYS_TIME_MS);
+	pending.pid = pid;
+	pending.card = card;
+	pending.token = tok;
+	pending.uid = c->uid;
+	copie(pending.name, sizeof pending.name, c->name);
+	pending.system = 0;
+	pending.ask = 0;
+	pending.backup = 0;
+	pending.passwd = 1;
+	copie(pending.pw_new, sizeof pending.pw_new, nw);
 	return DEFER;
 }
 
@@ -652,8 +695,25 @@ static long carte(long pid, const char *data)
 	if (!pending.active || pending.done || pid != pending.card || M64(msg, 8) != pending.token)
 		return E_PERM;
 	if (M64(msg, 16) == 1) {
-		journal("elevation", &c, pending.pid, "annulee a la carte");
+		journal(pending.passwd ? "passwd" : "elevation", &c, pending.pid, "annulee a la carte");
+		memset(pending.pw_new, 0, sizeof pending.pw_new);
 		finir(E_CANCELED);
+		return 0;
+	}
+	if (pending.passwd) { /* (N2) confirmé devant la machine : le premier mot de passe, s'il n'y en a toujours pas */
+		long r;
+		int e = empreinte_de(c.name);
+		if (e > 0 && empreinte[0])
+			r = E_PERM; /* (posé entre-temps : il faut l'ancien) */
+		else if (coffre(KV_PASSWD, c.name, "", pending.pw_new) < 0)
+			r = E_IO;
+		else
+			r = ecrire_mdp(c.name, pending.pw_new);
+		memset(pending.pw_new, 0, sizeof pending.pw_new);
+		journal("passwd", &c, pending.pid, r == E_PERM ? "refuse (un mot de passe a ete pose entre-temps)" :
+			r == E_IO ? "refuse par le coffre" : r ? "echec de l'ecriture de /etc/shadow.ini" :
+			"premier mot de passe, confirme a la carte");
+		finir(r);
 		return 0;
 	}
 	if (!verifier_compte(&c, data)) {
@@ -893,6 +953,11 @@ static long traiter(void)
 		if (!verifier_compte(&c, old)) {
 			journal("passwd", &c, pid, "mauvais mot de passe");
 			return E_ACCES;
+		}
+		if (uid != 0 && peut_elever(&c)) { /* (N2) un administrateur sans mot de passe : la carte d'abord */
+			int e = empreinte_de(c.name);
+			if (!(e > 0 && empreinte[0]))
+				return premier_mdp(&c, pid, nw);
 		}
 		if (coffre(KV_PASSWD, c.name, old, nw) < 0) { /* (d'abord le coffre : s'il refuse, rien ne change) */
 			journal("passwd", &c, pid, "refuse par le coffre");
