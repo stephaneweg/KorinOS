@@ -48,7 +48,9 @@ long proprietaire(struct msg *m)
 
 void open_extras_take(struct msg *m)
 {
-	open_extras = m->c & (ATTR_SYS | ATTR_LIB);
+	/* (les attributs de vfs que la réponse d'ouverture porte : aussi ATTR_SVC, ATTR_CAPS et les groupes de capacités
+	 * des bits 16-31 ; avant le 27/11/2026, ATTR_SVC de l'étape 0 se perdait ici) */
+	open_extras = m->c & (ATTR_SYS | ATTR_LIB | ATTR_SVC | ATTR_CAPS | 0xFFFF0000L);
 }
 
 void open_extras_put(struct msg *m)

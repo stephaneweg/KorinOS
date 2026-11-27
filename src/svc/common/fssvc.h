@@ -28,6 +28,7 @@ _Static_assert(sizeof(struct msg) == 512, "message de 512 octets");
 /* ---- attributs (armpi.inc) */
 #define ATTR_SYS 0x100
 #define ATTR_SVC 0x1000 /* (avec ATTR_SYS) droits de service seulement : SPAWN_SVC */
+#define ATTR_CAPS 0x2000 /* (avec ATTR_SYS) groupes de capacités dans les bits 16-31 : SPAWN_CAPS */
 #define ATTR_LIB 0x200
 #define ATTR_SCRIPT 0x800
 #define ATTR_FILE 0x20

@@ -40,6 +40,9 @@ struct process {
 	int exit_code;
 	uint32_t rights;     /* droits de /sys : masque des opérations réservées (bit RU_x) ; RIGHTS_ALL : tous */
 	uint32_t rights_seen; /* les opérations réservées déjà notées au journal (rights_used, E33) */
+	uint32_t caps;        /* capacités déclarées (opérations RU_x) : la table de vfs au lancement (SPAWN_CAPS) ;
+			       * RIGHTS_ALL sans table. Hors d'elles : au journal, refusé si caps_enforce */
+	uint32_t caps_seen;   /* les opérations hors capacités déjà notées */
 	int uid;             /* à qui sont ses fichiers (0 : system) ; hérité du père (SYS_SETUID, SPAWN_UID) */
 	uint64_t flags;      /* PROC_FLAGS */
 	uint64_t start_ms;
@@ -187,6 +190,12 @@ enum { RU_SVC_REGISTER, RU_SVC_MAP_CALLER, RU_SVC_SIGNAL, RU_CLOCK_SET, RU_BUF_P
 #define RIGHTS_ALL 0xFFFFFFFFu
 #define RIGHTS_SVC ((1u << RU_SVC_REGISTER) | (1u << RU_SVC_MAP_CALLER))
 static inline int rights_full(const struct process *p) { return p->rights == RIGHTS_ALL; }
+/* capacités (étape 1 de docs/etude/DURCISSEMENT-N3-N5.md) : des groupes d'opérations, bits 8-23 des options de
+ * SPAWN_IMAGE / SPAWN_PRELOADED avec SPAWN_CAPS ; caps_enforce (option « caps=enforce ») : refusées, sinon notées */
+enum { CAP_MMIO, CAP_PORT, CAP_DMA, CAP_IRQ, CAP_ACPI, CAP_SVC, CAP_MAPCALLER, CAP_BOOT, CAP_SYS, CAP_WS, CAP_IMAGE,
+       CAP_PROCINFO, CAP_SPAWN, CAP_GROUPS };
+uint32_t caps_ops(uint32_t groups);
+extern int caps_enforce;
 int proc_spawn(const char *name, const void *image, uint64_t size);
 int proc_spawn_ex(const char *name, const void *image, uint64_t size, const char *args, int parent, uint32_t rights);
 struct process *proc_get(int pid);  /* sous sched_lock_take */

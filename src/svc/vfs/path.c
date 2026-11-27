@@ -493,14 +493,87 @@ static int svc_seul(const char *rest)
 	return 0;
 }
 
+/* Les capacités des programmes à droits (étape 1 de docs/etude/DURCISSEMENT-N3-N5.md, N3) : ce que chacun peut
+ * demander au noyau, par groupes (CAP_x du noyau, include/korin/sched.h), d'après ce que chacun utilise (relevé du
+ * 27/11/2026). AppKit les passe au noyau (SPAWN_CAPS) ; une opération hors de la table est notée au journal du noyau
+ * (« capacités : ... hors de sa table »), refusée avec l'option « caps=enforce ». Un service de /sys/svc absent de la
+ * table : SVC et MAPC seulement. Les modules de l'initramfs (init, vfs, pcid, nvme...) lancés par MOD_LAUNCH n'en ont
+ * pas (tout). Une table dans vfs plutôt qu'un fichier : vfs la lit en lançant les services qui le servent. PC
+ * seulement (le noyau du Pi ne connaît pas SPAWN_CAPS). */
+enum { G_MMIO = 1, G_PORT = 2, G_DMA = 4, G_IRQ = 8, G_ACPI = 16, G_SVC = 32, G_MAPC = 64, G_BOOT = 128, G_SYS = 256,
+       G_WS = 512, G_IMAGE = 1024, G_PROCINFO = 2048, G_SPAWN = 4096 };
+#define G_PCI (G_MMIO | G_DMA | G_IRQ | G_SVC)
+#define G_BLK (G_SVC | G_MAPC | G_BOOT)
+static const struct {
+	const char *nom;
+	unsigned groupes;
+} table_caps[] = {
+	{"svc/init2", G_SVC | G_SYS | G_SPAWN | G_IMAGE}, /* (IMAGE_PRELOAD : le préchargement de /apps) */
+	{"svc/vfs", G_SVC | G_MAPC | G_BOOT | G_SPAWN | G_IMAGE},
+	{"svc/hwmanager", G_SVC | G_BOOT | G_SPAWN},
+	{"svc/pcid", G_MMIO | G_ACPI | G_SVC},
+	{"svc/acpid", G_MMIO | G_PORT | G_ACPI | G_IRQ | G_SVC | G_SYS},
+	{"svc/acpidump", G_ACPI},
+	{"svc/ps2kbd", G_PORT | G_ACPI | G_IRQ | G_SVC},
+	{"svc/i2chid", G_MMIO | G_ACPI | G_IRQ | G_SVC},
+	{"svc/keyvault", G_MMIO | G_ACPI | G_SVC | G_MAPC | G_PROCINFO},
+	{"svc/nvme", G_PCI | G_BLK},
+	{"svc/sdhci", G_PCI | G_BLK},
+	{"svc/rtsx", G_PCI | G_BLK},
+	{"svc/usbd", G_PCI},
+	{"svc/hda", G_PCI},
+	{"svc/intelgpu", G_PCI | G_WS},
+	{"svc/iwl", G_PCI | G_WS},
+	{"svc/usbstorage", G_BLK},
+	{"svc/imgblk", G_BLK},
+	{"svc/netd", G_SVC | G_SYS},
+	{"svc/authd", G_SVC},
+	{"svc/auditd", G_SVC},
+	{"svc/sound", G_SVC},
+	{"svc/vterm", G_SVC},
+	{"svc/hidmanager", G_SVC},
+	{"svc/busd", G_SVC},
+	{"svc/usbkeyboard", G_SVC},
+	{"svc/usbmouse", G_SVC},
+	{"svc/usbgamepad", G_SVC},
+	{"svc/usbhid", G_SVC},
+	{"svc/usbnet", G_SVC},
+	{"svc/usbaudio", G_SVC},
+	{"svc/telnetd", G_SVC},
+	{"svc/ftpd", G_SVC},
+	{"svc/vncd", G_SVC},
+	{"svc/rdpd", G_SVC},
+	{"elegant", G_WS | G_SVC | G_SPAWN}, /* (lance des programmes de /sys à droits) */
+	{"pkgd", G_SVC | G_IMAGE | G_SPAWN},
+	{"notifyd", G_SVC | G_PROCINFO},
+	{"clipd", G_SVC | G_MAPC},
+	{"printd", G_SVC},
+	{0, 0},
+};
+
+/* les groupes de capacités d'un programme de /sys à droits (rest : le chemin sous /sys/) -> groupes, 0 : le Pi */
+static unsigned caps_de(const char *rest)
+{
+	if (korin_sys1(SYS_PROC_UID, korin_sys0(SYS_GETPID)) == E_NOSYS)
+		return 0;
+	for (int i = 0; table_caps[i].nom; i++)
+		if (!strcmp(rest, table_caps[i].nom))
+			return table_caps[i].groupes;
+	return G_SVC | G_MAPC; /* (un service hors de la table : le journal dira ce qu'il demande) */
+}
+
 /* chemin interne -> attributs qu'il donne : sous /root/sys/ ATTR_SYS (les droits au lancement : /sys/svc/ et la
- * liste sys_rights ; ATTR_SVC en plus : droits de service seulement), sous /root/lib/ ATTR_LIB (le service les ajoute
- * à la réponse d'ouverture) */
+ * liste sys_rights ; ATTR_SVC en plus : droits de service seulement ; ATTR_CAPS et les groupes de capacités dans les
+ * bits 16-31), sous /root/lib/ ATTR_LIB (le service les ajoute à la réponse d'ouverture) */
 static long attributs_de(const char *p)
 {
 	if (!strncmp(p, chemin_sys, sizeof chemin_sys - 1)) {
 		const char *rest = p + sizeof chemin_sys - 1;
-		return !sys_droits(rest) ? 0 : svc_seul(rest) ? ATTR_SYS | ATTR_SVC : ATTR_SYS;
+		if (!sys_droits(rest))
+			return 0;
+		long a = svc_seul(rest) ? ATTR_SYS | ATTR_SVC : ATTR_SYS;
+		unsigned g = caps_de(rest);
+		return g ? a | ATTR_CAPS | ((long)g << 16) : a;
 	}
 	if (!strncmp(p, chemin_lib, sizeof chemin_lib - 1))
 		return ATTR_LIB;

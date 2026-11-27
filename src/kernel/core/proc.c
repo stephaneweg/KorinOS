@@ -100,10 +100,46 @@ static int new_pid(struct process *p)
 	return E_NOMEM;
 }
 
+int caps_enforce; /* option « caps=enforce » (pc_main) : hors capacités, refusé ; sinon seulement noté */
+
+/* groupes CAP_x -> opérations RU_x */
+uint32_t caps_ops(uint32_t groups)
+{
+	static const uint32_t ops[CAP_GROUPS] = {
+		[CAP_MMIO] = 1u << RU_DEV_MAP,
+		[CAP_PORT] = 1u << RU_IO_PORT,
+		[CAP_DMA] = (1u << RU_DMA_ALLOC) | (1u << RU_BUF_PHYS),
+		[CAP_IRQ] = (1u << RU_IRQ_BIND) | (1u << RU_IRQ_MSI),
+		[CAP_ACPI] = 1u << RU_ACPI_TABLE,
+		[CAP_SVC] = (1u << RU_SVC_REGISTER) | (1u << RU_SVC_SIGNAL) | (1u << RU_KIT_REGISTER),
+		[CAP_MAPCALLER] = 1u << RU_SVC_MAP_CALLER,
+		[CAP_BOOT] = (1u << RU_MOD_LAUNCH) | (1u << RU_MOD_READ) | (1u << RU_BOOT_FILE) | (1u << RU_BOOT_READY),
+		[CAP_SYS] = (1u << RU_CLOCK_SET) | (1u << RU_POWER) | (1u << RU_PRIO_MAX),
+		[CAP_WS] = (1u << RU_WS_REGISTER) | (1u << RU_WS_SIGNAL) | (1u << RU_CLIP),
+		[CAP_IMAGE] = (1u << RU_IMAGE_PRELOAD) | (1u << RU_IMAGE_FORGET),
+		[CAP_PROCINFO] = (1u << RU_PROC_EXE) | (1u << RU_PROC_STATS),
+		[CAP_SPAWN] = 1u << RU_SPAWN_RIGHTS,
+	};
+	uint32_t m = 0;
+	for (int i = 0; i < CAP_GROUPS; i++)
+		if (groups & (1u << i))
+			m |= ops[i];
+	return m;
+}
+
 int rights_used(struct process *p, int op, const char *name)
 {
 	if (op < 0 || op >= 32 || !(p->rights & (1u << op)))
 		return 0;
+	if (!(p->caps & (1u << op))) { /* hors de ses capacités déclarées (la table de vfs) */
+		if (!(p->caps_seen & (1u << op))) {
+			p->caps_seen |= 1u << op;
+			kprintf("capacités : %s (pid %d, uid %d) hors de sa table : %s%s\n", p->name, p->pid, p->uid, name,
+				caps_enforce ? " (refusé)" : "");
+		}
+		if (caps_enforce)
+			return 0;
+	}
 	if (p->uid > 0 && op >= 0 && op < 32 && !(p->rights_seen & (1u << op))) {
 		p->rights_seen |= 1u << op;
 		kprintf("droits : %s (pid %d, uid %d) : %s\n", p->name, p->pid, p->uid, name);
@@ -136,6 +172,7 @@ struct process *proc_create(const char *name, int parent, uint32_t rights)
 	}
 	p->parent = parent;
 	p->rights = rights;
+	p->caps = RIGHTS_ALL; /* (sans table : rien de déclaré, rien de noté) */
 	p->pgid = p->sid = 0; /* posés plus bas : ceux du père, ou son pid */
 	p->start_ms = arch_ticks_ms();
 	uint64_t f = sched_lock_take();
@@ -202,13 +239,14 @@ static int setup_stack(struct process *p, const char *args, uint64_t *sp, uint64
  * celle du père, -1 : aucune ; stdio = 0 : toutes héritées) : dans l'avis de naissance, et leur
  * masque dans PROC_FLAGS (bits 0-2 : pas la console), comme proc_spawn_elf du Pi */
 static int spawn_common(const char *name, const void *image, uint64_t size, struct image *im, const char *args,
-			int parent, uint32_t rights, const int64_t *stdio, int uid)
+			int parent, uint32_t rights, const int64_t *stdio, int uid, uint32_t caps)
 {
 	struct process *p = proc_create(name, parent, rights);
 	if (!p) {
 		image_put(im);
 		return E_NOMEM;
 	}
+	p->caps = caps;
 	if (uid >= 0)
 		p->uid = uid; /* SPAWN_UID (avant son premier thread) */
 	uint64_t mask = sched_current()->proc->flags & 7; /* (ceux de l'appelant, hérités) */
@@ -245,7 +283,7 @@ static int spawn_common(const char *name, const void *image, uint64_t size, stru
 
 int proc_spawn_ex(const char *name, const void *image, uint64_t size, const char *args, int parent, uint32_t rights)
 {
-	return spawn_common(name, image, size, 0, args, parent, rights, 0, -1);
+	return spawn_common(name, image, size, 0, args, parent, rights, 0, -1, RIGHTS_ALL);
 }
 
 int proc_spawn(const char *name, const void *image, uint64_t size)
@@ -545,6 +583,12 @@ static int spawn_uid(const struct process *me, uint64_t opt, int *uid)
 	return 0;
 }
 
+/* SPAWN_CAPS : les capacités déclarées du fils (groupes, bits 8-23 des options) ; sans : RIGHTS_ALL */
+static uint32_t spawn_caps(uint64_t opt)
+{
+	return (opt & SPAWN_CAPS) ? caps_ops((uint32_t)(opt >> 8) & 0xFFFF) : RIGHTS_ALL;
+}
+
 int64_t sys_getppid(void)
 {
 	struct process *me = sched_current()->proc;
@@ -593,7 +637,7 @@ int64_t sys_spawn_image(uint64_t image, uint64_t size, uint64_t params)
 	}
 	int64_t r = copy_from_user(img, image, size);
 	if (r == 0)
-		r = spawn_common(name, img, size, 0, args, me->pid, rights, (const int64_t *)&pr[3], uid);
+		r = spawn_common(name, img, size, 0, args, me->pid, rights, (const int64_t *)&pr[3], uid, spawn_caps(pr[2]));
 	kfree(img);
 	kfree(args);
 	return r;
@@ -612,6 +656,7 @@ int64_t sys_fork(void)
 	struct process *c = proc_create(p->name, p->pid, 0);
 	if (!c)
 		return E_NOMEM;
+	c->caps = p->caps;
 	int r = mm_fork(p, c);
 	if (r == 0)
 		r = ipc_fork(p, c);
@@ -850,7 +895,7 @@ int64_t sys_spawn_preloaded(uint64_t upath, uint64_t fsize, uint64_t params)
 		if (copy_string_from_user(args, pr[1], ARGS_MAX) < 0)
 			args[ARGS_MAX - 1] = 0;
 	}
-	int64_t r = spawn_common(name, 0, 0, im, args, me->pid, rights, (const int64_t *)&pr[3], uid);
+	int64_t r = spawn_common(name, 0, 0, im, args, me->pid, rights, (const int64_t *)&pr[3], uid, spawn_caps(pr[2]));
 	kfree(args);
 	return r;
 }

@@ -15,7 +15,7 @@ dans quel ordre, et ce que ça casse. Le Pi (noyau en assembleur, `src/kernel/*.
 | **3** | W^X, journal puis refus (§1.3) ; fenêtre des tampons à adresse tirée (§1.5) ; matériel accordé par appareil et maître de bus coupé à la mort du pilote (§3.3) | 2 à 3 semaines | moyen |
 | **4** | VT-d (§3.4) ; exécutables PIE (§1.6) | 1 mois et plus | élevé |
 
-**Étape 0 faite le 27/11** (§5). Chaque étape se publie seule ; les étapes 1 et 3 commencent en mode « journal » (comme E33 et `access = log`), pour
+**Étapes 0 et 1 faites le 27/11** (§5, §6). Chaque étape se publie seule ; les étapes 1 et 3 commencent en mode « journal » (comme E33 et `access = log`), pour
 voir sur le ZBook ce qui serait refusé avant de refuser.
 
 ---
@@ -412,3 +412,34 @@ Ce qui reste hors de cette étude : N1, N2 (corrigés le 26/11), N6 et la suite 
 Reste de N3 pour l'étape 1 : notifyd, clipd et printd (droits complets sous l'uid de la session, `path.c`
 `sys_rights[]`) n'utilisent que `SVC_REGISTER`, `SVC_MAP_CALLER` et `PROC_EXE` : à passer en droits de service, une
 fois vérifié qu'aucun service ne les reconnaît à leurs droits complets.
+
+**Correction du 27/11 au soir** : `ATTR_SVC` ne parvenait pas au noyau. La partie commune des services de systèmes
+de fichiers (`src/svc/common/fsowner.c`, `open_extras_take`) ne recopiait dans la réponse d'ouverture que
+`ATTR_SYS` et `ATTR_LIB` ; pc 2026.11.125 lançait donc encore oauthd et gdrivefs avec les droits complets. Elle garde
+maintenant tous les attributs de vfs (vérifié : oauthd a les droits 3, `SVC_REGISTER` et `SVC_MAP_CALLER`).
+
+---
+
+## 6. Fait : l'étape 1 (27/11/2026)
+
+* **SMAP** (`cpu.c`, `cpu_protect` ; `switch.asm`, `isr.asm`) : `stac`/`clac` autour d'`arch_copy_user`, `clac` à
+  l'entrée des interruptions et exceptions, si `smap_on` (sinon `stac`/`clac` feraient `#UD`) ; option `nosmap`.
+* **ASLR** (`mm.c`, `kits.c`, `proc.c`, `random_u64` de `sys.c`), tiré à la création de l'espace (lancement, exec),
+  gardé par fork :
+  * l'arène cherche d'abord à partir d'un décalage jusqu'à 8 Go (l'arène haute ne bouge pas : Widevine) ;
+  * les kits sont décalés ensemble jusqu'à 30 Go dans leur zone ;
+  * le pointeur de pile part d'un point tiré dans le Mo sous `USER_STACK_TOP`. Le sommet ne bouge pas : libposix le
+    prend pour borne de la pile du thread principal (`pthread.c`), et les programmes déjà construits avec elle (JSC,
+    .NET le parcourent à chaque ramasse-miettes) ne verraient pas un sommet tiré. Un sommet tiré demandera de passer
+    le sommet au programme (registre `rsi` à l'entrée) et de reconstruire libposix et les ports.
+* **Capacités, en journal** : le noyau garde par process les opérations déclarées (`caps`, groupes `CAP_x`, option
+  `SPAWN_CAPS` des lancements) ; une opération à droits hors de la table est notée une fois par process
+  (« capacités : <programme> (pid, uid) hors de sa table : <opération> »), refusée avec l'option de démarrage
+  `caps=enforce`. La table est dans vfs (`path.c`, `table_caps`), pas dans un fichier : vfs la lit en lançant les
+  services mêmes qui le servent ; un service de `/sys/svc` absent : `SVC` et `MAPC`. Les modules de l'initramfs
+  (init, vfs, pcid, nvme… lancés par `MOD_LAUNCH`) n'en ont pas. Sous QEMU, deux oublis trouvés et ajoutés (init2 :
+  `IMAGE_PRELOAD` ; Elegant : lancer à droits) ; le ZBook dira les pilotes que QEMU n'a pas (iwl, intelgpu, hda,
+  i2chid, rtsx).
+
+Essais sous QEMU (`-cpu max`) : ktest 59/59 ; ptest 22/22 et itest 29/29 lancés sans droits (`urun` : avec droits,
+fork est refusé, comme avant) ; bureau, Jet, oauthd, montage piégé, .NET (skiatest).
