@@ -476,3 +476,7 @@ Comptes par gravité : **1 critique, 4 hautes, 6 moyennes, 8 basses** (19 consta
 * **N2, corrigé** : le premier mot de passe d'un compte qui peut administrer est confirmé à la carte d'élévation
   (couche sûre, devant la machine) avant qu'authd l'écrive (`src/svc/authd/authd.c`, `premier_mdp`) ; `passwd` et
   Réglages › Comptes attendent la carte. Essayé sous QEMU.
+* **N3, N4, N5 : étude des corrections** dans [DURCISSEMENT-N3-N5.md](DURCISSEMENT-N3-N5.md) (ordre en cinq étapes ;
+  rien de codé). Trouvé en la faisant : un compte qui monte une clé peut nommer comme système de fichiers n'importe
+  quel service de `/sys/svc`, que vfs lance alors en uid 0 avec les droits (`monter_ligne`, `vfs.c:532-549`) ; et la
+  faute de page bouclerait à l'infini sur une violation SMEP ou SMAP (`idt.c:87-92`), à corriger avant de les activer.
