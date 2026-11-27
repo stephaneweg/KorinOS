@@ -160,3 +160,9 @@ Blender, Qt (korin_ui.c fait), MuseScore, la Skia d'Avalonia (build-skia.sh fait
 <input type=file>, Ctrl+V d'image/fichiers et dépôt depuis Fichiers par JS simulé (pagefiles.h) ; 1.4.15 : Skia sur
 /res/fonts (SkFontMgr_onyx.o remplacé dans libskia.a du SDK). Rectangles de claude.ai : PAS le repli des polices
 (page locale OK) -- cause sur le site, à voir avec une capture.
+**27/11, /fonts retiré des sources du PC (sans repli ; le Pi garde /fonts, choisi par __x86_64__)**. Publiés :
+skia-dev 154.0.1 (SkFontMgr_onyx.o remplacé dans libskia.a, identique à celle du SDK de Jet), letters 1.0.12, qtbase-dev
+6.10.2-2.1 (korin_ui.c.o remplacé dans libqkorin.a, -O2 -fPIC -fstack-protector-strong -ffunction-sections), jet
+1.4.16. **Pas encore publié : pc sans fonts/** (packages-pc.ini l'a déjà retiré ; publier avec --drop fonts/) --
+attend que l'utilisateur reconstruise sur son PC Windows : Avalonia (rebuild-ports.sh avalonia : dotnet-skia,
+SK_FONT_FILE_PREFIX) et MuseScore (Qt avec le nouveau libqkorin, puis tools/musescore/build.sh).
