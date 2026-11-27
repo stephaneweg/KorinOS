@@ -391,7 +391,7 @@ int64_t sys_kill(int64_t pid)
 	uint64_t f = sched_lock_take();
 	struct process *p = proc_hold_locked(proc_get((int)pid)); /* (tenu : pas rendu pendant l'envoi) */
 	int ok = p && p->state != P_ZOMBIE;
-	int same = p && (me->uid == 0 || p->uid == me->uid);
+	int same = p && (me->uid == 0 || p->uid == me->uid || uid_bac_de(p->uid, me->uid)); /* (et son bac à sable) */
 	sched_lock_give(f);
 	if (ok && same)
 		sched_kill_process(p, -9);
@@ -463,8 +463,14 @@ int64_t sys_setuid(int64_t uid)
 	struct process *me = sched_current()->proc;
 	if (uid < 0 || uid > 0x7FFFFFFF)
 		return E_INVAL;
-	if (me->uid != 0)
-		return me->uid == uid ? 0 : E_PERM;
+	if (me->uid != 0) {
+		if (me->uid == uid)
+			return 0;
+		/* son propre bac à sable (u -> u | UID_BAC) : permis à tous, sans retour (étape 2 du durcissement) */
+		if (!uid_bac_de((int)uid, me->uid))
+			return E_PERM;
+		kprintf("bac à sable : %s (pid %d) entre dans le bac de l'uid %d\n", me->name, me->pid, me->uid);
+	}
 	me->uid = (int)uid;
 	svc_notify_setuid(me->pid, (int)uid);
 	return 0;

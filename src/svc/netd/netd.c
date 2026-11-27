@@ -684,7 +684,13 @@ static int dispatch(u8 *m)
 		return 0;
 	}
 	long r = E_INVAL;
-	if (op <= NET_OP_LAST && op_table[op])
+	/* un bac à sable (uid | 0x40000000 : les process web de Jet, étape 2 de docs/etude/DURCISSEMENT-N3-N5.md) n'a pas le
+	 * réseau : ni client, ni socket, ni résolution, ni ping (une page qui exploite le moteur ne sort pas seule ; le
+	 * process réseau de WebKit, sous l'uid du compte, fait les chargements) */
+	if ((op == 1 || op == 2 || op == 12 || op == 13 || op == 17 || op == 25 || op == 26) &&
+	    caller_uid(W32(m, MSG_PID)) > 0 && (caller_uid(W32(m, MSG_PID)) & 0x40000000))
+		r = -13; /* E_ACCES */
+	else if (op <= NET_OP_LAST && op_table[op])
 		r = op_table[op](m);
 	W64(m, 0) = (u64)r;
 	return 1;

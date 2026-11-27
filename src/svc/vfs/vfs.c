@@ -501,6 +501,8 @@ static long monter_permis(long pid, const char *vol, const char *src)
 {
 	if (pid_uid(pid) == 0)
 		return 0;
+	if (pid_uid(pid) & 0x40000000)
+		return E_PERM; /* (un bac à sable : aucun montage) */
 	/* le point tel que point_choisir le prendra (normalisé) : « /media/../sys » passait le test du texte
 	 * brut et montait la source d'un compte sur /sys ou /etc */
 	char pt[PATH_MAX];

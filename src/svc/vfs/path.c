@@ -817,7 +817,7 @@ long ops_chemins(void)
 		if (r)
 			return r;
 		int script = 0;
-		if ((r = acces_verifier(pid, resolu, 0)) || (r = acces_sbin(pid, resolu)))
+		if ((r = acces_verifier(pid, resolu, 0)) || (r = acces_sbin(pid, resolu)) || (r = acces_exec_bac(pid, resolu)))
 			return r;
 		if (!est_executable(resolu)) /* exécutable ? (exec.c) */
 			return E_PERM_X;

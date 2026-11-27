@@ -130,6 +130,53 @@ static long tmp_uid(const char *p)
 	return k && (*c == 0 || *c == '/') ? n : -1;
 }
 
+/* Le bac à sable d'un compte (uid | UID_BAC : les process web de Jet, qui y entrent seuls avant de lire une page ;
+ * étape 2 de docs/etude/DURCISSEMENT-N3-N5.md) : lecture de /res (polices, ICU, module Widevine), /lib (kits),
+ * /apps/jet.app et /etc (hors secrets) ; lecture et écriture de /tmp/<son uid> et des données du module Widevine du
+ * compte (HOME/.jet/widevine/storage : cdmhost, lancé par le process web) ; rien d'autre (ni les fichiers du compte,
+ * ni /tmp, /media, /net, /home/public). Toujours appliqué, même en mode journal ou « off ». */
+#define UID_BAC 0x40000000
+static int deja_note(long uid, const char *p, int ecrire);
+static int permis_bac(long uid, const char *p, int ecrire)
+{
+	long t = tmp_uid(p);
+	if (t >= 0)
+		return t == uid;
+	const char *home = home_compte(uid & ~(long)UID_BAC);
+	if (home) {
+		char wv[PATH_MAX];
+		u64 n = strlen(home);
+		if (n + 32 < sizeof wv) {
+			memcpy(wv, home, n);
+			memcpy(wv + n, "/.jet/widevine/storage", 23);
+			if (sous(p, wv))
+				return 1;
+		}
+	}
+	if (ecrire)
+		return 0;
+	return sous(p, "/res") || sous(p, "/lib") || sous(p, "/apps/jet.app") || sous(p, "/etc");
+}
+
+/* V_EXEC d'un bac à sable : seulement ce que Jet lance lui-même (cdmhost, /apps/jet.app/libexec) -> 0 ou E_ACCES */
+long acces_exec_bac(long pid, const char *interne)
+{
+	long uid = pid_uid(pid);
+	if (uid <= 0 || !(uid & UID_BAC))
+		return 0;
+	char brut[PATH_MAX], ext[PATH_MAX];
+	chemin_externe(interne, brut);
+	normaliser(brut, ext);
+	if (sous(ext, "/apps/jet.app"))
+		return 0;
+	if (!deja_note(uid, ext, 2)) {
+		ak_puts("vfs : bac a sable : lancement refuse : ");
+		ak_puts(ext);
+		ak_puts("\n");
+	}
+	return E_ACCES;
+}
+
 /* uid, chemin externe, écriture ? -> 1 permis */
 static int permis(long uid, const char *p, int ecrire)
 {
@@ -146,6 +193,8 @@ static int permis(long uid, const char *p, int ecrire)
 			return 0;
 	if (court_protege(p))
 		return 0; /* un nom court 8.3 sous /etc ou /var : peut-être un secret */
+	if (uid & UID_BAC)
+		return permis_bac(uid, p, ecrire);
 	{
 		long t = tmp_uid(p); /* (le dossier temporaire d'un compte : à lui seul, même en lecture ; un autre ne
 				      * peut pas le créer d'avance ni y poser un fichier qu'il ouvrirait : D11) */
@@ -336,10 +385,12 @@ long acces_verifier(long pid, const char *interne, int ecrire)
 		return 0;
 	chemin_externe(interne, brut);
 	normaliser(brut, ext);
-	if (mode == ACCESS_OFF && !critique(ext, ecrire))
+	if (mode == ACCESS_OFF && !critique(ext, ecrire) && !(uid & UID_BAC))
 		return 0;
 	if (permis(uid, ext, ecrire))
 		return 0;
+	if (uid & UID_BAC)
+		mode = ACCESS_ENFORCE; /* (un bac à sable : toujours refusé) */
 	for (int i = 0; toujours[i]; i++)
 		if (sous(ext, toujours[i]))
 			mode = ACCESS_ENFORCE; /* (le coffre : refusé même en mode journal) */

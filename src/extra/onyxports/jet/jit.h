@@ -3,8 +3,9 @@
 // chaque option dans l'environnement (« JSC_<nom> », Options.cpp), que le lanceur de WebKit passe aux process web.
 // Les étages les plus hauts (FTL, OMG) sont les plus gros et ceux des failles récentes de JSC : « réduit » (le défaut)
 // les coupe ; « sans JIT » coupe tout (l'interpréteur seul : le plus sûr, le plus lent). Le réglage :
-// « javascript=complet|reduit|sans » dans HOME:/jet/settings.ini. Appliqué dans chaque process (main, avant WebKit) :
-// un process web le relit lui-même ; le changer vaut pour les onglets ouverts ensuite.
+// « javascript=complet|reduit|sans » dans HOME:/jet/settings.ini. Appliqué par l'interface (main, avant WebKit) ; les
+// process web en héritent (ils ne lisent plus le dossier du compte : bac à sable) ; le changer vaut pour les onglets
+// ouverts ensuite.
 #pragma once
 
 #include <stdio.h>

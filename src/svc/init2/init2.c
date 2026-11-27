@@ -500,6 +500,8 @@ static long launch_request(void)
 	long real = korin_sys1(SYS_PROC_UID, (long)who);
 	if (uid < 0 && uid != E_NOSYS)
 		r = -3; /* E_SRCH (demandeur disparu, ou erreur : jamais lancé en uid 0 à sa place, E18) */
+	else if (real > 0 && (real & 0x40000000))
+		r = E_PERM; /* un bac à sable (process web de Jet) : rien de /sys (ni oauthd, ni le reste), étape 2 */
 	else if (real > 0 && !memcmp(launch_path, "/sys/svc/", 9) && !str_eq(launch_path, "/sys/svc/oauthd"))
 		r = E_PERM; /* un service (avec droits) : pour l'uid 0 seulement, plus pour une app (E33 ; svctest : sudo) ;
 			     * sauf oauthd, le service d'un compte (oauth.<uid>), que NetKit lance à la demande sous l'uid

@@ -246,9 +246,9 @@ int64_t sys_sig_send(int64_t pid, int64_t tid, uint64_t sig)
 		proc_release(p);
 		return E_SRCH;
 	}
-	if (me->uid != 0 && p->uid != me->uid) {
+	if (me->uid != 0 && p->uid != me->uid && !uid_bac_de(p->uid, me->uid)) {
 		proc_release(p);
-		return E_PERM; /* un autre utilisateur, un service (comme SYS_KILL) */
+		return E_PERM; /* un autre utilisateur, un service (comme SYS_KILL) ; son bac à sable : permis */
 	}
 	if (tty) { /* signal d'un terminal pour un lecteur / écrivain en arrière-plan (comme jobs.asm du Pi) */
 		int pg = p->pgid;

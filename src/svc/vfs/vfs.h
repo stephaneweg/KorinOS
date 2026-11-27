@@ -143,6 +143,7 @@ struct pr *pid_get(long pid);
 void pid_forget(long pid);
 const char *home_externe(long uid);
 const char *home_compte(long uid);
+long acces_exec_bac(long pid, const char *interne); /* (access.c) V_EXEC d'un bac à sable */
 int nom_egal_n(const char *a, const char *b, u64 n);  /* homes.c : son dossier personnel (users.ini) */
 int home_autre(const char *p, long uid); /* dans le dossier d'un autre compte ? */
 #define ACCESS_LOG 0                     /* « access = » de system.ini (étape 3 : log par défaut) */

@@ -187,6 +187,11 @@ enum { RU_SVC_REGISTER, RU_SVC_MAP_CALLER, RU_SVC_SIGNAL, RU_CLOCK_SET, RU_BUF_P
 /* les droits sont un masque des opérations RU_x (27/11/2026, étape 0 de docs/etude/DURCISSEMENT-N3-N5.md) : RIGHTS_ALL
  * pour les services ; RIGHTS_SVC (SPAWN_SVC) pour ceux qui ne font que servir sous un nom du système (oauthd, gdrivefs :
  * ni matériel, ni disque, ni lancement à droits). PROC_RIGHTS ne rend 1 qu'aux droits complets. */
+/* l'uid de bac à sable d'un compte (étape 2 de docs/etude/DURCISSEMENT-N3-N5.md : les process web de Jet) : u | UID_BAC.
+ * Un process y entre seul (SETUID vers son propre bac, sans retour) ; son compte peut le signaler et l'arrêter ; vfs,
+ * netd, init2, authd lui refusent presque tout */
+#define UID_BAC 0x40000000
+static inline int uid_bac_de(int bac, int u) { return u >= 0 && !(u & UID_BAC) && bac == (u | UID_BAC); }
 #define RIGHTS_ALL 0xFFFFFFFFu
 #define RIGHTS_SVC ((1u << RU_SVC_REGISTER) | (1u << RU_SVC_MAP_CALLER))
 static inline int rights_full(const struct process *p) { return p->rights == RIGHTS_ALL; }

@@ -1379,6 +1379,21 @@ static unsigned clip_serial ()
 
 int webapp_main (const char *name, const char *title, const char *url, bool gpu);	// (webapp.cpp)
 
+// l'uid du noyau, sans libposix : son uid_t (newlib) n'a que 16 bits et perdrait le bit du bac à sable (0x40000000)
+static long ksys1 (long n, long a)
+{
+#if defined(__x86_64__)
+	long r;
+	__asm__ volatile ("syscall" : "=a" (r) : "a" (n), "D" (a), "S" (0L), "d" (0L) : "rcx", "r11", "memory");
+	return r;
+#else
+	(void) n; (void) a;
+	return -38;	// (le Pi : pas de bac à sable)
+#endif
+}
+static long kuid () { return ksys1 (0x90, 0); }		// SYS_GETUID
+static long ksetuid (long u) { return ksys1 (0x91, u); }	// SYS_SETUID
+
 int main (int argc, char **argv)
 {
 	// Le cache DNS de curl garde un nom introuvable la moitie de sa duree (5 min chez WebKit) : ouvert
@@ -1409,11 +1424,36 @@ int main (int argc, char **argv)
 	// appel a WebCrypto : AES-GCM echouait, le mot de passe de Facebook n'etait pas chiffre (docs/WEBKIT.md,
 	// "Connexion a Facebook").
 	OPENSSL_init_crypto (OPENSSL_INIT_NO_ATEXIT | OPENSSL_INIT_LOAD_CONFIG, nullptr);
-	// le JIT de JavaScriptCore (jit.h) : avant WebKit, dans chaque process (un process web le relit lui-même)
+	if (engine_is_auxiliary (argc, argv))
+	{
+		// Le process web entre dans le bac à sable du compte (uid | 0x40000000) avant de lire la moindre page : vfs ne
+		// lui ouvre plus que /res, /lib, /apps/jet.app, /etc et les données de Widevine, netd lui refuse le réseau,
+		// init2 et authd tout le reste (étape 2 de docs/etude/DURCISSEMENT-N3-N5.md). Sans retour. Le process réseau
+		// reste sous l'uid du compte (cookies, cache, chargements). Un noyau d'avant pc 2026.11.128 refuse : la page
+		// est servie comme avant (dit au journal).
+		for (int i = 1; i < argc; i++)
+			if (!strcmp (argv[i], "--onyx-webkit-process=web"))
+			{
+				long u = kuid ();
+				if (u > 0 && !(u & 0x40000000))
+				{
+					if (ksetuid (u | 0x40000000) == 0 && kuid () == (u | 0x40000000))
+					{
+						char tmp[32];	// (son dossier temporaire : /tmp lui est fermé, /tmp/<uid> à lui seul)
+						snprintf (tmp, sizeof tmp, "/tmp/%ld", kuid ());
+						mkdir (tmp, 0700);
+						setenv ("TMPDIR", tmp, 1);
+						break;
+					}
+					fprintf (stderr, "jet : process web hors du bac a sable (noyau trop ancien ?)\n");
+				}
+				break;
+			}
+		return engine_auxiliary_main (argc, argv);	// (le JIT : l'environnement que l'interface lui passe, jit.h)
+	}
+	// le JIT de JavaScriptCore (jit.h) : avant WebKit ; les process web et réseau héritent de l'environnement
 	g_jit = jit_read (SETTINGS);
 	jit_apply (g_jit);
-	if (engine_is_auxiliary (argc, argv))
-		return engine_auxiliary_main (argc, argv);
 
 	// Le compositeur (gpucomp sur GpuKit, repli CPU sans GPU) par defaut, comme Jet chez Onyx ; le
 	// chemin logiciel (la page peinte et recopiee par le processeur) : --nogpu ou /etc/web-nogpu,

@@ -15,7 +15,7 @@ dans quel ordre, et ce que ça casse. Le Pi (noyau en assembleur, `src/kernel/*.
 | **3** | W^X, journal puis refus (§1.3) ; fenêtre des tampons à adresse tirée (§1.5) ; matériel accordé par appareil et maître de bus coupé à la mort du pilote (§3.3) | 2 à 3 semaines | moyen |
 | **4** | VT-d (§3.4) ; exécutables PIE (§1.6) | 1 mois et plus | élevé |
 
-**Étapes 0 et 1 faites le 27/11** (§5, §6). Chaque étape se publie seule ; les étapes 1 et 3 commencent en mode « journal » (comme E33 et `access = log`), pour
+**Étapes 0, 1 et 2 faites le 27/11** (§5, §6, §7). Chaque étape se publie seule ; les étapes 1 et 3 commencent en mode « journal » (comme E33 et `access = log`), pour
 voir sur le ZBook ce qui serait refusé avant de refuser.
 
 ---
@@ -451,3 +451,31 @@ passe au pilote). Ajouté : le groupe `CAP_BUFPHYS` (`BUF_INFO` seul, sans `DMA_
 
 **Les capacités refusées par défaut** (décision de l'utilisateur, 27/11, après le journal du ZBook) ; l'option de
 démarrage `caps=log` revient au journal seul. Sous QEMU en refus : ktest 59/59, bureau, oauthd, Jet.
+
+---
+
+## 7. Fait : l'étape 2, le bac à sable des process web de Jet (27/11/2026)
+
+Plus simple que prévu au §2.2 : le process web **entre lui-même** dans le bac, au début de `main` (rôle
+`--onyx-webkit-process=web`), avant WebKit et donc avant la moindre page ; le lanceur de WebKit n'a pas changé.
+
+* **Noyau** (`proc.c`, `signal.c`, `sched.h`) : `UID_BAC` (0x40000000) ; `SETUID` vers son propre bac (u -> u | UID_BAC)
+  permis à tout process, sans retour (un bac ne peut ni en sortir ni changer d'uid) ; le compte u peut signaler et
+  arrêter les process de son bac (WebKit tue ses process web par `SIGKILL`) ; l'entrée est notée au journal
+  (« bac à sable : jet (pid N) entre dans le bac de l'uid U »).
+* **vfs** (`access.c`, `permis_bac`, `acces_exec_bac` ; `vfs.c`) : toujours appliqué, même en mode journal ou « off » :
+  lecture de `/res`, `/lib`, `/apps/jet.app`, `/etc` (hors secrets) ; lecture et écriture de `/tmp/<son uid>` et des
+  données de Widevine du compte (`HOME/.jet/widevine/storage`, pour cdmhost que le process web lance) ; ne lance que
+  ce qui est sous `/apps/jet.app` ; aucun montage.
+* **netd** : ni client, ni socket, ni résolution, ni ping pour un bac (le process réseau, sous l'uid du compte, charge
+  les pages). **init2** : rien de `/sys` pour un bac (ni oauthd). **authd** : refusait déjà (un bac n'a pas de compte).
+* **Jet 1.4.18** (`main.cpp`) : l'entrée dans le bac par les appels système directement — le `uid_t` de newlib n'a
+  que 16 bits et `setuid(u | 0x40000000)` devenait `setuid(u)` (piège trouvé à l'essai) ; `TMPDIR=/tmp/<uid>` ; le
+  JIT (jit.h) : appliqué par l'interface seule, les process web en héritent. Un noyau sans bac : le process web
+  continue comme avant (message « hors du bac a sable »).
+
+Essais sous QEMU : un programme qui entre dans le bac lit `/res` et `/etc`, ni `/home/public` ni le dossier du compte,
+n'écrit que dans `/tmp/<uid>`, n'a pas de socket et ne revient pas à l'uid du compte ; Jet (bac noté au journal) sert
+une page locale de `/home/public` (lue par le process réseau) et son JavaScript. Les pages d'Internet ne se chargent
+pas sous QEMU dans le cloud (pas de résolution de noms, même sans bac) : à essayer sur le ZBook, avec Widevine
+(Netflix, Disney+), le son, la vidéo et le GPU.
