@@ -119,7 +119,7 @@ static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 	case SYS_WAIT: return sys_wait((int64_t)a[0], a[1], a[2]);
 	case SYS_KILL: return sys_kill((int64_t)a[0]);
 	case SYS_PROCLIST: return sys_proclist_from(a[0], a[1], 0);
-	case SYS_PROC_FLAGS: return (int64_t)(p->flags | (p->rights ? 0x100 : 0));
+	case SYS_PROC_FLAGS: return (int64_t)(p->flags | (rights_full(p) ? 0x100 : 0));
 	case SYS_SLEEP: return sched_sleep(a[0]);
 	case SYS_YIELD: sched_yield(); return 0;
 	case SYS_TIME_MS: return (int64_t)arch_ticks_ms();

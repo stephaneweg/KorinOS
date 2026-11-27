@@ -36,6 +36,8 @@ uint32_t fpu_size = 512;    /* taille de la zone */
 static int fpu_opt;         /* XSAVEOPT */
 int fpu_want_avx512;        /* option « avx512 » (pc_main) */
 int fpu_no_xsave;           /* option « noxsave » : FXSAVE seulement, sans AVX (pc_main) */
+int cpu_no_smep, cpu_no_umip; /* options « nosmep », « noumip » (pc_main : essais, retour en arrière) */
+static uint64_t protect_cr4;  /* SMEP, UMIP : les bits de CR4 trouvés sur le cœur 0 (cpu_protect) */
 static uint8_t *fpu_init_area; /* état initial (XSTATE_BV = 0) : threads neufs, exec */
 
 static inline void xsetbv0(uint64_t v)
@@ -182,6 +184,34 @@ void cpu_init(unsigned idx, uint32_t apic_id)
 	if (fpu_xcr0)
 		xsetbv0(fpu_xcr0);
 	__asm__ volatile("fninit");
+	if (idx)
+		cpu_protect(idx); /* (le cœur 0 : après paging_init, pc_main) */
+}
+
+/* SMEP (CR4.20) : le noyau ne peut plus exécuter une page d'un process ; UMIP (CR4.11) : sgdt, sidt, sldt, smsw,
+ * str interdits aux process (ils donnaient les adresses des tables du noyau). Étape 0 de
+ * docs/etude/DURCISSEMENT-N3-N5.md (N4). Le cœur 0 : après paging_init (les tables de l'UEFI peuvent avoir le bit U) ;
+ * les autres : à la fin de cpu_init. La faute de page d'une violation : idt.c (sans elle, une boucle sans fin). */
+void cpu_protect(unsigned idx)
+{
+	if (idx == 0) {
+		uint32_t r[4];
+		cpuid(0, 0, r);
+		if (r[0] >= 7) {
+			cpuid(7, 0, r);
+			if ((r[1] & (1u << 7)) && !cpu_no_smep)
+				protect_cr4 |= 1ULL << 20;
+			if ((r[2] & (1u << 2)) && !cpu_no_umip)
+				protect_cr4 |= 1ULL << 11;
+		}
+		kprintf("cpu : SMEP %s, UMIP %s\n", (protect_cr4 >> 20) & 1 ? "oui" : "non",
+			(protect_cr4 >> 11) & 1 ? "oui" : "non");
+	}
+	if (protect_cr4) {
+		uint64_t cr4;
+		__asm__ volatile("mov %%cr4, %0" : "=r"(cr4));
+		__asm__ volatile("mov %0, %%cr4" ::"r"(cr4 | protect_cr4));
+	}
 }
 
 void cpu_set_online(unsigned idx)

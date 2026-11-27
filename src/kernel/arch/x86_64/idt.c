@@ -87,6 +87,14 @@ static void exception(struct regs *r)
 	if (r->vector == 14) {
 		uint64_t a = read_cr2();
 		struct thread *t = sched_current();
+		/* le noyau ne touche la mémoire d'un process que par arch_copy_user (user_copy_insn) : toute autre faute du
+		 * noyau sous 0x800000000000 est une erreur du noyau. Une page présente (bit 0) : une violation de SMEP
+		 * (exécution, bit 4) ou de droits ; mm_fault y rendrait 0 et l'instruction referait la faute sans fin */
+		if (!(r->cs & 3) && a < 0x0000800000000000ULL && r->rip != (uint64_t)user_copy_insn && (r->error & 1)) {
+			kprintf("\nnoyau : %s d'une page d'un process (%lx, rip %lx, pid %d)\n",
+				(r->error & 16) ? "exécution (SMEP)" : "accès", a, r->rip, t->proc ? t->proc->pid : -1);
+			kpanic("faute de protection du noyau sur une page d'un process");
+		}
 		if (a < 0x0000800000000000ULL && t->proc->mm &&
 		    mm_fault(t->proc, a, (r->error >> 1) & 1, (r->error >> 4) & 1) == 0)
 			return;

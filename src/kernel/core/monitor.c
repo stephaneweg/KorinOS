@@ -81,7 +81,7 @@ static void run(char *line)
 		if (initrd_find(name, &img, &size))
 			kprintf("  %s : absent de l'initrd\n", name);
 		else {
-			int pid = proc_spawn_ex(name, img, size, *args ? args : 0, 0, rights);
+			int pid = proc_spawn_ex(name, img, size, *args ? args : 0, 0, rights ? RIGHTS_ALL : 0);
 			if (pid < 0)
 				kprintf("  %s : erreur %d\n", name, pid);
 			else

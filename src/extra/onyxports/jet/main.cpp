@@ -14,7 +14,7 @@
 // ferme, un onglet neuf s'ouvre. Ce qui se passe va dans le journal du noyau (lignes « web: »).
 // Traces : --trace-media, --trace-net (ou /etc/web-trace-media, web-trace-net) ; la taille des videos
 // offertes aux sites : /etc/web-video-max (une hauteur : 480, 720...).
-// Reglages : HOME:/jet/settings.ini (search=google|bing|duckduckgo|yahoo|qwant|ecosia|startpage|brave) ; les
+// Reglages : HOME:/jet/settings.ini (javascript=complet|reduit|sans : jit.h ; search=google|bing|duckduckgo|yahoo|qwant|ecosia|startpage|brave) ; les
 // donnees des sites (cookies, localStorage, IndexedDB...) : HOME:/jet/webkit, le cache : HOME:/jet/cache
 // (engine_webkit.cpp, make_data_store). Menus d'Elegant : Fichier, Navigation, Reglages.
 //
@@ -24,6 +24,7 @@
 #include "present.h"
 #include "widevine.h"
 #include "pagefiles.h"
+#include "jit.h"
 #include <uikit.h>
 #include <openssl/crypto.h>
 #include <dirent.h>
@@ -927,7 +928,22 @@ static void wv_daily ()
 // ---- les menus d'Elegant (la barre du haut) -------------------------------------------------------------
 
 enum { M_NEWTAB = 1, M_NEWWIN, M_CLOSETAB, M_QUIT, M_BACK, M_FWD, M_RELOAD, M_HOME, M_NEXTTAB, M_PREVTAB, M_ADDRESS,
-       M_CLEAR, M_WIDEVINE, M_ENGINE = 100 };
+       M_CLEAR, M_WIDEVINE, M_ENGINE = 100, M_JIT = 200 };
+
+static int g_jit = JIT_REDUCED;	// (jit.h : lu au démarrage, dans main)
+
+static void set_jit (int m)
+{
+	if (m < 0 || m > JIT_NONE || m == g_jit) return;
+	g_jit = m;
+	jit_apply (m);	// (les process web lancés ensuite : les nouveaux onglets)
+	jit_save (SETTINGS_DIR, SETTINGS, m);
+	menu_checks ();
+	static const char *const what[] = { "complet (le plus rapide)", "réduit (sans FTL ni OMG)", "sans JIT (le plus sûr, plus lent)" };
+	char b[160];
+	snprintf (b, sizeof b, "JavaScript : %s ; pour les onglets ouverts à partir de maintenant.", what[m]);
+	status (b);
+}
 
 static void build_menu ()
 {
@@ -940,6 +956,9 @@ static void build_menu ()
 		M_NEWTAB, M_NEWWIN, M_CLOSETAB, M_QUIT, M_BACK, M_FWD, M_RELOAD, M_HOME, M_NEXTTAB, M_PREVTAB, M_ADDRESS);
 	for (int i = 0; i < N_ENGINES && n < (int) sizeof t - 100; i++)
 		n += snprintf (t + n, sizeof t - (size_t) n, "I%d\tRechercher avec %s\n", M_ENGINE + i, g_engines[i].name);
+	n += snprintf (t + n, sizeof t - (size_t) n, "-\n" "I%d\tJavaScript : complet (le plus rapide)\n"
+		"I%d\tJavaScript : réduit (sans FTL ni OMG)\n" "I%d\tJavaScript : sans JIT (le plus sûr)\n",
+		M_JIT + JIT_FULL, M_JIT + JIT_REDUCED, M_JIT + JIT_NONE);
 	n += snprintf (t + n, sizeof t - (size_t) n, "-\n" "I%d\tEffacer les cookies et données des sites…\n", M_CLEAR);
 	// (seulement un Jet qui sait s'en servir : WebKit avec EME, cdmhost et cdmupdate dans jet.app/libexec)
 	if (engine_protected_content ())
@@ -952,6 +971,8 @@ static void menu_checks ()
 {
 	for (int i = 0; i < N_ENGINES; i++)
 		ui_menu_state (M_ENGINE + i, i == g_engine ? UMS_CHECKED : 0);
+	for (int i = JIT_FULL; i <= JIT_NONE; i++)
+		ui_menu_state (M_JIT + i, i == g_jit ? UMS_CHECKED : 0);
 	if (engine_protected_content ())
 		ui_menu_state (M_WIDEVINE, wv_installed () ? UMS_CHECKED : 0);
 }
@@ -1078,6 +1099,7 @@ static void menu_command (int id)
 	case M_WIDEVINE: wv_toggle (); break;
 	default:
 		if (id >= M_ENGINE && id < M_ENGINE + N_ENGINES) set_engine (id - M_ENGINE);
+		else if (id >= M_JIT && id <= M_JIT + JIT_NONE) set_jit (id - M_JIT);
 	}
 }
 
@@ -1387,6 +1409,9 @@ int main (int argc, char **argv)
 	// appel a WebCrypto : AES-GCM echouait, le mot de passe de Facebook n'etait pas chiffre (docs/WEBKIT.md,
 	// "Connexion a Facebook").
 	OPENSSL_init_crypto (OPENSSL_INIT_NO_ATEXIT | OPENSSL_INIT_LOAD_CONFIG, nullptr);
+	// le JIT de JavaScriptCore (jit.h) : avant WebKit, dans chaque process (un process web le relit lui-même)
+	g_jit = jit_read (SETTINGS);
+	jit_apply (g_jit);
 	if (engine_is_auxiliary (argc, argv))
 		return engine_auxiliary_main (argc, argv);
 

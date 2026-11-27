@@ -58,6 +58,7 @@ typedef uint64_t u64;
 
 #define ATTR_DIR 0x10
 #define ATTR_SYS 0x100
+#define ATTR_SVC 0x1000 /* (avec ATTR_SYS) droits de service seulement */
 #define ATTR_LIB 0x200
 #define ATTR_SCRIPT 0x800
 #define DIRENT_BYTES 272
@@ -1320,6 +1321,8 @@ EXPORT long f_spawn_file(long *resp, const char *args, const long *stdio)
 	P[0] = (long)M_DATA(resp); /* params : nom, arguments, options */
 	P[1] = (long)args;
 	P[2] = (M_C(resp) & ATTR_SYS) != 0; /* droits demandés */
+	if (M_C(resp) & ATTR_SVC)
+		P[2] |= 4; /* SPAWN_SVC : seulement ceux d'un service (nom du système, mémoire de l'appelant) */
 	if (fc_spawn_uid >= 0) /* SYS_SPAWN_AS : l'uid du fils (SPAWN_UID, bits 32-63), pour ce seul lancement */
 		P[2] |= 2 | ((long)fc_spawn_uid << 32);
 	fc_spawn_uid = -1;

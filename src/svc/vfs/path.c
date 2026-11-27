@@ -478,12 +478,30 @@ static int sys_droits(const char *rest)
 	return pi;
 }
 
+/* les services de /sys/svc qui ne font que servir sous un nom du système, sans matériel ni disque brut : lancés avec
+ * les seuls droits de service (ATTR_SVC -> SPAWN_SVC : SVC_REGISTER, SVC_MAP_CALLER). Ils tournent sous l'uid d'un
+ * compte et lisent des données de serveurs distants (HTTP, JSON) : une faille n'y donne plus le matériel (N3,
+ * étape 0 de docs/etude/DURCISSEMENT-N3-N5.md). Pas sur le Pi (son noyau ne connaît pas SPAWN_SVC). */
+static const char *const svc_seuls[] = {"svc/oauthd", "svc/gdrivefs", 0};
+static int svc_seul(const char *rest)
+{
+	if (korin_sys1(SYS_PROC_UID, korin_sys0(SYS_GETPID)) == E_NOSYS)
+		return 0;
+	for (int i = 0; svc_seuls[i]; i++)
+		if (!strcmp(rest, svc_seuls[i]))
+			return 1;
+	return 0;
+}
+
 /* chemin interne -> attributs qu'il donne : sous /root/sys/ ATTR_SYS (les droits au lancement : /sys/svc/ et la
- * liste sys_rights), sous /root/lib/ ATTR_LIB (le service les ajoute à la réponse d'ouverture) */
+ * liste sys_rights ; ATTR_SVC en plus : droits de service seulement), sous /root/lib/ ATTR_LIB (le service les ajoute
+ * à la réponse d'ouverture) */
 static long attributs_de(const char *p)
 {
-	if (!strncmp(p, chemin_sys, sizeof chemin_sys - 1))
-		return sys_droits(p + sizeof chemin_sys - 1) ? ATTR_SYS : 0;
+	if (!strncmp(p, chemin_sys, sizeof chemin_sys - 1)) {
+		const char *rest = p + sizeof chemin_sys - 1;
+		return !sys_droits(rest) ? 0 : svc_seul(rest) ? ATTR_SYS | ATTR_SVC : ATTR_SYS;
+	}
 	if (!strncmp(p, chemin_lib, sizeof chemin_lib - 1))
 		return ATTR_LIB;
 	return 0;

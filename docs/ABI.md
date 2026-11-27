@@ -107,7 +107,7 @@ touchés), rendues à la fin du process. Plus de page libre : le noyau demande a
 | `0x19` | `TIME_MS` | — | ms depuis le démarrage |
 | `0x1B` | `CLOCK_GET` | 0 : secondes UTC, 1 : décalage local (s), 2 : secondes locales, 3 : fréquence du compteur que le programme lit lui-même (Hz ; **PC** : le TSC mesuré au démarrage, `rdtsc`, 0 : aucun ; Pi : `E_INVAL`, `CNTFRQ_EL0` se lit en EL0) | la valeur ; l'horloge du système ([FICHIERS.md](FICHIERS.md), dates) |
 | `0x1C` | `CLOCK_SET` | secondes UTC, décalage[, `0x4E545021`] | 0 ; `E_PERM` sans les droits de `/sys` ; elle ne recule jamais (le décalage est toujours pris), sauf avec le troisième argument `0x4E545021` (« heure sûre » : NTP de netd, noyau du PC seulement ; l'horloge CMOS d'un PC à double démarrage est à l'heure locale de Windows, lue comme UTC) |
-| `0x1D` | `PROC_RIGHTS` | pid | 1 : programme de `/sys`, 0 : non ; `E_SRCH` |
+| `0x1D` | `PROC_RIGHTS` | pid | 1 : programme de `/sys` (droits complets), 2 : droits de service seulement (`SPAWN_SVC` : oauthd, gdrivefs ; PC), 0 : non ; `E_SRCH` |
 | `0x1E` | `PROC_INFO` | pid, sortie 64 o | 0 (l'entrée de `PROCLIST` de ce process) ; `E_SRCH` |
 | `0x1F` | `PROCLIST_FROM` | tampon, max, depuis | nombre ; comme `PROCLIST`, à partir de l'emplacement *depuis* (0 : le premier). La suite : *depuis* = (pid de la dernière entrée) & 0xFFFF |
 | `0x1A` | `SPAWN_PRELOADED` | chemin résolu (« `/bin/fasmarm` »), taille du fichier, params 48 o (comme `SPAWN_IMAGE`) | pid ; depuis une **image préchargée** de ce chemin (majuscules ou minuscules) et de cette taille : code et lecture seule partagés, données en copie sur écriture, `.bss` à la demande ; `E_NOENT` s'il n'y en a pas (AppKit lit alors le fichier : `SPAWN_IMAGE`) ; par AppKit (`spawn`, après `V_EXEC`) |

@@ -20,6 +20,7 @@ struct process;
 #define SVC_OP_EXEC 0xFFFB
 #define SVC_OP_SETUID 0xFFFA
 #define SPAWN_UID 2
+#define SPAWN_SVC 4 /* avec le bit 0 : les droits du fils réduits à RIGHTS_SVC */
 
 void svc_notify_setuid(int pid, int uid);
 int64_t sys_svc_register(uint64_t name, uint64_t flags);

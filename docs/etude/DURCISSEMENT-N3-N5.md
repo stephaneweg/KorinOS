@@ -15,7 +15,7 @@ dans quel ordre, et ce que ça casse. Le Pi (noyau en assembleur, `src/kernel/*.
 | **3** | W^X, journal puis refus (§1.3) ; fenêtre des tampons à adresse tirée (§1.5) ; matériel accordé par appareil et maître de bus coupé à la mort du pilote (§3.3) | 2 à 3 semaines | moyen |
 | **4** | VT-d (§3.4) ; exécutables PIE (§1.6) | 1 mois et plus | élevé |
 
-Chaque étape se publie seule ; les étapes 1 et 3 commencent en mode « journal » (comme E33 et `access = log`), pour
+**Étape 0 faite le 27/11** (§5). Chaque étape se publie seule ; les étapes 1 et 3 commencent en mode « journal » (comme E33 et `access = log`), pour
 voir sur le ZBook ce qui serait refusé avant de refuser.
 
 ---
@@ -385,3 +385,30 @@ et xHCI de QEMU compris. Sur le ZBook, une option de démarrage `noiommu` pour r
 | 4 | un pilote ou un appareil Thunderbolt | DMA partout | ses pages seulement |
 
 Ce qui reste hors de cette étude : N1, N2 (corrigés le 26/11), N6 et la suite de l'audit.
+
+---
+
+## 5. Fait : l'étape 0 (27/11/2026)
+
+* **Montages d'un compte** (`src/svc/vfs/vfs.c`, `monter_ligne`) : le service doit être `fatfs`, `ext4fs`, `smbfs`,
+  `gdrivefs` (ou `ramfs`, pour le système seulement). Sous QEMU, `mount /media/x blk.usb0 telnetd` d'un compte :
+  « invalide » ; `fatfs` est essayé comme avant.
+* **Droits de service seulement** : `rights` du noyau devient un masque des opérations `RU_*`
+  (`include/korin/sched.h` : `RIGHTS_ALL`, `RIGHTS_SVC`, `rights_full`) ; `SPAWN_SVC` (4, avec le bit 0 des options
+  de `SPAWN_IMAGE`/`SPAWN_PRELOADED`) réduit les droits du fils à `SVC_REGISTER` et `SVC_MAP_CALLER`. vfs donne
+  `ATTR_SVC` (0x1000) avec `ATTR_SYS` à `/sys/svc/oauthd` et `/sys/svc/gdrivefs` (`path.c`, PC seulement) ; AppKit le
+  traduit en `SPAWN_SVC` (`appkit.c`, `f_spawn_file`). `PROC_RIGHTS` rend 2 pour eux (1 : droits complets, ce que
+  testent `caller_rights` et les autres services) ; `PROC_FLAGS` (0x100), `PROC_EXE` (`PEXF_RIGHTS`), les images
+  « système » et l'épinglage demandent les droits complets. Sous QEMU : oauthd lancé par init2 pour un compte
+  (uid 1000) répond, le journal ne montre que `SVC_REGISTER`.
+* **SMEP et UMIP** (`src/kernel/arch/x86_64/cpu.c`, `cpu_protect`) : sur chaque cœur, le cœur 0 après `paging_init` ;
+  options de démarrage `nosmep`, `noumip` pour revenir en arrière. La faute de page (`idt.c`) s'arrête sur une faute
+  de protection du noyau hors `arch_copy_user` (avant : boucle sans fin). ktest 59/59 et le bureau sous QEMU
+  (`-cpu max` : « cpu : SMEP oui, UMIP oui »).
+* **Jet 1.4.17** (`src/extra/onyxports/jet/jit.h`) : Réglages › « JavaScript : complet / réduit / sans JIT »,
+  `javascript=` dans `HOME:/jet/settings.ini`, « réduit » par défaut (`JSC_useFTLJIT=false`, `JSC_useOMGJIT=false` ;
+  « sans JIT » : `JSC_useJIT=false`), appliqué dans chaque process avant WebKit.
+
+Reste de N3 pour l'étape 1 : notifyd, clipd et printd (droits complets sous l'uid de la session, `path.c`
+`sys_rights[]`) n'utilisent que `SVC_REGISTER`, `SVC_MAP_CALLER` et `PROC_EXE` : à passer en droits de service, une
+fois vérifié qu'aucun service ne les reconnaît à leurs droits complets.

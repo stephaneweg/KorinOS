@@ -289,7 +289,7 @@ int64_t sys_image_create(uint64_t upath, uint64_t fsize, uint64_t flags)
 			in_apps = (path[k] | (path[k] >= 'A' && path[k] <= 'Z' ? 0x20 : 0)) == apps[k];
 		for (const char *c = path; *c && in_apps; c++)
 			in_apps = !(c[0] == '/' && c[1] == '.' && c[2] == '.');
-		if (!p->rights || p->uid != 0 || !in_apps)
+		if (!rights_full(p) || p->uid != 0 || !in_apps)
 			return E_PERM;
 	}
 	int uid = p->uid;
@@ -306,7 +306,7 @@ int64_t sys_image_create(uint64_t upath, uint64_t fsize, uint64_t flags)
 	im->npages = ALIGN_UP(fsize, PAGE_SIZE) / PAGE_SIZE;
 	im->pages = kzalloc(im->npages * 8);
 	im->pinned = pin;
-	im->sys = p->rights;
+	im->sys = rights_full(p);
 	im->shared = pin;
 	im->uid = uid;
 	im->loading = p->pid;

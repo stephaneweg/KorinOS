@@ -38,7 +38,7 @@ struct process {
 	int threads;
 	enum proc_state state;
 	int exit_code;
-	int rights;          /* droits de /sys (services, matériel) */
+	uint32_t rights;     /* droits de /sys : masque des opérations réservées (bit RU_x) ; RIGHTS_ALL : tous */
 	uint32_t rights_seen; /* les opérations réservées déjà notées au journal (rights_used, E33) */
 	int uid;             /* à qui sont ses fichiers (0 : system) ; hérité du père (SYS_SETUID, SPAWN_UID) */
 	uint64_t flags;      /* PROC_FLAGS */
@@ -173,7 +173,7 @@ void sched_lock_give(uint64_t f);
 struct thread *sched_threads(void);
 
 /* process (core/proc.c) */
-struct process *proc_create(const char *name, int parent, int rights);
+struct process *proc_create(const char *name, int parent, uint32_t rights);
 /* E33, étape 0 (docs/etude/E33-CARTOGRAPHIE.md) : p a-t-il les droits ? S'il les a et que c'est un process d'une
  * personne (uid > 0 : un programme de session), l'opération réservée est notée au journal, une fois par process */
 int rights_used(struct process *p, int op, const char *name);
@@ -181,8 +181,14 @@ enum { RU_SVC_REGISTER, RU_SVC_MAP_CALLER, RU_SVC_SIGNAL, RU_CLOCK_SET, RU_BUF_P
        RU_MOD_READ, RU_BOOT_FILE, RU_BOOT_READY, RU_WS_REGISTER, RU_WS_SIGNAL, RU_CLIP, RU_KIT_REGISTER, RU_DEV_MAP,
        RU_IRQ_BIND, RU_IRQ_MSI, RU_ACPI_TABLE, RU_IO_PORT, RU_POWER, RU_PRIO_MAX, RU_IMAGE_PRELOAD, RU_IMAGE_FORGET,
        RU_PROC_EXE, RU_PROC_STATS, RU_SPAWN_RIGHTS };
+/* les droits sont un masque des opérations RU_x (27/11/2026, étape 0 de docs/etude/DURCISSEMENT-N3-N5.md) : RIGHTS_ALL
+ * pour les services ; RIGHTS_SVC (SPAWN_SVC) pour ceux qui ne font que servir sous un nom du système (oauthd, gdrivefs :
+ * ni matériel, ni disque, ni lancement à droits). PROC_RIGHTS ne rend 1 qu'aux droits complets. */
+#define RIGHTS_ALL 0xFFFFFFFFu
+#define RIGHTS_SVC ((1u << RU_SVC_REGISTER) | (1u << RU_SVC_MAP_CALLER))
+static inline int rights_full(const struct process *p) { return p->rights == RIGHTS_ALL; }
 int proc_spawn(const char *name, const void *image, uint64_t size);
-int proc_spawn_ex(const char *name, const void *image, uint64_t size, const char *args, int parent, int rights);
+int proc_spawn_ex(const char *name, const void *image, uint64_t size, const char *args, int parent, uint32_t rights);
 struct process *proc_get(int pid);  /* sous sched_lock_take */
 /* le process de ce pid, tenu (pins) : sched_reap ne rend ni lui, ni ses threads finis, avant
  * proc_release ; 0 s'il n'existe pas ou que son démontage a commencé. Sous sched_lock (_locked) ou non.

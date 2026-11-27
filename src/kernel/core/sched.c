@@ -20,7 +20,7 @@
 
 #define QUANTUM_MS 10
 
-struct process kernel_process = {.pid = 0, .name = "noyau", .state = P_ALIVE, .rights = 1};
+struct process kernel_process = {.pid = 0, .name = "noyau", .state = P_ALIVE, .rights = RIGHTS_ALL};
 
 struct sched_cpu {
 	struct thread *current;

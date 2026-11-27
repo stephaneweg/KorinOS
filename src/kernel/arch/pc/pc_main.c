@@ -343,6 +343,8 @@ void kmain(uint64_t bootinfo_phys)
 		bi.local_size = 0;
 	fpu_want_avx512 = cmdline_has("avx512"); /* (AVX-512 : seulement sur demande, cpu.c) */
 	fpu_no_xsave = cmdline_has("noxsave");    /* (FXSAVE seul, comme avant : essais) */
+	cpu_no_smep = cmdline_has("nosmep");      /* (SMEP, UMIP : cpu_protect ; retour en arrière) */
+	cpu_no_umip = cmdline_has("noumip");
 	cpu_init(0, 0);
 	gdt_init(0, (uint64_t)(ist_df0 + sizeof ist_df0), (uint64_t)(ist_nmi0 + sizeof ist_nmi0),
 		 (uint64_t)(ist_mc0 + sizeof ist_mc0));
@@ -355,6 +357,7 @@ void kmain(uint64_t bootinfo_phys)
 	if (cover < (4ULL << 30))
 		cover = 4ULL << 30; /* APIC, IOAPIC, MMIO sous 4 Go */
 	paging_init(bi.kernel_phys, bi.kernel_virt, bi.kernel_size, cover, bi.fb_base, bi.fb_size);
+	cpu_protect(0); /* SMEP, UMIP : sur les tables du noyau */
 
 	struct fb_info fb = {
 		.base = arch_phys_to_virt(bi.fb_base),

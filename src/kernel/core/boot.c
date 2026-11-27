@@ -51,7 +51,7 @@ int64_t sys_mod_lancer(uint64_t uname, uint64_t uargs)
 	}
 	const void *img;
 	uint64_t size;
-	int64_t r = initrd_find(name, &img, &size) ? E_NOENT : proc_spawn_ex(name, img, size, args, p->pid, 1);
+	int64_t r = initrd_find(name, &img, &size) ? E_NOENT : proc_spawn_ex(name, img, size, args, p->pid, RIGHTS_ALL);
 	kfree(args);
 	return r;
 }

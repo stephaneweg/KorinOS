@@ -232,6 +232,7 @@ SYS_KLOG_FROM		= 0x98		; (position, tampon, max) -> octets du journal du noyau a
 					; octet rendu, les donnees suivent (max les compte) ; auditd (E56) ; PC seulement
 SPAWN_UID		= 2		; options de SPAWN_IMAGE / SPAWN_PRELOADED (params+16) : l'uid du fils dans
 					; les bits 32-63 ; appelant d'uid 0 seulement (E_PERM)
+SPAWN_SVC		= 4		; avec le bit 0 (droits) : seulement ceux d'un service (SVC_REGISTER, SVC_MAP_CALLER), noyau du PC
 SYS_APPKIT_FIRST	= SYS_OPEN
 SYS_APPKIT_LAST		= SYS_UNLOAD
 

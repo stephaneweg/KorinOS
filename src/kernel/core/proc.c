@@ -102,7 +102,7 @@ static int new_pid(struct process *p)
 
 int rights_used(struct process *p, int op, const char *name)
 {
-	if (!p->rights)
+	if (op < 0 || op >= 32 || !(p->rights & (1u << op)))
 		return 0;
 	if (p->uid > 0 && op >= 0 && op < 32 && !(p->rights_seen & (1u << op))) {
 		p->rights_seen |= 1u << op;
@@ -111,7 +111,7 @@ int rights_used(struct process *p, int op, const char *name)
 	return 1;
 }
 
-struct process *proc_create(const char *name, int parent, int rights)
+struct process *proc_create(const char *name, int parent, uint32_t rights)
 {
 	if (!slot_of) {
 		slot_of = kzalloc(sizeof(*slot_of) * SLOTS);
@@ -201,7 +201,7 @@ static int setup_stack(struct process *p, const char *args, uint64_t *sp, uint64
  * celle du père, -1 : aucune ; stdio = 0 : toutes héritées) : dans l'avis de naissance, et leur
  * masque dans PROC_FLAGS (bits 0-2 : pas la console), comme proc_spawn_elf du Pi */
 static int spawn_common(const char *name, const void *image, uint64_t size, struct image *im, const char *args,
-			int parent, int rights, const int64_t *stdio, int uid)
+			int parent, uint32_t rights, const int64_t *stdio, int uid)
 {
 	struct process *p = proc_create(name, parent, rights);
 	if (!p) {
@@ -242,14 +242,14 @@ static int spawn_common(const char *name, const void *image, uint64_t size, stru
 	return p->pid;
 }
 
-int proc_spawn_ex(const char *name, const void *image, uint64_t size, const char *args, int parent, int rights)
+int proc_spawn_ex(const char *name, const void *image, uint64_t size, const char *args, int parent, uint32_t rights)
 {
 	return spawn_common(name, image, size, 0, args, parent, rights, 0, -1);
 }
 
 int proc_spawn(const char *name, const void *image, uint64_t size)
 {
-	return proc_spawn_ex(name, image, size, 0, 0, 1);
+	return proc_spawn_ex(name, image, size, 0, 0, RIGHTS_ALL);
 }
 
 /* appelé par sched_reap, hors verrou : le process n'a plus de thread */
@@ -411,7 +411,7 @@ int64_t sys_proc_rights(int64_t pid)
 {
 	uint64_t f = sched_lock_take();
 	struct process *p = proc_get((int)pid);
-	int64_t r = p ? p->rights : E_SRCH;
+	int64_t r = !p ? E_SRCH : rights_full(p) ? 1 : p->rights ? 2 : 0; /* (2 : droits de service seulement) */
 	sched_lock_give(f);
 	return r;
 }
@@ -478,7 +478,7 @@ int64_t sys_proc_exe(int64_t pid, uint64_t out)
 	struct image *im = 0;
 	if (p && p->state != P_ZOMBIE) {
 		x->uid = (uint32_t)p->uid;
-		x->flags = p->rights ? 2 : 0;
+		x->flags = rights_full(p) ? 2 : 0;
 		if (p->script_set) {
 			x->flags |= 4;
 			memcpy(x->script, p->script, sizeof x->script);
@@ -561,9 +561,12 @@ int64_t sys_spawn_image(uint64_t image, uint64_t size, uint64_t params)
 	uint64_t pr[6] = {0};
 	if (params && copy_from_user(pr, params, 48))
 		return E_FAULT;
-	int rights = (pr[2] & 1) != 0;
-	if (rights && !rights_used(me, RU_SPAWN_RIGHTS, "SPAWN avec droits"))
-		return E_PERM;
+	uint32_t rights = 0;
+	if (pr[2] & 1) { /* les droits du père (complets : lui seul a RU_SPAWN_RIGHTS), réduits par SPAWN_SVC */
+		if (!rights_used(me, RU_SPAWN_RIGHTS, "SPAWN avec droits"))
+			return E_PERM;
+		rights = me->rights & ((pr[2] & SPAWN_SVC) ? RIGHTS_SVC : RIGHTS_ALL);
+	}
 	int uid;
 	if (spawn_uid(me, pr[2], &uid))
 		return E_PERM;
@@ -813,16 +816,19 @@ int64_t sys_spawn_preloaded(uint64_t upath, uint64_t fsize, uint64_t params)
 	uint64_t pr[6] = {0};
 	if (params && copy_from_user(pr, params, 48))
 		return E_FAULT;
-	int rights = (pr[2] & 1) != 0;
-	if (rights && !rights_used(me, RU_SPAWN_RIGHTS, "SPAWN avec droits"))
-		return E_PERM;
+	uint32_t rights = 0;
+	if (pr[2] & 1) { /* les droits du père (complets : lui seul a RU_SPAWN_RIGHTS), réduits par SPAWN_SVC */
+		if (!rights_used(me, RU_SPAWN_RIGHTS, "SPAWN avec droits"))
+			return E_PERM;
+		rights = me->rights & ((pr[2] & SPAWN_SVC) ? RIGHTS_SVC : RIGHTS_ALL);
+	}
 	int uid;
 	if (spawn_uid(me, pr[2], &uid))
 		return E_PERM;
 	char path[IMAGE_PATH_MAX];
 	if (copy_string_from_user(path, upath, sizeof path) <= 0)
 		return E_INVAL;
-	struct image *im = image_get(path, fsize, rights, uid < 0 ? me->uid : uid);
+	struct image *im = image_get(path, fsize, rights != 0, uid < 0 ? me->uid : uid);
 	if (!im)
 		return E_NOENT;
 	char name[PROC_NAME];

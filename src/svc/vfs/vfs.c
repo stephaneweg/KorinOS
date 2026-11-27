@@ -540,11 +540,15 @@ static long monter_ligne(char *line)
 	char *root = mot_suivant(svc);
 	if (root)
 		mot_suivant(root); /* (un cinquième mot : ignoré) */
-	/* le service : un nom de /sys/svc, [a-z0-9] (fatfs, exfat, ext4fs, ramfs, smbfs, gdrivefs) : jamais
-	 * un chemin, qui ferait lancer n'importe quel programme avec les droits (E24, F2) */
-	for (const char *c = svc; *c; c++)
-		if (!((*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9')))
-			return E_INVAL;
+	/* le service : un service de systèmes de fichiers de /sys/svc, jamais un chemin (E24, F2) ni un autre service
+	 * (27/11/2026 : « [a-z0-9]+ » laissait un compte qui monte une clé faire lancer par vfs, en uid 0 et avec les
+	 * droits, n'importe quel /sys/svc/<x> : étape 0 de docs/etude/DURCISSEMENT-N3-N5.md) ; ramfs : le système seul */
+	static const char *const fs_svcs[] = {"fatfs", "ext4fs", "smbfs", "gdrivefs", "ramfs", 0};
+	int ok = 0;
+	for (int i = 0; fs_svcs[i] && !ok; i++)
+		ok = !strcmp(svc, fs_svcs[i]) && (mount_uid <= 0 || strcmp(svc, "ramfs"));
+	if (!ok)
+		return E_INVAL;
 	return monter(line, src, svc, root, 0, 1); /* (thread principal) */
 }
 
