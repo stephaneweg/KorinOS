@@ -8,6 +8,7 @@
 #define IP_HDRINCL		3
 #define IP_OPTIONS		4
 #define IP_PKTINFO		8
+#ifndef IPV6_PKTINFO		/* (libposix les a depuis Qt, 2026-11) */
 #define IPV6_UNICAST_HOPS	16
 #define IPV6_MULTICAST_IF	17
 #define IPV6_MULTICAST_HOPS	18
@@ -18,6 +19,8 @@
 #define IPV6_PKTINFO		50
 #define IPV6_RECVHOPLIMIT	51
 #define IPV6_HOPLIMIT		52
+#define ARMPI_COMPAT_IN6_PKTINFO
+#endif
 
 struct in_pktinfo
 {
@@ -25,11 +28,13 @@ struct in_pktinfo
 	struct in_addr ipi_spec_dst, ipi_addr;
 };
 
+#ifdef ARMPI_COMPAT_IN6_PKTINFO
 struct in6_pktinfo
 {
 	struct in6_addr ipi6_addr;
 	unsigned ipi6_ifindex;
 };
+#endif
 
 #ifndef IPV6_JOIN_GROUP		/* (libposix l'a depuis la cible Rust) */
 struct ipv6_mreq
