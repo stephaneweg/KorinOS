@@ -5,7 +5,7 @@ date = 2026-11-27 09:15
 abi = 632
 packages = 117
 board = pc
-serial = 41
+serial = 42
 
 [avdemo]
 title = Avalonia
@@ -1220,18 +1220,18 @@ content = 3f465c6d834001dfedc8e7fcc127d2e71d9e934dea7baf1f066627a64295ef34
 
 [letters]
 title = Letters
-version = 1.0.11
+version = 1.0.12
 category = Bureautique
 author = Korin OS
 summary = Le traitement de texte
-size = 515378
+size = 515268
 installed = 1011086
-sha256 = e779cbcefd7b60c4ea1f5721be8ca949284d986ca883459b4ec0187c352f067e
-file = pkgs/letters-1.0.11.opk
+sha256 = 3b0b95cde604f3b861d543a8a9d8d80e26fd21f471c14a98b8d6b2243de3bdae
+file = pkgs/letters-1.0.12.opk
 needs = abi >= 626
 required = 0
 restart = 0
-content = 48e09f58cce6696bf475bd7d84039429b6127f6ec1efe426d8c2fa58ceb4fbb8
+content = 7b7c241e23e8aa4dec1b710d7cd4ab03273e6e3cfa788615449c7d05d73cb80a
 
 [mail]
 title = Mail
