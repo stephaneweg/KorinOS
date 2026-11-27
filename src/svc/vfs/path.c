@@ -496,7 +496,7 @@ static int svc_seul(const char *rest)
 /* Les capacités des programmes à droits (étape 1 de docs/etude/DURCISSEMENT-N3-N5.md, N3) : ce que chacun peut
  * demander au noyau, par groupes (CAP_x du noyau, include/korin/sched.h), d'après ce que chacun utilise (relevé du
  * 27/11/2026). AppKit les passe au noyau (SPAWN_CAPS) ; une opération hors de la table est notée au journal du noyau
- * (« capacités : ... hors de sa table »), refusée avec l'option « caps=enforce ». Un service de /sys/svc absent de la
+ * (« capacités : ... hors de sa table »), refusée (« caps=log » au démarrage : seulement notée). Un service de /sys/svc absent de la
  * table : SVC et MAPC seulement. Les modules de l'initramfs (init, vfs, pcid, nvme...) lancés par MOD_LAUNCH n'en ont
  * pas (tout). Une table dans vfs plutôt qu'un fichier : vfs la lit en lançant les services qui le servent. PC
  * seulement (le noyau du Pi ne connaît pas SPAWN_CAPS). */

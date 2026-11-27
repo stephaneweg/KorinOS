@@ -448,3 +448,6 @@ fork est refusé, comme avant) ; bureau, Jet, oauthd, montage piégé, .NET (ski
 seule ligne « hors de sa table » : usbstorage, `BUF_INFO` (l'adresse physique du tampon d'un client, que blkserv
 passe au pilote). Ajouté : le groupe `CAP_BUFPHYS` (`BUF_INFO` seul, sans `DMA_ALLOC`), donné aux serveurs de blocs
 (`G_BLK` : nvme, sdhci, rtsx, usbstorage, imgblk).
+
+**Les capacités refusées par défaut** (décision de l'utilisateur, 27/11, après le journal du ZBook) ; l'option de
+démarrage `caps=log` revient au journal seul. Sous QEMU en refus : ktest 59/59, bureau, oauthd, Jet.

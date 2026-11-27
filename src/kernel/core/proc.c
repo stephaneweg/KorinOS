@@ -100,7 +100,7 @@ static int new_pid(struct process *p)
 	return E_NOMEM;
 }
 
-int caps_enforce; /* option « caps=enforce » (pc_main) : hors capacités, refusé ; sinon seulement noté */
+int caps_enforce; /* hors capacités : refusé ; option « caps=log » (pc_main) : seulement noté */
 
 /* groupes CAP_x -> opérations RU_x */
 uint32_t caps_ops(uint32_t groups)
