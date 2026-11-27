@@ -119,6 +119,7 @@ uint32_t caps_ops(uint32_t groups)
 		[CAP_IMAGE] = (1u << RU_IMAGE_PRELOAD) | (1u << RU_IMAGE_FORGET),
 		[CAP_PROCINFO] = (1u << RU_PROC_EXE) | (1u << RU_PROC_STATS),
 		[CAP_SPAWN] = 1u << RU_SPAWN_RIGHTS,
+		[CAP_BUFPHYS] = 1u << RU_BUF_PHYS, /* (l'adresse physique d'un tampon d'un client, sans DMA_ALLOC : blkserv) */
 	};
 	uint32_t m = 0;
 	for (int i = 0; i < CAP_GROUPS; i++)

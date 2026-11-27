@@ -501,9 +501,9 @@ static int svc_seul(const char *rest)
  * pas (tout). Une table dans vfs plutôt qu'un fichier : vfs la lit en lançant les services qui le servent. PC
  * seulement (le noyau du Pi ne connaît pas SPAWN_CAPS). */
 enum { G_MMIO = 1, G_PORT = 2, G_DMA = 4, G_IRQ = 8, G_ACPI = 16, G_SVC = 32, G_MAPC = 64, G_BOOT = 128, G_SYS = 256,
-       G_WS = 512, G_IMAGE = 1024, G_PROCINFO = 2048, G_SPAWN = 4096 };
+       G_WS = 512, G_IMAGE = 1024, G_PROCINFO = 2048, G_SPAWN = 4096, G_BUFPHYS = 8192 };
 #define G_PCI (G_MMIO | G_DMA | G_IRQ | G_SVC)
-#define G_BLK (G_SVC | G_MAPC | G_BOOT)
+#define G_BLK (G_SVC | G_MAPC | G_BOOT | G_BUFPHYS) /* (blkserv : BUF_INFO, l'adresse physique du tampon d'un client) */
 static const struct {
 	const char *nom;
 	unsigned groupes;

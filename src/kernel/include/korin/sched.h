@@ -193,7 +193,7 @@ static inline int rights_full(const struct process *p) { return p->rights == RIG
 /* capacités (étape 1 de docs/etude/DURCISSEMENT-N3-N5.md) : des groupes d'opérations, bits 8-23 des options de
  * SPAWN_IMAGE / SPAWN_PRELOADED avec SPAWN_CAPS ; caps_enforce (option « caps=enforce ») : refusées, sinon notées */
 enum { CAP_MMIO, CAP_PORT, CAP_DMA, CAP_IRQ, CAP_ACPI, CAP_SVC, CAP_MAPCALLER, CAP_BOOT, CAP_SYS, CAP_WS, CAP_IMAGE,
-       CAP_PROCINFO, CAP_SPAWN, CAP_GROUPS };
+       CAP_PROCINFO, CAP_SPAWN, CAP_BUFPHYS, CAP_GROUPS };
 uint32_t caps_ops(uint32_t groups);
 extern int caps_enforce;
 int proc_spawn(const char *name, const void *image, uint64_t size);

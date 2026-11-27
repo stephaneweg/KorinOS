@@ -443,3 +443,8 @@ maintenant tous les attributs de vfs (vérifié : oauthd a les droits 3, `SVC_RE
 
 Essais sous QEMU (`-cpu max`) : ktest 59/59 ; ptest 22/22 et itest 29/29 lancés sans droits (`urun` : avec droits,
 fork est refusé, comme avant) ; bureau, Jet, oauthd, montage piégé, .NET (skiatest).
+
+**Sur le ZBook (pc 2026.11.126, 27/11)** : démarrage, Wi-Fi, son, pavé tactile, clé USB, .NET, Blender, Forge ; une
+seule ligne « hors de sa table » : usbstorage, `BUF_INFO` (l'adresse physique du tampon d'un client, que blkserv
+passe au pilote). Ajouté : le groupe `CAP_BUFPHYS` (`BUF_INFO` seul, sans `DMA_ALLOC`), donné aux serveurs de blocs
+(`G_BLK` : nvme, sdhci, rtsx, usbstorage, imgblk).
