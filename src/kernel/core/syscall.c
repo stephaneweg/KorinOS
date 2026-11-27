@@ -98,6 +98,7 @@ static int64_t dispatch(uint64_t nr, const uint64_t a[6])
 	case SYS_BUF_MAP: return sys_buf_map(a[0]);
 	case SYS_BUF_FREE: return sys_buf_free(a[0]);
 	case SYS_DMA_ALLOC: return sys_dma_alloc(a[0], a[1]);
+	case SYS_DMA_RELEASE: return sys_dma_release((int64_t)a[0]);
 	case SYS_VM_MAP: return sys_vm_map(a[0], a[1], a[2], a[3]);
 	case SYS_VM_UNMAP: return sys_vm_unmap(a[0], a[1]);
 	case SYS_VM_PROTECT: return sys_vm_protect(a[0], a[1], a[2]);

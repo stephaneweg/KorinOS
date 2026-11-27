@@ -484,3 +484,28 @@ pas sous QEMU dans le cloud (pas de résolution de noms, même sans bac) : à es
 (Mesa sur l'Intel) marchent. Un seul refus : Mesa écrivait son cache de shaders dans `HOME/.cache/mesa_shader_cache_db`
 (commun à tous les programmes GL du compte : un process web exploité l'empoisonnerait). Le bac a maintenant le sien,
 `HOME/.cache/mesa-bac` (vfs : `permis_bac` ; Jet : `MESA_SHADER_CACHE_DIR`).
+
+---
+
+## 8. Étape 3, première partie : la mémoire DMA d'un pilote mort (27/11/2026)
+
+Le problème : à la fin d'un pilote, le noyau rendait aussitôt ses pages DMA à la mémoire libre (`vm_destroy`), et pcid
+ne coupait le maître du bus de sa fonction qu'ensuite, à la réception de l'avis de fin : entre les deux, l'appareil
+pouvait encore écrire dans des pages données à un autre process.
+
+Fait sans que le noyau connaisse le bus (remarque de l'utilisateur : le noyau reste indépendant du matériel) :
+
+* **Noyau** (`mm.c` : `dma_detach`, `sys_dma_release`, `limbo_expire`) : à la fin d'un process qui a fait
+  `DMA_ALLOC`, ses pages DMA sont retirées de son espace et **mises de côté** au lieu d'être rendues ; `DMA_RELEASE
+  (pid)` (0x99, opération `DEV_MAP` : pcid) les rend ; sans réponse en 10 s, elles sont rendues quand même, à
+  l'occasion de la fin d'un autre process ou d'une `DMA_RELEASE` (« dma : pages du pid N rendues sans DMA_RELEASE »
+  au journal). L'avis de fin part vers pcid avant que le noyau mette les pages de côté : une `DMA_RELEASE` arrivée
+  avant est retenue, et les pages sont alors rendues aussitôt.
+* **pcid** (`release_pid`) : à la fin d'un pilote qui tenait des fonctions, il coupe leur maître du bus (sauf
+  l'affichage, comme avant) **puis** appelle `DMA_RELEASE`.
+* Essai : `run dmatest` du moniteur (initrd `dmatest.c`) : pages mises de côté, rendues par `DMA_RELEASE`, ou à
+  l'échéance ; ktest 59/59 ; bureau sous QEMU.
+
+Reste de l'étape 3 : les tampons des clients que les pilotes reçoivent en DMA (`BUF_INFO`, `SVC_MAP_CALLER`) et le GPU
+(affichage, maître du bus jamais coupé) ; W^X ; la fenêtre des tampons à adresse tirée ; le matériel accordé appareil
+par appareil (pcid le déclarant au noyau).

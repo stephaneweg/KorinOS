@@ -1172,8 +1172,123 @@ int mm_fork(struct process *parent, struct process *child)
 
 /* ---- fin d'un process */
 
+/* ---- DMA d'un pilote mort (étape 3 de docs/etude/DURCISSEMENT-N3-N5.md) : ses pages DMA ne retournent pas tout de suite
+ * à la mémoire libre, l'appareil pouvant encore y écrire tant que son maître du bus n'est pas coupé. Le noyau ne sait
+ * rien du bus : c'est pcid (l'espace de configuration PCI) qui coupe le maître du bus de la fonction du pilote, puis dit
+ * DMA_RELEASE(pid) ; sans réponse en DMA_LIMBO_MS, les pages sont rendues quand même (noté au journal). L'avis de fin
+ * (svc_proc_exit) part avant mm_destroy : une DMA_RELEASE arrivée avant est retenue (dma_freed), et les pages sont alors
+ * rendues aussitôt. */
+#define DMA_LIMBO 16
+#define DMA_LIMBO_MS 10000
+struct dma_limbo {
+	int pid;
+	uint64_t deadline, n;
+	uint64_t *phys;
+};
+static struct dma_limbo limbo[DMA_LIMBO];
+static int dma_freed[DMA_LIMBO], dma_freed_next;
+static spinlock_t limbo_lock = SPINLOCK_INIT;
+
+static void limbo_free(struct dma_limbo *l) /* (hors verrou : l est déjà retirée de la table) */
+{
+	for (uint64_t i = 0; i < l->n; i++)
+		pmm_free(l->phys[i]);
+	kfree(l->phys);
+}
+
+/* les mises de côté échues : rendues (sans DMA_RELEASE) */
+static void limbo_expire(void)
+{
+	uint64_t now = arch_ticks_ms();
+	for (int i = 0; i < DMA_LIMBO; i++) {
+		struct dma_limbo l = {0};
+		uint64_t f = spin_lock_irqsave(&limbo_lock);
+		if (limbo[i].pid && now >= limbo[i].deadline) {
+			l = limbo[i];
+			limbo[i].pid = 0;
+		}
+		spin_unlock_irqrestore(&limbo_lock, f);
+		if (l.pid) {
+			kprintf("dma : pages du pid %d rendues sans DMA_RELEASE (%lu pages, délai)\n", l.pid, l.n);
+			limbo_free(&l);
+		}
+	}
+}
+
+/* les pages DMA d'un process qui finit : retirées de son espace, mises de côté (ou rendues, si pcid a déjà répondu) */
+static void dma_detach(struct process *p)
+{
+	struct mm *mm = p->mm;
+	if (!mm || !p->vm || mm->dma_next <= DMA_BASE)
+		return;
+	uint64_t max = (mm->dma_next - DMA_BASE) / PAGE_SIZE, n = 0;
+	uint64_t *ph = kmalloc(max * sizeof *ph);
+	for (uint64_t va = DMA_BASE; va < mm->dma_next; va += PAGE_SIZE) {
+		uint64_t phys = vm_translate(p->vm, va);
+		if (!phys)
+			continue;
+		if (!ph) /* (pas de quoi les noter : rendues par vm_destroy, comme avant) */
+			break;
+		vm_unmap_page(p->vm, va, 0);
+		ph[n++] = phys & ~(PAGE_SIZE - 1);
+	}
+	if (!ph)
+		return;
+	int slot = -1, freed = 0;
+	uint64_t f = spin_lock_irqsave(&limbo_lock);
+	for (int i = 0; i < DMA_LIMBO; i++)
+		if (dma_freed[i] == p->pid) {
+			dma_freed[i] = 0;
+			freed = 1;
+		}
+	for (int i = 0; i < DMA_LIMBO && !freed && slot < 0; i++)
+		if (!limbo[i].pid)
+			slot = i;
+	if (slot >= 0) {
+		limbo[slot].pid = p->pid;
+		limbo[slot].deadline = arch_ticks_ms() + DMA_LIMBO_MS;
+		limbo[slot].n = n;
+		limbo[slot].phys = ph;
+	}
+	spin_unlock_irqrestore(&limbo_lock, f);
+	if (slot < 0) { /* pcid a déjà coupé le maître du bus (ou la table est pleine : noté) */
+		if (!freed)
+			kprintf("dma : pages du pid %d rendues tout de suite (%lu pages, table pleine)\n", p->pid, n);
+		struct dma_limbo l = {p->pid, 0, n, ph};
+		limbo_free(&l);
+	}
+	limbo_expire();
+}
+
+/* SYS_DMA_RELEASE (pid) : le maître du bus des fonctions de ce pilote est coupé (pcid) -> 0, E_SRCH : rien de mis de côté
+ * (noté pour sa fin à venir) */
+int64_t sys_dma_release(int64_t pid)
+{
+	if (!rights_used(cur_proc(), RU_DEV_MAP, "DMA_RELEASE"))
+		return E_PERM;
+	if (pid <= 0)
+		return E_INVAL;
+	struct dma_limbo l = {0};
+	uint64_t f = spin_lock_irqsave(&limbo_lock);
+	for (int i = 0; i < DMA_LIMBO && !l.pid; i++)
+		if (limbo[i].pid == (int)pid) {
+			l = limbo[i];
+			limbo[i].pid = 0;
+		}
+	if (!l.pid) { /* (la fin n'est pas encore passée par mm_destroy) */
+		dma_freed[dma_freed_next] = (int)pid;
+		dma_freed_next = (dma_freed_next + 1) % DMA_LIMBO;
+	}
+	spin_unlock_irqrestore(&limbo_lock, f);
+	if (l.pid)
+		limbo_free(&l);
+	limbo_expire();
+	return l.pid ? 0 : E_SRCH;
+}
+
 void mm_destroy(struct process *p)
 {
+	dma_detach(p);
 	mm_free(p->mm);
 	p->mm = 0;
 }

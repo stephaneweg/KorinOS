@@ -408,16 +408,19 @@ static long op_claim(uint32_t addr, int pid, u8 *data)
 	return 0;
 }
 
-static void release_pid(int pid)
+static int release_pid(int pid) /* -> le nombre de fonctions qu'il tenait */
 {
+	int n = 0;
 	for (int i = 0; i < nfuncs; i++)
 		if (funcs[i].owner == pid) {
+			n++;
 			funcs[i].owner = 0;
 			/* maître du bus coupé : plus de DMA d'un pilote disparu ; sauf l'affichage, dont le
 			 * framebuffer du GOP sert à l'écran (sonde du GPU Intel, docs/etude/GPU-INTEL.md) */
 			if (funcs[i].cls != 0x03)
 				wr(funcs[i].addr, 4, 2, rd(funcs[i].addr, 4, 2) & ~4u);
 		}
+	return n;
 }
 
 /* (E41) ce qu'un pilote peut écrire dans la configuration de sa fonction : une adresse MSI seulement
@@ -465,8 +468,11 @@ static void serve(long req)
 	long r = E_INVAL;
 	struct pci_info *f;
 	if (m[0] >= 0xFFF0) { /* les avis : du noyau seulement (pid 0), sans réponse */
-		if (m[0] == SVC_OP_END && svc_from_kernel(msg))
-			release_pid((int)m[1]);
+		/* un pilote fini : le maître du bus de ses fonctions coupé, puis ses pages DMA, que le noyau a mises de côté,
+		 * rendues (DMA_RELEASE ; sans elle, le noyau les rend au bout de 10 s : étape 3 de
+		 * docs/etude/DURCISSEMENT-N3-N5.md) */
+		if (m[0] == SVC_OP_END && svc_from_kernel(msg) && release_pid((int)m[1]))
+			korin_sys1(SYS_DMA_RELEASE, (long)m[1]);
 		return;
 	}
 	/* prendre, rendre, écrire la configuration, relire le bus, annoncer : les pilotes et init2 (droits

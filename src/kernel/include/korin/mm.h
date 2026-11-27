@@ -87,6 +87,7 @@ int64_t sys_buf_map(uint64_t n);
 int64_t sys_buf_free(uint64_t n);
 int64_t sys_buf_info(uint64_t n, uint64_t out);
 int64_t sys_dma_alloc(uint64_t size, uint64_t phys_out);
+int64_t sys_dma_release(int64_t pid); /* pcid : le maître du bus coupé, les pages DMA d'un pilote fini rendues */
 int64_t sys_vm_map(uint64_t addr, uint64_t size, uint64_t prot, uint64_t flags);
 int64_t sys_vm_unmap(uint64_t addr, uint64_t size);
 int64_t sys_vm_protect(uint64_t addr, uint64_t size, uint64_t prot);
