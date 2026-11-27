@@ -1,11 +1,11 @@
 # index des paquets de Korin OS pour PC -- tools/pkg/mkrepo.py (docs/PAQUETS.md)
 [repo]
 name = korin-packages
-date = 2026-11-27 23:12
+date = 2026-11-27 23:33
 abi = 632
 packages = 117
 board = pc
-serial = 55
+serial = 56
 
 [avdemo]
 title = Avalonia
@@ -115,18 +115,18 @@ content = 5dbdcd50fcea186f20f494edb60ef2a5166a33fcc564f8c350daa4c3f8b9c766
 
 [jet]
 title = jet
-version = 1.4.19
+version = 1.4.20
 category = Autres
 author = Korin OS
 summary = Le navigateur, sur WebKit
-size = 55995043
+size = 55995056
 installed = 139960927
-sha256 = 534d578df4ad2387362e1368c6dc4665a302d7742d176236db07c2b39e5bf7c5
-file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.19.opk
+sha256 = 4ee225326e267a199b23e97e10f570089fddaab5f2e7698d1b3b1dd51fa3e2e7
+file = https://github.com/stephaneweg/KorinOS/releases/download/packages/pc-jet-1.4.20.opk
 needs = pc >= 2026.11.120, abi >= 629
 required = 0
 restart = 0
-content = 64f914094a6ef81dd595d12aa66bceacb7b349f7280664e47cfbec6c6d58d45c
+content = fdf96d123e8e17c78be2421112b364932096dd815c43926b3d78c7954fed94f0
 
 [spotify]
 title = Spotify
