@@ -76,3 +76,7 @@ web WOFF2 ne se chargeaient pas (texte retombé sur DejaVu, icônes de claude.ai
 de Google (tools/webkit/ports/woff2/build.sh, patch 0019 : USE_WOFF2 ON + find_package(WOFF2)), lié (woff2dec,
 woff2common avant brotlidec : build-jet.sh, jet-sdk.py). Dans le cloud : UnifiedSource-platform-45 et -58 recompilés
 (jetobj.sh) avec cmakeconfig.h du SDK à USE_WOFF2 1, libwoff2dec.a dans le sysroot du SDK, `ar s` sur libWebCore.a.
+**27/11 soir, icônes de claude.ai** : leur police (« Anthropicons », variable wght/opsz, 516 icônes en PUA) est déclarée
+`format("woff2-variations")` ; sans ENABLE_VARIATION_FONTS (0 chez Onyx), supportsFormat de FontCustomPlatformDataSkia
+refusait tout format « -variations » : police jamais chargée (« preloaded but not used »), rectangles. Patch 0020 :
+ces formats acceptés (Skia applique les axes quand même). Jet 1.4.20 ; UnifiedSource-platform-58 recompilé.

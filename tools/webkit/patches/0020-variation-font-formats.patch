@@ -1,0 +1,21 @@
+--- a/Source/WebCore/platform/graphics/skia/FontCustomPlatformDataSkia.cpp
++++ b/Source/WebCore/platform/graphics/skia/FontCustomPlatformDataSkia.cpp
+@@ -138,15 +138,14 @@
+         || equalLettersIgnoringASCIICase(format, "opentype"_s)
+ #if HAVE(WOFF_SUPPORT) || USE(WOFF2)
+         || equalLettersIgnoringASCIICase(format, "woff2"_s)
+-#if ENABLE(VARIATION_FONTS)
++        // Korin (27/11/2026): the "-variations" formats are taken without ENABLE(VARIATION_FONTS) too: Skia applies a
++        // variable font's axes anyway (fontPlatformData, makeClone), and a site that names only this format (claude.ai's
++        // icon font, Anthropicons, "woff2-variations") otherwise had its font never loaded: boxes for every icon
+         || equalLettersIgnoringASCIICase(format, "woff2-variations"_s)
+ #endif
+-#endif
+-#if ENABLE(VARIATION_FONTS)
+         || equalLettersIgnoringASCIICase(format, "woff-variations"_s)
+         || equalLettersIgnoringASCIICase(format, "truetype-variations"_s)
+         || equalLettersIgnoringASCIICase(format, "opentype-variations"_s)
+-#endif
+         || equalLettersIgnoringASCIICase(format, "woff"_s)
+         || equalLettersIgnoringASCIICase(format, "svg"_s);
+ }
