@@ -543,6 +543,7 @@ static const struct {
 	{"svc/ftpd", G_SVC},
 	{"svc/vncd", G_SVC},
 	{"svc/rdpd", G_SVC},
+	{"svc/taskd", G_SVC | G_SPAWN}, /* (tâches planifiées : lance les programmes des tâches, aussi ceux de /sys) */
 	{"elegant", G_WS | G_SVC | G_SPAWN}, /* (lance des programmes de /sys à droits) */
 	{"pkgd", G_SVC | G_IMAGE | G_SPAWN},
 	{"notifyd", G_SVC | G_PROCINFO},
