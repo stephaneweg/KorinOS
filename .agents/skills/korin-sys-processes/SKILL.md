@@ -36,6 +36,7 @@ L'app **Gestionnaire de tâches** (`taskman`) fait la même chose en fenêtres.
 | `/etc/services.txt` | les services, lancés par init2 avant tout le reste et **relancés s'ils tombent** : vterm, netd, sound, v3d, telnetd, ftpd… (`chemin [arguments]`, `#` commente) |
 | `/etc/drivers.txt` | les pilotes que hwmanager lance selon le matériel |
 | `/etc/startup.txt` | les programmes lancés au démarrage |
+| `HOME:/etc/tasks/*.task`, `/etc/tasks/*.task` | les tâches planifiées (taskd, docs/TACHES.md) : à une heure, à intervalles, au démarrage, à l'extinction, à un événement du bus ; `tasks`, `tasks add <id> "daily 03:00" <commande>`, `tasks run <id>`, `tasks log <id>` |
 | `/etc/session` | la session du bureau, lancée par Elegant : fond, barre de menus, panneau, notifyd, clipd, agenda, pkgd, printd… |
 | `/etc/session.poche` | la même chose en mode poche |
 | `/etc/preload.txt` | les programmes préchargés au démarrage |

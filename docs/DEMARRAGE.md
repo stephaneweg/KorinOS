@@ -11,6 +11,11 @@ Korin lance ses programmes en trois temps (docs/MICRO-NOYAU.md) :
 
 Chaque fichier a une ligne par programme : `chemin [arguments]` ; `#` commente.
 
+Ce qui doit partir à une heure, à intervalles, à l'extinction ou à un événement (une sauvegarde, un nettoyage, un
+script à l'ouverture de la session) est une **tâche planifiée** (docs/TACHES.md, Réglages › Tâches planifiées) :
+taskd, lancé par init2 après les services, les lance au démarrage, à l'ouverture et à la fermeture de la session, à
+l'extinction, et les attend avant d'éteindre.
+
 ## Le type de démarrage : Automatique, Manuel, Désactivé
 
 Le volet **Démarrage** de Réglages (`src/apps/control/applets/startup.cpp`, `control startup`), à la manière de la

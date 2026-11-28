@@ -38,7 +38,12 @@
  *    désactivé ; startup.txt : session.off et session.manual (personnels,
  *    conf_path) ;
  *  * après startup.txt : init2 se relance avec l'argument « preload », qui
- *    précharge les exécutables de /etc/preload.txt et s'arrête. */
+ *    précharge les exécutables de /etc/preload.txt et s'arrête ;
+ *  * les tâches planifiées (docs/TACHES.md) : /sys/svc/taskd lancé après les
+ *    services (surveillé) ; à l'ouverture de la session, « taskd phase
+ *    login » ; avant de fermer la session ou d'éteindre, « taskd phase
+ *    logout » ou « taskd phase shutdown », attendu (TASKS_PHASE_MAX ms au
+ *    plus) en servant les demandes. */
 #include "init2.h"
 #include "caller.h"
 
@@ -54,6 +59,8 @@
 #define HEURE_MINUTES 30 /* sauvegarde de l'heure */
 #define COMMIT_MAX 300000 /* ms : pkg commit, au démarrage */
 #define PRELOAD_NOTIFY_MS 300 /* (fasmarm, hello... : pas de notification) */
+#define TASKD "/sys/svc/taskd"
+#define TASKS_PHASE_MAX 65000 /* ms : les tâches de l'extinction (taskd en arrête au bout de 60 s) */
 
 struct surv {
 	u64 pid;
@@ -543,6 +550,40 @@ static long kit_request(void)
 	return r;
 }
 
+static void requete(long req);
+
+/* les tâches planifiées d'une phase (« logout », « shutdown » ; docs/TACHES.md) : taskd les lance et les attend ;
+ * init2 sert les demandes pendant ce temps (msg est réutilisé : l'appelant a déjà lu le sien), TASKS_PHASE_MAX ms
+ * au plus. Une demande d'extinction qui arrive pendant une phase ne relance pas de phase. */
+static int in_phase;
+
+static void tasks_phase(const char *which)
+{
+	long st[2];
+	if (in_phase || canal < 0 || sys_stat(TASKD, st) < 0)
+		return;
+	char a[32];
+	str_cat(str_cat(a, "phase "), which);
+	long pid = spawn(TASKD, a);
+	if (pid < 0)
+		return;
+	in_phase = 1;
+	long t0 = sys_time_ms();
+	while (sys_time_ms() - t0 < TASKS_PHASE_MAX) {
+		long req = korin_sys3(SYS_SVC_NEXT, canal, msg, 500);
+		if (req < 0)
+			break;
+		if (!req)
+			continue;
+		if (M64(msg, 0) == SVC_OP_END && M64(msg, 8) == (u64)pid) {
+			fin_de(pid, M64(msg, 16));
+			break;
+		}
+		requete(req);
+	}
+	in_phase = 0;
+}
+
 /* req = INIT_OP_REBOOT (a bit 0 : tryboot, bit 1 : arrêt) : répond, laisse 500 ms
  * aux dernières écritures (journal, fichiers fermés), puis la couche de la
  * machine redémarre ; revient si le redémarrage n'a pas eu lieu */
@@ -557,6 +598,7 @@ static void reboot_request(long req)
 	M64(msg, 0) = 0; /* la réponse d'abord */
 	M32(msg, 40) = 0;
 	korin_sys2(SYS_SVC_REPLY, req, msg);
+	tasks_phase("shutdown"); /* les tâches de l'extinction (docs/TACHES.md) */
 	sys_sleep(500);
 	plat_reboot(flags);
 	say("init2 : le redémarrage n'a pas eu lieu\n");
@@ -599,6 +641,7 @@ static void logout_request(long req)
 	korin_sys2(SYS_SVC_REPLY, req, msg);
 	if (r)
 		return;
+	tasks_phase("logout"); /* les tâches de la fermeture de la session (docs/TACHES.md) */
 	if (plat_logout(uid) < 0)
 		return;
 	sys_unlink("/tmp/session.ini");
@@ -909,6 +952,8 @@ static void startup_si_ouverte(void)
 	list_load(conf_path_uid(su, "session.manual"), sess_list + n + 1, (long)sizeof sess_list - n - 1);
 	lancer_fichier(conf_path_uid(su, "startup.txt"), 0, sess_list, 0);
 	session_uid = 0;
+	if (sys_stat(TASKD, st) >= 0)
+		spawn(TASKD, "phase login"); /* les tâches de l'ouverture de la session (docs/TACHES.md) */
 }
 
 int main(int argc, char **argv)
@@ -943,6 +988,11 @@ int main(int argc, char **argv)
 		lancer_ligne("/sys/elegant", 1);
 	services_lists(); /* le type de démarrage (volet Démarrage de Réglages) */
 	lancer_fichier("/etc/services.txt", 1, off_list, man_list); /* les services de services.txt */
+	{ /* les tâches planifiées (docs/TACHES.md) : ici, pas par services.txt (un fichier modifié n'est plus mis à jour) */
+		long st[2];
+		if (sys_stat(TASKD, st) >= 0 && korin_sys2(SYS_SVC_OPEN, "taskd", 0) < 0)
+			lancer_ligne(TASKD, 1);
+	}
 	if (console)
 		lancer_ligne("/sys/svc/console", 1); /* (sans Elegant : ni « ws », ni startup.txt) */
 	else {

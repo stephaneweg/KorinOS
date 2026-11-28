@@ -183,6 +183,17 @@ bus watch korin.usb.*             chaque branchement et retrait
   (sans appel ni fichier) : ils n'ont pas besoin du bus.
 * Sans busd, chacun sonde comme avant.
 
+## Les tâches planifiées
+
+| Sujet | Éditeur | Valeur |
+|---|---|---|
+| `korin.tasks.changed` | Réglages (applet Tâches planifiées), `tasks` | l'id de la tâche changée ; taskd relit tout |
+| `korin.tasks.run` | « Exécuter maintenant », `tasks run` | `system <id>` ou `user <id>` |
+| `korin.tasks.login` | `taskd phase login` (init2, à l'ouverture de la session) | `<uid> <ms>` (gardé) |
+| `korin.tasks.state` | taskd, au début et à la fin de chaque tâche | `<system\|user> <id> run\|end <code>` |
+
+Les déclencheurs d'une tâche s'abonnent aux sujets qu'ils nomment (`event korin.net.state up*`) : docs/TACHES.md.
+
 ## La coquille et la musique
 
 | Sujet | Éditeur | Valeur |

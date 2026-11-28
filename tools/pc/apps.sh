@@ -30,7 +30,7 @@ KEEP_GOING=${KEEP_GOING:-0}
 ALL="letters sheet slides cardfile media circuits basic qbasic qbstudio gpiolab turtle cosmozoom irc mail telegram
 courier calendar notes paint pdf photos printd archiver iconedit disks pinball critters arabesque pocketqi help imageview
 screenshot budget ndsemu nesemu gbemu gbaemu snesemu n64emu gcemu terminal files welcome editor viewer calculator uidemo builder mediaplayer mixer music piano
-recorder targets bubbles arkanoid pkgman pkg pkgd webd smbd smbfs oauthd keyvault gdrivefs webstudio koton llm vibe claude mai forge
+recorder targets bubbles arkanoid pkgman pkg pkgd webd smbd smbfs oauthd keyvault gdrivefs taskd webstudio koton llm vibe claude mai forge
 2048 clock control fmtracker freecell gamelib invaders mandelbrot pipes same snake solitaire taskman tetris installer weather asteroids parkingjam jamendo spotify netflix disneyplus tf1plus primevideo terracube relics win16 morpho drums"
 [ $# -gt 0 ] || set -- $ALL
 mkdir -p "$OUT" "$GCC/include/kits" "$GCC/lib"
@@ -272,6 +272,23 @@ build_pkg_applet () {
 	${TC}strip --strip-unneeded -o "$OUT/sdroot/sys/applets/pkg.so" "$O/pkg.so"
 }
 
+# le volet « Tâches planifiées » de Réglages (sys/applets/tasks.so, docs/TACHES.md) : le service taskd et la commande
+# tasks sont sur le runtime du système (tools/svc/build_c.sh, tools/bin/build_c.sh) ; le volet prend la libc de
+# Réglages, relié en hôte (-rdynamic), et le cœur commun taskfile.c (du C sans bibliothèque)
+build_tasks_applet () {
+	S=$ROOT/src/svc/taskd
+	O=$OUT/obj/taskd-applet
+	mkdir -p "$O" "$OUT/sdroot/sys/applets"
+	M="-specs=$SPECS -O2 -g0 -fPIC -ffunction-sections -fdata-sections -I$ROOT/src/apps/control -I$GCC/include/kits \
+		-I$ROOT/src/kits/uikit/include"
+	${TC}gcc $M -std=gnu11 -Wall -c "$S/taskfile.c" -o "$O/taskfile.o" &&
+	${TC}g++ $M -std=gnu++17 -fno-exceptions -fno-rtti -Wall -Wno-write-strings -c "$S/applet/applet.cpp" -o "$O/applet.o" &&
+	${TC}g++ -specs="$SPECS" -fPIC -shared -nostdlib++ -Wl,--gc-sections "$O/applet.o" "$O/taskfile.o" -o "$O/tasks.so" ||
+		{ note "taskd : ECHEC du volet de Réglages (sys/applets/tasks.so)"; return 1; }
+	${TC}strip --strip-unneeded -o "$OUT/sdroot/sys/applets/tasks.so" "$O/tasks.so"
+	note "taskd : volet sys/applets/tasks.so ($(stat -c %s "$OUT/sdroot/sys/applets/tasks.so") octets)"
+}
+
 build_one () { # nom
 	app=$1
 	FLAGS=$BASEFLAGS
@@ -284,6 +301,7 @@ build_one () { # nom
 	oauthd)	build_oauth; return ;;
 	keyvault)	build_keyvault; return ;;
 	gdrivefs)	build_gdrive; return ;;
+	taskd)	build_tasks_applet; return ;;
 	control)	# (hôte de dlopen : les volets installés par des paquets, sys/applets/*.so, prennent son cadre et ses relais)
 		LINKX=-rdynamic ;;
 	mail|telegram|courier|pocketqi|budget|pkg|pkgd|llm|jamendo)	# (OpenSSL : tools/pc/thirdparty.sh openssl ; pkgman passe par pkg)

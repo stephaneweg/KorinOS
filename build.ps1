@@ -79,6 +79,8 @@ if (($svc_c -contains "init") -and (Test-Path (Join-Path $root "build\svc\aarch6
 # C ») : compares a l'asm sous QEMU raspi4b (tools/svc/fs_compare.sh) ; vfs et fatfs aussi dans les modules
 # vfs.mod et fatfs.mod (FILES_C). Le pilote de la carte (sd) reste en asm
 $svc_c += @("vfs", "fatfs", "ramfs", "imgblk")
+# les taches planifiees (src/svc/taskd, docs/TACHES.md) : C seulement, pas d'asm a remplacer ; lance par init2
+$svc_c += @("taskd")
 # Elegant et la session du bureau en C (src/sys, tools/sys/build_c.sh ; PC-PILOTES.md, « Bureau Elegant en C ») :
 # compares a l'asm sous QEMU raspi4b (tools/sys/compare.sh : captures Givre, Onyx Noir, mode poche, lanceur,
 # Terminal, menus ; mesures bench et movebench) ; ils remplacent l'asm dans /sys

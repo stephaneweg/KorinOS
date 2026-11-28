@@ -9,5 +9,6 @@ help = Volet Région : disposition du clavier, langue, pays du Wi-Fi et fuseau h
 help = Volet Écran : choisissez une résolution, puis Garder ; sans réponse, l'ancienne revient seule.
 help = Volet Wi-Fi : choisissez un réseau visible, tapez sa clé, puis Se connecter.
 help = Volet Imprimantes : Chercher parcourt le réseau, ou tapez l'adresse IP de l'imprimante, puis Ajouter.
+help = Volet Tâches planifiées : Nouvelle tâche… choisit quoi lancer (une app, un programme ou un script, une commande) et quand (à une heure, à intervalles, au démarrage, à l'extinction, à un événement) ; Mes tâches tournent sous votre compte, celles du système en administrateur.
 help = Volet Accès à distance : activez telnet, VNC, RDP ou FTP et définissez le mot de passe commun ; les services changent au prochain démarrage.
 llm.section = texte : ouvre Réglages sur ce volet (theme, clavier, ecran, panelconf, wifi, remote, sound, power, padconf, preload, dotnet, pkgman, printconf)
