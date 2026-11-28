@@ -14,7 +14,7 @@
 namespace kt {
 
 // ---- modes, keys -------------------------------------------------------------------------------------------
-enum { MODE_COUNT = 9 };
+enum { MODE_COUNT = 10 };
 extern const char *const g_modeNames[MODE_COUNT];		// "Major (Ionian)", "Natural minor (Aeolian)"...
 const int *modeScale (int mode);				// 7 semitone offsets
 int effectiveMode (const Key &k);				// fullMode if set, else from mode

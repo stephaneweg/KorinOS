@@ -11,11 +11,14 @@ namespace kt {
 // ---- modes -------------------------------------------------------------------------------------------------
 const char *const g_modeNames[MODE_COUNT] = {
 	"Major (Ionian)", "Natural minor (Aeolian)", "Harmonic minor", "Melodic minor", "Dorian",
-	"Phrygian", "Lydian", "Mixolydian", "Locrian" };
+	"Phrygian", "Lydian", "Mixolydian", "Locrian", "Hirajoshi (pentatonic)" };
 static const int s_scales[MODE_COUNT][7] = {
 	{ 0, 2, 4, 5, 7, 9, 11 }, { 0, 2, 3, 5, 7, 8, 10 }, { 0, 2, 3, 5, 7, 8, 11 }, { 0, 2, 3, 5, 7, 9, 11 },
 	{ 0, 2, 3, 5, 7, 9, 10 }, { 0, 1, 3, 5, 7, 8, 10 }, { 0, 2, 4, 6, 7, 9, 11 }, { 0, 2, 4, 5, 7, 9, 10 },
-	{ 0, 1, 3, 5, 6, 8, 10 } };
+	{ 0, 1, 3, 5, 6, 8, 10 },
+	// Hirajoshi: C D Eb G Ab, five notes. The tables hold seven degrees, so the scale is completed by its first two
+	// notes one octave up (12, 14): same pitch classes, same ascending order, nothing outside the five.
+	{ 0, 2, 3, 7, 8, 12, 14 } };
 const int *modeScale (int mode) { return s_scales[(mode >= 0 && mode < MODE_COUNT) ? mode : 0]; }
 int effectiveMode (const Key &k) { return (k.fullMode >= 0 && k.fullMode < MODE_COUNT) ? k.fullMode : (k.mode == 1 ? 1 : 0); }
 
@@ -169,6 +172,17 @@ static int triadQualityFromScale (const int *scale, int degree)
 {
 	int d = imod (degree, 7);
 	int r = scale[d];
+	if (scale[5] >= 12)		// pentatonic (padded): the triad is read from the notes the scale really has
+	{
+		unsigned set = 0; for (int i = 0; i < 5; i++) set |= 1u << imod (scale[i] - r, 12);
+		bool m3 = set & (1 << 3), M3 = set & (1 << 4), p5 = set & (1 << 7), b5 = set & (1 << 6), s2 = set & (1 << 2);
+		if (m3 && p5) return 1;
+		if (M3 && p5) return 0;
+		if (m3 && b5) return 2;
+		if (p5) return s2 ? 4 : 5;		// no third: sus2 or sus4
+		if (m3) return 1;
+		return M3 ? 0 : 5;
+	}
 	int t = scale[(d + 2) % 7]; if (t < r) t += 12;
 	int f = scale[(d + 4) % 7]; if (f < r) f += 12;
 	int third = t - r, fifth = f - r;
@@ -596,7 +610,7 @@ bool modeDelta (int srcMode, int tgtMode, int delta[12])
 	if (srcMode == tgtMode) return false;
 	const int *src = modeScale (srcMode), *tgt = modeScale (tgtMode);
 	for (int i = 0; i < 12; i++) delta[i] = 0;
-	for (int i = 0; i < 7; i++) delta[imod (src[i], 12)] = tgt[i] - src[i];
+	for (int i = 0; i < 7; i++) if (src[i] < 12) delta[imod (src[i], 12)] = tgt[i] - src[i];		// the padding of a pentatonic scale is not a degree
 	return true;
 }
 

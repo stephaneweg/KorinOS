@@ -55,7 +55,7 @@ que vous avez écrit (grille, instruments, structure), demandez-lui son avis et 
 
 * `Key` : `TonicLetter` 0 do, 1 ré, 2 mi, 3 fa, 4 sol, 5 la, 6 si ; `Accidental` -1 bémol, 0, 1 dièse ; `Mode` 0
   majeur, 1 mineur. `FullMode` (-1 : d'après `Mode`) choisit un mode : 0 ionien, 1 éolien, 2 mineur harmonique,
-  3 mineur mélodique, 4 dorien, 5 phrygien, 6 lydien, 7 mixolydien, 8 locrien.
+  3 mineur mélodique, 4 dorien, 5 phrygien, 6 lydien, 7 mixolydien, 8 locrien, 9 hirajoshi (pentatonique : do ré mib sol lab).
 * `SwingPercent` : 50 droit, 66 ternaire. `HumanizePercent` : le jeu un peu humain.
 * Une mesure à 3/4 : `TimeSigNum` 3.
 

@@ -517,6 +517,7 @@ Phrygian = Phrygien
 Lydian = Lydien
 Mixolydian = Mixolydien
 Locrian = Locrien
+Hirajoshi (pentatonic) = Hirajoshi (pentatonique)
 Major = Majeur
 Minor = Mineur
 Diminished = Diminué
