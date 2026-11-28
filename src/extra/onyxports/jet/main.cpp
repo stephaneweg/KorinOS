@@ -25,6 +25,7 @@
 #include "widevine.h"
 #include "pagefiles.h"
 #include "jit.h"
+#include "downloads.h"
 #include <uikit.h>
 #include <openssl/crypto.h>
 #include <dirent.h>
@@ -570,7 +571,7 @@ static void show_pending_popup ()
 
 static void cb_download (int id, int event, const char *text, long long done, long long total)
 {
-	(void) id; (void) done; (void) total;
+	dl_engine (id, event, text, done, total);	// (la fenêtre des téléchargements : downloads.h)
 	char b[512];
 	if (event == ENGINE_DL_FINISHED) snprintf (b, sizeof b, "Téléchargé : %s", text ? text : "");
 	else if (event == ENGINE_DL_FAILED) snprintf (b, sizeof b, "Téléchargement échoué : %s", text ? text : "");
@@ -928,7 +929,7 @@ static void wv_daily ()
 // ---- les menus d'Elegant (la barre du haut) -------------------------------------------------------------
 
 enum { M_NEWTAB = 1, M_NEWWIN, M_CLOSETAB, M_QUIT, M_BACK, M_FWD, M_RELOAD, M_HOME, M_NEXTTAB, M_PREVTAB, M_ADDRESS,
-       M_CLEAR, M_WIDEVINE, M_ENGINE = 100, M_JIT = 200 };
+       M_CLEAR, M_WIDEVINE, M_DOWNLOADS, M_ENGINE = 100, M_JIT = 200 };
 
 static int g_jit = JIT_REDUCED;	// (jit.h : lu au démarrage, dans main)
 
@@ -952,8 +953,9 @@ static void build_menu ()
 		"MFichier\n" "I%d\tNouvel onglet\tCtrl+T\n" "I%d\tNouvelle fenêtre\n" "I%d\tFermer l'onglet\tCtrl+W\n" "-\n" "I%d\tQuitter\n"
 		"MNavigation\n" "I%d\tPrécédente\tAlt+←\n" "I%d\tSuivante\tAlt+→\n" "I%d\tRecharger\tCtrl+R\n" "I%d\tAccueil\n" "-\n"
 		"I%d\tOnglet suivant\tCtrl+Tab\n" "I%d\tOnglet précédent\tCtrl+Maj+Tab\n" "I%d\tAller à l'adresse\tCtrl+L\n"
+		"MTéléchargements\n" "I%d\tAfficher les téléchargements\tCtrl+J\n"
 		"MRéglages\n",
-		M_NEWTAB, M_NEWWIN, M_CLOSETAB, M_QUIT, M_BACK, M_FWD, M_RELOAD, M_HOME, M_NEXTTAB, M_PREVTAB, M_ADDRESS);
+		M_NEWTAB, M_NEWWIN, M_CLOSETAB, M_QUIT, M_BACK, M_FWD, M_RELOAD, M_HOME, M_NEXTTAB, M_PREVTAB, M_ADDRESS, M_DOWNLOADS);
 	for (int i = 0; i < N_ENGINES && n < (int) sizeof t - 100; i++)
 		n += snprintf (t + n, sizeof t - (size_t) n, "I%d\tRechercher avec %s\n", M_ENGINE + i, g_engines[i].name);
 	n += snprintf (t + n, sizeof t - (size_t) n, "-\n" "I%d\tJavaScript : complet (le plus rapide)\n"
@@ -1097,6 +1099,7 @@ static void menu_command (int id)
 	case M_ADDRESS: focus_address (); break;
 	case M_CLEAR: clear_site_data (); break;
 	case M_WIDEVINE: wv_toggle (); break;
+	case M_DOWNLOADS: dl_show (); break;
 	default:
 		if (id >= M_ENGINE && id < M_ENGINE + N_ENGINES) set_engine (id - M_ENGINE);
 		else if (id >= M_JIT && id <= M_JIT + JIT_NONE) set_jit (id - M_JIT);
@@ -1293,6 +1296,7 @@ static void handle_event (long t)
 		if (tab_shortcut (code, ch, mods)) return;
 		long k = onyx_key (code, ch, mods);
 		if ((mods & OK_MOD_CTRL) && k == 12) { focus_address (); return; }	// Ctrl+L
+		if ((mods & OK_MOD_CTRL) && !(mods & OK_MOD_ALT) && (code == 'j' || code == 'J' || k == 10)) { dl_show (); return; }	// Ctrl+J
 		if (!g_pageFocus)
 		{
 			if (k == 27) { focus_page (); return; }
@@ -1569,6 +1573,7 @@ int main (int argc, char **argv)
 	engine_set_clipboard (clip_write, clip_read, clip_serial);	/* copier, coller : le presse-papiers du système */
 	ui_on_resize ((long) on_resize, 0);
 	build_menu ();
+	dl_init (U->win, std::string (SETTINGS_DIR) + "/downloads.txt");	// (l'historique des téléchargements)
 	if (engine_protected_content ())
 		wv_daily ();
 	status ("Démarrage de WebKit…");
@@ -1581,9 +1586,11 @@ int main (int argc, char **argv)
 		long t = ui_event (g_frames > 0 ? 1 : 10);
 		if (g_frames > 0)
 			g_frames--;
-		if (t == WEV_CLOSE || g_quit)
+		if (t > 0 && g_dlWin && ui_ev_field (U, EV_WIN) == (int) g_dlWin)	// la fenêtre des téléchargements
+			dl_event (t, ui_ev_field (U, EV_CODE));
+		else if (t == WEV_CLOSE || g_quit)
 			break;
-		if (t > 0)
+		else if (t > 0)
 			handle_event (t);
 		else
 			ui_w_idle ();
